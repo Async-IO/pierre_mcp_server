@@ -1,13 +1,17 @@
 # Pierre MCP Server
 
-An MCP (Model Context Protocol) server that provides access to fitness data from multiple providers including Strava, Garmin Connect, and Runkeeper.
+A comprehensive Rust-based MCP (Model Context Protocol) server for fitness data aggregation and analysis. Provides unified access to multiple fitness tracking platforms through a secure, extensible architecture.
 
 ## Features
 
-- Unified API for multiple fitness tracking services
-- OAuth2 and API key authentication support
-- Query activities, athlete profiles, and statistics
-- Extensible provider architecture
+- **Multi-provider support**: Strava, Garmin Connect, RunKeeper, and more
+- **Dual authentication**: OAuth2 and API key authentication flows
+- **Comprehensive data access**: Activities, athlete profiles, and aggregated statistics
+- **Type-safe architecture**: Built with Rust for reliability and performance
+- **Extensible design**: Easy to add new fitness providers
+- **MCP protocol compliance**: Works seamlessly with Claude and GitHub Copilot
+- **Comprehensive testing**: Unit tests, integration tests, and end-to-end tests
+- **Documentation**: Full rustdoc documentation and examples
 
 ## Installation
 
@@ -101,3 +105,138 @@ Add to your MCP configuration:
   }
 }
 ```
+
+## Development Status
+
+### ✅ Completed
+- [x] Core MCP server implementation with JSON-RPC over TCP
+- [x] Strava provider with full OAuth2 authentication flow
+- [x] Configuration management (file-based and environment variables)
+- [x] Comprehensive data models (Activity, Athlete, Stats, PersonalRecord)
+- [x] Unit tests for all core modules (21 tests)
+- [x] Integration tests for MCP server and providers (20 tests)
+- [x] End-to-end workflow tests (5 tests)
+- [x] Example client implementation (find-2024-longest-run)
+- [x] Dual MIT/Apache 2.0 licensing
+- [x] Complete rustdoc documentation
+- [x] OAuth2 setup tooling with web callback
+
+### 🚧 In Progress
+- [ ] Complete Garmin Connect provider implementation
+- [ ] Complete RunKeeper provider implementation
+
+### 📋 TODO
+- [ ] **Additional Providers**
+  - [ ] Polar Flow integration
+  - [ ] Wahoo integration
+  - [ ] TrainingPeaks integration
+  - [ ] Fitbit integration (if API access available)
+
+- [ ] **Enhanced Features**
+  - [ ] Real-time webhook support for activity updates
+  - [ ] Activity streaming data (GPS tracks, heart rate zones)
+  - [ ] Training plans and workout data
+  - [ ] Social features (segments, kudos, comments)
+  - [ ] Advanced analytics and insights
+
+- [ ] **Performance & Reliability**
+  - [ ] Connection pooling for HTTP clients
+  - [ ] Rate limiting and retry logic
+  - [ ] Caching layer for frequently accessed data
+  - [ ] Metrics and monitoring integration
+  - [ ] Graceful error recovery
+
+- [ ] **Developer Experience**
+  - [ ] Docker containerization
+  - [ ] CI/CD pipeline setup
+  - [ ] Performance benchmarks
+  - [ ] API documentation with examples
+  - [ ] Provider development guide
+
+- [ ] **Security Enhancements**
+  - [ ] Token encryption at rest
+  - [ ] Secure token rotation
+  - [ ] Audit logging
+  - [ ] Rate limiting per client
+
+## Contributing
+
+We welcome contributions! Please see our [contribution guidelines](CONTRIBUTING.md) for details.
+
+### Quick Start for Contributors
+
+1. **Fork and clone the repository**
+   ```bash
+   git clone https://github.com/jfarcand/pierre_mcp_server.git
+   cd pierre_mcp_server
+   ```
+
+2. **Set up development environment**
+   ```bash
+   # Install Rust (if not already installed)
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   
+   # Install development dependencies
+   cargo install cargo-watch
+   ```
+
+3. **Run tests**
+   ```bash
+   # Run all tests
+   cargo test
+   
+   # Run tests with output
+   cargo test -- --nocapture
+   
+   # Run specific test module
+   cargo test config::tests
+   ```
+
+4. **Development workflow**
+   ```bash
+   # Auto-rebuild on changes
+   cargo watch -x check -x test
+   
+   # Format code
+   cargo fmt
+   
+   # Lint code
+   cargo clippy
+   ```
+
+### Adding a New Provider
+
+1. Create a new file in `src/providers/your_provider.rs`
+2. Implement the `FitnessProvider` trait
+3. Add OAuth2 or API key authentication
+4. Update the provider factory in `src/providers/mod.rs`
+5. Add comprehensive tests in `tests/provider_integration.rs`
+6. Update configuration examples in README
+
+### Code Style
+
+- Follow Rust standard formatting (`cargo fmt`)
+- Use clippy for linting (`cargo clippy`)
+- Write comprehensive tests for new features
+- Document public APIs with rustdoc comments
+- Follow the existing error handling patterns
+
+### Commit Guidelines
+
+- Use conventional commit format: `feat:`, `fix:`, `docs:`, etc.
+- Write clear, descriptive commit messages
+- Keep commits focused and atomic
+- Reference issues in commit messages when applicable
+
+## License
+
+This project is dual-licensed under either of:
+
+* Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+* MIT License ([LICENSE-MIT](LICENSE-MIT))
+
+at your option.
+
+### Contribution
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
