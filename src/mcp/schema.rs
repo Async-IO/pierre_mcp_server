@@ -186,6 +186,11 @@ fn create_get_activity_intelligence_tool() -> ToolSchema {
         property_type: "boolean".to_string(),
         description: Some("Whether to include weather analysis (default: true)".to_string()),
     });
+    
+    properties.insert("include_location".to_string(), PropertySchema {
+        property_type: "boolean".to_string(),
+        description: Some("Whether to include location intelligence (default: true)".to_string()),
+    });
 
     ToolSchema {
         name: "get_activity_intelligence".to_string(),

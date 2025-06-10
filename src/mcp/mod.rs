@@ -275,6 +275,7 @@ async fn handle_tool_call(
         "get_activity_intelligence" => {
             let activity_id = args["activity_id"].as_str().unwrap_or("");
             let include_weather = args["include_weather"].as_bool().unwrap_or(true);
+            let include_location = args["include_location"].as_bool().unwrap_or(true);
             
             // Get activities from provider
             match provider.get_activities(Some(100), None).await {
@@ -283,23 +284,63 @@ async fn handle_tool_call(
                         // Create activity analyzer
                         let analyzer = ActivityAnalyzer::new();
                         
-                        // Create activity context with weather data if requested
-                        let context = if include_weather {
+                        // Create activity context with weather and location data if requested
+                        let context = if include_weather || include_location {
                             // Load weather configuration from fitness config
                             let fitness_config = FitnessConfig::load(None).unwrap_or_default();
-                            let weather_config = fitness_config.weather_api.unwrap_or_default();
                             
-                            let mut weather_service = WeatherService::new(weather_config);
+                            // Get weather data if requested
+                            let weather = if include_weather {
+                                let weather_config = fitness_config.weather_api.unwrap_or_default();
+                                let mut weather_service = WeatherService::new(weather_config);
+                                
+                                // Try to get real weather data for the activity
+                                weather_service.get_weather_for_activity(
+                                    activity.start_latitude,
+                                    activity.start_longitude,
+                                    activity.start_date
+                                ).await.unwrap_or(None)
+                            } else {
+                                None
+                            };
                             
-                            // Try to get real weather data for the activity
-                            let weather = weather_service.get_weather_for_activity(
-                                activity.start_latitude,
-                                activity.start_longitude,
-                                activity.start_date
-                            ).await.unwrap_or(None);
+                            // Get location data if requested and GPS coordinates are available
+                            let location = if include_location && activity.start_latitude.is_some() && activity.start_longitude.is_some() {
+                                tracing::info!("Getting location data for coordinates: {:.6}, {:.6}", 
+                                    activity.start_latitude.unwrap(), activity.start_longitude.unwrap());
+                                
+                                let mut location_service = crate::intelligence::location::LocationService::new();
+                                
+                                match location_service.get_location_from_coordinates(
+                                    activity.start_latitude.unwrap(),
+                                    activity.start_longitude.unwrap()
+                                ).await {
+                                    Ok(location_data) => {
+                                        tracing::info!("Location data retrieved: {}", location_data.display_name);
+                                        Some(crate::intelligence::LocationContext {
+                                            city: location_data.city,
+                                            region: location_data.region,
+                                            country: location_data.country,
+                                            trail_name: location_data.trail_name,
+                                            terrain_type: location_data.natural,
+                                            display_name: location_data.display_name,
+                                        })
+                                    }
+                                    Err(e) => {
+                                        tracing::warn!("Failed to get location data: {}", e);
+                                        None
+                                    }
+                                }
+                            } else {
+                                if include_location {
+                                    tracing::info!("Location requested but no GPS coordinates available");
+                                }
+                                None
+                            };
                             
                             Some(ActivityContext {
                                 weather,
+                                location,
                                 recent_activities: None,
                                 athlete_goals: None,
                                 historical_data: None,

@@ -216,6 +216,10 @@ async fn test_activity_model_conversion() -> Result<()> {
         calories: Some(300),
         start_latitude: Some(45.5017), // Montreal
         start_longitude: Some(-73.5673),
+        city: None,
+        region: None,
+        country: None,
+        trail_name: None,
         provider: "strava".to_string(),
     };
     

@@ -64,6 +64,14 @@ path = "src/bin/diagnose_weather_api.rs"
 name = "test-intelligence-for-longest-run"
 path = "src/bin/test_intelligence_for_longest_run.rs"
 
+[[bin]]
+name = "test-location-intelligence"
+path = "src/bin/test_location_intelligence.rs"
+
+[[bin]]
+name = "check-longest-run-gps"
+path = "src/bin/check_longest_run_gps.rs"
+
 [dependencies]
 tokio = { version = "1.45", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }

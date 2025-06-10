@@ -452,6 +452,10 @@ impl From<FitbitActivity> for Activity {
             calories: fitbit.calories,
             start_latitude: None, // Fitbit API doesn't provide GPS coordinates
             start_longitude: None,
+            city: None,
+            region: None,
+            country: None,
+            trail_name: None,
             provider: "fitbit".to_string(),
         }
     }

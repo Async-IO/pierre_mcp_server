@@ -25,6 +25,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         calories: Some(500),
         start_latitude: Some(45.5017), // Montreal
         start_longitude: Some(-73.5673),
+        city: None,
+        region: None,
+        country: None,
+        trail_name: None,
         provider: "test".to_string(),
     };
     

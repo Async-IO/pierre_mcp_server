@@ -54,6 +54,10 @@ use serde::{Deserialize, Serialize};
 ///     calories: Some(300),
 ///     start_latitude: Some(45.5017), // Montreal
 ///     start_longitude: Some(-73.5673),
+///     city: Some("Montreal".to_string()),
+///     region: Some("Quebec".to_string()),
+///     country: Some("Canada".to_string()),
+///     trail_name: Some("Mount Royal Trail".to_string()),
 ///     provider: "strava".to_string(),
 /// };
 /// ```
@@ -87,6 +91,14 @@ pub struct Activity {
     pub start_latitude: Option<f64>,
     /// Starting longitude coordinate (if available)
     pub start_longitude: Option<f64>,
+    /// Location information extracted from GPS coordinates
+    pub city: Option<String>,
+    /// Region/state/province where the activity took place
+    pub region: Option<String>,
+    /// Country where the activity took place
+    pub country: Option<String>,
+    /// Trail or route name if available (e.g., "Saint-Hippolyte trail")
+    pub trail_name: Option<String>,
     /// Source provider of this activity data
     pub provider: String,
 }
@@ -444,6 +456,10 @@ mod tests {
             calories: Some(300),
             start_latitude: Some(45.5017), // Montreal
             start_longitude: Some(-73.5673),
+            city: Some("Montreal".to_string()),
+            region: Some("Quebec".to_string()),
+            country: Some("Canada".to_string()),
+            trail_name: Some("Mount Royal Trail".to_string()),
             provider: "strava".to_string(),
         }
     }
@@ -603,6 +619,10 @@ mod tests {
             calories: None,
             start_latitude: Some(45.5017), // Montreal
             start_longitude: Some(-73.5673),
+            city: None,
+            region: None,
+            country: None,
+            trail_name: None,
             provider: "manual".to_string(),
         };
         

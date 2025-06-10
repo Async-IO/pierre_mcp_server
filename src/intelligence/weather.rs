@@ -368,13 +368,15 @@ mod tests {
 
     #[test]
     fn test_weather_service_creation() {
-        let _service = WeatherService::new();
+        let config = crate::config::fitness_config::WeatherApiConfig::default();
+        let _service = WeatherService::new(config);
         assert!(true); // Just test creation
     }
 
     #[test]
     fn test_generate_mock_weather() {
-        let service = WeatherService::new();
+        let config = crate::config::fitness_config::WeatherApiConfig::default();
+        let service = WeatherService::new(config);
         let weather = service.generate_mock_weather();
         
         assert!(weather.temperature_celsius > -20.0 && weather.temperature_celsius < 40.0);
@@ -385,7 +387,8 @@ mod tests {
 
     #[test]
     fn test_analyze_weather_impact_cold() {
-        let service = WeatherService::new();
+        let config = crate::config::fitness_config::WeatherApiConfig::default();
+        let service = WeatherService::new(config);
         let cold_weather = WeatherConditions {
             temperature_celsius: -10.0,
             humidity_percentage: Some(50.0),
@@ -401,7 +404,8 @@ mod tests {
 
     #[test]
     fn test_analyze_weather_impact_ideal() {
-        let service = WeatherService::new();
+        let config = crate::config::fitness_config::WeatherApiConfig::default();
+        let service = WeatherService::new(config);
         let ideal_weather = WeatherConditions {
             temperature_celsius: 15.0,
             humidity_percentage: Some(50.0),
@@ -415,7 +419,8 @@ mod tests {
 
     #[test]
     fn test_analyze_weather_impact_hot_humid() {
-        let service = WeatherService::new();
+        let config = crate::config::fitness_config::WeatherApiConfig::default();
+        let service = WeatherService::new(config);
         let hot_humid_weather = WeatherConditions {
             temperature_celsius: 32.0,
             humidity_percentage: Some(85.0),

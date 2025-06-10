@@ -362,6 +362,10 @@ impl From<StravaActivity> for Activity {
             calories: None,
             start_latitude,
             start_longitude,
+            city: None,
+            region: None,
+            country: None,
+            trail_name: None,
             provider: "strava".to_string(),
         }
     }

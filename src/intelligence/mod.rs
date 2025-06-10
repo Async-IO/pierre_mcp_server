@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 pub mod analyzer;
 pub mod insights;
 pub mod weather;
+pub mod location;
 
 pub use analyzer::ActivityAnalyzer;
 pub use insights::Insight;
@@ -99,6 +100,7 @@ pub enum TrendDirection {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContextualFactors {
     pub weather: Option<WeatherConditions>,
+    pub location: Option<LocationContext>,
     pub time_of_day: TimeOfDay,
     pub days_since_last_activity: Option<i32>,
     pub weekly_load: Option<WeeklyLoad>,
@@ -111,6 +113,17 @@ pub struct WeatherConditions {
     pub humidity_percentage: Option<f32>,
     pub wind_speed_kmh: Option<f32>,
     pub conditions: String, // "sunny", "rainy", "cloudy", etc.
+}
+
+/// Location context for the activity
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LocationContext {
+    pub city: Option<String>,
+    pub region: Option<String>,
+    pub country: Option<String>,
+    pub trail_name: Option<String>,
+    pub terrain_type: Option<String>,
+    pub display_name: String,
 }
 
 /// Time of day categorization
@@ -175,6 +188,7 @@ mod tests {
             },
             ContextualFactors {
                 weather: None,
+                location: None,
                 time_of_day: TimeOfDay::Morning,
                 days_since_last_activity: Some(1),
                 weekly_load: None,

@@ -131,7 +131,7 @@ fn main() -> Result<()> {
     println!("   📅 Date: {}", start_date);
     
     // Now get Activity Intelligence for this run
-    println!("\n🧠 Generating Activity Intelligence with Weather Analysis...");
+    println!("\n🧠 Generating Activity Intelligence with Weather and Location Analysis...");
     
     let intelligence_request = json!({
         "jsonrpc": "2.0",
@@ -141,7 +141,8 @@ fn main() -> Result<()> {
             "arguments": {
                 "provider": "strava",
                 "activity_id": activity_id,
-                "include_weather": true
+                "include_weather": true,
+                "include_location": true
             }
         },
         "id": 100
@@ -229,6 +230,35 @@ fn main() -> Result<()> {
                     println!("     💨 Wind Speed: {:.1} km/h", wind);
                 }
             }
+            
+            // Location information
+            if let Some(location) = context.get("location") {
+                println!("   🗺️  Location:");
+                
+                if let Some(display_name) = location.get("display_name").and_then(|d| d.as_str()) {
+                    println!("     📍 Location: {}", display_name);
+                }
+                
+                if let Some(city) = location.get("city").and_then(|c| c.as_str()) {
+                    println!("     🏙️  City: {}", city);
+                }
+                
+                if let Some(region) = location.get("region").and_then(|r| r.as_str()) {
+                    println!("     🗺️  Region: {}", region);
+                }
+                
+                if let Some(country) = location.get("country").and_then(|c| c.as_str()) {
+                    println!("     🌍 Country: {}", country);
+                }
+                
+                if let Some(trail_name) = location.get("trail_name").and_then(|t| t.as_str()) {
+                    println!("     🥾 Trail: {}", trail_name);
+                }
+                
+                if let Some(terrain_type) = location.get("terrain_type").and_then(|t| t.as_str()) {
+                    println!("     ⛰️  Terrain: {}", terrain_type);
+                }
+            }
         }
         
         // Display key insights
@@ -252,9 +282,9 @@ fn main() -> Result<()> {
         }
         
         println!("\n🎉 Activity Intelligence Complete!");
-        println!("   This analysis includes weather context, performance metrics,");
-        println!("   heart rate zones, and AI-powered insights for your longest");
-        println!("   run in 2025!");
+        println!("   This analysis includes weather context, location intelligence,");
+        println!("   performance metrics, heart rate zones, and AI-powered insights");
+        println!("   for your longest run in 2025!");
         
     } else {
         println!("❌ Error generating intelligence: {:?}", response);

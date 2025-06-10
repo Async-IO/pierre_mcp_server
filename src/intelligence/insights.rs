@@ -26,7 +26,7 @@ pub struct Insight {
 }
 
 /// Categories of insights that can be generated
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum InsightType {
     /// Performance achievement (PR, improvement)
@@ -49,6 +49,9 @@ pub enum InsightType {
     
     /// Goal progression
     GoalProgress,
+    
+    /// Location and terrain insights
+    LocationInsight,
     
     /// Anomaly detection
     Anomaly,
@@ -107,6 +110,7 @@ impl InsightGenerator {
         
         if let Some(ctx) = context {
             insights.extend(self.generate_weather_insights(activity, ctx));
+            insights.extend(self.generate_location_insights(activity, ctx));
             insights.extend(self.generate_trend_insights(activity, ctx));
         }
 
@@ -284,6 +288,66 @@ impl InsightGenerator {
         effort_score.min(10.0)
     }
 
+    /// Generate location and terrain insights
+    fn generate_location_insights(&self, activity: &Activity, context: &ActivityContext) -> Vec<Insight> {
+        let mut insights = Vec::new();
+
+        if let Some(location) = &context.location {
+            // Trail-specific insights
+            if let Some(trail_name) = &location.trail_name {
+                insights.push(Insight {
+                    insight_type: InsightType::LocationInsight,
+                    message: format!("Explored the {} route, a great choice for your {} training", 
+                                   trail_name, activity.sport_type.display_name()),
+                    confidence: 80.0,
+                    data: Some(serde_json::json!({
+                        "trail_name": trail_name,
+                        "activity_type": activity.sport_type.display_name()
+                    })),
+                });
+            }
+
+            // Elevation and terrain analysis
+            if let Some(elevation_gain) = activity.elevation_gain {
+                if elevation_gain > 500.0 {
+                    let location_desc = if let Some(city) = &location.city {
+                        format!(" in {}", city)
+                    } else {
+                        "".to_string()
+                    };
+
+                    insights.push(Insight {
+                        insight_type: InsightType::LocationInsight,
+                        message: format!("Tackled significant elevation gain of {:.0}m{}, building excellent climbing strength", 
+                                       elevation_gain, location_desc),
+                        confidence: 85.0,
+                        data: Some(serde_json::json!({
+                            "elevation_gain": elevation_gain,
+                            "location": location_desc,
+                            "terrain_difficulty": "challenging"
+                        })),
+                    });
+                }
+            }
+
+            // Regional insights
+            if let (Some(city), Some(region)) = (&location.city, &location.region) {
+                insights.push(Insight {
+                    insight_type: InsightType::LocationInsight,
+                    message: format!("Training in {}, {} - taking advantage of the local terrain and environment", 
+                                   city, region),
+                    confidence: 75.0,
+                    data: Some(serde_json::json!({
+                        "city": city,
+                        "region": region
+                    })),
+                });
+            }
+        }
+
+        insights
+    }
+
     /// Format duration in human-readable form
     fn format_duration(seconds: i32) -> String {
         let hours = seconds / 3600;
@@ -303,6 +367,7 @@ impl InsightGenerator {
 #[derive(Debug, Clone)]
 pub struct ActivityContext {
     pub weather: Option<super::WeatherConditions>,
+    pub location: Option<super::LocationContext>,
     pub recent_activities: Option<Vec<Activity>>,
     #[allow(dead_code)]
     pub athlete_goals: Option<Vec<String>>,
@@ -333,6 +398,7 @@ pub struct PerformanceBaseline {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::intelligence::LocationContext;
     use crate::models::{Activity, SportType};
     use chrono::Utc;
 
@@ -353,6 +419,10 @@ mod tests {
             calories: Some(300),
             start_latitude: Some(45.5017), // Montreal
             start_longitude: Some(-73.5673),
+            city: None,
+            region: None,
+            country: None,
+            trail_name: None,
         }
     }
 
@@ -403,5 +473,137 @@ mod tests {
         assert_eq!(InsightGenerator::format_duration(1800), "30 minutes");
         assert_eq!(InsightGenerator::format_duration(3661), "1 hour 1 minute");
         assert_eq!(InsightGenerator::format_duration(7200), "2 hours 0 minutes");
+    }
+
+    #[test]
+    fn test_location_insights_with_trail() {
+        let generator = InsightGenerator::new();
+        let activity = create_test_activity();
+        
+        let location_context = LocationContext {
+            city: Some("Saint-Hippolyte".to_string()),
+            region: Some("Québec".to_string()),
+            country: Some("Canada".to_string()),
+            trail_name: Some("Trail de la Montagne".to_string()),
+            terrain_type: Some("forest".to_string()),
+            display_name: "Trail de la Montagne, Saint-Hippolyte, Québec, Canada".to_string(),
+        };
+        
+        let context = ActivityContext {
+            weather: None,
+            location: Some(location_context),
+            recent_activities: None,
+            athlete_goals: None,
+            historical_data: None,
+        };
+        
+        let insights = generator.generate_location_insights(&activity, &context);
+        
+        assert!(!insights.is_empty());
+        
+        // Check for trail-specific insight
+        let trail_insight = insights.iter().find(|insight| {
+            insight.insight_type == InsightType::LocationInsight &&
+            insight.message.contains("Trail de la Montagne")
+        });
+        assert!(trail_insight.is_some(), "Should generate trail-specific insight");
+        
+        // Check for regional insight
+        let regional_insight = insights.iter().find(|insight| {
+            insight.insight_type == InsightType::LocationInsight &&
+            insight.message.contains("Saint-Hippolyte, Québec")
+        });
+        assert!(regional_insight.is_some(), "Should generate regional insight");
+    }
+
+    #[test]
+    fn test_location_insights_with_elevation() {
+        let generator = InsightGenerator::new();
+        let mut activity = create_test_activity();
+        activity.elevation_gain = Some(600.0); // Significant elevation
+        
+        let location_context = LocationContext {
+            city: Some("Montreal".to_string()),
+            region: Some("Quebec".to_string()),
+            country: Some("Canada".to_string()),
+            trail_name: None,
+            terrain_type: Some("mountain".to_string()),
+            display_name: "Montreal, Quebec, Canada".to_string(),
+        };
+        
+        let context = ActivityContext {
+            weather: None,
+            location: Some(location_context),
+            recent_activities: None,
+            athlete_goals: None,
+            historical_data: None,
+        };
+        
+        let insights = generator.generate_location_insights(&activity, &context);
+        
+        // Check for elevation-specific insight
+        let elevation_insight = insights.iter().find(|insight| {
+            insight.insight_type == InsightType::LocationInsight &&
+            insight.message.contains("elevation gain") &&
+            insight.message.contains("600")
+        });
+        assert!(elevation_insight.is_some(), "Should generate elevation-specific insight");
+    }
+
+    #[test]
+    fn test_location_insights_without_location() {
+        let generator = InsightGenerator::new();
+        let activity = create_test_activity();
+        
+        let context = ActivityContext {
+            weather: None,
+            location: None,
+            recent_activities: None,
+            athlete_goals: None,
+            historical_data: None,
+        };
+        
+        let insights = generator.generate_location_insights(&activity, &context);
+        assert!(insights.is_empty(), "Should not generate location insights without location data");
+    }
+
+    #[test]
+    fn test_insight_type_serialization() {
+        use serde_json;
+        
+        // Test location insight type serialization
+        let insight_type = InsightType::LocationInsight;
+        let json = serde_json::to_string(&insight_type).unwrap();
+        assert_eq!(json, "\"location_insight\"");
+        
+        // Test deserialization
+        let deserialized: InsightType = serde_json::from_str("\"location_insight\"").unwrap();
+        assert!(matches!(deserialized, InsightType::LocationInsight));
+    }
+
+    #[test]
+    fn test_activity_context_with_location() {
+        let location_context = LocationContext {
+            city: Some("Test City".to_string()),
+            region: Some("Test Region".to_string()),
+            country: Some("Test Country".to_string()),
+            trail_name: Some("Test Trail".to_string()),
+            terrain_type: Some("forest".to_string()),
+            display_name: "Test Location".to_string(),
+        };
+        
+        let context = ActivityContext {
+            weather: None,
+            location: Some(location_context.clone()),
+            recent_activities: None,
+            athlete_goals: None,
+            historical_data: None,
+        };
+        
+        assert!(context.location.is_some());
+        let location = context.location.unwrap();
+        assert_eq!(location.city, Some("Test City".to_string()));
+        assert_eq!(location.trail_name, Some("Test Trail".to_string()));
+        assert_eq!(location.display_name, "Test Location");
     }
 }
