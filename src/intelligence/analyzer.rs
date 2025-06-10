@@ -261,19 +261,8 @@ impl ActivityAnalyzer {
     ) -> String {
         let mut summary_parts = Vec::new();
 
-        // Activity type with weather context
-        let activity_type = match activity.sport_type {
-            SportType::Run => "run",
-            SportType::Ride => "bike ride", 
-            SportType::Swim => "swim",
-            SportType::Walk => "walk",
-            SportType::Hike => "hike",
-            SportType::VirtualRide => "indoor bike ride",
-            SportType::VirtualRun => "treadmill run", 
-            SportType::Workout => "workout",
-            SportType::Yoga => "yoga session",
-            SportType::Other(_) => "activity",
-        };
+        // Activity type with weather context - use the display_name method
+        let activity_type = activity.sport_type.display_name();
 
         // Add weather context if available
         let weather_context = if let Some(weather) = &context.weather {
@@ -408,6 +397,8 @@ mod tests {
             average_heart_rate: Some(155),
             max_heart_rate: Some(180),
             calories: Some(500),
+            start_latitude: Some(45.5017), // Montreal
+            start_longitude: Some(-73.5673),
         }
     }
 

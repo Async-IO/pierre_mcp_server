@@ -1,0 +1,90 @@
+# Fitness MCP Server Configuration
+# Configuration for sport type mappings and intelligence parameters
+
+[sport_types]
+# Standard activities
+"Run" = "run"
+"Ride" = "bike_ride"
+"Swim" = "swim" 
+"Walk" = "walk"
+"Hike" = "hike"
+
+# Virtual/Indoor activities
+"VirtualRide" = "virtual_ride"
+"VirtualRun" = "virtual_run"
+"Workout" = "workout"
+"Yoga" = "yoga"
+
+# E-bike and specialty cycling
+"EBikeRide" = "ebike_ride"
+"MountainBikeRide" = "mountain_bike"
+"GravelRide" = "gravel_ride"
+
+# Winter sports
+"CrossCountrySkiing" = "cross_country_skiing"
+"AlpineSkiing" = "alpine_skiing"
+"Snowboarding" = "snowboarding"
+"Snowshoe" = "snowshoe"
+"IceSkate" = "ice_skating"
+"BackcountrySki" = "backcountry_skiing"
+
+# Water sports
+"Kayaking" = "kayaking"
+"Canoeing" = "canoeing"
+"Rowing" = "rowing"
+"StandUpPaddling" = "paddleboarding"
+"Surfing" = "surfing"
+"Kitesurf" = "kitesurfing"
+
+# Strength and fitness
+"WeightTraining" = "strength_training"
+"Crossfit" = "crossfit"
+"Pilates" = "pilates"
+
+# Climbing and adventure
+"RockClimbing" = "rock_climbing"
+"TrailRunning" = "trail_running"
+
+# Team and racquet sports
+"Soccer" = "soccer"
+"Basketball" = "basketball"
+"Tennis" = "tennis"
+"Golf" = "golf"
+
+# Alternative transport
+"Skateboard" = "skateboarding"
+"InlineSkate" = "inline_skating"
+
+[intelligence.effort_thresholds]
+light_max = 3.0
+moderate_max = 5.0
+hard_max = 7.0
+# > 7.0 = very_high
+
+[intelligence.zone_thresholds]
+recovery_max = 60.0     # % of max HR
+endurance_max = 70.0
+tempo_max = 80.0
+threshold_max = 90.0
+# > 90.0 = vo2max
+
+[intelligence.weather_mapping]
+rain_keywords = ["rain", "shower", "storm", "thunderstorm", "drizzle"]
+snow_keywords = ["snow", "blizzard", "sleet", "flurry"]
+wind_threshold = 15.0   # km/h for windy conditions
+
+[intelligence.personal_records]
+pace_improvement_threshold = 5.0  # % minimum to count as PR
+distance_pr_types = ["longest_run", "longest_ride", "longest_ski"]
+time_pr_types = ["fastest_5k", "fastest_10k", "fastest_marathon"]
+
+# Weather API Configuration
+[weather_api]
+provider = "openweathermap"
+# Set your API key as environment variable: OPENWEATHER_API_KEY
+# Get free API key at: https://openweathermap.org/api
+enabled = true
+cache_duration_hours = 24
+request_timeout_seconds = 10
+fallback_to_mock = true
+rate_limit_requests_per_minute = 60

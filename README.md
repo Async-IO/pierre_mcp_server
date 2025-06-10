@@ -43,6 +43,10 @@ Analyze my workout patterns and suggest improvements.
 How does my Strava data compare to my Fitbit data?
 
 What's my average elevation gain per week?
+
+Analyze how weather conditions affect my running performance.
+
+Show me activities where I performed well despite bad weather.
 ```
 
 ### 🎯 Goal Tracking
@@ -69,6 +73,10 @@ Analyze seasonal patterns in my activity levels.
 Compare my performance before and after equipment changes.
 
 Identify my most and least consistent months for training.
+
+How do weather conditions correlate with my workout performance?
+
+Find patterns between temperature and my running pace.
 ```
 
 ## Features
@@ -76,6 +84,8 @@ Identify my most and least consistent months for training.
 - **Multi-Provider Support**: Strava and Fitbit integration with unified API
 - **Enhanced Security**: OAuth2 authentication with PKCE (Proof Key for Code Exchange)
 - **Comprehensive Data Access**: Activities, athlete profiles, and aggregated statistics
+- **Intelligent Weather Integration**: Real-time and historical weather analysis with contextual insights
+- **Activity Intelligence**: AI-powered activity analysis with performance metrics and trends
 - **MCP Protocol Compliance**: Works seamlessly with Claude and GitHub Copilot
 - **Extensible Design**: Easy to add new fitness providers in the future
 - **Production Ready**: Comprehensive testing and clean error handling
@@ -124,6 +134,82 @@ cargo run --bin auth-setup -- fitbit \
 
 **Note**: Fitbit requires explicit scopes. The server requests `activity`, `profile`, and `sleep` permissions.
 
+## Weather Integration
+
+The server includes comprehensive weather integration that automatically enhances activity analysis with contextual weather data.
+
+### Features
+
+- ✅ **Real-time Weather**: Current weather data from OpenWeatherMap
+- ✅ **Historical Weather**: Historical weather data for past activities (with subscription)
+- ✅ **GPS-Based**: Extracts coordinates from activity start locations
+- ✅ **Smart Fallback**: Intelligent mock weather when API unavailable
+- ✅ **Activity Intelligence**: Weather context in activity summaries
+- ✅ **Impact Analysis**: Weather difficulty and performance adjustments
+
+### Setup (Optional)
+
+Weather integration works out-of-the-box with realistic mock weather patterns. For real weather data:
+
+1. **Get OpenWeatherMap API Key** (free tier available)
+   - Visit https://openweathermap.org/api
+   - Sign up for free account
+   - Copy your API key
+
+2. **Set Environment Variable**
+   ```bash
+   export OPENWEATHER_API_KEY="your_api_key_here"
+   ```
+
+3. **Configure Settings** (optional)
+   Edit `fitness_config.toml`:
+   ```toml
+   [weather_api]
+   provider = "openweathermap"
+   enabled = true
+   cache_duration_hours = 24
+   fallback_to_mock = true
+   ```
+
+### Weather Intelligence Examples
+
+With weather integration, activity analysis includes contextual insights:
+
+```json
+{
+  "summary": "Morning run in the rain with moderate intensity",
+  "contextual_factors": {
+    "weather": {
+      "temperature_celsius": 15.2,
+      "humidity_percentage": 85.0,
+      "wind_speed_kmh": 12.5,
+      "conditions": "rain"
+    },
+    "time_of_day": "morning"
+  }
+}
+```
+
+### Weather Features
+
+| Feature | Free Tier | Paid Tier |
+|---------|-----------|-----------|
+| **Mock Weather** | ✅ Realistic patterns | ✅ Available |
+| **Current Weather** | ✅ Real-time data | ✅ Real-time data |
+| **Historical Weather** | 🎭 Mock fallback | ✅ Real historical data |
+| **API Calls** | 1,000/day free | Unlimited with subscription |
+| **Production Ready** | ✅ Zero costs | ✅ Precise data |
+
+### Testing Weather Integration
+
+```bash
+# Test weather system
+cargo run --bin test-weather-integration
+
+# Diagnose API setup
+cargo run --bin diagnose-weather-api
+```
+
 ## Configuration
 
 The server supports multiple configuration methods:
@@ -153,6 +239,9 @@ FITBIT_CLIENT_ID=your_fitbit_client_id
 FITBIT_CLIENT_SECRET=your_fitbit_client_secret
 FITBIT_ACCESS_TOKEN=your_fitbit_access_token
 FITBIT_REFRESH_TOKEN=your_fitbit_refresh_token
+
+# Weather Configuration (optional)
+OPENWEATHER_API_KEY=your_openweather_api_key
 ```
 
 ### Using config.toml:
@@ -199,6 +288,10 @@ The server exposes the following tools for all supported providers:
 - `get_stats`: Get aggregated statistics
   - **Strava**: Uses athlete stats API with activity-based fallback
   - **Fitbit**: Uses lifetime stats API with floor-to-elevation conversion
+- `get_activity_intelligence`: Generate AI-powered activity analysis with weather context
+  - **Features**: Performance metrics, zone distribution, weather impact, personal records
+  - **Weather**: Automatic GPS-based weather retrieval with intelligent fallback
+  - **Intelligence**: Natural language summaries with contextual insights
 
 ### Example Usage
 
@@ -212,6 +305,7 @@ cargo run --bin find-consecutive-10k-runs
 # {"method": "tools/call", "params": {"name": "get_activities", "arguments": {"provider": "strava", "limit": 10}}}
 # {"method": "tools/call", "params": {"name": "get_activities", "arguments": {"provider": "fitbit", "limit": 20}}}
 # {"method": "tools/call", "params": {"name": "get_athlete", "arguments": {"provider": "strava"}}}
+# {"method": "tools/call", "params": {"name": "get_activity_intelligence", "arguments": {"provider": "strava", "activity_id": "12345", "include_weather": true}}}
 ```
 
 ## Adding to Claude or GitHub Copilot
@@ -259,11 +353,15 @@ Or for development:
 - [x] Multi-provider architecture with unified API
 - [x] Configuration management (file-based and environment variables)
 - [x] Comprehensive data models (Activity, Athlete, Stats, PersonalRecord)
+- [x] **Weather Integration**: Real-time and historical weather analysis
+- [x] **Activity Intelligence**: AI-powered activity analysis with performance metrics
+- [x] **Smart Configuration**: Externalized sport type configuration (35+ activities)
 - [x] Unit tests for all core modules (21 tests)
 - [x] Integration tests for MCP server and providers (18 tests)
 - [x] End-to-end workflow tests (5 tests)
+- [x] Weather integration tests and diagnostics
 - [x] Example client implementations (find-2024-longest-run, find-2025-longest-run, find-consecutive-10k-runs)
-- [x] Comprehensive test coverage (47+ tests passing)
+- [x] Comprehensive test coverage (50+ tests passing)
 - [x] Clean compilation with no warnings
 - [x] Dual MIT/Apache 2.0 licensing
 - [x] Complete API documentation

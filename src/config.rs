@@ -4,11 +4,17 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+//! Configuration management for the fitness MCP server
+
+pub mod fitness_config;
+
 use anyhow::{Result, Context};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+
+pub use fitness_config::FitnessConfig;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {

@@ -8,58 +8,193 @@
 
 use chrono::{DateTime, Utc, Timelike, Datelike};
 use serde::{Deserialize, Serialize};
+use reqwest::Client;
+use std::collections::HashMap;
+use std::time::{Duration, SystemTime};
 use super::WeatherConditions;
+use crate::config::fitness_config::WeatherApiConfig;
 
 /// Weather service for fetching historical weather data
 pub struct WeatherService {
-    // Future: API key for weather service
-    // api_key: String,
+    client: Client,
+    config: WeatherApiConfig,
+    cache: HashMap<String, CachedWeatherData>,
 }
 
-/// Weather API response structure
+/// Cached weather data with timestamp
+#[derive(Debug, Clone)]
+struct CachedWeatherData {
+    weather: WeatherConditions,
+    cached_at: SystemTime,
+}
+
+/// OpenWeatherMap historical API response structure
 #[derive(Debug, Deserialize)]
-struct WeatherApiResponse {
-    #[allow(dead_code)] // Future use when integrating real weather API
-    temperature: f32,
-    #[allow(dead_code)] // Future use when integrating real weather API
-    humidity: Option<f32>,
-    #[allow(dead_code)] // Future use when integrating real weather API
-    wind_speed: Option<f32>,
-    #[allow(dead_code)] // Future use when integrating real weather API
-    conditions: String,
-    #[allow(dead_code)] // Future use when integrating real weather API
-    description: Option<String>,
+struct OpenWeatherResponse {
+    data: Vec<OpenWeatherHourlyData>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenWeatherHourlyData {
+    dt: i64, // Unix timestamp
+    temp: f64,
+    humidity: Option<f64>,
+    wind_speed: Option<f64>,
+    weather: Vec<OpenWeatherCondition>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenWeatherCondition {
+    main: String,
+    #[allow(dead_code)]
+    description: String,
 }
 
 impl WeatherService {
-    /// Create a new weather service
-    pub fn new() -> Self {
+    /// Create a new weather service with configuration
+    pub fn new(config: WeatherApiConfig) -> Self {
         Self {
-            // api_key: api_key.to_string(),
+            client: Client::builder()
+                .timeout(Duration::from_secs(config.request_timeout_seconds))
+                .build()
+                .unwrap_or_else(|_| Client::new()),
+            config,
+            cache: HashMap::new(),
         }
+    }
+    
+    /// Create weather service with default configuration
+    pub fn with_default_config() -> Self {
+        Self::new(WeatherApiConfig::default())
+    }
+    
+    /// Get the current weather service configuration
+    #[allow(dead_code)]
+    pub fn get_config(&self) -> &WeatherApiConfig {
+        &self.config
     }
 
     /// Get weather conditions for a specific time and location
-    #[allow(dead_code)]
     pub async fn get_weather_at_time(
-        &self,
-        _latitude: f64,
-        _longitude: f64,
-        _timestamp: DateTime<Utc>,
+        &mut self,
+        latitude: f64,
+        longitude: f64,
+        timestamp: DateTime<Utc>,
     ) -> Result<WeatherConditions, WeatherError> {
-        // For now, return mock weather data
-        // Future implementation would call actual weather API
+        // Check if weather API is enabled
+        if !self.config.enabled {
+            return Ok(self.generate_mock_weather());
+        }
         
-        // Mock weather based on current season/time
-        let mock_weather = self.generate_mock_weather();
+        // Create cache key
+        let cache_key = format!("{}_{}_{}_{}", 
+            latitude, longitude, 
+            timestamp.timestamp() / 3600, // Hour-based caching
+            self.config.provider
+        );
         
-        Ok(mock_weather)
+        // Check cache first
+        if let Some(cached) = self.cache.get(&cache_key) {
+            if cached.cached_at.elapsed().unwrap_or(Duration::MAX) 
+                < Duration::from_secs(self.config.cache_duration_hours * 3600) {
+                return Ok(cached.weather.clone());
+            }
+        }
+        
+        // Try to fetch from API
+        match self.fetch_weather_from_api(latitude, longitude, timestamp).await {
+            Ok(weather) => {
+                // Cache the result
+                self.cache.insert(cache_key, CachedWeatherData {
+                    weather: weather.clone(),
+                    cached_at: SystemTime::now(),
+                });
+                Ok(weather)
+            }
+            Err(e) => {
+                // Fall back to mock data if configured
+                if self.config.fallback_to_mock {
+                    tracing::warn!("Weather API failed, falling back to mock data: {}", e);
+                    Ok(self.generate_mock_weather())
+                } else {
+                    Err(e)
+                }
+            }
+        }
+    }
+    
+    /// Fetch weather data from the configured API
+    async fn fetch_weather_from_api(
+        &self,
+        latitude: f64,
+        longitude: f64,
+        timestamp: DateTime<Utc>,
+    ) -> Result<WeatherConditions, WeatherError> {
+        match self.config.provider.as_str() {
+            "openweathermap" => self.fetch_from_openweather(latitude, longitude, timestamp).await,
+            _ => Err(WeatherError::ApiError(format!("Unsupported weather provider: {}", self.config.provider))),
+        }
+    }
+    
+    /// Fetch weather from OpenWeatherMap Historical API
+    async fn fetch_from_openweather(
+        &self,
+        latitude: f64,
+        longitude: f64,
+        timestamp: DateTime<Utc>,
+    ) -> Result<WeatherConditions, WeatherError> {
+        let api_key = std::env::var("OPENWEATHER_API_KEY")
+            .map_err(|_| WeatherError::ApiError("OPENWEATHER_API_KEY environment variable not set".to_string()))?;
+        
+        let url = format!(
+            "https://api.openweathermap.org/data/3.0/onecall/timemachine?lat={}&lon={}&dt={}&appid={}&units=metric",
+            latitude, longitude, timestamp.timestamp(), api_key
+        );
+        
+        tracing::debug!("Fetching weather from: {}", url);
+        
+        let response = self.client
+            .get(&url)
+            .send()
+            .await?;
+        
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(WeatherError::ApiError(format!(
+                "OpenWeather API returned status {}: {}", 
+                status,
+                error_text
+            )));
+        }
+        
+        let weather_response: OpenWeatherResponse = response.json().await?;
+        
+        // Find the closest data point to our timestamp
+        let target_timestamp = timestamp.timestamp();
+        let closest_data = weather_response.data
+            .into_iter()
+            .min_by_key(|data| (data.dt - target_timestamp).abs())
+            .ok_or_else(|| WeatherError::DataUnavailable)?;
+        
+        // Convert to our format
+        let conditions = if let Some(weather) = closest_data.weather.first() {
+            weather.main.clone()
+        } else {
+            "clear".to_string()
+        };
+        
+        Ok(WeatherConditions {
+            temperature_celsius: closest_data.temp as f32,
+            humidity_percentage: closest_data.humidity.map(|h| h as f32),
+            wind_speed_kmh: closest_data.wind_speed.map(|ws| (ws * 3.6) as f32), // Convert m/s to km/h
+            conditions,
+        })
     }
 
     /// Get weather conditions for an activity's start location and time
-    #[allow(dead_code)]
     pub async fn get_weather_for_activity(
-        &self,
+        &mut self,
         start_latitude: Option<f64>,
         start_longitude: Option<f64>,
         start_time: DateTime<Utc>,
@@ -185,7 +320,7 @@ impl WeatherService {
 
 impl Default for WeatherService {
     fn default() -> Self {
-        Self::new()
+        Self::with_default_config()
     }
 }
 
@@ -295,7 +430,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_weather_at_time() {
-        let service = WeatherService::new();
+        let mut service = WeatherService::with_default_config();
         let result = service.get_weather_at_time(45.5017, -73.5673, Utc::now()).await; // Montreal coords
         
         assert!(result.is_ok());
@@ -305,7 +440,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_weather_for_activity_with_coords() {
-        let service = WeatherService::new();
+        let mut service = WeatherService::with_default_config();
         let result = service.get_weather_for_activity(
             Some(45.5017), 
             Some(-73.5673), 
@@ -318,7 +453,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_weather_for_activity_without_coords() {
-        let service = WeatherService::new();
+        let mut service = WeatherService::with_default_config();
         let result = service.get_weather_for_activity(None, None, Utc::now()).await;
         
         assert!(result.is_ok());

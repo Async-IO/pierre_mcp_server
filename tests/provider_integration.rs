@@ -214,6 +214,8 @@ async fn test_activity_model_conversion() -> Result<()> {
         average_speed: Some(2.78),
         max_speed: Some(4.17),
         calories: Some(300),
+        start_latitude: Some(45.5017), // Montreal
+        start_longitude: Some(-73.5673),
         provider: "strava".to_string(),
     };
     

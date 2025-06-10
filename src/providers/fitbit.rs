@@ -450,6 +450,8 @@ impl From<FitbitActivity> for Activity {
             }),
             max_speed: None, // Not available in Fitbit API
             calories: fitbit.calories,
+            start_latitude: None, // Fitbit API doesn't provide GPS coordinates
+            start_longitude: None,
             provider: "fitbit".to_string(),
         }
     }

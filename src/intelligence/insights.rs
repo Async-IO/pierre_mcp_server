@@ -351,6 +351,8 @@ mod tests {
             average_heart_rate: Some(150),
             max_heart_rate: Some(180),
             calories: Some(300),
+            start_latitude: Some(45.5017), // Montreal
+            start_longitude: Some(-73.5673),
         }
     }
 

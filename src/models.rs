@@ -52,6 +52,8 @@ use serde::{Deserialize, Serialize};
 ///     average_speed: Some(2.78), // m/s
 ///     max_speed: Some(4.17), // m/s
 ///     calories: Some(300),
+///     start_latitude: Some(45.5017), // Montreal
+///     start_longitude: Some(-73.5673),
 ///     provider: "strava".to_string(),
 /// };
 /// ```
@@ -81,6 +83,10 @@ pub struct Activity {
     pub max_speed: Option<f64>,
     /// Estimated calories burned during the activity
     pub calories: Option<u32>,
+    /// Starting latitude coordinate (if available)
+    pub start_latitude: Option<f64>,
+    /// Starting longitude coordinate (if available)
+    pub start_longitude: Option<f64>,
     /// Source provider of this activity data
     pub provider: String,
 }
@@ -103,6 +109,8 @@ pub enum SportType {
     Walk,
     /// Hiking activity
     Hike,
+    
+    // Virtual/Indoor activities
     /// Indoor/trainer cycling activity
     VirtualRide,
     /// Treadmill running activity
@@ -111,8 +119,209 @@ pub enum SportType {
     Workout,
     /// Yoga practice
     Yoga,
+    
+    // E-bike and specialty cycling
+    /// Electric bike ride
+    EbikeRide,
+    /// Mountain biking activity
+    MountainBike,
+    /// Gravel cycling activity
+    GravelRide,
+    
+    // Winter sports
+    /// Cross-country skiing
+    CrossCountrySkiing,
+    /// Alpine/downhill skiing
+    AlpineSkiing,
+    /// Snowboarding activity
+    Snowboarding,
+    /// Snowshoeing activity
+    Snowshoe,
+    /// Ice skating activity
+    IceSkating,
+    /// Backcountry skiing
+    BackcountrySkiing,
+    
+    // Water sports
+    /// Kayaking activity
+    Kayaking,
+    /// Canoeing activity
+    Canoeing,
+    /// Rowing activity
+    Rowing,
+    /// Stand-up paddleboarding
+    Paddleboarding,
+    /// Surfing activity
+    Surfing,
+    /// Kitesurfing activity
+    Kitesurfing,
+    
+    // Strength and fitness
+    /// Weight/strength training
+    StrengthTraining,
+    /// CrossFit workout
+    Crossfit,
+    /// Pilates session
+    Pilates,
+    
+    // Climbing and adventure
+    /// Rock climbing activity
+    RockClimbing,
+    /// Trail running
+    TrailRunning,
+    
+    // Team and racquet sports
+    /// Soccer/football
+    Soccer,
+    /// Basketball
+    Basketball,
+    /// Tennis
+    Tennis,
+    /// Golf
+    Golf,
+    
+    // Alternative transport
+    /// Skateboarding
+    Skateboarding,
+    /// Inline skating
+    InlineSkating,
+    
     /// Other activity type not covered by standard categories
     Other(String),
+}
+
+impl SportType {
+    /// Create SportType from provider string using configuration mapping
+    pub fn from_provider_string(provider_sport: &str, fitness_config: &crate::config::FitnessConfig) -> Self {
+        // First check if we have a configured mapping
+        if let Some(internal_name) = fitness_config.map_sport_type(provider_sport) {
+            return Self::from_internal_string(internal_name);
+        }
+        
+        // Fall back to direct mapping for backward compatibility
+        match provider_sport {
+            "Run" => SportType::Run,
+            "Ride" => SportType::Ride,
+            "Swim" => SportType::Swim,
+            "Walk" => SportType::Walk,
+            "Hike" => SportType::Hike,
+            "VirtualRide" => SportType::VirtualRide,
+            "VirtualRun" => SportType::VirtualRun,
+            "Workout" => SportType::Workout,
+            "Yoga" => SportType::Yoga,
+            "EBikeRide" => SportType::EbikeRide,
+            "MountainBikeRide" => SportType::MountainBike,
+            "GravelRide" => SportType::GravelRide,
+            "CrossCountrySkiing" => SportType::CrossCountrySkiing,
+            "AlpineSkiing" => SportType::AlpineSkiing,
+            "Snowboarding" => SportType::Snowboarding,
+            "Snowshoe" => SportType::Snowshoe,
+            "IceSkate" => SportType::IceSkating,
+            "BackcountrySki" => SportType::BackcountrySkiing,
+            "Kayaking" => SportType::Kayaking,
+            "Canoeing" => SportType::Canoeing,
+            "Rowing" => SportType::Rowing,
+            "StandUpPaddling" => SportType::Paddleboarding,
+            "Surfing" => SportType::Surfing,
+            "Kitesurf" => SportType::Kitesurfing,
+            "WeightTraining" => SportType::StrengthTraining,
+            "Crossfit" => SportType::Crossfit,
+            "Pilates" => SportType::Pilates,
+            "RockClimbing" => SportType::RockClimbing,
+            "TrailRunning" => SportType::TrailRunning,
+            "Soccer" => SportType::Soccer,
+            "Basketball" => SportType::Basketball,
+            "Tennis" => SportType::Tennis,
+            "Golf" => SportType::Golf,
+            "Skateboard" => SportType::Skateboarding,
+            "InlineSkate" => SportType::InlineSkating,
+            other => SportType::Other(other.to_string()),
+        }
+    }
+    
+    /// Create SportType from internal configuration string
+    pub fn from_internal_string(internal_name: &str) -> Self {
+        match internal_name {
+            "run" => SportType::Run,
+            "bike_ride" => SportType::Ride,
+            "swim" => SportType::Swim,
+            "walk" => SportType::Walk,
+            "hike" => SportType::Hike,
+            "virtual_ride" => SportType::VirtualRide,
+            "virtual_run" => SportType::VirtualRun,
+            "workout" => SportType::Workout,
+            "yoga" => SportType::Yoga,
+            "ebike_ride" => SportType::EbikeRide,
+            "mountain_bike" => SportType::MountainBike,
+            "gravel_ride" => SportType::GravelRide,
+            "cross_country_skiing" => SportType::CrossCountrySkiing,
+            "alpine_skiing" => SportType::AlpineSkiing,
+            "snowboarding" => SportType::Snowboarding,
+            "snowshoe" => SportType::Snowshoe,
+            "ice_skating" => SportType::IceSkating,
+            "backcountry_skiing" => SportType::BackcountrySkiing,
+            "kayaking" => SportType::Kayaking,
+            "canoeing" => SportType::Canoeing,
+            "rowing" => SportType::Rowing,
+            "paddleboarding" => SportType::Paddleboarding,
+            "surfing" => SportType::Surfing,
+            "kitesurfing" => SportType::Kitesurfing,
+            "strength_training" => SportType::StrengthTraining,
+            "crossfit" => SportType::Crossfit,
+            "pilates" => SportType::Pilates,
+            "rock_climbing" => SportType::RockClimbing,
+            "trail_running" => SportType::TrailRunning,
+            "soccer" => SportType::Soccer,
+            "basketball" => SportType::Basketball,
+            "tennis" => SportType::Tennis,
+            "golf" => SportType::Golf,
+            "skateboarding" => SportType::Skateboarding,
+            "inline_skating" => SportType::InlineSkating,
+            other => SportType::Other(other.to_string()),
+        }
+    }
+    
+    /// Get the human-readable name for this sport type
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            SportType::Run => "run",
+            SportType::Ride => "bike ride",
+            SportType::Swim => "swim",
+            SportType::Walk => "walk",
+            SportType::Hike => "hike",
+            SportType::VirtualRide => "indoor bike ride",
+            SportType::VirtualRun => "treadmill run",
+            SportType::Workout => "workout",
+            SportType::Yoga => "yoga session",
+            SportType::EbikeRide => "e-bike ride",
+            SportType::MountainBike => "mountain bike ride",
+            SportType::GravelRide => "gravel ride",
+            SportType::CrossCountrySkiing => "cross-country ski",
+            SportType::AlpineSkiing => "alpine ski",
+            SportType::Snowboarding => "snowboard session",
+            SportType::Snowshoe => "snowshoe hike",
+            SportType::IceSkating => "ice skating session",
+            SportType::BackcountrySkiing => "backcountry ski",
+            SportType::Kayaking => "kayak session",
+            SportType::Canoeing => "canoe trip",
+            SportType::Rowing => "rowing session",
+            SportType::Paddleboarding => "paddleboard session",
+            SportType::Surfing => "surf session",
+            SportType::Kitesurfing => "kitesurf session",
+            SportType::StrengthTraining => "strength training",
+            SportType::Crossfit => "CrossFit workout",
+            SportType::Pilates => "Pilates session",
+            SportType::RockClimbing => "climbing session",
+            SportType::TrailRunning => "trail run",
+            SportType::Soccer => "soccer game",
+            SportType::Basketball => "basketball game",
+            SportType::Tennis => "tennis match",
+            SportType::Golf => "golf round",
+            SportType::Skateboarding => "skate session",
+            SportType::InlineSkating => "inline skating",
+            SportType::Other(_name) => "activity", // Could use name but keeping generic
+        }
+    }
 }
 
 /// Represents an athlete/user profile from any provider
@@ -233,6 +442,8 @@ mod tests {
             average_speed: Some(2.78), // ~10 km/h
             max_speed: Some(4.17), // ~15 km/h
             calories: Some(300),
+            start_latitude: Some(45.5017), // Montreal
+            start_longitude: Some(-73.5673),
             provider: "strava".to_string(),
         }
     }
@@ -390,6 +601,8 @@ mod tests {
             average_speed: None,
             max_speed: None,
             calories: None,
+            start_latitude: Some(45.5017), // Montreal
+            start_longitude: Some(-73.5673),
             provider: "manual".to_string(),
         };
         

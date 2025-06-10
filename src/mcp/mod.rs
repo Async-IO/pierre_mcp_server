@@ -14,7 +14,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::info;
 
-use crate::config::Config;
+use crate::config::{Config, FitnessConfig};
 use crate::providers::{FitnessProvider, create_provider, AuthData};
 use crate::mcp::schema::InitializeResponse;
 use crate::intelligence::ActivityAnalyzer;
@@ -285,8 +285,19 @@ async fn handle_tool_call(
                         
                         // Create activity context with weather data if requested
                         let context = if include_weather {
-                            let weather_service = WeatherService::new();
-                            let weather = Some(weather_service.generate_mock_weather());
+                            // Load weather configuration from fitness config
+                            let fitness_config = FitnessConfig::load(None).unwrap_or_default();
+                            let weather_config = fitness_config.weather_api.unwrap_or_default();
+                            
+                            let mut weather_service = WeatherService::new(weather_config);
+                            
+                            // Try to get real weather data for the activity
+                            let weather = weather_service.get_weather_for_activity(
+                                activity.start_latitude,
+                                activity.start_longitude,
+                                activity.start_date
+                            ).await.unwrap_or(None);
+                            
                             Some(ActivityContext {
                                 weather,
                                 recent_activities: None,

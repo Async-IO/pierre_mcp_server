@@ -10,6 +10,7 @@ use reqwest::Client;
 use serde::Deserialize;
 use chrono::{DateTime, Utc};
 use crate::models::{Activity, Athlete, Stats, PersonalRecord, SportType};
+use crate::config::FitnessConfig;
 use crate::oauth2_client::PkceParams;
 use super::{FitnessProvider, AuthData};
 use tracing::info;
@@ -327,25 +328,29 @@ struct StravaActivity {
     max_heartrate: Option<f32>,
     average_speed: Option<f64>,
     max_speed: Option<f64>,
+    start_latlng: Option<Vec<f64>>, // [latitude, longitude]
 }
 
 impl From<StravaActivity> for Activity {
     fn from(strava: StravaActivity) -> Self {
+        // Use default fitness config for sport type mapping
+        let fitness_config = FitnessConfig::default();
+        
+        // Extract GPS coordinates from start_latlng array
+        let (start_latitude, start_longitude) = if let Some(coords) = strava.start_latlng {
+            if coords.len() >= 2 {
+                (Some(coords[0]), Some(coords[1]))
+            } else {
+                (None, None)
+            }
+        } else {
+            (None, None)
+        };
+        
         Activity {
             id: strava.id.to_string(),
             name: strava.name,
-            sport_type: match strava.activity_type.as_str() {
-                "Run" => SportType::Run,
-                "Ride" => SportType::Ride,
-                "Swim" => SportType::Swim,
-                "Walk" => SportType::Walk,
-                "Hike" => SportType::Hike,
-                "VirtualRide" => SportType::VirtualRide,
-                "VirtualRun" => SportType::VirtualRun,
-                "Workout" => SportType::Workout,
-                "Yoga" => SportType::Yoga,
-                other => SportType::Other(other.to_string()),
-            },
+            sport_type: SportType::from_provider_string(&strava.activity_type, &fitness_config),
             start_date: strava.start_date,
             duration_seconds: strava.elapsed_time,
             distance_meters: strava.distance,
@@ -355,6 +360,8 @@ impl From<StravaActivity> for Activity {
             average_speed: strava.average_speed,
             max_speed: strava.max_speed,
             calories: None,
+            start_latitude,
+            start_longitude,
             provider: "strava".to_string(),
         }
     }
