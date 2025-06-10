@@ -4,6 +4,8 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+pub mod schema;
+
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -14,6 +16,7 @@ use tracing::info;
 
 use crate::config::Config;
 use crate::providers::{FitnessProvider, create_provider, AuthData};
+use crate::mcp::schema::InitializeResponse;
 
 // MCP Protocol Constants
 const MCP_PROTOCOL_VERSION: &str = "2024-11-05";
@@ -28,61 +31,6 @@ const ERROR_METHOD_NOT_FOUND: i32 = -32601;
 const ERROR_INVALID_PARAMS: i32 = -32602;
 const ERROR_INTERNAL_ERROR: i32 = -32603;
 
-/// Generate MCP tool schemas for supported fitness providers
-fn generate_tool_schemas() -> Value {
-    serde_json::json!([
-        {
-            "name": "get_activities",
-            "description": "Get fitness activities from a provider",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "provider": { 
-                        "type": "string",
-                        "description": "Fitness provider name (e.g., 'strava', 'fitbit')"
-                    },
-                    "limit": { 
-                        "type": "number",
-                        "description": "Maximum number of activities to return"
-                    },
-                    "offset": { 
-                        "type": "number",
-                        "description": "Number of activities to skip (for pagination)"
-                    }
-                },
-                "required": ["provider"]
-            }
-        },
-        {
-            "name": "get_athlete",
-            "description": "Get athlete profile from a provider",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "provider": { 
-                        "type": "string",
-                        "description": "Fitness provider name (e.g., 'strava', 'fitbit')"
-                    }
-                },
-                "required": ["provider"]
-            }
-        },
-        {
-            "name": "get_stats",
-            "description": "Get fitness statistics from a provider",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "provider": { 
-                        "type": "string",
-                        "description": "Fitness provider name (e.g., 'strava', 'fitbit')"
-                    }
-                },
-                "required": ["provider"]
-            }
-        }
-    ])
-}
 
 pub struct McpServer {
     config: Config,
@@ -161,18 +109,15 @@ async fn handle_request(
 ) -> McpResponse {
     match request.method.as_str() {
         "initialize" => {
+            let init_response = InitializeResponse::new(
+                MCP_PROTOCOL_VERSION.to_string(),
+                SERVER_NAME.to_string(),
+                SERVER_VERSION.to_string(),
+            );
+            
             McpResponse {
                 jsonrpc: JSONRPC_VERSION.to_string(),
-                result: Some(serde_json::json!({
-                    "protocolVersion": MCP_PROTOCOL_VERSION,
-                    "serverInfo": {
-                        "name": SERVER_NAME,
-                        "version": SERVER_VERSION
-                    },
-                    "capabilities": {
-                        "tools": generate_tool_schemas()
-                    }
-                })),
+                result: serde_json::to_value(&init_response).ok(),
                 error: None,
                 id: request.id,
             }
