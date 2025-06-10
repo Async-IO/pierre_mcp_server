@@ -337,52 +337,6 @@ Or for development:
 }
 ```
 
-## Development Status
-
-### 🎯 Recent Testing (June 2025)
-- ✅ Successfully connected to live MCP server
-- ✅ Retrieved 500+ activities with pagination
-- ✅ Found 68 runs in 2025, identified longest: 12.59km trail run
-- ✅ All 47 tests passing with clean compilation
-- ✅ Strava OAuth2 integration fully operational
-
-### ✅ Completed
-- [x] Core MCP server implementation with JSON-RPC over TCP
-- [x] Strava provider with full OAuth2 authentication and PKCE security
-- [x] Fitbit provider with full OAuth2 authentication and PKCE security
-- [x] Multi-provider architecture with unified API
-- [x] Configuration management (file-based and environment variables)
-- [x] Comprehensive data models (Activity, Athlete, Stats, PersonalRecord)
-- [x] **Weather Integration**: Real-time and historical weather analysis
-- [x] **Activity Intelligence**: AI-powered activity analysis with performance metrics
-- [x] **Smart Configuration**: Externalized sport type configuration (35+ activities)
-- [x] Unit tests for all core modules (21 tests)
-- [x] Integration tests for MCP server and providers (18 tests)
-- [x] End-to-end workflow tests (5 tests)
-- [x] Weather integration tests and diagnostics
-- [x] Example client implementations (find-2024-longest-run, find-2025-longest-run, find-consecutive-10k-runs)
-- [x] Comprehensive test coverage (50+ tests passing)
-- [x] Clean compilation with no warnings
-- [x] Dual MIT/Apache 2.0 licensing
-- [x] Complete API documentation
-- [x] OAuth2 setup tooling with web callback
-- [x] PKCE implementation for enhanced OAuth2 security
-- [x] Type-safe MCP schema definitions (no hardcoded JSON)
-- [x] Complete JSON externalization for protocol compliance
-
-### 🚀 Roadmap
-
-Track our progress and upcoming features on [GitHub Issues](https://github.com/jfarcand/pierre_mcp_server/issues).
-
-Key areas of development:
-- **Additional Providers**: Polar Flow, Wahoo, TrainingPeaks, and more
-- **Enhanced Features**: Webhooks, GPS tracks, heart rate analysis
-- **Performance**: Connection pooling, caching, rate limiting
-- **Developer Experience**: Docker support, CI/CD, comprehensive docs
-- **Security**: Token encryption, audit logging, secure rotation
-
-**Note**: Garmin Connect and RunKeeper providers were removed due to API accessibility issues. The infrastructure remains ready for future providers.
-
 ## Contributing
 
 We welcome contributions! Please see our [contribution guidelines](CONTRIBUTING.md) for details.
