@@ -10,6 +10,7 @@ use reqwest::Client;
 use serde::Deserialize;
 use chrono::{DateTime, Utc};
 use crate::models::{Activity, Athlete, Stats, PersonalRecord, SportType};
+use crate::oauth2_client::PkceParams;
 use super::{FitnessProvider, AuthData};
 use tracing::info;
 
@@ -47,6 +48,25 @@ impl StravaProvider {
             .append_pair("response_type", "code")
             .append_pair("scope", "read,activity:read_all")
             .append_pair("state", state);
+
+        Ok(url.to_string())
+    }
+
+    /// Get authorization URL with PKCE support for enhanced security
+    #[allow(dead_code)]
+    pub fn get_auth_url_with_pkce(&self, redirect_uri: &str, state: &str, pkce: &PkceParams) -> Result<String> {
+        let client_id = self.client_id.as_ref()
+            .context("Client ID not configured")?;
+        
+        let mut url = url::Url::parse(STRAVA_AUTH_URL)?;
+        url.query_pairs_mut()
+            .append_pair("client_id", client_id)
+            .append_pair("redirect_uri", redirect_uri)
+            .append_pair("response_type", "code")
+            .append_pair("scope", "read,activity:read_all")
+            .append_pair("state", state)
+            .append_pair("code_challenge", &pkce.code_challenge)
+            .append_pair("code_challenge_method", &pkce.code_challenge_method);
         
         Ok(url.to_string())
     }
@@ -70,6 +90,35 @@ impl StravaProvider {
         
         if let Some(athlete) = athlete {
             info!("Authenticated as Strava athlete: {} ({})", 
+                athlete.id, 
+                athlete.username.as_deref().unwrap_or("unknown"));
+        }
+        
+        // Return tokens for storage
+        Ok((token.access_token, token.refresh_token.unwrap_or_default()))
+    }
+
+    /// Exchange authorization code with PKCE support for enhanced security
+    #[allow(dead_code)]
+    pub async fn exchange_code_with_pkce(&mut self, code: &str, pkce: &PkceParams) -> Result<(String, String)> {
+        let client_id = self.client_id.as_ref()
+            .context("Client ID not set")?;
+        let client_secret = self.client_secret.as_ref()
+            .context("Client secret not set")?;
+        
+        let (token, athlete) = crate::oauth2_client::strava::exchange_strava_code_with_pkce(
+            &self.client,
+            client_id,
+            client_secret,
+            code,
+            pkce
+        ).await?;
+        
+        self.access_token = Some(token.access_token.clone());
+        self.refresh_token = token.refresh_token.clone();
+        
+        if let Some(athlete) = athlete {
+            info!("Authenticated as Strava athlete with PKCE: {} ({})", 
                 athlete.id, 
                 athlete.username.as_deref().unwrap_or("unknown"));
         }

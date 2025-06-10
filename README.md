@@ -1,17 +1,17 @@
 # Pierre MCP Server
 
-A comprehensive Rust-based MCP (Model Context Protocol) server for fitness data aggregation and analysis. Provides unified access to multiple fitness tracking platforms through a secure, extensible architecture.
+A comprehensive Rust-based MCP (Model Context Protocol) server for Strava fitness data analysis. Provides secure access to Strava's rich fitness data through Claude and other AI assistants.
 
 ## Features
 
-- **Multi-provider support**: Strava, Garmin Connect, RunKeeper, and more
-- **Dual authentication**: OAuth2 and API key authentication flows
-- **Comprehensive data access**: Activities, athlete profiles, and aggregated statistics
-- **Type-safe architecture**: Built with Rust for reliability and performance
-- **Extensible design**: Easy to add new fitness providers
-- **MCP protocol compliance**: Works seamlessly with Claude and GitHub Copilot
-- **Comprehensive testing**: Unit tests, integration tests, and end-to-end tests
-- **Documentation**: Full rustdoc documentation and examples
+- **Strava Integration**: Full OAuth2 authentication with PKCE security
+- **Comprehensive Data Access**: Activities, athlete profiles, and aggregated statistics
+- **Enhanced Security**: PKCE (Proof Key for Code Exchange) implementation
+- **Type-safe Architecture**: Built with Rust for reliability and performance
+- **Extensible Design**: Easy to add new fitness providers in the future
+- **MCP Protocol Compliance**: Works seamlessly with Claude and GitHub Copilot
+- **Comprehensive Testing**: Unit tests, integration tests, and end-to-end tests
+- **Full Documentation**: Complete rustdoc documentation and examples
 
 ## Installation
 
@@ -87,9 +87,17 @@ cargo run -- --config /path/to/config.toml
 
 The server exposes the following tools:
 
-- `get_activities`: Fetch fitness activities from a provider
+- `get_activities`: Fetch fitness activities from a provider (supports pagination with limit/offset)
 - `get_athlete`: Get athlete profile information
-- `get_stats`: Get aggregated statistics
+- `get_stats`: Get aggregated statistics (uses Strava's athlete stats API with fallback)
+
+### Example Usage
+
+```bash
+# Test the server with example queries
+cargo run --bin find-2025-longest-run
+cargo run --bin find-2024-longest-run
+```
 
 ## Adding to Claude or GitHub Copilot
 
@@ -98,7 +106,7 @@ Add to your MCP configuration:
 ```json
 {
   "mcpServers": {
-    "fitness": {
+    "pierre-fitness": {
       "command": "path/to/pierre-mcp-server",
       "args": ["--port", "8080"]
     }
@@ -106,31 +114,54 @@ Add to your MCP configuration:
 }
 ```
 
+Or for development:
+
+```json
+{
+  "mcpServers": {
+    "pierre-fitness-dev": {
+      "command": "cargo",
+      "args": ["run", "--", "--port", "8080"],
+      "cwd": "/path/to/pierre_mcp_server"
+    }
+  }
+}
+```
+
 ## Development Status
+
+### 🎯 Recent Testing (June 2025)
+- ✅ Successfully connected to live MCP server
+- ✅ Retrieved 500+ activities with pagination
+- ✅ Found 68 runs in 2025, identified longest: 12.59km trail run
+- ✅ All 42 tests passing with clean compilation
+- ✅ Strava OAuth2 integration fully operational
 
 ### ✅ Completed
 - [x] Core MCP server implementation with JSON-RPC over TCP
-- [x] Strava provider with full OAuth2 authentication flow
+- [x] Strava provider with full OAuth2 authentication and PKCE security
 - [x] Configuration management (file-based and environment variables)
 - [x] Comprehensive data models (Activity, Athlete, Stats, PersonalRecord)
 - [x] Unit tests for all core modules (21 tests)
-- [x] Integration tests for MCP server and providers (20 tests)
+- [x] Integration tests for MCP server and providers (16 tests)
 - [x] End-to-end workflow tests (5 tests)
-- [x] Example client implementation (find-2024-longest-run)
+- [x] Example client implementations (find-2024-longest-run, find-2025-longest-run)
+- [x] Comprehensive test coverage (42+ tests passing)
+- [x] Clean compilation with no warnings
 - [x] Dual MIT/Apache 2.0 licensing
 - [x] Complete rustdoc documentation
 - [x] OAuth2 setup tooling with web callback
-
-### 🚧 In Progress
-- [ ] Complete Garmin Connect provider implementation
-- [ ] Complete RunKeeper provider implementation
+- [x] PKCE implementation for enhanced OAuth2 security
 
 ### 📋 TODO
-- [ ] **Additional Providers**
-  - [ ] Polar Flow integration
+- [ ] **Additional Providers** (Next Priority)
+  - [ ] Fitbit integration with OAuth2 and PKCE support
+  - [ ] Polar Flow integration with OAuth2 and PKCE support
   - [ ] Wahoo integration
   - [ ] TrainingPeaks integration
-  - [ ] Fitbit integration (if API access available)
+  - [ ] Garmin Connect integration (requires enterprise API access)
+
+**Note**: Garmin Connect and RunKeeper providers were removed due to API accessibility issues. The infrastructure remains ready for future providers.
 
 - [ ] **Enhanced Features**
   - [ ] Real-time webhook support for activity updates

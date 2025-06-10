@@ -9,8 +9,6 @@ use anyhow::Result;
 use crate::models::{Activity, Athlete, Stats, PersonalRecord};
 
 pub mod strava;
-pub mod garmin;
-pub mod runkeeper;
 
 
 #[async_trait]
@@ -21,12 +19,15 @@ pub trait FitnessProvider: Send + Sync {
     
     async fn get_activities(&self, limit: Option<usize>, offset: Option<usize>) -> Result<Vec<Activity>>;
     
+    #[allow(dead_code)]
     async fn get_activity(&self, id: &str) -> Result<Activity>;
     
     async fn get_stats(&self) -> Result<Stats>;
     
+    #[allow(dead_code)]
     async fn get_personal_records(&self) -> Result<Vec<PersonalRecord>>;
     
+    #[allow(dead_code)]
     fn provider_name(&self) -> &'static str;
 }
 
@@ -38,14 +39,13 @@ pub enum AuthData {
         access_token: Option<String>,
         refresh_token: Option<String>,
     },
+    #[allow(dead_code)]
     ApiKey(String),
 }
 
 pub fn create_provider(provider_type: &str) -> Result<Box<dyn FitnessProvider>> {
     match provider_type.to_lowercase().as_str() {
         "strava" => Ok(Box::new(strava::StravaProvider::new())),
-        "garmin" => Ok(Box::new(garmin::GarminProvider::new())),
-        "runkeeper" => Ok(Box::new(runkeeper::RunkeeperProvider::new())),
-        _ => Err(anyhow::anyhow!("Unknown provider: {}", provider_type)),
+        _ => Err(anyhow::anyhow!("Unknown provider: {}. Currently supported: strava", provider_type)),
     }
 }
