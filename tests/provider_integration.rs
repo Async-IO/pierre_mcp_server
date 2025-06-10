@@ -13,6 +13,7 @@ use anyhow::Result;
 use mockito::Server;
 use pierre_mcp_server::models::{Activity, Athlete, SportType, Stats};
 use pierre_mcp_server::providers::strava::StravaProvider;
+use pierre_mcp_server::providers::fitbit::FitbitProvider;
 use pierre_mcp_server::providers::{AuthData, FitnessProvider};
 use serde_json::json;
 
@@ -146,6 +147,10 @@ async fn test_provider_factory() -> Result<()> {
     
     // Test creating a Strava provider
     let provider = create_provider("strava");
+    assert!(provider.is_ok());
+    
+    // Test creating a Fitbit provider
+    let provider = create_provider("fitbit");
     assert!(provider.is_ok());
     
     // Test creating an invalid provider
@@ -383,6 +388,50 @@ async fn test_activity_pagination() -> Result<()> {
             assert!(query.iter().any(|(k, v)| *k == expected_key && *v == expected_value));
         }
     }
+    
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_fitbit_provider_authentication() -> Result<()> {
+    let mut provider = FitbitProvider::new();
+    
+    // Test OAuth2 authentication
+    let auth_data = AuthData::OAuth2 {
+        client_id: "test_fitbit_client_id".to_string(),
+        client_secret: "test_fitbit_client_secret".to_string(),
+        access_token: Some("test_fitbit_access_token".to_string()),
+        refresh_token: Some("test_fitbit_refresh_token".to_string()),
+    };
+    
+    let result = provider.authenticate(auth_data).await;
+    assert!(result.is_ok());
+    
+    // Test invalid authentication type
+    let invalid_auth = AuthData::ApiKey("invalid".to_string());
+    let result = provider.authenticate(invalid_auth).await;
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("OAuth2 authentication"));
+    
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_fitbit_provider_error_handling() -> Result<()> {
+    let provider = FitbitProvider::new();
+    
+    // Test unauthenticated requests
+    let result = provider.get_athlete().await;
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("Not authenticated"));
+    
+    let result = provider.get_activities(Some(10), None).await;
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("Not authenticated"));
+    
+    let result = provider.get_stats().await;
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("Not authenticated"));
     
     Ok(())
 }

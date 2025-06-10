@@ -1,17 +1,15 @@
 # Pierre MCP Server
 
-A comprehensive Rust-based MCP (Model Context Protocol) server for Strava fitness data analysis. Provides secure access to Strava's rich fitness data through Claude and other AI assistants.
+A comprehensive MCP (Model Context Protocol) server for fitness data analysis. Provides secure access to fitness data from multiple providers (Strava, Fitbit) through Claude and other AI assistants.
 
 ## Features
 
-- **Strava Integration**: Full OAuth2 authentication with PKCE security
+- **Multi-Provider Support**: Strava and Fitbit integration with unified API
+- **Enhanced Security**: OAuth2 authentication with PKCE (Proof Key for Code Exchange)
 - **Comprehensive Data Access**: Activities, athlete profiles, and aggregated statistics
-- **Enhanced Security**: PKCE (Proof Key for Code Exchange) implementation
-- **Type-safe Architecture**: Built with Rust for reliability and performance
-- **Extensible Design**: Easy to add new fitness providers in the future
 - **MCP Protocol Compliance**: Works seamlessly with Claude and GitHub Copilot
-- **Comprehensive Testing**: Unit tests, integration tests, and end-to-end tests
-- **Full Documentation**: Complete rustdoc documentation and examples
+- **Extensible Design**: Easy to add new fitness providers in the future
+- **Production Ready**: Comprehensive testing and clean error handling
 
 ## Installation
 
@@ -36,6 +34,27 @@ cargo run --bin auth-setup -- strava \
 4. Follow the browser prompts to authorize the application
 5. The tool will save your tokens to the config file
 
+### Fitbit
+
+1. Create a Fitbit application at https://dev.fitbit.com/apps/new
+   - **Application Type**: Personal
+   - **OAuth 2.0 Application Type**: Confidential
+   - **Redirect URL**: `http://localhost:8080/callback` (or your callback URL)
+   - **Default Access Type**: Read Only
+2. Note your Client ID and Client Secret
+3. Run the auth setup tool:
+
+```bash
+cargo run --bin auth-setup -- fitbit \
+  --client-id YOUR_CLIENT_ID \
+  --client-secret YOUR_CLIENT_SECRET
+```
+
+4. Follow the browser prompts to authorize the application
+5. The tool will save your tokens to the config file
+
+**Note**: Fitbit requires explicit scopes. The server requests `activity`, `profile`, and `sleep` permissions.
+
 ## Configuration
 
 The server supports multiple configuration methods:
@@ -54,20 +73,34 @@ direnv allow
 
 ### Using .env file:
 ```env
-STRAVA_CLIENT_ID=your_client_id
-STRAVA_CLIENT_SECRET=your_client_secret
-STRAVA_ACCESS_TOKEN=your_access_token
-STRAVA_REFRESH_TOKEN=your_refresh_token
+# Strava Configuration
+STRAVA_CLIENT_ID=your_strava_client_id
+STRAVA_CLIENT_SECRET=your_strava_client_secret
+STRAVA_ACCESS_TOKEN=your_strava_access_token
+STRAVA_REFRESH_TOKEN=your_strava_refresh_token
+
+# Fitbit Configuration
+FITBIT_CLIENT_ID=your_fitbit_client_id
+FITBIT_CLIENT_SECRET=your_fitbit_client_secret
+FITBIT_ACCESS_TOKEN=your_fitbit_access_token
+FITBIT_REFRESH_TOKEN=your_fitbit_refresh_token
 ```
 
 ### Using config.toml:
 ```toml
 [providers.strava]
 auth_type = "oauth2"
-client_id = "your_client_id"
-client_secret = "your_client_secret"
-access_token = "your_access_token"
-refresh_token = "your_refresh_token"
+client_id = "your_strava_client_id"
+client_secret = "your_strava_client_secret"
+access_token = "your_strava_access_token"
+refresh_token = "your_strava_refresh_token"
+
+[providers.fitbit]
+auth_type = "oauth2"
+client_id = "your_fitbit_client_id"
+client_secret = "your_fitbit_client_secret"
+access_token = "your_fitbit_access_token"
+refresh_token = "your_fitbit_refresh_token"
 ```
 
 ## Usage
@@ -85,11 +118,18 @@ cargo run -- --config /path/to/config.toml
 
 ## MCP Tools
 
-The server exposes the following tools:
+The server exposes the following tools for all supported providers:
 
 - `get_activities`: Fetch fitness activities from a provider (supports pagination with limit/offset)
+  - **Providers**: `strava`, `fitbit`
+  - **Strava**: Uses activity list API with pagination
+  - **Fitbit**: Uses date-based activity queries (last 30 days by default)
 - `get_athlete`: Get athlete profile information
-- `get_stats`: Get aggregated statistics (uses Strava's athlete stats API with fallback)
+  - **Strava**: Returns detailed athlete profile with avatar
+  - **Fitbit**: Returns user profile with display name and avatar
+- `get_stats`: Get aggregated statistics
+  - **Strava**: Uses athlete stats API with activity-based fallback
+  - **Fitbit**: Uses lifetime stats API with floor-to-elevation conversion
 
 ### Example Usage
 
@@ -97,6 +137,81 @@ The server exposes the following tools:
 # Test the server with example queries
 cargo run --bin find-2025-longest-run
 cargo run --bin find-2024-longest-run
+cargo run --bin find-consecutive-10k-runs
+
+# Example MCP tool calls:
+# {"method": "tools/call", "params": {"name": "get_activities", "arguments": {"provider": "strava", "limit": 10}}}
+# {"method": "tools/call", "params": {"name": "get_activities", "arguments": {"provider": "fitbit", "limit": 20}}}
+# {"method": "tools/call", "params": {"name": "get_athlete", "arguments": {"provider": "strava"}}}
+```
+
+## LLM Prompt Examples
+
+Once connected to Claude or another AI assistant, you can use natural language prompts to analyze your fitness data:
+
+### 🏃 Running Analysis
+```
+What was my longest run this year?
+
+Analyze my running pace trends over the last 3 months.
+
+How many miles did I run in total last month?
+
+What's my average weekly running distance?
+
+Find my fastest 5K time this year.
+```
+
+### 🚴 Cross-Training Analysis
+```
+Compare my cycling vs running activities this month.
+
+What's my most active day of the week?
+
+Show me my heart rate zones during my last 5 workouts.
+
+How has my fitness improved over the last 6 months?
+
+What's my longest consecutive streak of workouts?
+```
+
+### 📊 Fitness Insights
+```
+Create a summary of my fitness goals progress.
+
+What activities burn the most calories for me?
+
+Analyze my workout patterns and suggest improvements.
+
+How does my Strava data compare to my Fitbit data?
+
+What's my average elevation gain per week?
+```
+
+### 🎯 Goal Tracking
+```
+How close am I to running 1000 miles this year?
+
+Track my progress toward my weekly activity goals.
+
+What's my personal best for each activity type?
+
+Show me days where I exceeded 10,000 steps.
+
+Find patterns in my rest days vs active days.
+```
+
+### 📈 Advanced Analysis
+```
+Correlate my workout intensity with my recovery time.
+
+What's the optimal workout frequency based on my data?
+
+Analyze seasonal patterns in my activity levels.
+
+Compare my performance before and after equipment changes.
+
+Identify my most and least consistent months for training.
 ```
 
 ## Adding to Claude or GitHub Copilot
@@ -140,22 +255,24 @@ Or for development:
 ### ✅ Completed
 - [x] Core MCP server implementation with JSON-RPC over TCP
 - [x] Strava provider with full OAuth2 authentication and PKCE security
+- [x] Fitbit provider with full OAuth2 authentication and PKCE security
+- [x] Multi-provider architecture with unified API
 - [x] Configuration management (file-based and environment variables)
 - [x] Comprehensive data models (Activity, Athlete, Stats, PersonalRecord)
 - [x] Unit tests for all core modules (21 tests)
-- [x] Integration tests for MCP server and providers (16 tests)
+- [x] Integration tests for MCP server and providers (18 tests)
 - [x] End-to-end workflow tests (5 tests)
-- [x] Example client implementations (find-2024-longest-run, find-2025-longest-run)
-- [x] Comprehensive test coverage (42+ tests passing)
+- [x] Example client implementations (find-2024-longest-run, find-2025-longest-run, find-consecutive-10k-runs)
+- [x] Comprehensive test coverage (44+ tests passing)
 - [x] Clean compilation with no warnings
 - [x] Dual MIT/Apache 2.0 licensing
-- [x] Complete rustdoc documentation
+- [x] Complete API documentation
 - [x] OAuth2 setup tooling with web callback
 - [x] PKCE implementation for enhanced OAuth2 security
 
 ### 📋 TODO
 - [ ] **Additional Providers** (Next Priority)
-  - [ ] Fitbit integration with OAuth2 and PKCE support
+  - [x] ✅ Fitbit integration with OAuth2 and PKCE support (COMPLETED)
   - [ ] Polar Flow integration with OAuth2 and PKCE support
   - [ ] Wahoo integration
   - [ ] TrainingPeaks integration
@@ -206,9 +323,6 @@ We welcome contributions! Please see our [contribution guidelines](CONTRIBUTING.
    ```bash
    # Install Rust (if not already installed)
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-   
-   # Install development dependencies
-   cargo install cargo-watch
    ```
 
 3. **Run tests**
@@ -218,16 +332,10 @@ We welcome contributions! Please see our [contribution guidelines](CONTRIBUTING.
    
    # Run tests with output
    cargo test -- --nocapture
-   
-   # Run specific test module
-   cargo test config::tests
    ```
 
 4. **Development workflow**
    ```bash
-   # Auto-rebuild on changes
-   cargo watch -x check -x test
-   
    # Format code
    cargo fmt
    
@@ -246,10 +354,10 @@ We welcome contributions! Please see our [contribution guidelines](CONTRIBUTING.
 
 ### Code Style
 
-- Follow Rust standard formatting (`cargo fmt`)
+- Follow standard formatting (`cargo fmt`)
 - Use clippy for linting (`cargo clippy`)
 - Write comprehensive tests for new features
-- Document public APIs with rustdoc comments
+- Document public APIs with comments
 - Follow the existing error handling patterns
 
 ### Commit Guidelines

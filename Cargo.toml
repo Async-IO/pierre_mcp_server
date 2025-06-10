@@ -44,6 +44,10 @@ path = "src/bin/find_2024_longest_run.rs"
 name = "find-2025-longest-run"
 path = "src/bin/find_2025_longest_run.rs"
 
+[[bin]]
+name = "find-consecutive-10k-runs"
+path = "src/bin/find_consecutive_10k_runs.rs"
+
 [dependencies]
 tokio = { version = "1.45", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }

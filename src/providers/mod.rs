@@ -9,6 +9,7 @@ use anyhow::Result;
 use crate::models::{Activity, Athlete, Stats, PersonalRecord};
 
 pub mod strava;
+pub mod fitbit;
 
 
 #[async_trait]
@@ -46,6 +47,7 @@ pub enum AuthData {
 pub fn create_provider(provider_type: &str) -> Result<Box<dyn FitnessProvider>> {
     match provider_type.to_lowercase().as_str() {
         "strava" => Ok(Box::new(strava::StravaProvider::new())),
-        _ => Err(anyhow::anyhow!("Unknown provider: {}. Currently supported: strava", provider_type)),
+        "fitbit" => Ok(Box::new(fitbit::FitbitProvider::new())),
+        _ => Err(anyhow::anyhow!("Unknown provider: {}. Currently supported: strava, fitbit", provider_type)),
     }
 }

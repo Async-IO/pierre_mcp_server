@@ -47,6 +47,7 @@ impl Config {
                 providers: HashMap::new(),
             };
             
+            // Load Strava configuration from environment
             if let (Ok(client_id), Ok(client_secret)) = (
                 std::env::var("STRAVA_CLIENT_ID"),
                 std::env::var("STRAVA_CLIENT_SECRET")
@@ -57,6 +58,21 @@ impl Config {
                     client_secret: Some(client_secret),
                     access_token: std::env::var("STRAVA_ACCESS_TOKEN").ok(),
                     refresh_token: std::env::var("STRAVA_REFRESH_TOKEN").ok(),
+                    api_key: None,
+                });
+            }
+            
+            // Load Fitbit configuration from environment
+            if let (Ok(client_id), Ok(client_secret)) = (
+                std::env::var("FITBIT_CLIENT_ID"),
+                std::env::var("FITBIT_CLIENT_SECRET")
+            ) {
+                config.providers.insert("fitbit".to_string(), ProviderConfig {
+                    auth_type: "oauth2".to_string(),
+                    client_id: Some(client_id),
+                    client_secret: Some(client_secret),
+                    access_token: std::env::var("FITBIT_ACCESS_TOKEN").ok(),
+                    refresh_token: std::env::var("FITBIT_REFRESH_TOKEN").ok(),
                     api_key: None,
                 });
             }

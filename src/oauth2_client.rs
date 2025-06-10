@@ -362,3 +362,139 @@ pub mod strava {
         })
     }
 }
+
+// Fitbit-specific OAuth2 extensions
+pub mod fitbit {
+    use super::*;
+    
+    #[derive(Debug, Deserialize)]
+    #[allow(dead_code)]
+    pub struct FitbitTokenResponse {
+        pub access_token: String,
+        pub expires_in: i64,
+        pub refresh_token: String,
+        pub scope: String,
+        pub token_type: String,
+        pub user_id: String,
+    }
+    
+    #[derive(Debug, Deserialize)]
+    #[allow(dead_code)]
+    pub struct FitbitUserInfo {
+        pub user_id: String,
+    }
+    
+    /// Exchange Fitbit authorization code for tokens
+    #[allow(dead_code)]
+    pub async fn exchange_fitbit_code(
+        client: &reqwest::Client,
+        client_id: &str,
+        client_secret: &str,
+        code: &str,
+        redirect_uri: &str,
+    ) -> Result<(OAuth2Token, Option<FitbitUserInfo>)> {
+        let params = [
+            ("client_id", client_id),
+            ("client_secret", client_secret),
+            ("code", code),
+            ("grant_type", "authorization_code"),
+            ("redirect_uri", redirect_uri),
+        ];
+        
+        let response: FitbitTokenResponse = client
+            .post("https://api.fitbit.com/oauth2/token")
+            .form(&params)
+            .send()
+            .await?
+            .json()
+            .await?;
+        
+        let token = OAuth2Token {
+            access_token: response.access_token,
+            token_type: response.token_type,
+            expires_at: Some(Utc::now() + Duration::seconds(response.expires_in)),
+            refresh_token: Some(response.refresh_token),
+            scope: Some(response.scope),
+        };
+        
+        let user_info = FitbitUserInfo {
+            user_id: response.user_id,
+        };
+        
+        Ok((token, Some(user_info)))
+    }
+
+    /// Exchange Fitbit authorization code with PKCE support
+    #[allow(dead_code)]
+    pub async fn exchange_fitbit_code_with_pkce(
+        client: &reqwest::Client,
+        client_id: &str,
+        client_secret: &str,
+        code: &str,
+        redirect_uri: &str,
+        pkce: &PkceParams,
+    ) -> Result<(OAuth2Token, Option<FitbitUserInfo>)> {
+        let params = [
+            ("client_id", client_id),
+            ("client_secret", client_secret),
+            ("code", code),
+            ("grant_type", "authorization_code"),
+            ("redirect_uri", redirect_uri),
+            ("code_verifier", &pkce.code_verifier),
+        ];
+        
+        let response: FitbitTokenResponse = client
+            .post("https://api.fitbit.com/oauth2/token")
+            .form(&params)
+            .send()
+            .await?
+            .json()
+            .await?;
+        
+        let token = OAuth2Token {
+            access_token: response.access_token,
+            token_type: response.token_type,
+            expires_at: Some(Utc::now() + Duration::seconds(response.expires_in)),
+            refresh_token: Some(response.refresh_token),
+            scope: Some(response.scope),
+        };
+        
+        let user_info = FitbitUserInfo {
+            user_id: response.user_id,
+        };
+        
+        Ok((token, Some(user_info)))
+    }
+    
+    /// Refresh Fitbit access token
+    #[allow(dead_code)]
+    pub async fn refresh_fitbit_token(
+        client: &reqwest::Client,
+        client_id: &str,
+        client_secret: &str,
+        refresh_token: &str,
+    ) -> Result<OAuth2Token> {
+        let params = [
+            ("client_id", client_id),
+            ("client_secret", client_secret),
+            ("refresh_token", refresh_token),
+            ("grant_type", "refresh_token"),
+        ];
+        
+        let response: FitbitTokenResponse = client
+            .post("https://api.fitbit.com/oauth2/token")
+            .form(&params)
+            .send()
+            .await?
+            .json()
+            .await?;
+        
+        Ok(OAuth2Token {
+            access_token: response.access_token,
+            token_type: response.token_type,
+            expires_at: Some(Utc::now() + Duration::seconds(response.expires_in)),
+            refresh_token: Some(response.refresh_token),
+            scope: Some(response.scope),
+        })
+    }
+}
