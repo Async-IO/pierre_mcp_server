@@ -249,7 +249,7 @@ Or for development:
 - ✅ Successfully connected to live MCP server
 - ✅ Retrieved 500+ activities with pagination
 - ✅ Found 68 runs in 2025, identified longest: 12.59km trail run
-- ✅ All 42 tests passing with clean compilation
+- ✅ All 47 tests passing with clean compilation
 - ✅ Strava OAuth2 integration fully operational
 
 ### ✅ Completed
@@ -263,49 +263,27 @@ Or for development:
 - [x] Integration tests for MCP server and providers (18 tests)
 - [x] End-to-end workflow tests (5 tests)
 - [x] Example client implementations (find-2024-longest-run, find-2025-longest-run, find-consecutive-10k-runs)
-- [x] Comprehensive test coverage (44+ tests passing)
+- [x] Comprehensive test coverage (47+ tests passing)
 - [x] Clean compilation with no warnings
 - [x] Dual MIT/Apache 2.0 licensing
 - [x] Complete API documentation
 - [x] OAuth2 setup tooling with web callback
 - [x] PKCE implementation for enhanced OAuth2 security
+- [x] Type-safe MCP schema definitions (no hardcoded JSON)
+- [x] Complete JSON externalization for protocol compliance
 
-### 📋 TODO
-- [ ] **Additional Providers** (Next Priority)
-  - [x] ✅ Fitbit integration with OAuth2 and PKCE support (COMPLETED)
-  - [ ] Polar Flow integration with OAuth2 and PKCE support
-  - [ ] Wahoo integration
-  - [ ] TrainingPeaks integration
-  - [ ] Garmin Connect integration (requires enterprise API access)
+### 🚀 Roadmap
+
+Track our progress and upcoming features on [GitHub Issues](https://github.com/jfarcand/pierre_mcp_server/issues).
+
+Key areas of development:
+- **Additional Providers**: Polar Flow, Wahoo, TrainingPeaks, and more
+- **Enhanced Features**: Webhooks, GPS tracks, heart rate analysis
+- **Performance**: Connection pooling, caching, rate limiting
+- **Developer Experience**: Docker support, CI/CD, comprehensive docs
+- **Security**: Token encryption, audit logging, secure rotation
 
 **Note**: Garmin Connect and RunKeeper providers were removed due to API accessibility issues. The infrastructure remains ready for future providers.
-
-- [ ] **Enhanced Features**
-  - [ ] Real-time webhook support for activity updates
-  - [ ] Activity streaming data (GPS tracks, heart rate zones)
-  - [ ] Training plans and workout data
-  - [ ] Social features (segments, kudos, comments)
-  - [ ] Advanced analytics and insights
-
-- [ ] **Performance & Reliability**
-  - [ ] Connection pooling for HTTP clients
-  - [ ] Rate limiting and retry logic
-  - [ ] Caching layer for frequently accessed data
-  - [ ] Metrics and monitoring integration
-  - [ ] Graceful error recovery
-
-- [ ] **Developer Experience**
-  - [ ] Docker containerization
-  - [ ] CI/CD pipeline setup
-  - [ ] Performance benchmarks
-  - [ ] API documentation with examples
-  - [ ] Provider development guide
-
-- [ ] **Security Enhancements**
-  - [ ] Token encryption at rest
-  - [ ] Secure token rotation
-  - [ ] Audit logging
-  - [ ] Rate limiting per client
 
 ## Contributing
 
