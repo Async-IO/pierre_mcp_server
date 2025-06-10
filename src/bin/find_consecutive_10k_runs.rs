@@ -5,7 +5,7 @@
 // except according to those terms.
 
 use anyhow::Result;
-use chrono::{Datelike, NaiveDate};
+use chrono::NaiveDate;
 use pierre_mcp_server::models::{Activity, SportType};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -183,7 +183,7 @@ fn main() -> Result<()> {
     let mut longest_streak_activities: Vec<&Activity> = Vec::new();
     
     for i in 0..daily_runs.len() {
-        let (current_date, current_activity) = daily_runs[i];
+        let (current_date, _current_activity) = daily_runs[i];
         
         if i == 0 {
             // First run starts a streak

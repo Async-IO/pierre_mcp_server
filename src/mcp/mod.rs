@@ -17,6 +17,9 @@ use tracing::info;
 use crate::config::Config;
 use crate::providers::{FitnessProvider, create_provider, AuthData};
 use crate::mcp::schema::InitializeResponse;
+use crate::intelligence::ActivityAnalyzer;
+use crate::intelligence::insights::ActivityContext;
+use crate::intelligence::weather::WeatherService;
 
 // MCP Protocol Constants
 const MCP_PROTOCOL_VERSION: &str = "2024-11-05";
@@ -262,6 +265,99 @@ async fn handle_tool_call(
                         error: Some(McpError {
                             code: ERROR_INTERNAL_ERROR,
                             message: format!("Failed to get stats: {}", e),
+                            data: None,
+                        }),
+                        id,
+                    };
+                }
+            }
+        }
+        "get_activity_intelligence" => {
+            let activity_id = args["activity_id"].as_str().unwrap_or("");
+            let include_weather = args["include_weather"].as_bool().unwrap_or(true);
+            
+            // Get activities from provider
+            match provider.get_activities(Some(100), None).await {
+                Ok(activities) => {
+                    if let Some(activity) = activities.iter().find(|a| a.id == activity_id) {
+                        // Create activity analyzer
+                        let analyzer = ActivityAnalyzer::new();
+                        
+                        // Create activity context with weather data if requested
+                        let context = if include_weather {
+                            let weather_service = WeatherService::new();
+                            let weather = Some(weather_service.generate_mock_weather());
+                            Some(ActivityContext {
+                                weather,
+                                recent_activities: None,
+                                athlete_goals: None,
+                                historical_data: None,
+                            })
+                        } else {
+                            None
+                        };
+                        
+                        // Generate activity intelligence
+                        match analyzer.analyze_activity(activity, context).await {
+                            Ok(intelligence) => {
+                                Some(serde_json::json!({
+                                    "summary": intelligence.summary,
+                                    "activity_id": activity.id,
+                                    "activity_name": activity.name,
+                                    "sport_type": activity.sport_type,
+                                    "duration_minutes": activity.duration_seconds / 60,
+                                    "distance_km": activity.distance_meters.map(|d| d / 1000.0),
+                                    "performance_indicators": {
+                                        "relative_effort": intelligence.performance_indicators.relative_effort,
+                                        "zone_distribution": intelligence.performance_indicators.zone_distribution,
+                                        "personal_records": intelligence.performance_indicators.personal_records,
+                                        "efficiency_score": intelligence.performance_indicators.efficiency_score,
+                                        "trend_indicators": intelligence.performance_indicators.trend_indicators
+                                    },
+                                    "contextual_factors": {
+                                        "weather": intelligence.contextual_factors.weather,
+                                        "time_of_day": intelligence.contextual_factors.time_of_day,
+                                        "days_since_last_activity": intelligence.contextual_factors.days_since_last_activity,
+                                        "weekly_load": intelligence.contextual_factors.weekly_load
+                                    },
+                                    "key_insights": intelligence.key_insights,
+                                    "generated_at": intelligence.generated_at.to_rfc3339(),
+                                    "status": "full_analysis_complete"
+                                }))
+                            }
+                            Err(e) => {
+                                return McpResponse {
+                                    jsonrpc: JSONRPC_VERSION.to_string(),
+                                    result: None,
+                                    error: Some(McpError {
+                                        code: ERROR_INTERNAL_ERROR,
+                                        message: format!("Intelligence analysis failed: {}", e),
+                                        data: None,
+                                    }),
+                                    id,
+                                };
+                            }
+                        }
+                    } else {
+                        return McpResponse {
+                            jsonrpc: JSONRPC_VERSION.to_string(),
+                            result: None,
+                            error: Some(McpError {
+                                code: ERROR_INVALID_PARAMS,
+                                message: format!("Activity with ID '{}' not found", activity_id),
+                                data: None,
+                            }),
+                            id,
+                        };
+                    }
+                }
+                Err(e) => {
+                    return McpResponse {
+                        jsonrpc: JSONRPC_VERSION.to_string(),
+                        result: None,
+                        error: Some(McpError {
+                            code: ERROR_INTERNAL_ERROR,
+                            message: format!("Failed to get activities: {}", e),
                             data: None,
                         }),
                         id,

@@ -1,0 +1,6 @@
+[providers.strava]
+auth_type = "oauth2"
+client_id = "test_client_id"
+client_secret = "test_client_secret"
+access_token = "test_access_token"
+refresh_token = "test_refresh_token"

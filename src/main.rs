@@ -14,6 +14,7 @@ mod providers;
 mod models;
 mod config;
 mod oauth2_client;
+mod intelligence;
 
 use mcp::McpServer;
 

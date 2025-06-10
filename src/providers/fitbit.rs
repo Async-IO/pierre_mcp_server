@@ -352,31 +352,41 @@ struct FitbitActivity {
     activity_id: u64,
     activity_name: String,
     activity_type_id: u32,
+    #[allow(dead_code)] // Future use for detailed activity level analysis
     activity_level: Option<Vec<FitbitActivityLevel>>,
     start_time: String,
     duration: u64, // milliseconds
     distance: Option<f64>, // km
+    #[allow(dead_code)] // Future use for unit conversion
     distance_unit: Option<String>,
+    #[allow(dead_code)] // Future use for step counting
     steps: Option<u32>,
     calories: Option<u32>,
     elevation_gain: Option<f64>, // meters
     average_heart_rate: Option<u32>,
+    #[allow(dead_code)] // Future use for heart rate zone analysis
     heart_rate_zones: Option<Vec<FitbitHeartRateZone>>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct FitbitActivityLevel {
+    #[allow(dead_code)] // Future use for activity level analysis
     minutes: u32,
+    #[allow(dead_code)] // Future use for activity level analysis
     name: String, // "sedentary", "lightly", "fairly", "very"
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct FitbitHeartRateZone {
+    #[allow(dead_code)] // Future use for heart rate zone analysis
     name: String,
+    #[allow(dead_code)] // Future use for heart rate zone analysis
     min: u32,
+    #[allow(dead_code)] // Future use for heart rate zone analysis
     max: u32,
+    #[allow(dead_code)] // Future use for heart rate zone analysis
     minutes: u32,
 }
 
@@ -399,6 +409,7 @@ struct FitbitLifetime {
 struct FitbitLifetimeTotal {
     distance: f64, // km
     floors: f64,
+    #[allow(dead_code)] // Future use for step-based analysis
     steps: u64,
 }
 

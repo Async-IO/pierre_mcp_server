@@ -94,6 +94,7 @@ fn create_fitness_tools() -> Vec<ToolSchema> {
         create_get_activities_tool(),
         create_get_athlete_tool(), 
         create_get_stats_tool(),
+        create_get_activity_intelligence_tool(),
     ]
 }
 
@@ -167,6 +168,36 @@ fn create_get_stats_tool() -> ToolSchema {
     }
 }
 
+/// Create the get_activity_intelligence tool schema
+fn create_get_activity_intelligence_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+    
+    properties.insert("provider".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Fitness provider name (e.g., 'strava', 'fitbit')".to_string()),
+    });
+    
+    properties.insert("activity_id".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("ID of the specific activity to analyze".to_string()),
+    });
+    
+    properties.insert("include_weather".to_string(), PropertySchema {
+        property_type: "boolean".to_string(),
+        description: Some("Whether to include weather analysis (default: true)".to_string()),
+    });
+
+    ToolSchema {
+        name: "get_activity_intelligence".to_string(),
+        description: "Generate AI-powered insights and analysis for a specific activity".to_string(),
+        input_schema: JsonSchema {
+            schema_type: "object".to_string(),
+            properties: Some(properties),
+            required: Some(vec!["provider".to_string(), "activity_id".to_string()]),
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -188,7 +219,7 @@ mod tests {
         assert!(json["capabilities"]["tools"].is_array());
         
         let tools = json["capabilities"]["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 3);
+        assert_eq!(tools.len(), 4);
         
         let tool_names: Vec<&str> = tools.iter()
             .filter_map(|t| t["name"].as_str())
@@ -197,6 +228,7 @@ mod tests {
         assert!(tool_names.contains(&"get_activities"));
         assert!(tool_names.contains(&"get_athlete"));
         assert!(tool_names.contains(&"get_stats"));
+        assert!(tool_names.contains(&"get_activity_intelligence"));
     }
 
     #[test]

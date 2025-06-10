@@ -80,3 +80,6 @@ pub mod oauth2_client;
 
 /// Model Context Protocol server implementation
 pub mod mcp;
+
+/// Athlete Intelligence for activity analysis and insights
+pub mod intelligence;
