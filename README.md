@@ -2,6 +2,75 @@
 
 A comprehensive MCP (Model Context Protocol) server for fitness data analysis. Provides secure access to fitness data from multiple providers (Strava, Fitbit) through Claude and other AI assistants.
 
+## LLM Prompt Examples
+
+Once connected to Claude or another AI assistant, you can use natural language prompts to analyze your fitness data:
+
+### 🏃 Running Analysis
+```
+What was my longest run this year?
+
+Analyze my running pace trends over the last 3 months.
+
+How many miles did I run in total last month?
+
+What's my average weekly running distance?
+
+Find my fastest 5K time this year.
+```
+
+### 🚴 Cross-Training Analysis
+```
+Compare my cycling vs running activities this month.
+
+What's my most active day of the week?
+
+Show me my heart rate zones during my last 5 workouts.
+
+How has my fitness improved over the last 6 months?
+
+What's my longest consecutive streak of workouts?
+```
+
+### 📊 Fitness Insights
+```
+Create a summary of my fitness goals progress.
+
+What activities burn the most calories for me?
+
+Analyze my workout patterns and suggest improvements.
+
+How does my Strava data compare to my Fitbit data?
+
+What's my average elevation gain per week?
+```
+
+### 🎯 Goal Tracking
+```
+How close am I to running 1000 miles this year?
+
+Track my progress toward my weekly activity goals.
+
+What's my personal best for each activity type?
+
+Show me days where I exceeded 10,000 steps.
+
+Find patterns in my rest days vs active days.
+```
+
+### 📈 Advanced Analysis
+```
+Correlate my workout intensity with my recovery time.
+
+What's the optimal workout frequency based on my data?
+
+Analyze seasonal patterns in my activity levels.
+
+Compare my performance before and after equipment changes.
+
+Identify my most and least consistent months for training.
+```
+
 ## Features
 
 - **Multi-Provider Support**: Strava and Fitbit integration with unified API
@@ -143,75 +212,6 @@ cargo run --bin find-consecutive-10k-runs
 # {"method": "tools/call", "params": {"name": "get_activities", "arguments": {"provider": "strava", "limit": 10}}}
 # {"method": "tools/call", "params": {"name": "get_activities", "arguments": {"provider": "fitbit", "limit": 20}}}
 # {"method": "tools/call", "params": {"name": "get_athlete", "arguments": {"provider": "strava"}}}
-```
-
-## LLM Prompt Examples
-
-Once connected to Claude or another AI assistant, you can use natural language prompts to analyze your fitness data:
-
-### 🏃 Running Analysis
-```
-What was my longest run this year?
-
-Analyze my running pace trends over the last 3 months.
-
-How many miles did I run in total last month?
-
-What's my average weekly running distance?
-
-Find my fastest 5K time this year.
-```
-
-### 🚴 Cross-Training Analysis
-```
-Compare my cycling vs running activities this month.
-
-What's my most active day of the week?
-
-Show me my heart rate zones during my last 5 workouts.
-
-How has my fitness improved over the last 6 months?
-
-What's my longest consecutive streak of workouts?
-```
-
-### 📊 Fitness Insights
-```
-Create a summary of my fitness goals progress.
-
-What activities burn the most calories for me?
-
-Analyze my workout patterns and suggest improvements.
-
-How does my Strava data compare to my Fitbit data?
-
-What's my average elevation gain per week?
-```
-
-### 🎯 Goal Tracking
-```
-How close am I to running 1000 miles this year?
-
-Track my progress toward my weekly activity goals.
-
-What's my personal best for each activity type?
-
-Show me days where I exceeded 10,000 steps.
-
-Find patterns in my rest days vs active days.
-```
-
-### 📈 Advanced Analysis
-```
-Correlate my workout intensity with my recovery time.
-
-What's the optimal workout frequency based on my data?
-
-Analyze seasonal patterns in my activity levels.
-
-Compare my performance before and after equipment changes.
-
-Identify my most and least consistent months for training.
 ```
 
 ## Adding to Claude or GitHub Copilot
