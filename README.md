@@ -12,7 +12,7 @@ What was my longest run this year and where did I run it?
 
 Analyze my running pace trends over the last 3 months with location context.
 
-How many miles did I run in total last month?
+How many kms did I run in total last month?
 
 Find my fastest 5K time this year and the conditions when I achieved it.
 
