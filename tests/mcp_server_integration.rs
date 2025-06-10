@@ -119,7 +119,7 @@ async fn test_mcp_initialize_request() -> Result<()> {
     assert!(response["result"].is_object());
     
     let result = &response["result"];
-    assert_eq!(result["protocolVersion"], "1.0");
+    assert_eq!(result["protocolVersion"], "2024-11-05");
     assert!(result["serverInfo"].is_object());
     assert!(result["capabilities"].is_object());
     assert!(result["capabilities"]["tools"].is_array());

@@ -15,6 +15,75 @@ use tracing::info;
 use crate::config::Config;
 use crate::providers::{FitnessProvider, create_provider, AuthData};
 
+// MCP Protocol Constants
+const MCP_PROTOCOL_VERSION: &str = "2024-11-05";
+const JSONRPC_VERSION: &str = "2.0";
+
+// Server Information
+const SERVER_NAME: &str = "pierre-mcp-server";
+const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+// JSON-RPC Error Codes (as defined in the JSON-RPC 2.0 specification)
+const ERROR_METHOD_NOT_FOUND: i32 = -32601;
+const ERROR_INVALID_PARAMS: i32 = -32602;
+const ERROR_INTERNAL_ERROR: i32 = -32603;
+
+/// Generate MCP tool schemas for supported fitness providers
+fn generate_tool_schemas() -> Value {
+    serde_json::json!([
+        {
+            "name": "get_activities",
+            "description": "Get fitness activities from a provider",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "provider": { 
+                        "type": "string",
+                        "description": "Fitness provider name (e.g., 'strava', 'fitbit')"
+                    },
+                    "limit": { 
+                        "type": "number",
+                        "description": "Maximum number of activities to return"
+                    },
+                    "offset": { 
+                        "type": "number",
+                        "description": "Number of activities to skip (for pagination)"
+                    }
+                },
+                "required": ["provider"]
+            }
+        },
+        {
+            "name": "get_athlete",
+            "description": "Get athlete profile from a provider",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "provider": { 
+                        "type": "string",
+                        "description": "Fitness provider name (e.g., 'strava', 'fitbit')"
+                    }
+                },
+                "required": ["provider"]
+            }
+        },
+        {
+            "name": "get_stats",
+            "description": "Get fitness statistics from a provider",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "provider": { 
+                        "type": "string",
+                        "description": "Fitness provider name (e.g., 'strava', 'fitbit')"
+                    }
+                },
+                "required": ["provider"]
+            }
+        }
+    ])
+}
+
 pub struct McpServer {
     config: Config,
     providers: Arc<RwLock<HashMap<String, Box<dyn FitnessProvider>>>>,
@@ -93,51 +162,15 @@ async fn handle_request(
     match request.method.as_str() {
         "initialize" => {
             McpResponse {
-                jsonrpc: "2.0".to_string(),
+                jsonrpc: JSONRPC_VERSION.to_string(),
                 result: Some(serde_json::json!({
-                    "protocolVersion": "1.0",
+                    "protocolVersion": MCP_PROTOCOL_VERSION,
                     "serverInfo": {
-                        "name": "fitness-mcp-server",
-                        "version": "0.1.0"
+                        "name": SERVER_NAME,
+                        "version": SERVER_VERSION
                     },
                     "capabilities": {
-                        "tools": [
-                            {
-                                "name": "get_activities",
-                                "description": "Get fitness activities from a provider",
-                                "inputSchema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "provider": { "type": "string" },
-                                        "limit": { "type": "number" },
-                                        "offset": { "type": "number" }
-                                    },
-                                    "required": ["provider"]
-                                }
-                            },
-                            {
-                                "name": "get_athlete",
-                                "description": "Get athlete profile from a provider",
-                                "inputSchema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "provider": { "type": "string" }
-                                    },
-                                    "required": ["provider"]
-                                }
-                            },
-                            {
-                                "name": "get_stats",
-                                "description": "Get fitness statistics from a provider",
-                                "inputSchema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "provider": { "type": "string" }
-                                    },
-                                    "required": ["provider"]
-                                }
-                            }
-                        ]
+                        "tools": generate_tool_schemas()
                     }
                 })),
                 error: None,
@@ -153,10 +186,10 @@ async fn handle_request(
         }
         _ => {
             McpResponse {
-                jsonrpc: "2.0".to_string(),
+                jsonrpc: JSONRPC_VERSION.to_string(),
                 result: None,
                 error: Some(McpError {
-                    code: -32601,
+                    code: ERROR_METHOD_NOT_FOUND,
                     message: "Method not found".to_string(),
                     data: None,
                 }),
@@ -190,10 +223,10 @@ async fn handle_tool_call(
                         "api_key" => AuthData::ApiKey(auth_config.api_key.clone().unwrap_or_default()),
                         _ => {
                             return McpResponse {
-                                jsonrpc: "2.0".to_string(),
+                                jsonrpc: JSONRPC_VERSION.to_string(),
                                 result: None,
                                 error: Some(McpError {
-                                    code: -32602,
+                                    code: ERROR_INVALID_PARAMS,
                                     message: "Invalid auth configuration".to_string(),
                                     data: None,
                                 }),
@@ -204,10 +237,10 @@ async fn handle_tool_call(
                     
                     if let Err(e) = provider.authenticate(auth_data).await {
                         return McpResponse {
-                            jsonrpc: "2.0".to_string(),
+                            jsonrpc: JSONRPC_VERSION.to_string(),
                             result: None,
                             error: Some(McpError {
-                                code: -32603,
+                                code: ERROR_INTERNAL_ERROR,
                                 message: format!("Authentication failed: {}", e),
                                 data: None,
                             }),
@@ -219,10 +252,10 @@ async fn handle_tool_call(
             }
             Err(e) => {
                 return McpResponse {
-                    jsonrpc: "2.0".to_string(),
+                    jsonrpc: JSONRPC_VERSION.to_string(),
                     result: None,
                     error: Some(McpError {
-                        code: -32602,
+                        code: ERROR_INVALID_PARAMS,
                         message: format!("Invalid provider: {}", e),
                         data: None,
                     }),
@@ -245,10 +278,10 @@ async fn handle_tool_call(
                 Ok(activities) => serde_json::to_value(activities).ok(),
                 Err(e) => {
                     return McpResponse {
-                        jsonrpc: "2.0".to_string(),
+                        jsonrpc: JSONRPC_VERSION.to_string(),
                         result: None,
                         error: Some(McpError {
-                            code: -32603,
+                            code: ERROR_INTERNAL_ERROR,
                             message: format!("Failed to get activities: {}", e),
                             data: None,
                         }),
@@ -262,10 +295,10 @@ async fn handle_tool_call(
                 Ok(athlete) => serde_json::to_value(athlete).ok(),
                 Err(e) => {
                     return McpResponse {
-                        jsonrpc: "2.0".to_string(),
+                        jsonrpc: JSONRPC_VERSION.to_string(),
                         result: None,
                         error: Some(McpError {
-                            code: -32603,
+                            code: ERROR_INTERNAL_ERROR,
                             message: format!("Failed to get athlete: {}", e),
                             data: None,
                         }),
@@ -279,10 +312,10 @@ async fn handle_tool_call(
                 Ok(stats) => serde_json::to_value(stats).ok(),
                 Err(e) => {
                     return McpResponse {
-                        jsonrpc: "2.0".to_string(),
+                        jsonrpc: JSONRPC_VERSION.to_string(),
                         result: None,
                         error: Some(McpError {
-                            code: -32603,
+                            code: ERROR_INTERNAL_ERROR,
                             message: format!("Failed to get stats: {}", e),
                             data: None,
                         }),
@@ -295,11 +328,11 @@ async fn handle_tool_call(
     };
     
     McpResponse {
-        jsonrpc: "2.0".to_string(),
+        jsonrpc: JSONRPC_VERSION.to_string(),
         result: result.clone(),
         error: if result.is_none() {
             Some(McpError {
-                code: -32601,
+                code: ERROR_METHOD_NOT_FOUND,
                 message: "Unknown tool".to_string(),
                 data: None,
             })
