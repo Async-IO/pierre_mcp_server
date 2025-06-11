@@ -85,10 +85,13 @@ struct StravaTokenResponse {
     access_token: String,
     refresh_token: String,
     expires_at: i64,
+    #[allow(dead_code)]
     expires_in: i64,
+    #[allow(dead_code)]
     token_type: String,
     #[serde(default)]
     scope: Option<String>,
+    #[allow(dead_code)]
     #[serde(default)]
     athlete: serde_json::Value,
 }
@@ -98,8 +101,10 @@ struct FitbitTokenResponse {
     access_token: String,
     refresh_token: String,
     expires_in: i64,
+    #[allow(dead_code)]
     token_type: String,
     scope: String,
+    #[allow(dead_code)]
     user_id: String,
 }
 

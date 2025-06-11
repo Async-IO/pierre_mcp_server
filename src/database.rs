@@ -308,6 +308,16 @@ impl Database {
         Ok(())
     }
 
+    /// Get total number of users (for health checks)
+    pub async fn get_user_count(&self) -> Result<i64> {
+        let row = sqlx::query("SELECT COUNT(*) as count FROM users")
+            .fetch_one(&self.pool)
+            .await?;
+        
+        let count: i64 = row.try_get("count")?;
+        Ok(count)
+    }
+
     /// Convert database row to User model
     fn row_to_user(&self, row: sqlx::sqlite::SqliteRow) -> Result<User> {
         let id_str: String = row.try_get("id")?;

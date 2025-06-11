@@ -126,7 +126,6 @@ impl LoggingConfig {
             }
             LogFormat::Pretty => {
                 let pretty_layer = fmt::layer()
-                    .pretty()
                     .with_file(self.include_location)
                     .with_line_number(self.include_location)
                     .with_thread_ids(self.include_thread)

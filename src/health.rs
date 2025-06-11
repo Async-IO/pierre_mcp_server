@@ -313,18 +313,16 @@ impl HealthChecker {
         // Try a simple query to ensure database is responsive
         let start = Instant::now();
         
-        // This is a simple connectivity test
-        // You might want to add more sophisticated checks like:
-        // - Query response time
-        // - Number of active connections
-        // - Database size
+        // Perform an actual database connectivity test
+        let user_count = self.database.get_user_count().await?;
         
         let query_duration = start.elapsed().as_millis() as u64;
         
         Ok(serde_json::json!({
             "type": "sqlite",
             "query_duration_ms": query_duration,
-            "status": "connected"
+            "status": "connected",
+            "user_count": user_count
         }))
     }
 
