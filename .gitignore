@@ -28,3 +28,7 @@ Thumbs.db
 
 # Server logs
 server.log
+
+# Test artifacts
+:memory:test_*
+multitenant_test*.log

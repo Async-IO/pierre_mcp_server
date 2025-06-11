@@ -450,6 +450,8 @@ pub struct User {
     pub email: String,
     /// Display name
     pub display_name: Option<String>,
+    /// Hashed password for authentication
+    pub password_hash: String,
     /// Encrypted Strava tokens
     pub strava_token: Option<EncryptedToken>,
     /// Encrypted Fitbit tokens
@@ -537,13 +539,14 @@ pub struct AuthResponse {
 }
 
 impl User {
-    /// Create a new user with the given email
-    pub fn new(email: String, display_name: Option<String>) -> Self {
+    /// Create a new user with the given email and password hash
+    pub fn new(email: String, password_hash: String, display_name: Option<String>) -> Self {
         let now = Utc::now();
         Self {
             id: Uuid::new_v4(),
             email,
             display_name,
+            password_hash,
             strava_token: None,
             fitbit_token: None,
             created_at: now,

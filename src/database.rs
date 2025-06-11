@@ -16,6 +16,7 @@ use sqlx::{Pool, Sqlite, SqlitePool, Row};
 use uuid::Uuid;
 
 /// Database manager for user and token storage
+#[derive(Clone)]
 pub struct Database {
     pool: Pool<Sqlite>,
     encryption_key: Vec<u8>,
@@ -53,6 +54,7 @@ impl Database {
                 id TEXT PRIMARY KEY,
                 email TEXT UNIQUE NOT NULL,
                 display_name TEXT,
+                password_hash TEXT NOT NULL,
                 strava_access_token TEXT,
                 strava_refresh_token TEXT,
                 strava_expires_at TEXT,
@@ -81,25 +83,24 @@ impl Database {
     }
 
     /// Create a new user
-    pub async fn create_user(&self, email: String, display_name: Option<String>) -> Result<User> {
-        let user = User::new(email, display_name);
-        
+    pub async fn create_user(&self, user: &User) -> Result<Uuid> {
         sqlx::query(
             r#"
-            INSERT INTO users (id, email, display_name, created_at, last_active, is_active)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            INSERT INTO users (id, email, display_name, password_hash, created_at, last_active, is_active)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
             "#,
         )
         .bind(user.id.to_string())
         .bind(&user.email)
         .bind(&user.display_name)
+        .bind(&user.password_hash)
         .bind(user.created_at.to_rfc3339())
         .bind(user.last_active.to_rfc3339())
         .bind(user.is_active)
         .execute(&self.pool)
         .await?;
 
-        Ok(user)
+        Ok(user.id)
     }
 
     /// Get user by ID
@@ -125,6 +126,14 @@ impl Database {
         match row {
             Some(row) => Ok(Some(self.row_to_user(row)?)),
             None => Ok(None),
+        }
+    }
+
+    /// Get user by email, returning error if not found (for authentication)
+    pub async fn get_user_by_email_required(&self, email: &str) -> Result<User> {
+        match self.get_user_by_email(email).await? {
+            Some(user) => Ok(user),
+            None => Err(anyhow::anyhow!("User not found")),
         }
     }
 
@@ -306,6 +315,7 @@ impl Database {
         
         let email: String = row.try_get("email")?;
         let display_name: Option<String> = row.try_get("display_name")?;
+        let password_hash: String = row.try_get("password_hash")?;
         
         let created_at_str: String = row.try_get("created_at")?;
         let created_at = DateTime::parse_from_rfc3339(&created_at_str)?.with_timezone(&Utc);
@@ -323,6 +333,7 @@ impl Database {
             id,
             email,
             display_name,
+            password_hash,
             strava_token,
             fitbit_token,
             created_at,
@@ -395,9 +406,9 @@ mod tests {
     use tempfile::tempdir;
 
     async fn create_test_db() -> Database {
-        let temp_dir = tempdir().unwrap();
-        let db_path = temp_dir.path().join("test.db");
-        let database_url = format!("sqlite:{}", db_path.display());
+        use uuid::Uuid;
+        let random_id = Uuid::new_v4().to_string();
+        let database_url = format!("sqlite::memory:test_{}", random_id);
         let encryption_key = generate_encryption_key().to_vec();
         
         Database::new(&database_url, encryption_key).await.unwrap()
@@ -407,14 +418,17 @@ mod tests {
     async fn test_create_and_get_user() {
         let db = create_test_db().await;
         
-        let user = db.create_user(
+        let user = User::new(
             "test@example.com".to_string(),
+            "hashed_password".to_string(),
             Some("Test User".to_string())
-        ).await.unwrap();
+        );
+        let user_id = db.create_user(&user).await.unwrap();
         
-        let retrieved = db.get_user(user.id).await.unwrap().unwrap();
+        let retrieved = db.get_user(user_id).await.unwrap().unwrap();
         assert_eq!(retrieved.email, "test@example.com");
         assert_eq!(retrieved.display_name, Some("Test User".to_string()));
+        assert_eq!(retrieved.password_hash, "hashed_password");
         assert!(retrieved.is_active);
     }
 
@@ -422,13 +436,15 @@ mod tests {
     async fn test_get_user_by_email() {
         let db = create_test_db().await;
         
-        let user = db.create_user(
+        let user = User::new(
             "email@example.com".to_string(),
+            "hashed_password".to_string(),
             None
-        ).await.unwrap();
+        );
+        let user_id = db.create_user(&user).await.unwrap();
         
         let retrieved = db.get_user_by_email("email@example.com").await.unwrap().unwrap();
-        assert_eq!(retrieved.id, user.id);
+        assert_eq!(retrieved.id, user_id);
         assert_eq!(retrieved.email, "email@example.com");
     }
 
@@ -436,16 +452,18 @@ mod tests {
     async fn test_strava_token_storage() {
         let db = create_test_db().await;
         
-        let user = db.create_user(
+        let user = User::new(
             "strava@example.com".to_string(),
+            "hashed_password".to_string(),
             None
-        ).await.unwrap();
+        );
+        let user_id = db.create_user(&user).await.unwrap();
         
         let expires_at = Utc::now() + chrono::Duration::hours(6);
         
         // Store token
         db.update_strava_token(
-            user.id,
+            user_id,
             "access_token_123",
             "refresh_token_456",
             expires_at,
@@ -453,7 +471,7 @@ mod tests {
         ).await.unwrap();
         
         // Retrieve token
-        let token = db.get_strava_token(user.id).await.unwrap().unwrap();
+        let token = db.get_strava_token(user_id).await.unwrap().unwrap();
         assert_eq!(token.access_token, "access_token_123");
         assert_eq!(token.refresh_token, "refresh_token_456");
         assert_eq!(token.scope, "read,activity:read_all");
@@ -467,16 +485,18 @@ mod tests {
     async fn test_fitbit_token_storage() {
         let db = create_test_db().await;
         
-        let user = db.create_user(
+        let user = User::new(
             "fitbit@example.com".to_string(),
+            "hashed_password".to_string(),
             None
-        ).await.unwrap();
+        );
+        let user_id = db.create_user(&user).await.unwrap();
         
         let expires_at = Utc::now() + chrono::Duration::hours(8);
         
         // Store token
         db.update_fitbit_token(
-            user.id,
+            user_id,
             "fitbit_access_789",
             "fitbit_refresh_101112",
             expires_at,
@@ -484,7 +504,7 @@ mod tests {
         ).await.unwrap();
         
         // Retrieve token
-        let token = db.get_fitbit_token(user.id).await.unwrap().unwrap();
+        let token = db.get_fitbit_token(user_id).await.unwrap().unwrap();
         assert_eq!(token.access_token, "fitbit_access_789");
         assert_eq!(token.refresh_token, "fitbit_refresh_101112");
         assert_eq!(token.scope, "activity heartrate profile");
@@ -494,18 +514,19 @@ mod tests {
     async fn test_last_active_update() {
         let db = create_test_db().await;
         
-        let user = db.create_user(
+        let user = User::new(
             "active@example.com".to_string(),
+            "hashed_password".to_string(),
             None
-        ).await.unwrap();
-        
+        );
         let initial_active = user.last_active;
+        let user_id = db.create_user(&user).await.unwrap();
         
         // Wait a bit and update
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-        db.update_last_active(user.id).await.unwrap();
+        db.update_last_active(user_id).await.unwrap();
         
-        let updated_user = db.get_user(user.id).await.unwrap().unwrap();
+        let updated_user = db.get_user(user_id).await.unwrap().unwrap();
         assert!(updated_user.last_active > initial_active);
     }
 }

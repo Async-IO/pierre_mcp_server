@@ -18,6 +18,7 @@ use crate::intelligence::ActivityAnalyzer;
 use crate::intelligence::insights::ActivityContext;
 use crate::intelligence::weather::WeatherService;
 use crate::config::FitnessConfig;
+use crate::routes::{AuthRoutes, OAuthRoutes, RegisterRequest, LoginRequest};
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -67,17 +68,149 @@ impl MultiTenantMcpServer {
         }
     }
 
-    /// Run the multi-tenant MCP server
+    /// Run the multi-tenant server with both HTTP and MCP endpoints
     pub async fn run(self, port: u16) -> Result<()> {
+        // Create HTTP + MCP server
+        info!("Starting multi-tenant server with HTTP and MCP on port {}", port);
+        
+        // Clone references for HTTP handlers
+        let database = self.database.clone();
+        let auth_manager = self.auth_manager.clone();
+        
+        // Create route handlers
+        let _auth_routes = AuthRoutes::new((*database).clone(), (*auth_manager).clone());
+        let _oauth_routes = OAuthRoutes::new((*database).clone());
+        
+        // Start HTTP server for auth endpoints in background
+        let http_port = port + 1; // Use port+1 for HTTP
+        let database_http = database.clone();
+        let auth_manager_http = auth_manager.clone();
+        
+        tokio::spawn(async move {
+            Self::run_http_server(http_port, database_http, auth_manager_http).await
+        });
+        
+        // Run MCP server on main port
+        self.run_mcp_server(port).await
+    }
+
+    /// Run HTTP server for authentication endpoints
+    async fn run_http_server(
+        port: u16,
+        database: Arc<Database>,
+        auth_manager: Arc<AuthManager>,
+    ) -> Result<()> {
+        use warp::Filter;
+        
+        info!("HTTP authentication server starting on port {}", port);
+        
+        let auth_routes = AuthRoutes::new((*database).clone(), (*auth_manager).clone());
+        let oauth_routes = OAuthRoutes::new((*database).clone());
+        
+        // CORS configuration
+        let cors = warp::cors()
+            .allow_any_origin()
+            .allow_headers(vec!["content-type"])
+            .allow_methods(vec!["GET", "POST", "OPTIONS"]);
+        
+        // Registration endpoint
+        let register = warp::path("auth")
+            .and(warp::path("register"))
+            .and(warp::post())
+            .and(warp::body::json())
+            .and_then({
+                let auth_routes = auth_routes.clone();
+                move |request: RegisterRequest| {
+                    let auth_routes = auth_routes.clone();
+                    async move {
+                        match auth_routes.register(request).await {
+                            Ok(response) => Ok(warp::reply::json(&response)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
+        
+        // Login endpoint
+        let login = warp::path("auth")
+            .and(warp::path("login"))
+            .and(warp::post())
+            .and(warp::body::json())
+            .and_then({
+                let auth_routes = auth_routes.clone();
+                move |request: LoginRequest| {
+                    let auth_routes = auth_routes.clone();
+                    async move {
+                        match auth_routes.login(request).await {
+                            Ok(response) => Ok(warp::reply::json(&response)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
+        
+        // OAuth authorization URL endpoint
+        let oauth_auth = warp::path("oauth")
+            .and(warp::path!("auth" / String / String)) // /oauth/auth/{provider}/{user_id}
+            .and(warp::get())
+            .and_then({
+                let oauth_routes = oauth_routes.clone();
+                move |provider: String, user_id: String| {
+                    let oauth_routes = oauth_routes.clone();
+                    async move {
+                        match oauth_routes.get_auth_url(&user_id, &provider).await {
+                            Ok(url) => {
+                                let response = serde_json::json!({"auth_url": url});
+                                Ok(warp::reply::json(&response))
+                            }
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
+        
+        // Health check endpoint
+        let health = warp::path("health")
+            .and(warp::get())
+            .map(|| {
+                warp::reply::json(&serde_json::json!({"status": "ok", "service": "pierre-mcp-server"}))
+            });
+        
+        let routes = register
+            .or(login)
+            .or(oauth_auth)
+            .or(health)
+            .with(cors)
+            .recover(handle_rejection);
+        
+        info!("HTTP server ready on port {}", port);
+        warp::serve(routes)
+            .run(([127, 0, 0, 1], port))
+            .await;
+            
+        Ok(())
+    }
+
+    /// Run MCP server for AI assistant connections
+    async fn run_mcp_server(self, port: u16) -> Result<()> {
         use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
         use tokio::net::TcpListener;
         
         let listener = TcpListener::bind(format!("127.0.0.1:{}", port)).await?;
-        info!("Multi-tenant MCP server listening on port {}", port);
+        info!("MCP server listening on port {}", port);
         
         loop {
             let (socket, addr) = listener.accept().await?;
-            info!("New connection from {}", addr);
+            info!("New MCP connection from {}", addr);
             
             let database = self.database.clone();
             let auth_manager = self.auth_manager.clone();
@@ -570,4 +703,30 @@ struct McpError {
     code: i32,
     message: String,
     data: Option<Value>,
+}
+
+/// HTTP API error wrapper
+#[derive(Debug)]
+struct ApiError(serde_json::Value);
+
+impl warp::reject::Reject for ApiError {}
+
+/// Handle HTTP rejections and errors
+async fn handle_rejection(err: warp::Rejection) -> Result<impl warp::Reply, std::convert::Infallible> {
+    if let Some(api_error) = err.find::<ApiError>() {
+        let json = warp::reply::json(&api_error.0);
+        Ok(warp::reply::with_status(json, warp::http::StatusCode::BAD_REQUEST))
+    } else if err.is_not_found() {
+        let json = warp::reply::json(&serde_json::json!({
+            "error": "Not Found",
+            "message": "The requested endpoint was not found"
+        }));
+        Ok(warp::reply::with_status(json, warp::http::StatusCode::NOT_FOUND))
+    } else {
+        let json = warp::reply::json(&serde_json::json!({
+            "error": "Internal Server Error",
+            "message": "Something went wrong"
+        }));
+        Ok(warp::reply::with_status(json, warp::http::StatusCode::INTERNAL_SERVER_ERROR))
+    }
 }

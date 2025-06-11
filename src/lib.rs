@@ -89,3 +89,6 @@ pub mod database;
 
 /// Authentication and session management
 pub mod auth;
+
+/// HTTP routes for user registration and OAuth flows
+pub mod routes;

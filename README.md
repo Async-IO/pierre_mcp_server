@@ -174,6 +174,24 @@ Analyze my adaptation to different training environments over time.
 - **Extensible Design**: Easy to add new fitness providers in the future
 - **Production Ready**: Comprehensive testing and clean error handling
 
+## Architecture
+
+Pierre MCP Server supports two deployment modes:
+
+### 🏠 Single-Tenant Mode (Personal Use)
+- **Perfect for individual users** who want to run the server locally
+- No authentication required - direct access to your fitness data
+- Simple configuration with local config files or environment variables
+- Backwards compatible with existing setups
+
+### ☁️ Multi-Tenant Mode (Cloud Deployment)
+- **Enterprise-ready** for serving multiple users
+- **JWT Authentication** with secure user sessions
+- **Encrypted Token Storage** using AES-256-GCM for OAuth tokens at rest
+- **SQLite Database** for user management and token storage
+- **User Isolation** ensuring data privacy between users
+- **Cloud-Ready** for deployment on any cloud provider
+
 ## Installation
 
 ```bash
@@ -347,16 +365,69 @@ refresh_token = "your_fitbit_refresh_token"
 
 ## Usage
 
+### Single-Tenant Mode (Personal Use)
+
 ```bash
-# Run with default settings
-cargo run
+# Run in single-tenant mode (default, backwards compatible)
+cargo run --bin pierre-mcp-server -- --single-tenant
 
 # Run with custom port
-cargo run -- --port 9000
+cargo run --bin pierre-mcp-server -- --single-tenant --port 9000
 
 # Run with custom config file
-cargo run -- --config /path/to/config.toml
+cargo run --bin pierre-mcp-server -- --single-tenant --config /path/to/config.toml
 ```
+
+### Multi-Tenant Mode (Cloud Deployment)
+
+```bash
+# Run in multi-tenant mode with authentication
+cargo run --bin pierre-mcp-server
+
+# Specify database and authentication settings
+cargo run --bin pierre-mcp-server -- \
+  --database-url "sqlite:./users.db" \
+  --token-expiry-hours 24 \
+  --port 8080
+
+# Use custom encryption and JWT secret files
+cargo run --bin pierre-mcp-server -- \
+  --encryption-key-file ./custom-encryption.key \
+  --jwt-secret-file ./custom-jwt.secret
+```
+
+### Multi-Tenant Authentication Flow
+
+1. **User Registration/Login** (Phase 2 - Coming Soon)
+   ```bash
+   # Register new user
+   curl -X POST http://localhost:8080/auth/register \
+     -H "Content-Type: application/json" \
+     -d '{"email": "user@example.com", "password": "secure_password"}'
+
+   # Login to get JWT token
+   curl -X POST http://localhost:8080/auth/login \
+     -H "Content-Type: application/json" \
+     -d '{"email": "user@example.com", "password": "secure_password"}'
+   ```
+
+2. **Use JWT Token in MCP calls**
+   ```json
+   {
+     "method": "authenticate",
+     "params": {
+       "jwt_token": "your_jwt_token_here"
+     }
+   }
+   ```
+
+### Security Features
+
+- **Encryption at Rest**: All OAuth tokens encrypted with AES-256-GCM
+- **JWT Authentication**: Stateless authentication with configurable expiry
+- **User Isolation**: Complete data separation between users
+- **Secure Defaults**: Encryption keys auto-generated if not provided
+- **No Shared State**: Each user's data completely isolated
 
 ## MCP Tools
 
@@ -411,6 +482,8 @@ cargo run --bin check-longest-run-gps
 
 ## Adding to Claude or GitHub Copilot
 
+### Single-Tenant Mode Configuration
+
 Add to your MCP configuration:
 
 ```json
@@ -418,7 +491,7 @@ Add to your MCP configuration:
   "mcpServers": {
     "pierre-fitness": {
       "command": "path/to/pierre-mcp-server",
-      "args": ["--port", "8080"]
+      "args": ["--single-tenant", "--port", "8080"]
     }
   }
 }
@@ -431,12 +504,57 @@ Or for development:
   "mcpServers": {
     "pierre-fitness-dev": {
       "command": "cargo",
-      "args": ["run", "--", "--port", "8080"],
+      "args": ["run", "--bin", "pierre-mcp-server", "--", "--single-tenant", "--port", "8080"],
       "cwd": "/path/to/pierre_mcp_server"
     }
   }
 }
 ```
+
+### Multi-Tenant Mode Configuration
+
+For cloud deployments, connect to your hosted multi-tenant server:
+
+```json
+{
+  "mcpServers": {
+    "pierre-fitness-cloud": {
+      "command": "mcp-client",
+      "args": ["--url", "https://your-cloud-server.com:8080", "--auth-type", "jwt"]
+    }
+  }
+}
+```
+
+## Development Roadmap
+
+### ✅ Phase 1: Multi-Tenant Architecture (Completed)
+- ✅ Multi-tenant server with JWT authentication
+- ✅ Encrypted token storage with AES-256-GCM
+- ✅ User isolation and database management
+- ✅ Unified server supporting both single and multi-tenant modes
+- ✅ Backwards compatibility for existing users
+
+### 🚧 Phase 2: OAuth Integration & User Onboarding (In Progress)
+- 🔄 User registration and login endpoints
+- 🔄 OAuth2 flow integration for Strava/Fitbit in multi-tenant mode
+- 🔄 Web interface for user onboarding
+- 🔄 Token refresh automation
+- 🔄 User management dashboard
+
+### 📋 Phase 3: Cloud Deployment Infrastructure
+- ⏳ Docker containerization
+- ⏳ Kubernetes deployment manifests
+- ⏳ Cloud provider templates (AWS, GCP, Azure)
+- ⏳ Load balancing and scaling configuration
+- ⏳ Monitoring and observability setup
+
+### 📋 Phase 4: Advanced Features
+- ⏳ Rate limiting and API quotas
+- ⏳ Advanced analytics and reporting
+- ⏳ WebSocket support for real-time updates
+- ⏳ Plugin system for custom providers
+- ⏳ GraphQL API support
 
 ## Contributing
 
