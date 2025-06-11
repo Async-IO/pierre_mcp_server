@@ -227,6 +227,8 @@ async fn test_config_persistence_workflow() -> Result<()> {
         access_token: None,
         refresh_token: None,
         api_key: Some("test_key_12345".to_string()),
+        redirect_uri: None,
+        scopes: None,
     });
     
     let original_config = Config { providers };
