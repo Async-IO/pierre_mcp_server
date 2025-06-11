@@ -5,6 +5,7 @@
 // except according to those terms.
 
 pub mod schema;
+pub mod multitenant;
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};

@@ -27,6 +27,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 /// Represents a single fitness activity from any provider
 ///
@@ -431,6 +432,249 @@ pub enum PrMetric {
     HighestElevation,
     /// Fastest completion time for a standard distance (seconds)
     FastestTime,
+}
+
+// ================================================================================================
+// Multi-Tenant Models
+// ================================================================================================
+
+/// Represents a user in the multi-tenant system
+///
+/// Users are authenticated through OAuth providers and have encrypted tokens
+/// stored securely for accessing their fitness data.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct User {
+    /// Unique user identifier
+    pub id: Uuid,
+    /// User email address (used for identification)
+    pub email: String,
+    /// Display name
+    pub display_name: Option<String>,
+    /// Encrypted Strava tokens
+    pub strava_token: Option<EncryptedToken>,
+    /// Encrypted Fitbit tokens
+    pub fitbit_token: Option<EncryptedToken>,
+    /// When the user account was created
+    pub created_at: DateTime<Utc>,
+    /// Last time user accessed the system
+    pub last_active: DateTime<Utc>,
+    /// Whether the user account is active
+    pub is_active: bool,
+}
+
+/// Encrypted OAuth token storage
+///
+/// Tokens are encrypted at rest using AES-256-GCM encryption.
+/// Only decrypted when needed for API calls.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EncryptedToken {
+    /// Encrypted access token (base64 encoded)
+    pub access_token: String,
+    /// Encrypted refresh token (base64 encoded)
+    pub refresh_token: String,
+    /// When the access token expires
+    pub expires_at: DateTime<Utc>,
+    /// Token scope permissions
+    pub scope: String,
+    /// Encryption nonce (unique per token)
+    pub nonce: String,
+}
+
+/// Decrypted OAuth token for API calls
+///
+/// This is never stored - only exists in memory during API requests.
+#[derive(Debug, Clone)]
+pub struct DecryptedToken {
+    /// Plain text access token
+    pub access_token: String,
+    /// Plain text refresh token
+    pub refresh_token: String,
+    /// When the access token expires
+    pub expires_at: DateTime<Utc>,
+    /// Token scope permissions
+    pub scope: String,
+}
+
+/// User session for MCP protocol authentication
+///
+/// Contains JWT token and user context for secure MCP communication.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserSession {
+    /// User ID this session belongs to
+    pub user_id: Uuid,
+    /// JWT token for authentication
+    pub jwt_token: String,
+    /// When the session expires
+    pub expires_at: DateTime<Utc>,
+    /// User's email for display
+    pub email: String,
+    /// Available fitness providers for this user
+    pub available_providers: Vec<String>,
+}
+
+/// Authentication request for MCP protocol
+///
+/// Clients send this to authenticate with the MCP server.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthRequest {
+    /// JWT token for authentication
+    pub token: String,
+}
+
+/// Authentication response for MCP protocol
+///
+/// Server responds with user context and available capabilities.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthResponse {
+    /// Whether authentication was successful
+    pub authenticated: bool,
+    /// User ID if authenticated
+    pub user_id: Option<Uuid>,
+    /// Error message if authentication failed
+    pub error: Option<String>,
+    /// Available fitness providers for this user
+    pub available_providers: Vec<String>,
+}
+
+impl User {
+    /// Create a new user with the given email
+    pub fn new(email: String, display_name: Option<String>) -> Self {
+        let now = Utc::now();
+        Self {
+            id: Uuid::new_v4(),
+            email,
+            display_name,
+            strava_token: None,
+            fitbit_token: None,
+            created_at: now,
+            last_active: now,
+            is_active: true,
+        }
+    }
+
+    /// Check if user has valid Strava token
+    pub fn has_strava_access(&self) -> bool {
+        self.strava_token.as_ref()
+            .map(|token| token.expires_at > Utc::now())
+            .unwrap_or(false)
+    }
+
+    /// Check if user has valid Fitbit token
+    pub fn has_fitbit_access(&self) -> bool {
+        self.fitbit_token.as_ref()
+            .map(|token| token.expires_at > Utc::now())
+            .unwrap_or(false)
+    }
+
+    /// Get list of available providers for this user
+    pub fn available_providers(&self) -> Vec<String> {
+        let mut providers = Vec::new();
+        if self.has_strava_access() {
+            providers.push("strava".to_string());
+        }
+        if self.has_fitbit_access() {
+            providers.push("fitbit".to_string());
+        }
+        providers
+    }
+
+    /// Update last active timestamp
+    pub fn update_last_active(&mut self) {
+        self.last_active = Utc::now();
+    }
+}
+
+impl EncryptedToken {
+    /// Create a new encrypted token
+    pub fn new(
+        access_token: &str,
+        refresh_token: &str,
+        expires_at: DateTime<Utc>,
+        scope: String,
+        encryption_key: &[u8],
+    ) -> Result<Self, anyhow::Error> {
+        use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
+        use ring::rand::{SecureRandom, SystemRandom};
+
+        let rng = SystemRandom::new();
+        
+        // Generate unique nonce
+        let mut nonce_bytes = [0u8; 12];
+        rng.fill(&mut nonce_bytes)?;
+        let nonce = Nonce::assume_unique_for_key(nonce_bytes);
+        use base64::{Engine as _, engine::general_purpose};
+        let _nonce_b64 = general_purpose::STANDARD.encode(&nonce_bytes);
+
+        // Create encryption key
+        let unbound_key = UnboundKey::new(&AES_256_GCM, encryption_key)?;
+        let key = LessSafeKey::new(unbound_key);
+
+        // Encrypt access token
+        let mut access_token_data = access_token.as_bytes().to_vec();
+        key.seal_in_place_append_tag(nonce, Aad::empty(), &mut access_token_data)?;
+        let encrypted_access = general_purpose::STANDARD.encode(&access_token_data);
+
+        // Generate new nonce for refresh token
+        let mut refresh_nonce_bytes = [0u8; 12];
+        rng.fill(&mut refresh_nonce_bytes)?;
+        let refresh_nonce = Nonce::assume_unique_for_key(refresh_nonce_bytes);
+
+        // Encrypt refresh token
+        let mut refresh_token_data = refresh_token.as_bytes().to_vec();
+        let unbound_key2 = UnboundKey::new(&AES_256_GCM, encryption_key)?;
+        let key2 = LessSafeKey::new(unbound_key2);
+        key2.seal_in_place_append_tag(refresh_nonce, Aad::empty(), &mut refresh_token_data)?;
+        let encrypted_refresh = general_purpose::STANDARD.encode(&refresh_token_data);
+
+        // Store both nonces (we'll use the first one as the main nonce, second is embedded in refresh token)
+        let combined_nonce = general_purpose::STANDARD.encode(&[&nonce_bytes[..], &refresh_nonce_bytes[..]].concat());
+
+        Ok(Self {
+            access_token: encrypted_access,
+            refresh_token: encrypted_refresh,
+            expires_at,
+            scope,
+            nonce: combined_nonce,
+        })
+    }
+
+    /// Decrypt the token for use
+    pub fn decrypt(&self, encryption_key: &[u8]) -> Result<DecryptedToken, anyhow::Error> {
+        use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
+        use base64::{Engine as _, engine::general_purpose};
+
+        // Decode combined nonce
+        let nonce_data = general_purpose::STANDARD.decode(&self.nonce)?;
+        if nonce_data.len() != 24 {
+            return Err(anyhow::anyhow!("Invalid nonce length"));
+        }
+        
+        let access_nonce = Nonce::try_assume_unique_for_key(&nonce_data[0..12])?;
+        let refresh_nonce = Nonce::try_assume_unique_for_key(&nonce_data[12..24])?;
+
+        // Decrypt access token
+        let unbound_key = UnboundKey::new(&AES_256_GCM, encryption_key)?;
+        let key = LessSafeKey::new(unbound_key);
+        
+        let mut access_data = general_purpose::STANDARD.decode(&self.access_token)?;
+        let access_plaintext = key.open_in_place(access_nonce, Aad::empty(), &mut access_data)?;
+        let access_token = String::from_utf8(access_plaintext.to_vec())?;
+
+        // Decrypt refresh token
+        let unbound_key2 = UnboundKey::new(&AES_256_GCM, encryption_key)?;
+        let key2 = LessSafeKey::new(unbound_key2);
+        
+        let mut refresh_data = general_purpose::STANDARD.decode(&self.refresh_token)?;
+        let refresh_plaintext = key2.open_in_place(refresh_nonce, Aad::empty(), &mut refresh_data)?;
+        let refresh_token = String::from_utf8(refresh_plaintext.to_vec())?;
+
+        Ok(DecryptedToken {
+            access_token,
+            refresh_token,
+            expires_at: self.expires_at,
+            scope: self.scope.clone(),
+        })
+    }
 }
 
 #[cfg(test)]

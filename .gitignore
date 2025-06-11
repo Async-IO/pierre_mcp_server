@@ -12,6 +12,12 @@ target/
 .envrc
 config.toml
 
+# Multi-tenant server files
+encryption.key
+jwt.secret
+users.db
+*.db
+
 # OS
 .DS_Store
 Thumbs.db

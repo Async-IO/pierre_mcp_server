@@ -83,3 +83,9 @@ pub mod mcp;
 
 /// Athlete Intelligence for activity analysis and insights
 pub mod intelligence;
+
+/// Multi-tenant database management
+pub mod database;
+
+/// Authentication and session management
+pub mod auth;

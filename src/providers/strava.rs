@@ -13,7 +13,7 @@ use crate::models::{Activity, Athlete, Stats, PersonalRecord, SportType};
 use crate::config::FitnessConfig;
 use crate::oauth2_client::PkceParams;
 use super::{FitnessProvider, AuthData};
-use tracing::info;
+use tracing::{info, error};
 
 const STRAVA_API_BASE: &str = "https://www.strava.com/api/v3";
 const STRAVA_AUTH_URL: &str = "https://www.strava.com/oauth/authorize";
@@ -204,16 +204,53 @@ impl FitnessProvider for StravaProvider {
             query.push(("page", (offset / limit.unwrap_or(30) + 1).to_string()));
         }
         
-        let response: Vec<StravaActivity> = self.client
-            .get(format!("{}/athlete/activities", STRAVA_API_BASE))
+        let url = format!("{}/athlete/activities", STRAVA_API_BASE);
+        info!("Fetching activities from: {} with query: {:?}", url, query);
+        
+        let response = self.client
+            .get(&url)
             .bearer_auth(token)
             .query(&query)
             .send()
-            .await?
-            .json()
-            .await?;
+            .await
+            .context("Failed to send request to Strava API")?;
         
-        Ok(response.into_iter().map(|a| a.into()).collect())
+        let status = response.status();
+        info!("Strava API response status: {}", status);
+        
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_else(|_| "Unable to read error response".to_string());
+            error!("Strava API error response: {} - {}", status, error_text);
+            
+            // Check if it's an authentication error and we have a refresh token
+            if status == 401 && self.refresh_token.is_some() {
+                info!("Access token expired, attempting to refresh...");
+                // Note: This would require mutable self to refresh the token
+                return Err(anyhow::anyhow!("Access token expired. Strava API error: {} - {}", status, error_text));
+            }
+            
+            return Err(anyhow::anyhow!("Strava API returned error: {} - {}", status, error_text));
+        }
+        
+        // Get response text first for debugging
+        let response_text = response.text().await
+            .context("Failed to read response body")?;
+        
+        info!("Strava API response length: {} bytes", response_text.len());
+        if response_text.len() < 1000 {
+            info!("Strava API response body: {}", response_text);
+        } else {
+            info!("Strava API response body (truncated): {}...", &response_text[..500]);
+        }
+        
+        // Try to parse JSON
+        let activities: Vec<StravaActivity> = serde_json::from_str(&response_text)
+            .with_context(|| format!("Failed to parse Strava activities JSON. Response: {}", 
+                                   if response_text.len() < 500 { &response_text } else { &response_text[..500] }))?;
+        
+        info!("Successfully parsed {} activities from Strava", activities.len());
+        
+        Ok(activities.into_iter().map(|a| a.into()).collect())
     }
 
     #[allow(dead_code)]
