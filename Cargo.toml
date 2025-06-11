@@ -20,17 +20,6 @@ path = "src/bin/multitenant_server.rs"
 name = "auth-setup"
 path = "src/bin/auth_setup.rs"
 
-[[bin]]
-name = "test-oauth"
-path = "src/bin/test_oauth.rs"
-
-[[bin]]
-name = "test-mcp"
-path = "src/bin/test_mcp.rs"
-
-[[bin]]
-name = "test-client"
-path = "src/bin/test_client.rs"
 
 [[bin]]
 name = "test-with-data"
@@ -71,6 +60,10 @@ path = "src/bin/test_location_intelligence.rs"
 [[bin]]
 name = "check-longest-run-gps"
 path = "src/bin/check_longest_run_gps.rs"
+
+[[bin]]
+name = "test-oauth-callback"
+path = "src/bin/test_oauth_callback.rs"
 
 
 [dependencies]

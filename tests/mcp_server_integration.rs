@@ -31,6 +31,8 @@ fn create_test_config() -> Config {
         access_token: None,
         refresh_token: None,
         api_key: Some("test_api_key".to_string()),
+        redirect_uri: None,
+        scopes: None,
     });
     
     Config { providers }

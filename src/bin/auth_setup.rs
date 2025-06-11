@@ -134,6 +134,8 @@ async fn setup_strava_auth(client_id: String, client_secret: String, port: u16) 
             access_token: Some(access_token),
             refresh_token: Some(refresh_token),
             api_key: None,
+            redirect_uri: None,
+            scopes: Some(vec!["read".to_string(), "activity:read_all".to_string()]),
         });
         
         config.save(None)?;

@@ -95,6 +95,10 @@ fn create_fitness_tools() -> Vec<ToolSchema> {
         create_get_athlete_tool(), 
         create_get_stats_tool(),
         create_get_activity_intelligence_tool(),
+        create_connect_strava_tool(),
+        create_connect_fitbit_tool(),
+        create_get_connection_status_tool(),
+        create_disconnect_provider_tool(),
     ]
 }
 
@@ -203,6 +207,71 @@ fn create_get_activity_intelligence_tool() -> ToolSchema {
     }
 }
 
+/// Create the connect_strava tool schema
+fn create_connect_strava_tool() -> ToolSchema {
+    let properties = HashMap::new(); // No parameters needed - uses user's JWT context
+
+    ToolSchema {
+        name: "connect_strava".to_string(),
+        description: "Generate authorization URL to connect user's Strava account. Returns a URL for the user to visit to authorize access to their Strava data.".to_string(),
+        input_schema: JsonSchema {
+            schema_type: "object".to_string(),
+            properties: Some(properties),
+            required: Some(vec![]),
+        },
+    }
+}
+
+/// Create the connect_fitbit tool schema
+fn create_connect_fitbit_tool() -> ToolSchema {
+    let properties = HashMap::new(); // No parameters needed - uses user's JWT context
+
+    ToolSchema {
+        name: "connect_fitbit".to_string(),
+        description: "Generate authorization URL to connect user's Fitbit account. Returns a URL for the user to visit to authorize access to their Fitbit data.".to_string(),
+        input_schema: JsonSchema {
+            schema_type: "object".to_string(),
+            properties: Some(properties),
+            required: Some(vec![]),
+        },
+    }
+}
+
+/// Create the get_connection_status tool schema
+fn create_get_connection_status_tool() -> ToolSchema {
+    let properties = HashMap::new(); // No parameters needed - uses user's JWT context
+
+    ToolSchema {
+        name: "get_connection_status".to_string(),
+        description: "Check which fitness providers are currently connected and authorized for the user. Returns connection status for all supported providers.".to_string(),
+        input_schema: JsonSchema {
+            schema_type: "object".to_string(),
+            properties: Some(properties),
+            required: Some(vec![]),
+        },
+    }
+}
+
+/// Create the disconnect_provider tool schema
+fn create_disconnect_provider_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+    
+    properties.insert("provider".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Fitness provider to disconnect (e.g., 'strava', 'fitbit')".to_string()),
+    });
+
+    ToolSchema {
+        name: "disconnect_provider".to_string(),
+        description: "Disconnect and remove stored tokens for a specific fitness provider. This revokes access to the provider's data.".to_string(),
+        input_schema: JsonSchema {
+            schema_type: "object".to_string(),
+            properties: Some(properties),
+            required: Some(vec!["provider".to_string()]),
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -224,7 +293,7 @@ mod tests {
         assert!(json["capabilities"]["tools"].is_array());
         
         let tools = json["capabilities"]["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 4);
+        assert_eq!(tools.len(), 8);
         
         let tool_names: Vec<&str> = tools.iter()
             .filter_map(|t| t["name"].as_str())
@@ -234,6 +303,10 @@ mod tests {
         assert!(tool_names.contains(&"get_athlete"));
         assert!(tool_names.contains(&"get_stats"));
         assert!(tool_names.contains(&"get_activity_intelligence"));
+        assert!(tool_names.contains(&"connect_strava"));
+        assert!(tool_names.contains(&"connect_fitbit"));
+        assert!(tool_names.contains(&"get_connection_status"));
+        assert!(tool_names.contains(&"disconnect_provider"));
     }
 
     #[test]

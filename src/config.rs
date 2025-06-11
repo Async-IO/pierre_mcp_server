@@ -29,6 +29,8 @@ pub struct ProviderConfig {
     pub access_token: Option<String>,
     pub refresh_token: Option<String>,
     pub api_key: Option<String>,
+    pub redirect_uri: Option<String>,
+    pub scopes: Option<Vec<String>>,
 }
 
 impl Config {
@@ -65,6 +67,8 @@ impl Config {
                     access_token: std::env::var("STRAVA_ACCESS_TOKEN").ok(),
                     refresh_token: std::env::var("STRAVA_REFRESH_TOKEN").ok(),
                     api_key: None,
+                    redirect_uri: std::env::var("STRAVA_REDIRECT_URI").ok(),
+                    scopes: Some(vec!["read".to_string(), "activity:read_all".to_string()]),
                 });
             }
             
@@ -80,6 +84,8 @@ impl Config {
                     access_token: std::env::var("FITBIT_ACCESS_TOKEN").ok(),
                     refresh_token: std::env::var("FITBIT_REFRESH_TOKEN").ok(),
                     api_key: None,
+                    redirect_uri: std::env::var("FITBIT_REDIRECT_URI").ok(),
+                    scopes: Some(vec!["activity".to_string(), "profile".to_string()]),
                 });
             }
             
@@ -123,6 +129,8 @@ mod tests {
             access_token: Some("test_access_token".to_string()),
             refresh_token: Some("test_refresh_token".to_string()),
             api_key: None,
+            redirect_uri: Some("http://localhost:8081/oauth/callback".to_string()),
+            scopes: Some(vec!["read".to_string(), "activity:read_all".to_string()]),
         }
     }
 
@@ -137,6 +145,8 @@ mod tests {
             access_token: None,
             refresh_token: None,
             api_key: Some("test_api_key".to_string()),
+            redirect_uri: None,
+            scopes: None,
         });
         
         Config { providers }
@@ -255,6 +265,8 @@ api_key = "test_key_123"
             access_token: Some("test_env_access_token_unique_abcdef".to_string()),
             refresh_token: Some("test_env_refresh_token_unique_ghijkl".to_string()),
             api_key: None,
+            redirect_uri: None,
+            scopes: None,
         });
         
         // Verify the Strava provider was created 
@@ -358,6 +370,8 @@ api_key = "test_key_123"
             access_token: None,
             refresh_token: None,
             api_key: Some("my_secret_key".to_string()),
+            redirect_uri: None,
+            scopes: None,
         };
         
         assert_eq!(api_key_config.auth_type, "api_key");
@@ -375,6 +389,8 @@ api_key = "test_key_123"
             access_token: Some("oauth_access".to_string()),
             refresh_token: Some("oauth_refresh".to_string()),
             api_key: None,
+            redirect_uri: Some("http://localhost:8081/oauth/callback".to_string()),
+            scopes: Some(vec!["read".to_string()]),
         };
         
         assert_eq!(oauth2_config.auth_type, "oauth2");

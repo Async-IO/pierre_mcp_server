@@ -105,7 +105,7 @@ impl MultiTenantMcpServer {
         info!("HTTP authentication server starting on port {}", port);
         
         let auth_routes = AuthRoutes::new((*database).clone(), (*auth_manager).clone());
-        let oauth_routes = OAuthRoutes::new((*database).clone());
+        let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
         
         // CORS configuration
         let cors = warp::cors()
@@ -161,16 +161,23 @@ impl MultiTenantMcpServer {
             .and(warp::get())
             .and_then({
                 let oauth_routes = oauth_routes.clone();
-                move |provider: String, user_id: String| {
+                move |provider: String, user_id_str: String| {
                     let oauth_routes = oauth_routes.clone();
                     async move {
-                        match oauth_routes.get_auth_url(&user_id, &provider).await {
-                            Ok(url) => {
-                                let response = serde_json::json!({"auth_url": url});
-                                Ok(warp::reply::json(&response))
+                        match Uuid::parse_str(&user_id_str) {
+                            Ok(user_id) => {
+                                match oauth_routes.get_auth_url(user_id, &provider).await {
+                                    Ok(auth_response) => {
+                                        Ok(warp::reply::json(&auth_response))
+                                    }
+                                    Err(e) => {
+                                        let error = serde_json::json!({"error": e.to_string()});
+                                        Err(warp::reject::custom(ApiError(error)))
+                                    }
+                                }
                             }
-                            Err(e) => {
-                                let error = serde_json::json!({"error": e.to_string()});
+                            Err(_) => {
+                                let error = serde_json::json!({"error": "Invalid user ID format"});
                                 Err(warp::reject::custom(ApiError(error)))
                             }
                         }
@@ -178,6 +185,59 @@ impl MultiTenantMcpServer {
                 }
             });
         
+        // OAuth callback endpoints
+        let oauth_callback = warp::path("oauth")
+            .and(warp::path("callback"))
+            .and(warp::path!(String)) // /oauth/callback/{provider}
+            .and(warp::query::<std::collections::HashMap<String, String>>())
+            .and(warp::get())
+            .and_then({
+                let oauth_routes = oauth_routes.clone();
+                move |provider: String, params: std::collections::HashMap<String, String>| {
+                    let oauth_routes = oauth_routes.clone();
+                    async move {
+                        let code = params.get("code").cloned().unwrap_or_default();
+                        let state = params.get("state").cloned().unwrap_or_default();
+                        let error = params.get("error").cloned();
+                        
+                        if let Some(error_msg) = error {
+                            let error_response = serde_json::json!({
+                                "error": "OAuth authorization failed",
+                                "details": error_msg,
+                                "provider": provider
+                            });
+                            return Ok(warp::reply::with_status(
+                                warp::reply::json(&error_response),
+                                warp::http::StatusCode::BAD_REQUEST
+                            ));
+                        }
+                        
+                        match oauth_routes.handle_callback(&code, &state, &provider).await {
+                            Ok(callback_response) => {
+                                let success_response = serde_json::json!({
+                                    "success": true,
+                                    "message": format!("{} account connected successfully!", provider),
+                                    "provider": provider,
+                                    "user_id": callback_response.user_id,
+                                    "expires_at": callback_response.expires_at
+                                });
+                                Ok(warp::reply::with_status(
+                                    warp::reply::json(&success_response),
+                                    warp::http::StatusCode::OK
+                                ))
+                            }
+                            Err(e) => {
+                                let error_response = serde_json::json!({
+                                    "error": format!("Failed to process OAuth callback: {}", e),
+                                    "provider": provider
+                                });
+                                Err(warp::reject::custom(ApiError(error_response)))
+                            }
+                        }
+                    }
+                }
+            });
+
         // Health check endpoint
         let health = warp::path("health")
             .and(warp::get())
@@ -188,6 +248,7 @@ impl MultiTenantMcpServer {
         let routes = register
             .or(login)
             .or(oauth_auth)
+            .or(oauth_callback)
             .or(health)
             .with(cors)
             .recover(handle_rejection);
@@ -354,34 +415,54 @@ impl MultiTenantMcpServer {
         let params = request.params.unwrap_or_default();
         let tool_name = params["name"].as_str().unwrap_or("");
         let args = &params["arguments"];
-        let provider_name = args["provider"].as_str().unwrap_or("");
         
-        // Get or create user-specific provider
-        let provider_result = Self::get_user_provider(
-            user_id,
-            provider_name,
-            database,
-            user_providers,
-        ).await;
-
-        let provider = match provider_result {
-            Ok(provider) => provider,
-            Err(e) => {
-                return McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
-                    result: None,
-                    error: Some(McpError {
-                        code: ERROR_INTERNAL_ERROR,
-                        message: format!("Provider authentication failed: {}", e),
-                        data: None,
-                    }),
-                    id: request.id,
-                };
+        // Handle OAuth-related tools (don't require existing provider)
+        match tool_name {
+            "connect_strava" => {
+                return Self::handle_connect_strava(user_id, database, request.id).await;
             }
-        };
+            "connect_fitbit" => {
+                return Self::handle_connect_fitbit(user_id, database, request.id).await;
+            }
+            "get_connection_status" => {
+                return Self::handle_get_connection_status(user_id, database, request.id).await;
+            }
+            "disconnect_provider" => {
+                let provider_name = args["provider"].as_str().unwrap_or("");
+                return Self::handle_disconnect_provider(user_id, provider_name, database, request.id).await;
+            }
+            _ => {
+                // For fitness data tools, we need a provider
+                let provider_name = args["provider"].as_str().unwrap_or("");
+                
+                // Get or create user-specific provider
+                let provider_result = Self::get_user_provider(
+                    user_id,
+                    provider_name,
+                    database,
+                    user_providers,
+                ).await;
 
-        // Execute tool call with user-scoped provider
-        Self::execute_tool_call(tool_name, args, &provider, request.id).await
+                let provider = match provider_result {
+                    Ok(provider) => provider,
+                    Err(e) => {
+                        return McpResponse {
+                            jsonrpc: JSONRPC_VERSION.to_string(),
+                            result: None,
+                            error: Some(McpError {
+                                code: ERROR_INTERNAL_ERROR,
+                                message: format!("Provider authentication failed: {}", e),
+                                data: None,
+                            }),
+                            id: request.id,
+                        };
+                    }
+                };
+
+                // Execute tool call with user-scoped provider
+                Self::execute_tool_call(tool_name, args, &provider, request.id).await
+            }
+        }
     }
 
     /// Get or create a user-specific provider instance
@@ -450,6 +531,141 @@ impl MultiTenantMcpServer {
         }
         
         Ok(new_provider)
+    }
+
+    /// Handle connect_strava tool call
+    async fn handle_connect_strava(
+        user_id: Uuid,
+        database: &Arc<Database>,
+        id: Value,
+    ) -> McpResponse {
+        let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
+        
+        match oauth_routes.get_auth_url(user_id, "strava").await {
+            Ok(auth_response) => {
+                McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    result: serde_json::to_value(&auth_response).ok(),
+                    error: None,
+                    id,
+                }
+            }
+            Err(e) => {
+                McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    result: None,
+                    error: Some(McpError {
+                        code: ERROR_INTERNAL_ERROR,
+                        message: format!("Failed to generate Strava authorization URL: {}", e),
+                        data: None,
+                    }),
+                    id,
+                }
+            }
+        }
+    }
+
+    /// Handle connect_fitbit tool call
+    async fn handle_connect_fitbit(
+        user_id: Uuid,
+        database: &Arc<Database>,
+        id: Value,
+    ) -> McpResponse {
+        let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
+        
+        match oauth_routes.get_auth_url(user_id, "fitbit").await {
+            Ok(auth_response) => {
+                McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    result: serde_json::to_value(&auth_response).ok(),
+                    error: None,
+                    id,
+                }
+            }
+            Err(e) => {
+                McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    result: None,
+                    error: Some(McpError {
+                        code: ERROR_INTERNAL_ERROR,
+                        message: format!("Failed to generate Fitbit authorization URL: {}", e),
+                        data: None,
+                    }),
+                    id,
+                }
+            }
+        }
+    }
+
+    /// Handle get_connection_status tool call
+    async fn handle_get_connection_status(
+        user_id: Uuid,
+        database: &Arc<Database>,
+        id: Value,
+    ) -> McpResponse {
+        let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
+        
+        match oauth_routes.get_connection_status(user_id).await {
+            Ok(statuses) => {
+                McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    result: serde_json::to_value(&statuses).ok(),
+                    error: None,
+                    id,
+                }
+            }
+            Err(e) => {
+                McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    result: None,
+                    error: Some(McpError {
+                        code: ERROR_INTERNAL_ERROR,
+                        message: format!("Failed to get connection status: {}", e),
+                        data: None,
+                    }),
+                    id,
+                }
+            }
+        }
+    }
+
+    /// Handle disconnect_provider tool call
+    async fn handle_disconnect_provider(
+        user_id: Uuid,
+        provider: &str,
+        database: &Arc<Database>,
+        id: Value,
+    ) -> McpResponse {
+        let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
+        
+        match oauth_routes.disconnect_provider(user_id, provider).await {
+            Ok(()) => {
+                let response = serde_json::json!({
+                    "success": true,
+                    "message": format!("Successfully disconnected {}", provider),
+                    "provider": provider
+                });
+                
+                McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    result: Some(response),
+                    error: None,
+                    id,
+                }
+            }
+            Err(e) => {
+                McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    result: None,
+                    error: Some(McpError {
+                        code: ERROR_INTERNAL_ERROR,
+                        message: format!("Failed to disconnect provider: {}", e),
+                        data: None,
+                    }),
+                    id,
+                }
+            }
+        }
     }
 
     /// Execute tool call with provider
