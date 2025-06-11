@@ -406,12 +406,10 @@ mod tests {
     use tempfile::tempdir;
 
     async fn create_test_db() -> Database {
-        use uuid::Uuid;
-        let random_id = Uuid::new_v4().to_string();
-        let database_url = format!("sqlite::memory:test_{}", random_id);
+        let database_url = "sqlite::memory:";
         let encryption_key = generate_encryption_key().to_vec();
         
-        Database::new(&database_url, encryption_key).await.unwrap()
+        Database::new(database_url, encryption_key).await.unwrap()
     }
 
     #[tokio::test]

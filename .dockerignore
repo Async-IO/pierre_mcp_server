@@ -1,0 +1,58 @@
+# Git and version control
+.git
+.gitignore
+.gitattributes
+
+# Build artifacts
+target/
+*.db
+*.key
+*.secret
+
+# Documentation
+*.md
+docs/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.log
+
+# Docker files (to avoid recursive copying)
+Dockerfile*
+.dockerignore
+docker-compose*.yml
+
+# CI/CD files
+.github/
+.gitlab-ci.yml
+
+# Local development files
+.env
+.env.local
+.env.*.local
+# Note: .envrc is included for Docker builds with direnv support
+
+# Test data
+test_data/
+fixtures/
+
+# Cache directories
+.cache/
+node_modules/
+
+# Backup files
+*.bak
+*.backup

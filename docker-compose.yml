@@ -1,0 +1,90 @@
+# Pierre MCP Server - Docker Compose for Development
+version: '3.8'
+
+# Load environment variables from .envrc (direnv)
+
+services:
+  # Main MCP server
+  pierre-mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pierre-mcp-server
+    ports:
+      - "8080:8080"  # MCP port
+      - "8081:8081"  # HTTP port
+    environment:
+      # Environment variables will be loaded from .envrc by the entrypoint script
+      # You can override any of these here if needed
+      - RUST_LOG=${RUST_LOG:-debug}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:./data/users.db}
+      - ENCRYPTION_KEY_PATH=${ENCRYPTION_KEY_PATH:-./data/encryption.key}
+      - JWT_SECRET_PATH=${JWT_SECRET_PATH:-./data/jwt.secret}
+      - MCP_PORT=${MCP_PORT:-8080}
+      - HTTP_PORT=${HTTP_PORT:-8081}
+      # OAuth configuration (will be loaded from .envrc)
+      - STRAVA_CLIENT_ID=${STRAVA_CLIENT_ID}
+      - STRAVA_CLIENT_SECRET=${STRAVA_CLIENT_SECRET}
+      - STRAVA_REDIRECT_URI=${STRAVA_REDIRECT_URI}
+      - OPENWEATHER_API_KEY=${OPENWEATHER_API_KEY}
+    volumes:
+      - pierre_data:/app/data
+    networks:
+      - pierre_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Optional: Database backup service
+  pierre-backup:
+    image: alpine:latest
+    container_name: pierre-backup
+    volumes:
+      - pierre_data:/data
+      - ./backups:/backups
+    environment:
+      - BACKUP_INTERVAL=3600  # 1 hour
+    command: |
+      sh -c "
+        while true; do
+          timestamp=$$(date +%Y%m%d_%H%M%S)
+          echo 'Creating backup at' $$timestamp
+          cp /data/users.db /backups/users_$$timestamp.db 2>/dev/null || echo 'No database to backup yet'
+          sleep $$BACKUP_INTERVAL
+        done
+      "
+    networks:
+      - pierre_network
+    restart: unless-stopped
+    depends_on:
+      - pierre-mcp-server
+
+  # Optional: Development database browser
+  sqlite-web:
+    image: coleifer/sqlite-web
+    container_name: pierre-sqlite-web
+    ports:
+      - "8082:8080"
+    volumes:
+      - pierre_data:/data
+    environment:
+      - SQLITE_DATABASE=/data/users.db
+    networks:
+      - pierre_network
+    restart: unless-stopped
+    profiles:
+      - debug
+    depends_on:
+      - pierre-mcp-server
+
+volumes:
+  pierre_data:
+    driver: local
+
+networks:
+  pierre_network:
+    driver: bridge

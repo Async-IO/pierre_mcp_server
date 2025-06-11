@@ -194,9 +194,42 @@ Pierre MCP Server supports two deployment modes:
 
 ## Installation
 
+### Local Development
+
 ```bash
 cargo build --release
 ```
+
+### Docker Deployment
+
+The server supports Docker deployment with direnv (.envrc) integration:
+
+1. **Setup Environment Variables**:
+   ```bash
+   # Copy the example to .envrc
+   cp .env.example .envrc
+   # Edit .envrc with your OAuth credentials
+   # If using direnv: direnv allow
+   ```
+
+2. **Using Docker Compose with direnv**:
+   ```bash
+   # Use the helper script that loads .envrc
+   ./docker-compose-with-envrc.sh up
+   
+   # Or manually export variables and run docker-compose
+   eval $(cat .envrc | grep export) && docker-compose up
+   ```
+
+3. **Production Deployment**:
+   ```bash
+   # Build and run in production mode
+   docker-compose -f docker-compose.prod.yml up -d
+   ```
+
+4. **Health Checks**: Available at `http://localhost:8081/health`
+
+**Note**: The Docker setup includes automatic health checks, backup services, and optional SQLite web interface for development.
 
 ## OAuth2 Setup
 

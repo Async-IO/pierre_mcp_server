@@ -92,3 +92,9 @@ pub mod auth;
 
 /// HTTP routes for user registration and OAuth flows
 pub mod routes;
+
+/// Production logging and structured output
+pub mod logging;
+
+/// Health checks and monitoring
+pub mod health;

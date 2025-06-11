@@ -7,6 +7,7 @@
 //! Configuration management for the fitness MCP server
 
 pub mod fitness_config;
+pub mod environment;
 
 use anyhow::{Result, Context};
 use serde::{Deserialize, Serialize};
@@ -15,6 +16,7 @@ use std::fs;
 use std::path::Path;
 
 pub use fitness_config::FitnessConfig;
+pub use environment::ServerConfig;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {

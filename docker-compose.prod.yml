@@ -1,0 +1,88 @@
+# Pierre MCP Server - Production Docker Compose
+version: '3.8'
+
+services:
+  pierre-mcp-server:
+    image: pierre-mcp-server:latest
+    container_name: pierre-mcp-server-prod
+    ports:
+      - "${MCP_PORT:-8080}:8080"
+      - "${HTTP_PORT:-8081}:8081"
+    environment:
+      - RUST_LOG=${RUST_LOG:-info}
+      - DATABASE_URL=sqlite:./data/users.db
+      - ENCRYPTION_KEY_PATH=./data/encryption.key
+      - JWT_SECRET_PATH=./data/jwt.secret
+      - MCP_PORT=8080
+      - HTTP_PORT=8081
+      # OAuth configuration from environment
+      - STRAVA_CLIENT_ID=${STRAVA_CLIENT_ID}
+      - STRAVA_CLIENT_SECRET=${STRAVA_CLIENT_SECRET}
+      - STRAVA_REDIRECT_URI=${STRAVA_REDIRECT_URI}
+      - FITBIT_CLIENT_ID=${FITBIT_CLIENT_ID}
+      - FITBIT_CLIENT_SECRET=${FITBIT_CLIENT_SECRET}
+      - FITBIT_REDIRECT_URI=${FITBIT_REDIRECT_URI}
+    volumes:
+      - pierre_data_prod:/app/data
+    networks:
+      - pierre_network_prod
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Production backup service
+  pierre-backup-prod:
+    image: alpine:latest
+    container_name: pierre-backup-prod
+    volumes:
+      - pierre_data_prod:/data:ro
+      - ${BACKUP_PATH:-./backups}:/backups
+    environment:
+      - BACKUP_INTERVAL=${BACKUP_INTERVAL:-21600}  # 6 hours default
+      - RETENTION_DAYS=${RETENTION_DAYS:-7}
+    command: |
+      sh -c "
+        while true; do
+          timestamp=$$(date +%Y%m%d_%H%M%S)
+          echo 'Creating backup at' $$timestamp
+          if [ -f /data/users.db ]; then
+            cp /data/users.db /backups/users_$$timestamp.db
+            echo 'Backup created: users_$$timestamp.db'
+            # Cleanup old backups
+            find /backups -name 'users_*.db' -mtime +$$RETENTION_DAYS -delete
+          else
+            echo 'No database found to backup'
+          fi
+          sleep $$BACKUP_INTERVAL
+        done
+      "
+    networks:
+      - pierre_network_prod
+    restart: always
+    depends_on:
+      - pierre-mcp-server
+
+volumes:
+  pierre_data_prod:
+    driver: local
+
+networks:
+  pierre_network_prod:
+    driver: bridge
