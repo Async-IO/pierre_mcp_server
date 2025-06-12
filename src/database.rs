@@ -10,8 +10,9 @@
 //! It handles user storage, token encryption, and secure data access patterns.
 
 use crate::models::{User, EncryptedToken, DecryptedToken};
+use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats, ApiKeyTier};
 use anyhow::Result;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Utc, Datelike, Timelike};
 use sqlx::{Pool, Sqlite, SqlitePool, Row};
 use uuid::Uuid;
 
@@ -180,6 +181,147 @@ impl Database {
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_analytics_insights_user_id ON analytics_insights(user_id)")
             .execute(&self.pool)
             .await?;
+
+        // Create API key management tables
+        self.create_api_key_tables().await?;
+
+        Ok(())
+    }
+
+    /// Create API key management tables (migration 002)
+    async fn create_api_key_tables(&self) -> Result<()> {
+        // API Keys table
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS api_keys (
+                id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                
+                -- Key information
+                name TEXT NOT NULL,
+                key_prefix TEXT NOT NULL, -- First 12 chars for identification (pk_live_xxxx)
+                key_hash TEXT NOT NULL, -- SHA-256 hash of full key
+                
+                -- Metadata
+                description TEXT,
+                tier TEXT NOT NULL DEFAULT 'starter' CHECK (tier IN ('starter', 'professional', 'enterprise')),
+                
+                -- Rate limiting
+                rate_limit_requests INTEGER NOT NULL DEFAULT 10000, -- Requests per month
+                rate_limit_window INTEGER NOT NULL DEFAULT 2592000, -- 30 days in seconds
+                
+                -- Status
+                is_active BOOLEAN NOT NULL DEFAULT true,
+                last_used_at TIMESTAMP,
+                expires_at TIMESTAMP,
+                
+                -- Timestamps
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                
+                -- Ensure unique key names per user
+                UNIQUE(user_id, name)
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Index for fast key lookup
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_api_keys_prefix ON api_keys(key_prefix)")
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON api_keys(user_id)")
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_api_keys_active ON api_keys(is_active)")
+            .execute(&self.pool)
+            .await?;
+
+        // API Key Usage table
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS api_key_usage (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                api_key_id TEXT NOT NULL REFERENCES api_keys(id) ON DELETE CASCADE,
+                
+                -- Usage metrics
+                timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                tool_name TEXT NOT NULL,
+                response_time_ms INTEGER,
+                status_code INTEGER NOT NULL,
+                error_message TEXT,
+                
+                -- Request metadata
+                request_size_bytes INTEGER,
+                response_size_bytes INTEGER,
+                ip_address TEXT,
+                user_agent TEXT
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Indexes for analytics
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_usage_api_key_id ON api_key_usage(api_key_id)")
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_usage_timestamp ON api_key_usage(timestamp)")
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_usage_tool_name ON api_key_usage(tool_name)")
+            .execute(&self.pool)
+            .await?;
+
+        // Aggregated usage stats (for performance)
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS api_key_usage_stats (
+                api_key_id TEXT NOT NULL REFERENCES api_keys(id) ON DELETE CASCADE,
+                period_start TIMESTAMP NOT NULL,
+                period_end TIMESTAMP NOT NULL,
+                
+                -- Aggregated metrics
+                total_requests INTEGER NOT NULL DEFAULT 0,
+                successful_requests INTEGER NOT NULL DEFAULT 0,
+                failed_requests INTEGER NOT NULL DEFAULT 0,
+                total_response_time_ms INTEGER NOT NULL DEFAULT 0,
+                
+                -- Per-tool breakdown (JSON)
+                tool_usage TEXT NOT NULL DEFAULT '{}', -- JSON object with tool counts
+                
+                PRIMARY KEY (api_key_id, period_start)
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_stats_period ON api_key_usage_stats(period_start, period_end)")
+            .execute(&self.pool)
+            .await?;
+
+        // Rate limit tracking (sliding window)
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS api_key_rate_limits (
+                api_key_id TEXT PRIMARY KEY REFERENCES api_keys(id) ON DELETE CASCADE,
+                
+                -- Current window
+                window_start TIMESTAMP NOT NULL,
+                request_count INTEGER NOT NULL DEFAULT 0,
+                
+                -- Quick lookup
+                is_rate_limited BOOLEAN NOT NULL DEFAULT false,
+                rate_limit_reset_at TIMESTAMP,
+                
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
 
         Ok(())
     }
@@ -858,5 +1000,705 @@ mod tests {
         
         let updated_user = db.get_user(user_id).await.unwrap().unwrap();
         assert!(updated_user.last_active > initial_active);
+    }
+
+    // === API KEY TESTS ===
+
+    #[tokio::test]
+    async fn test_create_and_retrieve_api_key() {
+        let db = create_test_db().await;
+        
+        // Create test user
+        let user = User::new(
+            "apikey@example.com".to_string(),
+            "hashed_password".to_string(),
+            None
+        );
+        let user_id = db.create_user(&user).await.unwrap();
+        
+        // Create API key
+        let api_key = ApiKey {
+            id: "test_key_id".to_string(),
+            user_id,
+            name: "Test API Key".to_string(),
+            key_prefix: "pk_live_test".to_string(),
+            key_hash: "test_hash_12345".to_string(),
+            description: Some("Test API key for unit tests".to_string()),
+            tier: ApiKeyTier::Starter,
+            rate_limit_requests: 10_000,
+            rate_limit_window: 2_592_000, // 30 days
+            is_active: true,
+            last_used_at: None,
+            expires_at: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        
+        // Store API key
+        db.create_api_key(&api_key).await.unwrap();
+        
+        // Retrieve API key by prefix and hash
+        let retrieved = db.get_api_key_by_prefix("pk_live_test", "test_hash_12345").await.unwrap().unwrap();
+        
+        assert_eq!(retrieved.id, "test_key_id");
+        assert_eq!(retrieved.name, "Test API Key");
+        assert_eq!(retrieved.user_id, user_id);
+        assert_eq!(retrieved.tier, ApiKeyTier::Starter);
+        assert_eq!(retrieved.rate_limit_requests, 10_000);
+        assert!(retrieved.is_active);
+    }
+
+    #[tokio::test]
+    async fn test_get_user_api_keys() {
+        let db = create_test_db().await;
+        
+        // Create test user
+        let user = User::new(
+            "multikeys@example.com".to_string(),
+            "hashed_password".to_string(),
+            None
+        );
+        let user_id = db.create_user(&user).await.unwrap();
+        
+        // Create multiple API keys for the user
+        let api_key1 = ApiKey {
+            id: "key1".to_string(),
+            user_id,
+            name: "Production Key".to_string(),
+            key_prefix: "pk_live_prod".to_string(),
+            key_hash: "hash1".to_string(),
+            description: Some("Production environment".to_string()),
+            tier: ApiKeyTier::Professional,
+            rate_limit_requests: 100_000,
+            rate_limit_window: 2_592_000,
+            is_active: true,
+            last_used_at: None,
+            expires_at: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        
+        let api_key2 = ApiKey {
+            id: "key2".to_string(),
+            user_id,
+            name: "Development Key".to_string(),
+            key_prefix: "pk_live_dev".to_string(),
+            key_hash: "hash2".to_string(),
+            description: Some("Development environment".to_string()),
+            tier: ApiKeyTier::Starter,
+            rate_limit_requests: 10_000,
+            rate_limit_window: 2_592_000,
+            is_active: true,
+            last_used_at: None,
+            expires_at: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        
+        db.create_api_key(&api_key1).await.unwrap();
+        db.create_api_key(&api_key2).await.unwrap();
+        
+        // Retrieve all keys for user
+        let user_keys = db.get_user_api_keys(user_id).await.unwrap();
+        
+        assert_eq!(user_keys.len(), 2);
+        assert!(user_keys.iter().any(|k| k.name == "Production Key"));
+        assert!(user_keys.iter().any(|k| k.name == "Development Key"));
+    }
+
+    #[tokio::test]
+    async fn test_api_key_last_used_update() {
+        let db = create_test_db().await;
+        
+        // Create test user and API key
+        let user = User::new(
+            "usage@example.com".to_string(),
+            "hashed_password".to_string(),
+            None
+        );
+        let user_id = db.create_user(&user).await.unwrap();
+        
+        let api_key = ApiKey {
+            id: "usage_key".to_string(),
+            user_id,
+            name: "Usage Test Key".to_string(),
+            key_prefix: "pk_live_usage".to_string(),
+            key_hash: "usage_hash".to_string(),
+            description: None,
+            tier: ApiKeyTier::Starter,
+            rate_limit_requests: 10_000,
+            rate_limit_window: 2_592_000,
+            is_active: true,
+            last_used_at: None,
+            expires_at: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        
+        db.create_api_key(&api_key).await.unwrap();
+        
+        // Initially last_used_at should be None
+        let retrieved = db.get_api_key_by_prefix("pk_live_usage", "usage_hash").await.unwrap().unwrap();
+        assert!(retrieved.last_used_at.is_none());
+        
+        // Update last used
+        db.update_api_key_last_used("usage_key").await.unwrap();
+        
+        // Verify last_used_at is now set
+        let updated = db.get_api_key_by_prefix("pk_live_usage", "usage_hash").await.unwrap().unwrap();
+        assert!(updated.last_used_at.is_some());
+        assert!(updated.last_used_at.unwrap() > retrieved.created_at);
+    }
+
+    #[tokio::test]
+    async fn test_deactivate_api_key() {
+        let db = create_test_db().await;
+        
+        // Create test user and API key
+        let user = User::new(
+            "deactivate@example.com".to_string(),
+            "hashed_password".to_string(),
+            None
+        );
+        let user_id = db.create_user(&user).await.unwrap();
+        
+        let api_key = ApiKey {
+            id: "deactivate_key".to_string(),
+            user_id,
+            name: "Deactivate Test Key".to_string(),
+            key_prefix: "pk_live_deact".to_string(),
+            key_hash: "deact_hash".to_string(),
+            description: None,
+            tier: ApiKeyTier::Starter,
+            rate_limit_requests: 10_000,
+            rate_limit_window: 2_592_000,
+            is_active: true,
+            last_used_at: None,
+            expires_at: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        
+        db.create_api_key(&api_key).await.unwrap();
+        
+        // Initially should be active and retrievable
+        let retrieved = db.get_api_key_by_prefix("pk_live_deact", "deact_hash").await.unwrap();
+        assert!(retrieved.is_some());
+        assert!(retrieved.unwrap().is_active);
+        
+        // Deactivate the key
+        db.deactivate_api_key("deactivate_key", user_id).await.unwrap();
+        
+        // Should no longer be retrievable (because query filters for is_active = true)
+        let deactivated = db.get_api_key_by_prefix("pk_live_deact", "deact_hash").await.unwrap();
+        assert!(deactivated.is_none());
+        
+        // But should still appear in user's key list
+        let user_keys = db.get_user_api_keys(user_id).await.unwrap();
+        assert_eq!(user_keys.len(), 1);
+        assert!(!user_keys[0].is_active);
+    }
+
+    #[tokio::test]
+    async fn test_record_api_key_usage() {
+        let db = create_test_db().await;
+        
+        // Create test user and API key
+        let user = User::new(
+            "tracking@example.com".to_string(),
+            "hashed_password".to_string(),
+            None
+        );
+        let user_id = db.create_user(&user).await.unwrap();
+        
+        let api_key = ApiKey {
+            id: "tracking_key".to_string(),
+            user_id,
+            name: "Usage Tracking Key".to_string(),
+            key_prefix: "pk_live_track".to_string(),
+            key_hash: "track_hash".to_string(),
+            description: None,
+            tier: ApiKeyTier::Professional,
+            rate_limit_requests: 100_000,
+            rate_limit_window: 2_592_000,
+            is_active: true,
+            last_used_at: None,
+            expires_at: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        
+        db.create_api_key(&api_key).await.unwrap();
+        
+        // Record some usage
+        let usage1 = ApiKeyUsage {
+            id: None,
+            api_key_id: "tracking_key".to_string(),
+            timestamp: Utc::now(),
+            tool_name: "get_activities".to_string(),
+            response_time_ms: Some(150),
+            status_code: 200,
+            error_message: None,
+            request_size_bytes: Some(256),
+            response_size_bytes: Some(1024),
+            ip_address: Some("127.0.0.1".to_string()),
+            user_agent: Some("claude-mcp-client/1.0".to_string()),
+        };
+        
+        let usage2 = ApiKeyUsage {
+            id: None,
+            api_key_id: "tracking_key".to_string(),
+            timestamp: Utc::now(),
+            tool_name: "analyze_activity".to_string(),
+            response_time_ms: Some(75),
+            status_code: 200,
+            error_message: None,
+            request_size_bytes: Some(128),
+            response_size_bytes: Some(512),
+            ip_address: Some("127.0.0.1".to_string()),
+            user_agent: Some("claude-mcp-client/1.0".to_string()),
+        };
+        
+        db.record_api_key_usage(&usage1).await.unwrap();
+        db.record_api_key_usage(&usage2).await.unwrap();
+        
+        // Get current usage count
+        let current_usage = db.get_api_key_current_usage("tracking_key").await.unwrap();
+        assert_eq!(current_usage, 2);
+    }
+
+    #[tokio::test]
+    async fn test_api_key_usage_stats() {
+        let db = create_test_db().await;
+        
+        // Create test user and API key
+        let user = User::new(
+            "stats@example.com".to_string(),
+            "hashed_password".to_string(),
+            None
+        );
+        let user_id = db.create_user(&user).await.unwrap();
+        
+        let api_key = ApiKey {
+            id: "stats_key".to_string(),
+            user_id,
+            name: "Stats Test Key".to_string(),
+            key_prefix: "pk_live_stats".to_string(),
+            key_hash: "stats_hash".to_string(),
+            description: None,
+            tier: ApiKeyTier::Enterprise,
+            rate_limit_requests: u32::MAX,
+            rate_limit_window: 2_592_000,
+            is_active: true,
+            last_used_at: None,
+            expires_at: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        
+        db.create_api_key(&api_key).await.unwrap();
+        
+        let now = Utc::now();
+        let start_date = now - chrono::Duration::days(7);
+        let end_date = now;
+        
+        // Record various usage patterns
+        let usages = vec![
+            ApiKeyUsage {
+                id: None,
+                api_key_id: "stats_key".to_string(),
+                timestamp: now - chrono::Duration::hours(1),
+                tool_name: "get_activities".to_string(),
+                response_time_ms: Some(100),
+                status_code: 200,
+                error_message: None,
+                request_size_bytes: Some(256),
+                response_size_bytes: Some(1024),
+                ip_address: Some("127.0.0.1".to_string()),
+                user_agent: Some("test-client".to_string()),
+            },
+            ApiKeyUsage {
+                id: None,
+                api_key_id: "stats_key".to_string(),
+                timestamp: now - chrono::Duration::hours(2),
+                tool_name: "get_activities".to_string(),
+                response_time_ms: Some(200),
+                status_code: 200,
+                error_message: None,
+                request_size_bytes: Some(256),
+                response_size_bytes: Some(1024),
+                ip_address: Some("127.0.0.1".to_string()),
+                user_agent: Some("test-client".to_string()),
+            },
+            ApiKeyUsage {
+                id: None,
+                api_key_id: "stats_key".to_string(),
+                timestamp: now - chrono::Duration::hours(3),
+                tool_name: "analyze_activity".to_string(),
+                response_time_ms: Some(50),
+                status_code: 400,
+                error_message: Some("Invalid activity ID".to_string()),
+                request_size_bytes: Some(128),
+                response_size_bytes: Some(256),
+                ip_address: Some("127.0.0.1".to_string()),
+                user_agent: Some("test-client".to_string()),
+            },
+        ];
+        
+        for usage in usages {
+            db.record_api_key_usage(&usage).await.unwrap();
+        }
+        
+        // Get usage statistics
+        let stats = db.get_api_key_usage_stats("stats_key", start_date, end_date).await.unwrap();
+        
+        assert_eq!(stats.api_key_id, "stats_key");
+        assert_eq!(stats.total_requests, 3);
+        assert_eq!(stats.successful_requests, 2);
+        assert_eq!(stats.failed_requests, 1);
+        assert_eq!(stats.total_response_time_ms, 350); // 100 + 200 + 50
+    }
+
+    #[tokio::test]
+    async fn test_api_key_wrong_hash() {
+        let db = create_test_db().await;
+        
+        // Create test user and API key
+        let user = User::new(
+            "wrong@example.com".to_string(),
+            "hashed_password".to_string(),
+            None
+        );
+        let user_id = db.create_user(&user).await.unwrap();
+        
+        let api_key = ApiKey {
+            id: "wrong_key".to_string(),
+            user_id,
+            name: "Wrong Hash Test".to_string(),
+            key_prefix: "pk_live_wrong".to_string(),
+            key_hash: "correct_hash".to_string(),
+            description: None,
+            tier: ApiKeyTier::Starter,
+            rate_limit_requests: 10_000,
+            rate_limit_window: 2_592_000,
+            is_active: true,
+            last_used_at: None,
+            expires_at: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        
+        db.create_api_key(&api_key).await.unwrap();
+        
+        // Try to retrieve with correct prefix but wrong hash
+        let result = db.get_api_key_by_prefix("pk_live_wrong", "wrong_hash").await.unwrap();
+        assert!(result.is_none());
+        
+        // Try with correct hash
+        let result = db.get_api_key_by_prefix("pk_live_wrong", "correct_hash").await.unwrap();
+        assert!(result.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_api_key_expiration_handling() {
+        let db = create_test_db().await;
+        
+        // Create test user
+        let user = User::new(
+            "expired@example.com".to_string(),
+            "hashed_password".to_string(),
+            None
+        );
+        let user_id = db.create_user(&user).await.unwrap();
+        
+        // Create expired API key
+        let expired_key = ApiKey {
+            id: "expired_key".to_string(),
+            user_id,
+            name: "Expired Key".to_string(),
+            key_prefix: "pk_live_exp".to_string(),
+            key_hash: "expired_hash".to_string(),
+            description: None,
+            tier: ApiKeyTier::Starter,
+            rate_limit_requests: 10_000,
+            rate_limit_window: 2_592_000,
+            is_active: true,
+            last_used_at: None,
+            expires_at: Some(Utc::now() - chrono::Duration::days(1)), // Expired yesterday
+            created_at: Utc::now() - chrono::Duration::days(30),
+            updated_at: Utc::now() - chrono::Duration::days(30),
+        };
+        
+        db.create_api_key(&expired_key).await.unwrap();
+        
+        // Key should still be retrievable from database (expiration is handled at application level)
+        let retrieved = db.get_api_key_by_prefix("pk_live_exp", "expired_hash").await.unwrap();
+        assert!(retrieved.is_some());
+        
+        let key = retrieved.unwrap();
+        assert!(key.expires_at.is_some());
+        assert!(key.expires_at.unwrap() < Utc::now());
+    }
+}
+
+// API Key Management Methods
+impl Database {
+    /// Create a new API key
+    pub async fn create_api_key(&self, api_key: &ApiKey) -> Result<()> {
+        sqlx::query(
+            r#"
+            INSERT INTO api_keys (
+                id, user_id, name, key_prefix, key_hash, description, tier,
+                rate_limit_requests, rate_limit_window, is_active, expires_at,
+                created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+            "#,
+        )
+        .bind(&api_key.id)
+        .bind(api_key.user_id.to_string())
+        .bind(&api_key.name)
+        .bind(&api_key.key_prefix)
+        .bind(&api_key.key_hash)
+        .bind(&api_key.description)
+        .bind(match api_key.tier {
+            ApiKeyTier::Starter => "starter",
+            ApiKeyTier::Professional => "professional",
+            ApiKeyTier::Enterprise => "enterprise",
+        })
+        .bind(api_key.rate_limit_requests as i64)
+        .bind(api_key.rate_limit_window as i64)
+        .bind(api_key.is_active)
+        .bind(api_key.expires_at.map(|dt| dt.to_rfc3339()))
+        .bind(api_key.created_at.to_rfc3339())
+        .bind(api_key.updated_at.to_rfc3339())
+        .execute(&self.pool)
+        .await?;
+        
+        Ok(())
+    }
+    
+    /// Get API key by prefix and validate hash
+    pub async fn get_api_key_by_prefix(&self, key_prefix: &str, key_hash: &str) -> Result<Option<ApiKey>> {
+        let row = sqlx::query(
+            r#"
+            SELECT * FROM api_keys 
+            WHERE key_prefix = ?1 AND key_hash = ?2 AND is_active = true
+            "#,
+        )
+        .bind(key_prefix)
+        .bind(key_hash)
+        .fetch_optional(&self.pool)
+        .await?;
+        
+        if let Some(row) = row {
+            Ok(Some(self.parse_api_key_row(row)?))
+        } else {
+            Ok(None)
+        }
+    }
+    
+    /// Get all API keys for a user
+    pub async fn get_user_api_keys(&self, user_id: Uuid) -> Result<Vec<ApiKey>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT * FROM api_keys 
+            WHERE user_id = ?1
+            ORDER BY created_at DESC
+            "#,
+        )
+        .bind(user_id.to_string())
+        .fetch_all(&self.pool)
+        .await?;
+        
+        let mut keys = Vec::new();
+        for row in rows {
+            keys.push(self.parse_api_key_row(row)?);
+        }
+        
+        Ok(keys)
+    }
+    
+    /// Update API key last used timestamp
+    pub async fn update_api_key_last_used(&self, api_key_id: &str) -> Result<()> {
+        sqlx::query(
+            r#"
+            UPDATE api_keys 
+            SET last_used_at = ?1, updated_at = ?1
+            WHERE id = ?2
+            "#,
+        )
+        .bind(Utc::now().to_rfc3339())
+        .bind(api_key_id)
+        .execute(&self.pool)
+        .await?;
+        
+        Ok(())
+    }
+    
+    /// Deactivate an API key
+    pub async fn deactivate_api_key(&self, api_key_id: &str, user_id: Uuid) -> Result<()> {
+        sqlx::query(
+            r#"
+            UPDATE api_keys 
+            SET is_active = false, updated_at = ?1
+            WHERE id = ?2 AND user_id = ?3
+            "#,
+        )
+        .bind(Utc::now().to_rfc3339())
+        .bind(api_key_id)
+        .bind(user_id.to_string())
+        .execute(&self.pool)
+        .await?;
+        
+        Ok(())
+    }
+    
+    /// Record API key usage
+    pub async fn record_api_key_usage(&self, usage: &ApiKeyUsage) -> Result<()> {
+        sqlx::query(
+            r#"
+            INSERT INTO api_key_usage (
+                api_key_id, timestamp, tool_name, response_time_ms, status_code,
+                error_message, request_size_bytes, response_size_bytes,
+                ip_address, user_agent
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+            "#,
+        )
+        .bind(&usage.api_key_id)
+        .bind(usage.timestamp.to_rfc3339())
+        .bind(&usage.tool_name)
+        .bind(usage.response_time_ms.map(|ms| ms as i64))
+        .bind(usage.status_code as i64)
+        .bind(&usage.error_message)
+        .bind(usage.request_size_bytes.map(|b| b as i64))
+        .bind(usage.response_size_bytes.map(|b| b as i64))
+        .bind(&usage.ip_address)
+        .bind(&usage.user_agent)
+        .execute(&self.pool)
+        .await?;
+        
+        Ok(())
+    }
+    
+    /// Get current month usage for an API key
+    pub async fn get_api_key_current_usage(&self, api_key_id: &str) -> Result<u32> {
+        let start_of_month = Utc::now()
+            .with_day(1)
+            .unwrap()
+            .with_hour(0)
+            .unwrap()
+            .with_minute(0)
+            .unwrap()
+            .with_second(0)
+            .unwrap();
+        
+        let count: i64 = sqlx::query_scalar(
+            r#"
+            SELECT COUNT(*) FROM api_key_usage 
+            WHERE api_key_id = ?1 AND timestamp >= ?2
+            "#,
+        )
+        .bind(api_key_id)
+        .bind(start_of_month.to_rfc3339())
+        .fetch_one(&self.pool)
+        .await?;
+        
+        Ok(count as u32)
+    }
+    
+    /// Get usage statistics for an API key
+    pub async fn get_api_key_usage_stats(
+        &self, 
+        api_key_id: &str,
+        start_date: DateTime<Utc>,
+        end_date: DateTime<Utc>
+    ) -> Result<ApiKeyUsageStats> {
+        // First get overall stats
+        let stats_row = sqlx::query(
+            r#"
+            SELECT 
+                COUNT(*) as total_requests,
+                SUM(CASE WHEN status_code >= 200 AND status_code < 300 THEN 1 ELSE 0 END) as successful_requests,
+                SUM(CASE WHEN status_code >= 400 THEN 1 ELSE 0 END) as failed_requests,
+                COALESCE(SUM(response_time_ms), 0) as total_response_time_ms
+            FROM api_key_usage
+            WHERE api_key_id = ?1 AND timestamp >= ?2 AND timestamp < ?3
+            "#,
+        )
+        .bind(api_key_id)
+        .bind(start_date.to_rfc3339())
+        .bind(end_date.to_rfc3339())
+        .fetch_one(&self.pool)
+        .await?;
+
+        // Then get tool usage counts
+        let tool_rows = sqlx::query(
+            r#"
+            SELECT tool_name, COUNT(*) as count
+            FROM api_key_usage
+            WHERE api_key_id = ?1 AND timestamp >= ?2 AND timestamp < ?3
+            GROUP BY tool_name
+            "#,
+        )
+        .bind(api_key_id)
+        .bind(start_date.to_rfc3339())
+        .bind(end_date.to_rfc3339())
+        .fetch_all(&self.pool)
+        .await?;
+
+        // Build tool usage JSON
+        let mut tool_usage = serde_json::Map::new();
+        for row in tool_rows {
+            let tool_name: String = row.get("tool_name");
+            let count: i64 = row.get("count");
+            tool_usage.insert(tool_name, serde_json::Value::Number(count.into()));
+        }
+        
+        Ok(ApiKeyUsageStats {
+            api_key_id: api_key_id.to_string(),
+            period_start: start_date,
+            period_end: end_date,
+            total_requests: stats_row.get::<i64, _>("total_requests") as u32,
+            successful_requests: stats_row.get::<i64, _>("successful_requests") as u32,
+            failed_requests: stats_row.get::<i64, _>("failed_requests") as u32,
+            total_response_time_ms: stats_row.get::<i64, _>("total_response_time_ms") as u64,
+            tool_usage: serde_json::Value::Object(tool_usage),
+        })
+    }
+    
+    /// Parse API key row from database
+    fn parse_api_key_row(&self, row: sqlx::sqlite::SqliteRow) -> Result<ApiKey> {
+        let tier_str: String = row.get("tier");
+        let tier = match tier_str.as_str() {
+            "starter" => ApiKeyTier::Starter,
+            "professional" => ApiKeyTier::Professional,
+            "enterprise" => ApiKeyTier::Enterprise,
+            _ => ApiKeyTier::Starter,
+        };
+        
+        Ok(ApiKey {
+            id: row.get("id"),
+            user_id: Uuid::parse_str(row.get("user_id"))?,
+            name: row.get("name"),
+            key_prefix: row.get("key_prefix"),
+            key_hash: row.get("key_hash"),
+            description: row.get("description"),
+            tier,
+            rate_limit_requests: row.get::<i64, _>("rate_limit_requests") as u32,
+            rate_limit_window: row.get::<i64, _>("rate_limit_window") as u32,
+            is_active: row.get("is_active"),
+            last_used_at: row.get::<Option<String>, _>("last_used_at")
+                .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+                .map(|dt| dt.with_timezone(&Utc)),
+            expires_at: row.get::<Option<String>, _>("expires_at")
+                .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+                .map(|dt| dt.with_timezone(&Utc)),
+            created_at: DateTime::parse_from_rfc3339(row.get("created_at"))
+                .unwrap()
+                .with_timezone(&Utc),
+            updated_at: DateTime::parse_from_rfc3339(row.get("updated_at"))
+                .unwrap()
+                .with_timezone(&Utc),
+        })
     }
 }
