@@ -7,12 +7,11 @@
 //! Integration tests for OAuth flow in multi-tenant mode
 
 use pierre_mcp_server::{
-    routes::{AuthRoutes, OAuthRoutes, RegisterRequest, LoginRequest},
+    routes::{AuthRoutes, OAuthRoutes, RegisterRequest},
     database::{Database, generate_encryption_key},
     auth::AuthManager,
 };
 use uuid::Uuid;
-use serde_json::json;
 
 #[tokio::test]
 async fn test_oauth_authorization_url_generation() {
@@ -58,7 +57,7 @@ async fn test_oauth_authorization_url_generation() {
 async fn test_oauth_state_validation() {
     let encryption_key = generate_encryption_key().to_vec();
     let database = Database::new("sqlite::memory:", encryption_key).await.unwrap();
-    let oauth_routes = OAuthRoutes::new(database.clone());
+    let _oauth_routes = OAuthRoutes::new(database.clone());
     
     // Test valid state format
     let user_id = Uuid::new_v4();

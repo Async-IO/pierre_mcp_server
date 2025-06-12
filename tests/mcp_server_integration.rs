@@ -14,7 +14,6 @@ use pierre_mcp_server::config::{Config, ProviderConfig};
 use pierre_mcp_server::mcp::McpServer;
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use tempfile::TempDir;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 use tokio::time::{timeout, Duration};
@@ -39,9 +38,9 @@ fn create_test_config() -> Config {
 }
 
 /// Helper to send a JSON-RPC request and receive response
-async fn send_mcp_request(
+async fn _send_mcp_request(
     stream: &mut TcpStream,
-    reader: &mut BufReader<&mut tokio::net::tcp::OwnedReadHalf>,
+    _reader: &mut BufReader<&mut tokio::net::tcp::OwnedReadHalf>,
     request: Value,
 ) -> Result<Value> {
     let (mut read_half, mut write_half) = stream.split();

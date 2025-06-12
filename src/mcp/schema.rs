@@ -88,6 +88,11 @@ impl InitializeResponse {
     }
 }
 
+/// Get all available tools (public interface for tests)
+pub fn get_tools() -> Vec<ToolSchema> {
+    create_fitness_tools()
+}
+
 /// Create all fitness provider tool schemas
 fn create_fitness_tools() -> Vec<ToolSchema> {
     vec![
@@ -309,7 +314,7 @@ mod tests {
         assert!(json["capabilities"]["tools"].is_array());
         
         let tools = json["capabilities"]["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 8);
+        assert_eq!(tools.len(), 21);
         
         let tool_names: Vec<&str> = tools.iter()
             .filter_map(|t| t["name"].as_str())

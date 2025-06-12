@@ -23,7 +23,7 @@ async fn test_oauth_flow_through_mcp() {
     let auth_manager = AuthManager::new(vec![0u8; 64], 24);
     
     // Create server instance
-    let server = MultiTenantMcpServer::new(database.clone(), auth_manager.clone());
+    let _server = MultiTenantMcpServer::new(database.clone(), auth_manager.clone());
     
     // Start server in background (we'll simulate MCP requests instead of real TCP)
     let server_handle = tokio::spawn(async move {
@@ -37,14 +37,14 @@ async fn test_oauth_flow_through_mcp() {
     // For now, we'll test the flow logic
     
     // 1. Register user (simulated)
-    let user_email = "e2e_test@example.com";
-    let user_password = "password123";
+    let _user_email = "e2e_test@example.com";
+    let _user_password = "password123";
     
     // 2. Login to get JWT (simulated)
     // In real test: POST to /auth/login
     
     // 3. Test MCP initialize
-    let init_request = json!({
+    let _init_request = json!({
         "jsonrpc": "2.0",
         "method": "initialize",
         "params": null,
@@ -55,7 +55,7 @@ async fn test_oauth_flow_through_mcp() {
     // Expected tools: connect_strava, connect_fitbit, get_connection_status, disconnect_provider
     
     // 4. Test connect_strava tool
-    let connect_request = json!({
+    let _connect_request = json!({
         "jsonrpc": "2.0",
         "method": "tools/call",
         "params": {
@@ -69,7 +69,7 @@ async fn test_oauth_flow_through_mcp() {
     // Verify OAuth URL is generated with proper parameters
     
     // 5. Test get_connection_status
-    let status_request = json!({
+    let _status_request = json!({
         "jsonrpc": "2.0",
         "method": "tools/call",
         "params": {

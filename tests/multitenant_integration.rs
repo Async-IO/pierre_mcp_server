@@ -4,7 +4,6 @@ use pierre_mcp_server::{
     database::{Database, generate_encryption_key},
     routes::{AuthRoutes, RegisterRequest, LoginRequest},
 };
-use serde_json::json;
 use tempfile::TempDir;
 use uuid::Uuid;
 

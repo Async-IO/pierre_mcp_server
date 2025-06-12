@@ -289,7 +289,7 @@ fn parse_origins(origins_str: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::env;
+    
 
     #[test]
     fn test_parse_scopes() {

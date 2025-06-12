@@ -334,7 +334,7 @@ mod tests {
     #[test]
     fn test_provider_access_check() {
         let auth_manager = create_auth_manager();
-        let mut user = create_test_user();
+        let user = create_test_user();
         
         // User has no providers initially
         let token = auth_manager.generate_token(&user).unwrap();

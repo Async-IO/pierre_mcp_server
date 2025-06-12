@@ -431,6 +431,10 @@ impl MultiTenantMcpServer {
                 let provider_name = args["provider"].as_str().unwrap_or("");
                 return Self::handle_disconnect_provider(user_id, provider_name, database, request.id).await;
             }
+            // Tools that don't require providers
+            "set_goal" | "track_progress" | "analyze_goal_feasibility" => {
+                return Self::execute_tool_call_without_provider(tool_name, args, request.id, user_id, database).await;
+            }
             _ => {
                 // For fitness data tools, we need a provider
                 let provider_name = args["provider"].as_str().unwrap_or("");
@@ -668,14 +672,140 @@ impl MultiTenantMcpServer {
         }
     }
 
+    /// Execute tool call without provider (for database-only tools)
+    async fn execute_tool_call_without_provider(
+        tool_name: &str,
+        args: &Value,
+        id: Value,
+        user_id: Uuid,
+        database: &Arc<Database>,
+    ) -> McpResponse {
+        let result = match tool_name {
+            "set_goal" => {
+                let goal_data = args.clone();
+                
+                // Store goal in database
+                match database.create_goal(user_id, goal_data).await {
+                    Ok(goal_id) => {
+                        let response = serde_json::json!({
+                            "goal_created": {
+                                "goal_id": goal_id,
+                                "status": "active",
+                                "message": "Goal successfully created"
+                            }
+                        });
+                        Some(response)
+                    }
+                    Err(e) => {
+                        return McpResponse {
+                            jsonrpc: JSONRPC_VERSION.to_string(),
+                            result: None,
+                            error: Some(McpError {
+                                code: ERROR_INTERNAL_ERROR,
+                                message: format!("Failed to create goal: {}", e),
+                                data: None,
+                            }),
+                            id,
+                        };
+                    }
+                }
+            }
+            "track_progress" => {
+                let goal_id = args["goal_id"].as_str().unwrap_or("");
+                
+                match database.get_user_goals(user_id).await {
+                    Ok(goals) => {
+                        if let Some(goal) = goals.iter().find(|g| g["id"] == goal_id) {
+                            let response = serde_json::json!({
+                                "progress_report": {
+                                    "goal_id": goal_id,
+                                    "goal": goal,
+                                    "progress_percentage": 65.0,
+                                    "on_track": true,
+                                    "insights": [
+                                        "Making good progress toward your goal",
+                                        "Maintain current training frequency"
+                                    ]
+                                }
+                            });
+                            Some(response)
+                        } else {
+                            return McpResponse {
+                                jsonrpc: JSONRPC_VERSION.to_string(),
+                                result: None,
+                                error: Some(McpError {
+                                    code: ERROR_INVALID_PARAMS,
+                                    message: format!("Goal with ID '{}' not found", goal_id),
+                                    data: None,
+                                }),
+                                id,
+                            };
+                        }
+                    }
+                    Err(e) => {
+                        return McpResponse {
+                            jsonrpc: JSONRPC_VERSION.to_string(),
+                            result: None,
+                            error: Some(McpError {
+                                code: ERROR_INTERNAL_ERROR,
+                                message: format!("Failed to get goals: {}", e),
+                                data: None,
+                            }),
+                            id,
+                        };
+                    }
+                }
+            }
+            "analyze_goal_feasibility" => {
+                let _goal_data = args.clone();
+                
+                let response = serde_json::json!({
+                    "feasibility_analysis": {
+                        "feasible": true,
+                        "confidence": 0.8,
+                        "estimated_completion_time": "8 weeks",
+                        "recommendations": [
+                            "Goal appears achievable based on current training patterns",
+                            "Consider gradual increase in training volume"
+                        ],
+                        "risk_factors": [
+                            "Ensure adequate recovery time",
+                            "Monitor for signs of overtraining"
+                        ]
+                    }
+                });
+                Some(response)
+            }
+            _ => {
+                return McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    result: None,
+                    error: Some(McpError {
+                        code: ERROR_METHOD_NOT_FOUND,
+                        message: format!("Unknown tool: {}", tool_name),
+                        data: None,
+                    }),
+                    id,
+                };
+            }
+        };
+
+        McpResponse {
+            jsonrpc: JSONRPC_VERSION.to_string(),
+            result,
+            error: None,
+            id,
+        }
+    }
+
     /// Execute tool call with provider
     async fn execute_tool_call(
         tool_name: &str,
         args: &Value,
         provider: &Box<dyn FitnessProvider>,
         id: Value,
-        user_id: Uuid,
-        database: &Arc<Database>,
+        _user_id: Uuid,
+        _database: &Arc<Database>,
     ) -> McpResponse {
         let result = match tool_name {
             "get_activities" => {
@@ -1114,81 +1244,6 @@ impl MultiTenantMcpServer {
                     }
                 }
             }
-            "set_goal" => {
-                let goal_data = args.clone();
-                
-                // Store goal in database
-                match database.create_goal(user_id, goal_data).await {
-                    Ok(goal_id) => {
-                        let response = serde_json::json!({
-                            "goal_created": {
-                                "goal_id": goal_id,
-                                "status": "active",
-                                "message": "Goal successfully created"
-                            }
-                        });
-                        Some(response)
-                    }
-                    Err(e) => {
-                        return McpResponse {
-                            jsonrpc: JSONRPC_VERSION.to_string(),
-                            result: None,
-                            error: Some(McpError {
-                                code: ERROR_INTERNAL_ERROR,
-                                message: format!("Failed to create goal: {}", e),
-                                data: None,
-                            }),
-                            id,
-                        };
-                    }
-                }
-            }
-            "track_progress" => {
-                let goal_id = args["goal_id"].as_str().unwrap_or("");
-                
-                match database.get_user_goals(user_id).await {
-                    Ok(goals) => {
-                        if let Some(goal) = goals.iter().find(|g| g["id"] == goal_id) {
-                            let response = serde_json::json!({
-                                "progress_report": {
-                                    "goal_id": goal_id,
-                                    "goal": goal,
-                                    "progress_percentage": 65.0,
-                                    "on_track": true,
-                                    "insights": [
-                                        "Making good progress toward your goal",
-                                        "Maintain current training frequency"
-                                    ]
-                                }
-                            });
-                            Some(response)
-                        } else {
-                            return McpResponse {
-                                jsonrpc: JSONRPC_VERSION.to_string(),
-                                result: None,
-                                error: Some(McpError {
-                                    code: ERROR_INVALID_PARAMS,
-                                    message: format!("Goal with ID '{}' not found", goal_id),
-                                    data: None,
-                                }),
-                                id,
-                            };
-                        }
-                    }
-                    Err(e) => {
-                        return McpResponse {
-                            jsonrpc: JSONRPC_VERSION.to_string(),
-                            result: None,
-                            error: Some(McpError {
-                                code: ERROR_INTERNAL_ERROR,
-                                message: format!("Failed to get goals: {}", e),
-                                data: None,
-                            }),
-                            id,
-                        };
-                    }
-                }
-            }
             "suggest_goals" => {
                 match provider.get_activities(Some(50), None).await {
                     Ok(_activities) => {
@@ -1225,26 +1280,6 @@ impl MultiTenantMcpServer {
                         };
                     }
                 }
-            }
-            "analyze_goal_feasibility" => {
-                let _goal_data = args.clone();
-                
-                let response = serde_json::json!({
-                    "feasibility_analysis": {
-                        "feasible": true,
-                        "confidence": 0.8,
-                        "estimated_completion_time": "8 weeks",
-                        "recommendations": [
-                            "Goal appears achievable based on current training patterns",
-                            "Consider gradual increase in training volume"
-                        ],
-                        "risk_factors": [
-                            "Ensure adequate recovery time",
-                            "Monitor for signs of overtraining"
-                        ]
-                    }
-                });
-                Some(response)
             }
             "generate_recommendations" => {
                 match provider.get_activities(Some(20), None).await {

@@ -29,7 +29,7 @@ fn mock_strava_athlete_response() -> serde_json::Value {
 }
 
 /// Helper to create a mock Strava activities response
-fn mock_strava_activities_response() -> serde_json::Value {
+fn _mock_strava_activities_response() -> serde_json::Value {
     json!([
         {
             "id": 1001,
@@ -61,7 +61,7 @@ fn mock_strava_activities_response() -> serde_json::Value {
 }
 
 /// Helper to create a mock Strava stats response
-fn mock_strava_stats_response() -> serde_json::Value {
+fn _mock_strava_stats_response() -> serde_json::Value {
     json!({
         "all_ride_totals": {
             "count": 50,
