@@ -10,6 +10,8 @@
 //! for the multi-tenant Pierre MCP Server.
 
 use crate::models::{User, UserSession, AuthRequest, AuthResponse};
+use crate::api_keys::{ApiKeyManager, RateLimitStatus};
+use crate::database::Database;
 use anyhow::Result;
 use chrono::{Utc, Duration};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation, Algorithm};
@@ -29,6 +31,31 @@ pub struct Claims {
     pub exp: i64,
     /// Available fitness providers
     pub providers: Vec<String>,
+}
+
+/// Authentication result with user context and rate limiting info
+#[derive(Debug)]
+pub struct AuthResult {
+    /// Authenticated user ID
+    pub user_id: Uuid,
+    /// Authentication method used
+    pub auth_method: AuthMethod,
+    /// Rate limit status (only for API keys)
+    pub rate_limit: Option<RateLimitStatus>,
+}
+
+/// Authentication method used
+#[derive(Debug, Clone)]
+pub enum AuthMethod {
+    /// JWT token authentication
+    JwtToken,
+    /// API key authentication
+    ApiKey {
+        /// API key ID
+        key_id: String,
+        /// API key tier
+        tier: String,
+    },
 }
 
 /// Authentication manager for JWT tokens and user sessions
@@ -175,24 +202,92 @@ pub fn generate_jwt_secret() -> [u8; 64] {
 /// Middleware for MCP protocol authentication
 pub struct McpAuthMiddleware {
     auth_manager: AuthManager,
+    api_key_manager: ApiKeyManager,
+    database: std::sync::Arc<Database>,
 }
 
 impl McpAuthMiddleware {
     /// Create new MCP auth middleware
-    pub fn new(auth_manager: AuthManager) -> Self {
-        Self { auth_manager }
+    pub fn new(auth_manager: AuthManager, database: std::sync::Arc<Database>) -> Self {
+        Self { 
+            auth_manager,
+            api_key_manager: ApiKeyManager::new(),
+            database,
+        }
     }
 
-    /// Authenticate MCP request and extract user context
-    pub fn authenticate_request(&self, auth_header: Option<&str>) -> Result<Uuid> {
-        let token = auth_header
-            .and_then(|h| h.strip_prefix("Bearer "))
-            .ok_or_else(|| anyhow::anyhow!("Missing or invalid authorization header"))?;
+    /// Authenticate MCP request and extract user context with rate limiting
+    pub async fn authenticate_request(&self, auth_header: Option<&str>) -> Result<AuthResult> {
+        let auth_str = auth_header
+            .ok_or_else(|| anyhow::anyhow!("Missing authorization header"))?;
 
+        // Try API key authentication first (starts with pk_live_)
+        if auth_str.starts_with("pk_live_") {
+            self.authenticate_api_key(auth_str).await
+        }
+        // Then try Bearer token authentication
+        else if let Some(token) = auth_str.strip_prefix("Bearer ") {
+            self.authenticate_jwt_token(token).await
+        }
+        else {
+            Err(anyhow::anyhow!("Invalid authorization header format"))
+        }
+    }
+
+    /// Authenticate using API key
+    async fn authenticate_api_key(&self, api_key: &str) -> Result<AuthResult> {
+        // Validate key format
+        self.api_key_manager.validate_key_format(api_key)?;
+
+        // Extract prefix and hash the key
+        let key_prefix = self.api_key_manager.extract_key_prefix(api_key);
+        let key_hash = self.api_key_manager.hash_key(api_key);
+
+        // Look up the API key in database
+        let db_key = self.database.get_api_key_by_prefix(&key_prefix, &key_hash).await?
+            .ok_or_else(|| anyhow::anyhow!("Invalid API key"))?;
+
+        // Validate key status
+        self.api_key_manager.is_key_valid(&db_key)?;
+
+        // Get current usage for rate limiting
+        let current_usage = self.database.get_api_key_current_usage(&db_key.id).await?;
+        let rate_limit = self.api_key_manager.calculate_rate_limit_status(&db_key, current_usage);
+
+        // Check rate limit
+        if rate_limit.is_rate_limited {
+            return Err(anyhow::anyhow!("API key rate limit exceeded"));
+        }
+
+        // Update last used timestamp
+        self.database.update_api_key_last_used(&db_key.id).await?;
+
+        Ok(AuthResult {
+            user_id: db_key.user_id,
+            auth_method: AuthMethod::ApiKey {
+                key_id: db_key.id,
+                tier: format!("{:?}", db_key.tier).to_lowercase(),
+            },
+            rate_limit: Some(rate_limit),
+        })
+    }
+
+    /// Authenticate using JWT token
+    async fn authenticate_jwt_token(&self, token: &str) -> Result<AuthResult> {
         let claims = self.auth_manager.validate_token(token)?;
         let user_id = Uuid::parse_str(&claims.sub)?;
         
-        Ok(user_id)
+        Ok(AuthResult {
+            user_id,
+            auth_method: AuthMethod::JwtToken,
+            rate_limit: None,
+        })
+    }
+
+    /// Legacy method for backward compatibility - authenticate and return just user ID
+    pub async fn authenticate_request_legacy(&self, auth_header: Option<&str>) -> Result<Uuid> {
+        let auth_result = self.authenticate_request(auth_header).await?;
+        Ok(auth_result.user_id)
     }
 
     /// Check if user has access to specific provider
@@ -304,41 +399,69 @@ mod tests {
         assert_eq!(extracted_id, user.id);
     }
 
-    #[test]
-    fn test_mcp_auth_middleware() {
+    #[tokio::test]
+    async fn test_mcp_auth_middleware() {
+        use crate::database::{Database, generate_encryption_key};
+        use std::sync::Arc;
+
         let auth_manager = create_auth_manager();
         let user = create_test_user();
-        let middleware = McpAuthMiddleware::new(auth_manager);
+        
+        // Create in-memory database for testing
+        let database_url = "sqlite::memory:";
+        let encryption_key = generate_encryption_key().to_vec();
+        let database = Arc::new(Database::new(database_url, encryption_key).await.unwrap());
+        
+        let middleware = McpAuthMiddleware::new(auth_manager, database);
 
         let token = middleware.auth_manager.generate_token(&user).unwrap();
         let auth_header = format!("Bearer {}", token);
 
-        let user_id = middleware.authenticate_request(Some(&auth_header)).unwrap();
-        assert_eq!(user_id, user.id);
+        let auth_result = middleware.authenticate_request(Some(&auth_header)).await.unwrap();
+        assert_eq!(auth_result.user_id, user.id);
+        assert!(matches!(auth_result.auth_method, crate::auth::AuthMethod::JwtToken));
     }
 
-    #[test]
-    fn test_mcp_auth_middleware_invalid_header() {
+    #[tokio::test]
+    async fn test_mcp_auth_middleware_invalid_header() {
+        use crate::database::{Database, generate_encryption_key};
+        use std::sync::Arc;
+
         let auth_manager = create_auth_manager();
-        let middleware = McpAuthMiddleware::new(auth_manager);
+        
+        // Create in-memory database for testing
+        let database_url = "sqlite::memory:";
+        let encryption_key = generate_encryption_key().to_vec();
+        let database = Arc::new(Database::new(database_url, encryption_key).await.unwrap());
+        
+        let middleware = McpAuthMiddleware::new(auth_manager, database);
 
         // Test missing header
-        let result = middleware.authenticate_request(None);
+        let result = middleware.authenticate_request(None).await;
         assert!(result.is_err());
 
         // Test invalid format
-        let result = middleware.authenticate_request(Some("Invalid header"));
+        let result = middleware.authenticate_request(Some("Invalid header")).await;
         assert!(result.is_err());
     }
 
-    #[test]
-    fn test_provider_access_check() {
+    #[tokio::test]
+    async fn test_provider_access_check() {
+        use crate::database::{Database, generate_encryption_key};
+        use std::sync::Arc;
+
         let auth_manager = create_auth_manager();
         let user = create_test_user();
         
+        // Create in-memory database for testing
+        let database_url = "sqlite::memory:";
+        let encryption_key = generate_encryption_key().to_vec();
+        let database = Arc::new(Database::new(database_url, encryption_key).await.unwrap());
+        
+        let middleware = McpAuthMiddleware::new(auth_manager, database);
+        
         // User has no providers initially
-        let token = auth_manager.generate_token(&user).unwrap();
-        let middleware = McpAuthMiddleware::new(auth_manager);
+        let token = middleware.auth_manager.generate_token(&user).unwrap();
         
         let has_strava = middleware.check_provider_access(&token, "strava").unwrap();
         assert!(!has_strava);
