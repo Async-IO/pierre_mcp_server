@@ -296,14 +296,14 @@ async fn test_analytics_tools_comprehensive() -> Result<()> {
     
     // Test all analytics tools that should work without provider data
     let analytics_tools = vec![
-        ("calculate_fitness_score", json!({"provider": "strava"})),
-        ("generate_recommendations", json!({"provider": "strava"})),
-        ("suggest_goals", json!({"provider": "strava"})),
+        ("calculate_fitness_score", json!({"timeframe": "month"})),
+        ("generate_recommendations", json!({"recommendation_type": "training"})),
+        ("suggest_goals", json!({})),
         ("analyze_goal_feasibility", json!({"goal_type": "distance", "target_value": 100.0})),
         ("predict_performance", json!({"provider": "strava", "target_sport": "run", "target_distance": 10000})),
-        ("analyze_training_load", json!({"provider": "strava", "timeframe": "month"})),
-        ("detect_patterns", json!({"provider": "strava", "pattern_type": "training_consistency"})),
-        ("analyze_performance_trends", json!({"provider": "strava", "timeframe": "month", "metric": "pace"})),
+        ("analyze_training_load", json!({"timeframe": "month"})),
+        ("detect_patterns", json!({"pattern_type": "training_consistency"})),
+        ("analyze_performance_trends", json!({"timeframe": "month", "metric": "pace"})),
     ];
     
     for (tool_name, args) in analytics_tools {
@@ -424,7 +424,6 @@ async fn test_fitness_report_generation_workflow() -> Result<()> {
     
     // Step 5: Detect patterns
     let patterns = client.call_tool("detect_patterns", json!({
-        "provider": "strava",
         "pattern_type": "training_consistency"
     })).await?;
     
@@ -432,7 +431,6 @@ async fn test_fitness_report_generation_workflow() -> Result<()> {
     
     // Step 6: Performance trends
     let trends = client.call_tool("analyze_performance_trends", json!({
-        "provider": "strava",
         "timeframe": "month", 
         "metric": "pace"
     })).await?;
