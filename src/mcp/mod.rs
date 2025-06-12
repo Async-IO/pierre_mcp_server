@@ -21,19 +21,7 @@ use crate::mcp::schema::InitializeResponse;
 use crate::intelligence::ActivityAnalyzer;
 use crate::intelligence::insights::ActivityContext;
 use crate::intelligence::weather::WeatherService;
-
-// MCP Protocol Constants
-const MCP_PROTOCOL_VERSION: &str = "2024-11-05";
-const JSONRPC_VERSION: &str = "2.0";
-
-// Server Information
-const SERVER_NAME: &str = "pierre-mcp-server";
-const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-// JSON-RPC Error Codes (as defined in the JSON-RPC 2.0 specification)
-const ERROR_METHOD_NOT_FOUND: i32 = -32601;
-const ERROR_INVALID_PARAMS: i32 = -32602;
-const ERROR_INTERNAL_ERROR: i32 = -32603;
+use crate::constants::{protocol, protocol::*, errors::*, tools::*, json_fields::*};
 
 
 pub struct McpServer {
@@ -114,8 +102,8 @@ async fn handle_request(
     match request.method.as_str() {
         "initialize" => {
             let init_response = InitializeResponse::new(
-                MCP_PROTOCOL_VERSION.to_string(),
-                SERVER_NAME.to_string(),
+                protocol::mcp_protocol_version(),
+                protocol::server_name(),
                 SERVER_VERSION.to_string(),
             );
             
@@ -128,8 +116,8 @@ async fn handle_request(
         }
         "tools/call" => {
             let params = request.params.unwrap_or_default();
-            let tool_name = params["name"].as_str().unwrap_or("");
-            let args = &params["arguments"];
+            let tool_name = params[NAME].as_str().unwrap_or("");
+            let args = &params[ARGUMENTS];
             
             handle_tool_call(tool_name, args, providers, config, request.id).await
         }
@@ -155,7 +143,7 @@ async fn handle_tool_call(
     config: &Config,
     id: Value,
 ) -> McpResponse {
-    let provider_name = args["provider"].as_str().unwrap_or("");
+    let provider_name = args[PROVIDER].as_str().unwrap_or("");
     
     let mut providers_write = providers.write().await;
     if !providers_write.contains_key(provider_name) {
@@ -219,9 +207,9 @@ async fn handle_tool_call(
     let provider = providers_read.get(provider_name).unwrap();
     
     let result = match tool_name {
-        "get_activities" => {
-            let limit = args["limit"].as_u64().map(|n| n as usize);
-            let offset = args["offset"].as_u64().map(|n| n as usize);
+        GET_ACTIVITIES => {
+            let limit = args[LIMIT].as_u64().map(|n| n as usize);
+            let offset = args[OFFSET].as_u64().map(|n| n as usize);
             
             match provider.get_activities(limit, offset).await {
                 Ok(activities) => serde_json::to_value(activities).ok(),
@@ -239,7 +227,7 @@ async fn handle_tool_call(
                 }
             }
         }
-        "get_athlete" => {
+        GET_ATHLETE => {
             match provider.get_athlete().await {
                 Ok(athlete) => serde_json::to_value(athlete).ok(),
                 Err(e) => {
@@ -256,7 +244,7 @@ async fn handle_tool_call(
                 }
             }
         }
-        "get_stats" => {
+        GET_STATS => {
             match provider.get_stats().await {
                 Ok(stats) => serde_json::to_value(stats).ok(),
                 Err(e) => {
@@ -273,8 +261,8 @@ async fn handle_tool_call(
                 }
             }
         }
-        "get_activity_intelligence" => {
-            let activity_id = args["activity_id"].as_str().unwrap_or("");
+        GET_ACTIVITY_INTELLIGENCE => {
+            let activity_id = args[ACTIVITY_ID].as_str().unwrap_or("");
             let include_weather = args["include_weather"].as_bool().unwrap_or(true);
             let include_location = args["include_location"].as_bool().unwrap_or(true);
             

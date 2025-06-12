@@ -12,11 +12,9 @@ use chrono::{DateTime, Utc};
 use crate::models::{Activity, Athlete, Stats, PersonalRecord, SportType};
 use crate::config::FitnessConfig;
 use crate::oauth2_client::PkceParams;
+use crate::constants::env_config;
 use super::{FitnessProvider, AuthData};
 use tracing::{info, error};
-
-const STRAVA_API_BASE: &str = "https://www.strava.com/api/v3";
-const STRAVA_AUTH_URL: &str = "https://www.strava.com/oauth/authorize";
 
 pub struct StravaProvider {
     client: Client,
@@ -42,7 +40,7 @@ impl StravaProvider {
         let client_id = self.client_id.as_ref()
             .context("Client ID not configured")?;
         
-        let mut url = url::Url::parse(STRAVA_AUTH_URL)?;
+        let mut url = url::Url::parse(&env_config::strava_auth_url())?;
         url.query_pairs_mut()
             .append_pair("client_id", client_id)
             .append_pair("redirect_uri", redirect_uri)
@@ -59,7 +57,7 @@ impl StravaProvider {
         let client_id = self.client_id.as_ref()
             .context("Client ID not configured")?;
         
-        let mut url = url::Url::parse(STRAVA_AUTH_URL)?;
+        let mut url = url::Url::parse(&env_config::strava_auth_url())?;
         url.query_pairs_mut()
             .append_pair("client_id", client_id)
             .append_pair("redirect_uri", redirect_uri)
@@ -175,7 +173,7 @@ impl FitnessProvider for StravaProvider {
             .context("Not authenticated")?;
         
         let response: StravaAthlete = self.client
-            .get(format!("{}/athlete", STRAVA_API_BASE))
+            .get(format!("{}/athlete", env_config::strava_api_base()))
             .bearer_auth(token)
             .send()
             .await?
@@ -204,7 +202,7 @@ impl FitnessProvider for StravaProvider {
             query.push(("page", (offset / limit.unwrap_or(30) + 1).to_string()));
         }
         
-        let url = format!("{}/athlete/activities", STRAVA_API_BASE);
+        let url = format!("{}/athlete/activities", env_config::strava_api_base());
         info!("Fetching activities from: {} with query: {:?}", url, query);
         
         let response = self.client
@@ -259,7 +257,7 @@ impl FitnessProvider for StravaProvider {
             .context("Not authenticated")?;
         
         let response: StravaActivity = self.client
-            .get(format!("{}/activities/{}", STRAVA_API_BASE, id))
+            .get(format!("{}/activities/{}", env_config::strava_api_base(), id))
             .bearer_auth(token)
             .send()
             .await?
@@ -316,7 +314,7 @@ impl StravaProvider {
         
         // Get athlete ID first
         let athlete: StravaAthlete = self.client
-            .get(format!("{}/athlete", STRAVA_API_BASE))
+            .get(format!("{}/athlete", env_config::strava_api_base()))
             .bearer_auth(token)
             .send()
             .await?
@@ -325,7 +323,7 @@ impl StravaProvider {
         
         // Get athlete stats
         let response: StravaAthleteStats = self.client
-            .get(format!("{}/athletes/{}/stats", STRAVA_API_BASE, athlete.id))
+            .get(format!("{}/athletes/{}/stats", env_config::strava_api_base(), athlete.id))
             .bearer_auth(token)
             .send()
             .await?

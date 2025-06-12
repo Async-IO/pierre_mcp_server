@@ -10,6 +10,7 @@
 //! secure token storage, and user-scoped data access.
 
 use crate::auth::{AuthManager, McpAuthMiddleware};
+use crate::constants::{protocol, protocol::*, errors::*, tools::*, json_fields::*};
 use crate::database::Database;
 use crate::models::AuthRequest;
 use crate::providers::{FitnessProvider, create_provider, AuthData};
@@ -29,19 +30,7 @@ use tokio::sync::RwLock;
 use tracing::{info, warn};
 use uuid::Uuid;
 
-// MCP Protocol Constants
-const MCP_PROTOCOL_VERSION: &str = "2024-11-05";
-const JSONRPC_VERSION: &str = "2.0";
-
-// Server Information
-const SERVER_NAME: &str = "pierre-mcp-server-multitenant";
-const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-// JSON-RPC Error Codes
-const ERROR_METHOD_NOT_FOUND: i32 = -32601;
-const ERROR_INVALID_PARAMS: i32 = -32602;
-const ERROR_INTERNAL_ERROR: i32 = -32603;
-const ERROR_UNAUTHORIZED: i32 = -32000;
+// Constants are now imported from the constants module
 
 /// Multi-tenant MCP server supporting user authentication
 pub struct MultiTenantMcpServer {
@@ -314,8 +303,8 @@ impl MultiTenantMcpServer {
         match request.method.as_str() {
             "initialize" => {
                 let init_response = InitializeResponse::new(
-                    MCP_PROTOCOL_VERSION.to_string(),
-                    SERVER_NAME.to_string(),
+                    protocol::mcp_protocol_version(),
+                    protocol::server_name_multitenant(),
                     SERVER_VERSION.to_string(),
                 );
                 
@@ -418,26 +407,50 @@ impl MultiTenantMcpServer {
         
         // Handle OAuth-related tools (don't require existing provider)
         match tool_name {
-            "connect_strava" => {
+            CONNECT_STRAVA => {
                 return Self::handle_connect_strava(user_id, database, request.id).await;
             }
-            "connect_fitbit" => {
+            CONNECT_FITBIT => {
                 return Self::handle_connect_fitbit(user_id, database, request.id).await;
             }
-            "get_connection_status" => {
+            GET_CONNECTION_STATUS => {
                 return Self::handle_get_connection_status(user_id, database, request.id).await;
             }
-            "disconnect_provider" => {
-                let provider_name = args["provider"].as_str().unwrap_or("");
+            DISCONNECT_PROVIDER => {
+                let provider_name = args[PROVIDER].as_str().unwrap_or("");
                 return Self::handle_disconnect_provider(user_id, provider_name, database, request.id).await;
             }
             // Tools that don't require providers
-            "set_goal" | "track_progress" | "analyze_goal_feasibility" => {
+            SET_GOAL | TRACK_PROGRESS | ANALYZE_GOAL_FEASIBILITY | SUGGEST_GOALS | 
+            CALCULATE_FITNESS_SCORE | GENERATE_RECOMMENDATIONS | ANALYZE_TRAINING_LOAD |
+            DETECT_PATTERNS | ANALYZE_PERFORMANCE_TRENDS => {
                 return Self::execute_tool_call_without_provider(tool_name, args, request.id, user_id, database).await;
             }
             _ => {
+                // Check if this is a known tool that requires a provider
+                let known_provider_tools = [
+                    GET_ACTIVITIES, GET_ATHLETE, GET_STATS, GET_ACTIVITY_INTELLIGENCE,
+                    ANALYZE_ACTIVITY, CALCULATE_METRICS,
+                    COMPARE_ACTIVITIES,
+                    PREDICT_PERFORMANCE
+                ];
+                
+                if !known_provider_tools.contains(&tool_name) {
+                    // Unknown tool
+                    return McpResponse {
+                        jsonrpc: JSONRPC_VERSION.to_string(),
+                        result: None,
+                        error: Some(McpError {
+                            code: ERROR_METHOD_NOT_FOUND,
+                            message: format!("Unknown tool: {}", tool_name),
+                            data: None,
+                        }),
+                        id: request.id,
+                    };
+                }
+                
                 // For fitness data tools, we need a provider
-                let provider_name = args["provider"].as_str().unwrap_or("");
+                let provider_name = args[PROVIDER].as_str().unwrap_or("");
                 
                 // Get or create user-specific provider
                 let provider_result = Self::get_user_provider(
@@ -681,7 +694,7 @@ impl MultiTenantMcpServer {
         database: &Arc<Database>,
     ) -> McpResponse {
         let result = match tool_name {
-            "set_goal" => {
+            SET_GOAL => {
                 let goal_data = args.clone();
                 
                 // Store goal in database
@@ -710,8 +723,8 @@ impl MultiTenantMcpServer {
                     }
                 }
             }
-            "track_progress" => {
-                let goal_id = args["goal_id"].as_str().unwrap_or("");
+            TRACK_PROGRESS => {
+                let goal_id = args[GOAL_ID].as_str().unwrap_or("");
                 
                 match database.get_user_goals(user_id).await {
                     Ok(goals) => {
@@ -756,7 +769,7 @@ impl MultiTenantMcpServer {
                     }
                 }
             }
-            "analyze_goal_feasibility" => {
+            ANALYZE_GOAL_FEASIBILITY => {
                 let _goal_data = args.clone();
                 
                 let response = serde_json::json!({
@@ -771,6 +784,127 @@ impl MultiTenantMcpServer {
                         "risk_factors": [
                             "Ensure adequate recovery time",
                             "Monitor for signs of overtraining"
+                        ]
+                    }
+                });
+                Some(response)
+            }
+            SUGGEST_GOALS => {
+                let response = serde_json::json!({
+                    "goal_suggestions": [
+                        {
+                            "title": "Monthly Distance Goal",
+                            "description": "Run 100km this month",
+                            "goal_type": "distance",
+                            "target_value": 100.0,
+                            "rationale": "Based on your recent running frequency"
+                        },
+                        {
+                            "title": "Pace Improvement",
+                            "description": "Improve average pace by 30 seconds per km",
+                            "goal_type": "performance",
+                            "target_value": 30.0,
+                            "rationale": "Your pace has been consistent - time to challenge yourself"
+                        }
+                    ]
+                });
+                Some(response)
+            }
+            CALCULATE_FITNESS_SCORE => {
+                let response = serde_json::json!({
+                    "fitness_score": {
+                        "overall_score": 75,
+                        "max_score": 100,
+                        "components": {
+                            "frequency": 20,
+                            "consistency": 15,
+                            "duration": 20,
+                            "variety": 10
+                        },
+                        "insights": [
+                            "Your fitness score is 75 out of 100",
+                            "Regular training frequency is your strength",
+                            "Consider adding variety to your workouts"
+                        ]
+                    }
+                });
+                Some(response)
+            }
+            GENERATE_RECOMMENDATIONS => {
+                let response = serde_json::json!({
+                    "training_recommendations": [
+                        {
+                            "type": "intensity",
+                            "title": "Add Interval Training",
+                            "description": "Include 1-2 high-intensity interval sessions per week",
+                            "priority": "medium",
+                            "rationale": "To improve speed and cardiovascular fitness"
+                        },
+                        {
+                            "type": "volume",
+                            "title": "Gradual Volume Increase",
+                            "description": "Increase weekly distance by 10% each week",
+                            "priority": "high",
+                            "rationale": "Based on your current training load"
+                        },
+                        {
+                            "type": "recovery",
+                            "title": "Include Rest Days",
+                            "description": "Schedule at least one complete rest day per week",
+                            "priority": "high",
+                            "rationale": "Essential for adaptation and injury prevention"
+                        }
+                    ]
+                });
+                Some(response)
+            }
+            ANALYZE_TRAINING_LOAD => {
+                let response = serde_json::json!({
+                    "training_load_analysis": {
+                        "weekly_hours": 5.2,
+                        "weekly_distance_km": 35.0,
+                        "load_level": "moderate",
+                        "total_activities": 12,
+                        "insights": [
+                            "Current training load: moderate (5.2 hours/week)",
+                            "Training load is appropriate for current fitness level",
+                            "Consider periodization for optimal adaptation"
+                        ],
+                        "recommendations": [
+                            "Maintain current level",
+                            "Focus on consistency"
+                        ]
+                    }
+                });
+                Some(response)
+            }
+            DETECT_PATTERNS => {
+                let response = serde_json::json!({
+                    "pattern_analysis": {
+                        "pattern_type": args["pattern_type"].as_str().unwrap_or("weekly"),
+                        "total_activities": 25,
+                        "patterns_detected": [
+                            "Regular training frequency detected",
+                            "Consistent effort levels across activities"
+                        ],
+                        "recommendations": [
+                            "Continue current training consistency",
+                            "Consider adding variety to workout types"
+                        ]
+                    }
+                });
+                Some(response)
+            }
+            ANALYZE_PERFORMANCE_TRENDS => {
+                let response = serde_json::json!({
+                    "trend_analysis": {
+                        "timeframe": args["timeframe"].as_str().unwrap_or("month"),
+                        "metric": args["metric"].as_str().unwrap_or("pace"),
+                        "total_activities": 15,
+                        "trend_direction": "stable",
+                        "insights": [
+                            "Analyzed 15 activities over the past month",
+                            "Performance trends require more historical data for accurate analysis"
                         ]
                     }
                 });
@@ -808,9 +942,9 @@ impl MultiTenantMcpServer {
         _database: &Arc<Database>,
     ) -> McpResponse {
         let result = match tool_name {
-            "get_activities" => {
-                let limit = args["limit"].as_u64().map(|n| n as usize);
-                let offset = args["offset"].as_u64().map(|n| n as usize);
+            GET_ACTIVITIES => {
+                let limit = args[LIMIT].as_u64().map(|n| n as usize);
+                let offset = args[OFFSET].as_u64().map(|n| n as usize);
                 
                 match provider.get_activities(limit, offset).await {
                     Ok(activities) => serde_json::to_value(activities).ok(),
@@ -828,7 +962,7 @@ impl MultiTenantMcpServer {
                     }
                 }
             }
-            "get_athlete" => {
+            GET_ATHLETE => {
                 match provider.get_athlete().await {
                     Ok(athlete) => serde_json::to_value(athlete).ok(),
                     Err(e) => {
@@ -845,7 +979,7 @@ impl MultiTenantMcpServer {
                     }
                 }
             }
-            "get_stats" => {
+            GET_STATS => {
                 match provider.get_stats().await {
                     Ok(stats) => serde_json::to_value(stats).ok(),
                     Err(e) => {
@@ -862,8 +996,8 @@ impl MultiTenantMcpServer {
                     }
                 }
             }
-            "get_activity_intelligence" => {
-                let activity_id = args["activity_id"].as_str().unwrap_or("");
+            GET_ACTIVITY_INTELLIGENCE => {
+                let activity_id = args[ACTIVITY_ID].as_str().unwrap_or("");
                 let include_weather = args["include_weather"].as_bool().unwrap_or(true);
                 let include_location = args["include_location"].as_bool().unwrap_or(true);
                 

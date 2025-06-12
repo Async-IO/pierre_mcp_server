@@ -10,6 +10,7 @@
 //! capabilities, and tool schemas. This ensures protocol compliance and makes
 //! it easy to modify the schema without hardcoding JSON.
 
+use crate::constants::{tools::*, json_fields::*};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -127,28 +128,28 @@ fn create_fitness_tools() -> Vec<ToolSchema> {
 fn create_get_activities_tool() -> ToolSchema {
     let mut properties = HashMap::new();
     
-    properties.insert("provider".to_string(), PropertySchema {
+    properties.insert(PROVIDER.to_string(), PropertySchema {
         property_type: "string".to_string(),
         description: Some("Fitness provider name (e.g., 'strava', 'fitbit')".to_string()),
     });
     
-    properties.insert("limit".to_string(), PropertySchema {
+    properties.insert(LIMIT.to_string(), PropertySchema {
         property_type: "number".to_string(),
         description: Some("Maximum number of activities to return".to_string()),
     });
     
-    properties.insert("offset".to_string(), PropertySchema {
+    properties.insert(OFFSET.to_string(), PropertySchema {
         property_type: "number".to_string(),
         description: Some("Number of activities to skip (for pagination)".to_string()),
     });
 
     ToolSchema {
-        name: "get_activities".to_string(),
+        name: GET_ACTIVITIES.to_string(),
         description: "Get fitness activities from a provider".to_string(),
         input_schema: JsonSchema {
             schema_type: "object".to_string(),
             properties: Some(properties),
-            required: Some(vec!["provider".to_string()]),
+            required: Some(vec![PROVIDER.to_string()]),
         },
     }
 }
@@ -157,18 +158,18 @@ fn create_get_activities_tool() -> ToolSchema {
 fn create_get_athlete_tool() -> ToolSchema {
     let mut properties = HashMap::new();
     
-    properties.insert("provider".to_string(), PropertySchema {
+    properties.insert(PROVIDER.to_string(), PropertySchema {
         property_type: "string".to_string(),
         description: Some("Fitness provider name (e.g., 'strava', 'fitbit')".to_string()),
     });
 
     ToolSchema {
-        name: "get_athlete".to_string(),
+        name: GET_ATHLETE.to_string(),
         description: "Get athlete profile from a provider".to_string(),
         input_schema: JsonSchema {
             schema_type: "object".to_string(),
             properties: Some(properties),
-            required: Some(vec!["provider".to_string()]),
+            required: Some(vec![PROVIDER.to_string()]),
         },
     }
 }
@@ -177,18 +178,18 @@ fn create_get_athlete_tool() -> ToolSchema {
 fn create_get_stats_tool() -> ToolSchema {
     let mut properties = HashMap::new();
     
-    properties.insert("provider".to_string(), PropertySchema {
+    properties.insert(PROVIDER.to_string(), PropertySchema {
         property_type: "string".to_string(),
         description: Some("Fitness provider name (e.g., 'strava', 'fitbit')".to_string()),
     });
 
     ToolSchema {
-        name: "get_stats".to_string(),
+        name: GET_STATS.to_string(),
         description: "Get fitness statistics from a provider".to_string(),
         input_schema: JsonSchema {
             schema_type: "object".to_string(),
             properties: Some(properties),
-            required: Some(vec!["provider".to_string()]),
+            required: Some(vec![PROVIDER.to_string()]),
         },
     }
 }
@@ -197,12 +198,12 @@ fn create_get_stats_tool() -> ToolSchema {
 fn create_get_activity_intelligence_tool() -> ToolSchema {
     let mut properties = HashMap::new();
     
-    properties.insert("provider".to_string(), PropertySchema {
+    properties.insert(PROVIDER.to_string(), PropertySchema {
         property_type: "string".to_string(),
         description: Some("Fitness provider name (e.g., 'strava', 'fitbit')".to_string()),
     });
     
-    properties.insert("activity_id".to_string(), PropertySchema {
+    properties.insert(ACTIVITY_ID.to_string(), PropertySchema {
         property_type: "string".to_string(),
         description: Some("ID of the specific activity to analyze".to_string()),
     });
@@ -218,12 +219,12 @@ fn create_get_activity_intelligence_tool() -> ToolSchema {
     });
 
     ToolSchema {
-        name: "get_activity_intelligence".to_string(),
+        name: GET_ACTIVITY_INTELLIGENCE.to_string(),
         description: "Generate AI-powered insights and analysis for a specific activity".to_string(),
         input_schema: JsonSchema {
             schema_type: "object".to_string(),
             properties: Some(properties),
-            required: Some(vec!["provider".to_string(), "activity_id".to_string()]),
+            required: Some(vec![PROVIDER.to_string(), ACTIVITY_ID.to_string()]),
         },
     }
 }
@@ -233,7 +234,7 @@ fn create_connect_strava_tool() -> ToolSchema {
     let properties = HashMap::new(); // No parameters needed - uses user's JWT context
 
     ToolSchema {
-        name: "connect_strava".to_string(),
+        name: CONNECT_STRAVA.to_string(),
         description: "Generate authorization URL to connect user's Strava account. Returns a URL for the user to visit to authorize access to their Strava data.".to_string(),
         input_schema: JsonSchema {
             schema_type: "object".to_string(),
@@ -248,7 +249,7 @@ fn create_connect_fitbit_tool() -> ToolSchema {
     let properties = HashMap::new(); // No parameters needed - uses user's JWT context
 
     ToolSchema {
-        name: "connect_fitbit".to_string(),
+        name: CONNECT_FITBIT.to_string(),
         description: "Generate authorization URL to connect user's Fitbit account. Returns a URL for the user to visit to authorize access to their Fitbit data.".to_string(),
         input_schema: JsonSchema {
             schema_type: "object".to_string(),
@@ -263,7 +264,7 @@ fn create_get_connection_status_tool() -> ToolSchema {
     let properties = HashMap::new(); // No parameters needed - uses user's JWT context
 
     ToolSchema {
-        name: "get_connection_status".to_string(),
+        name: GET_CONNECTION_STATUS.to_string(),
         description: "Check which fitness providers are currently connected and authorized for the user. Returns connection status for all supported providers.".to_string(),
         input_schema: JsonSchema {
             schema_type: "object".to_string(),
@@ -277,18 +278,18 @@ fn create_get_connection_status_tool() -> ToolSchema {
 fn create_disconnect_provider_tool() -> ToolSchema {
     let mut properties = HashMap::new();
     
-    properties.insert("provider".to_string(), PropertySchema {
+    properties.insert(PROVIDER.to_string(), PropertySchema {
         property_type: "string".to_string(),
         description: Some("Fitness provider to disconnect (e.g., 'strava', 'fitbit')".to_string()),
     });
 
     ToolSchema {
-        name: "disconnect_provider".to_string(),
+        name: DISCONNECT_PROVIDER.to_string(),
         description: "Disconnect and remove stored tokens for a specific fitness provider. This revokes access to the provider's data.".to_string(),
         input_schema: JsonSchema {
             schema_type: "object".to_string(),
             properties: Some(properties),
-            required: Some(vec!["provider".to_string()]),
+            required: Some(vec![PROVIDER.to_string()]),
         },
     }
 }
@@ -374,23 +375,23 @@ mod tests {
 fn create_analyze_activity_tool() -> ToolSchema {
     let mut properties = HashMap::new();
     
-    properties.insert("provider".to_string(), PropertySchema {
+    properties.insert(PROVIDER.to_string(), PropertySchema {
         property_type: "string".to_string(),
         description: Some("Fitness provider name (e.g., 'strava', 'fitbit')".to_string()),
     });
     
-    properties.insert("activity_id".to_string(), PropertySchema {
+    properties.insert(ACTIVITY_ID.to_string(), PropertySchema {
         property_type: "string".to_string(),
         description: Some("ID of the activity to analyze".to_string()),
     });
 
     ToolSchema {
-        name: "analyze_activity".to_string(),
+        name: ANALYZE_ACTIVITY.to_string(),
         description: "Perform deep analysis of an individual activity including insights, metrics, and anomaly detection".to_string(),
         input_schema: JsonSchema {
             schema_type: "object".to_string(),
             properties: Some(properties),
-            required: Some(vec!["provider".to_string(), "activity_id".to_string()]),
+            required: Some(vec![PROVIDER.to_string(), ACTIVITY_ID.to_string()]),
         },
     }
 }

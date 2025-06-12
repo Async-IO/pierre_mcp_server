@@ -9,6 +9,7 @@ use clap::{Parser, Subcommand};
 use pierre_mcp_server::providers::strava::StravaProvider;
 use pierre_mcp_server::providers::{FitnessProvider, AuthData};
 use pierre_mcp_server::config::Config;
+use pierre_mcp_server::constants::{env_config, oauth};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::TcpListener;
 use tokio::io::AsyncWriteExt;
@@ -37,9 +38,9 @@ enum Commands {
         #[arg(long)]
         client_secret: String,
         
-        /// Callback port (default: 8080)
-        #[arg(long, default_value = "8080")]
-        port: u16,
+        /// Callback port (default: from env or 8080)
+        #[arg(long)]
+        port: Option<u16>,
     },
 }
 
@@ -51,6 +52,7 @@ async fn main() -> Result<()> {
     
     match cli.command {
         Commands::Strava { client_id, client_secret, port } => {
+            let port = port.unwrap_or_else(env_config::mcp_port);
             setup_strava_auth(client_id, client_secret, port).await?;
         }
     }
@@ -135,7 +137,7 @@ async fn setup_strava_auth(client_id: String, client_secret: String, port: u16) 
             refresh_token: Some(refresh_token),
             api_key: None,
             redirect_uri: None,
-            scopes: Some(vec!["read".to_string(), "activity:read_all".to_string()]),
+            scopes: Some(oauth::STRAVA_DEFAULT_SCOPES.split(',').map(|s| s.to_string()).collect()),
         });
         
         config.save(None)?;

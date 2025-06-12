@@ -75,6 +75,9 @@ pub mod models;
 /// Configuration management and persistence
 pub mod config;
 
+/// Application constants and configuration values
+pub mod constants;
+
 /// OAuth2 client for secure API authentication
 pub mod oauth2_client;
 

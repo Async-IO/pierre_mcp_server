@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::env;
 use std::path::PathBuf;
 use tracing::{info, warn};
+use crate::constants::{env_config, oauth, defaults, limits};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerConfig {
@@ -127,42 +128,39 @@ impl ServerConfig {
         }
 
         let config = ServerConfig {
-            mcp_port: env_var_or("MCP_PORT", "8080")?.parse()
-                .context("Invalid MCP_PORT value")?,
-            http_port: env_var_or("HTTP_PORT", "8081")?.parse()
-                .context("Invalid HTTP_PORT value")?,
-            log_level: env_var_or("RUST_LOG", "info")?,
+            mcp_port: env_config::mcp_port(),
+            http_port: env_config::http_port(),
+            log_level: env_config::log_level(),
             
             database: DatabaseConfig {
-                url: env_var_or("DATABASE_URL", "sqlite:./data/users.db")?,
-                encryption_key_path: PathBuf::from(env_var_or("ENCRYPTION_KEY_PATH", "./data/encryption.key")?),
+                url: env_config::database_url(),
+                encryption_key_path: PathBuf::from(env_config::encryption_key_path()),
                 auto_migrate: env_var_or("AUTO_MIGRATE", "true")?.parse()
                     .context("Invalid AUTO_MIGRATE value")?,
                 backup: BackupConfig {
                     enabled: env_var_or("BACKUP_ENABLED", "true")?.parse()
                         .context("Invalid BACKUP_ENABLED value")?,
-                    interval_seconds: env_var_or("BACKUP_INTERVAL", "21600")?.parse()
+                    interval_seconds: env_var_or("BACKUP_INTERVAL", &limits::DEFAULT_BACKUP_INTERVAL_SECS.to_string())?.parse()
                         .context("Invalid BACKUP_INTERVAL value")?,
-                    retention_count: env_var_or("BACKUP_RETENTION", "7")?.parse()
+                    retention_count: env_var_or("BACKUP_RETENTION", &limits::DEFAULT_BACKUP_RETENTION_COUNT.to_string())?.parse()
                         .context("Invalid BACKUP_RETENTION value")?,
-                    directory: PathBuf::from(env_var_or("BACKUP_DIRECTORY", "./backups")?),
+                    directory: PathBuf::from(env_var_or("BACKUP_DIRECTORY", defaults::DEFAULT_BACKUP_DIR)?),
                 },
             },
             
             auth: AuthConfig {
-                jwt_secret_path: PathBuf::from(env_var_or("JWT_SECRET_PATH", "./data/jwt.secret")?),
-                jwt_expiry_hours: env_var_or("JWT_EXPIRY_HOURS", "24")?.parse()
-                    .context("Invalid JWT_EXPIRY_HOURS value")?,
+                jwt_secret_path: PathBuf::from(env_config::jwt_secret_path()),
+                jwt_expiry_hours: env_config::jwt_expiry_hours() as u64,
                 enable_refresh_tokens: env_var_or("ENABLE_REFRESH_TOKENS", "false")?.parse()
                     .context("Invalid ENABLE_REFRESH_TOKENS value")?,
             },
             
             oauth: OAuthConfig {
                 strava: OAuthProviderConfig {
-                    client_id: env::var("STRAVA_CLIENT_ID").ok(),
-                    client_secret: env::var("STRAVA_CLIENT_SECRET").ok(),
-                    redirect_uri: env::var("STRAVA_REDIRECT_URI").ok(),
-                    scopes: parse_scopes(&env_var_or("STRAVA_SCOPES", "read,activity:read_all")?),
+                    client_id: env_config::strava_client_id(),
+                    client_secret: env_config::strava_client_secret(),
+                    redirect_uri: Some(env_config::strava_redirect_uri()),
+                    scopes: parse_scopes(oauth::STRAVA_DEFAULT_SCOPES),
                     enabled: env_var_or("STRAVA_ENABLED", "true")?.parse()
                         .context("Invalid STRAVA_ENABLED value")?,
                 },
@@ -170,7 +168,7 @@ impl ServerConfig {
                     client_id: env::var("FITBIT_CLIENT_ID").ok(),
                     client_secret: env::var("FITBIT_CLIENT_SECRET").ok(),
                     redirect_uri: env::var("FITBIT_REDIRECT_URI").ok(),
-                    scopes: parse_scopes(&env_var_or("FITBIT_SCOPES", "activity,profile")?),
+                    scopes: parse_scopes(oauth::FITBIT_DEFAULT_SCOPES),
                     enabled: env_var_or("FITBIT_ENABLED", "true")?.parse()
                         .context("Invalid FITBIT_ENABLED value")?,
                 },
@@ -181,9 +179,9 @@ impl ServerConfig {
                 rate_limit: RateLimitConfig {
                     enabled: env_var_or("RATE_LIMIT_ENABLED", "true")?.parse()
                         .context("Invalid RATE_LIMIT_ENABLED value")?,
-                    requests_per_window: env_var_or("RATE_LIMIT_REQUESTS", "100")?.parse()
+                    requests_per_window: env_var_or("RATE_LIMIT_REQUESTS", &limits::DEFAULT_RATE_LIMIT_REQUESTS.to_string())?.parse()
                         .context("Invalid RATE_LIMIT_REQUESTS value")?,
-                    window_seconds: env_var_or("RATE_LIMIT_WINDOW", "60")?.parse()
+                    window_seconds: env_var_or("RATE_LIMIT_WINDOW", &limits::DEFAULT_RATE_LIMIT_WINDOW_SECS.to_string())?.parse()
                         .context("Invalid RATE_LIMIT_WINDOW value")?,
                 },
                 tls: TlsConfig {
@@ -317,23 +315,23 @@ mod tests {
     fn test_config_validation() {
         // Test port conflict
         let mut config = ServerConfig {
-            mcp_port: 8080,
-            http_port: 8080,  // Same as MCP port
-            log_level: "info".to_string(),
+            mcp_port: env_config::mcp_port(),
+            http_port: env_config::mcp_port(),  // Same as MCP port - should fail validation
+            log_level: env_config::log_level(),
             database: DatabaseConfig {
                 url: "sqlite:test.db".to_string(),
                 encryption_key_path: PathBuf::from("test.key"),
                 auto_migrate: true,
                 backup: BackupConfig {
                     enabled: false,
-                    interval_seconds: 3600,
-                    retention_count: 7,
-                    directory: PathBuf::from("./backups"),
+                    interval_seconds: limits::DEFAULT_BACKUP_INTERVAL_SECS,
+                    retention_count: limits::DEFAULT_BACKUP_RETENTION_COUNT as u32,
+                    directory: PathBuf::from(defaults::DEFAULT_BACKUP_DIR),
                 },
             },
             auth: AuthConfig {
                 jwt_secret_path: PathBuf::from("test.secret"),
-                jwt_expiry_hours: 24,
+                jwt_expiry_hours: limits::JWT_EXPIRY_HOURS as u64,
                 enable_refresh_tokens: false,
             },
             oauth: OAuthConfig {
@@ -356,8 +354,8 @@ mod tests {
                 cors_origins: vec!["*".to_string()],
                 rate_limit: RateLimitConfig {
                     enabled: false,
-                    requests_per_window: 100,
-                    window_seconds: 60,
+                    requests_per_window: limits::DEFAULT_RATE_LIMIT_REQUESTS,
+                    window_seconds: limits::DEFAULT_RATE_LIMIT_WINDOW_SECS,
                 },
                 tls: TlsConfig {
                     enabled: false,
@@ -370,7 +368,7 @@ mod tests {
         assert!(config.validate().is_err());
 
         // Fix port conflict
-        config.http_port = 8081;
+        config.http_port = env_config::http_port();
         assert!(config.validate().is_ok());
     }
 }

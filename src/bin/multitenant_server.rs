@@ -13,6 +13,7 @@ use anyhow::Result;
 use clap::Parser;
 use pierre_mcp_server::{
     auth::{AuthManager, generate_jwt_secret},
+    constants::env_config,
     database::{Database, generate_encryption_key},
     mcp::multitenant::MultiTenantMcpServer,
     config::environment::ServerConfig,
@@ -71,7 +72,7 @@ async fn main() -> Result<()> {
         let config = pierre_mcp_server::config::Config::load(args.config)?;
         let server = pierre_mcp_server::mcp::McpServer::new(config);
         
-        let port = args.mcp_port.unwrap_or(8080);
+        let port = args.mcp_port.unwrap_or_else(env_config::mcp_port);
         info!("🚀 Single-tenant MCP server starting on port {}", port);
         info!("📊 Ready to serve fitness data!");
         

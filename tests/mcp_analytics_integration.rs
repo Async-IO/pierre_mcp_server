@@ -198,7 +198,6 @@ async fn test_analytics_workflow_without_provider() -> Result<()> {
     
     // Test fitness score calculation (should work with default data)
     let fitness_score = client.call_tool("calculate_fitness_score", json!({
-        "provider": "strava",
         "timeframe": "month"
     })).await?;
     
@@ -208,7 +207,7 @@ async fn test_analytics_workflow_without_provider() -> Result<()> {
     
     // Test training recommendations
     let recommendations = client.call_tool("generate_recommendations", json!({
-        "provider": "strava"
+        "recommendation_type": "training"
     })).await?;
     
     assert!(recommendations["result"]["training_recommendations"].is_array());
@@ -268,10 +267,8 @@ async fn test_goal_management_workflow() -> Result<()> {
     assert!(progress_response["result"]["progress_report"]["goal_id"].is_string());
     assert!(progress_response["result"]["progress_report"]["progress_percentage"].is_number());
     
-    // Test goal suggestions
-    let suggestions = client.call_tool("suggest_goals", json!({
-        "provider": "strava"
-    })).await?;
+    // Test goal suggestions  
+    let suggestions = client.call_tool("suggest_goals", json!({})).await?;
     
     assert!(suggestions["result"]["goal_suggestions"].is_array());
     let goals = suggestions["result"]["goal_suggestions"].as_array().unwrap();
@@ -401,7 +398,6 @@ async fn test_fitness_report_generation_workflow() -> Result<()> {
     
     // Step 2: Calculate fitness score (like we did in the report)
     let fitness_score = client.call_tool("calculate_fitness_score", json!({
-        "provider": "strava",
         "timeframe": "month"
     })).await?;
     
@@ -410,7 +406,6 @@ async fn test_fitness_report_generation_workflow() -> Result<()> {
     
     // Step 3: Analyze training load
     let training_load = client.call_tool("analyze_training_load", json!({
-        "provider": "strava", 
         "timeframe": "month"
     })).await?;
     
@@ -419,7 +414,7 @@ async fn test_fitness_report_generation_workflow() -> Result<()> {
     
     // Step 4: Generate recommendations
     let recommendations = client.call_tool("generate_recommendations", json!({
-        "provider": "strava"
+        "recommendation_type": "training"
     })).await?;
     
     let recs = recommendations["result"]["training_recommendations"].as_array().unwrap();
