@@ -104,12 +104,38 @@ pub struct Activity {
     pub provider: String,
 }
 
+impl Default for Activity {
+    fn default() -> Self {
+        Self {
+            id: "test_id".to_string(),
+            name: "Test Activity".to_string(),
+            sport_type: SportType::Run,
+            start_date: chrono::Utc::now(),
+            duration_seconds: 1800, // 30 minutes
+            distance_meters: Some(5000.0), // 5km
+            elevation_gain: Some(100.0),
+            average_heart_rate: Some(150),
+            max_heart_rate: Some(180),
+            average_speed: Some(2.78), // ~10 km/h
+            max_speed: Some(4.0),
+            calories: Some(350),
+            start_latitude: None,
+            start_longitude: None,
+            city: None,
+            region: None,
+            country: None,
+            trail_name: None,
+            provider: "test".to_string(),
+        }
+    }
+}
+
 /// Enumeration of supported sport/activity types
 ///
 /// This enum covers the most common fitness activities across all providers.
 /// The `Other` variant handles provider-specific activity types that don't
 /// map to the standard categories.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum SportType {
     /// Running activity

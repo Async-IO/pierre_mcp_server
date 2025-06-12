@@ -49,7 +49,7 @@ async fn main() -> Result<()> {
         password: test_password.to_string(),
     };
     
-    let login_response = auth_routes.login(login_request).await?;
+    let _login_response = auth_routes.login(login_request).await?;
     println!("✅ User logged in, JWT token generated");
     
     // 4. Test OAuth authorization URL generation
@@ -130,7 +130,7 @@ async fn main() -> Result<()> {
     match client.get(&oauth_url).send().await {
         Ok(response) => {
             if response.status().is_success() {
-                let oauth_data: serde_json::Value = response.json().await?;
+                let _oauth_data: serde_json::Value = response.json().await?;
                 println!("✅ OAuth URL endpoint working");
                 println!("   Authorization URL generated via HTTP API");
             } else {

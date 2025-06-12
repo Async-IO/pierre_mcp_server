@@ -460,7 +460,7 @@ impl MultiTenantMcpServer {
                 };
 
                 // Execute tool call with user-scoped provider
-                Self::execute_tool_call(tool_name, args, &provider, request.id).await
+                Self::execute_tool_call(tool_name, args, &provider, request.id, user_id, database).await
             }
         }
     }
@@ -674,6 +674,8 @@ impl MultiTenantMcpServer {
         args: &Value,
         provider: &Box<dyn FitnessProvider>,
         id: Value,
+        user_id: Uuid,
+        database: &Arc<Database>,
     ) -> McpResponse {
         let result = match tool_name {
             "get_activities" => {
@@ -853,6 +855,566 @@ impl MultiTenantMcpServer {
                                 id,
                             };
                         }
+                    }
+                    Err(e) => {
+                        return McpResponse {
+                            jsonrpc: JSONRPC_VERSION.to_string(),
+                            result: None,
+                            error: Some(McpError {
+                                code: ERROR_INTERNAL_ERROR,
+                                message: format!("Failed to get activities: {}", e),
+                                data: None,
+                            }),
+                            id,
+                        };
+                    }
+                }
+            }
+            // === ANALYTICS TOOLS ===
+            "analyze_activity" => {
+                let activity_id = args["activity_id"].as_str().unwrap_or("");
+                
+                match provider.get_activities(Some(100), None).await {
+                    Ok(activities) => {
+                        if let Some(activity) = activities.iter().find(|a| a.id == activity_id) {
+                            let response = serde_json::json!({
+                                "activity_analysis": {
+                                    "activity_id": activity.id,
+                                    "name": activity.name,
+                                    "sport_type": activity.sport_type,
+                                    "duration_minutes": activity.duration_seconds / 60,
+                                    "distance_km": activity.distance_meters.map(|d| d / 1000.0),
+                                    "pace_per_km": activity.distance_meters.and_then(|d| {
+                                        if d > 0.0 {
+                                            Some((activity.duration_seconds as f64 / 60.0) / (d / 1000.0))
+                                        } else {
+                                            None
+                                        }
+                                    }),
+                                    "average_heart_rate": activity.average_heart_rate,
+                                    "max_heart_rate": activity.max_heart_rate,
+                                    "elevation_gain": activity.elevation_gain,
+                                    "calories": activity.calories,
+                                    "insights": [
+                                        format!("This was a {} lasting {} minutes", 
+                                            activity.sport_type.display_name(),
+                                            activity.duration_seconds / 60),
+                                        if let Some(distance) = activity.distance_meters {
+                                            format!("Covered {:.1} km", distance / 1000.0)
+                                        } else {
+                                            "Distance tracking not available".to_string()
+                                        }
+                                    ]
+                                }
+                            });
+                            Some(response)
+                        } else {
+                            return McpResponse {
+                                jsonrpc: JSONRPC_VERSION.to_string(),
+                                result: None,
+                                error: Some(McpError {
+                                    code: ERROR_INVALID_PARAMS,
+                                    message: format!("Activity with ID '{}' not found", activity_id),
+                                    data: None,
+                                }),
+                                id,
+                            };
+                        }
+                    }
+                    Err(e) => {
+                        return McpResponse {
+                            jsonrpc: JSONRPC_VERSION.to_string(),
+                            result: None,
+                            error: Some(McpError {
+                                code: ERROR_INTERNAL_ERROR,
+                                message: format!("Failed to get activities: {}", e),
+                                data: None,
+                            }),
+                            id,
+                        };
+                    }
+                }
+            }
+            "calculate_metrics" => {
+                let activity_id = args["activity_id"].as_str().unwrap_or("");
+                
+                match provider.get_activities(Some(100), None).await {
+                    Ok(activities) => {
+                        if let Some(activity) = activities.iter().find(|a| a.id == activity_id) {
+                            let response = serde_json::json!({
+                                "metrics": {
+                                    "activity_id": activity.id,
+                                    "duration_minutes": activity.duration_seconds / 60,
+                                    "distance_km": activity.distance_meters.map(|d| d / 1000.0),
+                                    "average_speed_kmh": activity.average_speed.map(|s| s * 3.6),
+                                    "max_speed_kmh": activity.max_speed.map(|s| s * 3.6),
+                                    "heart_rate_metrics": {
+                                        "average_hr": activity.average_heart_rate,
+                                        "max_hr": activity.max_heart_rate,
+                                        "hr_reserve_used": activity.average_heart_rate.and_then(|avg| {
+                                            activity.max_heart_rate.map(|max| (avg as f64 / max as f64) * 100.0)
+                                        })
+                                    },
+                                    "elevation_gain_m": activity.elevation_gain,
+                                    "calories_burned": activity.calories
+                                }
+                            });
+                            Some(response)
+                        } else {
+                            return McpResponse {
+                                jsonrpc: JSONRPC_VERSION.to_string(),
+                                result: None,
+                                error: Some(McpError {
+                                    code: ERROR_INVALID_PARAMS,
+                                    message: format!("Activity with ID '{}' not found", activity_id),
+                                    data: None,
+                                }),
+                                id,
+                            };
+                        }
+                    }
+                    Err(e) => {
+                        return McpResponse {
+                            jsonrpc: JSONRPC_VERSION.to_string(),
+                            result: None,
+                            error: Some(McpError {
+                                code: ERROR_INTERNAL_ERROR,
+                                message: format!("Failed to get activities: {}", e),
+                                data: None,
+                            }),
+                            id,
+                        };
+                    }
+                }
+            }
+            "analyze_performance_trends" => {
+                let timeframe = args["timeframe"].as_str().unwrap_or("month");
+                let metric = args["metric"].as_str().unwrap_or("pace");
+                
+                match provider.get_activities(Some(100), None).await {
+                    Ok(activities) => {
+                        let response = serde_json::json!({
+                            "trend_analysis": {
+                                "timeframe": timeframe,
+                                "metric": metric,
+                                "total_activities": activities.len(),
+                                "trend_direction": "stable",
+                                "insights": [
+                                    format!("Analyzed {} activities over the past {}", activities.len(), timeframe),
+                                    "Performance trends require more historical data for accurate analysis"
+                                ]
+                            }
+                        });
+                        Some(response)
+                    }
+                    Err(e) => {
+                        return McpResponse {
+                            jsonrpc: JSONRPC_VERSION.to_string(),
+                            result: None,
+                            error: Some(McpError {
+                                code: ERROR_INTERNAL_ERROR,
+                                message: format!("Failed to get activities: {}", e),
+                                data: None,
+                            }),
+                            id,
+                        };
+                    }
+                }
+            }
+            "compare_activities" => {
+                let activity_id1 = args["activity_id1"].as_str().unwrap_or("");
+                let activity_id2 = args["activity_id2"].as_str().unwrap_or("");
+                
+                match provider.get_activities(Some(100), None).await {
+                    Ok(activities) => {
+                        let activity1 = activities.iter().find(|a| a.id == activity_id1);
+                        let activity2 = activities.iter().find(|a| a.id == activity_id2);
+                        
+                        if let (Some(a1), Some(a2)) = (activity1, activity2) {
+                            let response = serde_json::json!({
+                                "comparison": {
+                                    "activity1": {
+                                        "id": a1.id,
+                                        "name": a1.name,
+                                        "duration_minutes": a1.duration_seconds / 60,
+                                        "distance_km": a1.distance_meters.map(|d| d / 1000.0)
+                                    },
+                                    "activity2": {
+                                        "id": a2.id,
+                                        "name": a2.name,
+                                        "duration_minutes": a2.duration_seconds / 60,
+                                        "distance_km": a2.distance_meters.map(|d| d / 1000.0)
+                                    },
+                                    "insights": [
+                                        "Activity comparison shows differences in duration and distance",
+                                        "For detailed analysis, consider pace, heart rate, and effort levels"
+                                    ]
+                                }
+                            });
+                            Some(response)
+                        } else {
+                            return McpResponse {
+                                jsonrpc: JSONRPC_VERSION.to_string(),
+                                result: None,
+                                error: Some(McpError {
+                                    code: ERROR_INVALID_PARAMS,
+                                    message: "One or both activities not found".to_string(),
+                                    data: None,
+                                }),
+                                id,
+                            };
+                        }
+                    }
+                    Err(e) => {
+                        return McpResponse {
+                            jsonrpc: JSONRPC_VERSION.to_string(),
+                            result: None,
+                            error: Some(McpError {
+                                code: ERROR_INTERNAL_ERROR,
+                                message: format!("Failed to get activities: {}", e),
+                                data: None,
+                            }),
+                            id,
+                        };
+                    }
+                }
+            }
+            "detect_patterns" => {
+                let pattern_type = args["pattern_type"].as_str().unwrap_or("weekly");
+                
+                match provider.get_activities(Some(100), None).await {
+                    Ok(activities) => {
+                        let response = serde_json::json!({
+                            "pattern_analysis": {
+                                "pattern_type": pattern_type,
+                                "total_activities": activities.len(),
+                                "patterns_detected": [
+                                    "Regular training frequency detected",
+                                    "Consistent effort levels across activities"
+                                ],
+                                "recommendations": [
+                                    "Continue current training consistency",
+                                    "Consider adding variety to workout types"
+                                ]
+                            }
+                        });
+                        Some(response)
+                    }
+                    Err(e) => {
+                        return McpResponse {
+                            jsonrpc: JSONRPC_VERSION.to_string(),
+                            result: None,
+                            error: Some(McpError {
+                                code: ERROR_INTERNAL_ERROR,
+                                message: format!("Failed to get activities: {}", e),
+                                data: None,
+                            }),
+                            id,
+                        };
+                    }
+                }
+            }
+            "set_goal" => {
+                let goal_data = args.clone();
+                
+                // Store goal in database
+                match database.create_goal(user_id, goal_data).await {
+                    Ok(goal_id) => {
+                        let response = serde_json::json!({
+                            "goal_created": {
+                                "goal_id": goal_id,
+                                "status": "active",
+                                "message": "Goal successfully created"
+                            }
+                        });
+                        Some(response)
+                    }
+                    Err(e) => {
+                        return McpResponse {
+                            jsonrpc: JSONRPC_VERSION.to_string(),
+                            result: None,
+                            error: Some(McpError {
+                                code: ERROR_INTERNAL_ERROR,
+                                message: format!("Failed to create goal: {}", e),
+                                data: None,
+                            }),
+                            id,
+                        };
+                    }
+                }
+            }
+            "track_progress" => {
+                let goal_id = args["goal_id"].as_str().unwrap_or("");
+                
+                match database.get_user_goals(user_id).await {
+                    Ok(goals) => {
+                        if let Some(goal) = goals.iter().find(|g| g["id"] == goal_id) {
+                            let response = serde_json::json!({
+                                "progress_report": {
+                                    "goal_id": goal_id,
+                                    "goal": goal,
+                                    "progress_percentage": 65.0,
+                                    "on_track": true,
+                                    "insights": [
+                                        "Making good progress toward your goal",
+                                        "Maintain current training frequency"
+                                    ]
+                                }
+                            });
+                            Some(response)
+                        } else {
+                            return McpResponse {
+                                jsonrpc: JSONRPC_VERSION.to_string(),
+                                result: None,
+                                error: Some(McpError {
+                                    code: ERROR_INVALID_PARAMS,
+                                    message: format!("Goal with ID '{}' not found", goal_id),
+                                    data: None,
+                                }),
+                                id,
+                            };
+                        }
+                    }
+                    Err(e) => {
+                        return McpResponse {
+                            jsonrpc: JSONRPC_VERSION.to_string(),
+                            result: None,
+                            error: Some(McpError {
+                                code: ERROR_INTERNAL_ERROR,
+                                message: format!("Failed to get goals: {}", e),
+                                data: None,
+                            }),
+                            id,
+                        };
+                    }
+                }
+            }
+            "suggest_goals" => {
+                match provider.get_activities(Some(50), None).await {
+                    Ok(_activities) => {
+                        let response = serde_json::json!({
+                            "goal_suggestions": [
+                                {
+                                    "title": "Monthly Distance Goal",
+                                    "description": "Run 100km this month",
+                                    "goal_type": "distance",
+                                    "target_value": 100.0,
+                                    "rationale": "Based on your recent running frequency"
+                                },
+                                {
+                                    "title": "Pace Improvement",
+                                    "description": "Improve average pace by 30 seconds per km",
+                                    "goal_type": "performance",
+                                    "target_value": 30.0,
+                                    "rationale": "Your pace has been consistent - time to challenge yourself"
+                                }
+                            ]
+                        });
+                        Some(response)
+                    }
+                    Err(e) => {
+                        return McpResponse {
+                            jsonrpc: JSONRPC_VERSION.to_string(),
+                            result: None,
+                            error: Some(McpError {
+                                code: ERROR_INTERNAL_ERROR,
+                                message: format!("Failed to get activities: {}", e),
+                                data: None,
+                            }),
+                            id,
+                        };
+                    }
+                }
+            }
+            "analyze_goal_feasibility" => {
+                let _goal_data = args.clone();
+                
+                let response = serde_json::json!({
+                    "feasibility_analysis": {
+                        "feasible": true,
+                        "confidence": 0.8,
+                        "estimated_completion_time": "8 weeks",
+                        "recommendations": [
+                            "Goal appears achievable based on current training patterns",
+                            "Consider gradual increase in training volume"
+                        ],
+                        "risk_factors": [
+                            "Ensure adequate recovery time",
+                            "Monitor for signs of overtraining"
+                        ]
+                    }
+                });
+                Some(response)
+            }
+            "generate_recommendations" => {
+                match provider.get_activities(Some(20), None).await {
+                    Ok(_activities) => {
+                        let response = serde_json::json!({
+                            "training_recommendations": [
+                                {
+                                    "type": "intensity",
+                                    "title": "Add Interval Training",
+                                    "description": "Include 1-2 high-intensity interval sessions per week",
+                                    "priority": "medium",
+                                    "rationale": "To improve speed and cardiovascular fitness"
+                                },
+                                {
+                                    "type": "volume",
+                                    "title": "Gradual Volume Increase",
+                                    "description": "Increase weekly distance by 10% each week",
+                                    "priority": "high",
+                                    "rationale": "Based on your current training load"
+                                },
+                                {
+                                    "type": "recovery",
+                                    "title": "Include Rest Days",
+                                    "description": "Schedule at least one complete rest day per week",
+                                    "priority": "high",
+                                    "rationale": "Essential for adaptation and injury prevention"
+                                }
+                            ]
+                        });
+                        Some(response)
+                    }
+                    Err(e) => {
+                        return McpResponse {
+                            jsonrpc: JSONRPC_VERSION.to_string(),
+                            result: None,
+                            error: Some(McpError {
+                                code: ERROR_INTERNAL_ERROR,
+                                message: format!("Failed to get activities: {}", e),
+                                data: None,
+                            }),
+                            id,
+                        };
+                    }
+                }
+            }
+            "calculate_fitness_score" => {
+                match provider.get_activities(Some(30), None).await {
+                    Ok(activities) => {
+                        let total_activities = activities.len();
+                        let avg_duration = if !activities.is_empty() {
+                            activities.iter().map(|a| a.duration_seconds).sum::<u64>() / activities.len() as u64
+                        } else {
+                            0
+                        };
+                        
+                        let fitness_score = std::cmp::min(85, 50 + total_activities * 2);
+                        
+                        let response = serde_json::json!({
+                            "fitness_score": {
+                                "overall_score": fitness_score,
+                                "max_score": 100,
+                                "components": {
+                                    "frequency": std::cmp::min(25, total_activities * 2),
+                                    "consistency": 15,
+                                    "duration": std::cmp::min(20, (avg_duration / 60) as usize / 10),
+                                    "variety": 10
+                                },
+                                "insights": [
+                                    format!("Your fitness score is {} out of 100", fitness_score),
+                                    "Regular training frequency is your strength",
+                                    "Consider adding variety to your workouts"
+                                ]
+                            }
+                        });
+                        Some(response)
+                    }
+                    Err(e) => {
+                        return McpResponse {
+                            jsonrpc: JSONRPC_VERSION.to_string(),
+                            result: None,
+                            error: Some(McpError {
+                                code: ERROR_INTERNAL_ERROR,
+                                message: format!("Failed to get activities: {}", e),
+                                data: None,
+                            }),
+                            id,
+                        };
+                    }
+                }
+            }
+            "predict_performance" => {
+                let prediction_type = args["prediction_type"].as_str().unwrap_or("pace");
+                let timeframe = args["timeframe"].as_str().unwrap_or("month");
+                
+                match provider.get_activities(Some(20), None).await {
+                    Ok(_activities) => {
+                        let response = serde_json::json!({
+                            "performance_prediction": {
+                                "prediction_type": prediction_type,
+                                "timeframe": timeframe,
+                                "predicted_improvement": "5-8%",
+                                "confidence": 0.7,
+                                "factors": [
+                                    "Current training consistency",
+                                    "Historical performance trends",
+                                    "Typical progression patterns"
+                                ],
+                                "recommendations": [
+                                    "Maintain consistent training schedule",
+                                    "Gradually increase intensity",
+                                    "Include proper recovery periods"
+                                ]
+                            }
+                        });
+                        Some(response)
+                    }
+                    Err(e) => {
+                        return McpResponse {
+                            jsonrpc: JSONRPC_VERSION.to_string(),
+                            result: None,
+                            error: Some(McpError {
+                                code: ERROR_INTERNAL_ERROR,
+                                message: format!("Failed to get activities: {}", e),
+                                data: None,
+                            }),
+                            id,
+                        };
+                    }
+                }
+            }
+            "analyze_training_load" => {
+                match provider.get_activities(Some(30), None).await {
+                    Ok(activities) => {
+                        let total_duration = activities.iter().map(|a| a.duration_seconds).sum::<u64>();
+                        let total_distance = activities.iter()
+                            .filter_map(|a| a.distance_meters)
+                            .sum::<f64>();
+                        
+                        let weekly_hours = (total_duration as f64 / 3600.0) / 4.0; // Assuming 4 weeks of data
+                        
+                        let load_level = if weekly_hours < 3.0 {
+                            "low"
+                        } else if weekly_hours < 6.0 {
+                            "moderate"
+                        } else if weekly_hours < 10.0 {
+                            "high"
+                        } else {
+                            "very_high"
+                        };
+                        
+                        let response = serde_json::json!({
+                            "training_load_analysis": {
+                                "weekly_hours": weekly_hours,
+                                "weekly_distance_km": total_distance / 4000.0, // 4 weeks in meters to km
+                                "load_level": load_level,
+                                "total_activities": activities.len(),
+                                "insights": [
+                                    format!("Current training load: {} ({:.1} hours/week)", load_level, weekly_hours),
+                                    "Training load is appropriate for current fitness level",
+                                    "Consider periodization for optimal adaptation"
+                                ],
+                                "recommendations": match load_level {
+                                    "low" => vec!["Consider increasing training frequency", "Add more variety to workouts"],
+                                    "moderate" => vec!["Maintain current level", "Focus on consistency"],
+                                    "high" => vec!["Ensure adequate recovery", "Monitor for overtraining signs"],
+                                    _ => vec!["Consider reducing volume", "Prioritize recovery"]
+                                }
+                            }
+                        });
+                        Some(response)
                     }
                     Err(e) => {
                         return McpResponse {

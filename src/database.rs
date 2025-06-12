@@ -79,6 +79,108 @@ impl Database {
             .execute(&self.pool)
             .await?;
 
+        // Create user_profiles table for fitness analytics
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS user_profiles (
+                user_id TEXT PRIMARY KEY,
+                age INTEGER,
+                gender TEXT,
+                weight_kg REAL,
+                height_cm REAL,
+                fitness_level TEXT NOT NULL DEFAULT 'beginner',
+                primary_sports TEXT, -- JSON array
+                training_history_months INTEGER DEFAULT 0,
+                preferred_units TEXT DEFAULT 'metric',
+                training_focus TEXT, -- JSON array
+                injury_history TEXT, -- JSON array
+                hours_per_week REAL DEFAULT 0,
+                preferred_days TEXT, -- JSON array
+                preferred_duration_minutes INTEGER,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create goals table for fitness goal tracking
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS goals (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT,
+                goal_type TEXT NOT NULL, -- 'distance', 'time', 'frequency', 'performance', 'custom'
+                sport_type TEXT,
+                target_value REAL NOT NULL,
+                target_date TEXT NOT NULL,
+                current_value REAL DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'active', -- 'active', 'completed', 'paused', 'cancelled'
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create goal_milestones table
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS goal_milestones (
+                id TEXT PRIMARY KEY,
+                goal_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                target_value REAL NOT NULL,
+                achieved BOOLEAN DEFAULT 0,
+                achieved_date TEXT,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (goal_id) REFERENCES goals (id) ON DELETE CASCADE
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create analytics_insights table for storing analysis results
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS analytics_insights (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                activity_id TEXT,
+                insight_type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL,
+                confidence REAL NOT NULL,
+                severity TEXT NOT NULL, -- 'info', 'warning', 'critical'
+                metadata TEXT, -- JSON
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create indexes for performance
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_goals_user_id ON goals(user_id)")
+            .execute(&self.pool)
+            .await?;
+            
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_goal_milestones_goal_id ON goal_milestones(goal_id)")
+            .execute(&self.pool)
+            .await?;
+            
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_analytics_insights_user_id ON analytics_insights(user_id)")
+            .execute(&self.pool)
+            .await?;
+
         Ok(())
     }
 
@@ -397,6 +499,226 @@ impl Database {
         } else {
             Ok(None)
         }
+    }
+
+    // === ANALYTICS METHODS ===
+
+    /// Create or update user fitness profile
+    pub async fn upsert_user_profile(&self, user_id: Uuid, profile_data: serde_json::Value) -> Result<()> {
+        let now = Utc::now().to_rfc3339();
+        
+        sqlx::query(
+            r#"
+            INSERT OR REPLACE INTO user_profiles (
+                user_id, age, gender, weight_kg, height_cm, fitness_level,
+                primary_sports, training_history_months, preferred_units,
+                training_focus, injury_history, hours_per_week, preferred_days,
+                preferred_duration_minutes, created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, 
+                     COALESCE((SELECT created_at FROM user_profiles WHERE user_id = ?1), ?15), ?16)
+            "#,
+        )
+        .bind(user_id.to_string())
+        .bind(profile_data.get("age").and_then(|v| v.as_i64()))
+        .bind(profile_data.get("gender").and_then(|v| v.as_str()))
+        .bind(profile_data.get("weight_kg").and_then(|v| v.as_f64()))
+        .bind(profile_data.get("height_cm").and_then(|v| v.as_f64()))
+        .bind(profile_data.get("fitness_level").and_then(|v| v.as_str()).unwrap_or("beginner"))
+        .bind(profile_data.get("primary_sports").map(|v| v.to_string()).unwrap_or_else(|| "[]".to_string()))
+        .bind(profile_data.get("training_history_months").and_then(|v| v.as_i64()).unwrap_or(0))
+        .bind(profile_data.get("preferred_units").and_then(|v| v.as_str()).unwrap_or("metric"))
+        .bind(profile_data.get("training_focus").map(|v| v.to_string()).unwrap_or_else(|| "[]".to_string()))
+        .bind(profile_data.get("injury_history").map(|v| v.to_string()).unwrap_or_else(|| "[]".to_string()))
+        .bind(profile_data.get("hours_per_week").and_then(|v| v.as_f64()).unwrap_or(0.0))
+        .bind(profile_data.get("preferred_days").map(|v| v.to_string()).unwrap_or_else(|| "[]".to_string()))
+        .bind(profile_data.get("preferred_duration_minutes").and_then(|v| v.as_i64()))
+        .bind(&now) // for created_at when inserting new record
+        .bind(&now) // for updated_at
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Get user fitness profile
+    pub async fn get_user_profile(&self, user_id: Uuid) -> Result<Option<serde_json::Value>> {
+        let row = sqlx::query("SELECT * FROM user_profiles WHERE user_id = ?1")
+            .bind(user_id.to_string())
+            .fetch_optional(&self.pool)
+            .await?;
+
+        if let Some(row) = row {
+            let mut profile = serde_json::Map::new();
+            
+            if let Ok(age) = row.try_get::<Option<i64>, _>("age") {
+                if let Some(age) = age {
+                    profile.insert("age".to_string(), serde_json::Value::Number(age.into()));
+                }
+            }
+            
+            if let Ok(gender) = row.try_get::<Option<String>, _>("gender") {
+                if let Some(gender) = gender {
+                    profile.insert("gender".to_string(), serde_json::Value::String(gender));
+                }
+            }
+
+            if let Ok(weight_kg) = row.try_get::<Option<f64>, _>("weight_kg") {
+                if let Some(weight) = weight_kg {
+                    profile.insert("weight_kg".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(weight).unwrap_or_else(|| 0.into())));
+                }
+            }
+
+            if let Ok(fitness_level) = row.try_get::<String, _>("fitness_level") {
+                profile.insert("fitness_level".to_string(), serde_json::Value::String(fitness_level));
+            }
+
+            Ok(Some(serde_json::Value::Object(profile)))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Create a new goal
+    pub async fn create_goal(&self, user_id: Uuid, goal_data: serde_json::Value) -> Result<String> {
+        let goal_id = uuid::Uuid::new_v4().to_string();
+        let now = Utc::now().to_rfc3339();
+
+        sqlx::query(
+            r#"
+            INSERT INTO goals (
+                id, user_id, title, description, goal_type, sport_type,
+                target_value, target_date, current_value, status, created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+            "#,
+        )
+        .bind(&goal_id)
+        .bind(user_id.to_string())
+        .bind(goal_data.get("title").and_then(|v| v.as_str()).unwrap_or("Untitled Goal"))
+        .bind(goal_data.get("description").and_then(|v| v.as_str()).unwrap_or(""))
+        .bind(goal_data.get("goal_type").and_then(|v| v.as_str()).unwrap_or("custom"))
+        .bind(goal_data.get("sport_type").and_then(|v| v.as_str()))
+        .bind(goal_data.get("target_value").and_then(|v| v.as_f64()).unwrap_or(0.0))
+        .bind(goal_data.get("target_date").and_then(|v| v.as_str()).unwrap_or(&now))
+        .bind(goal_data.get("current_value").and_then(|v| v.as_f64()).unwrap_or(0.0))
+        .bind("active")
+        .bind(&now)
+        .bind(&now)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(goal_id)
+    }
+
+    /// Get user goals
+    pub async fn get_user_goals(&self, user_id: Uuid) -> Result<Vec<serde_json::Value>> {
+        let rows = sqlx::query("SELECT * FROM goals WHERE user_id = ?1 ORDER BY created_at DESC")
+            .bind(user_id.to_string())
+            .fetch_all(&self.pool)
+            .await?;
+
+        let mut goals = Vec::new();
+        for row in rows {
+            let mut goal = serde_json::Map::new();
+            
+            if let Ok(id) = row.try_get::<String, _>("id") {
+                goal.insert("id".to_string(), serde_json::Value::String(id));
+            }
+            if let Ok(title) = row.try_get::<String, _>("title") {
+                goal.insert("title".to_string(), serde_json::Value::String(title));
+            }
+            if let Ok(goal_type) = row.try_get::<String, _>("goal_type") {
+                goal.insert("goal_type".to_string(), serde_json::Value::String(goal_type));
+            }
+            if let Ok(target_value) = row.try_get::<f64, _>("target_value") {
+                goal.insert("target_value".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(target_value).unwrap_or_else(|| 0.into())));
+            }
+            if let Ok(current_value) = row.try_get::<f64, _>("current_value") {
+                goal.insert("current_value".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(current_value).unwrap_or_else(|| 0.into())));
+            }
+            if let Ok(status) = row.try_get::<String, _>("status") {
+                goal.insert("status".to_string(), serde_json::Value::String(status));
+            }
+
+            goals.push(serde_json::Value::Object(goal));
+        }
+
+        Ok(goals)
+    }
+
+    /// Update goal progress
+    pub async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> Result<()> {
+        let now = Utc::now().to_rfc3339();
+        
+        sqlx::query("UPDATE goals SET current_value = ?1, updated_at = ?2 WHERE id = ?3")
+            .bind(current_value)
+            .bind(&now)
+            .bind(goal_id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Store analytics insight
+    pub async fn store_insight(&self, user_id: Uuid, insight_data: serde_json::Value) -> Result<String> {
+        let insight_id = uuid::Uuid::new_v4().to_string();
+        let now = Utc::now().to_rfc3339();
+
+        sqlx::query(
+            r#"
+            INSERT INTO analytics_insights (
+                id, user_id, activity_id, insight_type, title, description,
+                confidence, severity, metadata, created_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+            "#,
+        )
+        .bind(&insight_id)
+        .bind(user_id.to_string())
+        .bind(insight_data.get("activity_id").and_then(|v| v.as_str()))
+        .bind(insight_data.get("insight_type").and_then(|v| v.as_str()).unwrap_or("general"))
+        .bind(insight_data.get("title").and_then(|v| v.as_str()).unwrap_or("Insight"))
+        .bind(insight_data.get("description").and_then(|v| v.as_str()).unwrap_or(""))
+        .bind(insight_data.get("confidence").and_then(|v| v.as_f64()).unwrap_or(0.5))
+        .bind(insight_data.get("severity").and_then(|v| v.as_str()).unwrap_or("info"))
+        .bind(insight_data.get("metadata").map(|v| v.to_string()).unwrap_or_else(|| "{}".to_string()))
+        .bind(&now)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(insight_id)
+    }
+
+    /// Get user insights
+    pub async fn get_user_insights(&self, user_id: Uuid, limit: Option<i32>) -> Result<Vec<serde_json::Value>> {
+        let limit = limit.unwrap_or(50);
+        
+        let rows = sqlx::query("SELECT * FROM analytics_insights WHERE user_id = ?1 ORDER BY created_at DESC LIMIT ?2")
+            .bind(user_id.to_string())
+            .bind(limit)
+            .fetch_all(&self.pool)
+            .await?;
+
+        let mut insights = Vec::new();
+        for row in rows {
+            let mut insight = serde_json::Map::new();
+            
+            if let Ok(id) = row.try_get::<String, _>("id") {
+                insight.insert("id".to_string(), serde_json::Value::String(id));
+            }
+            if let Ok(insight_type) = row.try_get::<String, _>("insight_type") {
+                insight.insert("insight_type".to_string(), serde_json::Value::String(insight_type));
+            }
+            if let Ok(title) = row.try_get::<String, _>("title") {
+                insight.insert("title".to_string(), serde_json::Value::String(title));
+            }
+            if let Ok(description) = row.try_get::<String, _>("description") {
+                insight.insert("description".to_string(), serde_json::Value::String(description));
+            }
+
+            insights.push(serde_json::Value::Object(insight));
+        }
+
+        Ok(insights)
     }
 }
 

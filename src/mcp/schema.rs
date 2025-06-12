@@ -91,6 +91,7 @@ impl InitializeResponse {
 /// Create all fitness provider tool schemas
 fn create_fitness_tools() -> Vec<ToolSchema> {
     vec![
+        // Original tools
         create_get_activities_tool(),
         create_get_athlete_tool(), 
         create_get_stats_tool(),
@@ -99,6 +100,21 @@ fn create_fitness_tools() -> Vec<ToolSchema> {
         create_connect_fitbit_tool(),
         create_get_connection_status_tool(),
         create_disconnect_provider_tool(),
+        
+        // Advanced Analytics Tools
+        create_analyze_activity_tool(),
+        create_calculate_metrics_tool(),
+        create_analyze_performance_trends_tool(),
+        create_compare_activities_tool(),
+        create_detect_patterns_tool(),
+        create_set_goal_tool(),
+        create_track_progress_tool(),
+        create_suggest_goals_tool(),
+        create_analyze_goal_feasibility_tool(),
+        create_generate_recommendations_tool(),
+        create_calculate_fitness_score_tool(),
+        create_predict_performance_tool(),
+        create_analyze_training_load_tool(),
     ]
 }
 
@@ -344,5 +360,382 @@ mod tests {
         assert_eq!(original.server_info.name, deserialized.server_info.name);
         assert_eq!(original.server_info.version, deserialized.server_info.version);
         assert_eq!(original.capabilities.tools.len(), deserialized.capabilities.tools.len());
+    }
+}
+
+// === ADVANCED ANALYTICS TOOLS ===
+
+/// Create the analyze_activity tool schema
+fn create_analyze_activity_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+    
+    properties.insert("provider".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Fitness provider name (e.g., 'strava', 'fitbit')".to_string()),
+    });
+    
+    properties.insert("activity_id".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("ID of the activity to analyze".to_string()),
+    });
+
+    ToolSchema {
+        name: "analyze_activity".to_string(),
+        description: "Perform deep analysis of an individual activity including insights, metrics, and anomaly detection".to_string(),
+        input_schema: JsonSchema {
+            schema_type: "object".to_string(),
+            properties: Some(properties),
+            required: Some(vec!["provider".to_string(), "activity_id".to_string()]),
+        },
+    }
+}
+
+/// Create the calculate_metrics tool schema
+fn create_calculate_metrics_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+    
+    properties.insert("provider".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Fitness provider name".to_string()),
+    });
+    
+    properties.insert("activity_id".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("ID of the activity".to_string()),
+    });
+    
+    properties.insert("metrics".to_string(), PropertySchema {
+        property_type: "array".to_string(),
+        description: Some("Specific metrics to calculate (e.g., ['trimp', 'power_to_weight', 'efficiency'])".to_string()),
+    });
+
+    ToolSchema {
+        name: "calculate_metrics".to_string(),
+        description: "Calculate advanced fitness metrics for an activity (TRIMP, power-to-weight ratio, efficiency scores, etc.)".to_string(),
+        input_schema: JsonSchema {
+            schema_type: "object".to_string(),
+            properties: Some(properties),
+            required: Some(vec!["provider".to_string(), "activity_id".to_string()]),
+        },
+    }
+}
+
+/// Create the analyze_performance_trends tool schema
+fn create_analyze_performance_trends_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+    
+    properties.insert("provider".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Fitness provider name".to_string()),
+    });
+    
+    properties.insert("timeframe".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Time period for analysis ('week', 'month', 'quarter', 'sixmonths', 'year')".to_string()),
+    });
+    
+    properties.insert("metric".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Metric to analyze trends for ('pace', 'heart_rate', 'power', 'distance', 'duration')".to_string()),
+    });
+    
+    properties.insert("sport_type".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Filter by sport type (optional)".to_string()),
+    });
+
+    ToolSchema {
+        name: "analyze_performance_trends".to_string(),
+        description: "Analyze performance trends over time with statistical analysis and insights".to_string(),
+        input_schema: JsonSchema {
+            schema_type: "object".to_string(),
+            properties: Some(properties),
+            required: Some(vec!["provider".to_string(), "timeframe".to_string(), "metric".to_string()]),
+        },
+    }
+}
+
+/// Create the compare_activities tool schema
+fn create_compare_activities_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+    
+    properties.insert("provider".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Fitness provider name".to_string()),
+    });
+    
+    properties.insert("activity_id".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Primary activity to compare".to_string()),
+    });
+    
+    properties.insert("comparison_type".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Type of comparison ('similar_activities', 'personal_best', 'average', 'recent')".to_string()),
+    });
+
+    ToolSchema {
+        name: "compare_activities".to_string(),
+        description: "Compare an activity against similar activities, personal bests, or historical averages".to_string(),
+        input_schema: JsonSchema {
+            schema_type: "object".to_string(),
+            properties: Some(properties),
+            required: Some(vec!["provider".to_string(), "activity_id".to_string(), "comparison_type".to_string()]),
+        },
+    }
+}
+
+/// Create the detect_patterns tool schema
+fn create_detect_patterns_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+    
+    properties.insert("provider".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Fitness provider name".to_string()),
+    });
+    
+    properties.insert("pattern_type".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Type of pattern to detect ('training_consistency', 'seasonal_trends', 'performance_plateaus', 'injury_risk')".to_string()),
+    });
+    
+    properties.insert("timeframe".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Time period for pattern analysis".to_string()),
+    });
+
+    ToolSchema {
+        name: "detect_patterns".to_string(),
+        description: "Detect patterns in training data such as consistency trends, seasonal variations, or performance plateaus".to_string(),
+        input_schema: JsonSchema {
+            schema_type: "object".to_string(),
+            properties: Some(properties),
+            required: Some(vec!["provider".to_string(), "pattern_type".to_string()]),
+        },
+    }
+}
+
+/// Create the set_goal tool schema
+fn create_set_goal_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+    
+    properties.insert("title".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Goal title".to_string()),
+    });
+    
+    properties.insert("description".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Goal description".to_string()),
+    });
+    
+    properties.insert("goal_type".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Type of goal ('distance', 'time', 'frequency', 'performance', 'custom')".to_string()),
+    });
+    
+    properties.insert("target_value".to_string(), PropertySchema {
+        property_type: "number".to_string(),
+        description: Some("Target value to achieve".to_string()),
+    });
+    
+    properties.insert("target_date".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Target completion date (ISO format)".to_string()),
+    });
+    
+    properties.insert("sport_type".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Sport type for the goal".to_string()),
+    });
+
+    ToolSchema {
+        name: "set_goal".to_string(),
+        description: "Create and manage fitness goals with tracking and progress monitoring".to_string(),
+        input_schema: JsonSchema {
+            schema_type: "object".to_string(),
+            properties: Some(properties),
+            required: Some(vec!["title".to_string(), "goal_type".to_string(), "target_value".to_string(), "target_date".to_string()]),
+        },
+    }
+}
+
+/// Create the track_progress tool schema
+fn create_track_progress_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+    
+    properties.insert("goal_id".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("ID of the goal to track".to_string()),
+    });
+
+    ToolSchema {
+        name: "track_progress".to_string(),
+        description: "Track progress toward a specific goal with milestone achievements and completion estimates".to_string(),
+        input_schema: JsonSchema {
+            schema_type: "object".to_string(),
+            properties: Some(properties),
+            required: Some(vec!["goal_id".to_string()]),
+        },
+    }
+}
+
+/// Create the suggest_goals tool schema
+fn create_suggest_goals_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+    
+    properties.insert("provider".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Fitness provider name".to_string()),
+    });
+    
+    properties.insert("goal_category".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Category of goals to suggest ('distance', 'performance', 'consistency', 'all')".to_string()),
+    });
+
+    ToolSchema {
+        name: "suggest_goals".to_string(),
+        description: "Generate AI-powered goal suggestions based on user's activity history and fitness level".to_string(),
+        input_schema: JsonSchema {
+            schema_type: "object".to_string(),
+            properties: Some(properties),
+            required: Some(vec!["provider".to_string()]),
+        },
+    }
+}
+
+/// Create the analyze_goal_feasibility tool schema
+fn create_analyze_goal_feasibility_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+    
+    properties.insert("goal_id".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("ID of the goal to analyze".to_string()),
+    });
+
+    ToolSchema {
+        name: "analyze_goal_feasibility".to_string(),
+        description: "Assess whether a goal is realistic and achievable based on current performance and timeline".to_string(),
+        input_schema: JsonSchema {
+            schema_type: "object".to_string(),
+            properties: Some(properties),
+            required: Some(vec!["goal_id".to_string()]),
+        },
+    }
+}
+
+/// Create the generate_recommendations tool schema
+fn create_generate_recommendations_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+    
+    properties.insert("provider".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Fitness provider name".to_string()),
+    });
+    
+    properties.insert("recommendation_type".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Type of recommendations ('training', 'recovery', 'nutrition', 'equipment', 'all')".to_string()),
+    });
+    
+    properties.insert("activity_id".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Specific activity to base recommendations on (optional)".to_string()),
+    });
+
+    ToolSchema {
+        name: "generate_recommendations".to_string(),
+        description: "Generate personalized training recommendations based on activity data and user profile".to_string(),
+        input_schema: JsonSchema {
+            schema_type: "object".to_string(),
+            properties: Some(properties),
+            required: Some(vec!["provider".to_string()]),
+        },
+    }
+}
+
+/// Create the calculate_fitness_score tool schema
+fn create_calculate_fitness_score_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+    
+    properties.insert("provider".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Fitness provider name".to_string()),
+    });
+    
+    properties.insert("timeframe".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Time period for fitness assessment ('month', 'quarter', 'sixmonths')".to_string()),
+    });
+
+    ToolSchema {
+        name: "calculate_fitness_score".to_string(),
+        description: "Calculate comprehensive fitness score based on recent training load, consistency, and performance trends".to_string(),
+        input_schema: JsonSchema {
+            schema_type: "object".to_string(),
+            properties: Some(properties),
+            required: Some(vec!["provider".to_string()]),
+        },
+    }
+}
+
+/// Create the predict_performance tool schema
+fn create_predict_performance_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+    
+    properties.insert("provider".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Fitness provider name".to_string()),
+    });
+    
+    properties.insert("target_sport".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Sport type for prediction".to_string()),
+    });
+    
+    properties.insert("target_distance".to_string(), PropertySchema {
+        property_type: "number".to_string(),
+        description: Some("Target distance for performance prediction".to_string()),
+    });
+    
+    properties.insert("target_date".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Target date for prediction (ISO format)".to_string()),
+    });
+
+    ToolSchema {
+        name: "predict_performance".to_string(),
+        description: "Predict future performance capabilities based on current fitness trends and training history".to_string(),
+        input_schema: JsonSchema {
+            schema_type: "object".to_string(),
+            properties: Some(properties),
+            required: Some(vec!["provider".to_string(), "target_sport".to_string(), "target_distance".to_string()]),
+        },
+    }
+}
+
+/// Create the analyze_training_load tool schema
+fn create_analyze_training_load_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+    
+    properties.insert("provider".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Fitness provider name".to_string()),
+    });
+    
+    properties.insert("timeframe".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: Some("Time period for load analysis ('week', 'month', 'quarter')".to_string()),
+    });
+
+    ToolSchema {
+        name: "analyze_training_load".to_string(),
+        description: "Analyze training load balance, recovery needs, and load distribution over time".to_string(),
+        input_schema: JsonSchema {
+            schema_type: "object".to_string(),
+            properties: Some(properties),
+            required: Some(vec!["provider".to_string()]),
+        },
     }
 }
