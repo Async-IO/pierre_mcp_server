@@ -121,6 +121,7 @@ pub struct RateLimitStatus {
 }
 
 /// API Key Manager
+#[derive(Clone)]
 pub struct ApiKeyManager {
     key_prefix: String,
 }

@@ -104,3 +104,6 @@ pub mod health;
 
 /// API key management for B2B authentication
 pub mod api_keys;
+
+/// HTTP routes for API key management
+pub mod api_key_routes;

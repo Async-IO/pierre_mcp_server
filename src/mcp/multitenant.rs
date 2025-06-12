@@ -9,7 +9,7 @@
 //! This module provides a multi-tenant MCP server that supports user authentication,
 //! secure token storage, and user-scoped data access.
 
-use crate::auth::{AuthManager, McpAuthMiddleware};
+use crate::auth::{AuthManager, McpAuthMiddleware, AuthResult};
 use crate::constants::{protocol, protocol::*, errors::*, tools::*, json_fields::*};
 use crate::database::Database;
 use crate::models::AuthRequest;
@@ -20,8 +20,10 @@ use crate::intelligence::insights::ActivityContext;
 use crate::intelligence::weather::WeatherService;
 use crate::config::FitnessConfig;
 use crate::routes::{AuthRoutes, OAuthRoutes, RegisterRequest, LoginRequest};
+use crate::api_key_routes::ApiKeyRoutes;
 
 use anyhow::Result;
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -47,10 +49,11 @@ impl MultiTenantMcpServer {
         database: Database,
         auth_manager: AuthManager,
     ) -> Self {
-        let auth_middleware = McpAuthMiddleware::new(auth_manager.clone());
+        let database_arc = Arc::new(database);
+        let auth_middleware = McpAuthMiddleware::new(auth_manager.clone(), database_arc.clone());
         
         Self {
-            database: Arc::new(database),
+            database: database_arc,
             auth_manager: Arc::new(auth_manager),
             auth_middleware: Arc::new(auth_middleware),
             user_providers: Arc::new(RwLock::new(HashMap::new())),
@@ -95,12 +98,13 @@ impl MultiTenantMcpServer {
         
         let auth_routes = AuthRoutes::new((*database).clone(), (*auth_manager).clone());
         let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
+        let api_key_routes = ApiKeyRoutes::new((*database).clone(), (*auth_manager).clone());
         
         // CORS configuration
         let cors = warp::cors()
             .allow_any_origin()
-            .allow_headers(vec!["content-type"])
-            .allow_methods(vec!["GET", "POST", "OPTIONS"]);
+            .allow_headers(vec!["content-type", "authorization"])
+            .allow_methods(vec!["GET", "POST", "DELETE", "OPTIONS"]);
         
         // Registration endpoint
         let register = warp::path("auth")
@@ -227,6 +231,116 @@ impl MultiTenantMcpServer {
                 }
             });
 
+        // API Key endpoints
+        let create_api_key = warp::path("api")
+            .and(warp::path("keys"))
+            .and(warp::post())
+            .and(warp::header::optional::<String>("authorization"))
+            .and(warp::body::json())
+            .and_then({
+                let api_key_routes = api_key_routes.clone();
+                move |auth_header: Option<String>, request: crate::api_keys::CreateApiKeyRequest| {
+                    let api_key_routes = api_key_routes.clone();
+                    async move {
+                        match api_key_routes.create_api_key(auth_header.as_deref(), request).await {
+                            Ok(response) => Ok(warp::reply::json(&response)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
+
+        let list_api_keys = warp::path("api")
+            .and(warp::path("keys"))
+            .and(warp::get())
+            .and(warp::header::optional::<String>("authorization"))
+            .and_then({
+                let api_key_routes = api_key_routes.clone();
+                move |auth_header: Option<String>| {
+                    let api_key_routes = api_key_routes.clone();
+                    async move {
+                        match api_key_routes.list_api_keys(auth_header.as_deref()).await {
+                            Ok(response) => Ok(warp::reply::json(&response)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
+
+        let deactivate_api_key = warp::path("api")
+            .and(warp::path("keys"))
+            .and(warp::path!(String))
+            .and(warp::delete())
+            .and(warp::header::optional::<String>("authorization"))
+            .and_then({
+                let api_key_routes = api_key_routes.clone();
+                move |api_key_id: String, auth_header: Option<String>| {
+                    let api_key_routes = api_key_routes.clone();
+                    async move {
+                        match api_key_routes.deactivate_api_key(auth_header.as_deref(), &api_key_id).await {
+                            Ok(response) => Ok(warp::reply::json(&response)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
+
+        let get_api_key_usage = warp::path("api")
+            .and(warp::path("keys"))
+            .and(warp::path!(String))
+            .and(warp::path("usage"))
+            .and(warp::get())
+            .and(warp::header::optional::<String>("authorization"))
+            .and(warp::query::<std::collections::HashMap<String, String>>())
+            .and_then({
+                let api_key_routes = api_key_routes.clone();
+                move |api_key_id: String, auth_header: Option<String>, params: std::collections::HashMap<String, String>| {
+                    let api_key_routes = api_key_routes.clone();
+                    async move {
+                        let start_date_str = params.get("start_date").cloned().unwrap_or_else(|| {
+                            let thirty_days_ago = chrono::Utc::now() - chrono::Duration::days(30);
+                            thirty_days_ago.to_rfc3339()
+                        });
+                        let end_date_str = params.get("end_date").cloned().unwrap_or_else(|| {
+                            chrono::Utc::now().to_rfc3339()
+                        });
+
+                        let start_date = match chrono::DateTime::parse_from_rfc3339(&start_date_str) {
+                            Ok(dt) => dt.with_timezone(&chrono::Utc),
+                            Err(_) => {
+                                let error = serde_json::json!({"error": "Invalid start_date format. Use RFC3339."});
+                                return Err(warp::reject::custom(ApiError(error)));
+                            }
+                        };
+
+                        let end_date = match chrono::DateTime::parse_from_rfc3339(&end_date_str) {
+                            Ok(dt) => dt.with_timezone(&chrono::Utc),
+                            Err(_) => {
+                                let error = serde_json::json!({"error": "Invalid end_date format. Use RFC3339."});
+                                return Err(warp::reject::custom(ApiError(error)));
+                            }
+                        };
+
+                        match api_key_routes.get_api_key_usage(auth_header.as_deref(), &api_key_id, start_date, end_date).await {
+                            Ok(response) => Ok(warp::reply::json(&response)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
+
         // Health check endpoint
         let health = warp::path("health")
             .and(warp::get())
@@ -238,6 +352,10 @@ impl MultiTenantMcpServer {
             .or(login)
             .or(oauth_auth)
             .or(oauth_callback)
+            .or(create_api_key)
+            .or(list_api_keys)
+            .or(deactivate_api_key)
+            .or(get_api_key_usage)
             .or(health)
             .with(cors)
             .recover(handle_rejection);
@@ -322,14 +440,14 @@ impl MultiTenantMcpServer {
                 // Extract authorization header from request
                 let auth_token = request.auth_token.as_deref();
                 
-                match auth_middleware.authenticate_request(auth_token) {
-                    Ok(user_id) => {
+                match auth_middleware.authenticate_request(auth_token).await {
+                    Ok(auth_result) => {
                         // Update user's last active timestamp
-                        let _ = database.update_last_active(user_id).await;
+                        let _ = database.update_last_active(auth_result.user_id).await;
                         
                         Self::handle_authenticated_tool_call(
                             request,
-                            user_id,
+                            auth_result,
                             database,
                             user_providers,
                         ).await
@@ -394,16 +512,17 @@ impl MultiTenantMcpServer {
         }
     }
 
-    /// Handle authenticated tool call with user context
+    /// Handle authenticated tool call with user context and rate limiting
     async fn handle_authenticated_tool_call(
         request: McpRequest,
-        user_id: Uuid,
+        auth_result: AuthResult,
         database: &Arc<Database>,
         user_providers: &Arc<RwLock<HashMap<String, HashMap<String, Box<dyn FitnessProvider>>>>>,
     ) -> McpResponse {
         let params = request.params.unwrap_or_default();
         let tool_name = params["name"].as_str().unwrap_or("");
         let args = &params["arguments"];
+        let user_id = auth_result.user_id;
         
         // Handle OAuth-related tools (don't require existing provider)
         match tool_name {
@@ -424,7 +543,21 @@ impl MultiTenantMcpServer {
             SET_GOAL | TRACK_PROGRESS | ANALYZE_GOAL_FEASIBILITY | SUGGEST_GOALS | 
             CALCULATE_FITNESS_SCORE | GENERATE_RECOMMENDATIONS | ANALYZE_TRAINING_LOAD |
             DETECT_PATTERNS | ANALYZE_PERFORMANCE_TRENDS => {
-                return Self::execute_tool_call_without_provider(tool_name, args, request.id, user_id, database).await;
+                let start_time = std::time::Instant::now();
+                let response = Self::execute_tool_call_without_provider(tool_name, args, request.id, user_id, database).await;
+                
+                // Record API key usage if authenticated with API key
+                if let crate::auth::AuthMethod::ApiKey { key_id, .. } = &auth_result.auth_method {
+                    let _ = Self::record_api_key_usage(
+                        database,
+                        key_id,
+                        tool_name,
+                        start_time.elapsed(),
+                        &response,
+                    ).await;
+                }
+                
+                return response;
             }
             _ => {
                 // Check if this is a known tool that requires a provider
@@ -477,7 +610,21 @@ impl MultiTenantMcpServer {
                 };
 
                 // Execute tool call with user-scoped provider
-                Self::execute_tool_call(tool_name, args, &provider, request.id, user_id, database).await
+                let start_time = std::time::Instant::now();
+                let response = Self::execute_tool_call(tool_name, args, &provider, request.id, user_id, database).await;
+                
+                // Record API key usage if authenticated with API key
+                if let crate::auth::AuthMethod::ApiKey { key_id, .. } = &auth_result.auth_method {
+                    let _ = Self::record_api_key_usage(
+                        database,
+                        key_id,
+                        tool_name,
+                        start_time.elapsed(),
+                        &response,
+                    ).await;
+                }
+                
+                response
             }
         }
     }
@@ -1619,6 +1766,42 @@ impl MultiTenantMcpServer {
             error: None,
             id,
         }
+    }
+
+    /// Record API key usage for billing and analytics
+    async fn record_api_key_usage(
+        database: &Arc<Database>,
+        api_key_id: &str,
+        tool_name: &str,
+        response_time: std::time::Duration,
+        response: &McpResponse,
+    ) -> Result<()> {
+        use crate::api_keys::ApiKeyUsage;
+        
+        let status_code = if response.error.is_some() {
+            400 // Error responses
+        } else {
+            200 // Success responses
+        };
+
+        let error_message = response.error.as_ref().map(|e| e.message.clone());
+
+        let usage = ApiKeyUsage {
+            id: None,
+            api_key_id: api_key_id.to_string(),
+            timestamp: Utc::now(),
+            tool_name: tool_name.to_string(),
+            response_time_ms: Some(response_time.as_millis() as u32),
+            status_code,
+            error_message,
+            request_size_bytes: None, // Could be calculated from request
+            response_size_bytes: None, // Could be calculated from response
+            ip_address: None, // Would need to be passed from request context
+            user_agent: None, // Would need to be passed from request context
+        };
+
+        database.record_api_key_usage(&usage).await?;
+        Ok(())
     }
 }
 
