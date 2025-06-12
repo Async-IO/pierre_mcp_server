@@ -101,3 +101,6 @@ pub mod logging;
 
 /// Health checks and monitoring
 pub mod health;
+
+/// API key management for B2B authentication
+pub mod api_keys;
