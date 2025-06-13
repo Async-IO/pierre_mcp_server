@@ -79,6 +79,19 @@ class ApiService {
     const response = await axios.get('/dashboard/rate-limits');
     return response.data;
   }
+
+  // Token management
+  getToken(): string | null {
+    return localStorage.getItem('token');
+  }
+
+  setToken(token: string) {
+    localStorage.setItem('token', token);
+  }
+
+  clearToken() {
+    localStorage.removeItem('token');
+  }
 }
 
 export const apiService = new ApiService();
