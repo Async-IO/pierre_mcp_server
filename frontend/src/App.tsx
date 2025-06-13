@@ -1,8 +1,8 @@
-import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AuthProvider } from './contexts/AuthContext';
+import { useAuth } from './hooks/useAuth';
 import './App.css';
 
 const queryClient = new QueryClient();

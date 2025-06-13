@@ -3,7 +3,6 @@ import axios from 'axios';
 const API_BASE_URL = 'http://localhost:8081';
 
 class ApiService {
-  private token: string | null = null;
 
   constructor() {
     // Set up axios defaults
@@ -12,7 +11,6 @@ class ApiService {
   }
 
   setAuthToken(token: string | null) {
-    this.token = token;
     if (token) {
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     } else {

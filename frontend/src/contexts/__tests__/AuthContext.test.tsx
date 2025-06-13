@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { AuthProvider, useAuth } from '../AuthContext'
+import { AuthProvider } from '../AuthContext'
+import { useAuth } from '../../hooks/useAuth'
 import { apiService } from '../../services/api'
 
 // Mock the API service
@@ -110,7 +111,6 @@ describe('AuthContext', () => {
 
   it('should logout successfully', async () => {
     const user = userEvent.setup()
-    const mockUser = { id: '1', email: 'test@example.com', display_name: 'Test User' }
 
     vi.mocked(apiService.getToken).mockReturnValue('existing-token')
 

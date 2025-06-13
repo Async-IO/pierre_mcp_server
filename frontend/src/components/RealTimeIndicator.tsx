@@ -1,4 +1,3 @@
-import React from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
 
 interface RealTimeIndicatorProps {
