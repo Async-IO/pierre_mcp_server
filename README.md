@@ -1,5 +1,8 @@
 # Pierre MCP Server
 
+[![CI](https://github.com/jfarcand/pierre_mcp_server/actions/workflows/ci.yml/badge.svg)](https://github.com/jfarcand/pierre_mcp_server/actions/workflows/ci.yml)
+[![Frontend Tests](https://github.com/jfarcand/pierre_mcp_server/actions/workflows/frontend-tests.yml/badge.svg)](https://github.com/jfarcand/pierre_mcp_server/actions/workflows/frontend-tests.yml)
+
 A comprehensive MCP (Model Context Protocol) server for fitness data analysis. Provides secure access to fitness data from multiple providers (Strava, Fitbit) through Claude and other AI assistants.
 
 ## LLM Prompt Examples
@@ -609,11 +612,17 @@ We welcome contributions! Please see our [contribution guidelines](CONTRIBUTING.
 
 3. **Run tests**
    ```bash
-   # Run all tests
+   # Run backend tests
    cargo test
    
    # Run tests with output
    cargo test -- --nocapture
+   
+   # Run frontend tests
+   cd frontend && npm test
+   
+   # Run frontend tests with UI
+   cd frontend && npm run test:ui
    ```
 
 4. **Development workflow**
@@ -624,6 +633,84 @@ We welcome contributions! Please see our [contribution guidelines](CONTRIBUTING.
    # Lint code
    cargo clippy
    ```
+
+### Continuous Integration
+
+The project uses **GitHub Actions** for automated testing and quality assurance.
+
+#### Workflows
+
+1. **Full CI Pipeline** (`.github/workflows/ci.yml`)
+   - Runs on pushes to `main` and `develop` branches
+   - Tests both backend (Rust) and frontend (TypeScript/React)
+   - Includes formatting, linting, type checking, and integration tests
+
+2. **Frontend-Only Tests** (`.github/workflows/frontend-tests.yml`)
+   - Triggers only when frontend files change
+   - Tests across Node.js versions 18, 20, and 22
+   - Generates coverage reports and build artifacts
+
+#### Quality Gates
+
+- **Backend**: `cargo fmt`, `cargo clippy`, `cargo test`
+- **Frontend**: ESLint, TypeScript check, Vitest tests
+- **Coverage**: Automated coverage reporting with Codecov integration
+- **Build Verification**: Ensures both backend and frontend build successfully
+
+#### Badges
+
+The README includes real-time status badges showing:
+- [![CI](https://github.com/jfarcand/pierre_mcp_server/actions/workflows/ci.yml/badge.svg)](https://github.com/jfarcand/pierre_mcp_server/actions/workflows/ci.yml) Overall CI status
+- [![Frontend Tests](https://github.com/jfarcand/pierre_mcp_server/actions/workflows/frontend-tests.yml/badge.svg)](https://github.com/jfarcand/pierre_mcp_server/actions/workflows/frontend-tests.yml) Frontend-specific testing
+
+### Frontend Testing
+
+The frontend includes a comprehensive test suite built with **Vitest** and **React Testing Library**.
+
+#### Available Test Commands
+
+```bash
+# Navigate to frontend directory
+cd frontend
+
+# Run all tests once
+npm test
+
+# Run tests with interactive UI
+npm run test:ui
+
+# Run tests with coverage report
+npm run test:coverage
+```
+
+#### Test Structure
+
+- **7 test files** with **33+ test cases**
+- **Component tests**: Login, RealTimeIndicator, Dashboard components
+- **Hook tests**: WebSocket integration and authentication
+- **Service tests**: API service functionality
+- **Context tests**: Authentication state management
+
+#### Test Configuration
+
+- **Framework**: Vitest with jsdom environment
+- **Testing Library**: @testing-library/react for component testing
+- **Mocking**: Comprehensive mocks for WebSocket, API calls, and Chart.js
+- **Setup**: Automated setup with global test utilities
+- **Coverage**: V8 provider with lcov, text, json, and HTML reports
+
+#### Running Specific Tests
+
+```bash
+# Run tests for a specific file
+npm test RealTimeIndicator
+
+# Run tests matching a pattern
+npm test --grep "should render"
+
+# Run tests in verbose mode
+npm test -- --reporter=verbose
+```
 
 ### Adding a New Provider
 

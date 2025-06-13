@@ -246,12 +246,13 @@ export default function UsageAnalytics() {
           <li>• ✅ Response time monitoring</li>
         </ul>
         
-        <h4 className="font-semibold text-yellow-800 mt-4 mb-2">🚧 Coming Soon</h4>
-        <ul className="text-sm text-yellow-700 space-y-1">
-          <li>• Custom date range selection</li>
-          <li>• Export reports to CSV/PDF</li>
-          <li>• Usage alerts and notifications</li>
-          <li>• WebSocket real-time updates</li>
+        <h4 className="font-semibold text-blue-800 mt-4 mb-2">🚀 Available Features</h4>
+        <ul className="text-sm text-blue-700 space-y-1">
+          <li>• Real-time usage monitoring via WebSocket</li>
+          <li>• Interactive charts and visualizations</li>
+          <li>• Time-based filtering (7, 30, 90 days)</li>
+          <li>• API rate limit tracking</li>
+          <li>• Tool usage distribution analysis</li>
         </ul>
       </div>
     </div>
