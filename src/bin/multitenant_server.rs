@@ -12,16 +12,16 @@
 use anyhow::Result;
 use clap::Parser;
 use pierre_mcp_server::{
-    auth::{AuthManager, generate_jwt_secret},
-    constants::env_config,
-    database::{Database, generate_encryption_key},
-    mcp::multitenant::MultiTenantMcpServer,
+    auth::{generate_jwt_secret, AuthManager},
     config::environment::ServerConfig,
-    logging,
+    constants::env_config,
+    database::{generate_encryption_key, Database},
     health::HealthChecker,
+    logging,
+    mcp::multitenant::MultiTenantMcpServer,
 };
 use std::path::PathBuf;
-use tracing::{info, error};
+use tracing::{error, info};
 
 #[derive(Parser)]
 #[command(name = "pierre-mcp-server")]
@@ -65,27 +65,27 @@ async fn main() -> Result<()> {
     if args.single_tenant {
         // Legacy mode with simple logging
         tracing_subscriber::fmt::init();
-        
+
         info!("Starting Pierre MCP Server - Single-Tenant Mode");
-        
+
         // In single-tenant mode, use the original server
         let config = pierre_mcp_server::config::Config::load(args.config)?;
         let server = pierre_mcp_server::mcp::McpServer::new(config);
-        
+
         let port = args.mcp_port.unwrap_or_else(env_config::mcp_port);
         info!("🚀 Single-tenant MCP server starting on port {}", port);
         info!("📊 Ready to serve fitness data!");
-        
+
         if let Err(e) = server.run(port).await {
             error!("Server error: {}", e);
             return Err(e);
         }
     } else {
         // Production mode with full configuration
-        
+
         // Load configuration from environment
         let mut config = ServerConfig::from_env()?;
-        
+
         // Override ports if specified
         if let Some(mcp_port) = args.mcp_port {
             config.mcp_port = mcp_port;
@@ -93,27 +93,34 @@ async fn main() -> Result<()> {
         if let Some(http_port) = args.http_port {
             config.http_port = http_port;
         }
-        
+
         // Initialize production logging
         logging::init_from_env()?;
-        
+
         info!("🚀 Starting Pierre MCP Server - Production Mode");
         info!("{}", config.summary());
 
         // Load or generate encryption key
         let encryption_key = load_or_generate_key(&config.database.encryption_key_path)?;
-        info!("Encryption key loaded from: {}", config.database.encryption_key_path.display());
+        info!(
+            "Encryption key loaded from: {}",
+            config.database.encryption_key_path.display()
+        );
 
         // Load or generate JWT secret
         let jwt_secret = load_or_generate_jwt_secret(&config.auth.jwt_secret_path)?;
-        info!("JWT secret loaded from: {}", config.auth.jwt_secret_path.display());
+        info!(
+            "JWT secret loaded from: {}",
+            config.auth.jwt_secret_path.display()
+        );
 
         // Initialize database
         let database = Database::new(&config.database.url, encryption_key.to_vec()).await?;
         info!("Database initialized successfully");
 
         // Initialize authentication manager
-        let auth_manager = AuthManager::new(jwt_secret.to_vec(), config.auth.jwt_expiry_hours as i64);
+        let auth_manager =
+            AuthManager::new(jwt_secret.to_vec(), config.auth.jwt_expiry_hours as i64);
         info!("Authentication manager initialized");
 
         // Initialize health checker
@@ -122,11 +129,13 @@ async fn main() -> Result<()> {
 
         // Create and run multi-tenant server with health checks
         let server = MultiTenantMcpServer::new(database, auth_manager);
-        
-        info!("🚀 Multi-tenant MCP server starting on ports {} (MCP) and {} (HTTP)", 
-              config.mcp_port, config.http_port);
+
+        info!(
+            "🚀 Multi-tenant MCP server starting on ports {} (MCP) and {} (HTTP)",
+            config.mcp_port, config.http_port
+        );
         info!("📊 Ready to serve fitness data with user authentication!");
-        
+
         // Run server with health check integration
         if let Err(e) = run_production_server(server, config, health_checker).await {
             error!("Server error: {}", e);
@@ -143,16 +152,14 @@ async fn run_production_server(
     config: ServerConfig,
     health_checker: HealthChecker,
 ) -> Result<()> {
-    
-    // Setup HTTP routes with health checks  
+    // Setup HTTP routes with health checks
     let routes = pierre_mcp_server::health::middleware::routes(health_checker);
-    
+
     // Run HTTP server and MCP server concurrently
-    let http_server = warp::serve(routes)
-        .run(([0, 0, 0, 0], config.http_port));
-    
+    let http_server = warp::serve(routes).run(([0, 0, 0, 0], config.http_port));
+
     let mcp_server = server.run(config.mcp_port);
-    
+
     // Wait for either server to complete (or fail)
     tokio::select! {
         _result = http_server => {
@@ -174,14 +181,17 @@ fn load_or_generate_key(key_file: &PathBuf) -> Result<[u8; 32]> {
     if let Some(parent) = key_file.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    
+
     if key_file.exists() {
         // Load existing key
         let key_data = std::fs::read(key_file)?;
         if key_data.len() != 32 {
-            return Err(anyhow::anyhow!("Invalid encryption key length: expected 32 bytes, got {}", key_data.len()));
+            return Err(anyhow::anyhow!(
+                "Invalid encryption key length: expected 32 bytes, got {}",
+                key_data.len()
+            ));
         }
-        
+
         let mut key = [0u8; 32];
         key.copy_from_slice(&key_data);
         Ok(key)
@@ -200,14 +210,17 @@ fn load_or_generate_jwt_secret(secret_file: &PathBuf) -> Result<[u8; 64]> {
     if let Some(parent) = secret_file.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    
+
     if secret_file.exists() {
         // Load existing secret
         let secret_data = std::fs::read(secret_file)?;
         if secret_data.len() != 64 {
-            return Err(anyhow::anyhow!("Invalid JWT secret length: expected 64 bytes, got {}", secret_data.len()));
+            return Err(anyhow::anyhow!(
+                "Invalid JWT secret length: expected 64 bytes, got {}",
+                secret_data.len()
+            ));
         }
-        
+
         let mut secret = [0u8; 64];
         secret.copy_from_slice(&secret_data);
         Ok(secret)

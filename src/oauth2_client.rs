@@ -4,13 +4,13 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use anyhow::{Result, Context};
-use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc, Duration};
-use url::Url;
-use sha2::{Sha256, Digest};
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use anyhow::{Context, Result};
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+use chrono::{DateTime, Duration, Utc};
 use rand::Rng;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use url::Url;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(dead_code)]
@@ -79,7 +79,7 @@ impl OAuth2Token {
             false
         }
     }
-    
+
     #[allow(dead_code)]
     pub fn will_expire_soon(&self) -> bool {
         if let Some(expires_at) = self.expires_at {
@@ -104,28 +104,30 @@ impl OAuth2Client {
             client: reqwest::Client::new(),
         }
     }
-    
+
     #[allow(dead_code)]
     pub fn get_authorization_url(&self, state: &str) -> Result<String> {
-        let mut url = Url::parse(&self.config.auth_url)
-            .context("Invalid auth URL")?;
-        
+        let mut url = Url::parse(&self.config.auth_url).context("Invalid auth URL")?;
+
         url.query_pairs_mut()
             .append_pair("client_id", &self.config.client_id)
             .append_pair("redirect_uri", &self.config.redirect_uri)
             .append_pair("response_type", "code")
             .append_pair("scope", &self.config.scopes.join(" "))
             .append_pair("state", state);
-        
+
         Ok(url.to_string())
     }
 
     /// Get authorization URL with PKCE support
     #[allow(dead_code)]
-    pub fn get_authorization_url_with_pkce(&self, state: &str, pkce: &PkceParams) -> Result<String> {
-        let mut url = Url::parse(&self.config.auth_url)
-            .context("Invalid auth URL")?;
-        
+    pub fn get_authorization_url_with_pkce(
+        &self,
+        state: &str,
+        pkce: &PkceParams,
+    ) -> Result<String> {
+        let mut url = Url::parse(&self.config.auth_url).context("Invalid auth URL")?;
+
         let mut query_pairs = url.query_pairs_mut();
         query_pairs
             .append_pair("client_id", &self.config.client_id)
@@ -143,7 +145,7 @@ impl OAuth2Client {
         drop(query_pairs);
         Ok(url.to_string())
     }
-    
+
     #[allow(dead_code)]
     pub async fn exchange_code(&self, code: &str) -> Result<OAuth2Token> {
         let params = [
@@ -153,21 +155,26 @@ impl OAuth2Client {
             ("grant_type", &"authorization_code".to_string()),
             ("redirect_uri", &self.config.redirect_uri),
         ];
-        
-        let response: TokenResponse = self.client
+
+        let response: TokenResponse = self
+            .client
             .post(&self.config.token_url)
             .form(&params)
             .send()
             .await?
             .json()
             .await?;
-        
+
         Ok(self.token_from_response(response))
     }
 
     /// Exchange authorization code with PKCE support
     #[allow(dead_code)]
-    pub async fn exchange_code_with_pkce(&self, code: &str, pkce: &PkceParams) -> Result<OAuth2Token> {
+    pub async fn exchange_code_with_pkce(
+        &self,
+        code: &str,
+        pkce: &PkceParams,
+    ) -> Result<OAuth2Token> {
         let mut params = vec![
             ("client_id", self.config.client_id.as_str()),
             ("client_secret", self.config.client_secret.as_str()),
@@ -179,18 +186,19 @@ impl OAuth2Client {
         if self.config.use_pkce {
             params.push(("code_verifier", &pkce.code_verifier));
         }
-        
-        let response: TokenResponse = self.client
+
+        let response: TokenResponse = self
+            .client
             .post(&self.config.token_url)
             .form(&params)
             .send()
             .await?
             .json()
             .await?;
-        
+
         Ok(self.token_from_response(response))
     }
-    
+
     #[allow(dead_code)]
     pub async fn refresh_token(&self, refresh_token: &str) -> Result<OAuth2Token> {
         let params = [
@@ -199,24 +207,25 @@ impl OAuth2Client {
             ("refresh_token", &refresh_token.to_string()),
             ("grant_type", &"refresh_token".to_string()),
         ];
-        
-        let response: TokenResponse = self.client
+
+        let response: TokenResponse = self
+            .client
             .post(&self.config.token_url)
             .form(&params)
             .send()
             .await?
             .json()
             .await?;
-        
+
         Ok(self.token_from_response(response))
     }
-    
+
     #[allow(dead_code)]
     fn token_from_response(&self, response: TokenResponse) -> OAuth2Token {
-        let expires_at = response.expires_in.map(|seconds| {
-            Utc::now() + Duration::seconds(seconds as i64)
-        });
-        
+        let expires_at = response
+            .expires_in
+            .map(|seconds| Utc::now() + Duration::seconds(seconds as i64));
+
         OAuth2Token {
             access_token: response.access_token,
             token_type: response.token_type,
@@ -240,7 +249,7 @@ struct TokenResponse {
 // Strava-specific OAuth2 extensions
 pub mod strava {
     use super::*;
-    
+
     #[derive(Debug, Deserialize)]
     #[allow(dead_code)]
     pub struct StravaTokenResponse {
@@ -251,7 +260,7 @@ pub mod strava {
         pub access_token: String,
         pub athlete: Option<StravaAthleteSummary>,
     }
-    
+
     #[derive(Debug, Deserialize)]
     #[allow(dead_code)]
     pub struct StravaAthleteSummary {
@@ -260,7 +269,7 @@ pub mod strava {
         pub firstname: Option<String>,
         pub lastname: Option<String>,
     }
-    
+
     pub async fn exchange_strava_code(
         client: &reqwest::Client,
         client_id: &str,
@@ -273,7 +282,7 @@ pub mod strava {
             ("code", code),
             ("grant_type", "authorization_code"),
         ];
-        
+
         let response: StravaTokenResponse = client
             .post("https://www.strava.com/oauth/token")
             .form(&params)
@@ -281,16 +290,17 @@ pub mod strava {
             .await?
             .json()
             .await?;
-        
+
         let token = OAuth2Token {
             access_token: response.access_token,
             token_type: response.token_type,
-            expires_at: Some(DateTime::from_timestamp(response.expires_at, 0)
-                .unwrap_or_else(Utc::now)),
+            expires_at: Some(
+                DateTime::from_timestamp(response.expires_at, 0).unwrap_or_else(Utc::now),
+            ),
             refresh_token: Some(response.refresh_token),
             scope: None,
         };
-        
+
         Ok((token, response.athlete))
     }
 
@@ -310,7 +320,7 @@ pub mod strava {
             ("grant_type", "authorization_code"),
             ("code_verifier", &pkce.code_verifier),
         ];
-        
+
         let response: StravaTokenResponse = client
             .post("https://www.strava.com/oauth/token")
             .form(&params)
@@ -318,19 +328,20 @@ pub mod strava {
             .await?
             .json()
             .await?;
-        
+
         let token = OAuth2Token {
             access_token: response.access_token,
             token_type: response.token_type,
-            expires_at: Some(DateTime::from_timestamp(response.expires_at, 0)
-                .unwrap_or_else(Utc::now)),
+            expires_at: Some(
+                DateTime::from_timestamp(response.expires_at, 0).unwrap_or_else(Utc::now),
+            ),
             refresh_token: Some(response.refresh_token),
             scope: None,
         };
-        
+
         Ok((token, response.athlete))
     }
-    
+
     pub async fn refresh_strava_token(
         client: &reqwest::Client,
         client_id: &str,
@@ -343,7 +354,7 @@ pub mod strava {
             ("refresh_token", refresh_token),
             ("grant_type", "refresh_token"),
         ];
-        
+
         let response: StravaTokenResponse = client
             .post("https://www.strava.com/oauth/token")
             .form(&params)
@@ -351,12 +362,13 @@ pub mod strava {
             .await?
             .json()
             .await?;
-        
+
         Ok(OAuth2Token {
             access_token: response.access_token,
             token_type: response.token_type,
-            expires_at: Some(DateTime::from_timestamp(response.expires_at, 0)
-                .unwrap_or_else(Utc::now)),
+            expires_at: Some(
+                DateTime::from_timestamp(response.expires_at, 0).unwrap_or_else(Utc::now),
+            ),
             refresh_token: Some(response.refresh_token),
             scope: None,
         })
@@ -366,7 +378,7 @@ pub mod strava {
 // Fitbit-specific OAuth2 extensions
 pub mod fitbit {
     use super::*;
-    
+
     #[derive(Debug, Deserialize)]
     #[allow(dead_code)]
     pub struct FitbitTokenResponse {
@@ -377,13 +389,13 @@ pub mod fitbit {
         pub token_type: String,
         pub user_id: String,
     }
-    
+
     #[derive(Debug, Deserialize)]
     #[allow(dead_code)]
     pub struct FitbitUserInfo {
         pub user_id: String,
     }
-    
+
     /// Exchange Fitbit authorization code for tokens
     #[allow(dead_code)]
     pub async fn exchange_fitbit_code(
@@ -400,7 +412,7 @@ pub mod fitbit {
             ("grant_type", "authorization_code"),
             ("redirect_uri", redirect_uri),
         ];
-        
+
         let response: FitbitTokenResponse = client
             .post("https://api.fitbit.com/oauth2/token")
             .form(&params)
@@ -408,7 +420,7 @@ pub mod fitbit {
             .await?
             .json()
             .await?;
-        
+
         let token = OAuth2Token {
             access_token: response.access_token,
             token_type: response.token_type,
@@ -416,11 +428,11 @@ pub mod fitbit {
             refresh_token: Some(response.refresh_token),
             scope: Some(response.scope),
         };
-        
+
         let user_info = FitbitUserInfo {
             user_id: response.user_id,
         };
-        
+
         Ok((token, Some(user_info)))
     }
 
@@ -442,7 +454,7 @@ pub mod fitbit {
             ("redirect_uri", redirect_uri),
             ("code_verifier", &pkce.code_verifier),
         ];
-        
+
         let response: FitbitTokenResponse = client
             .post("https://api.fitbit.com/oauth2/token")
             .form(&params)
@@ -450,7 +462,7 @@ pub mod fitbit {
             .await?
             .json()
             .await?;
-        
+
         let token = OAuth2Token {
             access_token: response.access_token,
             token_type: response.token_type,
@@ -458,14 +470,14 @@ pub mod fitbit {
             refresh_token: Some(response.refresh_token),
             scope: Some(response.scope),
         };
-        
+
         let user_info = FitbitUserInfo {
             user_id: response.user_id,
         };
-        
+
         Ok((token, Some(user_info)))
     }
-    
+
     /// Refresh Fitbit access token
     #[allow(dead_code)]
     pub async fn refresh_fitbit_token(
@@ -480,7 +492,7 @@ pub mod fitbit {
             ("refresh_token", refresh_token),
             ("grant_type", "refresh_token"),
         ];
-        
+
         let response: FitbitTokenResponse = client
             .post("https://api.fitbit.com/oauth2/token")
             .form(&params)
@@ -488,7 +500,7 @@ pub mod fitbit {
             .await?
             .json()
             .await?;
-        
+
         Ok(OAuth2Token {
             access_token: response.access_token,
             token_type: response.token_type,

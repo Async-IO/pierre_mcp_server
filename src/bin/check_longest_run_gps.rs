@@ -7,11 +7,11 @@ use std::net::TcpStream;
 async fn main() -> Result<()> {
     println!("🗺️  Checking GPS Coordinates for Longest Run");
     println!("============================================");
-    
+
     // Connect to MCP server
     let mut stream = TcpStream::connect("127.0.0.1:8080")?;
     let mut reader = BufReader::new(stream.try_clone()?);
-    
+
     // Send initialize request
     let init_request = json!({
         "jsonrpc": "2.0",
@@ -28,21 +28,21 @@ async fn main() -> Result<()> {
             }
         }
     });
-    
+
     writeln!(stream, "{}", init_request)?;
-    
+
     let mut line = String::new();
     reader.read_line(&mut line)?;
     let _init_response: Value = serde_json::from_str(&line)?;
     println!("✅ MCP connection initialized");
-    
+
     // Get activities to find the longest 2025 run
     println!("\n📊 Retrieving activities...");
-    
+
     let mut all_activities: Vec<Value> = Vec::new();
     let mut page = 1;
     let limit = 50;
-    
+
     // Get first few pages to find the longest run
     while page <= 3 {
         let offset = (page - 1) * limit;
@@ -59,19 +59,23 @@ async fn main() -> Result<()> {
             },
             "id": page + 1
         });
-        
+
         writeln!(stream, "{}", activities_request)?;
         let mut line = String::new();
         reader.read_line(&mut line)?;
         let response: Value = serde_json::from_str(&line)?;
-        
+
         if let Some(result) = response.get("result") {
             if let Some(activities) = result.as_array() {
                 if activities.is_empty() {
                     break;
                 }
                 all_activities.extend(activities.clone());
-                println!("📄 Retrieved page {} with {} activities", page, activities.len());
+                println!(
+                    "📄 Retrieved page {} with {} activities",
+                    page,
+                    activities.len()
+                );
                 page += 1;
             } else {
                 break;
@@ -81,55 +85,79 @@ async fn main() -> Result<()> {
             return Ok(());
         }
     }
-    
+
     // Find 2025 runs
     let mut runs_2025 = Vec::new();
     for activity in &all_activities {
-        if let (Some(sport_type), Some(start_date)) = 
-            (activity.get("sport_type"), activity.get("start_date")) {
+        if let (Some(sport_type), Some(start_date)) =
+            (activity.get("sport_type"), activity.get("start_date"))
+        {
             if sport_type == "run" && start_date.as_str().unwrap_or("").starts_with("2025") {
                 runs_2025.push(activity);
             }
         }
     }
-    
+
     println!("\n🏃 Found {} runs in 2025", runs_2025.len());
-    
+
     // Find the longest run
-    let longest_run = runs_2025.iter()
+    let longest_run = runs_2025
+        .iter()
         .max_by(|a, b| {
-            let dist_a = a.get("distance_meters").and_then(|d| d.as_f64()).unwrap_or(0.0);
-            let dist_b = b.get("distance_meters").and_then(|d| d.as_f64()).unwrap_or(0.0);
+            let dist_a = a
+                .get("distance_meters")
+                .and_then(|d| d.as_f64())
+                .unwrap_or(0.0);
+            let dist_b = b
+                .get("distance_meters")
+                .and_then(|d| d.as_f64())
+                .unwrap_or(0.0);
             dist_a.partial_cmp(&dist_b).unwrap()
         })
         .unwrap();
-    
-    let distance_km = longest_run.get("distance_meters")
+
+    let distance_km = longest_run
+        .get("distance_meters")
         .and_then(|d| d.as_f64())
-        .unwrap_or(0.0) / 1000.0;
-    
-    let activity_id = longest_run.get("id").and_then(|id| id.as_str()).unwrap_or("");
-    let name = longest_run.get("name").and_then(|n| n.as_str()).unwrap_or("");
-    
+        .unwrap_or(0.0)
+        / 1000.0;
+
+    let activity_id = longest_run
+        .get("id")
+        .and_then(|id| id.as_str())
+        .unwrap_or("");
+    let name = longest_run
+        .get("name")
+        .and_then(|n| n.as_str())
+        .unwrap_or("");
+
     println!("\n🎯 LONGEST RUN IN 2025:");
     println!("   📛 Name: {}", name);
     println!("   📏 Distance: {:.2} km", distance_km);
     println!("   🆔 Activity ID: {}", activity_id);
-    
+
     // Check GPS coordinates
-    let start_lat = longest_run.get("start_latitude").and_then(|lat| lat.as_f64());
-    let start_lon = longest_run.get("start_longitude").and_then(|lon| lon.as_f64());
-    
+    let start_lat = longest_run
+        .get("start_latitude")
+        .and_then(|lat| lat.as_f64());
+    let start_lon = longest_run
+        .get("start_longitude")
+        .and_then(|lon| lon.as_f64());
+
     match (start_lat, start_lon) {
         (Some(lat), Some(lon)) => {
             println!("   📍 GPS Coordinates: {:.6}, {:.6}", lat, lon);
             println!("   ✅ Activity HAS GPS coordinates - location intelligence should work!");
-            
+
             // Test location service directly
             println!("\n🧪 Testing Location Service...");
-            let mut location_service = pierre_mcp_server::intelligence::location::LocationService::new();
-            
-            match location_service.get_location_from_coordinates(lat, lon).await {
+            let mut location_service =
+                pierre_mcp_server::intelligence::location::LocationService::new();
+
+            match location_service
+                .get_location_from_coordinates(lat, lon)
+                .await
+            {
                 Ok(location_data) => {
                     println!("✅ Location data retrieved:");
                     println!("   📍 Display Name: {}", location_data.display_name);
@@ -154,9 +182,12 @@ async fn main() -> Result<()> {
         }
         _ => {
             println!("   ❌ No GPS coordinates available for this activity");
-            println!("   📝 Raw activity data: {}", serde_json::to_string_pretty(longest_run)?);
+            println!(
+                "   📝 Raw activity data: {}",
+                serde_json::to_string_pretty(longest_run)?
+            );
         }
     }
-    
+
     Ok(())
 }

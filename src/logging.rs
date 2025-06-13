@@ -68,7 +68,7 @@ impl LoggingConfig {
     /// Create logging configuration from environment variables
     pub fn from_env() -> Self {
         let level = env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
-        
+
         let format = match env::var("LOG_FORMAT").as_deref() {
             Ok("json") => LogFormat::Json,
             Ok("compact") => LogFormat::Compact,
@@ -231,7 +231,13 @@ impl AppLogger {
     }
 
     /// Log API requests
-    pub fn log_api_request(method: &str, path: &str, status: u16, duration_ms: u64, user_id: Option<&str>) {
+    pub fn log_api_request(
+        method: &str,
+        path: &str,
+        status: u16,
+        duration_ms: u64,
+        user_id: Option<&str>,
+    ) {
         info!(
             http.method = %method,
             http.path = %path,
@@ -265,7 +271,12 @@ impl AppLogger {
     }
 
     /// Log security events
-    pub fn log_security_event(event_type: &str, severity: &str, details: &str, user_id: Option<&str>) {
+    pub fn log_security_event(
+        event_type: &str,
+        severity: &str,
+        details: &str,
+        user_id: Option<&str>,
+    ) {
         warn!(
             security.event = %event_type,
             security.severity = %severity,
@@ -276,7 +287,12 @@ impl AppLogger {
     }
 
     /// Log performance metrics
-    pub fn log_performance_metric(metric_name: &str, value: f64, unit: &str, tags: Option<&serde_json::Value>) {
+    pub fn log_performance_metric(
+        metric_name: &str,
+        value: f64,
+        unit: &str,
+        tags: Option<&serde_json::Value>,
+    ) {
         info!(
             metric.name = %metric_name,
             metric.value = %value,

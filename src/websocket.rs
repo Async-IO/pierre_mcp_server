@@ -20,7 +20,7 @@ use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};
 use tokio::time::{interval, Duration};
 use uuid::Uuid;
-use warp::ws::{WebSocket, Ws, Message};
+use warp::ws::{Message, WebSocket, Ws};
 use warp::Filter;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,7 +71,7 @@ impl WebSocketManager {
         let (broadcast_tx, _) = broadcast::channel(1000);
         let database_arc = std::sync::Arc::new(database.clone());
         let auth_middleware = McpAuthMiddleware::new(auth_manager, database_arc);
-        
+
         Self {
             database,
             auth_middleware,
@@ -85,26 +85,22 @@ impl WebSocketManager {
         &self,
     ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
         let manager = self.clone();
-        
-        warp::path("ws")
-            .and(warp::ws())
-            .map(move |ws: Ws| {
-                let manager = manager.clone();
-                ws.on_upgrade(move |socket| async move {
-                    manager.handle_connection(socket).await
-                })
-            })
+
+        warp::path("ws").and(warp::ws()).map(move |ws: Ws| {
+            let manager = manager.clone();
+            ws.on_upgrade(move |socket| async move { manager.handle_connection(socket).await })
+        })
     }
 
     /// Handle new WebSocket connection
     async fn handle_connection(&self, ws: WebSocket) {
         let (mut ws_tx, mut ws_rx) = ws.split();
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-        
+
         let connection_id = Uuid::new_v4();
         let mut authenticated_user: Option<Uuid> = None;
         let mut subscriptions: Vec<String> = Vec::new();
-        
+
         // Spawn task to forward messages to WebSocket
         let ws_send_task = tokio::spawn(async move {
             while let Some(message) = rx.recv().await {
@@ -127,13 +123,17 @@ impl WebSocketManager {
                                     let success_msg = WebSocketMessage::Success {
                                         message: "Authentication successful".to_string(),
                                     };
-                                    let _ = tx.send(Message::text(serde_json::to_string(&success_msg).unwrap()));
+                                    let _ = tx.send(Message::text(
+                                        serde_json::to_string(&success_msg).unwrap(),
+                                    ));
                                 }
                                 Err(e) => {
                                     let error_msg = WebSocketMessage::Error {
                                         message: format!("Authentication failed: {}", e),
                                     };
-                                    let _ = tx.send(Message::text(serde_json::to_string(&error_msg).unwrap()));
+                                    let _ = tx.send(Message::text(
+                                        serde_json::to_string(&error_msg).unwrap(),
+                                    ));
                                 }
                             }
                         }
@@ -141,21 +141,29 @@ impl WebSocketManager {
                             if authenticated_user.is_some() {
                                 subscriptions = topics;
                                 let success_msg = WebSocketMessage::Success {
-                                    message: format!("Subscribed to {} topics", subscriptions.len()),
+                                    message: format!(
+                                        "Subscribed to {} topics",
+                                        subscriptions.len()
+                                    ),
                                 };
-                                let _ = tx.send(Message::text(serde_json::to_string(&success_msg).unwrap()));
+                                let _ = tx.send(Message::text(
+                                    serde_json::to_string(&success_msg).unwrap(),
+                                ));
                             } else {
                                 let error_msg = WebSocketMessage::Error {
                                     message: "Authentication required".to_string(),
                                 };
-                                let _ = tx.send(Message::text(serde_json::to_string(&error_msg).unwrap()));
+                                let _ = tx.send(Message::text(
+                                    serde_json::to_string(&error_msg).unwrap(),
+                                ));
                             }
                         }
                         Err(e) => {
                             let error_msg = WebSocketMessage::Error {
                                 message: format!("Invalid message format: {}", e),
                             };
-                            let _ = tx.send(Message::text(serde_json::to_string(&error_msg).unwrap()));
+                            let _ =
+                                tx.send(Message::text(serde_json::to_string(&error_msg).unwrap()));
                         }
                         _ => {}
                     }
@@ -188,8 +196,10 @@ impl WebSocketManager {
         } else {
             format!("Bearer {}", token)
         };
-        
-        self.auth_middleware.authenticate_request(Some(&auth_header)).await
+
+        self.auth_middleware
+            .authenticate_request(Some(&auth_header))
+            .await
     }
 
     /// Broadcast usage update to subscribed clients
@@ -208,7 +218,8 @@ impl WebSocketManager {
             rate_limit_status,
         };
 
-        self.send_to_user_subscribers(user_id, &message, "usage").await;
+        self.send_to_user_subscribers(user_id, &message, "usage")
+            .await;
     }
 
     /// Broadcast system statistics
@@ -225,7 +236,12 @@ impl WebSocketManager {
     }
 
     /// Send message to specific user's subscribers
-    async fn send_to_user_subscribers(&self, user_id: &Uuid, message: &WebSocketMessage, topic: &str) {
+    async fn send_to_user_subscribers(
+        &self,
+        user_id: &Uuid,
+        message: &WebSocketMessage,
+        topic: &str,
+    ) {
         let clients = self.clients.read().await;
         for (_, client) in clients.iter() {
             if client.user_id == *user_id && client.subscriptions.contains(&topic.to_string()) {
@@ -261,10 +277,10 @@ impl WebSocketManager {
         let manager = self.clone();
         tokio::spawn(async move {
             let mut interval = interval(Duration::from_secs(30)); // Update every 30 seconds
-            
+
             loop {
                 interval.tick().await;
-                
+
                 // Broadcast system stats
                 if let Err(e) = manager.broadcast_system_stats().await {
                     tracing::warn!("Failed to broadcast system stats: {}", e);

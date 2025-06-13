@@ -9,11 +9,11 @@
 //! This module provides database functionality for the multi-tenant Pierre MCP Server.
 //! It handles user storage, token encryption, and secure data access patterns.
 
-use crate::models::{User, EncryptedToken, DecryptedToken};
-use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats, ApiKeyTier};
+use crate::api_keys::{ApiKey, ApiKeyTier, ApiKeyUsage, ApiKeyUsageStats};
+use crate::models::{DecryptedToken, EncryptedToken, User};
 use anyhow::Result;
-use chrono::{DateTime, Utc, Datelike, Timelike};
-use sqlx::{Pool, Sqlite, SqlitePool, Row};
+use chrono::{DateTime, Datelike, Timelike, Utc};
+use sqlx::{Pool, Row, Sqlite, SqlitePool};
 use uuid::Uuid;
 
 /// Database manager for user and token storage
@@ -32,17 +32,17 @@ impl Database {
         } else {
             database_url.to_string()
         };
-        
+
         let pool = SqlitePool::connect(&connection_options).await?;
-        
+
         let db = Self {
             pool,
             encryption_key,
         };
-        
+
         // Run migrations
         db.migrate().await?;
-        
+
         Ok(db)
     }
 
@@ -173,11 +173,13 @@ impl Database {
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_goals_user_id ON goals(user_id)")
             .execute(&self.pool)
             .await?;
-            
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_goal_milestones_goal_id ON goal_milestones(goal_id)")
-            .execute(&self.pool)
-            .await?;
-            
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_goal_milestones_goal_id ON goal_milestones(goal_id)",
+        )
+        .execute(&self.pool)
+        .await?;
+
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_analytics_insights_user_id ON analytics_insights(user_id)")
             .execute(&self.pool)
             .await?;
@@ -557,7 +559,7 @@ impl Database {
         let row = sqlx::query("SELECT COUNT(*) as count FROM users")
             .fetch_one(&self.pool)
             .await?;
-        
+
         let count: i64 = row.try_get("count")?;
         Ok(count)
     }
@@ -566,17 +568,17 @@ impl Database {
     fn row_to_user(&self, row: sqlx::sqlite::SqliteRow) -> Result<User> {
         let id_str: String = row.try_get("id")?;
         let id = Uuid::parse_str(&id_str)?;
-        
+
         let email: String = row.try_get("email")?;
         let display_name: Option<String> = row.try_get("display_name")?;
         let password_hash: String = row.try_get("password_hash")?;
-        
+
         let created_at_str: String = row.try_get("created_at")?;
         let created_at = DateTime::parse_from_rfc3339(&created_at_str)?.with_timezone(&Utc);
-        
+
         let last_active_str: String = row.try_get("last_active")?;
         let last_active = DateTime::parse_from_rfc3339(&last_active_str)?.with_timezone(&Utc);
-        
+
         let is_active: bool = row.try_get("is_active")?;
 
         // Build encrypted tokens if they exist
@@ -646,9 +648,13 @@ impl Database {
     // === ANALYTICS METHODS ===
 
     /// Create or update user fitness profile
-    pub async fn upsert_user_profile(&self, user_id: Uuid, profile_data: serde_json::Value) -> Result<()> {
+    pub async fn upsert_user_profile(
+        &self,
+        user_id: Uuid,
+        profile_data: serde_json::Value,
+    ) -> Result<()> {
         let now = Utc::now().to_rfc3339();
-        
+
         sqlx::query(
             r#"
             INSERT OR REPLACE INTO user_profiles (
@@ -665,15 +671,59 @@ impl Database {
         .bind(profile_data.get("gender").and_then(|v| v.as_str()))
         .bind(profile_data.get("weight_kg").and_then(|v| v.as_f64()))
         .bind(profile_data.get("height_cm").and_then(|v| v.as_f64()))
-        .bind(profile_data.get("fitness_level").and_then(|v| v.as_str()).unwrap_or("beginner"))
-        .bind(profile_data.get("primary_sports").map(|v| v.to_string()).unwrap_or_else(|| "[]".to_string()))
-        .bind(profile_data.get("training_history_months").and_then(|v| v.as_i64()).unwrap_or(0))
-        .bind(profile_data.get("preferred_units").and_then(|v| v.as_str()).unwrap_or("metric"))
-        .bind(profile_data.get("training_focus").map(|v| v.to_string()).unwrap_or_else(|| "[]".to_string()))
-        .bind(profile_data.get("injury_history").map(|v| v.to_string()).unwrap_or_else(|| "[]".to_string()))
-        .bind(profile_data.get("hours_per_week").and_then(|v| v.as_f64()).unwrap_or(0.0))
-        .bind(profile_data.get("preferred_days").map(|v| v.to_string()).unwrap_or_else(|| "[]".to_string()))
-        .bind(profile_data.get("preferred_duration_minutes").and_then(|v| v.as_i64()))
+        .bind(
+            profile_data
+                .get("fitness_level")
+                .and_then(|v| v.as_str())
+                .unwrap_or("beginner"),
+        )
+        .bind(
+            profile_data
+                .get("primary_sports")
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "[]".to_string()),
+        )
+        .bind(
+            profile_data
+                .get("training_history_months")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0),
+        )
+        .bind(
+            profile_data
+                .get("preferred_units")
+                .and_then(|v| v.as_str())
+                .unwrap_or("metric"),
+        )
+        .bind(
+            profile_data
+                .get("training_focus")
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "[]".to_string()),
+        )
+        .bind(
+            profile_data
+                .get("injury_history")
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "[]".to_string()),
+        )
+        .bind(
+            profile_data
+                .get("hours_per_week")
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.0),
+        )
+        .bind(
+            profile_data
+                .get("preferred_days")
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "[]".to_string()),
+        )
+        .bind(
+            profile_data
+                .get("preferred_duration_minutes")
+                .and_then(|v| v.as_i64()),
+        )
         .bind(&now) // for created_at when inserting new record
         .bind(&now) // for updated_at
         .execute(&self.pool)
@@ -691,13 +741,13 @@ impl Database {
 
         if let Some(row) = row {
             let mut profile = serde_json::Map::new();
-            
+
             if let Ok(age) = row.try_get::<Option<i64>, _>("age") {
                 if let Some(age) = age {
                     profile.insert("age".to_string(), serde_json::Value::Number(age.into()));
                 }
             }
-            
+
             if let Ok(gender) = row.try_get::<Option<String>, _>("gender") {
                 if let Some(gender) = gender {
                     profile.insert("gender".to_string(), serde_json::Value::String(gender));
@@ -706,12 +756,20 @@ impl Database {
 
             if let Ok(weight_kg) = row.try_get::<Option<f64>, _>("weight_kg") {
                 if let Some(weight) = weight_kg {
-                    profile.insert("weight_kg".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(weight).unwrap_or_else(|| 0.into())));
+                    profile.insert(
+                        "weight_kg".to_string(),
+                        serde_json::Value::Number(
+                            serde_json::Number::from_f64(weight).unwrap_or_else(|| 0.into()),
+                        ),
+                    );
                 }
             }
 
             if let Ok(fitness_level) = row.try_get::<String, _>("fitness_level") {
-                profile.insert("fitness_level".to_string(), serde_json::Value::String(fitness_level));
+                profile.insert(
+                    "fitness_level".to_string(),
+                    serde_json::Value::String(fitness_level),
+                );
             }
 
             Ok(Some(serde_json::Value::Object(profile)))
@@ -735,13 +793,43 @@ impl Database {
         )
         .bind(&goal_id)
         .bind(user_id.to_string())
-        .bind(goal_data.get("title").and_then(|v| v.as_str()).unwrap_or("Untitled Goal"))
-        .bind(goal_data.get("description").and_then(|v| v.as_str()).unwrap_or(""))
-        .bind(goal_data.get("goal_type").and_then(|v| v.as_str()).unwrap_or("custom"))
+        .bind(
+            goal_data
+                .get("title")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Untitled Goal"),
+        )
+        .bind(
+            goal_data
+                .get("description")
+                .and_then(|v| v.as_str())
+                .unwrap_or(""),
+        )
+        .bind(
+            goal_data
+                .get("goal_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("custom"),
+        )
         .bind(goal_data.get("sport_type").and_then(|v| v.as_str()))
-        .bind(goal_data.get("target_value").and_then(|v| v.as_f64()).unwrap_or(0.0))
-        .bind(goal_data.get("target_date").and_then(|v| v.as_str()).unwrap_or(&now))
-        .bind(goal_data.get("current_value").and_then(|v| v.as_f64()).unwrap_or(0.0))
+        .bind(
+            goal_data
+                .get("target_value")
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.0),
+        )
+        .bind(
+            goal_data
+                .get("target_date")
+                .and_then(|v| v.as_str())
+                .unwrap_or(&now),
+        )
+        .bind(
+            goal_data
+                .get("current_value")
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.0),
+        )
         .bind("active")
         .bind(&now)
         .bind(&now)
@@ -761,7 +849,7 @@ impl Database {
         let mut goals = Vec::new();
         for row in rows {
             let mut goal = serde_json::Map::new();
-            
+
             if let Ok(id) = row.try_get::<String, _>("id") {
                 goal.insert("id".to_string(), serde_json::Value::String(id));
             }
@@ -769,13 +857,26 @@ impl Database {
                 goal.insert("title".to_string(), serde_json::Value::String(title));
             }
             if let Ok(goal_type) = row.try_get::<String, _>("goal_type") {
-                goal.insert("goal_type".to_string(), serde_json::Value::String(goal_type));
+                goal.insert(
+                    "goal_type".to_string(),
+                    serde_json::Value::String(goal_type),
+                );
             }
             if let Ok(target_value) = row.try_get::<f64, _>("target_value") {
-                goal.insert("target_value".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(target_value).unwrap_or_else(|| 0.into())));
+                goal.insert(
+                    "target_value".to_string(),
+                    serde_json::Value::Number(
+                        serde_json::Number::from_f64(target_value).unwrap_or_else(|| 0.into()),
+                    ),
+                );
             }
             if let Ok(current_value) = row.try_get::<f64, _>("current_value") {
-                goal.insert("current_value".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(current_value).unwrap_or_else(|| 0.into())));
+                goal.insert(
+                    "current_value".to_string(),
+                    serde_json::Value::Number(
+                        serde_json::Number::from_f64(current_value).unwrap_or_else(|| 0.into()),
+                    ),
+                );
             }
             if let Ok(status) = row.try_get::<String, _>("status") {
                 goal.insert("status".to_string(), serde_json::Value::String(status));
@@ -790,7 +891,7 @@ impl Database {
     /// Update goal progress
     pub async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> Result<()> {
         let now = Utc::now().to_rfc3339();
-        
+
         sqlx::query("UPDATE goals SET current_value = ?1, updated_at = ?2 WHERE id = ?3")
             .bind(current_value)
             .bind(&now)
@@ -802,7 +903,11 @@ impl Database {
     }
 
     /// Store analytics insight
-    pub async fn store_insight(&self, user_id: Uuid, insight_data: serde_json::Value) -> Result<String> {
+    pub async fn store_insight(
+        &self,
+        user_id: Uuid,
+        insight_data: serde_json::Value,
+    ) -> Result<String> {
         let insight_id = uuid::Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
 
@@ -817,12 +922,42 @@ impl Database {
         .bind(&insight_id)
         .bind(user_id.to_string())
         .bind(insight_data.get("activity_id").and_then(|v| v.as_str()))
-        .bind(insight_data.get("insight_type").and_then(|v| v.as_str()).unwrap_or("general"))
-        .bind(insight_data.get("title").and_then(|v| v.as_str()).unwrap_or("Insight"))
-        .bind(insight_data.get("description").and_then(|v| v.as_str()).unwrap_or(""))
-        .bind(insight_data.get("confidence").and_then(|v| v.as_f64()).unwrap_or(0.5))
-        .bind(insight_data.get("severity").and_then(|v| v.as_str()).unwrap_or("info"))
-        .bind(insight_data.get("metadata").map(|v| v.to_string()).unwrap_or_else(|| "{}".to_string()))
+        .bind(
+            insight_data
+                .get("insight_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("general"),
+        )
+        .bind(
+            insight_data
+                .get("title")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Insight"),
+        )
+        .bind(
+            insight_data
+                .get("description")
+                .and_then(|v| v.as_str())
+                .unwrap_or(""),
+        )
+        .bind(
+            insight_data
+                .get("confidence")
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.5),
+        )
+        .bind(
+            insight_data
+                .get("severity")
+                .and_then(|v| v.as_str())
+                .unwrap_or("info"),
+        )
+        .bind(
+            insight_data
+                .get("metadata")
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "{}".to_string()),
+        )
         .bind(&now)
         .execute(&self.pool)
         .await?;
@@ -831,30 +966,42 @@ impl Database {
     }
 
     /// Get user insights
-    pub async fn get_user_insights(&self, user_id: Uuid, limit: Option<i32>) -> Result<Vec<serde_json::Value>> {
+    pub async fn get_user_insights(
+        &self,
+        user_id: Uuid,
+        limit: Option<i32>,
+    ) -> Result<Vec<serde_json::Value>> {
         let limit = limit.unwrap_or(50);
-        
-        let rows = sqlx::query("SELECT * FROM analytics_insights WHERE user_id = ?1 ORDER BY created_at DESC LIMIT ?2")
-            .bind(user_id.to_string())
-            .bind(limit)
-            .fetch_all(&self.pool)
-            .await?;
+
+        let rows = sqlx::query(
+            "SELECT * FROM analytics_insights WHERE user_id = ?1 ORDER BY created_at DESC LIMIT ?2",
+        )
+        .bind(user_id.to_string())
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
 
         let mut insights = Vec::new();
         for row in rows {
             let mut insight = serde_json::Map::new();
-            
+
             if let Ok(id) = row.try_get::<String, _>("id") {
                 insight.insert("id".to_string(), serde_json::Value::String(id));
             }
             if let Ok(insight_type) = row.try_get::<String, _>("insight_type") {
-                insight.insert("insight_type".to_string(), serde_json::Value::String(insight_type));
+                insight.insert(
+                    "insight_type".to_string(),
+                    serde_json::Value::String(insight_type),
+                );
             }
             if let Ok(title) = row.try_get::<String, _>("title") {
                 insight.insert("title".to_string(), serde_json::Value::String(title));
             }
             if let Ok(description) = row.try_get::<String, _>("description") {
-                insight.insert("description".to_string(), serde_json::Value::String(description));
+                insight.insert(
+                    "description".to_string(),
+                    serde_json::Value::String(description),
+                );
             }
 
             insights.push(serde_json::Value::Object(insight));
@@ -867,36 +1014,36 @@ impl Database {
 /// Generate a random encryption key for token storage
 pub fn generate_encryption_key() -> [u8; 32] {
     use ring::rand::{SecureRandom, SystemRandom};
-    
+
     let rng = SystemRandom::new();
     let mut key = [0u8; 32];
-    rng.fill(&mut key).expect("Failed to generate encryption key");
+    rng.fill(&mut key)
+        .expect("Failed to generate encryption key");
     key
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
 
     async fn create_test_db() -> Database {
         let database_url = "sqlite::memory:";
         let encryption_key = generate_encryption_key().to_vec();
-        
+
         Database::new(database_url, encryption_key).await.unwrap()
     }
 
     #[tokio::test]
     async fn test_create_and_get_user() {
         let db = create_test_db().await;
-        
+
         let user = User::new(
             "test@example.com".to_string(),
             "hashed_password".to_string(),
-            Some("Test User".to_string())
+            Some("Test User".to_string()),
         );
         let user_id = db.create_user(&user).await.unwrap();
-        
+
         let retrieved = db.get_user(user_id).await.unwrap().unwrap();
         assert_eq!(retrieved.email, "test@example.com");
         assert_eq!(retrieved.display_name, Some("Test User".to_string()));
@@ -907,15 +1054,19 @@ mod tests {
     #[tokio::test]
     async fn test_get_user_by_email() {
         let db = create_test_db().await;
-        
+
         let user = User::new(
             "email@example.com".to_string(),
             "hashed_password".to_string(),
-            None
+            None,
         );
         let user_id = db.create_user(&user).await.unwrap();
-        
-        let retrieved = db.get_user_by_email("email@example.com").await.unwrap().unwrap();
+
+        let retrieved = db
+            .get_user_by_email("email@example.com")
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(retrieved.id, user_id);
         assert_eq!(retrieved.email, "email@example.com");
     }
@@ -923,16 +1074,16 @@ mod tests {
     #[tokio::test]
     async fn test_strava_token_storage() {
         let db = create_test_db().await;
-        
+
         let user = User::new(
             "strava@example.com".to_string(),
             "hashed_password".to_string(),
-            None
+            None,
         );
         let user_id = db.create_user(&user).await.unwrap();
-        
+
         let expires_at = Utc::now() + chrono::Duration::hours(6);
-        
+
         // Store token
         db.update_strava_token(
             user_id,
@@ -940,14 +1091,16 @@ mod tests {
             "refresh_token_456",
             expires_at,
             "read,activity:read_all".to_string(),
-        ).await.unwrap();
-        
+        )
+        .await
+        .unwrap();
+
         // Retrieve token
         let token = db.get_strava_token(user_id).await.unwrap().unwrap();
         assert_eq!(token.access_token, "access_token_123");
         assert_eq!(token.refresh_token, "refresh_token_456");
         assert_eq!(token.scope, "read,activity:read_all");
-        
+
         // Check token expiry is close to what we set
         let diff = (token.expires_at - expires_at).num_seconds().abs();
         assert!(diff < 2); // Within 2 seconds
@@ -956,16 +1109,16 @@ mod tests {
     #[tokio::test]
     async fn test_fitbit_token_storage() {
         let db = create_test_db().await;
-        
+
         let user = User::new(
             "fitbit@example.com".to_string(),
             "hashed_password".to_string(),
-            None
+            None,
         );
         let user_id = db.create_user(&user).await.unwrap();
-        
+
         let expires_at = Utc::now() + chrono::Duration::hours(8);
-        
+
         // Store token
         db.update_fitbit_token(
             user_id,
@@ -973,8 +1126,10 @@ mod tests {
             "fitbit_refresh_101112",
             expires_at,
             "activity heartrate profile".to_string(),
-        ).await.unwrap();
-        
+        )
+        .await
+        .unwrap();
+
         // Retrieve token
         let token = db.get_fitbit_token(user_id).await.unwrap().unwrap();
         assert_eq!(token.access_token, "fitbit_access_789");
@@ -985,19 +1140,19 @@ mod tests {
     #[tokio::test]
     async fn test_last_active_update() {
         let db = create_test_db().await;
-        
+
         let user = User::new(
             "active@example.com".to_string(),
             "hashed_password".to_string(),
-            None
+            None,
         );
         let initial_active = user.last_active;
         let user_id = db.create_user(&user).await.unwrap();
-        
+
         // Wait a bit and update
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         db.update_last_active(user_id).await.unwrap();
-        
+
         let updated_user = db.get_user(user_id).await.unwrap().unwrap();
         assert!(updated_user.last_active > initial_active);
     }
@@ -1007,15 +1162,15 @@ mod tests {
     #[tokio::test]
     async fn test_create_and_retrieve_api_key() {
         let db = create_test_db().await;
-        
+
         // Create test user
         let user = User::new(
             "apikey@example.com".to_string(),
             "hashed_password".to_string(),
-            None
+            None,
         );
         let user_id = db.create_user(&user).await.unwrap();
-        
+
         // Create API key
         let api_key = ApiKey {
             id: "test_key_id".to_string(),
@@ -1033,13 +1188,17 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
-        
+
         // Store API key
         db.create_api_key(&api_key).await.unwrap();
-        
+
         // Retrieve API key by prefix and hash
-        let retrieved = db.get_api_key_by_prefix("pk_live_test", "test_hash_12345").await.unwrap().unwrap();
-        
+        let retrieved = db
+            .get_api_key_by_prefix("pk_live_test", "test_hash_12345")
+            .await
+            .unwrap()
+            .unwrap();
+
         assert_eq!(retrieved.id, "test_key_id");
         assert_eq!(retrieved.name, "Test API Key");
         assert_eq!(retrieved.user_id, user_id);
@@ -1051,15 +1210,15 @@ mod tests {
     #[tokio::test]
     async fn test_get_user_api_keys() {
         let db = create_test_db().await;
-        
+
         // Create test user
         let user = User::new(
             "multikeys@example.com".to_string(),
             "hashed_password".to_string(),
-            None
+            None,
         );
         let user_id = db.create_user(&user).await.unwrap();
-        
+
         // Create multiple API keys for the user
         let api_key1 = ApiKey {
             id: "key1".to_string(),
@@ -1077,7 +1236,7 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
-        
+
         let api_key2 = ApiKey {
             id: "key2".to_string(),
             user_id,
@@ -1094,13 +1253,13 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
-        
+
         db.create_api_key(&api_key1).await.unwrap();
         db.create_api_key(&api_key2).await.unwrap();
-        
+
         // Retrieve all keys for user
         let user_keys = db.get_user_api_keys(user_id).await.unwrap();
-        
+
         assert_eq!(user_keys.len(), 2);
         assert!(user_keys.iter().any(|k| k.name == "Production Key"));
         assert!(user_keys.iter().any(|k| k.name == "Development Key"));
@@ -1109,15 +1268,15 @@ mod tests {
     #[tokio::test]
     async fn test_api_key_last_used_update() {
         let db = create_test_db().await;
-        
+
         // Create test user and API key
         let user = User::new(
             "usage@example.com".to_string(),
             "hashed_password".to_string(),
-            None
+            None,
         );
         let user_id = db.create_user(&user).await.unwrap();
-        
+
         let api_key = ApiKey {
             id: "usage_key".to_string(),
             user_id,
@@ -1134,18 +1293,26 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
-        
+
         db.create_api_key(&api_key).await.unwrap();
-        
+
         // Initially last_used_at should be None
-        let retrieved = db.get_api_key_by_prefix("pk_live_usage", "usage_hash").await.unwrap().unwrap();
+        let retrieved = db
+            .get_api_key_by_prefix("pk_live_usage", "usage_hash")
+            .await
+            .unwrap()
+            .unwrap();
         assert!(retrieved.last_used_at.is_none());
-        
+
         // Update last used
         db.update_api_key_last_used("usage_key").await.unwrap();
-        
+
         // Verify last_used_at is now set
-        let updated = db.get_api_key_by_prefix("pk_live_usage", "usage_hash").await.unwrap().unwrap();
+        let updated = db
+            .get_api_key_by_prefix("pk_live_usage", "usage_hash")
+            .await
+            .unwrap()
+            .unwrap();
         assert!(updated.last_used_at.is_some());
         assert!(updated.last_used_at.unwrap() > retrieved.created_at);
     }
@@ -1153,15 +1320,15 @@ mod tests {
     #[tokio::test]
     async fn test_deactivate_api_key() {
         let db = create_test_db().await;
-        
+
         // Create test user and API key
         let user = User::new(
             "deactivate@example.com".to_string(),
             "hashed_password".to_string(),
-            None
+            None,
         );
         let user_id = db.create_user(&user).await.unwrap();
-        
+
         let api_key = ApiKey {
             id: "deactivate_key".to_string(),
             user_id,
@@ -1178,21 +1345,29 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
-        
+
         db.create_api_key(&api_key).await.unwrap();
-        
+
         // Initially should be active and retrievable
-        let retrieved = db.get_api_key_by_prefix("pk_live_deact", "deact_hash").await.unwrap();
+        let retrieved = db
+            .get_api_key_by_prefix("pk_live_deact", "deact_hash")
+            .await
+            .unwrap();
         assert!(retrieved.is_some());
         assert!(retrieved.unwrap().is_active);
-        
+
         // Deactivate the key
-        db.deactivate_api_key("deactivate_key", user_id).await.unwrap();
-        
+        db.deactivate_api_key("deactivate_key", user_id)
+            .await
+            .unwrap();
+
         // Should no longer be retrievable (because query filters for is_active = true)
-        let deactivated = db.get_api_key_by_prefix("pk_live_deact", "deact_hash").await.unwrap();
+        let deactivated = db
+            .get_api_key_by_prefix("pk_live_deact", "deact_hash")
+            .await
+            .unwrap();
         assert!(deactivated.is_none());
-        
+
         // But should still appear in user's key list
         let user_keys = db.get_user_api_keys(user_id).await.unwrap();
         assert_eq!(user_keys.len(), 1);
@@ -1202,15 +1377,15 @@ mod tests {
     #[tokio::test]
     async fn test_record_api_key_usage() {
         let db = create_test_db().await;
-        
+
         // Create test user and API key
         let user = User::new(
             "tracking@example.com".to_string(),
             "hashed_password".to_string(),
-            None
+            None,
         );
         let user_id = db.create_user(&user).await.unwrap();
-        
+
         let api_key = ApiKey {
             id: "tracking_key".to_string(),
             user_id,
@@ -1227,9 +1402,9 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
-        
+
         db.create_api_key(&api_key).await.unwrap();
-        
+
         // Record some usage
         let usage1 = ApiKeyUsage {
             id: None,
@@ -1244,7 +1419,7 @@ mod tests {
             ip_address: Some("127.0.0.1".to_string()),
             user_agent: Some("claude-mcp-client/1.0".to_string()),
         };
-        
+
         let usage2 = ApiKeyUsage {
             id: None,
             api_key_id: "tracking_key".to_string(),
@@ -1258,10 +1433,10 @@ mod tests {
             ip_address: Some("127.0.0.1".to_string()),
             user_agent: Some("claude-mcp-client/1.0".to_string()),
         };
-        
+
         db.record_api_key_usage(&usage1).await.unwrap();
         db.record_api_key_usage(&usage2).await.unwrap();
-        
+
         // Get current usage count
         let current_usage = db.get_api_key_current_usage("tracking_key").await.unwrap();
         assert_eq!(current_usage, 2);
@@ -1270,15 +1445,15 @@ mod tests {
     #[tokio::test]
     async fn test_api_key_usage_stats() {
         let db = create_test_db().await;
-        
+
         // Create test user and API key
         let user = User::new(
             "stats@example.com".to_string(),
             "hashed_password".to_string(),
-            None
+            None,
         );
         let user_id = db.create_user(&user).await.unwrap();
-        
+
         let api_key = ApiKey {
             id: "stats_key".to_string(),
             user_id,
@@ -1295,13 +1470,13 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
-        
+
         db.create_api_key(&api_key).await.unwrap();
-        
+
         let now = Utc::now();
         let start_date = now - chrono::Duration::days(7);
         let end_date = now;
-        
+
         // Record various usage patterns
         let usages = vec![
             ApiKeyUsage {
@@ -1344,14 +1519,17 @@ mod tests {
                 user_agent: Some("test-client".to_string()),
             },
         ];
-        
+
         for usage in usages {
             db.record_api_key_usage(&usage).await.unwrap();
         }
-        
+
         // Get usage statistics
-        let stats = db.get_api_key_usage_stats("stats_key", start_date, end_date).await.unwrap();
-        
+        let stats = db
+            .get_api_key_usage_stats("stats_key", start_date, end_date)
+            .await
+            .unwrap();
+
         assert_eq!(stats.api_key_id, "stats_key");
         assert_eq!(stats.total_requests, 3);
         assert_eq!(stats.successful_requests, 2);
@@ -1362,15 +1540,15 @@ mod tests {
     #[tokio::test]
     async fn test_api_key_wrong_hash() {
         let db = create_test_db().await;
-        
+
         // Create test user and API key
         let user = User::new(
             "wrong@example.com".to_string(),
             "hashed_password".to_string(),
-            None
+            None,
         );
         let user_id = db.create_user(&user).await.unwrap();
-        
+
         let api_key = ApiKey {
             id: "wrong_key".to_string(),
             user_id,
@@ -1387,30 +1565,36 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
-        
+
         db.create_api_key(&api_key).await.unwrap();
-        
+
         // Try to retrieve with correct prefix but wrong hash
-        let result = db.get_api_key_by_prefix("pk_live_wrong", "wrong_hash").await.unwrap();
+        let result = db
+            .get_api_key_by_prefix("pk_live_wrong", "wrong_hash")
+            .await
+            .unwrap();
         assert!(result.is_none());
-        
+
         // Try with correct hash
-        let result = db.get_api_key_by_prefix("pk_live_wrong", "correct_hash").await.unwrap();
+        let result = db
+            .get_api_key_by_prefix("pk_live_wrong", "correct_hash")
+            .await
+            .unwrap();
         assert!(result.is_some());
     }
 
     #[tokio::test]
     async fn test_api_key_expiration_handling() {
         let db = create_test_db().await;
-        
+
         // Create test user
         let user = User::new(
             "expired@example.com".to_string(),
             "hashed_password".to_string(),
-            None
+            None,
         );
         let user_id = db.create_user(&user).await.unwrap();
-        
+
         // Create expired API key
         let expired_key = ApiKey {
             id: "expired_key".to_string(),
@@ -1428,13 +1612,16 @@ mod tests {
             created_at: Utc::now() - chrono::Duration::days(30),
             updated_at: Utc::now() - chrono::Duration::days(30),
         };
-        
+
         db.create_api_key(&expired_key).await.unwrap();
-        
+
         // Key should still be retrievable from database (expiration is handled at application level)
-        let retrieved = db.get_api_key_by_prefix("pk_live_exp", "expired_hash").await.unwrap();
+        let retrieved = db
+            .get_api_key_by_prefix("pk_live_exp", "expired_hash")
+            .await
+            .unwrap();
         assert!(retrieved.is_some());
-        
+
         let key = retrieved.unwrap();
         assert!(key.expires_at.is_some());
         assert!(key.expires_at.unwrap() < Utc::now());
@@ -1473,12 +1660,16 @@ impl Database {
         .bind(api_key.updated_at.to_rfc3339())
         .execute(&self.pool)
         .await?;
-        
+
         Ok(())
     }
-    
+
     /// Get API key by prefix and validate hash
-    pub async fn get_api_key_by_prefix(&self, key_prefix: &str, key_hash: &str) -> Result<Option<ApiKey>> {
+    pub async fn get_api_key_by_prefix(
+        &self,
+        key_prefix: &str,
+        key_hash: &str,
+    ) -> Result<Option<ApiKey>> {
         let row = sqlx::query(
             r#"
             SELECT * FROM api_keys 
@@ -1489,14 +1680,14 @@ impl Database {
         .bind(key_hash)
         .fetch_optional(&self.pool)
         .await?;
-        
+
         if let Some(row) = row {
             Ok(Some(self.parse_api_key_row(row)?))
         } else {
             Ok(None)
         }
     }
-    
+
     /// Get all API keys for a user
     pub async fn get_user_api_keys(&self, user_id: Uuid) -> Result<Vec<ApiKey>> {
         let rows = sqlx::query(
@@ -1509,15 +1700,15 @@ impl Database {
         .bind(user_id.to_string())
         .fetch_all(&self.pool)
         .await?;
-        
+
         let mut keys = Vec::new();
         for row in rows {
             keys.push(self.parse_api_key_row(row)?);
         }
-        
+
         Ok(keys)
     }
-    
+
     /// Update API key last used timestamp
     pub async fn update_api_key_last_used(&self, api_key_id: &str) -> Result<()> {
         sqlx::query(
@@ -1531,10 +1722,10 @@ impl Database {
         .bind(api_key_id)
         .execute(&self.pool)
         .await?;
-        
+
         Ok(())
     }
-    
+
     /// Deactivate an API key
     pub async fn deactivate_api_key(&self, api_key_id: &str, user_id: Uuid) -> Result<()> {
         sqlx::query(
@@ -1549,10 +1740,10 @@ impl Database {
         .bind(user_id.to_string())
         .execute(&self.pool)
         .await?;
-        
+
         Ok(())
     }
-    
+
     /// Record API key usage
     pub async fn record_api_key_usage(&self, usage: &ApiKeyUsage) -> Result<()> {
         sqlx::query(
@@ -1576,10 +1767,10 @@ impl Database {
         .bind(&usage.user_agent)
         .execute(&self.pool)
         .await?;
-        
+
         Ok(())
     }
-    
+
     /// Get current month usage for an API key
     pub async fn get_api_key_current_usage(&self, api_key_id: &str) -> Result<u32> {
         let start_of_month = Utc::now()
@@ -1591,7 +1782,7 @@ impl Database {
             .unwrap()
             .with_second(0)
             .unwrap();
-        
+
         let count: i64 = sqlx::query_scalar(
             r#"
             SELECT COUNT(*) FROM api_key_usage 
@@ -1602,16 +1793,16 @@ impl Database {
         .bind(start_of_month.to_rfc3339())
         .fetch_one(&self.pool)
         .await?;
-        
+
         Ok(count as u32)
     }
-    
+
     /// Get usage statistics for an API key
     pub async fn get_api_key_usage_stats(
-        &self, 
+        &self,
         api_key_id: &str,
         start_date: DateTime<Utc>,
-        end_date: DateTime<Utc>
+        end_date: DateTime<Utc>,
     ) -> Result<ApiKeyUsageStats> {
         // First get overall stats
         let stats_row = sqlx::query(
@@ -1653,7 +1844,7 @@ impl Database {
             let count: i64 = row.get("count");
             tool_usage.insert(tool_name, serde_json::Value::Number(count.into()));
         }
-        
+
         Ok(ApiKeyUsageStats {
             api_key_id: api_key_id.to_string(),
             period_start: start_date,
@@ -1665,7 +1856,7 @@ impl Database {
             tool_usage: serde_json::Value::Object(tool_usage),
         })
     }
-    
+
     /// Parse API key row from database
     fn parse_api_key_row(&self, row: sqlx::sqlite::SqliteRow) -> Result<ApiKey> {
         let tier_str: String = row.get("tier");
@@ -1675,7 +1866,7 @@ impl Database {
             "enterprise" => ApiKeyTier::Enterprise,
             _ => ApiKeyTier::Starter,
         };
-        
+
         Ok(ApiKey {
             id: row.get("id"),
             user_id: Uuid::parse_str(row.get("user_id"))?,
@@ -1687,10 +1878,12 @@ impl Database {
             rate_limit_requests: row.get::<i64, _>("rate_limit_requests") as u32,
             rate_limit_window: row.get::<i64, _>("rate_limit_window") as u32,
             is_active: row.get("is_active"),
-            last_used_at: row.get::<Option<String>, _>("last_used_at")
+            last_used_at: row
+                .get::<Option<String>, _>("last_used_at")
                 .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
                 .map(|dt| dt.with_timezone(&Utc)),
-            expires_at: row.get::<Option<String>, _>("expires_at")
+            expires_at: row
+                .get::<Option<String>, _>("expires_at")
                 .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
                 .map(|dt| dt.with_timezone(&Utc)),
             created_at: DateTime::parse_from_rfc3339(row.get("created_at"))

@@ -9,12 +9,12 @@
 //! This module provides JWT-based authentication and session management
 //! for the multi-tenant Pierre MCP Server.
 
-use crate::models::{User, UserSession, AuthRequest, AuthResponse};
 use crate::api_keys::{ApiKeyManager, RateLimitStatus};
 use crate::database::Database;
+use crate::models::{AuthRequest, AuthResponse, User, UserSession};
 use anyhow::Result;
-use chrono::{Utc, Duration};
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation, Algorithm};
+use chrono::{Duration, Utc};
+use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -78,7 +78,7 @@ impl AuthManager {
     pub fn generate_token(&self, user: &User) -> Result<String> {
         let now = Utc::now();
         let expiry = now + Duration::hours(self.token_expiry_hours);
-        
+
         let claims = Claims {
             sub: user.id.to_string(),
             email: user.email.clone(),
@@ -100,7 +100,7 @@ impl AuthManager {
     pub fn validate_token(&self, token: &str) -> Result<Claims> {
         let mut validation = Validation::new(Algorithm::HS256);
         validation.validate_exp = true;
-        
+
         let token_data = decode::<Claims>(
             token,
             &DecodingKey::from_secret(&self.jwt_secret),
@@ -127,22 +127,20 @@ impl AuthManager {
     /// Validate authentication request and return response
     pub fn authenticate(&self, request: AuthRequest) -> AuthResponse {
         match self.validate_token(&request.token) {
-            Ok(claims) => {
-                match Uuid::parse_str(&claims.sub) {
-                    Ok(user_id) => AuthResponse {
-                        authenticated: true,
-                        user_id: Some(user_id),
-                        error: None,
-                        available_providers: claims.providers,
-                    },
-                    Err(_) => AuthResponse {
-                        authenticated: false,
-                        user_id: None,
-                        error: Some("Invalid user ID in token".to_string()),
-                        available_providers: vec![],
-                    },
-                }
-            }
+            Ok(claims) => match Uuid::parse_str(&claims.sub) {
+                Ok(user_id) => AuthResponse {
+                    authenticated: true,
+                    user_id: Some(user_id),
+                    error: None,
+                    available_providers: claims.providers,
+                },
+                Err(_) => AuthResponse {
+                    authenticated: false,
+                    user_id: None,
+                    error: Some("Invalid user ID in token".to_string()),
+                    available_providers: vec![],
+                },
+            },
             Err(e) => AuthResponse {
                 authenticated: false,
                 user_id: None,
@@ -157,7 +155,7 @@ impl AuthManager {
         // First validate the old token (even if expired, we want to check signature)
         let mut validation = Validation::new(Algorithm::HS256);
         validation.validate_exp = false; // Allow expired tokens for refresh
-        
+
         let _token_data = decode::<Claims>(
             old_token,
             &DecodingKey::from_secret(&self.jwt_secret),
@@ -166,7 +164,7 @@ impl AuthManager {
 
         // Wait to ensure different timestamp
         std::thread::sleep(std::time::Duration::from_millis(1));
-        
+
         // Generate new token
         self.generate_token(user)
     }
@@ -177,7 +175,7 @@ impl AuthManager {
         let mut validation = Validation::new(Algorithm::HS256);
         validation.validate_exp = false;
         validation.validate_aud = false;
-        
+
         let token_data = decode::<Claims>(
             token,
             &DecodingKey::from_secret(&self.jwt_secret),
@@ -192,10 +190,11 @@ impl AuthManager {
 /// Generate a random JWT secret
 pub fn generate_jwt_secret() -> [u8; 64] {
     use ring::rand::{SecureRandom, SystemRandom};
-    
+
     let rng = SystemRandom::new();
     let mut secret = [0u8; 64];
-    rng.fill(&mut secret).expect("Failed to generate JWT secret");
+    rng.fill(&mut secret)
+        .expect("Failed to generate JWT secret");
     secret
 }
 
@@ -210,7 +209,7 @@ pub struct McpAuthMiddleware {
 impl McpAuthMiddleware {
     /// Create new MCP auth middleware
     pub fn new(auth_manager: AuthManager, database: std::sync::Arc<Database>) -> Self {
-        Self { 
+        Self {
             auth_manager,
             api_key_manager: ApiKeyManager::new(),
             database,
@@ -219,8 +218,8 @@ impl McpAuthMiddleware {
 
     /// Authenticate MCP request and extract user context with rate limiting
     pub async fn authenticate_request(&self, auth_header: Option<&str>) -> Result<AuthResult> {
-        let auth_str = auth_header
-            .ok_or_else(|| anyhow::anyhow!("Missing authorization header"))?;
+        let auth_str =
+            auth_header.ok_or_else(|| anyhow::anyhow!("Missing authorization header"))?;
 
         // Try API key authentication first (starts with pk_live_)
         if auth_str.starts_with("pk_live_") {
@@ -229,8 +228,7 @@ impl McpAuthMiddleware {
         // Then try Bearer token authentication
         else if let Some(token) = auth_str.strip_prefix("Bearer ") {
             self.authenticate_jwt_token(token).await
-        }
-        else {
+        } else {
             Err(anyhow::anyhow!("Invalid authorization header format"))
         }
     }
@@ -245,7 +243,10 @@ impl McpAuthMiddleware {
         let key_hash = self.api_key_manager.hash_key(api_key);
 
         // Look up the API key in database
-        let db_key = self.database.get_api_key_by_prefix(&key_prefix, &key_hash).await?
+        let db_key = self
+            .database
+            .get_api_key_by_prefix(&key_prefix, &key_hash)
+            .await?
             .ok_or_else(|| anyhow::anyhow!("Invalid API key"))?;
 
         // Validate key status
@@ -253,7 +254,9 @@ impl McpAuthMiddleware {
 
         // Get current usage for rate limiting
         let current_usage = self.database.get_api_key_current_usage(&db_key.id).await?;
-        let rate_limit = self.api_key_manager.calculate_rate_limit_status(&db_key, current_usage);
+        let rate_limit = self
+            .api_key_manager
+            .calculate_rate_limit_status(&db_key, current_usage);
 
         // Check rate limit
         if rate_limit.is_rate_limited {
@@ -277,7 +280,7 @@ impl McpAuthMiddleware {
     async fn authenticate_jwt_token(&self, token: &str) -> Result<AuthResult> {
         let claims = self.auth_manager.validate_token(token)?;
         let user_id = Uuid::parse_str(&claims.sub)?;
-        
+
         Ok(AuthResult {
             user_id,
             auth_method: AuthMethod::JwtToken,
@@ -307,7 +310,7 @@ mod tests {
         User::new(
             "test@example.com".to_string(),
             "hashed_password_123".to_string(),
-            Some("Test User".to_string())
+            Some("Test User".to_string()),
         )
     }
 
@@ -361,8 +364,8 @@ mod tests {
     #[test]
     fn test_authenticate_invalid_token() {
         let auth_manager = create_auth_manager();
-        let auth_request = AuthRequest { 
-            token: "invalid.jwt.token".to_string() 
+        let auth_request = AuthRequest {
+            token: "invalid.jwt.token".to_string(),
         };
 
         let response = auth_manager.authenticate(auth_request);
@@ -380,10 +383,10 @@ mod tests {
         let refreshed_token = auth_manager.refresh_token(&original_token, &user).unwrap();
 
         // Both tokens should be valid (tokens might be identical if generated within same second)
-        
+
         let original_claims = auth_manager.validate_token(&original_token).unwrap();
         let refreshed_claims = auth_manager.validate_token(&refreshed_token).unwrap();
-        
+
         assert_eq!(original_claims.sub, refreshed_claims.sub);
         assert_eq!(original_claims.email, refreshed_claims.email);
         // Note: expiry times might be the same if generated within the same second
@@ -396,45 +399,51 @@ mod tests {
 
         let token = auth_manager.generate_token(&user).unwrap();
         let extracted_id = auth_manager.extract_user_id(&token).unwrap();
-        
+
         assert_eq!(extracted_id, user.id);
     }
 
     #[tokio::test]
     async fn test_mcp_auth_middleware() {
-        use crate::database::{Database, generate_encryption_key};
+        use crate::database::{generate_encryption_key, Database};
         use std::sync::Arc;
 
         let auth_manager = create_auth_manager();
         let user = create_test_user();
-        
+
         // Create in-memory database for testing
         let database_url = "sqlite::memory:";
         let encryption_key = generate_encryption_key().to_vec();
         let database = Arc::new(Database::new(database_url, encryption_key).await.unwrap());
-        
+
         let middleware = McpAuthMiddleware::new(auth_manager, database);
 
         let token = middleware.auth_manager.generate_token(&user).unwrap();
         let auth_header = format!("Bearer {}", token);
 
-        let auth_result = middleware.authenticate_request(Some(&auth_header)).await.unwrap();
+        let auth_result = middleware
+            .authenticate_request(Some(&auth_header))
+            .await
+            .unwrap();
         assert_eq!(auth_result.user_id, user.id);
-        assert!(matches!(auth_result.auth_method, crate::auth::AuthMethod::JwtToken));
+        assert!(matches!(
+            auth_result.auth_method,
+            crate::auth::AuthMethod::JwtToken
+        ));
     }
 
     #[tokio::test]
     async fn test_mcp_auth_middleware_invalid_header() {
-        use crate::database::{Database, generate_encryption_key};
+        use crate::database::{generate_encryption_key, Database};
         use std::sync::Arc;
 
         let auth_manager = create_auth_manager();
-        
+
         // Create in-memory database for testing
         let database_url = "sqlite::memory:";
         let encryption_key = generate_encryption_key().to_vec();
         let database = Arc::new(Database::new(database_url, encryption_key).await.unwrap());
-        
+
         let middleware = McpAuthMiddleware::new(auth_manager, database);
 
         // Test missing header
@@ -442,28 +451,30 @@ mod tests {
         assert!(result.is_err());
 
         // Test invalid format
-        let result = middleware.authenticate_request(Some("Invalid header")).await;
+        let result = middleware
+            .authenticate_request(Some("Invalid header"))
+            .await;
         assert!(result.is_err());
     }
 
     #[tokio::test]
     async fn test_provider_access_check() {
-        use crate::database::{Database, generate_encryption_key};
+        use crate::database::{generate_encryption_key, Database};
         use std::sync::Arc;
 
         let auth_manager = create_auth_manager();
         let user = create_test_user();
-        
+
         // Create in-memory database for testing
         let database_url = "sqlite::memory:";
         let encryption_key = generate_encryption_key().to_vec();
         let database = Arc::new(Database::new(database_url, encryption_key).await.unwrap());
-        
+
         let middleware = McpAuthMiddleware::new(auth_manager, database);
-        
+
         // User has no providers initially
         let token = middleware.auth_manager.generate_token(&user).unwrap();
-        
+
         let has_strava = middleware.check_provider_access(&token, "strava").unwrap();
         assert!(!has_strava);
     }

@@ -6,13 +6,13 @@
 
 //! Activity analyzer for generating intelligent insights
 
-use chrono::{DateTime, Utc, Timelike, Local};
-use crate::models::{Activity, SportType};
 use super::{
-    ActivityIntelligence, PerformanceMetrics, ContextualFactors, TrendIndicators, 
-    TrendDirection, TimeOfDay, ZoneDistribution, PersonalRecord,
-    insights::{InsightGenerator, ActivityContext},
+    insights::{ActivityContext, InsightGenerator},
+    ActivityIntelligence, ContextualFactors, PerformanceMetrics, PersonalRecord, TimeOfDay,
+    TrendDirection, TrendIndicators, ZoneDistribution,
 };
+use crate::models::{Activity, SportType};
+use chrono::{DateTime, Local, Timelike, Utc};
 
 /// Main analyzer for generating activity intelligence
 pub struct ActivityAnalyzer {
@@ -29,22 +29,24 @@ impl ActivityAnalyzer {
 
     /// Analyze a single activity and generate intelligence
     pub async fn analyze_activity(
-        &self, 
+        &self,
         activity: &Activity,
         context: Option<ActivityContext>,
     ) -> Result<ActivityIntelligence, AnalysisError> {
         // Generate insights
-        let insights = self.insight_generator.generate_insights(activity, context.as_ref());
-        
+        let insights = self
+            .insight_generator
+            .generate_insights(activity, context.as_ref());
+
         // Calculate performance metrics
         let performance = self.calculate_performance_metrics(activity)?;
-        
+
         // Determine contextual factors
         let contextual_factors = self.analyze_contextual_factors(activity, &context);
-        
+
         // Generate natural language summary
         let summary = self.generate_summary(activity, &insights, &performance, &contextual_factors);
-        
+
         Ok(ActivityIntelligence::new(
             summary,
             insights,
@@ -54,7 +56,10 @@ impl ActivityAnalyzer {
     }
 
     /// Calculate performance metrics for an activity
-    fn calculate_performance_metrics(&self, activity: &Activity) -> Result<PerformanceMetrics, AnalysisError> {
+    fn calculate_performance_metrics(
+        &self,
+        activity: &Activity,
+    ) -> Result<PerformanceMetrics, AnalysisError> {
         let relative_effort = self.calculate_relative_effort(activity);
         let zone_distribution = self.calculate_zone_distribution(activity);
         let personal_records = self.detect_personal_records(activity);
@@ -79,7 +84,8 @@ impl ActivityAnalyzer {
         effort += (duration as f32 / 3600.0) * 1.5; // +1.5 per hour
 
         // Heart rate intensity
-        if let (Some(avg_hr), Some(max_hr)) = (activity.average_heart_rate, activity.max_heart_rate) {
+        if let (Some(avg_hr), Some(max_hr)) = (activity.average_heart_rate, activity.max_heart_rate)
+        {
             let hr_intensity = (avg_hr as f32) / (max_hr as f32);
             effort += hr_intensity * 4.0;
         }
@@ -105,7 +111,8 @@ impl ActivityAnalyzer {
     /// Calculate heart rate zone distribution
     fn calculate_zone_distribution(&self, activity: &Activity) -> Option<ZoneDistribution> {
         // This is a simplified version - real implementation would need detailed HR data
-        if let (Some(avg_hr), Some(max_hr)) = (activity.average_heart_rate, activity.max_heart_rate) {
+        if let (Some(avg_hr), Some(max_hr)) = (activity.average_heart_rate, activity.max_heart_rate)
+        {
             let hr_reserve = max_hr - 60; // Assuming 60 bpm resting HR
             let intensity = ((avg_hr - 60) as f32) / (hr_reserve as f32);
 
@@ -161,7 +168,8 @@ impl ActivityAnalyzer {
         // Example: Distance PR detection (would normally compare with historical data)
         if let Some(distance_m) = activity.distance_meters {
             let distance_km = distance_m / 1000.0;
-            if distance_km > 20.0 { // Arbitrary threshold for demo
+            if distance_km > 20.0 {
+                // Arbitrary threshold for demo
                 records.push(PersonalRecord {
                     record_type: "Longest Distance".to_string(),
                     value: distance_km,
@@ -175,7 +183,8 @@ impl ActivityAnalyzer {
         // Example: Speed PR detection
         if let Some(avg_speed) = activity.average_speed {
             let pace_per_km = 1000.0 / avg_speed; // seconds per km
-            if pace_per_km < 300.0 { // Under 5 minutes per km
+            if pace_per_km < 300.0 {
+                // Under 5 minutes per km
                 records.push(PersonalRecord {
                     record_type: "Fastest Average Pace".to_string(),
                     value: pace_per_km,
@@ -194,7 +203,9 @@ impl ActivityAnalyzer {
         let mut efficiency: f32 = 50.0; // Base score
 
         // Heart rate efficiency
-        if let (Some(avg_hr), Some(avg_speed)) = (activity.average_heart_rate, activity.average_speed) {
+        if let (Some(avg_hr), Some(avg_speed)) =
+            (activity.average_heart_rate, activity.average_speed)
+        {
             let pace_per_km = 1000.0 / avg_speed as f32;
             let hr_efficiency = 1000.0 / (avg_hr as f32 * pace_per_km);
             efficiency += hr_efficiency * 10.0;
@@ -223,18 +234,18 @@ impl ActivityAnalyzer {
 
     /// Analyze contextual factors
     fn analyze_contextual_factors(
-        &self, 
+        &self,
         activity: &Activity,
         context: &Option<ActivityContext>,
     ) -> ContextualFactors {
         let time_of_day = self.determine_time_of_day(&activity.start_date);
-        
+
         ContextualFactors {
             weather: context.as_ref().and_then(|c| c.weather.clone()),
             location: context.as_ref().and_then(|c| c.location.clone()),
             time_of_day,
             days_since_last_activity: None, // Would calculate from historical data
-            weekly_load: None, // Would calculate from recent activities
+            weekly_load: None,              // Would calculate from recent activities
         }
     }
 
@@ -243,12 +254,12 @@ impl ActivityAnalyzer {
         // Convert UTC to local time for proper categorization
         let local_time = start_date.with_timezone(&Local);
         match local_time.hour() {
-            5..=6 => TimeOfDay::EarlyMorning,   // 5-7 AM
-            7..=10 => TimeOfDay::Morning,       // 7-11 AM  
-            11..=13 => TimeOfDay::Midday,       // 11 AM - 2 PM
-            14..=17 => TimeOfDay::Afternoon,    // 2-6 PM
-            18..=20 => TimeOfDay::Evening,      // 6-9 PM
-            _ => TimeOfDay::Night,              // 9 PM - 5 AM
+            5..=6 => TimeOfDay::EarlyMorning, // 5-7 AM
+            7..=10 => TimeOfDay::Morning,     // 7-11 AM
+            11..=13 => TimeOfDay::Midday,     // 11 AM - 2 PM
+            14..=17 => TimeOfDay::Afternoon,  // 2-6 PM
+            18..=20 => TimeOfDay::Evening,    // 6-9 PM
+            _ => TimeOfDay::Night,            // 9 PM - 5 AM
         }
     }
 
@@ -268,9 +279,17 @@ impl ActivityAnalyzer {
         // Add weather context if available
         let weather_context = if let Some(weather) = &context.weather {
             match weather.conditions.to_lowercase().as_str() {
-                c if c.contains("rain") || c.contains("shower") || c.contains("storm") || c.contains("thunderstorm") => " in the rain",
+                c if c.contains("rain")
+                    || c.contains("shower")
+                    || c.contains("storm")
+                    || c.contains("thunderstorm") =>
+                {
+                    " in the rain"
+                }
                 c if c.contains("snow") => " in the snow",
-                c if c.contains("wind") && weather.wind_speed_kmh.unwrap_or(0.0) > 15.0 => " in windy conditions",
+                c if c.contains("wind") && weather.wind_speed_kmh.unwrap_or(0.0) > 15.0 => {
+                    " in windy conditions"
+                }
                 c if c.contains("hot") || weather.temperature_celsius > 28.0 => " in hot weather",
                 c if c.contains("cold") || weather.temperature_celsius < 5.0 => " in cold weather",
                 _ => "",
@@ -279,7 +298,7 @@ impl ActivityAnalyzer {
             ""
         };
 
-        // Add location context  
+        // Add location context
         let location_context = if let Some(location) = &context.location {
             if let Some(trail_name) = &location.trail_name {
                 format!(" on {}", trail_name)
@@ -298,7 +317,7 @@ impl ActivityAnalyzer {
         let effort_desc = if let Some(relative_effort) = performance.relative_effort {
             match relative_effort {
                 r if r < 3.0 => "light intensity",
-                r if r < 5.0 => "moderate intensity", 
+                r if r < 5.0 => "moderate intensity",
                 r if r < 7.0 => "hard intensity",
                 _ => "very high intensity",
             }
@@ -329,16 +348,16 @@ impl ActivityAnalyzer {
         };
 
         // Build the summary
-        summary_parts.push(format!("{}{}{}", 
-            Self::to_title_case(activity_type), 
+        summary_parts.push(format!(
+            "{}{}{}",
+            Self::to_title_case(activity_type),
             weather_context,
             location_context
         ));
-        
-        summary_parts.push(format!("{} and {} in {}", 
-            pr_context,
-            effort_desc,
-            zone_desc
+
+        summary_parts.push(format!(
+            "{} and {} in {}",
+            pr_context, effort_desc, zone_desc
         ));
 
         let mut summary = summary_parts.join("");
@@ -379,11 +398,11 @@ pub enum AnalysisError {
     #[error("Insufficient activity data for analysis")]
     #[allow(dead_code)]
     InsufficientData,
-    
+
     #[error("Invalid activity data: {0}")]
     #[allow(dead_code)]
     InvalidData(String),
-    
+
     #[error("Analysis computation failed: {0}")]
     #[allow(dead_code)]
     ComputationError(String),
@@ -401,7 +420,7 @@ mod tests {
             name: "Morning Run".to_string(),
             sport_type: SportType::Run,
             start_date: Utc::now(),
-            duration_seconds: 3000, // 50 minutes
+            duration_seconds: 3000,         // 50 minutes
             distance_meters: Some(10000.0), // 10km
             elevation_gain: Some(100.0),
             average_speed: Some(3.33), // 12 km/h
@@ -429,7 +448,7 @@ mod tests {
     fn test_calculate_relative_effort() {
         let analyzer = ActivityAnalyzer::new();
         let activity = create_test_activity();
-        
+
         let effort = analyzer.calculate_relative_effort(&activity);
         assert!(effort >= 1.0 && effort <= 10.0);
         assert!(effort > 3.0); // Should be moderate effort for 10km run
@@ -439,13 +458,16 @@ mod tests {
     fn test_calculate_zone_distribution() {
         let analyzer = ActivityAnalyzer::new();
         let activity = create_test_activity();
-        
+
         let zones = analyzer.calculate_zone_distribution(&activity);
         assert!(zones.is_some());
-        
+
         if let Some(zones) = zones {
-            let total = zones.zone1_recovery + zones.zone2_endurance + 
-                       zones.zone3_tempo + zones.zone4_threshold + zones.zone5_vo2max;
+            let total = zones.zone1_recovery
+                + zones.zone2_endurance
+                + zones.zone3_tempo
+                + zones.zone4_threshold
+                + zones.zone5_vo2max;
             assert!((total - 100.0).abs() < 0.1); // Should sum to 100%
         }
     }
@@ -455,10 +477,10 @@ mod tests {
         let analyzer = ActivityAnalyzer::new();
         let mut activity = create_test_activity();
         activity.distance_meters = Some(25000.0); // Long distance for PR
-        
+
         let records = analyzer.detect_personal_records(&activity);
         assert!(!records.is_empty());
-        
+
         let distance_pr = &records[0];
         assert_eq!(distance_pr.record_type, "Longest Distance");
         assert_eq!(distance_pr.value, 25.0); // 25km converted from 25000m
@@ -467,10 +489,10 @@ mod tests {
     #[test]
     fn test_determine_time_of_day() {
         let analyzer = ActivityAnalyzer::new();
-        
+
         // Test various times - using UTC times that when converted to local will be predictable
         // Testing the logic rather than timezone conversion specifics
-        
+
         // Create test times that cover different periods
         let test_cases = vec![
             (6, TimeOfDay::EarlyMorning),
@@ -480,16 +502,24 @@ mod tests {
             (19, TimeOfDay::Evening),
             (23, TimeOfDay::Night),
         ];
-        
+
         for (hour, _expected_category) in test_cases {
-            let test_time = chrono::Utc::now().date_naive().and_hms_opt(hour, 0, 0).unwrap().and_utc();
+            let test_time = chrono::Utc::now()
+                .date_naive()
+                .and_hms_opt(hour, 0, 0)
+                .unwrap()
+                .and_utc();
             let time_of_day = analyzer.determine_time_of_day(&test_time);
-            
+
             // Since we're converting UTC to local time, we can't guarantee exact matches
             // But we can verify the function doesn't panic and returns a valid TimeOfDay
             match time_of_day {
-                TimeOfDay::EarlyMorning | TimeOfDay::Morning | TimeOfDay::Midday | 
-                TimeOfDay::Afternoon | TimeOfDay::Evening | TimeOfDay::Night => {
+                TimeOfDay::EarlyMorning
+                | TimeOfDay::Morning
+                | TimeOfDay::Midday
+                | TimeOfDay::Afternoon
+                | TimeOfDay::Evening
+                | TimeOfDay::Night => {
                     // Any valid TimeOfDay is acceptable since timezone conversion affects the result
                 }
             }
@@ -500,7 +530,7 @@ mod tests {
     fn test_calculate_efficiency_score() {
         let analyzer = ActivityAnalyzer::new();
         let activity = create_test_activity();
-        
+
         let efficiency = analyzer.calculate_efficiency_score(&activity);
         assert!(efficiency >= 0.0 && efficiency <= 100.0);
     }
@@ -509,12 +539,15 @@ mod tests {
     async fn test_analyze_activity() {
         let analyzer = ActivityAnalyzer::new();
         let activity = create_test_activity();
-        
+
         let result = analyzer.analyze_activity(&activity, None).await;
         assert!(result.is_ok());
-        
+
         let intelligence = result.unwrap();
         assert!(!intelligence.summary.is_empty());
-        assert!(intelligence.performance_indicators.relative_effort.is_some());
+        assert!(intelligence
+            .performance_indicators
+            .relative_effort
+            .is_some());
     }
 }

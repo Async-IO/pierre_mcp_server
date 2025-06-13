@@ -5,97 +5,87 @@
 // except according to those terms.
 
 //! Documentation Server
-//! 
+//!
 //! Serves OpenAPI documentation with Swagger UI for the Pierre MCP Fitness API.
 //! This provides an interactive interface for developers to explore our 21 fitness tools.
 
-use warp::Filter;
 use serde_json::json;
+use warp::Filter;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logging
     env_logger::init();
-    
+
     let port = std::env::var("DOCS_PORT")
         .unwrap_or_else(|_| "3000".to_string())
         .parse::<u16>()
         .unwrap_or(3000);
-    
+
     println!("🚀 Starting Pierre MCP API Documentation Server");
     println!("📖 Swagger UI: http://localhost:{}", port);
     println!("📄 OpenAPI Spec: http://localhost:{}/openapi.yaml", port);
-    
+
     // Serve OpenAPI specification
-    let openapi_yaml = warp::path("openapi.yaml")
-        .and(warp::get())
-        .map(|| {
-            let spec = include_str!("../../docs/openapi.yaml");
-            warp::reply::with_header(spec, "content-type", "application/yaml")
-        });
-    
+    let openapi_yaml = warp::path("openapi.yaml").and(warp::get()).map(|| {
+        let spec = include_str!("../../docs/openapi.yaml");
+        warp::reply::with_header(spec, "content-type", "application/yaml")
+    });
+
     // Serve OpenAPI specification as JSON
-    let openapi_json = warp::path("openapi.json")
-        .and(warp::get())
-        .map(|| {
-            // Convert YAML to JSON (simplified - in production use proper YAML parser)
-            let spec = include_str!("../../docs/openapi.yaml");
-            warp::reply::with_header(spec, "content-type", "application/json")
-        });
-    
+    let openapi_json = warp::path("openapi.json").and(warp::get()).map(|| {
+        // Convert YAML to JSON (simplified - in production use proper YAML parser)
+        let spec = include_str!("../../docs/openapi.yaml");
+        warp::reply::with_header(spec, "content-type", "application/json")
+    });
+
     // Swagger UI HTML page
     let swagger_ui = warp::path::end()
         .and(warp::get())
-        .map(|| {
-            warp::reply::html(create_swagger_ui_html())
-        });
-    
+        .map(|| warp::reply::html(create_swagger_ui_html()));
+
     // API info endpoint
-    let api_info = warp::path("info")
-        .and(warp::get())
-        .map(|| {
-            warp::reply::json(&json!({
-                "name": "Pierre MCP Fitness API",
-                "version": "1.0.0",
-                "description": "AI-powered fitness data intelligence platform",
-                "tools_count": 21,
-                "providers": ["strava", "fitbit", "garmin"],
-                "features": [
-                    "Multi-provider data aggregation",
-                    "Advanced analytics and intelligence",
-                    "Goal setting and tracking",
-                    "Real-time activity insights",
-                    "Weather and location integration"
-                ],
-                "documentation": {
-                    "openapi": "/openapi.yaml",
-                    "swagger_ui": "/"
-                }
-            }))
-        });
-    
+    let api_info = warp::path("info").and(warp::get()).map(|| {
+        warp::reply::json(&json!({
+            "name": "Pierre MCP Fitness API",
+            "version": "1.0.0",
+            "description": "AI-powered fitness data intelligence platform",
+            "tools_count": 21,
+            "providers": ["strava", "fitbit", "garmin"],
+            "features": [
+                "Multi-provider data aggregation",
+                "Advanced analytics and intelligence",
+                "Goal setting and tracking",
+                "Real-time activity insights",
+                "Weather and location integration"
+            ],
+            "documentation": {
+                "openapi": "/openapi.yaml",
+                "swagger_ui": "/"
+            }
+        }))
+    });
+
     // Health check
-    let health = warp::path("health")
-        .and(warp::get())
-        .map(|| {
-            warp::reply::json(&json!({
-                "status": "healthy",
-                "service": "pierre-mcp-docs",
-                "timestamp": chrono::Utc::now().to_rfc3339()
-            }))
-        });
-    
+    let health = warp::path("health").and(warp::get()).map(|| {
+        warp::reply::json(&json!({
+            "status": "healthy",
+            "service": "pierre-mcp-docs",
+            "timestamp": chrono::Utc::now().to_rfc3339()
+        }))
+    });
+
     // Static assets for enhanced UI
     let assets = warp::path("assets")
         .and(warp::get())
         .and(warp::fs::dir("docs/assets"));
-    
+
     // CORS for development
     let cors = warp::cors()
         .allow_any_origin()
         .allow_headers(vec!["content-type"])
         .allow_methods(vec!["GET", "POST", "OPTIONS"]);
-    
+
     let routes = swagger_ui
         .or(openapi_yaml)
         .or(openapi_json)
@@ -104,13 +94,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .or(assets)
         .with(cors)
         .with(warp::log("pierre_mcp_docs"));
-    
+
     println!("✅ Documentation server ready!");
     println!();
     println!("📚 Available endpoints:");
     println!("   • /           - Interactive Swagger UI");
     println!("   • /openapi.yaml - OpenAPI specification (YAML)");
-    println!("   • /openapi.json - OpenAPI specification (JSON)"); 
+    println!("   • /openapi.json - OpenAPI specification (JSON)");
     println!("   • /info       - API information");
     println!("   • /health     - Health check");
     println!();
@@ -123,16 +113,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🔗 Try the API:");
     println!("   curl http://localhost:{}/info", port);
     println!();
-    
-    warp::serve(routes)
-        .run(([127, 0, 0, 1], port))
-        .await;
-    
+
+    warp::serve(routes).run(([127, 0, 0, 1], port)).await;
+
     Ok(())
 }
 
 fn create_swagger_ui_html() -> String {
-    format!(r#"
+    format!(
+        r#"
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -298,5 +287,6 @@ fn create_swagger_ui_html() -> String {
     </script>
 </body>
 </html>
-    "#)
+    "#
+    )
 }

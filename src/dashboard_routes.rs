@@ -9,7 +9,7 @@
 use crate::auth::AuthManager;
 use crate::database::Database;
 use anyhow::Result;
-use chrono::{Duration, Utc, Datelike, Timelike};
+use chrono::{Datelike, Duration, Timelike, Utc};
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -90,7 +90,10 @@ impl DashboardRoutes {
     }
 
     /// Get dashboard overview data
-    pub async fn get_dashboard_overview(&self, auth_header: Option<&str>) -> Result<DashboardOverview> {
+    pub async fn get_dashboard_overview(
+        &self,
+        auth_header: Option<&str>,
+    ) -> Result<DashboardOverview> {
         // Authenticate user
         let claims = self.validate_auth_header(auth_header)?;
         let user_id = Uuid::parse_str(&claims.sub)?;
@@ -101,8 +104,18 @@ impl DashboardRoutes {
         let active_api_keys = api_keys.iter().filter(|k| k.is_active).count() as u32;
 
         // Calculate time ranges
-        let today_start = Utc::now().date_naive().and_hms_opt(0, 0, 0).unwrap().and_utc();
-        let month_start = Utc::now().date_naive().with_day(1).unwrap().and_hms_opt(0, 0, 0).unwrap().and_utc();
+        let today_start = Utc::now()
+            .date_naive()
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .and_utc();
+        let month_start = Utc::now()
+            .date_naive()
+            .with_day(1)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .and_utc();
 
         // Get usage statistics
         let mut total_requests_today = 0u64;
@@ -110,32 +123,30 @@ impl DashboardRoutes {
 
         for api_key in &api_keys {
             // Today's usage
-            let today_stats = self.database.get_api_key_usage_stats(
-                &api_key.id,
-                today_start,
-                Utc::now(),
-            ).await?;
+            let today_stats = self
+                .database
+                .get_api_key_usage_stats(&api_key.id, today_start, Utc::now())
+                .await?;
             total_requests_today += today_stats.total_requests as u64;
 
             // This month's usage
-            let month_stats = self.database.get_api_key_usage_stats(
-                &api_key.id,
-                month_start,
-                Utc::now(),
-            ).await?;
+            let month_stats = self
+                .database
+                .get_api_key_usage_stats(&api_key.id, month_start, Utc::now())
+                .await?;
             total_requests_this_month += month_stats.total_requests as u64;
         }
 
         // Group by tier
-        let mut tier_map: std::collections::HashMap<String, (u32, u64)> = std::collections::HashMap::new();
+        let mut tier_map: std::collections::HashMap<String, (u32, u64)> =
+            std::collections::HashMap::new();
         for api_key in &api_keys {
             let tier_name = format!("{:?}", api_key.tier).to_lowercase();
-            let month_stats = self.database.get_api_key_usage_stats(
-                &api_key.id,
-                month_start,
-                Utc::now(),
-            ).await?;
-            
+            let month_stats = self
+                .database
+                .get_api_key_usage_stats(&api_key.id, month_start, Utc::now())
+                .await?;
+
             let entry = tier_map.entry(tier_name).or_insert((0, 0));
             entry.0 += 1; // key count
             entry.1 += month_stats.total_requests as u64; // total requests
@@ -192,11 +203,10 @@ impl DashboardRoutes {
             let mut response_count = 0u64;
 
             for api_key in &api_keys {
-                let stats = self.database.get_api_key_usage_stats(
-                    &api_key.id,
-                    day_start,
-                    day_end,
-                ).await?;
+                let stats = self
+                    .database
+                    .get_api_key_usage_stats(&api_key.id, day_start, day_end)
+                    .await?;
 
                 total_requests += stats.total_requests as u64;
                 total_errors += stats.failed_requests as u64;
@@ -217,7 +227,9 @@ impl DashboardRoutes {
         }
 
         // Top tools analysis
-        let top_tools = self.get_top_tools_analysis(user_id, start_date, Utc::now()).await?;
+        let top_tools = self
+            .get_top_tools_analysis(user_id, start_date, Utc::now())
+            .await?;
 
         // Overall metrics
         let total_requests: u64 = time_series.iter().map(|d| d.request_count).sum();
@@ -229,7 +241,11 @@ impl DashboardRoutes {
         };
 
         let average_response_time = if !time_series.is_empty() {
-            time_series.iter().map(|d| d.average_response_time).sum::<f64>() / time_series.len() as f64
+            time_series
+                .iter()
+                .map(|d| d.average_response_time)
+                .sum::<f64>()
+                / time_series.len() as f64
         } else {
             0.0
         };
@@ -243,7 +259,10 @@ impl DashboardRoutes {
     }
 
     /// Get rate limit overview for all user's API keys
-    pub async fn get_rate_limit_overview(&self, auth_header: Option<&str>) -> Result<Vec<RateLimitOverview>> {
+    pub async fn get_rate_limit_overview(
+        &self,
+        auth_header: Option<&str>,
+    ) -> Result<Vec<RateLimitOverview>> {
         let claims = self.validate_auth_header(auth_header)?;
         let user_id = Uuid::parse_str(&claims.sub)?;
 
@@ -252,7 +271,7 @@ impl DashboardRoutes {
 
         for api_key in api_keys {
             let current_usage = self.database.get_api_key_current_usage(&api_key.id).await?;
-            
+
             let limit = if api_key.tier == crate::api_keys::ApiKeyTier::Enterprise {
                 None
             } else {
@@ -272,10 +291,21 @@ impl DashboardRoutes {
             // Calculate reset date (first day of next month)
             let now = Utc::now();
             let reset_date = if now.month() == 12 {
-                now.with_year(now.year() + 1).unwrap().with_month(1).unwrap()
+                now.with_year(now.year() + 1)
+                    .unwrap()
+                    .with_month(1)
+                    .unwrap()
             } else {
                 now.with_month(now.month() + 1).unwrap()
-            }.with_day(1).unwrap().with_hour(0).unwrap().with_minute(0).unwrap().with_second(0).unwrap();
+            }
+            .with_day(1)
+            .unwrap()
+            .with_hour(0)
+            .unwrap()
+            .with_minute(0)
+            .unwrap()
+            .with_second(0)
+            .unwrap();
 
             overview.push(RateLimitOverview {
                 api_key_id: api_key.id,
@@ -293,8 +323,9 @@ impl DashboardRoutes {
 
     /// Validate authentication header and return claims
     fn validate_auth_header(&self, auth_header: Option<&str>) -> Result<crate::auth::Claims> {
-        let auth_str = auth_header.ok_or_else(|| anyhow::anyhow!("Missing authorization header"))?;
-        
+        let auth_str =
+            auth_header.ok_or_else(|| anyhow::anyhow!("Missing authorization header"))?;
+
         if let Some(token) = auth_str.strip_prefix("Bearer ") {
             let claims = self.auth_manager.validate_token(token)?;
             Ok(claims)
@@ -304,7 +335,11 @@ impl DashboardRoutes {
     }
 
     /// Get recent activity for user
-    async fn get_recent_activity(&self, _user_id: Uuid, _limit: u32) -> Result<Vec<RecentActivity>> {
+    async fn get_recent_activity(
+        &self,
+        _user_id: Uuid,
+        _limit: u32,
+    ) -> Result<Vec<RecentActivity>> {
         // This would require a more complex query to join API keys with usage
         // For now, return empty vector - would need to enhance database layer
         Ok(Vec::new())

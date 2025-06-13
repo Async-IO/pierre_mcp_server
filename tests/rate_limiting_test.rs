@@ -101,7 +101,10 @@ async fn test_starter_tier_rate_limiting() {
     // Next request should be rate limited
     let auth_result = auth_middleware.authenticate_request(Some(full_key)).await;
     assert!(auth_result.is_err());
-    assert!(auth_result.unwrap_err().to_string().contains("rate limit exceeded"));
+    assert!(auth_result
+        .unwrap_err()
+        .to_string()
+        .contains("rate limit exceeded"));
 }
 
 #[tokio::test]
@@ -162,7 +165,10 @@ async fn test_professional_tier_rate_limiting() {
     }
 
     // Should still be under limit
-    let current_usage = database.get_api_key_current_usage(&api_key.id).await.unwrap();
+    let current_usage = database
+        .get_api_key_current_usage(&api_key.id)
+        .await
+        .unwrap();
     let rate_limit_status = api_key_manager.calculate_rate_limit_status(&api_key, current_usage);
     assert!(!rate_limit_status.is_rate_limited);
     assert_eq!(rate_limit_status.remaining, Some(99_000));
@@ -227,7 +233,10 @@ async fn test_enterprise_tier_unlimited() {
     }
 
     // Should still be unlimited
-    let current_usage = database.get_api_key_current_usage(&api_key.id).await.unwrap();
+    let current_usage = database
+        .get_api_key_current_usage(&api_key.id)
+        .await
+        .unwrap();
     assert_eq!(current_usage, 10_000);
 
     let rate_limit_status = api_key_manager.calculate_rate_limit_status(&api_key, current_usage);
@@ -381,7 +390,10 @@ async fn test_monthly_usage_calculation() {
     }
 
     // Get current month usage
-    let current_usage = database.get_api_key_current_usage(&api_key_id).await.unwrap();
+    let current_usage = database
+        .get_api_key_current_usage(&api_key_id)
+        .await
+        .unwrap();
 
     // Should only count current month (5 requests)
     assert_eq!(current_usage, 5, "Should only count current month usage");
@@ -434,7 +446,10 @@ async fn test_rate_limit_edge_cases() {
     }
 
     // At the limit, should be rate limited
-    let current_usage = database.get_api_key_current_usage(&api_key.id).await.unwrap();
+    let current_usage = database
+        .get_api_key_current_usage(&api_key.id)
+        .await
+        .unwrap();
     assert_eq!(current_usage, 10);
 
     let rate_limit_status = api_key_manager.calculate_rate_limit_status(&api_key, current_usage);
@@ -497,7 +512,10 @@ async fn test_rate_limit_with_mixed_status_codes() {
     }
 
     // All requests should count toward rate limit, regardless of status code
-    let current_usage = database.get_api_key_current_usage(&api_key.id).await.unwrap();
+    let current_usage = database
+        .get_api_key_current_usage(&api_key.id)
+        .await
+        .unwrap();
     assert_eq!(current_usage, 8);
 
     let rate_limit_status = api_key_manager.calculate_rate_limit_status(&api_key, current_usage);
@@ -514,5 +532,5 @@ async fn test_rate_limit_with_mixed_status_codes() {
 
     assert_eq!(stats.total_requests, 8);
     assert_eq!(stats.successful_requests, 2); // 200, 201
-    assert_eq!(stats.failed_requests, 6);     // 400, 401, 403, 404, 500, 502
+    assert_eq!(stats.failed_requests, 6); // 400, 401, 403, 404, 500, 502
 }

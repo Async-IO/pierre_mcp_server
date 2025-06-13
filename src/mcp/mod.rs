@@ -4,8 +4,8 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-pub mod schema;
 pub mod multitenant;
+pub mod schema;
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -16,13 +16,12 @@ use tokio::sync::RwLock;
 use tracing::info;
 
 use crate::config::{Config, FitnessConfig};
-use crate::providers::{FitnessProvider, create_provider, AuthData};
-use crate::mcp::schema::InitializeResponse;
-use crate::intelligence::ActivityAnalyzer;
+use crate::constants::{errors::*, json_fields::*, protocol, protocol::*, tools::*};
 use crate::intelligence::insights::ActivityContext;
 use crate::intelligence::weather::WeatherService;
-use crate::constants::{protocol, protocol::*, errors::*, tools::*, json_fields::*};
-
+use crate::intelligence::ActivityAnalyzer;
+use crate::mcp::schema::InitializeResponse;
+use crate::providers::{create_provider, AuthData, FitnessProvider};
 
 pub struct McpServer {
     config: Config,
@@ -40,22 +39,22 @@ impl McpServer {
     pub async fn run(self, port: u16) -> Result<()> {
         use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
         use tokio::net::TcpListener;
-        
+
         let listener = TcpListener::bind(format!("127.0.0.1:{}", port)).await?;
         info!("MCP server listening on port {}", port);
-        
+
         loop {
             let (socket, addr) = listener.accept().await?;
             info!("New connection from {}", addr);
-            
+
             let providers = self.providers.clone();
             let config = self.config.clone();
-            
+
             tokio::spawn(async move {
                 let (reader, mut writer) = socket.into_split();
                 let mut reader = BufReader::new(reader);
                 let mut line = String::new();
-                
+
                 while reader.read_line(&mut line).await.unwrap_or(0) > 0 {
                     if let Ok(request) = serde_json::from_str::<McpRequest>(&line) {
                         let response = handle_request(request, &providers, &config).await;
@@ -106,7 +105,7 @@ async fn handle_request(
                 protocol::server_name(),
                 SERVER_VERSION.to_string(),
             );
-            
+
             McpResponse {
                 jsonrpc: JSONRPC_VERSION.to_string(),
                 result: serde_json::to_value(&init_response).ok(),
@@ -118,21 +117,19 @@ async fn handle_request(
             let params = request.params.unwrap_or_default();
             let tool_name = params[NAME].as_str().unwrap_or("");
             let args = &params[ARGUMENTS];
-            
+
             handle_tool_call(tool_name, args, providers, config, request.id).await
         }
-        _ => {
-            McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_string(),
-                result: None,
-                error: Some(McpError {
-                    code: ERROR_METHOD_NOT_FOUND,
-                    message: "Method not found".to_string(),
-                    data: None,
-                }),
-                id: request.id,
-            }
-        }
+        _ => McpResponse {
+            jsonrpc: JSONRPC_VERSION.to_string(),
+            result: None,
+            error: Some(McpError {
+                code: ERROR_METHOD_NOT_FOUND,
+                message: "Method not found".to_string(),
+                data: None,
+            }),
+            id: request.id,
+        },
     }
 }
 
@@ -144,7 +141,7 @@ async fn handle_tool_call(
     id: Value,
 ) -> McpResponse {
     let provider_name = args[PROVIDER].as_str().unwrap_or("");
-    
+
     let mut providers_write = providers.write().await;
     if !providers_write.contains_key(provider_name) {
         match create_provider(provider_name) {
@@ -157,7 +154,9 @@ async fn handle_tool_call(
                             access_token: auth_config.access_token.clone(),
                             refresh_token: auth_config.refresh_token.clone(),
                         },
-                        "api_key" => AuthData::ApiKey(auth_config.api_key.clone().unwrap_or_default()),
+                        "api_key" => {
+                            AuthData::ApiKey(auth_config.api_key.clone().unwrap_or_default())
+                        }
                         _ => {
                             return McpResponse {
                                 jsonrpc: JSONRPC_VERSION.to_string(),
@@ -171,7 +170,7 @@ async fn handle_tool_call(
                             };
                         }
                     };
-                    
+
                     if let Err(e) = provider.authenticate(auth_data).await {
                         return McpResponse {
                             jsonrpc: JSONRPC_VERSION.to_string(),
@@ -202,15 +201,15 @@ async fn handle_tool_call(
         }
     }
     drop(providers_write);
-    
+
     let providers_read = providers.read().await;
     let provider = providers_read.get(provider_name).unwrap();
-    
+
     let result = match tool_name {
         GET_ACTIVITIES => {
             let limit = args[LIMIT].as_u64().map(|n| n as usize);
             let offset = args[OFFSET].as_u64().map(|n| n as usize);
-            
+
             match provider.get_activities(limit, offset).await {
                 Ok(activities) => serde_json::to_value(activities).ok(),
                 Err(e) => {
@@ -227,85 +226,97 @@ async fn handle_tool_call(
                 }
             }
         }
-        GET_ATHLETE => {
-            match provider.get_athlete().await {
-                Ok(athlete) => serde_json::to_value(athlete).ok(),
-                Err(e) => {
-                    return McpResponse {
-                        jsonrpc: JSONRPC_VERSION.to_string(),
-                        result: None,
-                        error: Some(McpError {
-                            code: ERROR_INTERNAL_ERROR,
-                            message: format!("Failed to get athlete: {}", e),
-                            data: None,
-                        }),
-                        id,
-                    };
-                }
+        GET_ATHLETE => match provider.get_athlete().await {
+            Ok(athlete) => serde_json::to_value(athlete).ok(),
+            Err(e) => {
+                return McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    result: None,
+                    error: Some(McpError {
+                        code: ERROR_INTERNAL_ERROR,
+                        message: format!("Failed to get athlete: {}", e),
+                        data: None,
+                    }),
+                    id,
+                };
             }
-        }
-        GET_STATS => {
-            match provider.get_stats().await {
-                Ok(stats) => serde_json::to_value(stats).ok(),
-                Err(e) => {
-                    return McpResponse {
-                        jsonrpc: JSONRPC_VERSION.to_string(),
-                        result: None,
-                        error: Some(McpError {
-                            code: ERROR_INTERNAL_ERROR,
-                            message: format!("Failed to get stats: {}", e),
-                            data: None,
-                        }),
-                        id,
-                    };
-                }
+        },
+        GET_STATS => match provider.get_stats().await {
+            Ok(stats) => serde_json::to_value(stats).ok(),
+            Err(e) => {
+                return McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    result: None,
+                    error: Some(McpError {
+                        code: ERROR_INTERNAL_ERROR,
+                        message: format!("Failed to get stats: {}", e),
+                        data: None,
+                    }),
+                    id,
+                };
             }
-        }
+        },
         GET_ACTIVITY_INTELLIGENCE => {
             let activity_id = args[ACTIVITY_ID].as_str().unwrap_or("");
             let include_weather = args["include_weather"].as_bool().unwrap_or(true);
             let include_location = args["include_location"].as_bool().unwrap_or(true);
-            
+
             // Get activities from provider
             match provider.get_activities(Some(100), None).await {
                 Ok(activities) => {
                     if let Some(activity) = activities.iter().find(|a| a.id == activity_id) {
                         // Create activity analyzer
                         let analyzer = ActivityAnalyzer::new();
-                        
+
                         // Create activity context with weather and location data if requested
                         let context = if include_weather || include_location {
                             // Load weather configuration from fitness config
                             let fitness_config = FitnessConfig::load(None).unwrap_or_default();
-                            
+
                             // Get weather data if requested
                             let weather = if include_weather {
                                 let weather_config = fitness_config.weather_api.unwrap_or_default();
                                 let mut weather_service = WeatherService::new(weather_config);
-                                
+
                                 // Try to get real weather data for the activity
-                                weather_service.get_weather_for_activity(
-                                    activity.start_latitude,
-                                    activity.start_longitude,
-                                    activity.start_date
-                                ).await.unwrap_or(None)
+                                weather_service
+                                    .get_weather_for_activity(
+                                        activity.start_latitude,
+                                        activity.start_longitude,
+                                        activity.start_date,
+                                    )
+                                    .await
+                                    .unwrap_or(None)
                             } else {
                                 None
                             };
-                            
+
                             // Get location data if requested and GPS coordinates are available
-                            let location = if include_location && activity.start_latitude.is_some() && activity.start_longitude.is_some() {
-                                tracing::info!("Getting location data for coordinates: {:.6}, {:.6}", 
-                                    activity.start_latitude.unwrap(), activity.start_longitude.unwrap());
-                                
-                                let mut location_service = crate::intelligence::location::LocationService::new();
-                                
-                                match location_service.get_location_from_coordinates(
+                            let location = if include_location
+                                && activity.start_latitude.is_some()
+                                && activity.start_longitude.is_some()
+                            {
+                                tracing::info!(
+                                    "Getting location data for coordinates: {:.6}, {:.6}",
                                     activity.start_latitude.unwrap(),
                                     activity.start_longitude.unwrap()
-                                ).await {
+                                );
+
+                                let mut location_service =
+                                    crate::intelligence::location::LocationService::new();
+
+                                match location_service
+                                    .get_location_from_coordinates(
+                                        activity.start_latitude.unwrap(),
+                                        activity.start_longitude.unwrap(),
+                                    )
+                                    .await
+                                {
                                     Ok(location_data) => {
-                                        tracing::info!("Location data retrieved: {}", location_data.display_name);
+                                        tracing::info!(
+                                            "Location data retrieved: {}",
+                                            location_data.display_name
+                                        );
                                         Some(crate::intelligence::LocationContext {
                                             city: location_data.city,
                                             region: location_data.region,
@@ -322,11 +333,13 @@ async fn handle_tool_call(
                                 }
                             } else {
                                 if include_location {
-                                    tracing::info!("Location requested but no GPS coordinates available");
+                                    tracing::info!(
+                                        "Location requested but no GPS coordinates available"
+                                    );
                                 }
                                 None
                             };
-                            
+
                             Some(ActivityContext {
                                 weather,
                                 location,
@@ -337,35 +350,33 @@ async fn handle_tool_call(
                         } else {
                             None
                         };
-                        
+
                         // Generate activity intelligence
                         match analyzer.analyze_activity(activity, context).await {
-                            Ok(intelligence) => {
-                                Some(serde_json::json!({
-                                    "summary": intelligence.summary,
-                                    "activity_id": activity.id,
-                                    "activity_name": activity.name,
-                                    "sport_type": activity.sport_type,
-                                    "duration_minutes": activity.duration_seconds / 60,
-                                    "distance_km": activity.distance_meters.map(|d| d / 1000.0),
-                                    "performance_indicators": {
-                                        "relative_effort": intelligence.performance_indicators.relative_effort,
-                                        "zone_distribution": intelligence.performance_indicators.zone_distribution,
-                                        "personal_records": intelligence.performance_indicators.personal_records,
-                                        "efficiency_score": intelligence.performance_indicators.efficiency_score,
-                                        "trend_indicators": intelligence.performance_indicators.trend_indicators
-                                    },
-                                    "contextual_factors": {
-                                        "weather": intelligence.contextual_factors.weather,
-                                        "time_of_day": intelligence.contextual_factors.time_of_day,
-                                        "days_since_last_activity": intelligence.contextual_factors.days_since_last_activity,
-                                        "weekly_load": intelligence.contextual_factors.weekly_load
-                                    },
-                                    "key_insights": intelligence.key_insights,
-                                    "generated_at": intelligence.generated_at.to_rfc3339(),
-                                    "status": "full_analysis_complete"
-                                }))
-                            }
+                            Ok(intelligence) => Some(serde_json::json!({
+                                "summary": intelligence.summary,
+                                "activity_id": activity.id,
+                                "activity_name": activity.name,
+                                "sport_type": activity.sport_type,
+                                "duration_minutes": activity.duration_seconds / 60,
+                                "distance_km": activity.distance_meters.map(|d| d / 1000.0),
+                                "performance_indicators": {
+                                    "relative_effort": intelligence.performance_indicators.relative_effort,
+                                    "zone_distribution": intelligence.performance_indicators.zone_distribution,
+                                    "personal_records": intelligence.performance_indicators.personal_records,
+                                    "efficiency_score": intelligence.performance_indicators.efficiency_score,
+                                    "trend_indicators": intelligence.performance_indicators.trend_indicators
+                                },
+                                "contextual_factors": {
+                                    "weather": intelligence.contextual_factors.weather,
+                                    "time_of_day": intelligence.contextual_factors.time_of_day,
+                                    "days_since_last_activity": intelligence.contextual_factors.days_since_last_activity,
+                                    "weekly_load": intelligence.contextual_factors.weekly_load
+                                },
+                                "key_insights": intelligence.key_insights,
+                                "generated_at": intelligence.generated_at.to_rfc3339(),
+                                "status": "full_analysis_complete"
+                            })),
                             Err(e) => {
                                 return McpResponse {
                                     jsonrpc: JSONRPC_VERSION.to_string(),
@@ -408,7 +419,7 @@ async fn handle_tool_call(
         }
         _ => None,
     };
-    
+
     McpResponse {
         jsonrpc: JSONRPC_VERSION.to_string(),
         result: result.clone(),

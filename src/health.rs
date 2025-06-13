@@ -95,7 +95,7 @@ impl HealthChecker {
     /// Perform a basic health check (fast, suitable for load balancer probes)
     pub async fn basic_health(&self) -> HealthResponse {
         let start = Instant::now();
-        
+
         // Basic service info
         let service = ServiceInfo {
             name: "pierre-mcp-server".to_string(),
@@ -107,15 +107,13 @@ impl HealthChecker {
         };
 
         // Basic checks
-        let checks = vec![
-            ComponentHealth {
-                name: "service".to_string(),
-                status: HealthStatus::Healthy,
-                message: "Service is running".to_string(),
-                duration_ms: 0,
-                metadata: None,
-            }
-        ];
+        let checks = vec![ComponentHealth {
+            name: "service".to_string(),
+            status: HealthStatus::Healthy,
+            message: "Service is running".to_string(),
+            duration_ms: 0,
+            metadata: None,
+        }];
 
         HealthResponse {
             status: HealthStatus::Healthy,
@@ -157,16 +155,16 @@ impl HealthChecker {
 
         // Perform all checks
         let mut checks = Vec::new();
-        
+
         // Database connectivity check
         checks.push(self.check_database().await);
-        
+
         // Memory usage check
         checks.push(self.check_memory().await);
-        
+
         // Disk space check
         checks.push(self.check_disk_space().await);
-        
+
         // External API connectivity
         checks.push(self.check_external_apis().await);
 
@@ -202,7 +200,7 @@ impl HealthChecker {
     /// Check database connectivity and performance
     async fn check_database(&self) -> ComponentHealth {
         let start = Instant::now();
-        
+
         match self.database_health_check().await {
             Ok(metadata) => ComponentHealth {
                 name: "database".to_string(),
@@ -227,12 +225,12 @@ impl HealthChecker {
     /// Check memory usage
     async fn check_memory(&self) -> ComponentHealth {
         let start = Instant::now();
-        
+
         // This is a simplified memory check
         // In production, you might want to use more sophisticated monitoring
         let status = HealthStatus::Healthy;
         let message = "Memory usage within normal limits".to_string();
-        
+
         ComponentHealth {
             name: "memory".to_string(),
             status,
@@ -247,12 +245,12 @@ impl HealthChecker {
     /// Check available disk space
     async fn check_disk_space(&self) -> ComponentHealth {
         let start = Instant::now();
-        
+
         // This is a simplified disk check
         // In production, you'd want to check actual disk usage
         let status = HealthStatus::Healthy;
         let message = "Disk space sufficient".to_string();
-        
+
         ComponentHealth {
             name: "disk".to_string(),
             status,
@@ -267,7 +265,7 @@ impl HealthChecker {
     /// Check external API connectivity
     async fn check_external_apis(&self) -> ComponentHealth {
         let start = Instant::now();
-        
+
         // Check if we can reach external APIs (simplified)
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(5))
@@ -312,12 +310,12 @@ impl HealthChecker {
     async fn database_health_check(&self) -> Result<serde_json::Value> {
         // Try a simple query to ensure database is responsive
         let start = Instant::now();
-        
+
         // Perform an actual database connectivity test
         let user_count = self.database.get_user_count().await?;
-        
+
         let query_duration = start.elapsed().as_millis() as u64;
-        
+
         Ok(serde_json::json!({
             "type": "sqlite",
             "query_duration_ms": query_duration,
@@ -330,18 +328,18 @@ impl HealthChecker {
     pub async fn readiness(&self) -> HealthResponse {
         // For readiness, we check if the service can handle requests
         let mut response = self.basic_health().await;
-        
+
         // Add readiness-specific checks
         let db_check = self.check_database().await;
         response.checks.push(db_check.clone());
-        
+
         // Service is ready if database is healthy
         response.status = if db_check.status == HealthStatus::Healthy {
             HealthStatus::Healthy
         } else {
             HealthStatus::Unhealthy
         };
-        
+
         response
     }
 
@@ -383,7 +381,8 @@ pub mod middleware {
 
     fn with_health_checker(
         health_checker: std::sync::Arc<HealthChecker>,
-    ) -> impl Filter<Extract = (std::sync::Arc<HealthChecker>,), Error = std::convert::Infallible> + Clone {
+    ) -> impl Filter<Extract = (std::sync::Arc<HealthChecker>,), Error = std::convert::Infallible> + Clone
+    {
         warp::any().map(move || health_checker.clone())
     }
 
@@ -396,7 +395,7 @@ pub mod middleware {
             HealthStatus::Degraded => warp::http::StatusCode::OK, // Still return 200 for degraded
             HealthStatus::Unhealthy => warp::http::StatusCode::SERVICE_UNAVAILABLE,
         };
-        
+
         Ok(warp::reply::with_status(
             warp::reply::json(&response),
             status_code,
@@ -411,7 +410,7 @@ pub mod middleware {
             HealthStatus::Healthy => warp::http::StatusCode::OK,
             _ => warp::http::StatusCode::SERVICE_UNAVAILABLE,
         };
-        
+
         Ok(warp::reply::with_status(
             warp::reply::json(&response),
             status_code,
@@ -434,11 +433,13 @@ mod tests {
     #[tokio::test]
     async fn test_basic_health_check() {
         let encryption_key = generate_encryption_key().to_vec();
-        let database = Database::new("sqlite::memory:", encryption_key).await.unwrap();
+        let database = Database::new("sqlite::memory:", encryption_key)
+            .await
+            .unwrap();
         let health_checker = HealthChecker::new(database);
 
         let response = health_checker.basic_health().await;
-        
+
         assert_eq!(response.status, HealthStatus::Healthy);
         assert_eq!(response.service.name, "pierre-mcp-server");
         assert!(!response.checks.is_empty());
@@ -447,14 +448,16 @@ mod tests {
     #[tokio::test]
     async fn test_comprehensive_health_check() {
         let encryption_key = generate_encryption_key().to_vec();
-        let database = Database::new("sqlite::memory:", encryption_key).await.unwrap();
+        let database = Database::new("sqlite::memory:", encryption_key)
+            .await
+            .unwrap();
         let health_checker = HealthChecker::new(database);
 
         let response = health_checker.comprehensive_health().await;
-        
+
         // Should have multiple checks
         assert!(response.checks.len() > 1);
-        
+
         // Should include database check
         assert!(response.checks.iter().any(|c| c.name == "database"));
     }
@@ -462,11 +465,13 @@ mod tests {
     #[tokio::test]
     async fn test_readiness_check() {
         let encryption_key = generate_encryption_key().to_vec();
-        let database = Database::new("sqlite::memory:", encryption_key).await.unwrap();
+        let database = Database::new("sqlite::memory:", encryption_key)
+            .await
+            .unwrap();
         let health_checker = HealthChecker::new(database);
 
         let response = health_checker.readiness().await;
-        
+
         // Should include database check for readiness
         assert!(response.checks.iter().any(|c| c.name == "database"));
     }

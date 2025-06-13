@@ -6,21 +6,21 @@
 
 //! Insight generation and management for athlete intelligence
 
-use serde::{Deserialize, Serialize};
 use crate::models::Activity;
+use serde::{Deserialize, Serialize};
 
 /// An insight extracted from activity analysis
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Insight {
     /// Type of insight
     pub insight_type: InsightType,
-    
+
     /// Human-readable insight message
     pub message: String,
-    
+
     /// Confidence level (0-100)
     pub confidence: f32,
-    
+
     /// Supporting data for the insight
     pub data: Option<serde_json::Value>,
 }
@@ -31,28 +31,28 @@ pub struct Insight {
 pub enum InsightType {
     /// Performance achievement (PR, improvement)
     Achievement,
-    
+
     /// Training zone analysis
     ZoneAnalysis,
-    
+
     /// Effort and recovery insights
     EffortAnalysis,
-    
+
     /// Weather impact analysis
     WeatherImpact,
-    
+
     /// Trend and progression
     TrendAnalysis,
-    
+
     /// Recovery and fatigue
     RecoveryInsight,
-    
+
     /// Goal progression
     GoalProgress,
-    
+
     /// Location and terrain insights
     LocationInsight,
-    
+
     /// Anomaly detection
     Anomaly,
 }
@@ -100,14 +100,18 @@ impl InsightGenerator {
     }
 
     /// Generate insights for a single activity
-    pub fn generate_insights(&self, activity: &Activity, context: Option<&ActivityContext>) -> Vec<Insight> {
+    pub fn generate_insights(
+        &self,
+        activity: &Activity,
+        context: Option<&ActivityContext>,
+    ) -> Vec<Insight> {
         let mut insights = Vec::new();
 
         // Generate different types of insights
         insights.extend(self.generate_achievement_insights(activity));
         insights.extend(self.generate_zone_insights(activity));
         insights.extend(self.generate_effort_insights(activity));
-        
+
         if let Some(ctx) = context {
             insights.extend(self.generate_weather_insights(activity, ctx));
             insights.extend(self.generate_location_insights(activity, ctx));
@@ -129,10 +133,14 @@ impl InsightGenerator {
         // Example: Distance PR detection
         if let Some(distance_m) = activity.distance_meters {
             let distance_km = distance_m / 1000.0;
-            if distance_km > 10.0 { // Arbitrary threshold for demo
+            if distance_km > 10.0 {
+                // Arbitrary threshold for demo
                 insights.push(Insight {
                     insight_type: InsightType::Achievement,
-                    message: format!("Impressive distance! You completed {:.2} km, showing great endurance.", distance_km),
+                    message: format!(
+                        "Impressive distance! You completed {:.2} km, showing great endurance.",
+                        distance_km
+                    ),
                     confidence: 85.0,
                     data: Some(serde_json::json!({
                         "distance_km": distance_km,
@@ -150,9 +158,10 @@ impl InsightGenerator {
         let mut insights = Vec::new();
 
         // Analyze heart rate zones if available
-        if let (Some(avg_hr), Some(max_hr)) = (activity.average_heart_rate, activity.max_heart_rate) {
+        if let (Some(avg_hr), Some(max_hr)) = (activity.average_heart_rate, activity.max_heart_rate)
+        {
             let hr_intensity = (avg_hr as f32) / (max_hr as f32);
-            
+
             let (zone_description, confidence) = match hr_intensity {
                 x if x < 0.6 => ("recovery zone", 90.0),
                 x if x < 0.7 => ("endurance zone", 95.0),
@@ -185,7 +194,7 @@ impl InsightGenerator {
         // Analyze effort based on duration and intensity
         let duration = activity.duration_seconds;
         let effort_score = self.calculate_relative_effort(activity);
-        
+
         let effort_description = match effort_score {
             x if x < 3.0 => ("light", "perfect for recovery"),
             x if x < 5.0 => ("moderate", "good training stimulus"),
@@ -196,10 +205,12 @@ impl InsightGenerator {
 
         insights.push(Insight {
             insight_type: InsightType::EffortAnalysis,
-            message: format!("With a {} effort level, this {} session was {} for your training goals.",
-                           effort_description.0, 
-                           Self::format_duration(duration as i32),
-                           effort_description.1),
+            message: format!(
+                "With a {} effort level, this {} session was {} for your training goals.",
+                effort_description.0,
+                Self::format_duration(duration as i32),
+                effort_description.1
+            ),
             confidence: 80.0,
             data: Some(serde_json::json!({
                 "effort_score": effort_score,
@@ -212,7 +223,11 @@ impl InsightGenerator {
     }
 
     /// Generate weather-related insights
-    fn generate_weather_insights(&self, _activity: &Activity, context: &ActivityContext) -> Vec<Insight> {
+    fn generate_weather_insights(
+        &self,
+        _activity: &Activity,
+        context: &ActivityContext,
+    ) -> Vec<Insight> {
         let mut insights = Vec::new();
 
         if let Some(weather) = &context.weather {
@@ -245,7 +260,11 @@ impl InsightGenerator {
     }
 
     /// Generate trend analysis insights
-    fn generate_trend_insights(&self, _activity: &Activity, context: &ActivityContext) -> Vec<Insight> {
+    fn generate_trend_insights(
+        &self,
+        _activity: &Activity,
+        context: &ActivityContext,
+    ) -> Vec<Insight> {
         let mut insights = Vec::new();
 
         // Example trend analysis (would normally use historical data)
@@ -275,7 +294,8 @@ impl InsightGenerator {
         effort_score += (duration as f32 / 3600.0) * 2.0; // +2 per hour
 
         // Factor in heart rate intensity
-        if let (Some(avg_hr), Some(max_hr)) = (activity.average_heart_rate, activity.max_heart_rate) {
+        if let (Some(avg_hr), Some(max_hr)) = (activity.average_heart_rate, activity.max_heart_rate)
+        {
             let hr_intensity = (avg_hr as f32) / (max_hr as f32);
             effort_score += hr_intensity * 5.0;
         }
@@ -289,7 +309,11 @@ impl InsightGenerator {
     }
 
     /// Generate location and terrain insights
-    fn generate_location_insights(&self, activity: &Activity, context: &ActivityContext) -> Vec<Insight> {
+    fn generate_location_insights(
+        &self,
+        activity: &Activity,
+        context: &ActivityContext,
+    ) -> Vec<Insight> {
         let mut insights = Vec::new();
 
         if let Some(location) = &context.location {
@@ -297,8 +321,11 @@ impl InsightGenerator {
             if let Some(trail_name) = &location.trail_name {
                 insights.push(Insight {
                     insight_type: InsightType::LocationInsight,
-                    message: format!("Explored the {} route, a great choice for your {} training", 
-                                   trail_name, activity.sport_type.display_name()),
+                    message: format!(
+                        "Explored the {} route, a great choice for your {} training",
+                        trail_name,
+                        activity.sport_type.display_name()
+                    ),
                     confidence: 80.0,
                     data: Some(serde_json::json!({
                         "trail_name": trail_name,
@@ -352,11 +379,15 @@ impl InsightGenerator {
     fn format_duration(seconds: i32) -> String {
         let hours = seconds / 3600;
         let minutes = (seconds % 3600) / 60;
-        
+
         if hours > 0 {
-            format!("{} hour{} {} minute{}", 
-                   hours, if hours == 1 { "" } else { "s" },
-                   minutes, if minutes == 1 { "" } else { "s" })
+            format!(
+                "{} hour{} {} minute{}",
+                hours,
+                if hours == 1 { "" } else { "s" },
+                minutes,
+                if minutes == 1 { "" } else { "s" }
+            )
         } else {
             format!("{} minute{}", minutes, if minutes == 1 { "" } else { "s" })
         }
@@ -408,7 +439,7 @@ mod tests {
             name: "Test Run".to_string(),
             sport_type: SportType::Run,
             start_date: Utc::now(),
-            duration_seconds: 1800, // 30 minutes
+            duration_seconds: 1800,         // 30 minutes
             distance_meters: Some(15000.0), // 15km
             elevation_gain: Some(50.0),
             average_speed: Some(2.78), // 10 km/h
@@ -437,12 +468,15 @@ mod tests {
     fn test_generate_achievement_insights() {
         let generator = InsightGenerator::new();
         let activity = create_test_activity();
-        
+
         let insights = generator.generate_achievement_insights(&activity);
         assert!(!insights.is_empty());
-        
+
         let first_insight = &insights[0];
-        assert!(matches!(first_insight.insight_type, InsightType::Achievement));
+        assert!(matches!(
+            first_insight.insight_type,
+            InsightType::Achievement
+        ));
         assert!(first_insight.confidence > 0.0);
     }
 
@@ -450,12 +484,15 @@ mod tests {
     fn test_generate_zone_insights() {
         let generator = InsightGenerator::new();
         let activity = create_test_activity();
-        
+
         let insights = generator.generate_zone_insights(&activity);
         assert!(!insights.is_empty());
-        
+
         let zone_insight = &insights[0];
-        assert!(matches!(zone_insight.insight_type, InsightType::ZoneAnalysis));
+        assert!(matches!(
+            zone_insight.insight_type,
+            InsightType::ZoneAnalysis
+        ));
         assert!(zone_insight.message.contains("heart rate"));
     }
 
@@ -463,7 +500,7 @@ mod tests {
     fn test_calculate_relative_effort() {
         let generator = InsightGenerator::new();
         let activity = create_test_activity();
-        
+
         let effort = generator.calculate_relative_effort(&activity);
         assert!(effort >= 1.0 && effort <= 10.0);
     }
@@ -479,7 +516,7 @@ mod tests {
     fn test_location_insights_with_trail() {
         let generator = InsightGenerator::new();
         let activity = create_test_activity();
-        
+
         let location_context = LocationContext {
             city: Some("Saint-Hippolyte".to_string()),
             region: Some("Québec".to_string()),
@@ -488,7 +525,7 @@ mod tests {
             terrain_type: Some("forest".to_string()),
             display_name: "Trail de la Montagne, Saint-Hippolyte, Québec, Canada".to_string(),
         };
-        
+
         let context = ActivityContext {
             weather: None,
             location: Some(location_context),
@@ -496,24 +533,30 @@ mod tests {
             athlete_goals: None,
             historical_data: None,
         };
-        
+
         let insights = generator.generate_location_insights(&activity, &context);
-        
+
         assert!(!insights.is_empty());
-        
+
         // Check for trail-specific insight
         let trail_insight = insights.iter().find(|insight| {
-            insight.insight_type == InsightType::LocationInsight &&
-            insight.message.contains("Trail de la Montagne")
+            insight.insight_type == InsightType::LocationInsight
+                && insight.message.contains("Trail de la Montagne")
         });
-        assert!(trail_insight.is_some(), "Should generate trail-specific insight");
-        
+        assert!(
+            trail_insight.is_some(),
+            "Should generate trail-specific insight"
+        );
+
         // Check for regional insight
         let regional_insight = insights.iter().find(|insight| {
-            insight.insight_type == InsightType::LocationInsight &&
-            insight.message.contains("Saint-Hippolyte, Québec")
+            insight.insight_type == InsightType::LocationInsight
+                && insight.message.contains("Saint-Hippolyte, Québec")
         });
-        assert!(regional_insight.is_some(), "Should generate regional insight");
+        assert!(
+            regional_insight.is_some(),
+            "Should generate regional insight"
+        );
     }
 
     #[test]
@@ -521,7 +564,7 @@ mod tests {
         let generator = InsightGenerator::new();
         let mut activity = create_test_activity();
         activity.elevation_gain = Some(600.0); // Significant elevation
-        
+
         let location_context = LocationContext {
             city: Some("Montreal".to_string()),
             region: Some("Quebec".to_string()),
@@ -530,7 +573,7 @@ mod tests {
             terrain_type: Some("mountain".to_string()),
             display_name: "Montreal, Quebec, Canada".to_string(),
         };
-        
+
         let context = ActivityContext {
             weather: None,
             location: Some(location_context),
@@ -538,23 +581,26 @@ mod tests {
             athlete_goals: None,
             historical_data: None,
         };
-        
+
         let insights = generator.generate_location_insights(&activity, &context);
-        
+
         // Check for elevation-specific insight
         let elevation_insight = insights.iter().find(|insight| {
-            insight.insight_type == InsightType::LocationInsight &&
-            insight.message.contains("elevation gain") &&
-            insight.message.contains("600")
+            insight.insight_type == InsightType::LocationInsight
+                && insight.message.contains("elevation gain")
+                && insight.message.contains("600")
         });
-        assert!(elevation_insight.is_some(), "Should generate elevation-specific insight");
+        assert!(
+            elevation_insight.is_some(),
+            "Should generate elevation-specific insight"
+        );
     }
 
     #[test]
     fn test_location_insights_without_location() {
         let generator = InsightGenerator::new();
         let activity = create_test_activity();
-        
+
         let context = ActivityContext {
             weather: None,
             location: None,
@@ -562,20 +608,23 @@ mod tests {
             athlete_goals: None,
             historical_data: None,
         };
-        
+
         let insights = generator.generate_location_insights(&activity, &context);
-        assert!(insights.is_empty(), "Should not generate location insights without location data");
+        assert!(
+            insights.is_empty(),
+            "Should not generate location insights without location data"
+        );
     }
 
     #[test]
     fn test_insight_type_serialization() {
         use serde_json;
-        
+
         // Test location insight type serialization
         let insight_type = InsightType::LocationInsight;
         let json = serde_json::to_string(&insight_type).unwrap();
         assert_eq!(json, "\"location_insight\"");
-        
+
         // Test deserialization
         let deserialized: InsightType = serde_json::from_str("\"location_insight\"").unwrap();
         assert!(matches!(deserialized, InsightType::LocationInsight));
@@ -591,7 +640,7 @@ mod tests {
             terrain_type: Some("forest".to_string()),
             display_name: "Test Location".to_string(),
         };
-        
+
         let context = ActivityContext {
             weather: None,
             location: Some(location_context.clone()),
@@ -599,7 +648,7 @@ mod tests {
             athlete_goals: None,
             historical_data: None,
         };
-        
+
         assert!(context.location.is_some());
         let location = context.location.unwrap();
         assert_eq!(location.city, Some("Test City".to_string()));
