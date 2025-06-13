@@ -9,19 +9,19 @@
 //! This module provides a multi-tenant MCP server that supports user authentication,
 //! secure token storage, and user-scoped data access.
 
-use crate::auth::{AuthManager, McpAuthMiddleware, AuthResult};
-use crate::constants::{protocol, protocol::*, errors::*, tools::*, json_fields::*};
+use crate::api_key_routes::ApiKeyRoutes;
+use crate::auth::{AuthManager, AuthResult, McpAuthMiddleware};
+use crate::config::FitnessConfig;
+use crate::constants::{errors::*, json_fields::*, protocol, protocol::*, tools::*};
+use crate::dashboard_routes::DashboardRoutes;
 use crate::database::Database;
-use crate::models::AuthRequest;
-use crate::providers::{FitnessProvider, create_provider, AuthData};
-use crate::mcp::schema::InitializeResponse;
-use crate::intelligence::ActivityAnalyzer;
 use crate::intelligence::insights::ActivityContext;
 use crate::intelligence::weather::WeatherService;
-use crate::config::FitnessConfig;
-use crate::routes::{AuthRoutes, OAuthRoutes, RegisterRequest, LoginRequest};
-use crate::api_key_routes::ApiKeyRoutes;
-use crate::dashboard_routes::DashboardRoutes;
+use crate::intelligence::ActivityAnalyzer;
+use crate::mcp::schema::InitializeResponse;
+use crate::models::AuthRequest;
+use crate::providers::{create_provider, AuthData, FitnessProvider};
+use crate::routes::{AuthRoutes, LoginRequest, OAuthRoutes, RegisterRequest};
 use crate::websocket::WebSocketManager;
 
 use anyhow::Result;
@@ -48,18 +48,16 @@ pub struct MultiTenantMcpServer {
 
 impl MultiTenantMcpServer {
     /// Create a new multi-tenant MCP server
-    pub fn new(
-        database: Database,
-        auth_manager: AuthManager,
-    ) -> Self {
+    pub fn new(database: Database, auth_manager: AuthManager) -> Self {
         let database_arc = Arc::new(database);
         let auth_manager_arc = Arc::new(auth_manager);
-        let auth_middleware = McpAuthMiddleware::new(auth_manager_arc.as_ref().clone(), database_arc.clone());
+        let auth_middleware =
+            McpAuthMiddleware::new(auth_manager_arc.as_ref().clone(), database_arc.clone());
         let websocket_manager = Arc::new(WebSocketManager::new(
-            database_arc.as_ref().clone(), 
-            auth_manager_arc.as_ref().clone()
+            database_arc.as_ref().clone(),
+            auth_manager_arc.as_ref().clone(),
         ));
-        
+
         Self {
             database: database_arc,
             auth_manager: auth_manager_arc,
@@ -72,26 +70,35 @@ impl MultiTenantMcpServer {
     /// Run the multi-tenant server with both HTTP and MCP endpoints
     pub async fn run(self, port: u16) -> Result<()> {
         // Create HTTP + MCP server
-        info!("Starting multi-tenant server with HTTP and MCP on port {}", port);
-        
+        info!(
+            "Starting multi-tenant server with HTTP and MCP on port {}",
+            port
+        );
+
         // Clone references for HTTP handlers
         let database = self.database.clone();
         let auth_manager = self.auth_manager.clone();
-        
+
         // Create route handlers
         let _auth_routes = AuthRoutes::new((*database).clone(), (*auth_manager).clone());
         let _oauth_routes = OAuthRoutes::new((*database).clone());
-        
+
         // Start HTTP server for auth endpoints in background
         let http_port = port + 1; // Use port+1 for HTTP
         let database_http = database.clone();
         let auth_manager_http = auth_manager.clone();
         let websocket_manager_http = self.websocket_manager.clone();
-        
+
         tokio::spawn(async move {
-            Self::run_http_server(http_port, database_http, auth_manager_http, websocket_manager_http).await
+            Self::run_http_server(
+                http_port,
+                database_http,
+                auth_manager_http,
+                websocket_manager_http,
+            )
+            .await
         });
-        
+
         // Run MCP server on main port
         self.run_mcp_server(port).await
     }
@@ -104,20 +111,20 @@ impl MultiTenantMcpServer {
         websocket_manager: Arc<WebSocketManager>,
     ) -> Result<()> {
         use warp::Filter;
-        
+
         info!("HTTP authentication server starting on port {}", port);
-        
+
         let auth_routes = AuthRoutes::new((*database).clone(), (*auth_manager).clone());
         let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
         let api_key_routes = ApiKeyRoutes::new((*database).clone(), (*auth_manager).clone());
         let dashboard_routes = DashboardRoutes::new((*database).clone(), (*auth_manager).clone());
-        
+
         // CORS configuration
         let cors = warp::cors()
             .allow_any_origin()
             .allow_headers(vec!["content-type", "authorization"])
             .allow_methods(vec!["GET", "POST", "DELETE", "OPTIONS"]);
-        
+
         // Registration endpoint
         let register = warp::path("auth")
             .and(warp::path("register"))
@@ -138,7 +145,7 @@ impl MultiTenantMcpServer {
                     }
                 }
             });
-        
+
         // Login endpoint
         let login = warp::path("auth")
             .and(warp::path("login"))
@@ -159,7 +166,7 @@ impl MultiTenantMcpServer {
                     }
                 }
             });
-        
+
         // OAuth authorization URL endpoint
         let oauth_auth = warp::path("oauth")
             .and(warp::path!("auth" / String / String)) // /oauth/auth/{provider}/{user_id}
@@ -172,9 +179,7 @@ impl MultiTenantMcpServer {
                         match Uuid::parse_str(&user_id_str) {
                             Ok(user_id) => {
                                 match oauth_routes.get_auth_url(user_id, &provider).await {
-                                    Ok(auth_response) => {
-                                        Ok(warp::reply::json(&auth_response))
-                                    }
+                                    Ok(auth_response) => Ok(warp::reply::json(&auth_response)),
                                     Err(e) => {
                                         let error = serde_json::json!({"error": e.to_string()});
                                         Err(warp::reject::custom(ApiError(error)))
@@ -189,7 +194,7 @@ impl MultiTenantMcpServer {
                     }
                 }
             });
-        
+
         // OAuth callback endpoints
         let oauth_callback = warp::path("oauth")
             .and(warp::path("callback"))
@@ -204,7 +209,6 @@ impl MultiTenantMcpServer {
                         let code = params.get("code").cloned().unwrap_or_default();
                         let state = params.get("state").cloned().unwrap_or_default();
                         let error = params.get("error").cloned();
-                        
                         if let Some(error_msg) = error {
                             let error_response = serde_json::json!({
                                 "error": "OAuth authorization failed",
@@ -216,7 +220,7 @@ impl MultiTenantMcpServer {
                                 warp::http::StatusCode::BAD_REQUEST
                             ));
                         }
-                        
+
                         match oauth_routes.handle_callback(&code, &state, &provider).await {
                             Ok(callback_response) => {
                                 let success_response = serde_json::json!({
@@ -254,7 +258,10 @@ impl MultiTenantMcpServer {
                 move |auth_header: Option<String>, request: crate::api_keys::CreateApiKeyRequest| {
                     let api_key_routes = api_key_routes.clone();
                     async move {
-                        match api_key_routes.create_api_key(auth_header.as_deref(), request).await {
+                        match api_key_routes
+                            .create_api_key(auth_header.as_deref(), request)
+                            .await
+                        {
                             Ok(response) => Ok(warp::reply::json(&response)),
                             Err(e) => {
                                 let error = serde_json::json!({"error": e.to_string()});
@@ -295,7 +302,10 @@ impl MultiTenantMcpServer {
                 move |api_key_id: String, auth_header: Option<String>| {
                     let api_key_routes = api_key_routes.clone();
                     async move {
-                        match api_key_routes.deactivate_api_key(auth_header.as_deref(), &api_key_id).await {
+                        match api_key_routes
+                            .deactivate_api_key(auth_header.as_deref(), &api_key_id)
+                            .await
+                        {
                             Ok(response) => Ok(warp::reply::json(&response)),
                             Err(e) => {
                                 let error = serde_json::json!({"error": e.to_string()});
@@ -354,11 +364,9 @@ impl MultiTenantMcpServer {
             });
 
         // Health check endpoint
-        let health = warp::path("health")
-            .and(warp::get())
-            .map(|| {
-                warp::reply::json(&serde_json::json!({"status": "ok", "service": "pierre-mcp-server"}))
-            });
+        let health = warp::path("health").and(warp::get()).map(|| {
+            warp::reply::json(&serde_json::json!({"status": "ok", "service": "pierre-mcp-server"}))
+        });
 
         // Dashboard endpoints
         let dashboard_overview = warp::path("dashboard")
@@ -370,7 +378,10 @@ impl MultiTenantMcpServer {
                 move |auth_header: Option<String>| {
                     let dashboard_routes = dashboard_routes.clone();
                     async move {
-                        match dashboard_routes.get_dashboard_overview(auth_header.as_deref()).await {
+                        match dashboard_routes
+                            .get_dashboard_overview(auth_header.as_deref())
+                            .await
+                        {
                             Ok(overview) => Ok(warp::reply::json(&overview)),
                             Err(e) => {
                                 let error = serde_json::json!({"error": e.to_string()});
@@ -388,11 +399,18 @@ impl MultiTenantMcpServer {
             .and(warp::query::<std::collections::HashMap<String, String>>())
             .and_then({
                 let dashboard_routes = dashboard_routes.clone();
-                move |auth_header: Option<String>, params: std::collections::HashMap<String, String>| {
+                move |auth_header: Option<String>,
+                      params: std::collections::HashMap<String, String>| {
                     let dashboard_routes = dashboard_routes.clone();
                     async move {
-                        let days = params.get("days").and_then(|d| d.parse::<u32>().ok()).unwrap_or(30);
-                        match dashboard_routes.get_usage_analytics(auth_header.as_deref(), days).await {
+                        let days = params
+                            .get("days")
+                            .and_then(|d| d.parse::<u32>().ok())
+                            .unwrap_or(30);
+                        match dashboard_routes
+                            .get_usage_analytics(auth_header.as_deref(), days)
+                            .await
+                        {
                             Ok(analytics) => Ok(warp::reply::json(&analytics)),
                             Err(e) => {
                                 let error = serde_json::json!({"error": e.to_string()});
@@ -412,7 +430,10 @@ impl MultiTenantMcpServer {
                 move |auth_header: Option<String>| {
                     let dashboard_routes = dashboard_routes.clone();
                     async move {
-                        match dashboard_routes.get_rate_limit_overview(auth_header.as_deref()).await {
+                        match dashboard_routes
+                            .get_rate_limit_overview(auth_header.as_deref())
+                            .await
+                        {
                             Ok(overview) => Ok(warp::reply::json(&overview)),
                             Err(e) => {
                                 let error = serde_json::json!({"error": e.to_string()});
@@ -425,10 +446,10 @@ impl MultiTenantMcpServer {
 
         // WebSocket endpoint
         let websocket_route = websocket_manager.websocket_filter();
-        
+
         // Start periodic WebSocket updates
         websocket_manager.start_periodic_updates();
-        
+
         let routes = register
             .or(login)
             .or(oauth_auth)
@@ -444,12 +465,10 @@ impl MultiTenantMcpServer {
             .or(health)
             .with(cors)
             .recover(handle_rejection);
-        
+
         info!("HTTP server ready on port {}", port);
-        warp::serve(routes)
-            .run(([127, 0, 0, 1], port))
-            .await;
-            
+        warp::serve(routes).run(([127, 0, 0, 1], port)).await;
+
         Ok(())
     }
 
@@ -457,24 +476,24 @@ impl MultiTenantMcpServer {
     async fn run_mcp_server(self, port: u16) -> Result<()> {
         use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
         use tokio::net::TcpListener;
-        
+
         let listener = TcpListener::bind(format!("127.0.0.1:{}", port)).await?;
         info!("MCP server listening on port {}", port);
-        
+
         loop {
             let (socket, addr) = listener.accept().await?;
             info!("New MCP connection from {}", addr);
-            
+
             let database = self.database.clone();
             let auth_manager = self.auth_manager.clone();
             let auth_middleware = self.auth_middleware.clone();
             let user_providers = self.user_providers.clone();
-            
+
             tokio::spawn(async move {
                 let (reader, mut writer) = socket.into_split();
                 let mut reader = BufReader::new(reader);
                 let mut line = String::new();
-                
+
                 while reader.read_line(&mut line).await.unwrap_or(0) > 0 {
                     if let Ok(request) = serde_json::from_str::<McpRequest>(&line) {
                         let response = Self::handle_request(
@@ -483,8 +502,9 @@ impl MultiTenantMcpServer {
                             &auth_manager,
                             &auth_middleware,
                             &user_providers,
-                        ).await;
-                        
+                        )
+                        .await;
+
                         let response_str = serde_json::to_string(&response).unwrap();
                         writer.write_all(response_str.as_bytes()).await.ok();
                         writer.write_all(b"\n").await.ok();
@@ -510,7 +530,7 @@ impl MultiTenantMcpServer {
                     protocol::server_name_multitenant(),
                     SERVER_VERSION.to_string(),
                 );
-                
+
                 McpResponse {
                     jsonrpc: JSONRPC_VERSION.to_string(),
                     result: serde_json::to_value(&init_response).ok(),
@@ -518,24 +538,23 @@ impl MultiTenantMcpServer {
                     id: request.id,
                 }
             }
-            "authenticate" => {
-                Self::handle_authenticate(request, auth_manager).await
-            }
+            "authenticate" => Self::handle_authenticate(request, auth_manager).await,
             "tools/call" => {
                 // Extract authorization header from request
                 let auth_token = request.auth_token.as_deref();
-                
+
                 match auth_middleware.authenticate_request(auth_token).await {
                     Ok(auth_result) => {
                         // Update user's last active timestamp
                         let _ = database.update_last_active(auth_result.user_id).await;
-                        
+
                         Self::handle_authenticated_tool_call(
                             request,
                             auth_result,
                             database,
                             user_providers,
-                        ).await
+                        )
+                        .await
                     }
                     Err(e) => {
                         warn!("Authentication failed: {}", e);
@@ -552,18 +571,16 @@ impl MultiTenantMcpServer {
                     }
                 }
             }
-            _ => {
-                McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
-                    result: None,
-                    error: Some(McpError {
-                        code: ERROR_METHOD_NOT_FOUND,
-                        message: "Method not found".to_string(),
-                        data: None,
-                    }),
-                    id: request.id,
-                }
-            }
+            _ => McpResponse {
+                jsonrpc: JSONRPC_VERSION.to_string(),
+                result: None,
+                error: Some(McpError {
+                    code: ERROR_METHOD_NOT_FOUND,
+                    message: "Method not found".to_string(),
+                    data: None,
+                }),
+                id: request.id,
+            },
         }
     }
 
@@ -573,10 +590,10 @@ impl MultiTenantMcpServer {
         auth_manager: &Arc<AuthManager>,
     ) -> McpResponse {
         let params = request.params.unwrap_or_default();
-        
+
         if let Ok(auth_request) = serde_json::from_value::<AuthRequest>(params) {
             let auth_response = auth_manager.authenticate(auth_request);
-            
+
             McpResponse {
                 jsonrpc: JSONRPC_VERSION.to_string(),
                 result: serde_json::to_value(&auth_response).ok(),
@@ -608,7 +625,7 @@ impl MultiTenantMcpServer {
         let tool_name = params["name"].as_str().unwrap_or("");
         let args = &params["arguments"];
         let user_id = auth_result.user_id;
-        
+
         // Handle OAuth-related tools (don't require existing provider)
         match tool_name {
             CONNECT_STRAVA => {
@@ -622,15 +639,30 @@ impl MultiTenantMcpServer {
             }
             DISCONNECT_PROVIDER => {
                 let provider_name = args[PROVIDER].as_str().unwrap_or("");
-                return Self::handle_disconnect_provider(user_id, provider_name, database, request.id).await;
+                return Self::handle_disconnect_provider(
+                    user_id,
+                    provider_name,
+                    database,
+                    request.id,
+                )
+                .await;
             }
             // Tools that don't require providers
-            SET_GOAL | TRACK_PROGRESS | ANALYZE_GOAL_FEASIBILITY | SUGGEST_GOALS | 
-            CALCULATE_FITNESS_SCORE | GENERATE_RECOMMENDATIONS | ANALYZE_TRAINING_LOAD |
-            DETECT_PATTERNS | ANALYZE_PERFORMANCE_TRENDS => {
+            SET_GOAL
+            | TRACK_PROGRESS
+            | ANALYZE_GOAL_FEASIBILITY
+            | SUGGEST_GOALS
+            | CALCULATE_FITNESS_SCORE
+            | GENERATE_RECOMMENDATIONS
+            | ANALYZE_TRAINING_LOAD
+            | DETECT_PATTERNS
+            | ANALYZE_PERFORMANCE_TRENDS => {
                 let start_time = std::time::Instant::now();
-                let response = Self::execute_tool_call_without_provider(tool_name, args, request.id, user_id, database).await;
-                
+                let response = Self::execute_tool_call_without_provider(
+                    tool_name, args, request.id, user_id, database,
+                )
+                .await;
+
                 // Record API key usage if authenticated with API key
                 if let crate::auth::AuthMethod::ApiKey { key_id, .. } = &auth_result.auth_method {
                     let _ = Self::record_api_key_usage(
@@ -639,20 +671,25 @@ impl MultiTenantMcpServer {
                         tool_name,
                         start_time.elapsed(),
                         &response,
-                    ).await;
+                    )
+                    .await;
                 }
-                
+
                 return response;
             }
             _ => {
                 // Check if this is a known tool that requires a provider
                 let known_provider_tools = [
-                    GET_ACTIVITIES, GET_ATHLETE, GET_STATS, GET_ACTIVITY_INTELLIGENCE,
-                    ANALYZE_ACTIVITY, CALCULATE_METRICS,
+                    GET_ACTIVITIES,
+                    GET_ATHLETE,
+                    GET_STATS,
+                    GET_ACTIVITY_INTELLIGENCE,
+                    ANALYZE_ACTIVITY,
+                    CALCULATE_METRICS,
                     COMPARE_ACTIVITIES,
-                    PREDICT_PERFORMANCE
+                    PREDICT_PERFORMANCE,
                 ];
-                
+
                 if !known_provider_tools.contains(&tool_name) {
                     // Unknown tool
                     return McpResponse {
@@ -666,17 +703,13 @@ impl MultiTenantMcpServer {
                         id: request.id,
                     };
                 }
-                
+
                 // For fitness data tools, we need a provider
                 let provider_name = args[PROVIDER].as_str().unwrap_or("");
-                
+
                 // Get or create user-specific provider
-                let provider_result = Self::get_user_provider(
-                    user_id,
-                    provider_name,
-                    database,
-                    user_providers,
-                ).await;
+                let provider_result =
+                    Self::get_user_provider(user_id, provider_name, database, user_providers).await;
 
                 let provider = match provider_result {
                     Ok(provider) => provider,
@@ -696,8 +729,11 @@ impl MultiTenantMcpServer {
 
                 // Execute tool call with user-scoped provider
                 let start_time = std::time::Instant::now();
-                let response = Self::execute_tool_call(tool_name, args, &provider, request.id, user_id, database).await;
-                
+                let response = Self::execute_tool_call(
+                    tool_name, args, &provider, request.id, user_id, database,
+                )
+                .await;
+
                 // Record API key usage if authenticated with API key
                 if let crate::auth::AuthMethod::ApiKey { key_id, .. } = &auth_result.auth_method {
                     let _ = Self::record_api_key_usage(
@@ -706,9 +742,10 @@ impl MultiTenantMcpServer {
                         tool_name,
                         start_time.elapsed(),
                         &response,
-                    ).await;
+                    )
+                    .await;
                 }
-                
+
                 response
             }
         }
@@ -722,7 +759,7 @@ impl MultiTenantMcpServer {
         user_providers: &Arc<RwLock<HashMap<String, HashMap<String, Box<dyn FitnessProvider>>>>>,
     ) -> Result<Box<dyn FitnessProvider>> {
         let user_key = user_id.to_string();
-        
+
         // Check if provider already exists for this user
         {
             let providers_read = user_providers.read().await;
@@ -736,7 +773,7 @@ impl MultiTenantMcpServer {
 
         // Create new provider instance for user
         let mut provider = create_provider(provider_name)?;
-        
+
         // Get user's decrypted token for this provider
         let token = match provider_name {
             "strava" => database.get_strava_token(user_id).await?,
@@ -747,7 +784,7 @@ impl MultiTenantMcpServer {
         if let Some(decrypted_token) = token {
             // Authenticate provider with user's token
             let auth_data = AuthData::OAuth2 {
-                client_id: String::new(), // Will be set from config
+                client_id: String::new(),     // Will be set from config
                 client_secret: String::new(), // Will be set from config
                 access_token: Some(decrypted_token.access_token),
                 refresh_token: Some(decrypted_token.refresh_token),
@@ -755,7 +792,10 @@ impl MultiTenantMcpServer {
 
             provider.authenticate(auth_data).await?;
         } else {
-            return Err(anyhow::anyhow!("No valid token found for provider {}", provider_name));
+            return Err(anyhow::anyhow!(
+                "No valid token found for provider {}",
+                provider_name
+            ));
         }
 
         // Store provider for reuse
@@ -778,7 +818,7 @@ impl MultiTenantMcpServer {
             };
             new_provider.authenticate(auth_data).await?;
         }
-        
+
         Ok(new_provider)
     }
 
@@ -789,28 +829,24 @@ impl MultiTenantMcpServer {
         id: Value,
     ) -> McpResponse {
         let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
-        
+
         match oauth_routes.get_auth_url(user_id, "strava").await {
-            Ok(auth_response) => {
-                McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
-                    result: serde_json::to_value(&auth_response).ok(),
-                    error: None,
-                    id,
-                }
-            }
-            Err(e) => {
-                McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
-                    result: None,
-                    error: Some(McpError {
-                        code: ERROR_INTERNAL_ERROR,
-                        message: format!("Failed to generate Strava authorization URL: {}", e),
-                        data: None,
-                    }),
-                    id,
-                }
-            }
+            Ok(auth_response) => McpResponse {
+                jsonrpc: JSONRPC_VERSION.to_string(),
+                result: serde_json::to_value(&auth_response).ok(),
+                error: None,
+                id,
+            },
+            Err(e) => McpResponse {
+                jsonrpc: JSONRPC_VERSION.to_string(),
+                result: None,
+                error: Some(McpError {
+                    code: ERROR_INTERNAL_ERROR,
+                    message: format!("Failed to generate Strava authorization URL: {}", e),
+                    data: None,
+                }),
+                id,
+            },
         }
     }
 
@@ -821,28 +857,24 @@ impl MultiTenantMcpServer {
         id: Value,
     ) -> McpResponse {
         let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
-        
+
         match oauth_routes.get_auth_url(user_id, "fitbit").await {
-            Ok(auth_response) => {
-                McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
-                    result: serde_json::to_value(&auth_response).ok(),
-                    error: None,
-                    id,
-                }
-            }
-            Err(e) => {
-                McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
-                    result: None,
-                    error: Some(McpError {
-                        code: ERROR_INTERNAL_ERROR,
-                        message: format!("Failed to generate Fitbit authorization URL: {}", e),
-                        data: None,
-                    }),
-                    id,
-                }
-            }
+            Ok(auth_response) => McpResponse {
+                jsonrpc: JSONRPC_VERSION.to_string(),
+                result: serde_json::to_value(&auth_response).ok(),
+                error: None,
+                id,
+            },
+            Err(e) => McpResponse {
+                jsonrpc: JSONRPC_VERSION.to_string(),
+                result: None,
+                error: Some(McpError {
+                    code: ERROR_INTERNAL_ERROR,
+                    message: format!("Failed to generate Fitbit authorization URL: {}", e),
+                    data: None,
+                }),
+                id,
+            },
         }
     }
 
@@ -853,28 +885,24 @@ impl MultiTenantMcpServer {
         id: Value,
     ) -> McpResponse {
         let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
-        
+
         match oauth_routes.get_connection_status(user_id).await {
-            Ok(statuses) => {
-                McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
-                    result: serde_json::to_value(&statuses).ok(),
-                    error: None,
-                    id,
-                }
-            }
-            Err(e) => {
-                McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
-                    result: None,
-                    error: Some(McpError {
-                        code: ERROR_INTERNAL_ERROR,
-                        message: format!("Failed to get connection status: {}", e),
-                        data: None,
-                    }),
-                    id,
-                }
-            }
+            Ok(statuses) => McpResponse {
+                jsonrpc: JSONRPC_VERSION.to_string(),
+                result: serde_json::to_value(&statuses).ok(),
+                error: None,
+                id,
+            },
+            Err(e) => McpResponse {
+                jsonrpc: JSONRPC_VERSION.to_string(),
+                result: None,
+                error: Some(McpError {
+                    code: ERROR_INTERNAL_ERROR,
+                    message: format!("Failed to get connection status: {}", e),
+                    data: None,
+                }),
+                id,
+            },
         }
     }
 
@@ -886,7 +914,7 @@ impl MultiTenantMcpServer {
         id: Value,
     ) -> McpResponse {
         let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
-        
+
         match oauth_routes.disconnect_provider(user_id, provider).await {
             Ok(()) => {
                 let response = serde_json::json!({
@@ -894,7 +922,7 @@ impl MultiTenantMcpServer {
                     "message": format!("Successfully disconnected {}", provider),
                     "provider": provider
                 });
-                
+
                 McpResponse {
                     jsonrpc: JSONRPC_VERSION.to_string(),
                     result: Some(response),
@@ -902,18 +930,16 @@ impl MultiTenantMcpServer {
                     id,
                 }
             }
-            Err(e) => {
-                McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
-                    result: None,
-                    error: Some(McpError {
-                        code: ERROR_INTERNAL_ERROR,
-                        message: format!("Failed to disconnect provider: {}", e),
-                        data: None,
-                    }),
-                    id,
-                }
-            }
+            Err(e) => McpResponse {
+                jsonrpc: JSONRPC_VERSION.to_string(),
+                result: None,
+                error: Some(McpError {
+                    code: ERROR_INTERNAL_ERROR,
+                    message: format!("Failed to disconnect provider: {}", e),
+                    data: None,
+                }),
+                id,
+            },
         }
     }
 
@@ -928,7 +954,7 @@ impl MultiTenantMcpServer {
         let result = match tool_name {
             SET_GOAL => {
                 let goal_data = args.clone();
-                
+
                 // Store goal in database
                 match database.create_goal(user_id, goal_data).await {
                     Ok(goal_id) => {
@@ -957,7 +983,7 @@ impl MultiTenantMcpServer {
             }
             TRACK_PROGRESS => {
                 let goal_id = args[GOAL_ID].as_str().unwrap_or("");
-                
+
                 match database.get_user_goals(user_id).await {
                     Ok(goals) => {
                         if let Some(goal) = goals.iter().find(|g| g["id"] == goal_id) {
@@ -1003,7 +1029,7 @@ impl MultiTenantMcpServer {
             }
             ANALYZE_GOAL_FEASIBILITY => {
                 let _goal_data = args.clone();
-                
+
                 let response = serde_json::json!({
                     "feasibility_analysis": {
                         "feasible": true,
@@ -1177,7 +1203,7 @@ impl MultiTenantMcpServer {
             GET_ACTIVITIES => {
                 let limit = args[LIMIT].as_u64().map(|n| n as usize);
                 let offset = args[OFFSET].as_u64().map(|n| n as usize);
-                
+
                 match provider.get_activities(limit, offset).await {
                     Ok(activities) => serde_json::to_value(activities).ok(),
                     Err(e) => {
@@ -1194,79 +1220,86 @@ impl MultiTenantMcpServer {
                     }
                 }
             }
-            GET_ATHLETE => {
-                match provider.get_athlete().await {
-                    Ok(athlete) => serde_json::to_value(athlete).ok(),
-                    Err(e) => {
-                        return McpResponse {
-                            jsonrpc: JSONRPC_VERSION.to_string(),
-                            result: None,
-                            error: Some(McpError {
-                                code: ERROR_INTERNAL_ERROR,
-                                message: format!("Failed to get athlete: {}", e),
-                                data: None,
-                            }),
-                            id,
-                        };
-                    }
+            GET_ATHLETE => match provider.get_athlete().await {
+                Ok(athlete) => serde_json::to_value(athlete).ok(),
+                Err(e) => {
+                    return McpResponse {
+                        jsonrpc: JSONRPC_VERSION.to_string(),
+                        result: None,
+                        error: Some(McpError {
+                            code: ERROR_INTERNAL_ERROR,
+                            message: format!("Failed to get athlete: {}", e),
+                            data: None,
+                        }),
+                        id,
+                    };
                 }
-            }
-            GET_STATS => {
-                match provider.get_stats().await {
-                    Ok(stats) => serde_json::to_value(stats).ok(),
-                    Err(e) => {
-                        return McpResponse {
-                            jsonrpc: JSONRPC_VERSION.to_string(),
-                            result: None,
-                            error: Some(McpError {
-                                code: ERROR_INTERNAL_ERROR,
-                                message: format!("Failed to get stats: {}", e),
-                                data: None,
-                            }),
-                            id,
-                        };
-                    }
+            },
+            GET_STATS => match provider.get_stats().await {
+                Ok(stats) => serde_json::to_value(stats).ok(),
+                Err(e) => {
+                    return McpResponse {
+                        jsonrpc: JSONRPC_VERSION.to_string(),
+                        result: None,
+                        error: Some(McpError {
+                            code: ERROR_INTERNAL_ERROR,
+                            message: format!("Failed to get stats: {}", e),
+                            data: None,
+                        }),
+                        id,
+                    };
                 }
-            }
+            },
             GET_ACTIVITY_INTELLIGENCE => {
                 let activity_id = args[ACTIVITY_ID].as_str().unwrap_or("");
                 let include_weather = args["include_weather"].as_bool().unwrap_or(true);
                 let include_location = args["include_location"].as_bool().unwrap_or(true);
-                
+
                 // Get activities from provider
                 match provider.get_activities(Some(100), None).await {
                     Ok(activities) => {
                         if let Some(activity) = activities.iter().find(|a| a.id == activity_id) {
                             // Create activity analyzer
                             let analyzer = ActivityAnalyzer::new();
-                            
+
                             // Create activity context with weather and location data if requested
                             let context = if include_weather || include_location {
                                 // Load weather configuration
                                 let fitness_config = FitnessConfig::load(None).unwrap_or_default();
-                                
+
                                 // Get weather data if requested
                                 let weather = if include_weather {
-                                    let weather_config = fitness_config.weather_api.unwrap_or_default();
+                                    let weather_config =
+                                        fitness_config.weather_api.unwrap_or_default();
                                     let mut weather_service = WeatherService::new(weather_config);
-                                    
-                                    weather_service.get_weather_for_activity(
-                                        activity.start_latitude,
-                                        activity.start_longitude,
-                                        activity.start_date
-                                    ).await.unwrap_or(None)
+
+                                    weather_service
+                                        .get_weather_for_activity(
+                                            activity.start_latitude,
+                                            activity.start_longitude,
+                                            activity.start_date,
+                                        )
+                                        .await
+                                        .unwrap_or(None)
                                 } else {
                                     None
                                 };
-                                
+
                                 // Get location data if requested
-                                let location = if include_location && activity.start_latitude.is_some() && activity.start_longitude.is_some() {
-                                    let mut location_service = crate::intelligence::location::LocationService::new();
-                                    
-                                    match location_service.get_location_from_coordinates(
-                                        activity.start_latitude.unwrap(),
-                                        activity.start_longitude.unwrap()
-                                    ).await {
+                                let location = if include_location
+                                    && activity.start_latitude.is_some()
+                                    && activity.start_longitude.is_some()
+                                {
+                                    let mut location_service =
+                                        crate::intelligence::location::LocationService::new();
+
+                                    match location_service
+                                        .get_location_from_coordinates(
+                                            activity.start_latitude.unwrap(),
+                                            activity.start_longitude.unwrap(),
+                                        )
+                                        .await
+                                    {
                                         Ok(location_data) => {
                                             Some(crate::intelligence::LocationContext {
                                                 city: location_data.city,
@@ -1285,7 +1318,7 @@ impl MultiTenantMcpServer {
                                 } else {
                                     None
                                 };
-                                
+
                                 Some(ActivityContext {
                                     weather,
                                     location,
@@ -1296,36 +1329,34 @@ impl MultiTenantMcpServer {
                             } else {
                                 None
                             };
-                            
+
                             // Generate activity intelligence
                             match analyzer.analyze_activity(activity, context).await {
-                                Ok(intelligence) => {
-                                    Some(serde_json::json!({
-                                        "summary": intelligence.summary,
-                                        "activity_id": activity.id,
-                                        "activity_name": activity.name,
-                                        "sport_type": activity.sport_type,
-                                        "duration_minutes": activity.duration_seconds / 60,
-                                        "distance_km": activity.distance_meters.map(|d| d / 1000.0),
-                                        "performance_indicators": {
-                                            "relative_effort": intelligence.performance_indicators.relative_effort,
-                                            "zone_distribution": intelligence.performance_indicators.zone_distribution,
-                                            "personal_records": intelligence.performance_indicators.personal_records,
-                                            "efficiency_score": intelligence.performance_indicators.efficiency_score,
-                                            "trend_indicators": intelligence.performance_indicators.trend_indicators
-                                        },
-                                        "contextual_factors": {
-                                            "weather": intelligence.contextual_factors.weather,
-                                            "location": intelligence.contextual_factors.location,
-                                            "time_of_day": intelligence.contextual_factors.time_of_day,
-                                            "days_since_last_activity": intelligence.contextual_factors.days_since_last_activity,
-                                            "weekly_load": intelligence.contextual_factors.weekly_load
-                                        },
-                                        "key_insights": intelligence.key_insights,
-                                        "generated_at": intelligence.generated_at.to_rfc3339(),
-                                        "status": "full_analysis_complete"
-                                    }))
-                                }
+                                Ok(intelligence) => Some(serde_json::json!({
+                                    "summary": intelligence.summary,
+                                    "activity_id": activity.id,
+                                    "activity_name": activity.name,
+                                    "sport_type": activity.sport_type,
+                                    "duration_minutes": activity.duration_seconds / 60,
+                                    "distance_km": activity.distance_meters.map(|d| d / 1000.0),
+                                    "performance_indicators": {
+                                        "relative_effort": intelligence.performance_indicators.relative_effort,
+                                        "zone_distribution": intelligence.performance_indicators.zone_distribution,
+                                        "personal_records": intelligence.performance_indicators.personal_records,
+                                        "efficiency_score": intelligence.performance_indicators.efficiency_score,
+                                        "trend_indicators": intelligence.performance_indicators.trend_indicators
+                                    },
+                                    "contextual_factors": {
+                                        "weather": intelligence.contextual_factors.weather,
+                                        "location": intelligence.contextual_factors.location,
+                                        "time_of_day": intelligence.contextual_factors.time_of_day,
+                                        "days_since_last_activity": intelligence.contextual_factors.days_since_last_activity,
+                                        "weekly_load": intelligence.contextual_factors.weekly_load
+                                    },
+                                    "key_insights": intelligence.key_insights,
+                                    "generated_at": intelligence.generated_at.to_rfc3339(),
+                                    "status": "full_analysis_complete"
+                                })),
                                 Err(e) => {
                                     return McpResponse {
                                         jsonrpc: JSONRPC_VERSION.to_string(),
@@ -1345,7 +1376,10 @@ impl MultiTenantMcpServer {
                                 result: None,
                                 error: Some(McpError {
                                     code: ERROR_INVALID_PARAMS,
-                                    message: format!("Activity with ID '{}' not found", activity_id),
+                                    message: format!(
+                                        "Activity with ID '{}' not found",
+                                        activity_id
+                                    ),
                                     data: None,
                                 }),
                                 id,
@@ -1369,7 +1403,7 @@ impl MultiTenantMcpServer {
             // === ANALYTICS TOOLS ===
             "analyze_activity" => {
                 let activity_id = args["activity_id"].as_str().unwrap_or("");
-                
+
                 match provider.get_activities(Some(100), None).await {
                     Ok(activities) => {
                         if let Some(activity) = activities.iter().find(|a| a.id == activity_id) {
@@ -1392,7 +1426,7 @@ impl MultiTenantMcpServer {
                                     "elevation_gain": activity.elevation_gain,
                                     "calories": activity.calories,
                                     "insights": [
-                                        format!("This was a {} lasting {} minutes", 
+                                        format!("This was a {} lasting {} minutes",
                                             activity.sport_type.display_name(),
                                             activity.duration_seconds / 60),
                                         if let Some(distance) = activity.distance_meters {
@@ -1410,7 +1444,10 @@ impl MultiTenantMcpServer {
                                 result: None,
                                 error: Some(McpError {
                                     code: ERROR_INVALID_PARAMS,
-                                    message: format!("Activity with ID '{}' not found", activity_id),
+                                    message: format!(
+                                        "Activity with ID '{}' not found",
+                                        activity_id
+                                    ),
                                     data: None,
                                 }),
                                 id,
@@ -1433,7 +1470,7 @@ impl MultiTenantMcpServer {
             }
             "calculate_metrics" => {
                 let activity_id = args["activity_id"].as_str().unwrap_or("");
-                
+
                 match provider.get_activities(Some(100), None).await {
                     Ok(activities) => {
                         if let Some(activity) = activities.iter().find(|a| a.id == activity_id) {
@@ -1462,7 +1499,10 @@ impl MultiTenantMcpServer {
                                 result: None,
                                 error: Some(McpError {
                                     code: ERROR_INVALID_PARAMS,
-                                    message: format!("Activity with ID '{}' not found", activity_id),
+                                    message: format!(
+                                        "Activity with ID '{}' not found",
+                                        activity_id
+                                    ),
                                     data: None,
                                 }),
                                 id,
@@ -1486,7 +1526,7 @@ impl MultiTenantMcpServer {
             "analyze_performance_trends" => {
                 let timeframe = args["timeframe"].as_str().unwrap_or("month");
                 let metric = args["metric"].as_str().unwrap_or("pace");
-                
+
                 match provider.get_activities(Some(100), None).await {
                     Ok(activities) => {
                         let response = serde_json::json!({
@@ -1520,12 +1560,12 @@ impl MultiTenantMcpServer {
             "compare_activities" => {
                 let activity_id1 = args["activity_id1"].as_str().unwrap_or("");
                 let activity_id2 = args["activity_id2"].as_str().unwrap_or("");
-                
+
                 match provider.get_activities(Some(100), None).await {
                     Ok(activities) => {
                         let activity1 = activities.iter().find(|a| a.id == activity_id1);
                         let activity2 = activities.iter().find(|a| a.id == activity_id2);
-                        
+
                         if let (Some(a1), Some(a2)) = (activity1, activity2) {
                             let response = serde_json::json!({
                                 "comparison": {
@@ -1577,7 +1617,7 @@ impl MultiTenantMcpServer {
             }
             "detect_patterns" => {
                 let pattern_type = args["pattern_type"].as_str().unwrap_or("weekly");
-                
+
                 match provider.get_activities(Some(100), None).await {
                     Ok(activities) => {
                         let response = serde_json::json!({
@@ -1610,136 +1650,131 @@ impl MultiTenantMcpServer {
                     }
                 }
             }
-            "suggest_goals" => {
-                match provider.get_activities(Some(50), None).await {
-                    Ok(_activities) => {
-                        let response = serde_json::json!({
-                            "goal_suggestions": [
-                                {
-                                    "title": "Monthly Distance Goal",
-                                    "description": "Run 100km this month",
-                                    "goal_type": "distance",
-                                    "target_value": 100.0,
-                                    "rationale": "Based on your recent running frequency"
-                                },
-                                {
-                                    "title": "Pace Improvement",
-                                    "description": "Improve average pace by 30 seconds per km",
-                                    "goal_type": "performance",
-                                    "target_value": 30.0,
-                                    "rationale": "Your pace has been consistent - time to challenge yourself"
-                                }
-                            ]
-                        });
-                        Some(response)
-                    }
-                    Err(e) => {
-                        return McpResponse {
-                            jsonrpc: JSONRPC_VERSION.to_string(),
-                            result: None,
-                            error: Some(McpError {
-                                code: ERROR_INTERNAL_ERROR,
-                                message: format!("Failed to get activities: {}", e),
-                                data: None,
-                            }),
-                            id,
-                        };
-                    }
-                }
-            }
-            "generate_recommendations" => {
-                match provider.get_activities(Some(20), None).await {
-                    Ok(_activities) => {
-                        let response = serde_json::json!({
-                            "training_recommendations": [
-                                {
-                                    "type": "intensity",
-                                    "title": "Add Interval Training",
-                                    "description": "Include 1-2 high-intensity interval sessions per week",
-                                    "priority": "medium",
-                                    "rationale": "To improve speed and cardiovascular fitness"
-                                },
-                                {
-                                    "type": "volume",
-                                    "title": "Gradual Volume Increase",
-                                    "description": "Increase weekly distance by 10% each week",
-                                    "priority": "high",
-                                    "rationale": "Based on your current training load"
-                                },
-                                {
-                                    "type": "recovery",
-                                    "title": "Include Rest Days",
-                                    "description": "Schedule at least one complete rest day per week",
-                                    "priority": "high",
-                                    "rationale": "Essential for adaptation and injury prevention"
-                                }
-                            ]
-                        });
-                        Some(response)
-                    }
-                    Err(e) => {
-                        return McpResponse {
-                            jsonrpc: JSONRPC_VERSION.to_string(),
-                            result: None,
-                            error: Some(McpError {
-                                code: ERROR_INTERNAL_ERROR,
-                                message: format!("Failed to get activities: {}", e),
-                                data: None,
-                            }),
-                            id,
-                        };
-                    }
-                }
-            }
-            "calculate_fitness_score" => {
-                match provider.get_activities(Some(30), None).await {
-                    Ok(activities) => {
-                        let total_activities = activities.len();
-                        let avg_duration = if !activities.is_empty() {
-                            activities.iter().map(|a| a.duration_seconds).sum::<u64>() / activities.len() as u64
-                        } else {
-                            0
-                        };
-                        
-                        let fitness_score = std::cmp::min(85, 50 + total_activities * 2);
-                        
-                        let response = serde_json::json!({
-                            "fitness_score": {
-                                "overall_score": fitness_score,
-                                "max_score": 100,
-                                "components": {
-                                    "frequency": std::cmp::min(25, total_activities * 2),
-                                    "consistency": 15,
-                                    "duration": std::cmp::min(20, (avg_duration / 60) as usize / 10),
-                                    "variety": 10
-                                },
-                                "insights": [
-                                    format!("Your fitness score is {} out of 100", fitness_score),
-                                    "Regular training frequency is your strength",
-                                    "Consider adding variety to your workouts"
-                                ]
+            "suggest_goals" => match provider.get_activities(Some(50), None).await {
+                Ok(_activities) => {
+                    let response = serde_json::json!({
+                        "goal_suggestions": [
+                            {
+                                "title": "Monthly Distance Goal",
+                                "description": "Run 100km this month",
+                                "goal_type": "distance",
+                                "target_value": 100.0,
+                                "rationale": "Based on your recent running frequency"
+                            },
+                            {
+                                "title": "Pace Improvement",
+                                "description": "Improve average pace by 30 seconds per km",
+                                "goal_type": "performance",
+                                "target_value": 30.0,
+                                "rationale": "Your pace has been consistent - time to challenge yourself"
                             }
-                        });
-                        Some(response)
-                    }
-                    Err(e) => {
-                        return McpResponse {
-                            jsonrpc: JSONRPC_VERSION.to_string(),
-                            result: None,
-                            error: Some(McpError {
-                                code: ERROR_INTERNAL_ERROR,
-                                message: format!("Failed to get activities: {}", e),
-                                data: None,
-                            }),
-                            id,
-                        };
-                    }
+                        ]
+                    });
+                    Some(response)
                 }
-            }
+                Err(e) => {
+                    return McpResponse {
+                        jsonrpc: JSONRPC_VERSION.to_string(),
+                        result: None,
+                        error: Some(McpError {
+                            code: ERROR_INTERNAL_ERROR,
+                            message: format!("Failed to get activities: {}", e),
+                            data: None,
+                        }),
+                        id,
+                    };
+                }
+            },
+            "generate_recommendations" => match provider.get_activities(Some(20), None).await {
+                Ok(_activities) => {
+                    let response = serde_json::json!({
+                        "training_recommendations": [
+                            {
+                                "type": "intensity",
+                                "title": "Add Interval Training",
+                                "description": "Include 1-2 high-intensity interval sessions per week",
+                                "priority": "medium",
+                                "rationale": "To improve speed and cardiovascular fitness"
+                            },
+                            {
+                                "type": "volume",
+                                "title": "Gradual Volume Increase",
+                                "description": "Increase weekly distance by 10% each week",
+                                "priority": "high",
+                                "rationale": "Based on your current training load"
+                            },
+                            {
+                                "type": "recovery",
+                                "title": "Include Rest Days",
+                                "description": "Schedule at least one complete rest day per week",
+                                "priority": "high",
+                                "rationale": "Essential for adaptation and injury prevention"
+                            }
+                        ]
+                    });
+                    Some(response)
+                }
+                Err(e) => {
+                    return McpResponse {
+                        jsonrpc: JSONRPC_VERSION.to_string(),
+                        result: None,
+                        error: Some(McpError {
+                            code: ERROR_INTERNAL_ERROR,
+                            message: format!("Failed to get activities: {}", e),
+                            data: None,
+                        }),
+                        id,
+                    };
+                }
+            },
+            "calculate_fitness_score" => match provider.get_activities(Some(30), None).await {
+                Ok(activities) => {
+                    let total_activities = activities.len();
+                    let avg_duration = if !activities.is_empty() {
+                        activities.iter().map(|a| a.duration_seconds).sum::<u64>()
+                            / activities.len() as u64
+                    } else {
+                        0
+                    };
+
+                    let fitness_score = std::cmp::min(85, 50 + total_activities * 2);
+
+                    let response = serde_json::json!({
+                        "fitness_score": {
+                            "overall_score": fitness_score,
+                            "max_score": 100,
+                            "components": {
+                                "frequency": std::cmp::min(25, total_activities * 2),
+                                "consistency": 15,
+                                "duration": std::cmp::min(20, (avg_duration / 60) as usize / 10),
+                                "variety": 10
+                            },
+                            "insights": [
+                                format!("Your fitness score is {} out of 100", fitness_score),
+                                "Regular training frequency is your strength",
+                                "Consider adding variety to your workouts"
+                            ]
+                        }
+                    });
+                    Some(response)
+                }
+                Err(e) => {
+                    return McpResponse {
+                        jsonrpc: JSONRPC_VERSION.to_string(),
+                        result: None,
+                        error: Some(McpError {
+                            code: ERROR_INTERNAL_ERROR,
+                            message: format!("Failed to get activities: {}", e),
+                            data: None,
+                        }),
+                        id,
+                    };
+                }
+            },
             "predict_performance" => {
                 let prediction_type = args["prediction_type"].as_str().unwrap_or("pace");
                 let timeframe = args["timeframe"].as_str().unwrap_or("month");
-                
+
                 match provider.get_activities(Some(20), None).await {
                     Ok(_activities) => {
                         let response = serde_json::json!({
@@ -1779,13 +1814,15 @@ impl MultiTenantMcpServer {
             "analyze_training_load" => {
                 match provider.get_activities(Some(30), None).await {
                     Ok(activities) => {
-                        let total_duration = activities.iter().map(|a| a.duration_seconds).sum::<u64>();
-                        let total_distance = activities.iter()
+                        let total_duration =
+                            activities.iter().map(|a| a.duration_seconds).sum::<u64>();
+                        let total_distance = activities
+                            .iter()
                             .filter_map(|a| a.distance_meters)
                             .sum::<f64>();
-                        
+
                         let weekly_hours = (total_duration as f64 / 3600.0) / 4.0; // Assuming 4 weeks of data
-                        
+
                         let load_level = if weekly_hours < 3.0 {
                             "low"
                         } else if weekly_hours < 6.0 {
@@ -1795,7 +1832,7 @@ impl MultiTenantMcpServer {
                         } else {
                             "very_high"
                         };
-                        
+
                         let response = serde_json::json!({
                             "training_load_analysis": {
                                 "weekly_hours": weekly_hours,
@@ -1862,7 +1899,7 @@ impl MultiTenantMcpServer {
         response: &McpResponse,
     ) -> Result<()> {
         use crate::api_keys::ApiKeyUsage;
-        
+
         let status_code = if response.error.is_some() {
             400 // Error responses
         } else {
@@ -1879,10 +1916,10 @@ impl MultiTenantMcpServer {
             response_time_ms: Some(response_time.as_millis() as u32),
             status_code,
             error_message,
-            request_size_bytes: None, // Could be calculated from request
+            request_size_bytes: None,  // Could be calculated from request
             response_size_bytes: None, // Could be calculated from response
-            ip_address: None, // Would need to be passed from request context
-            user_agent: None, // Would need to be passed from request context
+            ip_address: None,          // Would need to be passed from request context
+            user_agent: None,          // Would need to be passed from request context
         };
 
         database.record_api_key_usage(&usage).await?;
@@ -1927,21 +1964,32 @@ struct ApiError(serde_json::Value);
 impl warp::reject::Reject for ApiError {}
 
 /// Handle HTTP rejections and errors
-async fn handle_rejection(err: warp::Rejection) -> Result<impl warp::Reply, std::convert::Infallible> {
+async fn handle_rejection(
+    err: warp::Rejection,
+) -> Result<impl warp::Reply, std::convert::Infallible> {
     if let Some(api_error) = err.find::<ApiError>() {
         let json = warp::reply::json(&api_error.0);
-        Ok(warp::reply::with_status(json, warp::http::StatusCode::BAD_REQUEST))
+        Ok(warp::reply::with_status(
+            json,
+            warp::http::StatusCode::BAD_REQUEST,
+        ))
     } else if err.is_not_found() {
         let json = warp::reply::json(&serde_json::json!({
             "error": "Not Found",
             "message": "The requested endpoint was not found"
         }));
-        Ok(warp::reply::with_status(json, warp::http::StatusCode::NOT_FOUND))
+        Ok(warp::reply::with_status(
+            json,
+            warp::http::StatusCode::NOT_FOUND,
+        ))
     } else {
         let json = warp::reply::json(&serde_json::json!({
             "error": "Internal Server Error",
             "message": "Something went wrong"
         }));
-        Ok(warp::reply::with_status(json, warp::http::StatusCode::INTERNAL_SERVER_ERROR))
+        Ok(warp::reply::with_status(
+            json,
+            warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+        ))
     }
 }

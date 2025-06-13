@@ -15,7 +15,13 @@ use pierre_mcp_server::{
 };
 use std::sync::Arc;
 
-async fn create_test_environment() -> (Arc<Database>, Arc<AuthManager>, Arc<McpAuthMiddleware>, User, String) {
+async fn create_test_environment() -> (
+    Arc<Database>,
+    Arc<AuthManager>,
+    Arc<McpAuthMiddleware>,
+    User,
+    String,
+) {
     // Create test database
     let database_url = "sqlite::memory:";
     let encryption_key = generate_encryption_key().to_vec();
@@ -47,7 +53,8 @@ async fn create_test_environment() -> (Arc<Database>, Arc<AuthManager>, Arc<McpA
 
 #[tokio::test]
 async fn test_end_to_end_api_key_workflow() {
-    let (database, _auth_manager, auth_middleware, user, _jwt_token) = create_test_environment().await;
+    let (database, _auth_manager, auth_middleware, user, _jwt_token) =
+        create_test_environment().await;
     let api_key_manager = ApiKeyManager::new();
 
     // Step 1: Create an API key
@@ -58,7 +65,10 @@ async fn test_end_to_end_api_key_workflow() {
         expires_in_days: Some(30),
     };
 
-    let (api_key, full_key) = api_key_manager.create_api_key(user.id, request).await.unwrap();
+    let (api_key, full_key) = api_key_manager
+        .create_api_key(user.id, request)
+        .await
+        .unwrap();
     database.create_api_key(&api_key).await.unwrap();
 
     // Step 2: Authenticate using the API key
@@ -68,7 +78,10 @@ async fn test_end_to_end_api_key_workflow() {
         .unwrap();
 
     assert_eq!(auth_result.user_id, user.id);
-    assert!(matches!(auth_result.auth_method, pierre_mcp_server::auth::AuthMethod::ApiKey { .. }));
+    assert!(matches!(
+        auth_result.auth_method,
+        pierre_mcp_server::auth::AuthMethod::ApiKey { .. }
+    ));
     assert!(auth_result.rate_limit.is_some());
 
     // Step 3: Verify rate limit status
@@ -95,7 +108,10 @@ async fn test_end_to_end_api_key_workflow() {
     database.record_api_key_usage(&usage).await.unwrap();
 
     // Step 5: Verify usage is tracked
-    let current_usage = database.get_api_key_current_usage(&api_key.id).await.unwrap();
+    let current_usage = database
+        .get_api_key_current_usage(&api_key.id)
+        .await
+        .unwrap();
     assert_eq!(current_usage, 1);
 
     // Step 6: Check updated rate limit
@@ -119,7 +135,8 @@ async fn test_end_to_end_api_key_workflow() {
 
 #[tokio::test]
 async fn test_api_key_rate_limiting() {
-    let (database, _auth_manager, auth_middleware, user, _jwt_token) = create_test_environment().await;
+    let (database, _auth_manager, auth_middleware, user, _jwt_token) =
+        create_test_environment().await;
     let api_key_manager = ApiKeyManager::new();
 
     // Create a Starter tier key with low limit for testing
@@ -130,10 +147,13 @@ async fn test_api_key_rate_limiting() {
         expires_in_days: None,
     };
 
-    let (mut api_key, full_key) = api_key_manager.create_api_key(user.id, request).await.unwrap();
-    
+    let (mut api_key, full_key) = api_key_manager
+        .create_api_key(user.id, request)
+        .await
+        .unwrap();
+
     // Override rate limit for testing (simulate a very low limit)
-    api_key.rate_limit_requests = 2; 
+    api_key.rate_limit_requests = 2;
     database.create_api_key(&api_key).await.unwrap();
 
     // First request should succeed
@@ -162,7 +182,10 @@ async fn test_api_key_rate_limiting() {
     }
 
     // Now the key should be rate limited
-    let current_usage = database.get_api_key_current_usage(&api_key.id).await.unwrap();
+    let current_usage = database
+        .get_api_key_current_usage(&api_key.id)
+        .await
+        .unwrap();
     assert_eq!(current_usage, 2);
 
     let rate_limit_status = api_key_manager.calculate_rate_limit_status(&api_key, current_usage);
@@ -172,12 +195,16 @@ async fn test_api_key_rate_limiting() {
     // Authentication should fail due to rate limiting
     let auth_result = auth_middleware.authenticate_request(Some(&full_key)).await;
     assert!(auth_result.is_err());
-    assert!(auth_result.unwrap_err().to_string().contains("rate limit exceeded"));
+    assert!(auth_result
+        .unwrap_err()
+        .to_string()
+        .contains("rate limit exceeded"));
 }
 
 #[tokio::test]
 async fn test_enterprise_tier_unlimited_usage() {
-    let (database, _auth_manager, auth_middleware, user, _jwt_token) = create_test_environment().await;
+    let (database, _auth_manager, auth_middleware, user, _jwt_token) =
+        create_test_environment().await;
     let api_key_manager = ApiKeyManager::new();
 
     // Create an Enterprise tier key
@@ -188,7 +215,10 @@ async fn test_enterprise_tier_unlimited_usage() {
         expires_in_days: None,
     };
 
-    let (api_key, full_key) = api_key_manager.create_api_key(user.id, request).await.unwrap();
+    let (api_key, full_key) = api_key_manager
+        .create_api_key(user.id, request)
+        .await
+        .unwrap();
     database.create_api_key(&api_key).await.unwrap();
 
     // Record high usage
@@ -210,7 +240,10 @@ async fn test_enterprise_tier_unlimited_usage() {
     }
 
     // Verify high usage is recorded
-    let current_usage = database.get_api_key_current_usage(&api_key.id).await.unwrap();
+    let current_usage = database
+        .get_api_key_current_usage(&api_key.id)
+        .await
+        .unwrap();
     assert_eq!(current_usage, 1000);
 
     // Enterprise tier should never be rate limited
@@ -229,7 +262,8 @@ async fn test_enterprise_tier_unlimited_usage() {
 
 #[tokio::test]
 async fn test_api_key_expiration() {
-    let (database, _auth_manager, auth_middleware, user, _jwt_token) = create_test_environment().await;
+    let (database, _auth_manager, auth_middleware, user, _jwt_token) =
+        create_test_environment().await;
     let api_key_manager = ApiKeyManager::new();
 
     // Create an expired API key
@@ -240,8 +274,11 @@ async fn test_api_key_expiration() {
         expires_in_days: Some(1),
     };
 
-    let (mut api_key, full_key) = api_key_manager.create_api_key(user.id, request).await.unwrap();
-    
+    let (mut api_key, full_key) = api_key_manager
+        .create_api_key(user.id, request)
+        .await
+        .unwrap();
+
     // Manually set expiration to past date
     api_key.expires_at = Some(Utc::now() - Duration::days(1));
     database.create_api_key(&api_key).await.unwrap();
@@ -254,7 +291,8 @@ async fn test_api_key_expiration() {
 
 #[tokio::test]
 async fn test_deactivated_api_key() {
-    let (database, _auth_manager, auth_middleware, user, _jwt_token) = create_test_environment().await;
+    let (database, _auth_manager, auth_middleware, user, _jwt_token) =
+        create_test_environment().await;
     let api_key_manager = ApiKeyManager::new();
 
     // Create an API key
@@ -265,7 +303,10 @@ async fn test_deactivated_api_key() {
         expires_in_days: None,
     };
 
-    let (api_key, full_key) = api_key_manager.create_api_key(user.id, request).await.unwrap();
+    let (api_key, full_key) = api_key_manager
+        .create_api_key(user.id, request)
+        .await
+        .unwrap();
     database.create_api_key(&api_key).await.unwrap();
 
     // Verify it works initially
@@ -276,38 +317,52 @@ async fn test_deactivated_api_key() {
     assert_eq!(auth_result.user_id, user.id);
 
     // Deactivate the key
-    database.deactivate_api_key(&api_key.id, user.id).await.unwrap();
+    database
+        .deactivate_api_key(&api_key.id, user.id)
+        .await
+        .unwrap();
 
     // Authentication should now fail
     let auth_result = auth_middleware.authenticate_request(Some(&full_key)).await;
     assert!(auth_result.is_err());
-    assert!(auth_result.unwrap_err().to_string().contains("Invalid API key"));
+    assert!(auth_result
+        .unwrap_err()
+        .to_string()
+        .contains("Invalid API key"));
 }
 
 #[tokio::test]
 async fn test_invalid_api_key_format() {
-    let (_database, _auth_manager, auth_middleware, _user, _jwt_token) = create_test_environment().await;
+    let (_database, _auth_manager, auth_middleware, _user, _jwt_token) =
+        create_test_environment().await;
 
     // Test various invalid key formats
     let invalid_keys = vec![
         "invalid_key",
         "pk_test_abcdefghijklmnopqrstuvwxyz123456", // Wrong prefix
         "pk_live_short",                            // Too short
-        "pk_live_abcdefghijklmnopqrstuvwxyz12345", // Too short by 1
+        "pk_live_abcdefghijklmnopqrstuvwxyz12345",  // Too short by 1
         "pk_live_abcdefghijklmnopqrstuvwxyz1234567", // Too long by 1
         "",                                         // Empty
         "bearer token",                             // JWT-like format
     ];
 
     for invalid_key in invalid_keys {
-        let auth_result = auth_middleware.authenticate_request(Some(invalid_key)).await;
-        assert!(auth_result.is_err(), "Key '{}' should be invalid", invalid_key);
+        let auth_result = auth_middleware
+            .authenticate_request(Some(invalid_key))
+            .await;
+        assert!(
+            auth_result.is_err(),
+            "Key '{}' should be invalid",
+            invalid_key
+        );
     }
 }
 
 #[tokio::test]
 async fn test_concurrent_api_key_usage() {
-    let (database, _auth_manager, auth_middleware, user, _jwt_token) = create_test_environment().await;
+    let (database, _auth_manager, auth_middleware, user, _jwt_token) =
+        create_test_environment().await;
     let api_key_manager = ApiKeyManager::new();
 
     // Create an API key
@@ -318,7 +373,10 @@ async fn test_concurrent_api_key_usage() {
         expires_in_days: None,
     };
 
-    let (api_key, full_key) = api_key_manager.create_api_key(user.id, request).await.unwrap();
+    let (api_key, full_key) = api_key_manager
+        .create_api_key(user.id, request)
+        .await
+        .unwrap();
     database.create_api_key(&api_key).await.unwrap();
 
     // Simulate concurrent requests
@@ -328,7 +386,7 @@ async fn test_concurrent_api_key_usage() {
         let database_clone = database.clone();
         let api_key_id = api_key.id.clone();
         let full_key_clone = full_key.clone();
-        
+
         let handle = tokio::spawn(async move {
             // Authenticate
             let auth_result = auth_middleware_clone
@@ -354,7 +412,7 @@ async fn test_concurrent_api_key_usage() {
 
             auth_result.user_id
         });
-        
+
         handles.push(handle);
     }
 
@@ -371,13 +429,17 @@ async fn test_concurrent_api_key_usage() {
     }
 
     // Verify all usage was recorded
-    let final_usage = database.get_api_key_current_usage(&api_key.id).await.unwrap();
+    let final_usage = database
+        .get_api_key_current_usage(&api_key.id)
+        .await
+        .unwrap();
     assert_eq!(final_usage, 10);
 }
 
 #[tokio::test]
 async fn test_usage_analytics() {
-    let (database, _auth_manager, _auth_middleware, user, _jwt_token) = create_test_environment().await;
+    let (database, _auth_manager, _auth_middleware, user, _jwt_token) =
+        create_test_environment().await;
     let api_key_manager = ApiKeyManager::new();
 
     // Create an API key
@@ -388,13 +450,16 @@ async fn test_usage_analytics() {
         expires_in_days: None,
     };
 
-    let (api_key, _full_key) = api_key_manager.create_api_key(user.id, request).await.unwrap();
+    let (api_key, _full_key) = api_key_manager
+        .create_api_key(user.id, request)
+        .await
+        .unwrap();
     database.create_api_key(&api_key).await.unwrap();
 
     // Record diverse usage patterns
     let tools = vec!["get_activities", "get_athlete", "analyze_activity"];
     let status_codes = vec![200, 200, 400, 200, 500]; // Mix of success and errors
-    
+
     for (i, &status_code) in status_codes.iter().enumerate() {
         let usage = ApiKeyUsage {
             id: None,
@@ -427,7 +492,7 @@ async fn test_usage_analytics() {
     // Verify statistics
     assert_eq!(stats.total_requests, 5);
     assert_eq!(stats.successful_requests, 3); // 200 status codes
-    assert_eq!(stats.failed_requests, 2);     // 400 and 500 status codes
+    assert_eq!(stats.failed_requests, 2); // 400 and 500 status codes
     assert_eq!(stats.total_response_time_ms, 100 + 150 + 200 + 250 + 300); // Sum of response times
 
     // Verify tool usage breakdown is captured

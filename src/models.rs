@@ -111,7 +111,7 @@ impl Default for Activity {
             name: "Test Activity".to_string(),
             sport_type: SportType::Run,
             start_date: chrono::Utc::now(),
-            duration_seconds: 1800, // 30 minutes
+            duration_seconds: 1800,        // 30 minutes
             distance_meters: Some(5000.0), // 5km
             elevation_gain: Some(100.0),
             average_heart_rate: Some(150),
@@ -148,7 +148,7 @@ pub enum SportType {
     Walk,
     /// Hiking activity
     Hike,
-    
+
     // Virtual/Indoor activities
     /// Indoor/trainer cycling activity
     VirtualRide,
@@ -158,7 +158,7 @@ pub enum SportType {
     Workout,
     /// Yoga practice
     Yoga,
-    
+
     // E-bike and specialty cycling
     /// Electric bike ride
     EbikeRide,
@@ -166,7 +166,7 @@ pub enum SportType {
     MountainBike,
     /// Gravel cycling activity
     GravelRide,
-    
+
     // Winter sports
     /// Cross-country skiing
     CrossCountrySkiing,
@@ -180,7 +180,7 @@ pub enum SportType {
     IceSkating,
     /// Backcountry skiing
     BackcountrySkiing,
-    
+
     // Water sports
     /// Kayaking activity
     Kayaking,
@@ -194,7 +194,7 @@ pub enum SportType {
     Surfing,
     /// Kitesurfing activity
     Kitesurfing,
-    
+
     // Strength and fitness
     /// Weight/strength training
     StrengthTraining,
@@ -202,13 +202,13 @@ pub enum SportType {
     Crossfit,
     /// Pilates session
     Pilates,
-    
+
     // Climbing and adventure
     /// Rock climbing activity
     RockClimbing,
     /// Trail running
     TrailRunning,
-    
+
     // Team and racquet sports
     /// Soccer/football
     Soccer,
@@ -218,25 +218,28 @@ pub enum SportType {
     Tennis,
     /// Golf
     Golf,
-    
+
     // Alternative transport
     /// Skateboarding
     Skateboarding,
     /// Inline skating
     InlineSkating,
-    
+
     /// Other activity type not covered by standard categories
     Other(String),
 }
 
 impl SportType {
     /// Create SportType from provider string using configuration mapping
-    pub fn from_provider_string(provider_sport: &str, fitness_config: &crate::config::FitnessConfig) -> Self {
+    pub fn from_provider_string(
+        provider_sport: &str,
+        fitness_config: &crate::config::FitnessConfig,
+    ) -> Self {
         // First check if we have a configured mapping
         if let Some(internal_name) = fitness_config.map_sport_type(provider_sport) {
             return Self::from_internal_string(internal_name);
         }
-        
+
         // Fall back to direct mapping for backward compatibility
         match provider_sport {
             "Run" => SportType::Run,
@@ -277,7 +280,7 @@ impl SportType {
             other => SportType::Other(other.to_string()),
         }
     }
-    
+
     /// Create SportType from internal configuration string
     pub fn from_internal_string(internal_name: &str) -> Self {
         match internal_name {
@@ -319,7 +322,7 @@ impl SportType {
             other => SportType::Other(other.to_string()),
         }
     }
-    
+
     /// Get the human-readable name for this sport type
     pub fn display_name(&self) -> &'static str {
         match self {
@@ -583,14 +586,16 @@ impl User {
 
     /// Check if user has valid Strava token
     pub fn has_strava_access(&self) -> bool {
-        self.strava_token.as_ref()
+        self.strava_token
+            .as_ref()
             .map(|token| token.expires_at > Utc::now())
             .unwrap_or(false)
     }
 
     /// Check if user has valid Fitbit token
     pub fn has_fitbit_access(&self) -> bool {
-        self.fitbit_token.as_ref()
+        self.fitbit_token
+            .as_ref()
             .map(|token| token.expires_at > Utc::now())
             .unwrap_or(false)
     }
@@ -626,12 +631,12 @@ impl EncryptedToken {
         use ring::rand::{SecureRandom, SystemRandom};
 
         let rng = SystemRandom::new();
-        
+
         // Generate unique nonce
         let mut nonce_bytes = [0u8; 12];
         rng.fill(&mut nonce_bytes)?;
         let nonce = Nonce::assume_unique_for_key(nonce_bytes);
-        use base64::{Engine as _, engine::general_purpose};
+        use base64::{engine::general_purpose, Engine as _};
         let _nonce_b64 = general_purpose::STANDARD.encode(&nonce_bytes);
 
         // Create encryption key
@@ -656,7 +661,8 @@ impl EncryptedToken {
         let encrypted_refresh = general_purpose::STANDARD.encode(&refresh_token_data);
 
         // Store both nonces (we'll use the first one as the main nonce, second is embedded in refresh token)
-        let combined_nonce = general_purpose::STANDARD.encode(&[&nonce_bytes[..], &refresh_nonce_bytes[..]].concat());
+        let combined_nonce = general_purpose::STANDARD
+            .encode(&[&nonce_bytes[..], &refresh_nonce_bytes[..]].concat());
 
         Ok(Self {
             access_token: encrypted_access,
@@ -669,22 +675,22 @@ impl EncryptedToken {
 
     /// Decrypt the token for use
     pub fn decrypt(&self, encryption_key: &[u8]) -> Result<DecryptedToken, anyhow::Error> {
+        use base64::{engine::general_purpose, Engine as _};
         use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
-        use base64::{Engine as _, engine::general_purpose};
 
         // Decode combined nonce
         let nonce_data = general_purpose::STANDARD.decode(&self.nonce)?;
         if nonce_data.len() != 24 {
             return Err(anyhow::anyhow!("Invalid nonce length"));
         }
-        
+
         let access_nonce = Nonce::try_assume_unique_for_key(&nonce_data[0..12])?;
         let refresh_nonce = Nonce::try_assume_unique_for_key(&nonce_data[12..24])?;
 
         // Decrypt access token
         let unbound_key = UnboundKey::new(&AES_256_GCM, encryption_key)?;
         let key = LessSafeKey::new(unbound_key);
-        
+
         let mut access_data = general_purpose::STANDARD.decode(&self.access_token)?;
         let access_plaintext = key.open_in_place(access_nonce, Aad::empty(), &mut access_data)?;
         let access_token = String::from_utf8(access_plaintext.to_vec())?;
@@ -692,9 +698,10 @@ impl EncryptedToken {
         // Decrypt refresh token
         let unbound_key2 = UnboundKey::new(&AES_256_GCM, encryption_key)?;
         let key2 = LessSafeKey::new(unbound_key2);
-        
+
         let mut refresh_data = general_purpose::STANDARD.decode(&self.refresh_token)?;
-        let refresh_plaintext = key2.open_in_place(refresh_nonce, Aad::empty(), &mut refresh_data)?;
+        let refresh_plaintext =
+            key2.open_in_place(refresh_nonce, Aad::empty(), &mut refresh_data)?;
         let refresh_token = String::from_utf8(refresh_plaintext.to_vec())?;
 
         Ok(DecryptedToken {
@@ -719,13 +726,13 @@ mod tests {
             name: "Morning Run".to_string(),
             sport_type: SportType::Run,
             start_date: Utc::now(),
-            duration_seconds: 1800, // 30 minutes
+            duration_seconds: 1800,        // 30 minutes
             distance_meters: Some(5000.0), // 5km
             elevation_gain: Some(100.0),
             average_heart_rate: Some(150),
             max_heart_rate: Some(175),
             average_speed: Some(2.78), // ~10 km/h
-            max_speed: Some(4.17), // ~15 km/h
+            max_speed: Some(4.17),     // ~15 km/h
             calories: Some(300),
             start_latitude: Some(45.5017), // Montreal
             start_longitude: Some(-73.5673),
@@ -763,14 +770,15 @@ mod tests {
     #[test]
     fn test_activity_serialization() {
         let activity = create_sample_activity();
-        
+
         // Test JSON serialization
         let json = serde_json::to_string(&activity).expect("Failed to serialize activity");
         assert!(json.contains("Morning Run"));
         assert!(json.contains("run")); // sport_type should be snake_case
-        
+
         // Test JSON deserialization
-        let deserialized: Activity = serde_json::from_str(&json).expect("Failed to deserialize activity");
+        let deserialized: Activity =
+            serde_json::from_str(&json).expect("Failed to deserialize activity");
         assert_eq!(deserialized.id, activity.id);
         assert_eq!(deserialized.name, activity.name);
         assert!(matches!(deserialized.sport_type, SportType::Run));
@@ -781,13 +789,16 @@ mod tests {
         // Test standard sport types
         assert_eq!(serde_json::to_string(&SportType::Run).unwrap(), "\"run\"");
         assert_eq!(serde_json::to_string(&SportType::Ride).unwrap(), "\"ride\"");
-        assert_eq!(serde_json::to_string(&SportType::VirtualRun).unwrap(), "\"virtual_run\"");
-        
+        assert_eq!(
+            serde_json::to_string(&SportType::VirtualRun).unwrap(),
+            "\"virtual_run\""
+        );
+
         // Test Other variant
         let custom_sport = SportType::Other("CrossCountrySkiing".to_string());
         let json = serde_json::to_string(&custom_sport).unwrap();
         assert!(json.contains("CrossCountrySkiing"));
-        
+
         // Test deserialization
         let sport: SportType = serde_json::from_str("\"run\"").unwrap();
         assert!(matches!(sport, SportType::Run));
@@ -806,14 +817,15 @@ mod tests {
     #[test]
     fn test_athlete_serialization() {
         let athlete = create_sample_athlete();
-        
+
         // Test JSON serialization
         let json = serde_json::to_string(&athlete).expect("Failed to serialize athlete");
         assert!(json.contains("runner123"));
         assert!(json.contains("John"));
-        
+
         // Test JSON deserialization
-        let deserialized: Athlete = serde_json::from_str(&json).expect("Failed to deserialize athlete");
+        let deserialized: Athlete =
+            serde_json::from_str(&json).expect("Failed to deserialize athlete");
         assert_eq!(deserialized.username, athlete.username);
         assert_eq!(deserialized.firstname, athlete.firstname);
     }
@@ -823,10 +835,10 @@ mod tests {
         let stats = Stats {
             total_activities: 150,
             total_distance: 1500000.0, // 1500 km
-            total_duration: 540000, // 150 hours
+            total_duration: 540000,    // 150 hours
             total_elevation_gain: 25000.0,
         };
-        
+
         assert_eq!(stats.total_activities, 150);
         assert_eq!(stats.total_distance, 1500000.0);
         assert_eq!(stats.total_duration, 540000);
@@ -841,10 +853,10 @@ mod tests {
             total_duration: 360000,
             total_elevation_gain: 15000.0,
         };
-        
+
         let json = serde_json::to_string(&stats).expect("Failed to serialize stats");
         let deserialized: Stats = serde_json::from_str(&json).expect("Failed to deserialize stats");
-        
+
         assert_eq!(deserialized.total_activities, stats.total_activities);
         assert_eq!(deserialized.total_distance, stats.total_distance);
     }
@@ -857,7 +869,7 @@ mod tests {
             value: 42195.0, // Marathon distance in meters
             date: Utc::now(),
         };
-        
+
         assert_eq!(pr.activity_id, "12345");
         assert!(matches!(pr.metric, PrMetric::LongestDistance));
         assert_eq!(pr.value, 42195.0);
@@ -865,11 +877,23 @@ mod tests {
 
     #[test]
     fn test_pr_metric_serialization() {
-        assert_eq!(serde_json::to_string(&PrMetric::FastestPace).unwrap(), "\"fastest_pace\"");
-        assert_eq!(serde_json::to_string(&PrMetric::LongestDistance).unwrap(), "\"longest_distance\"");
-        assert_eq!(serde_json::to_string(&PrMetric::HighestElevation).unwrap(), "\"highest_elevation\"");
-        assert_eq!(serde_json::to_string(&PrMetric::FastestTime).unwrap(), "\"fastest_time\"");
-        
+        assert_eq!(
+            serde_json::to_string(&PrMetric::FastestPace).unwrap(),
+            "\"fastest_pace\""
+        );
+        assert_eq!(
+            serde_json::to_string(&PrMetric::LongestDistance).unwrap(),
+            "\"longest_distance\""
+        );
+        assert_eq!(
+            serde_json::to_string(&PrMetric::HighestElevation).unwrap(),
+            "\"highest_elevation\""
+        );
+        assert_eq!(
+            serde_json::to_string(&PrMetric::FastestTime).unwrap(),
+            "\"fastest_time\""
+        );
+
         // Test deserialization
         let metric: PrMetric = serde_json::from_str("\"fastest_pace\"").unwrap();
         assert!(matches!(metric, PrMetric::FastestPace));
@@ -898,11 +922,11 @@ mod tests {
             trail_name: None,
             provider: "manual".to_string(),
         };
-        
+
         // Should serialize and deserialize correctly even with None values
         let json = serde_json::to_string(&minimal_activity).unwrap();
         let deserialized: Activity = serde_json::from_str(&json).unwrap();
-        
+
         assert_eq!(deserialized.distance_meters, None);
         assert_eq!(deserialized.calories, None);
         assert_eq!(deserialized.provider, "manual");

@@ -4,30 +4,33 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use async_trait::async_trait;
+use crate::models::{Activity, Athlete, PersonalRecord, Stats};
 use anyhow::Result;
-use crate::models::{Activity, Athlete, Stats, PersonalRecord};
+use async_trait::async_trait;
 
-pub mod strava;
 pub mod fitbit;
-
+pub mod strava;
 
 #[async_trait]
 pub trait FitnessProvider: Send + Sync {
     async fn authenticate(&mut self, auth_data: AuthData) -> Result<()>;
-    
+
     async fn get_athlete(&self) -> Result<Athlete>;
-    
-    async fn get_activities(&self, limit: Option<usize>, offset: Option<usize>) -> Result<Vec<Activity>>;
-    
+
+    async fn get_activities(
+        &self,
+        limit: Option<usize>,
+        offset: Option<usize>,
+    ) -> Result<Vec<Activity>>;
+
     #[allow(dead_code)]
     async fn get_activity(&self, id: &str) -> Result<Activity>;
-    
+
     async fn get_stats(&self) -> Result<Stats>;
-    
+
     #[allow(dead_code)]
     async fn get_personal_records(&self) -> Result<Vec<PersonalRecord>>;
-    
+
     #[allow(dead_code)]
     fn provider_name(&self) -> &'static str;
 }
@@ -48,6 +51,9 @@ pub fn create_provider(provider_type: &str) -> Result<Box<dyn FitnessProvider>> 
     match provider_type.to_lowercase().as_str() {
         "strava" => Ok(Box::new(strava::StravaProvider::new())),
         "fitbit" => Ok(Box::new(fitbit::FitbitProvider::new())),
-        _ => Err(anyhow::anyhow!("Unknown provider: {}. Currently supported: strava, fitbit", provider_type)),
+        _ => Err(anyhow::anyhow!(
+            "Unknown provider: {}. Currently supported: strava, fitbit",
+            provider_type
+        )),
     }
 }

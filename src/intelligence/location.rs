@@ -67,7 +67,9 @@ impl LocationService {
     pub fn new() -> Self {
         Self {
             client: Client::builder()
-                .user_agent("Pierre MCP Server/0.1.0 (https://github.com/jfarcand/pierre_mcp_server)")
+                .user_agent(
+                    "Pierre MCP Server/0.1.0 (https://github.com/jfarcand/pierre_mcp_server)",
+                )
                 .timeout(Duration::from_secs(10))
                 .build()
                 .expect("Failed to create HTTP client"),
@@ -82,7 +84,7 @@ impl LocationService {
         longitude: f64,
     ) -> Result<LocationData> {
         let cache_key = format!("{:.6},{:.6}", latitude, longitude);
-        
+
         // Check cache first
         if let Some(entry) = self.cache.get(&cache_key) {
             if entry.timestamp.elapsed().unwrap_or(Duration::from_secs(0)) < self.cache_duration {
@@ -94,7 +96,10 @@ impl LocationService {
             }
         }
 
-        info!("Fetching location data for coordinates: {}, {}", latitude, longitude);
+        info!(
+            "Fetching location data for coordinates: {}, {}",
+            latitude, longitude
+        );
 
         // Make request to Nominatim API
         let url = format!(
@@ -132,7 +137,10 @@ impl LocationService {
             },
         );
 
-        debug!("Cached location data for {}: {:?}", cache_key, location_data);
+        debug!(
+            "Cached location data for {}: {:?}",
+            cache_key, location_data
+        );
 
         Ok(location_data)
     }
@@ -144,9 +152,10 @@ impl LocationService {
         longitude: f64,
     ) -> LocationData {
         let address = &response.address;
-        
+
         // Determine city from various possible fields
-        let city = address.city
+        let city = address
+            .city
             .clone()
             .or_else(|| address.town.clone())
             .or_else(|| address.village.clone())
@@ -162,7 +171,8 @@ impl LocationService {
                 || road.to_lowercase().contains("path")
                 || road.to_lowercase().contains("route")
                 || road.to_lowercase().contains("sentier") // French
-                || road.to_lowercase().contains("chemin") // French
+                || road.to_lowercase().contains("chemin")
+            // French
             {
                 Some(road.clone())
             } else {
@@ -196,7 +206,7 @@ impl LocationService {
                 entry.timestamp.elapsed().unwrap_or(Duration::from_secs(0)) >= self.cache_duration
             })
             .count();
-        
+
         (total_entries, expired_entries)
     }
 
@@ -204,7 +214,9 @@ impl LocationService {
     pub fn clear_expired_cache(&mut self) {
         let now = SystemTime::now();
         self.cache.retain(|_, entry| {
-            now.duration_since(entry.timestamp).unwrap_or(Duration::from_secs(0)) < self.cache_duration
+            now.duration_since(entry.timestamp)
+                .unwrap_or(Duration::from_secs(0))
+                < self.cache_duration
         });
     }
 }
@@ -254,18 +266,29 @@ mod tests {
                 tourism: None,
                 leisure: None,
             },
-            boundingbox: vec!["45.5000".to_string(), "45.5100".to_string(), "-73.5700".to_string(), "-73.5600".to_string()],
+            boundingbox: vec![
+                "45.5000".to_string(),
+                "45.5100".to_string(),
+                "-73.5700".to_string(),
+                "-73.5600".to_string(),
+            ],
         };
 
         let location = service.parse_nominatim_response(&response, 45.5017, -73.5673);
-        
+
         assert_eq!(location.city, Some("Montreal".to_string()));
         assert_eq!(location.region, Some("Quebec".to_string()));
         assert_eq!(location.country, Some("Canada".to_string()));
-        assert_eq!(location.trail_name, Some("Trail de la Montagne".to_string()));
+        assert_eq!(
+            location.trail_name,
+            Some("Trail de la Montagne".to_string())
+        );
         assert_eq!(location.natural, Some("peak".to_string()));
         assert_eq!(location.coordinates, (45.5017, -73.5673));
-        assert_eq!(location.display_name, "Trail de la Montagne, Montreal, Quebec, Canada");
+        assert_eq!(
+            location.display_name,
+            "Trail de la Montagne, Montreal, Quebec, Canada"
+        );
     }
 
     #[test]
@@ -278,7 +301,8 @@ mod tests {
             osm_id: 98765,
             lat: "45.9224".to_string(),
             lon: "-74.0679".to_string(),
-            display_name: "Saint-Hippolyte, La Rivière-du-Nord, Laurentides, Québec, Canada".to_string(),
+            display_name: "Saint-Hippolyte, La Rivière-du-Nord, Laurentides, Québec, Canada"
+                .to_string(),
             address: NominatimAddress {
                 house_number: None,
                 road: None,
@@ -296,11 +320,16 @@ mod tests {
                 tourism: None,
                 leisure: None,
             },
-            boundingbox: vec!["45.9000".to_string(), "45.9500".to_string(), "-74.1000".to_string(), "-74.0000".to_string()],
+            boundingbox: vec![
+                "45.9000".to_string(),
+                "45.9500".to_string(),
+                "-74.1000".to_string(),
+                "-74.0000".to_string(),
+            ],
         };
 
         let location = service.parse_nominatim_response(&response, 45.9224, -74.0679);
-        
+
         assert_eq!(location.city, Some("Saint-Hippolyte".to_string()));
         assert_eq!(location.region, Some("Québec".to_string()));
         assert_eq!(location.country, Some("Canada".to_string()));
@@ -319,7 +348,8 @@ mod tests {
             osm_id: 22222,
             lat: "45.4000".to_string(),
             lon: "-73.6000".to_string(),
-            display_name: "Sentier de la Nature, Parc du Mont-Royal, Montreal, Quebec, Canada".to_string(),
+            display_name: "Sentier de la Nature, Parc du Mont-Royal, Montreal, Quebec, Canada"
+                .to_string(),
             address: NominatimAddress {
                 house_number: None,
                 road: Some("Sentier de la Nature".to_string()), // French trail name
@@ -337,15 +367,23 @@ mod tests {
                 tourism: None,
                 leisure: None,
             },
-            boundingbox: vec!["45.3900".to_string(), "45.4100".to_string(), "-73.6100".to_string(), "-73.5900".to_string()],
+            boundingbox: vec![
+                "45.3900".to_string(),
+                "45.4100".to_string(),
+                "-73.6100".to_string(),
+                "-73.5900".to_string(),
+            ],
         };
 
         let location = service.parse_nominatim_response(&response, 45.4000, -73.6000);
-        
+
         assert_eq!(location.city, Some("Montreal".to_string()));
         assert_eq!(location.region, Some("Quebec".to_string()));
         assert_eq!(location.country, Some("Canada".to_string()));
-        assert_eq!(location.trail_name, Some("Sentier de la Nature".to_string())); // French "sentier" = trail
+        assert_eq!(
+            location.trail_name,
+            Some("Sentier de la Nature".to_string())
+        ); // French "sentier" = trail
         assert_eq!(location.natural, Some("forest".to_string()));
     }
 
@@ -364,7 +402,7 @@ mod tests {
                 house_number: None,
                 road: None,
                 suburb: Some("Downtown".to_string()),
-                city: None, // No city field
+                city: None,                         // No city field
                 town: Some("Montreal".to_string()), // Use town instead
                 village: None,
                 county: None,
@@ -377,11 +415,16 @@ mod tests {
                 tourism: None,
                 leisure: None,
             },
-            boundingbox: vec!["45.4900".to_string(), "45.5100".to_string(), "-73.5600".to_string(), "-73.5400".to_string()],
+            boundingbox: vec![
+                "45.4900".to_string(),
+                "45.5100".to_string(),
+                "-73.5600".to_string(),
+                "-73.5400".to_string(),
+            ],
         };
 
         let location = service.parse_nominatim_response(&response, 45.5000, -73.5500);
-        
+
         // Should fall back to town when city is not available
         assert_eq!(location.city, Some("Montreal".to_string()));
         assert_eq!(location.region, Some("Quebec".to_string()));
@@ -400,7 +443,7 @@ mod tests {
     #[test]
     fn test_cache_expiration_logic() {
         let mut service = LocationService::new();
-        
+
         // Manually add a cache entry
         let location_data = LocationData {
             city: Some("Test City".to_string()),
@@ -414,14 +457,16 @@ mod tests {
             display_name: "Test Location".to_string(),
             coordinates: (45.0, -73.0),
         };
-        
+
         let cache_entry = CacheEntry {
             location: location_data,
             timestamp: SystemTime::now(),
         };
-        
-        service.cache.insert("45.000000,-73.000000".to_string(), cache_entry);
-        
+
+        service
+            .cache
+            .insert("45.000000,-73.000000".to_string(), cache_entry);
+
         let (total, expired) = service.get_cache_stats();
         assert_eq!(total, 1);
         assert_eq!(expired, 0); // Should not be expired immediately
@@ -430,19 +475,19 @@ mod tests {
     #[test]
     fn test_trail_name_detection() {
         let service = LocationService::new();
-        
+
         // Test various trail naming patterns
         let test_cases = vec![
             ("Mountain Trail", true),
             ("Forest Path", true),
             ("Hiking Route", true),
-            ("Sentier du Lac", true), // French
+            ("Sentier du Lac", true),  // French
             ("Chemin des Bois", true), // French
             ("Main Street", false),
             ("Highway 401", false),
             ("Boulevard Saint-Laurent", false),
         ];
-        
+
         for (road_name, should_be_trail) in test_cases {
             let response = NominatimResponse {
                 place_id: 1,
@@ -469,17 +514,29 @@ mod tests {
                     tourism: None,
                     leisure: None,
                 },
-                boundingbox: vec!["44.9".to_string(), "45.1".to_string(), "-73.1".to_string(), "-72.9".to_string()],
+                boundingbox: vec![
+                    "44.9".to_string(),
+                    "45.1".to_string(),
+                    "-73.1".to_string(),
+                    "-72.9".to_string(),
+                ],
             };
-            
+
             let location = service.parse_nominatim_response(&response, 45.0, -73.0);
-            
+
             if should_be_trail {
-                assert_eq!(location.trail_name, Some(road_name.to_string()), 
-                    "Expected '{}' to be detected as a trail", road_name);
+                assert_eq!(
+                    location.trail_name,
+                    Some(road_name.to_string()),
+                    "Expected '{}' to be detected as a trail",
+                    road_name
+                );
             } else {
-                assert_eq!(location.trail_name, None, 
-                    "Expected '{}' to NOT be detected as a trail", road_name);
+                assert_eq!(
+                    location.trail_name, None,
+                    "Expected '{}' to NOT be detected as a trail",
+                    road_name
+                );
             }
         }
     }

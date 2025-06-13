@@ -16,14 +16,14 @@
 //! - [Fitbit Web API](https://dev.fitbit.com/build/reference/web-api/)
 //! - [OAuth2 Authorization](https://dev.fitbit.com/build/reference/web-api/developer-guide/authorization/)
 
+use super::{AuthData, FitnessProvider};
+use crate::models::{Activity, Athlete, PersonalRecord, SportType, Stats};
+use crate::oauth2_client::PkceParams;
+use anyhow::{Context, Result};
 use async_trait::async_trait;
-use anyhow::{Result, Context};
+use chrono::{DateTime, Utc};
 use reqwest::Client;
 use serde::Deserialize;
-use chrono::{DateTime, Utc};
-use crate::models::{Activity, Athlete, Stats, PersonalRecord, SportType};
-use crate::oauth2_client::PkceParams;
-use super::{FitnessProvider, AuthData};
 use tracing::info;
 
 const FITBIT_API_BASE: &str = "https://api.fitbit.com/1";
@@ -49,13 +49,13 @@ impl FitbitProvider {
             refresh_token: None,
         }
     }
-    
+
     /// Get OAuth2 authorization URL for Fitbit
-    /// 
+    ///
     /// # Arguments
     /// * `redirect_uri` - The redirect URI registered with your Fitbit app
     /// * `state` - A unique state parameter for CSRF protection
-    /// 
+    ///
     /// # Scopes
     /// Requests the following Fitbit scopes:
     /// - `activity` - Access to activities and exercise logs
@@ -63,9 +63,11 @@ impl FitbitProvider {
     /// - `sleep` - Access to sleep data (for future enhancement)
     #[allow(dead_code)]
     pub fn get_auth_url(&self, redirect_uri: &str, state: &str) -> Result<String> {
-        let client_id = self.client_id.as_ref()
+        let client_id = self
+            .client_id
+            .as_ref()
             .context("Client ID not configured")?;
-        
+
         let mut url = url::Url::parse(FITBIT_AUTH_URL)?;
         url.query_pairs_mut()
             .append_pair("client_id", client_id)
@@ -78,16 +80,23 @@ impl FitbitProvider {
     }
 
     /// Get OAuth2 authorization URL with PKCE support for enhanced security
-    /// 
+    ///
     /// # Arguments
     /// * `redirect_uri` - The redirect URI registered with your Fitbit app
     /// * `state` - A unique state parameter for CSRF protection
     /// * `pkce` - PKCE parameters for enhanced security
     #[allow(dead_code)]
-    pub fn get_auth_url_with_pkce(&self, redirect_uri: &str, state: &str, pkce: &PkceParams) -> Result<String> {
-        let client_id = self.client_id.as_ref()
+    pub fn get_auth_url_with_pkce(
+        &self,
+        redirect_uri: &str,
+        state: &str,
+        pkce: &PkceParams,
+    ) -> Result<String> {
+        let client_id = self
+            .client_id
+            .as_ref()
             .context("Client ID not configured")?;
-        
+
         let mut url = url::Url::parse(FITBIT_AUTH_URL)?;
         url.query_pairs_mut()
             .append_pair("client_id", client_id)
@@ -97,104 +106,128 @@ impl FitbitProvider {
             .append_pair("state", state)
             .append_pair("code_challenge", &pkce.code_challenge)
             .append_pair("code_challenge_method", &pkce.code_challenge_method);
-        
+
         Ok(url.to_string())
     }
-    
+
     /// Exchange authorization code for access tokens
-    /// 
+    ///
     /// # Arguments
     /// * `code` - Authorization code received from Fitbit
     /// * `redirect_uri` - The same redirect URI used in authorization
     #[allow(dead_code)]
-    pub async fn exchange_code(&mut self, code: &str, redirect_uri: &str) -> Result<(String, String)> {
-        let client_id = self.client_id.as_ref()
-            .context("Client ID not set")?;
-        let client_secret = self.client_secret.as_ref()
+    pub async fn exchange_code(
+        &mut self,
+        code: &str,
+        redirect_uri: &str,
+    ) -> Result<(String, String)> {
+        let client_id = self.client_id.as_ref().context("Client ID not set")?;
+        let client_secret = self
+            .client_secret
+            .as_ref()
             .context("Client secret not set")?;
-        
+
         let (token, _) = crate::oauth2_client::fitbit::exchange_fitbit_code(
             &self.client,
             client_id,
             client_secret,
             code,
-            redirect_uri
-        ).await?;
-        
+            redirect_uri,
+        )
+        .await?;
+
         self.access_token = Some(token.access_token.clone());
         self.refresh_token = token.refresh_token.clone();
-        
+
         info!("Fitbit authentication successful");
-        
+
         // Return tokens for storage
         Ok((token.access_token, token.refresh_token.unwrap_or_default()))
     }
 
     /// Exchange authorization code with PKCE support for enhanced security
-    /// 
+    ///
     /// # Arguments
     /// * `code` - Authorization code received from Fitbit
     /// * `redirect_uri` - The same redirect URI used in authorization
     /// * `pkce` - PKCE parameters used in authorization
     #[allow(dead_code)]
-    pub async fn exchange_code_with_pkce(&mut self, code: &str, redirect_uri: &str, pkce: &PkceParams) -> Result<(String, String)> {
-        let client_id = self.client_id.as_ref()
-            .context("Client ID not set")?;
-        let client_secret = self.client_secret.as_ref()
+    pub async fn exchange_code_with_pkce(
+        &mut self,
+        code: &str,
+        redirect_uri: &str,
+        pkce: &PkceParams,
+    ) -> Result<(String, String)> {
+        let client_id = self.client_id.as_ref().context("Client ID not set")?;
+        let client_secret = self
+            .client_secret
+            .as_ref()
             .context("Client secret not set")?;
-        
+
         let (token, _) = crate::oauth2_client::fitbit::exchange_fitbit_code_with_pkce(
             &self.client,
             client_id,
             client_secret,
             code,
             redirect_uri,
-            pkce
-        ).await?;
-        
+            pkce,
+        )
+        .await?;
+
         self.access_token = Some(token.access_token.clone());
         self.refresh_token = token.refresh_token.clone();
-        
+
         info!("Fitbit authentication with PKCE successful");
-        
+
         // Return tokens for storage
         Ok((token.access_token, token.refresh_token.unwrap_or_default()))
     }
-    
+
     /// Refresh access token using refresh token
     #[allow(dead_code)]
     pub async fn refresh_access_token(&mut self) -> Result<(String, String)> {
-        let refresh_token = self.refresh_token.as_ref()
+        let refresh_token = self
+            .refresh_token
+            .as_ref()
             .context("No refresh token available")?;
-        
-        let client_id = self.client_id.as_ref()
-            .context("Client ID not set")?;
-        let client_secret = self.client_secret.as_ref()
+
+        let client_id = self.client_id.as_ref().context("Client ID not set")?;
+        let client_secret = self
+            .client_secret
+            .as_ref()
             .context("Client secret not set")?;
-        
+
         let new_token = crate::oauth2_client::fitbit::refresh_fitbit_token(
             &self.client,
             client_id,
             client_secret,
-            refresh_token
-        ).await?;
-        
+            refresh_token,
+        )
+        .await?;
+
         self.access_token = Some(new_token.access_token.clone());
         self.refresh_token = new_token.refresh_token.clone();
-        
+
         info!("Fitbit token refreshed successfully");
-        
+
         // Return tokens for storage
-        Ok((new_token.access_token, new_token.refresh_token.unwrap_or_default()))
+        Ok((
+            new_token.access_token,
+            new_token.refresh_token.unwrap_or_default(),
+        ))
     }
 
     /// Get activities for a specific date range
     /// Fitbit API requires date-based queries rather than pagination
-    async fn get_activities_for_period(&self, start_date: &str, end_date: &str) -> Result<Vec<FitbitActivity>> {
-        let token = self.access_token.as_ref()
-            .context("Not authenticated")?;
-        
-        let response: FitbitActivitiesResponse = self.client
+    async fn get_activities_for_period(
+        &self,
+        start_date: &str,
+        end_date: &str,
+    ) -> Result<Vec<FitbitActivity>> {
+        let token = self.access_token.as_ref().context("Not authenticated")?;
+
+        let response: FitbitActivitiesResponse = self
+            .client
             .get(format!("{}/user/-/activities/list.json", FITBIT_API_BASE))
             .bearer_auth(token)
             .query(&[
@@ -202,13 +235,13 @@ impl FitbitProvider {
                 ("afterDate", start_date),
                 ("sort", "desc"),
                 ("limit", "100"),
-                ("offset", "0")
+                ("offset", "0"),
             ])
             .send()
             .await?
             .json()
             .await?;
-        
+
         Ok(response.activities)
     }
 }
@@ -217,7 +250,12 @@ impl FitbitProvider {
 impl FitnessProvider for FitbitProvider {
     async fn authenticate(&mut self, auth_data: AuthData) -> Result<()> {
         match auth_data {
-            AuthData::OAuth2 { client_id, client_secret, access_token, refresh_token } => {
+            AuthData::OAuth2 {
+                client_id,
+                client_secret,
+                access_token,
+                refresh_token,
+            } => {
                 self.client_id = Some(client_id);
                 self.client_secret = Some(client_secret);
                 self.access_token = access_token;
@@ -229,17 +267,17 @@ impl FitnessProvider for FitbitProvider {
     }
 
     async fn get_athlete(&self) -> Result<Athlete> {
-        let token = self.access_token.as_ref()
-            .context("Not authenticated")?;
-        
-        let response: FitbitUser = self.client
+        let token = self.access_token.as_ref().context("Not authenticated")?;
+
+        let response: FitbitUser = self
+            .client
             .get(format!("{}/user/-/profile.json", FITBIT_API_BASE))
             .bearer_auth(token)
             .send()
             .await?
             .json()
             .await?;
-        
+
         Ok(Athlete {
             id: response.user.encoded_id,
             username: response.user.display_name,
@@ -250,61 +288,67 @@ impl FitnessProvider for FitbitProvider {
         })
     }
 
-    async fn get_activities(&self, limit: Option<usize>, _offset: Option<usize>) -> Result<Vec<Activity>> {
+    async fn get_activities(
+        &self,
+        limit: Option<usize>,
+        _offset: Option<usize>,
+    ) -> Result<Vec<Activity>> {
         // Fitbit API works with date ranges rather than offset pagination
         // Get activities from the last 30 days by default
         let end_date = chrono::Utc::now().date_naive();
         let start_date = end_date - chrono::Duration::days(30);
-        
-        let activities = self.get_activities_for_period(
-            &start_date.format("%Y-%m-%d").to_string(),
-            &end_date.format("%Y-%m-%d").to_string()
-        ).await?;
-        
+
+        let activities = self
+            .get_activities_for_period(
+                &start_date.format("%Y-%m-%d").to_string(),
+                &end_date.format("%Y-%m-%d").to_string(),
+            )
+            .await?;
+
         let mut result: Vec<Activity> = activities.into_iter().map(|a| a.into()).collect();
-        
+
         // Apply limit if specified
         if let Some(limit) = limit {
             result.truncate(limit);
         }
-        
+
         Ok(result)
     }
 
     #[allow(dead_code)]
     async fn get_activity(&self, id: &str) -> Result<Activity> {
-        let token = self.access_token.as_ref()
-            .context("Not authenticated")?;
-        
-        let response: FitbitActivityDetail = self.client
+        let token = self.access_token.as_ref().context("Not authenticated")?;
+
+        let response: FitbitActivityDetail = self
+            .client
             .get(format!("{}/user/-/activities/{}.json", FITBIT_API_BASE, id))
             .bearer_auth(token)
             .send()
             .await?
             .json()
             .await?;
-        
+
         Ok(response.activity.into())
     }
 
     async fn get_stats(&self) -> Result<Stats> {
-        let token = self.access_token.as_ref()
-            .context("Not authenticated")?;
-        
+        let token = self.access_token.as_ref().context("Not authenticated")?;
+
         // Get lifetime stats from Fitbit
-        let response: FitbitLifetimeStats = self.client
+        let response: FitbitLifetimeStats = self
+            .client
             .get(format!("{}/user/-/activities.json", FITBIT_API_BASE))
             .bearer_auth(token)
             .send()
             .await?
             .json()
             .await?;
-        
+
         // Fitbit provides lifetime totals
         Ok(Stats {
             total_activities: 0, // Fitbit doesn't provide activity count in lifetime stats
             total_distance: response.lifetime.total.distance * 1000.0, // Convert km to meters
-            total_duration: 0, // Not available in lifetime stats
+            total_duration: 0,   // Not available in lifetime stats
             total_elevation_gain: response.lifetime.total.floors * 3.0, // Estimate: 1 floor ≈ 3m
         })
     }
@@ -355,7 +399,7 @@ struct FitbitActivity {
     #[allow(dead_code)] // Future use for detailed activity level analysis
     activity_level: Option<Vec<FitbitActivityLevel>>,
     start_time: String,
-    duration: u64, // milliseconds
+    duration: u64,         // milliseconds
     distance: Option<f64>, // km
     #[allow(dead_code)] // Future use for unit conversion
     distance_unit: Option<String>,
@@ -417,20 +461,22 @@ impl From<FitbitActivity> for Activity {
     fn from(fitbit: FitbitActivity) -> Self {
         // Parse start time
         let start_date = DateTime::parse_from_rfc3339(&fitbit.start_time)
-            .unwrap_or_else(|_| DateTime::parse_from_str(&fitbit.start_time, "%Y-%m-%dT%H:%M:%S%.3f").unwrap())
+            .unwrap_or_else(|_| {
+                DateTime::parse_from_str(&fitbit.start_time, "%Y-%m-%dT%H:%M:%S%.3f").unwrap()
+            })
             .with_timezone(&Utc);
-        
+
         // Map Fitbit activity types to our sport types
         let sport_type = match fitbit.activity_type_id {
-            90009 => SportType::Run, // Running
+            90009 => SportType::Run,  // Running
             90001 => SportType::Walk, // Walking
-            1071 => SportType::Ride, // Biking
+            1071 => SportType::Ride,  // Biking
             90024 => SportType::Swim, // Swimming
             90013 => SportType::Hike, // Hiking
             17190 => SportType::Yoga, // Yoga
             _ => SportType::Other(fitbit.activity_name.clone()),
         };
-        
+
         Activity {
             id: fitbit.activity_id.to_string(),
             name: fitbit.activity_name,

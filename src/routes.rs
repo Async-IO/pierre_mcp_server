@@ -6,16 +6,12 @@
 
 //! HTTP routes for user authentication and OAuth flows in multi-tenant mode
 
+use crate::{auth::AuthManager, database::Database, models::User};
 use anyhow::Result;
+use base64::{engine::general_purpose, Engine};
 use serde::{Deserialize, Serialize};
-use tracing::{info, error};
+use tracing::{error, info};
 use uuid::Uuid;
-use base64::{Engine, engine::general_purpose};
-use crate::{
-    auth::AuthManager,
-    database::Database,
-    models::User,
-};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct RegisterRequest {
@@ -133,7 +129,9 @@ impl AuthRoutes {
 
         // Validate password strength
         if !self.is_valid_password(&request.password) {
-            return Err(anyhow::anyhow!("Password must be at least 8 characters long"));
+            return Err(anyhow::anyhow!(
+                "Password must be at least 8 characters long"
+            ));
         }
 
         // Check if user already exists
@@ -145,16 +143,15 @@ impl AuthRoutes {
         let password_hash = bcrypt::hash(&request.password, bcrypt::DEFAULT_COST)?;
 
         // Create user
-        let user = User::new(
-            request.email.clone(),
-            password_hash,
-            request.display_name,
-        );
+        let user = User::new(request.email.clone(), password_hash, request.display_name);
 
         // Save user to database
         let user_id = self.database.create_user(&user).await?;
 
-        info!("User registered successfully: {} ({})", request.email, user_id);
+        info!(
+            "User registered successfully: {} ({})",
+            request.email, user_id
+        );
 
         Ok(RegisterResponse {
             user_id: user_id.to_string(),
@@ -167,7 +164,10 @@ impl AuthRoutes {
         info!("User login attempt for email: {}", request.email);
 
         // Get user from database
-        let user = self.database.get_user_by_email_required(&request.email).await
+        let user = self
+            .database
+            .get_user_by_email_required(&request.email)
+            .await
             .map_err(|_| anyhow::anyhow!("Invalid email or password"))?;
 
         // Verify password
@@ -183,7 +183,10 @@ impl AuthRoutes {
         let jwt_token = self.auth_manager.generate_token(&user)?;
         let expires_at = chrono::Utc::now() + chrono::Duration::hours(24); // TODO: use auth_manager config
 
-        info!("User logged in successfully: {} ({})", request.email, user.id);
+        info!(
+            "User logged in successfully: {} ({})",
+            request.email, user.id
+        );
 
         Ok(LoginResponse {
             jwt_token,
@@ -233,23 +236,27 @@ impl OAuthRoutes {
     }
 
     /// Get OAuth authorization URL for a provider with real configuration
-    pub async fn get_auth_url(&self, user_id: uuid::Uuid, provider: &str) -> Result<OAuthAuthorizationResponse> {
+    pub async fn get_auth_url(
+        &self,
+        user_id: uuid::Uuid,
+        provider: &str,
+    ) -> Result<OAuthAuthorizationResponse> {
         // Store state in database for CSRF protection
         let state = format!("{}:{}", user_id, uuid::Uuid::new_v4());
         self.store_oauth_state(user_id, provider, &state).await?;
-        
+
         match provider {
             "strava" => {
                 let client_id = std::env::var("STRAVA_CLIENT_ID")
                     .or_else(|_| std::env::var("strava_client_id"))
                     .unwrap_or_else(|_| "YOUR_STRAVA_CLIENT_ID".to_string());
-                
+
                 let redirect_uri = std::env::var("STRAVA_REDIRECT_URI")
                     .or_else(|_| std::env::var("strava_redirect_uri"))
                     .unwrap_or_else(|_| "http://localhost:8081/oauth/callback/strava".to_string());
-                
+
                 let scope = "read,activity:read_all";
-                
+
                 let auth_url = format!(
                     "https://www.strava.com/oauth/authorize?client_id={}&redirect_uri={}&response_type=code&scope={}&state={}",
                     urlencoding::encode(&client_id),
@@ -257,7 +264,7 @@ impl OAuthRoutes {
                     urlencoding::encode(scope),
                     urlencoding::encode(&state)
                 );
-                
+
                 Ok(OAuthAuthorizationResponse {
                     authorization_url: auth_url,
                     state: state.clone(),
@@ -269,13 +276,13 @@ impl OAuthRoutes {
                 let client_id = std::env::var("FITBIT_CLIENT_ID")
                     .or_else(|_| std::env::var("fitbit_client_id"))
                     .unwrap_or_else(|_| "YOUR_FITBIT_CLIENT_ID".to_string());
-                
+
                 let redirect_uri = std::env::var("FITBIT_REDIRECT_URI")
                     .or_else(|_| std::env::var("fitbit_redirect_uri"))
                     .unwrap_or_else(|_| "http://localhost:8081/oauth/callback/fitbit".to_string());
-                
+
                 let scope = "activity%20profile";
-                
+
                 let auth_url = format!(
                     "https://www.fitbit.com/oauth2/authorize?client_id={}&redirect_uri={}&response_type=code&scope={}&state={}",
                     urlencoding::encode(&client_id),
@@ -283,7 +290,7 @@ impl OAuthRoutes {
                     scope,
                     urlencoding::encode(&state)
                 );
-                
+
                 Ok(OAuthAuthorizationResponse {
                     authorization_url: auth_url,
                     state: state.clone(),
@@ -291,78 +298,105 @@ impl OAuthRoutes {
                     expires_in_minutes: 10,
                 })
             }
-            _ => Err(anyhow::anyhow!("Unsupported provider: {}", provider))
+            _ => Err(anyhow::anyhow!("Unsupported provider: {}", provider)),
         }
     }
-    
+
     /// Store OAuth state for CSRF protection
-    async fn store_oauth_state(&self, user_id: uuid::Uuid, provider: &str, state: &str) -> Result<()> {
+    async fn store_oauth_state(
+        &self,
+        user_id: uuid::Uuid,
+        provider: &str,
+        state: &str,
+    ) -> Result<()> {
         // Store state with expiration (10 minutes)
         let _expires_at = chrono::Utc::now() + chrono::Duration::minutes(10);
-        
+
         // In a production system, you'd store this in a cache/database
         // For now, we'll store it in memory or use a simple approach
-        info!("Storing OAuth state for user {} provider {}: {}", user_id, provider, state);
-        
+        info!(
+            "Storing OAuth state for user {} provider {}: {}",
+            user_id, provider, state
+        );
+
         // TODO: Implement proper state storage
         Ok(())
     }
 
     /// Handle OAuth callback and store tokens
-    pub async fn handle_callback(&self, code: &str, state: &str, provider: &str) -> Result<OAuthCallbackResponse> {
+    pub async fn handle_callback(
+        &self,
+        code: &str,
+        state: &str,
+        provider: &str,
+    ) -> Result<OAuthCallbackResponse> {
         // Parse user ID from state
         let parts: Vec<&str> = state.split(':').collect();
         if parts.len() != 2 {
             return Err(anyhow::anyhow!("Invalid state parameter"));
         }
-        
+
         let user_id = uuid::Uuid::parse_str(parts[0])?;
-        
+
         // Validate state (in production, check against stored state)
-        info!("Processing OAuth callback for user {} provider {}", user_id, provider);
-        
+        info!(
+            "Processing OAuth callback for user {} provider {}",
+            user_id, provider
+        );
+
         // Exchange code for tokens (implementation depends on provider)
         match provider {
             "strava" => {
                 let token_response = self.exchange_strava_code(code).await?;
-                
+
                 // Store encrypted tokens in database
-                let expires_at = chrono::DateTime::<chrono::Utc>::from_timestamp(token_response.expires_at, 0)
-                    .unwrap_or_else(|| chrono::Utc::now() + chrono::Duration::hours(6));
-                
-                self.database.update_strava_token(
-                    user_id,
-                    &token_response.access_token,
-                    &token_response.refresh_token,
-                    expires_at,
-                    token_response.scope.clone().unwrap_or_else(|| "read,activity:read_all".to_string()),
-                ).await?;
-                
+                let expires_at =
+                    chrono::DateTime::<chrono::Utc>::from_timestamp(token_response.expires_at, 0)
+                        .unwrap_or_else(|| chrono::Utc::now() + chrono::Duration::hours(6));
+
+                self.database
+                    .update_strava_token(
+                        user_id,
+                        &token_response.access_token,
+                        &token_response.refresh_token,
+                        expires_at,
+                        token_response
+                            .scope
+                            .clone()
+                            .unwrap_or_else(|| "read,activity:read_all".to_string()),
+                    )
+                    .await?;
+
                 info!("Strava tokens stored successfully for user: {}", user_id);
-                
+
                 Ok(OAuthCallbackResponse {
                     user_id: user_id.to_string(),
                     provider: "strava".to_string(),
                     expires_at: expires_at.to_rfc3339(),
-                    scopes: token_response.scope.unwrap_or_else(|| "read,activity:read_all".to_string()),
+                    scopes: token_response
+                        .scope
+                        .unwrap_or_else(|| "read,activity:read_all".to_string()),
                 })
             }
             "fitbit" => {
                 let token_response = self.exchange_fitbit_code(code).await?;
-                
+
                 // Store encrypted tokens in database
-                let expires_at = chrono::Utc::now() + chrono::Duration::seconds(token_response.expires_in);
-                
-                self.database.update_fitbit_token(
-                    user_id,
-                    &token_response.access_token,
-                    &token_response.refresh_token,
-                    expires_at,
-                    token_response.scope.clone(),
-                ).await?;
-                
+                let expires_at =
+                    chrono::Utc::now() + chrono::Duration::seconds(token_response.expires_in);
+
+                self.database
+                    .update_fitbit_token(
+                        user_id,
+                        &token_response.access_token,
+                        &token_response.refresh_token,
+                        expires_at,
+                        token_response.scope.clone(),
+                    )
+                    .await?;
+
                 info!("Fitbit tokens stored successfully for user: {}", user_id);
-                
+
                 Ok(OAuthCallbackResponse {
                     user_id: user_id.to_string(),
                     provider: "fitbit".to_string(),
@@ -370,73 +404,86 @@ impl OAuthRoutes {
                     scopes: token_response.scope,
                 })
             }
-            _ => Err(anyhow::anyhow!("Unsupported provider: {}", provider))
+            _ => Err(anyhow::anyhow!("Unsupported provider: {}", provider)),
         }
     }
-    
+
     /// Exchange Strava authorization code for tokens
     async fn exchange_strava_code(&self, code: &str) -> Result<StravaTokenResponse> {
         let client_id = std::env::var("STRAVA_CLIENT_ID")
             .or_else(|_| std::env::var("strava_client_id"))
             .unwrap_or_else(|_| "163846".to_string()); // Default for testing
-        
+
         let client_secret = std::env::var("STRAVA_CLIENT_SECRET")
             .or_else(|_| std::env::var("strava_client_secret"))
             .unwrap_or_else(|_| "1dfc45ad0a1f6983b835e4495aa9473d111d03bc".to_string()); // Default for testing
-        
+
         let params = [
             ("client_id", client_id.as_str()),
             ("client_secret", client_secret.as_str()),
             ("code", code),
             ("grant_type", "authorization_code"),
         ];
-        
+
         let client = reqwest::Client::new();
         let response = client
             .post("https://www.strava.com/oauth/token")
             .form(&params)
             .send()
             .await?;
-        
+
         let status = response.status();
         let response_text = response.text().await?;
-        
-        info!("Strava token exchange response - Status: {}, Body: {}", status, response_text);
-        
+
+        info!(
+            "Strava token exchange response - Status: {}, Body: {}",
+            status, response_text
+        );
+
         if !status.is_success() {
-            return Err(anyhow::anyhow!("Strava token exchange failed: {}", response_text));
+            return Err(anyhow::anyhow!(
+                "Strava token exchange failed: {}",
+                response_text
+            ));
         }
-        
-        let token_response: StravaTokenResponse = serde_json::from_str(&response_text)
-            .map_err(|e| anyhow::anyhow!("Failed to parse Strava response: {}. Response was: {}", e, response_text))?;
+
+        let token_response: StravaTokenResponse =
+            serde_json::from_str(&response_text).map_err(|e| {
+                anyhow::anyhow!(
+                    "Failed to parse Strava response: {}. Response was: {}",
+                    e,
+                    response_text
+                )
+            })?;
         info!("Strava token exchange successful");
-        
+
         Ok(token_response)
     }
-    
+
     /// Exchange Fitbit authorization code for tokens
     async fn exchange_fitbit_code(&self, code: &str) -> Result<FitbitTokenResponse> {
         let client_id = std::env::var("FITBIT_CLIENT_ID")
             .or_else(|_| std::env::var("fitbit_client_id"))
             .unwrap_or_else(|_| "YOUR_FITBIT_CLIENT_ID".to_string());
-        
+
         let client_secret = std::env::var("FITBIT_CLIENT_SECRET")
             .or_else(|_| std::env::var("fitbit_client_secret"))
             .unwrap_or_else(|_| "YOUR_FITBIT_CLIENT_SECRET".to_string());
-        
+
         let redirect_uri = std::env::var("FITBIT_REDIRECT_URI")
             .or_else(|_| std::env::var("fitbit_redirect_uri"))
             .unwrap_or_else(|_| "http://localhost:8081/oauth/callback/fitbit".to_string());
-        
+
         let params = [
             ("client_id", client_id.as_str()),
             ("grant_type", "authorization_code"),
             ("redirect_uri", redirect_uri.as_str()),
             ("code", code),
         ];
-        
-        let auth_header = general_purpose::STANDARD.encode(format!("{}:{}", client_id, client_secret));
-        
+
+        let auth_header =
+            general_purpose::STANDARD.encode(format!("{}:{}", client_id, client_secret));
+
         let client = reqwest::Client::new();
         let response = client
             .post("https://api.fitbit.com/oauth2/token")
@@ -445,22 +492,25 @@ impl OAuthRoutes {
             .form(&params)
             .send()
             .await?;
-        
+
         if !response.status().is_success() {
             let error_text = response.text().await?;
-            return Err(anyhow::anyhow!("Fitbit token exchange failed: {}", error_text));
+            return Err(anyhow::anyhow!(
+                "Fitbit token exchange failed: {}",
+                error_text
+            ));
         }
-        
+
         let token_response: FitbitTokenResponse = response.json().await?;
         info!("Fitbit token exchange successful");
-        
+
         Ok(token_response)
     }
-    
+
     /// Get connection status for all providers for a user
     pub async fn get_connection_status(&self, user_id: Uuid) -> Result<Vec<ConnectionStatus>> {
         let mut statuses = Vec::new();
-        
+
         // Check Strava connection
         if let Ok(Some(strava_token)) = self.database.get_strava_token(user_id).await {
             statuses.push(ConnectionStatus {
@@ -477,7 +527,7 @@ impl OAuthRoutes {
                 scopes: None,
             });
         }
-        
+
         // Check Fitbit connection
         if let Ok(Some(fitbit_token)) = self.database.get_fitbit_token(user_id).await {
             statuses.push(ConnectionStatus {
@@ -494,10 +544,10 @@ impl OAuthRoutes {
                 scopes: None,
             });
         }
-        
+
         Ok(statuses)
     }
-    
+
     /// Disconnect a provider by removing stored tokens
     pub async fn disconnect_provider(&self, user_id: Uuid, provider: &str) -> Result<()> {
         match provider {
@@ -513,7 +563,7 @@ impl OAuthRoutes {
                 // self.database.clear_fitbit_token(user_id).await?;
                 Ok(())
             }
-            _ => Err(anyhow::anyhow!("Unsupported provider: {}", provider))
+            _ => Err(anyhow::anyhow!("Unsupported provider: {}", provider)),
         }
     }
 }
@@ -527,7 +577,9 @@ mod tests {
     async fn test_email_validation() {
         let temp_dir = TempDir::new().unwrap();
         let db_path = temp_dir.path().join("test.db");
-        let database = Database::new(&format!("sqlite:{}", db_path.display()), vec![0u8; 32]).await.unwrap();
+        let database = Database::new(&format!("sqlite:{}", db_path.display()), vec![0u8; 32])
+            .await
+            .unwrap();
         let auth_manager = AuthManager::new(vec![0u8; 64], 24);
         let routes = AuthRoutes::new(database, auth_manager);
 
@@ -542,7 +594,9 @@ mod tests {
     async fn test_password_validation() {
         let temp_dir = TempDir::new().unwrap();
         let db_path = temp_dir.path().join("test.db");
-        let database = Database::new(&format!("sqlite:{}", db_path.display()), vec![0u8; 32]).await.unwrap();
+        let database = Database::new(&format!("sqlite:{}", db_path.display()), vec![0u8; 32])
+            .await
+            .unwrap();
         let auth_manager = AuthManager::new(vec![0u8; 64], 24);
         let routes = AuthRoutes::new(database, auth_manager);
 
@@ -556,7 +610,9 @@ mod tests {
     async fn test_register_user() {
         let temp_dir = TempDir::new().unwrap();
         let db_path = temp_dir.path().join("test.db");
-        let database = Database::new(&format!("sqlite:{}", db_path.display()), vec![0u8; 32]).await.unwrap();
+        let database = Database::new(&format!("sqlite:{}", db_path.display()), vec![0u8; 32])
+            .await
+            .unwrap();
         let auth_manager = AuthManager::new(vec![0u8; 64], 24);
         let routes = AuthRoutes::new(database, auth_manager);
 
@@ -575,7 +631,9 @@ mod tests {
     async fn test_register_duplicate_user() {
         let temp_dir = TempDir::new().unwrap();
         let db_path = temp_dir.path().join("test.db");
-        let database = Database::new(&format!("sqlite:{}", db_path.display()), vec![0u8; 32]).await.unwrap();
+        let database = Database::new(&format!("sqlite:{}", db_path.display()), vec![0u8; 32])
+            .await
+            .unwrap();
         let auth_manager = AuthManager::new(vec![0u8; 64], 24);
         let routes = AuthRoutes::new(database, auth_manager);
 

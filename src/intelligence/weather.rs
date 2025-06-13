@@ -6,13 +6,13 @@
 
 //! Weather service integration for contextual activity analysis
 
-use chrono::{DateTime, Utc, Timelike, Datelike};
-use serde::{Deserialize, Serialize};
-use reqwest::Client;
-use std::collections::HashMap;
-use std::time::{Duration, SystemTime};
 use super::WeatherConditions;
 use crate::config::fitness_config::WeatherApiConfig;
+use chrono::{DateTime, Datelike, Timelike, Utc};
+use reqwest::Client;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::time::{Duration, SystemTime};
 
 /// Weather service for fetching historical weather data
 pub struct WeatherService {
@@ -62,12 +62,12 @@ impl WeatherService {
             cache: HashMap::new(),
         }
     }
-    
+
     /// Create weather service with default configuration
     pub fn with_default_config() -> Self {
         Self::new(WeatherApiConfig::default())
     }
-    
+
     /// Get the current weather service configuration
     #[allow(dead_code)]
     pub fn get_config(&self) -> &WeatherApiConfig {
@@ -85,30 +85,39 @@ impl WeatherService {
         if !self.config.enabled {
             return Ok(self.generate_mock_weather());
         }
-        
+
         // Create cache key
-        let cache_key = format!("{}_{}_{}_{}", 
-            latitude, longitude, 
+        let cache_key = format!(
+            "{}_{}_{}_{}",
+            latitude,
+            longitude,
             timestamp.timestamp() / 3600, // Hour-based caching
             self.config.provider
         );
-        
+
         // Check cache first
         if let Some(cached) = self.cache.get(&cache_key) {
-            if cached.cached_at.elapsed().unwrap_or(Duration::MAX) 
-                < Duration::from_secs(self.config.cache_duration_hours * 3600) {
+            if cached.cached_at.elapsed().unwrap_or(Duration::MAX)
+                < Duration::from_secs(self.config.cache_duration_hours * 3600)
+            {
                 return Ok(cached.weather.clone());
             }
         }
-        
+
         // Try to fetch from API
-        match self.fetch_weather_from_api(latitude, longitude, timestamp).await {
+        match self
+            .fetch_weather_from_api(latitude, longitude, timestamp)
+            .await
+        {
             Ok(weather) => {
                 // Cache the result
-                self.cache.insert(cache_key, CachedWeatherData {
-                    weather: weather.clone(),
-                    cached_at: SystemTime::now(),
-                });
+                self.cache.insert(
+                    cache_key,
+                    CachedWeatherData {
+                        weather: weather.clone(),
+                        cached_at: SystemTime::now(),
+                    },
+                );
                 Ok(weather)
             }
             Err(e) => {
@@ -122,7 +131,7 @@ impl WeatherService {
             }
         }
     }
-    
+
     /// Fetch weather data from the configured API
     async fn fetch_weather_from_api(
         &self,
@@ -131,11 +140,17 @@ impl WeatherService {
         timestamp: DateTime<Utc>,
     ) -> Result<WeatherConditions, WeatherError> {
         match self.config.provider.as_str() {
-            "openweathermap" => self.fetch_from_openweather(latitude, longitude, timestamp).await,
-            _ => Err(WeatherError::ApiError(format!("Unsupported weather provider: {}", self.config.provider))),
+            "openweathermap" => {
+                self.fetch_from_openweather(latitude, longitude, timestamp)
+                    .await
+            }
+            _ => Err(WeatherError::ApiError(format!(
+                "Unsupported weather provider: {}",
+                self.config.provider
+            ))),
         }
     }
-    
+
     /// Fetch weather from OpenWeatherMap Historical API
     async fn fetch_from_openweather(
         &self,
@@ -143,47 +158,48 @@ impl WeatherService {
         longitude: f64,
         timestamp: DateTime<Utc>,
     ) -> Result<WeatherConditions, WeatherError> {
-        let api_key = std::env::var("OPENWEATHER_API_KEY")
-            .map_err(|_| WeatherError::ApiError("OPENWEATHER_API_KEY environment variable not set".to_string()))?;
-        
+        let api_key = std::env::var("OPENWEATHER_API_KEY").map_err(|_| {
+            WeatherError::ApiError("OPENWEATHER_API_KEY environment variable not set".to_string())
+        })?;
+
         let url = format!(
             "https://api.openweathermap.org/data/3.0/onecall/timemachine?lat={}&lon={}&dt={}&appid={}&units=metric",
             latitude, longitude, timestamp.timestamp(), api_key
         );
-        
+
         tracing::debug!("Fetching weather from: {}", url);
-        
-        let response = self.client
-            .get(&url)
-            .send()
-            .await?;
-        
+
+        let response = self.client.get(&url).send().await?;
+
         if !response.status().is_success() {
             let status = response.status();
-            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(WeatherError::ApiError(format!(
-                "OpenWeather API returned status {}: {}", 
-                status,
-                error_text
+                "OpenWeather API returned status {}: {}",
+                status, error_text
             )));
         }
-        
+
         let weather_response: OpenWeatherResponse = response.json().await?;
-        
+
         // Find the closest data point to our timestamp
         let target_timestamp = timestamp.timestamp();
-        let closest_data = weather_response.data
+        let closest_data = weather_response
+            .data
             .into_iter()
             .min_by_key(|data| (data.dt - target_timestamp).abs())
             .ok_or_else(|| WeatherError::DataUnavailable)?;
-        
+
         // Convert to our format
         let conditions = if let Some(weather) = closest_data.weather.first() {
             weather.main.clone()
         } else {
             "clear".to_string()
         };
-        
+
         Ok(WeatherConditions {
             temperature_celsius: closest_data.temp as f32,
             humidity_percentage: closest_data.humidity.map(|h| h as f32),
@@ -212,25 +228,46 @@ impl WeatherService {
         // Generate realistic weather based on current time
         let now = Utc::now();
         let hour = now.hour();
-        
+
         // Simple seasonal/time-based mock data with varied conditions
         let (base_temp, conditions) = match now.month() {
-            12 | 1 | 2 => (2.0, if now.day() % 4 == 0 { "snow" } else { "cloudy" }),      // Winter
-            3 | 4 | 5 => (12.0, if now.day() % 3 == 0 { "rainy" } else { "partly cloudy" }),      // Spring
-            6 | 7 | 8 => (22.0, if now.day() % 5 == 0 { "thunderstorms" } else { "sunny" }),      // Summer
-            _ => (8.0, if now.day() % 3 == 0 { "rainy" } else { "overcast" }),               // Fall
+            12 | 1 | 2 => (2.0, if now.day() % 4 == 0 { "snow" } else { "cloudy" }), // Winter
+            3 | 4 | 5 => (
+                12.0,
+                if now.day() % 3 == 0 {
+                    "rainy"
+                } else {
+                    "partly cloudy"
+                },
+            ), // Spring
+            6 | 7 | 8 => (
+                22.0,
+                if now.day() % 5 == 0 {
+                    "thunderstorms"
+                } else {
+                    "sunny"
+                },
+            ), // Summer
+            _ => (
+                8.0,
+                if now.day() % 3 == 0 {
+                    "rainy"
+                } else {
+                    "overcast"
+                },
+            ), // Fall
         };
 
         // Add some variation based on time of day
         let temp_adjustment = match hour {
-            6..=11 => -2.0,   // Cooler morning
-            12..=17 => 3.0,   // Warmer afternoon
-            18..=21 => 0.0,   // Moderate evening
-            _ => -5.0,        // Cooler night
+            6..=11 => -2.0, // Cooler morning
+            12..=17 => 3.0, // Warmer afternoon
+            18..=21 => 0.0, // Moderate evening
+            _ => -5.0,      // Cooler night
         };
 
         let temperature = base_temp + temp_adjustment;
-        
+
         // Use the conditions from seasonal data
         let conditions_str = conditions;
 
@@ -251,7 +288,8 @@ impl WeatherService {
         // Temperature impact
         match weather.temperature_celsius {
             t if t < -5.0 => {
-                impact_factors.push("Extremely cold conditions increase energy expenditure".to_string());
+                impact_factors
+                    .push("Extremely cold conditions increase energy expenditure".to_string());
                 overall_difficulty += 3.0;
             }
             t if t < 0.0 => {
@@ -275,7 +313,8 @@ impl WeatherService {
         if let Some(wind_speed) = weather.wind_speed_kmh {
             match wind_speed {
                 w if w > 30.0 => {
-                    impact_factors.push("Strong winds significantly impact performance".to_string());
+                    impact_factors
+                        .push("Strong winds significantly impact performance".to_string());
                     overall_difficulty += 2.0;
                 }
                 w if w > 15.0 => {
@@ -288,7 +327,8 @@ impl WeatherService {
 
         // Precipitation impact
         if weather.conditions.contains("rain") {
-            impact_factors.push("Wet conditions require extra caution and mental focus".to_string());
+            impact_factors
+                .push("Wet conditions require extra caution and mental focus".to_string());
             overall_difficulty += 1.5;
         } else if weather.conditions.contains("snow") {
             impact_factors.push("Snow conditions significantly increase difficulty".to_string());
@@ -348,15 +388,15 @@ pub enum WeatherError {
     #[error("Weather API request failed: {0}")]
     #[allow(dead_code)]
     ApiError(String),
-    
+
     #[error("Invalid coordinates: lat={lat}, lon={lon}")]
     #[allow(dead_code)]
     InvalidCoordinates { lat: f64, lon: f64 },
-    
+
     #[error("Weather data unavailable for requested time")]
     #[allow(dead_code)]
     DataUnavailable,
-    
+
     #[error("Network error: {0}")]
     NetworkError(#[from] reqwest::Error),
 }
@@ -378,7 +418,7 @@ mod tests {
         let config = crate::config::fitness_config::WeatherApiConfig::default();
         let service = WeatherService::new(config);
         let weather = service.generate_mock_weather();
-        
+
         assert!(weather.temperature_celsius > -20.0 && weather.temperature_celsius < 40.0);
         assert!(weather.humidity_percentage.is_some());
         assert!(weather.wind_speed_kmh.is_some());
@@ -395,9 +435,12 @@ mod tests {
             wind_speed_kmh: Some(10.0),
             conditions: "snow".to_string(),
         };
-        
+
         let impact = service.analyze_weather_impact(&cold_weather);
-        assert!(matches!(impact.difficulty_level, WeatherDifficulty::Difficult | WeatherDifficulty::Extreme));
+        assert!(matches!(
+            impact.difficulty_level,
+            WeatherDifficulty::Difficult | WeatherDifficulty::Extreme
+        ));
         assert!(!impact.impact_factors.is_empty());
         assert!(impact.performance_adjustment < 0.0);
     }
@@ -412,7 +455,7 @@ mod tests {
             wind_speed_kmh: Some(5.0),
             conditions: "sunny".to_string(),
         };
-        
+
         let impact = service.analyze_weather_impact(&ideal_weather);
         assert!(matches!(impact.difficulty_level, WeatherDifficulty::Ideal));
     }
@@ -427,17 +470,22 @@ mod tests {
             wind_speed_kmh: Some(2.0),
             conditions: "sunny".to_string(),
         };
-        
+
         let impact = service.analyze_weather_impact(&hot_humid_weather);
-        assert!(matches!(impact.difficulty_level, WeatherDifficulty::Challenging | WeatherDifficulty::Difficult));
+        assert!(matches!(
+            impact.difficulty_level,
+            WeatherDifficulty::Challenging | WeatherDifficulty::Difficult
+        ));
         assert!(impact.performance_adjustment < 0.0);
     }
 
     #[tokio::test]
     async fn test_get_weather_at_time() {
         let mut service = WeatherService::with_default_config();
-        let result = service.get_weather_at_time(45.5017, -73.5673, Utc::now()).await; // Montreal coords
-        
+        let result = service
+            .get_weather_at_time(45.5017, -73.5673, Utc::now())
+            .await; // Montreal coords
+
         assert!(result.is_ok());
         let weather = result.unwrap();
         assert!(weather.temperature_celsius > -50.0 && weather.temperature_celsius < 50.0);
@@ -446,12 +494,10 @@ mod tests {
     #[tokio::test]
     async fn test_get_weather_for_activity_with_coords() {
         let mut service = WeatherService::with_default_config();
-        let result = service.get_weather_for_activity(
-            Some(45.5017), 
-            Some(-73.5673), 
-            Utc::now()
-        ).await;
-        
+        let result = service
+            .get_weather_for_activity(Some(45.5017), Some(-73.5673), Utc::now())
+            .await;
+
         assert!(result.is_ok());
         assert!(result.unwrap().is_some());
     }
@@ -459,8 +505,10 @@ mod tests {
     #[tokio::test]
     async fn test_get_weather_for_activity_without_coords() {
         let mut service = WeatherService::with_default_config();
-        let result = service.get_weather_for_activity(None, None, Utc::now()).await;
-        
+        let result = service
+            .get_weather_for_activity(None, None, Utc::now())
+            .await;
+
         assert!(result.is_ok());
         assert!(result.unwrap().is_none());
     }

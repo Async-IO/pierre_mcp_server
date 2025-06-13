@@ -9,7 +9,7 @@
 use chrono::{Duration, Utc};
 use pierre_mcp_server::{
     api_key_routes::ApiKeyRoutes,
-    api_keys::{CreateApiKeyRequest, ApiKeyTier},
+    api_keys::{ApiKeyTier, CreateApiKeyRequest},
     auth::AuthManager,
     database::{generate_encryption_key, Database},
     models::User,
@@ -118,13 +118,13 @@ async fn test_list_api_keys() {
     };
 
     let auth_header = format!("Bearer {}", jwt_token);
-    
+
     // Create the keys
     api_key_routes
         .create_api_key(Some(&auth_header), request1)
         .await
         .unwrap();
-    
+
     api_key_routes
         .create_api_key(Some(&auth_header), request2)
         .await
@@ -138,15 +138,23 @@ async fn test_list_api_keys() {
 
     // Verify response
     assert_eq!(response.api_keys.len(), 2);
-    
+
     let key_names: Vec<_> = response.api_keys.iter().map(|k| &k.name).collect();
     assert!(key_names.contains(&&"Key 1".to_string()));
     assert!(key_names.contains(&&"Key 2".to_string()));
 
     // Check tiers
-    let starter_key = response.api_keys.iter().find(|k| k.name == "Key 1").unwrap();
-    let pro_key = response.api_keys.iter().find(|k| k.name == "Key 2").unwrap();
-    
+    let starter_key = response
+        .api_keys
+        .iter()
+        .find(|k| k.name == "Key 1")
+        .unwrap();
+    let pro_key = response
+        .api_keys
+        .iter()
+        .find(|k| k.name == "Key 2")
+        .unwrap();
+
     assert_eq!(starter_key.tier, ApiKeyTier::Starter);
     assert_eq!(pro_key.tier, ApiKeyTier::Professional);
     assert!(starter_key.expires_at.is_none());
@@ -193,7 +201,7 @@ async fn test_deactivate_api_key() {
         .iter()
         .find(|k| k.id == *key_id)
         .unwrap();
-    
+
     assert!(!deactivated_key.is_active);
 }
 
@@ -264,7 +272,10 @@ async fn test_get_usage_stats_unauthorized_key() {
         .await;
 
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("not found or access denied"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("not found or access denied"));
 }
 
 #[tokio::test]
@@ -319,10 +330,13 @@ async fn test_api_key_expiration() {
     assert!(response.key_info.expires_at.is_some());
     let expires_at = response.key_info.expires_at.unwrap();
     let expected_expiry = Utc::now() + Duration::days(7);
-    
+
     // Should be within 1 minute of expected (to account for test execution time)
     let diff = (expires_at - expected_expiry).num_seconds().abs();
-    assert!(diff < 60, "Expiration time should be within 1 minute of expected");
+    assert!(
+        diff < 60,
+        "Expiration time should be within 1 minute of expected"
+    );
 }
 
 #[tokio::test]
@@ -336,11 +350,11 @@ async fn test_authentication_with_different_users() {
         "hashed_password2".to_string(),
         Some("User 2".to_string()),
     );
-    
+
     // We need access to the database to create the second user
     // This test demonstrates that each setup creates its own isolated database
     // In a real scenario, we'd use the same database instance
-    
+
     // For now, let's verify that each user can only access their own keys
     let auth_header1 = format!("Bearer {}", jwt_token1);
 

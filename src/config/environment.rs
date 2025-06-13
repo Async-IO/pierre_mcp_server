@@ -6,12 +6,12 @@
 
 //! Environment-based configuration management for production deployment
 
-use anyhow::{Result, Context};
+use crate::constants::{defaults, env_config, limits, oauth};
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::path::PathBuf;
 use tracing::{info, warn};
-use crate::constants::{env_config, oauth, defaults, limits};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerConfig {
@@ -121,7 +121,7 @@ impl ServerConfig {
     /// Load configuration from environment variables
     pub fn from_env() -> Result<Self> {
         info!("Loading configuration from environment variables");
-        
+
         // Load .env file if it exists
         if let Err(e) = dotenv::dotenv() {
             warn!("No .env file found or failed to load: {}", e);
@@ -131,37 +131,52 @@ impl ServerConfig {
             mcp_port: env_config::mcp_port(),
             http_port: env_config::http_port(),
             log_level: env_config::log_level(),
-            
+
             database: DatabaseConfig {
                 url: env_config::database_url(),
                 encryption_key_path: PathBuf::from(env_config::encryption_key_path()),
-                auto_migrate: env_var_or("AUTO_MIGRATE", "true")?.parse()
+                auto_migrate: env_var_or("AUTO_MIGRATE", "true")?
+                    .parse()
                     .context("Invalid AUTO_MIGRATE value")?,
                 backup: BackupConfig {
-                    enabled: env_var_or("BACKUP_ENABLED", "true")?.parse()
+                    enabled: env_var_or("BACKUP_ENABLED", "true")?
+                        .parse()
                         .context("Invalid BACKUP_ENABLED value")?,
-                    interval_seconds: env_var_or("BACKUP_INTERVAL", &limits::DEFAULT_BACKUP_INTERVAL_SECS.to_string())?.parse()
-                        .context("Invalid BACKUP_INTERVAL value")?,
-                    retention_count: env_var_or("BACKUP_RETENTION", &limits::DEFAULT_BACKUP_RETENTION_COUNT.to_string())?.parse()
-                        .context("Invalid BACKUP_RETENTION value")?,
-                    directory: PathBuf::from(env_var_or("BACKUP_DIRECTORY", defaults::DEFAULT_BACKUP_DIR)?),
+                    interval_seconds: env_var_or(
+                        "BACKUP_INTERVAL",
+                        &limits::DEFAULT_BACKUP_INTERVAL_SECS.to_string(),
+                    )?
+                    .parse()
+                    .context("Invalid BACKUP_INTERVAL value")?,
+                    retention_count: env_var_or(
+                        "BACKUP_RETENTION",
+                        &limits::DEFAULT_BACKUP_RETENTION_COUNT.to_string(),
+                    )?
+                    .parse()
+                    .context("Invalid BACKUP_RETENTION value")?,
+                    directory: PathBuf::from(env_var_or(
+                        "BACKUP_DIRECTORY",
+                        defaults::DEFAULT_BACKUP_DIR,
+                    )?),
                 },
             },
-            
+
             auth: AuthConfig {
                 jwt_secret_path: PathBuf::from(env_config::jwt_secret_path()),
                 jwt_expiry_hours: env_config::jwt_expiry_hours() as u64,
-                enable_refresh_tokens: env_var_or("ENABLE_REFRESH_TOKENS", "false")?.parse()
+                enable_refresh_tokens: env_var_or("ENABLE_REFRESH_TOKENS", "false")?
+                    .parse()
                     .context("Invalid ENABLE_REFRESH_TOKENS value")?,
             },
-            
+
             oauth: OAuthConfig {
                 strava: OAuthProviderConfig {
                     client_id: env_config::strava_client_id(),
                     client_secret: env_config::strava_client_secret(),
                     redirect_uri: Some(env_config::strava_redirect_uri()),
                     scopes: parse_scopes(oauth::STRAVA_DEFAULT_SCOPES),
-                    enabled: env_var_or("STRAVA_ENABLED", "true")?.parse()
+                    enabled: env_var_or("STRAVA_ENABLED", "true")?
+                        .parse()
                         .context("Invalid STRAVA_ENABLED value")?,
                 },
                 fitbit: OAuthProviderConfig {
@@ -169,23 +184,34 @@ impl ServerConfig {
                     client_secret: env::var("FITBIT_CLIENT_SECRET").ok(),
                     redirect_uri: env::var("FITBIT_REDIRECT_URI").ok(),
                     scopes: parse_scopes(oauth::FITBIT_DEFAULT_SCOPES),
-                    enabled: env_var_or("FITBIT_ENABLED", "true")?.parse()
+                    enabled: env_var_or("FITBIT_ENABLED", "true")?
+                        .parse()
                         .context("Invalid FITBIT_ENABLED value")?,
                 },
             },
-            
+
             security: SecurityConfig {
                 cors_origins: parse_origins(&env_var_or("CORS_ORIGINS", "*")?),
                 rate_limit: RateLimitConfig {
-                    enabled: env_var_or("RATE_LIMIT_ENABLED", "true")?.parse()
+                    enabled: env_var_or("RATE_LIMIT_ENABLED", "true")?
+                        .parse()
                         .context("Invalid RATE_LIMIT_ENABLED value")?,
-                    requests_per_window: env_var_or("RATE_LIMIT_REQUESTS", &limits::DEFAULT_RATE_LIMIT_REQUESTS.to_string())?.parse()
-                        .context("Invalid RATE_LIMIT_REQUESTS value")?,
-                    window_seconds: env_var_or("RATE_LIMIT_WINDOW", &limits::DEFAULT_RATE_LIMIT_WINDOW_SECS.to_string())?.parse()
-                        .context("Invalid RATE_LIMIT_WINDOW value")?,
+                    requests_per_window: env_var_or(
+                        "RATE_LIMIT_REQUESTS",
+                        &limits::DEFAULT_RATE_LIMIT_REQUESTS.to_string(),
+                    )?
+                    .parse()
+                    .context("Invalid RATE_LIMIT_REQUESTS value")?,
+                    window_seconds: env_var_or(
+                        "RATE_LIMIT_WINDOW",
+                        &limits::DEFAULT_RATE_LIMIT_WINDOW_SECS.to_string(),
+                    )?
+                    .parse()
+                    .context("Invalid RATE_LIMIT_WINDOW value")?,
                 },
                 tls: TlsConfig {
-                    enabled: env_var_or("TLS_ENABLED", "false")?.parse()
+                    enabled: env_var_or("TLS_ENABLED", "false")?
+                        .parse()
                         .context("Invalid TLS_ENABLED value")?,
                     cert_path: env::var("TLS_CERT_PATH").ok().map(PathBuf::from),
                     key_path: env::var("TLS_KEY_PATH").ok().map(PathBuf::from),
@@ -211,23 +237,25 @@ impl ServerConfig {
         }
 
         // OAuth validation
-        if self.oauth.strava.enabled {
-            if self.oauth.strava.client_id.is_none() || self.oauth.strava.client_secret.is_none() {
-                warn!("Strava OAuth is enabled but missing client_id or client_secret");
-            }
+        if self.oauth.strava.enabled
+            && (self.oauth.strava.client_id.is_none() || self.oauth.strava.client_secret.is_none())
+        {
+            warn!("Strava OAuth is enabled but missing client_id or client_secret");
         }
 
-        if self.oauth.fitbit.enabled {
-            if self.oauth.fitbit.client_id.is_none() || self.oauth.fitbit.client_secret.is_none() {
-                warn!("Fitbit OAuth is enabled but missing client_id or client_secret");
-            }
+        if self.oauth.fitbit.enabled
+            && (self.oauth.fitbit.client_id.is_none() || self.oauth.fitbit.client_secret.is_none())
+        {
+            warn!("Fitbit OAuth is enabled but missing client_id or client_secret");
         }
 
         // TLS validation
-        if self.security.tls.enabled {
-            if self.security.tls.cert_path.is_none() || self.security.tls.key_path.is_none() {
-                return Err(anyhow::anyhow!("TLS is enabled but cert_path or key_path is missing"));
-            }
+        if self.security.tls.enabled
+            && (self.security.tls.cert_path.is_none() || self.security.tls.key_path.is_none())
+        {
+            return Err(anyhow::anyhow!(
+                "TLS is enabled but cert_path or key_path is missing"
+            ));
         }
 
         Ok(())
@@ -248,11 +276,31 @@ impl ServerConfig {
             self.mcp_port,
             self.http_port,
             self.log_level,
-            if self.database.url.starts_with("sqlite:") { "SQLite" } else { "External DB" },
-            if self.oauth.strava.enabled && self.oauth.strava.client_id.is_some() { "Enabled" } else { "Disabled" },
-            if self.oauth.fitbit.enabled && self.oauth.fitbit.client_id.is_some() { "Enabled" } else { "Disabled" },
-            if self.security.tls.enabled { "Enabled" } else { "Disabled" },
-            if self.security.rate_limit.enabled { "Enabled" } else { "Disabled" }
+            if self.database.url.starts_with("sqlite:") {
+                "SQLite"
+            } else {
+                "External DB"
+            },
+            if self.oauth.strava.enabled && self.oauth.strava.client_id.is_some() {
+                "Enabled"
+            } else {
+                "Disabled"
+            },
+            if self.oauth.fitbit.enabled && self.oauth.fitbit.client_id.is_some() {
+                "Enabled"
+            } else {
+                "Disabled"
+            },
+            if self.security.tls.enabled {
+                "Enabled"
+            } else {
+                "Disabled"
+            },
+            if self.security.rate_limit.enabled {
+                "Enabled"
+            } else {
+                "Disabled"
+            }
         )
     }
 }
@@ -287,7 +335,6 @@ fn parse_origins(origins_str: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
 
     #[test]
     fn test_parse_scopes() {
@@ -316,7 +363,7 @@ mod tests {
         // Test port conflict
         let mut config = ServerConfig {
             mcp_port: env_config::mcp_port(),
-            http_port: env_config::mcp_port(),  // Same as MCP port - should fail validation
+            http_port: env_config::mcp_port(), // Same as MCP port - should fail validation
             log_level: env_config::log_level(),
             database: DatabaseConfig {
                 url: "sqlite:test.db".to_string(),

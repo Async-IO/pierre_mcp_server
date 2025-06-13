@@ -11,7 +11,7 @@
 //!
 //! This module includes:
 //! - Activity analysis and insights
-//! - Performance trend analysis 
+//! - Performance trend analysis
 //! - Goal tracking and progress monitoring
 //! - Training recommendations
 //! - Advanced metrics calculation
@@ -21,11 +21,11 @@ use serde::{Deserialize, Serialize};
 
 pub mod analyzer;
 pub mod insights;
-pub mod weather;
 pub mod location;
+pub mod weather;
 // Temporarily disable complex analyzers during compilation fix
 // pub mod activity_analyzer;
-// pub mod performance_analyzer; 
+// pub mod performance_analyzer;
 // pub mod goal_engine;
 // pub mod recommendation_engine;
 // pub mod metrics;
@@ -43,16 +43,16 @@ pub use insights::Insight;
 pub struct ActivityIntelligence {
     /// Natural language summary of the activity
     pub summary: String,
-    
+
     /// Key insights extracted from the activity
     pub key_insights: Vec<Insight>,
-    
+
     /// Performance metrics and indicators
     pub performance_indicators: PerformanceMetrics,
-    
+
     /// Contextual factors affecting the activity
     pub contextual_factors: ContextualFactors,
-    
+
     /// Timestamp when the analysis was generated
     pub generated_at: DateTime<Utc>,
 }
@@ -62,16 +62,16 @@ pub struct ActivityIntelligence {
 pub struct PerformanceMetrics {
     /// Relative effort (1-10 scale)
     pub relative_effort: Option<f32>,
-    
+
     /// Zone distribution (percentage in each zone)
     pub zone_distribution: Option<ZoneDistribution>,
-    
+
     /// Personal records achieved
     pub personal_records: Vec<PersonalRecord>,
-    
+
     /// Efficiency score (0-100)
     pub efficiency_score: Option<f32>,
-    
+
     /// Comparison with recent activities
     pub trend_indicators: TrendIndicators,
 }
@@ -183,7 +183,7 @@ impl ActivityIntelligence {
     }
 }
 
-// === ADVANCED ANALYTICS TYPES === 
+// === ADVANCED ANALYTICS TYPES ===
 // Temporarily disabled during compilation fixes
 
 /*
@@ -489,7 +489,10 @@ mod tests {
         );
 
         assert_eq!(intelligence.summary, "Great morning run!");
-        assert_eq!(intelligence.performance_indicators.relative_effort, Some(5.0));
+        assert_eq!(
+            intelligence.performance_indicators.relative_effort,
+            Some(5.0)
+        );
     }
 
     #[test]
@@ -503,10 +506,13 @@ mod tests {
         };
 
         assert_eq!(zones.zone2_endurance, 65.0);
-        
+
         // Total should be 100%
-        let total = zones.zone1_recovery + zones.zone2_endurance + 
-                   zones.zone3_tempo + zones.zone4_threshold + zones.zone5_vo2max;
+        let total = zones.zone1_recovery
+            + zones.zone2_endurance
+            + zones.zone3_tempo
+            + zones.zone4_threshold
+            + zones.zone5_vo2max;
         assert_eq!(total, 100.0);
     }
 }

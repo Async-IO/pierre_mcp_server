@@ -12,7 +12,7 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use crate::{
-    api_keys::{ApiKeyManager, CreateApiKeyRequest, ApiKeyTier, ApiKeyUsageStats},
+    api_keys::{ApiKeyManager, ApiKeyTier, ApiKeyUsageStats, CreateApiKeyRequest},
     auth::AuthManager,
     database::Database,
 };
@@ -73,8 +73,8 @@ impl ApiKeyRoutes {
 
     /// Authenticate JWT token and extract user ID
     async fn authenticate_user(&self, auth_header: Option<&str>) -> Result<Uuid> {
-        let auth_str = auth_header
-            .ok_or_else(|| anyhow::anyhow!("Missing authorization header"))?;
+        let auth_str =
+            auth_header.ok_or_else(|| anyhow::anyhow!("Missing authorization header"))?;
 
         let token = auth_str
             .strip_prefix("Bearer ")
@@ -94,7 +94,10 @@ impl ApiKeyRoutes {
         let user_id = self.authenticate_user(auth_header).await?;
 
         // Create the API key
-        let (api_key, full_key) = self.api_key_manager.create_api_key(user_id, request).await?;
+        let (api_key, full_key) = self
+            .api_key_manager
+            .create_api_key(user_id, request)
+            .await?;
 
         // Store in database
         self.database.create_api_key(&api_key).await?;
@@ -119,10 +122,7 @@ impl ApiKeyRoutes {
     }
 
     /// List user's API keys
-    pub async fn list_api_keys(
-        &self,
-        auth_header: Option<&str>,
-    ) -> Result<ApiKeyListResponse> {
+    pub async fn list_api_keys(&self, auth_header: Option<&str>) -> Result<ApiKeyListResponse> {
         let user_id = self.authenticate_user(auth_header).await?;
 
         let api_keys = self.database.get_user_api_keys(user_id).await?;
@@ -155,7 +155,9 @@ impl ApiKeyRoutes {
     ) -> Result<ApiKeyDeactivateResponse> {
         let user_id = self.authenticate_user(auth_header).await?;
 
-        self.database.deactivate_api_key(api_key_id, user_id).await?;
+        self.database
+            .deactivate_api_key(api_key_id, user_id)
+            .await?;
 
         Ok(ApiKeyDeactivateResponse {
             message: format!("API key {} has been deactivated", api_key_id),
@@ -179,7 +181,10 @@ impl ApiKeyRoutes {
             return Err(anyhow::anyhow!("API key not found or access denied"));
         }
 
-        let stats = self.database.get_api_key_usage_stats(api_key_id, start_date, end_date).await?;
+        let stats = self
+            .database
+            .get_api_key_usage_stats(api_key_id, start_date, end_date)
+            .await?;
 
         Ok(ApiKeyUsageResponse { stats })
     }
