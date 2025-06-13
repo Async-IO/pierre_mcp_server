@@ -21,6 +21,8 @@ use crate::intelligence::weather::WeatherService;
 use crate::config::FitnessConfig;
 use crate::routes::{AuthRoutes, OAuthRoutes, RegisterRequest, LoginRequest};
 use crate::api_key_routes::ApiKeyRoutes;
+use crate::dashboard_routes::DashboardRoutes;
+use crate::websocket::WebSocketManager;
 
 use anyhow::Result;
 use chrono::Utc;
@@ -39,6 +41,7 @@ pub struct MultiTenantMcpServer {
     database: Arc<Database>,
     auth_manager: Arc<AuthManager>,
     auth_middleware: Arc<McpAuthMiddleware>,
+    websocket_manager: Arc<WebSocketManager>,
     // Per-user provider instances
     user_providers: Arc<RwLock<HashMap<String, HashMap<String, Box<dyn FitnessProvider>>>>>,
 }
@@ -50,12 +53,18 @@ impl MultiTenantMcpServer {
         auth_manager: AuthManager,
     ) -> Self {
         let database_arc = Arc::new(database);
-        let auth_middleware = McpAuthMiddleware::new(auth_manager.clone(), database_arc.clone());
+        let auth_manager_arc = Arc::new(auth_manager);
+        let auth_middleware = McpAuthMiddleware::new(auth_manager_arc.as_ref().clone(), database_arc.clone());
+        let websocket_manager = Arc::new(WebSocketManager::new(
+            database_arc.as_ref().clone(), 
+            auth_manager_arc.as_ref().clone()
+        ));
         
         Self {
             database: database_arc,
-            auth_manager: Arc::new(auth_manager),
+            auth_manager: auth_manager_arc,
             auth_middleware: Arc::new(auth_middleware),
+            websocket_manager,
             user_providers: Arc::new(RwLock::new(HashMap::new())),
         }
     }
@@ -77,9 +86,10 @@ impl MultiTenantMcpServer {
         let http_port = port + 1; // Use port+1 for HTTP
         let database_http = database.clone();
         let auth_manager_http = auth_manager.clone();
+        let websocket_manager_http = self.websocket_manager.clone();
         
         tokio::spawn(async move {
-            Self::run_http_server(http_port, database_http, auth_manager_http).await
+            Self::run_http_server(http_port, database_http, auth_manager_http, websocket_manager_http).await
         });
         
         // Run MCP server on main port
@@ -91,6 +101,7 @@ impl MultiTenantMcpServer {
         port: u16,
         database: Arc<Database>,
         auth_manager: Arc<AuthManager>,
+        websocket_manager: Arc<WebSocketManager>,
     ) -> Result<()> {
         use warp::Filter;
         
@@ -99,6 +110,7 @@ impl MultiTenantMcpServer {
         let auth_routes = AuthRoutes::new((*database).clone(), (*auth_manager).clone());
         let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
         let api_key_routes = ApiKeyRoutes::new((*database).clone(), (*auth_manager).clone());
+        let dashboard_routes = DashboardRoutes::new((*database).clone(), (*auth_manager).clone());
         
         // CORS configuration
         let cors = warp::cors()
@@ -347,6 +359,75 @@ impl MultiTenantMcpServer {
             .map(|| {
                 warp::reply::json(&serde_json::json!({"status": "ok", "service": "pierre-mcp-server"}))
             });
+
+        // Dashboard endpoints
+        let dashboard_overview = warp::path("dashboard")
+            .and(warp::path("overview"))
+            .and(warp::get())
+            .and(warp::header::optional::<String>("authorization"))
+            .and_then({
+                let dashboard_routes = dashboard_routes.clone();
+                move |auth_header: Option<String>| {
+                    let dashboard_routes = dashboard_routes.clone();
+                    async move {
+                        match dashboard_routes.get_dashboard_overview(auth_header.as_deref()).await {
+                            Ok(overview) => Ok(warp::reply::json(&overview)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
+
+        let dashboard_analytics = warp::path("dashboard")
+            .and(warp::path("analytics"))
+            .and(warp::get())
+            .and(warp::header::optional::<String>("authorization"))
+            .and(warp::query::<std::collections::HashMap<String, String>>())
+            .and_then({
+                let dashboard_routes = dashboard_routes.clone();
+                move |auth_header: Option<String>, params: std::collections::HashMap<String, String>| {
+                    let dashboard_routes = dashboard_routes.clone();
+                    async move {
+                        let days = params.get("days").and_then(|d| d.parse::<u32>().ok()).unwrap_or(30);
+                        match dashboard_routes.get_usage_analytics(auth_header.as_deref(), days).await {
+                            Ok(analytics) => Ok(warp::reply::json(&analytics)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
+
+        let dashboard_rate_limits = warp::path("dashboard")
+            .and(warp::path("rate-limits"))
+            .and(warp::get())
+            .and(warp::header::optional::<String>("authorization"))
+            .and_then({
+                let dashboard_routes = dashboard_routes.clone();
+                move |auth_header: Option<String>| {
+                    let dashboard_routes = dashboard_routes.clone();
+                    async move {
+                        match dashboard_routes.get_rate_limit_overview(auth_header.as_deref()).await {
+                            Ok(overview) => Ok(warp::reply::json(&overview)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
+
+        // WebSocket endpoint
+        let websocket_route = websocket_manager.websocket_filter();
+        
+        // Start periodic WebSocket updates
+        websocket_manager.start_periodic_updates();
         
         let routes = register
             .or(login)
@@ -356,6 +437,10 @@ impl MultiTenantMcpServer {
             .or(list_api_keys)
             .or(deactivate_api_key)
             .or(get_api_key_usage)
+            .or(dashboard_overview)
+            .or(dashboard_analytics)
+            .or(dashboard_rate_limits)
+            .or(websocket_route)
             .or(health)
             .with(cors)
             .recover(handle_rejection);

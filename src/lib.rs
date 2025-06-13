@@ -107,3 +107,9 @@ pub mod api_keys;
 
 /// HTTP routes for API key management
 pub mod api_key_routes;
+
+/// Dashboard routes for frontend consumption
+pub mod dashboard_routes;
+
+/// WebSocket support for real-time updates
+pub mod websocket;

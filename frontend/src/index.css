@@ -1,0 +1,34 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles for the API Key Management Dashboard */
+@layer components {
+  .btn-primary {
+    @apply bg-api-blue hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition-colors;
+  }
+  
+  .btn-secondary {
+    @apply bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded transition-colors;
+  }
+  
+  .btn-danger {
+    @apply bg-api-red hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition-colors;
+  }
+  
+  .btn-success {
+    @apply bg-api-green hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition-colors;
+  }
+  
+  .card {
+    @apply bg-white shadow-md rounded-lg p-6 mb-4 border border-gray-200;
+  }
+  
+  .stat-card {
+    @apply bg-white shadow-md rounded-lg p-4 text-center border border-gray-200;
+  }
+  
+  .input-field {
+    @apply mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-api-blue focus:ring focus:ring-api-blue focus:ring-opacity-50;
+  }
+}
