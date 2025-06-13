@@ -1,11 +1,11 @@
-import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../services/api';
+import type { ApiKeysResponse, ApiKey } from '../types/api';
 
 export default function ApiKeyList() {
   const queryClient = useQueryClient();
 
-  const { data: apiKeys, isLoading } = useQuery({
+  const { data: apiKeys, isLoading } = useQuery<ApiKeysResponse>({
     queryKey: ['api-keys'],
     queryFn: () => apiService.getApiKeys(),
   });
@@ -55,7 +55,7 @@ export default function ApiKeyList() {
           </div>
         ) : (
           <div className="space-y-4">
-            {apiKeys.api_keys.map((key: any) => (
+            {apiKeys.api_keys.map((key: ApiKey) => (
               <div key={key.id} className="border rounded-lg p-4">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">

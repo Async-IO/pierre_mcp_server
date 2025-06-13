@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../services/api';
+import type { CreateApiKeyRequest } from '../types/api';
 
 export default function CreateApiKey() {
   const [name, setName] = useState('');
@@ -12,7 +13,7 @@ export default function CreateApiKey() {
   const queryClient = useQueryClient();
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => apiService.createApiKey(data),
+    mutationFn: (data: CreateApiKeyRequest) => apiService.createApiKey(data),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['api-keys'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-overview'] });
@@ -143,7 +144,7 @@ export default function CreateApiKey() {
                     name="tier"
                     value={tierKey}
                     checked={tier === tierKey}
-                    onChange={(e) => setTier(e.target.value as any)}
+                    onChange={(e) => setTier(e.target.value as 'starter' | 'professional' | 'enterprise')}
                     className="mt-1"
                   />
                   <div className="flex-1">

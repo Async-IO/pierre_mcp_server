@@ -23,8 +23,9 @@ class MockWebSocket {
     }, 0)
   }
 
-  send(data: string) {
-    // Mock send
+  send(_data: string) {
+    // Mock send - parameter intentionally unused
+    void _data;
   }
 
   close() {
@@ -35,7 +36,7 @@ class MockWebSocket {
   }
 }
 
-global.WebSocket = MockWebSocket as any
+global.WebSocket = MockWebSocket as typeof WebSocket
 
 // Mock Chart.js
 vi.mock('chart.js', () => ({

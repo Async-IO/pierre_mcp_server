@@ -22,6 +22,5 @@ export default defineConfig({
     },
     // CI-friendly configuration
     watch: false,
-    run: true,
   },
 })

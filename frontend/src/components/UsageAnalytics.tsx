@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiService } from '../services/api';
+import type { ChartData, ChartOptions, AnalyticsData, TimeSeriesPoint, TopTool } from '../types/chart';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -30,43 +31,41 @@ ChartJS.register(
 export default function UsageAnalytics() {
   const [timeRange, setTimeRange] = useState<number>(30);
 
-  const { data: analytics, isLoading } = useQuery({
+  const { data: analytics, isLoading } = useQuery<AnalyticsData>({
     queryKey: ['usage-analytics', timeRange],
     queryFn: () => apiService.getUsageAnalytics(timeRange),
   });
 
   // Prepare chart data
-  const timeSeriesData = {
-    labels: analytics?.time_series?.map((point: any) => {
+  const timeSeriesData: ChartData = {
+    labels: analytics?.time_series?.map((point: TimeSeriesPoint) => {
       const date = new Date(point.date);
       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }) || [],
     datasets: [
       {
         label: 'API Requests',
-        data: analytics?.time_series?.map((point: any) => point.request_count) || [],
+        data: analytics?.time_series?.map((point: TimeSeriesPoint) => point.request_count) || [],
         borderColor: 'rgb(37, 99, 235)',
         backgroundColor: 'rgba(37, 99, 235, 0.1)',
         tension: 0.4,
-        fill: true,
       },
       {
         label: 'Errors',
-        data: analytics?.time_series?.map((point: any) => point.error_count) || [],
+        data: analytics?.time_series?.map((point: TimeSeriesPoint) => point.error_count) || [],
         borderColor: 'rgb(220, 38, 38)',
         backgroundColor: 'rgba(220, 38, 38, 0.1)',
         tension: 0.4,
-        fill: false,
       },
     ],
   };
 
-  const toolUsageData = {
-    labels: analytics?.top_tools?.map((tool: any) => tool.tool_name) || [],
+  const toolUsageData: ChartData = {
+    labels: analytics?.top_tools?.map((tool: TopTool) => tool.tool_name) || [],
     datasets: [
       {
         label: 'Request Count',
-        data: analytics?.top_tools?.map((tool: any) => tool.request_count) || [],
+        data: analytics?.top_tools?.map((tool: TopTool) => tool.request_count) || [],
         backgroundColor: [
           'rgba(37, 99, 235, 0.8)',
           'rgba(5, 150, 105, 0.8)',
@@ -86,12 +85,12 @@ export default function UsageAnalytics() {
     ],
   };
 
-  const responseTimeData = {
-    labels: analytics?.top_tools?.map((tool: any) => tool.tool_name) || [],
+  const responseTimeData: ChartData = {
+    labels: analytics?.top_tools?.map((tool: TopTool) => tool.tool_name) || [],
     datasets: [
       {
         label: 'Average Response Time (ms)',
-        data: analytics?.top_tools?.map((tool: any) => tool.average_response_time) || [],
+        data: analytics?.top_tools?.map((tool: TopTool) => tool.average_response_time || 0) || [],
         backgroundColor: 'rgba(5, 150, 105, 0.6)',
         borderColor: 'rgb(5, 150, 105)',
         borderWidth: 1,
@@ -99,11 +98,11 @@ export default function UsageAnalytics() {
     ],
   };
 
-  const chartOptions = {
+  const chartOptions: ChartOptions = {
     responsive: true,
     plugins: {
       legend: {
-        position: 'top' as const,
+        position: 'top',
       },
     },
     scales: {
@@ -140,7 +139,7 @@ export default function UsageAnalytics() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="stat-card">
             <div className="text-2xl font-bold text-api-blue">
-              {analytics?.time_series?.reduce((sum: number, point: any) => sum + point.request_count, 0) || 0}
+              {analytics?.time_series?.reduce((sum: number, point: TimeSeriesPoint) => sum + point.request_count, 0) || 0}
             </div>
             <div className="text-sm text-gray-600">Total Requests</div>
           </div>
@@ -162,7 +161,7 @@ export default function UsageAnalytics() {
         <div className="mb-8">
           <h3 className="text-lg font-medium mb-4">Request Volume Over Time</h3>
           <div className="bg-white rounded-lg p-4 border border-gray-200">
-            {analytics?.time_series?.length > 0 ? (
+            {analytics?.time_series && analytics.time_series.length > 0 ? (
               <Line data={timeSeriesData} options={chartOptions} />
             ) : (
               <div className="bg-gray-100 rounded-lg p-8 text-center text-gray-500">
@@ -175,7 +174,7 @@ export default function UsageAnalytics() {
         </div>
 
         {/* Tool Usage Charts */}
-        {analytics?.top_tools?.length > 0 && (
+        {analytics?.top_tools && analytics.top_tools.length > 0 && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
             <div>
               <h3 className="text-lg font-medium mb-4">Tool Usage Distribution</h3>
@@ -203,22 +202,22 @@ export default function UsageAnalytics() {
         )}
 
         {/* Top Tools Table */}
-        {analytics?.top_tools?.length > 0 && (
+        {analytics?.top_tools && analytics.top_tools.length > 0 && (
           <div>
             <h3 className="text-lg font-medium mb-4">Most Used Tools</h3>
             <div className="space-y-3">
-              {analytics.top_tools.map((tool: any) => (
+              {analytics.top_tools.map((tool: TopTool) => (
                 <div key={tool.tool_name} className="flex justify-between items-center p-3 bg-gray-50 rounded">
                   <div>
                     <span className="font-medium">{tool.tool_name}</span>
                     <span className="text-gray-500 ml-2">
-                      {(tool.success_rate * 100).toFixed(1)}% success rate
+                      {((tool.success_rate || 0) * 100).toFixed(1)}% success rate
                     </span>
                   </div>
                   <div className="text-right">
                     <div className="font-bold">{tool.request_count.toLocaleString()}</div>
                     <div className="text-sm text-gray-500">
-                      {tool.average_response_time.toFixed(0)}ms avg
+                      {(tool.average_response_time || 0).toFixed(0)}ms avg
                     </div>
                   </div>
                 </div>

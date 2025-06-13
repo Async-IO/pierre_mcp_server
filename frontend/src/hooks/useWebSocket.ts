@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { useAuth } from './useAuth';
 
 export type WebSocketMessage = {
   type: 'auth' | 'subscribe' | 'usage_update' | 'system_stats' | 'error' | 'success';
@@ -8,7 +8,7 @@ export type WebSocketMessage = {
   api_key_id?: string;
   requests_today?: number;
   requests_this_month?: number;
-  rate_limit_status?: any;
+  rate_limit_status?: Record<string, unknown>;
   total_requests_today?: number;
   total_requests_this_month?: number;
   active_connections?: number;
@@ -29,9 +29,9 @@ export function useWebSocket(): UseWebSocketReturn {
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [subscriptions, setSubscriptions] = useState<string[]>([]);
+  const [, setSubscriptions] = useState<string[]>([]);
 
-  const connect = () => {
+  const connect = useCallback(() => {
     if (!token) return;
 
     try {
@@ -92,7 +92,7 @@ export function useWebSocket(): UseWebSocketReturn {
     } catch (error) {
       console.error('Failed to create WebSocket connection:', error);
     }
-  };
+  }, [token]);
 
   const sendMessage = (message: WebSocketMessage) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -108,7 +108,7 @@ export function useWebSocket(): UseWebSocketReturn {
     });
   };
 
-  const disconnect = () => {
+  const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
@@ -120,7 +120,7 @@ export function useWebSocket(): UseWebSocketReturn {
     }
     
     setIsConnected(false);
-  };
+  }, []);
 
   // Connect when we have a token
   useEffect(() => {
@@ -133,14 +133,14 @@ export function useWebSocket(): UseWebSocketReturn {
     return () => {
       disconnect();
     };
-  }, [token]);
+  }, [token, connect, disconnect]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       disconnect();
     };
-  }, []);
+  }, [disconnect]);
 
   return {
     isConnected,

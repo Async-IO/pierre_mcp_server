@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { apiService } from '../services/api';
+import type { DashboardOverview, RateLimitOverview, TierUsage } from '../types/api';
+import type { AnalyticsData, TimeSeriesPoint } from '../types/chart';
 import ApiKeyList from './ApiKeyList';
 import CreateApiKey from './CreateApiKey';
 import UsageAnalytics from './UsageAnalytics';
@@ -15,31 +17,31 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('overview');
   const { lastMessage } = useWebSocket();
 
-  const { data: overview, isLoading: overviewLoading, refetch: refetchOverview } = useQuery({
+  const { data: overview, isLoading: overviewLoading, refetch: refetchOverview } = useQuery<DashboardOverview>({
     queryKey: ['dashboard-overview'],
     queryFn: () => apiService.getDashboardOverview(),
   });
 
-  const { data: rateLimits } = useQuery({
+  const { data: rateLimits } = useQuery<RateLimitOverview[]>({
     queryKey: ['rate-limits'],
     queryFn: () => apiService.getRateLimitOverview(),
   });
 
-  const { data: weeklyUsage } = useQuery({
+  const { data: weeklyUsage } = useQuery<AnalyticsData>({
     queryKey: ['usage-analytics', 7],
     queryFn: () => apiService.getUsageAnalytics(7),
   });
 
   // Prepare mini chart data for the overview
   const miniChartData = {
-    labels: weeklyUsage?.time_series?.slice(-7).map((point: any) => {
+    labels: weeklyUsage?.time_series?.slice(-7).map((point: TimeSeriesPoint) => {
       const date = new Date(point.date);
       return date.toLocaleDateString('en-US', { weekday: 'short' });
     }) || [],
     datasets: [
       {
         label: 'Requests',
-        data: weeklyUsage?.time_series?.slice(-7).map((point: any) => point.request_count) || [],
+        data: weeklyUsage?.time_series?.slice(-7).map((point: TimeSeriesPoint) => point.request_count) || [],
         borderColor: 'rgb(37, 99, 235)',
         backgroundColor: 'rgba(37, 99, 235, 0.1)',
         tension: 0.4,
@@ -170,12 +172,12 @@ export default function Dashboard() {
                 </div>
 
                 {/* Weekly Trend Mini Chart */}
-                {weeklyUsage?.time_series?.length > 0 && (
+                {weeklyUsage?.time_series && weeklyUsage.time_series.length > 0 && (
                   <div className="card">
                     <div className="flex justify-between items-center mb-4">
                       <h3 className="text-lg font-medium">7-Day Request Trend</h3>
                       <span className="text-sm text-gray-500">
-                        Total: {weeklyUsage.time_series.reduce((sum: number, point: any) => sum + point.request_count, 0)}
+                        Total: {weeklyUsage?.time_series?.reduce((sum: number, point: TimeSeriesPoint) => sum + point.request_count, 0) || 0}
                       </span>
                     </div>
                     <div style={{ height: '120px' }}>
@@ -185,11 +187,11 @@ export default function Dashboard() {
                 )}
 
                 {/* Usage by Tier */}
-                {overview?.current_month_usage_by_tier?.length > 0 && (
+                {overview?.current_month_usage_by_tier && overview.current_month_usage_by_tier.length > 0 && (
                   <div className="card">
                     <h3 className="text-lg font-medium mb-4">Usage by Tier</h3>
                     <div className="space-y-3">
-                      {overview.current_month_usage_by_tier.map((tier: any) => (
+                      {overview.current_month_usage_by_tier?.map((tier: TierUsage) => (
                         <div key={tier.tier} className="flex justify-between items-center">
                           <div>
                             <span className="font-medium capitalize">{tier.tier}</span>
@@ -212,7 +214,7 @@ export default function Dashboard() {
                   <div className="card">
                     <h3 className="text-lg font-medium mb-4">Rate Limit Status</h3>
                     <div className="space-y-4">
-                      {rateLimits.map((item: any) => (
+                      {rateLimits.map((item: RateLimitOverview) => (
                         <div key={item.api_key_id} className="border rounded-lg p-4">
                           <div className="flex justify-between items-center mb-2">
                             <span className="font-medium">{item.api_key_name}</span>
