@@ -200,6 +200,7 @@ pub fn generate_jwt_secret() -> [u8; 64] {
 }
 
 /// Middleware for MCP protocol authentication
+#[derive(Clone)]
 pub struct McpAuthMiddleware {
     auth_manager: AuthManager,
     api_key_manager: ApiKeyManager,
