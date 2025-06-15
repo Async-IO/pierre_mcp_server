@@ -122,8 +122,16 @@ impl MultiTenantMcpServer {
         // CORS configuration
         let cors = warp::cors()
             .allow_any_origin()
-            .allow_headers(vec!["content-type", "authorization"])
-            .allow_methods(vec!["GET", "POST", "DELETE", "OPTIONS"]);
+            .allow_headers(vec![
+                "content-type", 
+                "authorization", 
+                "x-requested-with",
+                "accept",
+                "origin",
+                "access-control-request-method",
+                "access-control-request-headers"
+            ])
+            .allow_methods(vec!["GET", "POST", "PUT", "DELETE", "OPTIONS"]);
 
         // Registration endpoint
         let register = warp::path("auth")
@@ -543,8 +551,12 @@ impl MultiTenantMcpServer {
                 // Extract authorization header from request
                 let auth_token = request.auth_token.as_deref();
 
+                tracing::debug!("MCP tool call authentication attempt for method: {}", request.method);
+                
                 match auth_middleware.authenticate_request(auth_token).await {
                     Ok(auth_result) => {
+                        tracing::info!("MCP tool call authentication successful for user: {} (method: {})", auth_result.user_id, auth_result.auth_method.display_name());
+                        
                         // Update user's last active timestamp
                         let _ = database.update_last_active(auth_result.user_id).await;
 
@@ -557,14 +569,33 @@ impl MultiTenantMcpServer {
                         .await
                     }
                     Err(e) => {
-                        warn!("Authentication failed: {}", e);
+                        warn!("MCP tool call authentication failed: {}", e);
+                        
+                        // Determine specific error code based on error message
+                        let error_message = e.to_string();
+                        let (error_code, error_msg) = if error_message.contains("JWT token expired") {
+                            (crate::constants::errors::ERROR_TOKEN_EXPIRED, 
+                             crate::constants::errors::MSG_TOKEN_EXPIRED)
+                        } else if error_message.contains("JWT token signature is invalid") {
+                            (crate::constants::errors::ERROR_TOKEN_INVALID,
+                             crate::constants::errors::MSG_TOKEN_INVALID)
+                        } else if error_message.contains("JWT token is malformed") {
+                            (crate::constants::errors::ERROR_TOKEN_MALFORMED,
+                             crate::constants::errors::MSG_TOKEN_MALFORMED)
+                        } else {
+                            (ERROR_UNAUTHORIZED, "Authentication required")
+                        };
+
                         McpResponse {
                             jsonrpc: JSONRPC_VERSION.to_string(),
                             result: None,
                             error: Some(McpError {
-                                code: ERROR_UNAUTHORIZED,
-                                message: "Authentication required".to_string(),
-                                data: Some(serde_json::json!({"error": e.to_string()})),
+                                code: error_code,
+                                message: error_msg.to_string(),
+                                data: Some(serde_json::json!({
+                                    "detailed_error": error_message,
+                                    "authentication_failed": true
+                                })),
                             }),
                             id: request.id,
                         }
@@ -625,6 +656,13 @@ impl MultiTenantMcpServer {
         let tool_name = params["name"].as_str().unwrap_or("");
         let args = &params["arguments"];
         let user_id = auth_result.user_id;
+        
+        tracing::info!(
+            "Executing tool call: {} for user: {} using {} authentication", 
+            tool_name, 
+            user_id, 
+            auth_result.auth_method.display_name()
+        );
 
         // Handle OAuth-related tools (don't require existing provider)
         match tool_name {
@@ -1963,33 +2001,61 @@ struct ApiError(serde_json::Value);
 
 impl warp::reject::Reject for ApiError {}
 
+/// Add CORS headers to a reply
+fn with_cors_headers(reply: impl warp::Reply) -> impl warp::Reply {
+    warp::reply::with_header(
+        warp::reply::with_header(
+            warp::reply::with_header(
+                reply,
+                "access-control-allow-origin",
+                "*",
+            ),
+            "access-control-allow-methods",
+            "GET, POST, PUT, DELETE, OPTIONS",
+        ),
+        "access-control-allow-headers",
+        "content-type, authorization, x-requested-with, accept, origin",
+    )
+}
+
 /// Handle HTTP rejections and errors
 async fn handle_rejection(
     err: warp::Rejection,
-) -> Result<impl warp::Reply, std::convert::Infallible> {
+) -> Result<Box<dyn warp::Reply>, std::convert::Infallible> {
     if let Some(api_error) = err.find::<ApiError>() {
         let json = warp::reply::json(&api_error.0);
-        Ok(warp::reply::with_status(
+        let reply = warp::reply::with_status(
             json,
             warp::http::StatusCode::BAD_REQUEST,
-        ))
+        );
+        Ok(Box::new(with_cors_headers(reply)))
+    } else if err.find::<warp::reject::MethodNotAllowed>().is_some() {
+        // Handle CORS preflight and method not allowed
+        let json = warp::reply::json(&serde_json::json!({}));
+        let reply = warp::reply::with_status(
+            json,
+            warp::http::StatusCode::OK,
+        );
+        Ok(Box::new(with_cors_headers(reply)))
     } else if err.is_not_found() {
         let json = warp::reply::json(&serde_json::json!({
             "error": "Not Found",
             "message": "The requested endpoint was not found"
         }));
-        Ok(warp::reply::with_status(
+        let reply = warp::reply::with_status(
             json,
             warp::http::StatusCode::NOT_FOUND,
-        ))
+        );
+        Ok(Box::new(with_cors_headers(reply)))
     } else {
         let json = warp::reply::json(&serde_json::json!({
             "error": "Internal Server Error",
             "message": "Something went wrong"
         }));
-        Ok(warp::reply::with_status(
+        let reply = warp::reply::with_status(
             json,
             warp::http::StatusCode::INTERNAL_SERVER_ERROR,
-        ))
+        );
+        Ok(Box::new(with_cors_headers(reply)))
     }
 }

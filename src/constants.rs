@@ -161,6 +161,11 @@ pub mod errors {
     /// Unauthorized (custom error code)
     pub const ERROR_UNAUTHORIZED: i32 = -32000;
 
+    /// Token-specific error codes
+    pub const ERROR_TOKEN_EXPIRED: i32 = -32001;
+    pub const ERROR_TOKEN_INVALID: i32 = -32002;
+    pub const ERROR_TOKEN_MALFORMED: i32 = -32003;
+
     /// Common error messages
     pub const MSG_METHOD_NOT_FOUND: &str = "Method not found";
     pub const MSG_INVALID_PARAMS: &str = "Invalid parameters";
@@ -168,6 +173,11 @@ pub mod errors {
     pub const MSG_AUTH_REQUIRED: &str = "Authentication required";
     pub const MSG_AUTH_FAILED: &str = "Authentication failed";
     pub const MSG_INVALID_TOKEN: &str = "Invalid or expired token";
+    
+    /// Token-specific error messages
+    pub const MSG_TOKEN_EXPIRED: &str = "JWT token has expired";
+    pub const MSG_TOKEN_INVALID: &str = "JWT token signature is invalid";
+    pub const MSG_TOKEN_MALFORMED: &str = "JWT token is malformed";
 }
 
 /// API endpoints and URLs
