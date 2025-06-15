@@ -94,9 +94,13 @@ impl DashboardRoutes {
         &self,
         auth_header: Option<&str>,
     ) -> Result<DashboardOverview> {
+        tracing::debug!("Dashboard overview request received");
+        
         // Authenticate user
         let claims = self.validate_auth_header(auth_header)?;
         let user_id = Uuid::parse_str(&claims.sub)?;
+        
+        tracing::info!("Dashboard overview data access granted for user: {}", user_id);
 
         // Get user's API keys
         let api_keys = self.database.get_user_api_keys(user_id).await?;
@@ -185,8 +189,12 @@ impl DashboardRoutes {
         auth_header: Option<&str>,
         days: u32,
     ) -> Result<UsageAnalytics> {
+        tracing::debug!("Dashboard analytics request received for {} days", days);
+        
         let claims = self.validate_auth_header(auth_header)?;
         let user_id = Uuid::parse_str(&claims.sub)?;
+        
+        tracing::info!("Dashboard analytics data access granted for user: {} (timeframe: {} days)", user_id, days);
 
         let api_keys = self.database.get_user_api_keys(user_id).await?;
         let start_date = Utc::now() - Duration::days(days as i64);
@@ -263,8 +271,12 @@ impl DashboardRoutes {
         &self,
         auth_header: Option<&str>,
     ) -> Result<Vec<RateLimitOverview>> {
+        tracing::debug!("Dashboard rate limit overview request received");
+        
         let claims = self.validate_auth_header(auth_header)?;
         let user_id = Uuid::parse_str(&claims.sub)?;
+        
+        tracing::info!("Dashboard rate limit data access granted for user: {}", user_id);
 
         let api_keys = self.database.get_user_api_keys(user_id).await?;
         let mut overview = Vec::new();
@@ -323,13 +335,30 @@ impl DashboardRoutes {
 
     /// Validate authentication header and return claims
     fn validate_auth_header(&self, auth_header: Option<&str>) -> Result<crate::auth::Claims> {
-        let auth_str =
-            auth_header.ok_or_else(|| anyhow::anyhow!("Missing authorization header"))?;
+        tracing::debug!("Dashboard endpoint authentication attempt");
+        
+        let auth_str = match auth_header {
+            Some(header) => header,
+            None => {
+                tracing::warn!("Dashboard access denied: Missing authorization header");
+                return Err(anyhow::anyhow!("Missing authorization header"));
+            }
+        };
 
         if let Some(token) = auth_str.strip_prefix("Bearer ") {
-            let claims = self.auth_manager.validate_token(token)?;
-            Ok(claims)
+            tracing::debug!("Validating JWT token for dashboard access");
+            match self.auth_manager.validate_token(token) {
+                Ok(claims) => {
+                    tracing::info!("Dashboard access granted for user: {}", claims.sub);
+                    Ok(claims)
+                }
+                Err(e) => {
+                    tracing::warn!("Dashboard access denied for token validation failure: {}", e);
+                    Err(e)
+                }
+            }
         } else {
+            tracing::warn!("Dashboard access denied: Invalid authorization header format (expected 'Bearer ...')");
             Err(anyhow::anyhow!("Invalid authorization header format"))
         }
     }
