@@ -49,7 +49,7 @@ impl Config {
             let content = fs::read_to_string(&config_path).context("Failed to read config file")?;
             toml::from_str(&content).context("Failed to parse config file")
         } else {
-            dotenv::dotenv().ok();
+            dotenvy::dotenv().ok();
 
             let mut config = Config {
                 providers: HashMap::new(),
