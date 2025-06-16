@@ -1,34 +1,152 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Custom styles for the API Key Management Dashboard */
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  
+  body {
+    @apply bg-pierre-gray-50 text-pierre-gray-700;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply text-pierre-gray-900 font-semibold;
+  }
+}
+
 @layer components {
+  /* Pierre Button Components */
+  .btn-base {
+    @apply inline-flex items-center justify-center px-6 py-3 rounded-md font-medium text-sm transition-all duration-base cursor-pointer border-0;
+  }
+  
   .btn-primary {
-    @apply bg-api-blue hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition-colors;
+    @apply btn-base bg-pierre-blue-600 text-white shadow-sm hover:bg-pierre-blue-700 hover:-translate-y-0.5 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none;
   }
   
   .btn-secondary {
-    @apply bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded transition-colors;
+    @apply btn-base bg-white text-pierre-gray-700 border border-pierre-gray-300 hover:bg-pierre-gray-50 hover:border-pierre-gray-400;
   }
   
   .btn-danger {
-    @apply bg-api-red hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition-colors;
+    @apply btn-base bg-pierre-red-600 text-white hover:bg-pierre-red-700;
   }
   
   .btn-success {
-    @apply bg-api-green hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition-colors;
+    @apply btn-base bg-pierre-green-600 text-white hover:bg-pierre-green-700;
   }
   
+  .btn-sm {
+    @apply px-4 py-2 text-xs;
+  }
+  
+  .btn-lg {
+    @apply px-8 py-4 text-base;
+  }
+
+  /* Pierre Card Components */
   .card {
-    @apply bg-white shadow-md rounded-lg p-6 mb-4 border border-gray-200;
+    @apply bg-white rounded-lg border border-pierre-gray-200 p-6 shadow-sm hover:shadow-md transition-shadow duration-base;
+  }
+  
+  .card-header {
+    @apply border-b border-pierre-gray-200 pb-4 mb-6;
   }
   
   .stat-card {
-    @apply bg-white shadow-md rounded-lg p-4 text-center border border-gray-200;
+    @apply bg-gradient-to-br from-white to-pierre-blue-50 border border-pierre-blue-200 rounded-lg p-6 text-center hover:-translate-y-0.5 transition-transform duration-base;
+  }
+
+  /* Pierre Form Components */
+  .input-field {
+    @apply w-full px-4 py-3 border border-pierre-gray-300 rounded-md text-sm font-sans transition-all duration-base focus:outline-none focus:border-pierre-blue-500 focus:ring-2 focus:ring-pierre-blue-500 focus:ring-opacity-10;
   }
   
-  .input-field {
-    @apply mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-api-blue focus:ring focus:ring-api-blue focus:ring-opacity-50;
+  .label {
+    @apply block text-sm font-medium text-pierre-gray-700 mb-2;
+  }
+  
+  .help-text {
+    @apply text-xs text-pierre-gray-500 mt-1;
+  }
+  
+  .error-text {
+    @apply text-xs text-pierre-red-600 mt-1;
+  }
+
+  /* Pierre Badge Components */
+  .badge {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium;
+  }
+  
+  .badge-success {
+    @apply badge bg-pierre-green-100 text-pierre-green-800;
+  }
+  
+  .badge-warning {
+    @apply badge bg-pierre-yellow-100 text-pierre-yellow-800;
+  }
+  
+  .badge-error {
+    @apply badge bg-pierre-red-100 text-pierre-red-800;
+  }
+  
+  .badge-info {
+    @apply badge bg-pierre-blue-100 text-pierre-blue-800;
+  }
+  
+  .badge-trial {
+    @apply badge bg-pierre-yellow-100 text-pierre-yellow-800;
+  }
+  
+  .badge-starter {
+    @apply badge bg-pierre-blue-100 text-pierre-blue-800;
+  }
+  
+  .badge-professional {
+    @apply badge bg-pierre-green-100 text-pierre-green-800;
+  }
+  
+  .badge-enterprise {
+    @apply badge bg-pierre-purple-100 text-pierre-purple-800;
+  }
+
+  /* Pierre Status Indicators */
+  .status-dot {
+    @apply w-2 h-2 rounded-full inline-block mr-2;
+  }
+  
+  .status-online {
+    @apply status-dot bg-pierre-green-500 animate-pulse;
+  }
+  
+  .status-offline {
+    @apply status-dot bg-pierre-gray-400;
+  }
+  
+  .status-error {
+    @apply status-dot bg-pierre-red-500;
+  }
+
+  /* Pierre Navigation */
+  .tab {
+    @apply py-4 border-b-2 border-transparent text-pierre-gray-500 font-medium transition-all duration-base flex items-center gap-2;
+  }
+  
+  .tab:hover {
+    @apply text-pierre-gray-700 border-pierre-gray-300;
+  }
+  
+  .tab-active {
+    @apply text-pierre-blue-600 border-pierre-blue-600;
+  }
+
+  /* Pierre Loading Spinner */
+  .pierre-spinner {
+    @apply border-2 border-pierre-gray-200 border-t-pierre-blue-600 rounded-full w-4 h-4 animate-spin;
   }
 }

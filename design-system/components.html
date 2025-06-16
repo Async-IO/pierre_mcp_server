@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pierre Design System - Component Library</title>
+    <link rel="stylesheet" href="pierre-design-system.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .demo-section {
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid var(--pierre-gray-200);
+        }
+        .demo-grid {
+            display: grid;
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+        .demo-item {
+            padding: 1rem;
+            border: 1px solid var(--pierre-gray-200);
+            border-radius: var(--radius-md);
+            background: white;
+        }
+        .demo-item h4 {
+            margin: 0 0 1rem 0;
+            font-size: var(--text-sm);
+            color: var(--pierre-gray-600);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+    </style>
+</head>
+<body>
+    <div class="pierre-container">
+        <!-- Header -->
+        <header class="pierre-header">
+            <div class="pierre-header-content pierre-container">
+                <a href="#" class="pierre-logo">
+                    <span class="pierre-logo-icon">🗿</span>
+                    PIERRE Design System
+                </a>
+                <nav class="pierre-nav">
+                    <a href="#" class="pierre-nav-link pierre-nav-link-active">Components</a>
+                    <a href="#" class="pierre-nav-link">Guidelines</a>
+                    <a href="#" class="pierre-nav-link">Resources</a>
+                </nav>
+            </div>
+        </header>
+
+        <main style="padding: 3rem 0;">
+            <h1>Pierre MCP Server - Component Library</h1>
+            <p class="pierre-text-lg pierre-text-gray-600">
+                A comprehensive design system for enterprise fitness data platform
+            </p>
+
+            <!-- Brand Colors -->
+            <section class="demo-section">
+                <h2>Brand Colors</h2>
+                <div class="demo-grid pierre-grid-cols-4">
+                    <div class="demo-item">
+                        <h4>Primary Blue</h4>
+                        <div style="background: var(--pierre-blue-600); height: 60px; border-radius: 6px; margin-bottom: 0.5rem;"></div>
+                        <code>#2563eb</code>
+                    </div>
+                    <div class="demo-item">
+                        <h4>Success Green</h4>
+                        <div style="background: var(--pierre-green-600); height: 60px; border-radius: 6px; margin-bottom: 0.5rem;"></div>
+                        <code>#16a34a</code>
+                    </div>
+                    <div class="demo-item">
+                        <h4>Warning Yellow</h4>
+                        <div style="background: var(--pierre-yellow-600); height: 60px; border-radius: 6px; margin-bottom: 0.5rem;"></div>
+                        <code>#ca8a04</code>
+                    </div>
+                    <div class="demo-item">
+                        <h4>Danger Red</h4>
+                        <div style="background: var(--pierre-red-600); height: 60px; border-radius: 6px; margin-bottom: 0.5rem;"></div>
+                        <code>#dc2626</code>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Typography -->
+            <section class="demo-section">
+                <h2>Typography</h2>
+                <div class="demo-grid">
+                    <div class="demo-item">
+                        <h4>Headings</h4>
+                        <h1>Heading 1 - Platform Dashboard</h1>
+                        <h2>Heading 2 - API Key Management</h2>
+                        <h3>Heading 3 - Usage Statistics</h3>
+                        <h4>Heading 4 - Request Monitor</h4>
+                        <h5>Heading 5 - Tool Analytics</h5>
+                        <h6>Heading 6 - Status Updates</h6>
+                    </div>
+                    <div class="demo-item">
+                        <h4>Body Text</h4>
+                        <p class="pierre-text-lg">Large text - Perfect for important descriptions and introductory content.</p>
+                        <p>Base text - The standard body text size for most content including paragraphs and descriptions.</p>
+                        <p class="pierre-text-sm">Small text - Used for secondary information, labels, and metadata.</p>
+                        <p class="pierre-text-xs">Extra small text - Captions, timestamps, and fine print.</p>
+                        <code>Monospace text - API keys, code snippets, and technical data</code>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Buttons -->
+            <section class="demo-section">
+                <h2>Buttons</h2>
+                <div class="demo-grid pierre-grid-cols-2">
+                    <div class="demo-item">
+                        <h4>Button Variants</h4>
+                        <div class="pierre-flex pierre-gap-4" style="flex-wrap: wrap;">
+                            <button class="pierre-btn pierre-btn-primary">Create API Key</button>
+                            <button class="pierre-btn pierre-btn-secondary">View Details</button>
+                            <button class="pierre-btn pierre-btn-success">Approve Request</button>
+                            <button class="pierre-btn pierre-btn-danger">Deactivate Key</button>
+                        </div>
+                    </div>
+                    <div class="demo-item">
+                        <h4>Button Sizes</h4>
+                        <div class="pierre-flex pierre-gap-4 pierre-items-center" style="flex-wrap: wrap;">
+                            <button class="pierre-btn pierre-btn-primary pierre-btn-sm">Small</button>
+                            <button class="pierre-btn pierre-btn-primary">Default</button>
+                            <button class="pierre-btn pierre-btn-primary pierre-btn-lg">Large</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Cards -->
+            <section class="demo-section">
+                <h2>Cards</h2>
+                <div class="demo-grid pierre-grid-cols-2">
+                    <div class="demo-item">
+                        <h4>Standard Card</h4>
+                        <div class="pierre-card">
+                            <div class="pierre-card-header">
+                                <h3 class="pierre-card-title">API Key Details</h3>
+                                <p class="pierre-card-subtitle">Production environment key</p>
+                            </div>
+                            <p>This is a standard card component used throughout the platform for containing related information.</p>
+                            <div class="pierre-flex pierre-gap-4">
+                                <button class="pierre-btn pierre-btn-primary pierre-btn-sm">Edit</button>
+                                <button class="pierre-btn pierre-btn-secondary pierre-btn-sm">View Usage</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="demo-item">
+                        <h4>Stat Card</h4>
+                        <div class="pierre-stat-card">
+                            <div class="pierre-stat-value">25,847</div>
+                            <div class="pierre-stat-label">Total Requests</div>
+                        </div>
+                        <br>
+                        <div class="pierre-stat-card">
+                            <div class="pierre-stat-value">99.2%</div>
+                            <div class="pierre-stat-label">Success Rate</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Form Elements -->
+            <section class="demo-section">
+                <h2>Form Elements</h2>
+                <div class="demo-grid pierre-grid-cols-2">
+                    <div class="demo-item">
+                        <h4>Input Fields</h4>
+                        <div style="max-width: 300px;">
+                            <label class="pierre-label">API Key Name</label>
+                            <input type="text" class="pierre-input" placeholder="Production API Key" value="My Production Key">
+                            <p class="pierre-help-text">Choose a descriptive name for easy identification</p>
+                            
+                            <label class="pierre-label" style="margin-top: 1rem;">Description</label>
+                            <textarea class="pierre-input pierre-textarea" placeholder="Optional description..."></textarea>
+                            
+                            <label class="pierre-label" style="margin-top: 1rem;">Tier</label>
+                            <select class="pierre-input pierre-select">
+                                <option>Professional</option>
+                                <option>Starter</option>
+                                <option>Enterprise</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="demo-item">
+                        <h4>Form States</h4>
+                        <div style="max-width: 300px;">
+                            <label class="pierre-label">Normal State</label>
+                            <input type="text" class="pierre-input" placeholder="Enter value">
+                            
+                            <label class="pierre-label" style="margin-top: 1rem;">Focused State</label>
+                            <input type="text" class="pierre-input" placeholder="This field is focused" style="border-color: var(--pierre-blue-500); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);">
+                            
+                            <label class="pierre-label" style="margin-top: 1rem;">Error State</label>
+                            <input type="text" class="pierre-input" placeholder="Invalid input" style="border-color: var(--pierre-red-500);">
+                            <p class="pierre-error-text">This field is required</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Badges & Status -->
+            <section class="demo-section">
+                <h2>Badges & Status Indicators</h2>
+                <div class="demo-grid pierre-grid-cols-2">
+                    <div class="demo-item">
+                        <h4>Status Badges</h4>
+                        <div class="pierre-flex pierre-gap-4" style="flex-wrap: wrap;">
+                            <span class="pierre-badge pierre-badge-success">Active</span>
+                            <span class="pierre-badge pierre-badge-warning">Pending</span>
+                            <span class="pierre-badge pierre-badge-error">Inactive</span>
+                            <span class="pierre-badge pierre-badge-info">Processing</span>
+                        </div>
+                        <br>
+                        <h4 style="margin-top: 1.5rem;">API Tier Badges</h4>
+                        <div class="pierre-flex pierre-gap-4" style="flex-wrap: wrap;">
+                            <span class="pierre-badge pierre-badge-trial">Trial</span>
+                            <span class="pierre-badge pierre-badge-starter">Starter</span>
+                            <span class="pierre-badge pierre-badge-professional">Professional</span>
+                            <span class="pierre-badge pierre-badge-enterprise">Enterprise</span>
+                        </div>
+                    </div>
+                    <div class="demo-item">
+                        <h4>Status Indicators</h4>
+                        <div class="pierre-flex pierre-flex-col pierre-gap-4">
+                            <div class="pierre-flex pierre-items-center">
+                                <span class="pierre-status-dot pierre-status-online"></span>
+                                <span>System Online</span>
+                            </div>
+                            <div class="pierre-flex pierre-items-center">
+                                <span class="pierre-status-dot pierre-status-offline"></span>
+                                <span>System Offline</span>
+                            </div>
+                            <div class="pierre-flex pierre-items-center">
+                                <span class="pierre-status-dot pierre-status-error"></span>
+                                <span>System Error</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Navigation -->
+            <section class="demo-section">
+                <h2>Navigation</h2>
+                <div class="demo-grid">
+                    <div class="demo-item">
+                        <h4>Tab Navigation</h4>
+                        <nav class="pierre-tabs">
+                            <a href="#" class="pierre-tab pierre-tab-active">
+                                <span>📊</span> Overview
+                            </a>
+                            <a href="#" class="pierre-tab">
+                                <span>🔑</span> API Keys
+                            </a>
+                            <a href="#" class="pierre-tab">
+                                <span>📈</span> Analytics
+                            </a>
+                            <a href="#" class="pierre-tab">
+                                <span>📡</span> Monitor
+                            </a>
+                            <a href="#" class="pierre-tab">
+                                <span>🔧</span> Tools
+                            </a>
+                        </nav>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Real-world Examples -->
+            <section class="demo-section">
+                <h2>Real-world Examples</h2>
+                
+                <h3>Dashboard Overview</h3>
+                <div class="pierre-grid pierre-grid-cols-4 pierre-mb-6">
+                    <div class="pierre-stat-card">
+                        <div class="pierre-stat-value">12</div>
+                        <div class="pierre-stat-label">Total API Keys</div>
+                    </div>
+                    <div class="pierre-stat-card">
+                        <div class="pierre-stat-value">8</div>
+                        <div class="pierre-stat-label">Active Keys</div>
+                    </div>
+                    <div class="pierre-stat-card">
+                        <div class="pierre-stat-value">1,247</div>
+                        <div class="pierre-stat-label">Requests Today</div>
+                    </div>
+                    <div class="pierre-stat-card">
+                        <div class="pierre-stat-value">98.5%</div>
+                        <div class="pierre-stat-label">Success Rate</div>
+                    </div>
+                </div>
+
+                <h3>API Key Management</h3>
+                <div class="pierre-card">
+                    <div class="pierre-card-header">
+                        <h3 class="pierre-card-title">Your API Keys</h3>
+                        <p class="pierre-card-subtitle">3 total keys</p>
+                    </div>
+                    
+                    <div style="border: 1px solid var(--pierre-gray-200); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1rem;">
+                        <div class="pierre-flex pierre-justify-between pierre-items-center pierre-mb-4">
+                            <div>
+                                <div class="pierre-flex pierre-items-center pierre-gap-4 pierre-mb-2">
+                                    <h4 class="pierre-m-0">Production API Key</h4>
+                                    <span class="pierre-badge pierre-badge-success">Active</span>
+                                    <span class="pierre-badge pierre-badge-professional">Professional</span>
+                                </div>
+                                <p class="pierre-text-sm pierre-text-gray-600 pierre-m-0">Main production environment key</p>
+                                <div class="pierre-text-sm pierre-text-gray-500" style="margin-top: 0.5rem;">
+                                    <code>pk_live_****</code> • Created Dec 15, 2024 • Last used 2 hours ago
+                                </div>
+                            </div>
+                            <div class="pierre-flex pierre-gap-2">
+                                <button class="pierre-btn pierre-btn-secondary pierre-btn-sm">View Usage</button>
+                                <button class="pierre-btn pierre-btn-danger pierre-btn-sm">Deactivate</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="border: 1px solid var(--pierre-gray-200); border-radius: var(--radius-md); padding: 1rem;">
+                        <div class="pierre-flex pierre-justify-between pierre-items-center pierre-mb-4">
+                            <div>
+                                <div class="pierre-flex pierre-items-center pierre-gap-4 pierre-mb-2">
+                                    <h4 class="pierre-m-0">Trial Key</h4>
+                                    <span class="pierre-badge pierre-badge-warning">Expires in 12 days</span>
+                                    <span class="pierre-badge pierre-badge-trial">Trial</span>
+                                </div>
+                                <p class="pierre-text-sm pierre-text-gray-600 pierre-m-0">Testing platform features</p>
+                                <div class="pierre-text-sm pierre-text-gray-500" style="margin-top: 0.5rem;">
+                                    <code>pk_trial_****</code> • Created Dec 10, 2024 • 847/1,000 requests used
+                                </div>
+                            </div>
+                            <div class="pierre-flex pierre-gap-2">
+                                <button class="pierre-btn pierre-btn-secondary pierre-btn-sm">View Usage</button>
+                                <button class="pierre-btn pierre-btn-primary pierre-btn-sm">Upgrade</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Loading States -->
+            <section class="demo-section">
+                <h2>Loading States</h2>
+                <div class="demo-grid pierre-grid-cols-2">
+                    <div class="demo-item">
+                        <h4>Loading Spinner</h4>
+                        <div class="pierre-flex pierre-items-center pierre-gap-4">
+                            <div class="pierre-spinner"></div>
+                            <span>Loading data...</span>
+                        </div>
+                    </div>
+                    <div class="demo-item">
+                        <h4>Loading Button</h4>
+                        <button class="pierre-btn pierre-btn-primary" disabled>
+                            <div class="pierre-spinner" style="width: 1rem; height: 1rem; margin-right: 0.5rem;"></div>
+                            Creating Key...
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer style="text-align: center; padding: 2rem 0; border-top: 1px solid var(--pierre-gray-200); margin-top: 3rem;">
+            <p class="pierre-text-sm pierre-text-gray-500">
+                Pierre MCP Server Design System • Built for enterprise fitness data access
+            </p>
+        </footer>
+    </div>
+</body>
+</html>

@@ -3,7 +3,7 @@
 [![CI](https://github.com/jfarcand/pierre_mcp_server/actions/workflows/ci.yml/badge.svg)](https://github.com/jfarcand/pierre_mcp_server/actions/workflows/ci.yml)
 [![Frontend Tests](https://github.com/jfarcand/pierre_mcp_server/actions/workflows/frontend-tests.yml/badge.svg)](https://github.com/jfarcand/pierre_mcp_server/actions/workflows/frontend-tests.yml)
 
-A comprehensive MCP (Model Context Protocol) server for fitness data analysis. Provides secure access to fitness data from multiple providers (Strava, Fitbit) through Claude and other AI assistants.
+A multi-tenant fitness data platform providing secure B2B API access to fitness data from multiple providers (Strava, Fitbit) through both the Model Context Protocol (MCP) and REST APIs. Built for developers and AI assistants, Pierre MCP Server features enterprise-grade API key management with tiered rate limiting, trial keys with automatic expiration, OAuth integration, real-time analytics, and comprehensive activity intelligence.
 
 ## LLM Prompt Examples
 
@@ -177,7 +177,109 @@ Analyze my adaptation to different training environments over time.
 - **Extensible Design**: Easy to add new fitness providers in the future
 - **Production Ready**: Comprehensive testing and clean error handling
 
+## B2B API Platform Features
+
+### 🔑 API Key Management
+- **Tiered Access**: Trial (1K/month), Starter (10K/month), Professional (100K/month), Enterprise (Unlimited)
+- **Trial Keys**: 14-day auto-expiring trial keys with one-per-user limit
+- **Rate Limiting**: Automatic monthly rate limiting with real-time tracking
+- **Usage Analytics**: Detailed usage statistics per tool and time period
+- **Secure Storage**: SHA-256 hashed keys with prefix-based identification
+
+### 📊 Developer Dashboard
+- **Real-time Monitoring**: WebSocket-based live updates
+- **Usage Analytics**: Tool-specific usage breakdown and trends
+- **Rate Limit Status**: Visual indicators and warnings
+- **API Key Management**: Create, list, and deactivate keys
+
+### 🔐 Enterprise Security
+- **JWT Authentication**: 24-hour tokens with detailed error messages
+- **API Key Authentication**: Production (`pk_live_`) and trial (`pk_trial_`) keys
+- **Encrypted Storage**: AES-256-GCM for OAuth tokens at rest
+- **CORS Support**: Full cross-origin resource sharing configuration
+- **User Isolation**: Complete data separation between tenants
+
+## API Key System
+
+### Creating API Keys
+
+```bash
+# Login to get JWT token
+curl -X POST http://localhost:8081/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "your@email.com", "password": "your_password"}'
+
+# Create a production API key
+curl -X POST http://localhost:8081/api/keys \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Production Key",
+    "description": "Main production API key",
+    "tier": "Professional"
+  }'
+
+# Create a trial key (14-day expiration)
+curl -X POST http://localhost:8081/api/keys/trial \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Trial Key",
+    "description": "Testing the platform"
+  }'
+```
+
+### Using API Keys with MCP
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "get_activities",
+    "arguments": {
+      "provider": "strava",
+      "limit": 10
+    }
+  },
+  "auth": "pk_live_your_api_key_here"
+}
+```
+
+### Rate Limiting
+
+| Tier | Monthly Limit | Key Prefix | Expiration |
+|------|--------------|------------|------------|
+| Trial | 1,000 requests | `pk_trial_` | 14 days |
+| Starter | 10,000 requests | `pk_live_` | None |
+| Professional | 100,000 requests | `pk_live_` | None |
+| Enterprise | Unlimited | `pk_live_` | None |
+
+## Testing the System
+
+### Quick Start Script
+
+```bash
+# Test the trial key system
+./test_trial_keys.sh
+```
+
+This script will:
+1. Register a test user
+2. Login and get JWT token
+3. Create a trial API key
+4. Test rate limiting
+5. Verify one-trial-per-user enforcement
+
 ## Architecture
+
+For detailed technical documentation, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+### Key Components:
+- **MCP Server** (Port 8080): AI assistant connections
+- **HTTP API** (Port 8081): REST endpoints and dashboard
+- **Admin Service** (Port 8082): API key approval workflow
+- **SQLite Database**: User data and encrypted tokens
+- **Background Tasks**: Expired key cleanup, usage tracking
 
 Pierre MCP Server supports two deployment modes:
 
@@ -591,6 +693,22 @@ For cloud deployments, connect to your hosted multi-tenant server:
 - ⏳ WebSocket support for real-time updates
 - ⏳ Plugin system for custom providers
 - ⏳ GraphQL API support
+
+## What's Next
+
+The platform is production-ready with enterprise B2B features. Upcoming enhancements include:
+
+### High Priority
+- Enhanced frontend dashboard with real-time analytics
+- Webhook support for activity notifications
+- Advanced ML-based performance predictions
+
+### Enterprise Features
+- Team management and multi-user organizations
+- Custom SLA and rate limiting
+- SOC 2 and HIPAA compliance
+
+For the complete roadmap, see [docs/ARCHITECTURE.md#whats-next](docs/ARCHITECTURE.md#whats-next).
 
 ## Contributing
 

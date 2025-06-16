@@ -78,6 +78,48 @@ class ApiService {
     return response.data;
   }
 
+  // Request monitoring endpoints
+  async getRequestLogs(apiKeyId?: string, filter?: {
+    timeRange: string;
+    status: string;
+    tool: string;
+  }) {
+    const params = new URLSearchParams();
+    if (apiKeyId) params.append('api_key_id', apiKeyId);
+    if (filter?.timeRange) params.append('time_range', filter.timeRange);
+    if (filter?.status && filter.status !== 'all') params.append('status', filter.status);
+    if (filter?.tool && filter.tool !== 'all') params.append('tool', filter.tool);
+    
+    const response = await axios.get(`/dashboard/request-logs?${params}`);
+    return response.data;
+  }
+
+  async getRequestStats(apiKeyId?: string, timeRange: string = '1h') {
+    const params = new URLSearchParams();
+    if (apiKeyId) params.append('api_key_id', apiKeyId);
+    params.append('time_range', timeRange);
+    
+    const response = await axios.get(`/dashboard/request-stats?${params}`);
+    return response.data;
+  }
+
+  async getToolUsageBreakdown(apiKeyId?: string, timeRange: string = '7d') {
+    const params = new URLSearchParams();
+    if (apiKeyId) params.append('api_key_id', apiKeyId);
+    params.append('time_range', timeRange);
+    
+    const response = await axios.get(`/dashboard/tool-usage?${params}`);
+    return response.data;
+  }
+
+  async createTrialKey(data: {
+    name: string;
+    description?: string;
+  }) {
+    const response = await axios.post('/api/keys/trial', data);
+    return response.data;
+  }
+
   // Token management
   getToken(): string | null {
     return localStorage.getItem('token');
