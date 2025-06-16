@@ -83,7 +83,7 @@ export default function ToolUsageBreakdownComponent({
       },
       tooltip: {
         callbacks: {
-          label: function(context: any) {
+          label: function(context: { label: string; dataIndex: number }) {
             const tool = toolUsage[context.dataIndex];
             return `${context.label}: ${tool.request_count} requests (${tool.percentage_of_total.toFixed(1)}%)`;
           }

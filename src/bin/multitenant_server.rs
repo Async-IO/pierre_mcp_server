@@ -198,7 +198,7 @@ fn load_or_generate_key(key_file: &PathBuf) -> Result<[u8; 32]> {
     } else {
         // Generate new key
         let key = generate_encryption_key();
-        std::fs::write(key_file, &key)?;
+        std::fs::write(key_file, key)?;
         info!("Generated new encryption key: {}", key_file.display());
         Ok(key)
     }
@@ -227,7 +227,7 @@ fn load_or_generate_jwt_secret(secret_file: &PathBuf) -> Result<[u8; 64]> {
     } else {
         // Generate new secret
         let secret = generate_jwt_secret();
-        std::fs::write(secret_file, &secret)?;
+        std::fs::write(secret_file, secret)?;
         info!("Generated new JWT secret: {}", secret_file.display());
         Ok(secret)
     }

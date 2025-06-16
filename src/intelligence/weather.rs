@@ -232,7 +232,7 @@ impl WeatherService {
         // Simple seasonal/time-based mock data with varied conditions
         let (base_temp, conditions) = match now.month() {
             12 | 1 | 2 => (2.0, if now.day() % 4 == 0 { "snow" } else { "cloudy" }), // Winter
-            3 | 4 | 5 => (
+            3..=5 => (
                 12.0,
                 if now.day() % 3 == 0 {
                     "rainy"
@@ -240,7 +240,7 @@ impl WeatherService {
                     "partly cloudy"
                 },
             ), // Spring
-            6 | 7 | 8 => (
+            6..=8 => (
                 22.0,
                 if now.day() % 5 == 0 {
                     "thunderstorms"
@@ -410,7 +410,7 @@ mod tests {
     fn test_weather_service_creation() {
         let config = crate::config::fitness_config::WeatherApiConfig::default();
         let _service = WeatherService::new(config);
-        assert!(true); // Just test creation
+        // Just test creation - no assertion needed
     }
 
     #[test]

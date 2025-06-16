@@ -113,3 +113,6 @@ pub mod dashboard_routes;
 
 /// WebSocket support for real-time updates
 pub mod websocket;
+
+/// Security headers and protection middleware
+pub mod security;

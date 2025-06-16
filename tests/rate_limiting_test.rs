@@ -489,7 +489,7 @@ async fn test_rate_limit_with_mixed_status_codes() {
     database.create_api_key(&api_key).await.unwrap();
 
     // Record usage with different status codes
-    let status_codes = vec![200, 201, 400, 401, 403, 404, 500, 502];
+    let status_codes = [200, 201, 400, 401, 403, 404, 500, 502];
     for (i, &status_code) in status_codes.iter().enumerate() {
         let usage = ApiKeyUsage {
             id: None,

@@ -24,6 +24,12 @@ pub struct StravaProvider {
     refresh_token: Option<String>,
 }
 
+impl Default for StravaProvider {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StravaProvider {
     pub fn new() -> Self {
         Self {

@@ -85,6 +85,12 @@ impl Default for InsightConfig {
     }
 }
 
+impl Default for InsightGenerator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl InsightGenerator {
     /// Create a new insight generator with default config
     pub fn new() -> Self {
@@ -502,7 +508,7 @@ mod tests {
         let activity = create_test_activity();
 
         let effort = generator.calculate_relative_effort(&activity);
-        assert!(effort >= 1.0 && effort <= 10.0);
+        assert!((1.0..=10.0).contains(&effort));
     }
 
     #[test]

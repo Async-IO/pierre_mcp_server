@@ -95,12 +95,15 @@ impl DashboardRoutes {
         auth_header: Option<&str>,
     ) -> Result<DashboardOverview> {
         tracing::debug!("Dashboard overview request received");
-        
+
         // Authenticate user
         let claims = self.validate_auth_header(auth_header)?;
         let user_id = Uuid::parse_str(&claims.sub)?;
-        
-        tracing::info!("Dashboard overview data access granted for user: {}", user_id);
+
+        tracing::info!(
+            "Dashboard overview data access granted for user: {}",
+            user_id
+        );
 
         // Get user's API keys
         let api_keys = self.database.get_user_api_keys(user_id).await?;
@@ -190,11 +193,15 @@ impl DashboardRoutes {
         days: u32,
     ) -> Result<UsageAnalytics> {
         tracing::debug!("Dashboard analytics request received for {} days", days);
-        
+
         let claims = self.validate_auth_header(auth_header)?;
         let user_id = Uuid::parse_str(&claims.sub)?;
-        
-        tracing::info!("Dashboard analytics data access granted for user: {} (timeframe: {} days)", user_id, days);
+
+        tracing::info!(
+            "Dashboard analytics data access granted for user: {} (timeframe: {} days)",
+            user_id,
+            days
+        );
 
         let api_keys = self.database.get_user_api_keys(user_id).await?;
         let start_date = Utc::now() - Duration::days(days as i64);
@@ -218,7 +225,7 @@ impl DashboardRoutes {
 
                 total_requests += stats.total_requests as u64;
                 total_errors += stats.failed_requests as u64;
-                total_response_time += stats.total_response_time_ms as u64;
+                total_response_time += stats.total_response_time_ms;
                 response_count += stats.total_requests as u64;
             }
 
@@ -272,11 +279,14 @@ impl DashboardRoutes {
         auth_header: Option<&str>,
     ) -> Result<Vec<RateLimitOverview>> {
         tracing::debug!("Dashboard rate limit overview request received");
-        
+
         let claims = self.validate_auth_header(auth_header)?;
         let user_id = Uuid::parse_str(&claims.sub)?;
-        
-        tracing::info!("Dashboard rate limit data access granted for user: {}", user_id);
+
+        tracing::info!(
+            "Dashboard rate limit data access granted for user: {}",
+            user_id
+        );
 
         let api_keys = self.database.get_user_api_keys(user_id).await?;
         let mut overview = Vec::new();
@@ -336,7 +346,7 @@ impl DashboardRoutes {
     /// Validate authentication header and return claims
     fn validate_auth_header(&self, auth_header: Option<&str>) -> Result<crate::auth::Claims> {
         tracing::debug!("Dashboard endpoint authentication attempt");
-        
+
         let auth_str = match auth_header {
             Some(header) => header,
             None => {
@@ -353,7 +363,10 @@ impl DashboardRoutes {
                     Ok(claims)
                 }
                 Err(e) => {
-                    tracing::warn!("Dashboard access denied for token validation failure: {}", e);
+                    tracing::warn!(
+                        "Dashboard access denied for token validation failure: {}",
+                        e
+                    );
                     Err(e)
                 }
             }

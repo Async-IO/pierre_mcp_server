@@ -637,7 +637,7 @@ impl EncryptedToken {
         rng.fill(&mut nonce_bytes)?;
         let nonce = Nonce::assume_unique_for_key(nonce_bytes);
         use base64::{engine::general_purpose, Engine as _};
-        let _nonce_b64 = general_purpose::STANDARD.encode(&nonce_bytes);
+        let _nonce_b64 = general_purpose::STANDARD.encode(nonce_bytes);
 
         // Create encryption key
         let unbound_key = UnboundKey::new(&AES_256_GCM, encryption_key)?;
@@ -661,8 +661,8 @@ impl EncryptedToken {
         let encrypted_refresh = general_purpose::STANDARD.encode(&refresh_token_data);
 
         // Store both nonces (we'll use the first one as the main nonce, second is embedded in refresh token)
-        let combined_nonce = general_purpose::STANDARD
-            .encode(&[&nonce_bytes[..], &refresh_nonce_bytes[..]].concat());
+        let combined_nonce =
+            general_purpose::STANDARD.encode([&nonce_bytes[..], &refresh_nonce_bytes[..]].concat());
 
         Ok(Self {
             access_token: encrypted_access,

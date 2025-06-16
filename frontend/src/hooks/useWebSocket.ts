@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAuth } from './useAuth';
 
 export type WebSocketMessage = {
-  type: 'auth' | 'subscribe' | 'usage_update' | 'system_stats' | 'error' | 'success';
+  type: 'auth' | 'subscribe' | 'usage_update' | 'system_stats' | 'error' | 'success' | 'request_update';
   token?: string;
   topics?: string[];
   api_key_id?: string;
@@ -13,6 +13,7 @@ export type WebSocketMessage = {
   total_requests_this_month?: number;
   active_connections?: number;
   message?: string;
+  data?: unknown;
 };
 
 export type UseWebSocketReturn = {

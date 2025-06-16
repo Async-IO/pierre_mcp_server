@@ -7,7 +7,6 @@ import type { AnalyticsData, TimeSeriesPoint } from '../types/chart';
 import ApiKeyList from './ApiKeyList';
 import CreateApiKey from './CreateApiKey';
 import UsageAnalytics from './UsageAnalytics';
-import RealTimeIndicator from './RealTimeIndicator';
 import RequestMonitor from './RequestMonitor';
 import ToolUsageBreakdown from './ToolUsageBreakdown';
 import { Line } from 'react-chartjs-2';
@@ -222,7 +221,7 @@ export default function Dashboard() {
                         <div key={item.api_key_id} className="border border-pierre-gray-200 rounded-lg p-4">
                           <div className="flex justify-between items-center mb-2">
                             <span className="font-medium">{item.api_key_name}</span>
-                            <Badge variant={item.tier as any}>
+                            <Badge variant={item.tier as 'starter' | 'professional' | 'enterprise' | 'trial'}>
                               {item.tier}
                             </Badge>
                           </div>

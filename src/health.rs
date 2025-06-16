@@ -90,23 +90,23 @@ impl HealthChecker {
             cached_status: RwLock::new(None),
             cache_ttl: Duration::from_secs(30), // Cache for 30 seconds
         };
-        
+
         // Start background cleanup task for expired API keys
         let database_clone = health_checker.database.clone();
         tokio::spawn(async move {
             Self::periodic_cleanup_task(database_clone).await;
         });
-        
+
         health_checker
     }
-    
+
     /// Periodic task to clean up expired API keys
     async fn periodic_cleanup_task(database: Database) {
         let mut interval = tokio::time::interval(Duration::from_secs(3600)); // Run every hour
-        
+
         loop {
             interval.tick().await;
-            
+
             match database.cleanup_expired_api_keys().await {
                 Ok(count) => {
                     if count > 0 {

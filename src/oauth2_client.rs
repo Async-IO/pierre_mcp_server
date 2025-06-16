@@ -50,7 +50,7 @@ impl PkceParams {
         let mut hasher = Sha256::new();
         hasher.update(code_verifier.as_bytes());
         let hash = hasher.finalize();
-        let code_challenge = URL_SAFE_NO_PAD.encode(&hash);
+        let code_challenge = URL_SAFE_NO_PAD.encode(hash);
 
         Self {
             code_verifier,

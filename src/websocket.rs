@@ -115,7 +115,7 @@ impl WebSocketManager {
             match msg {
                 Ok(msg) if msg.is_text() => {
                     let text = msg.to_str().unwrap_or("");
-                    match serde_json::from_str::<WebSocketMessage>(&text) {
+                    match serde_json::from_str::<WebSocketMessage>(text) {
                         Ok(WebSocketMessage::Authentication { token }) => {
                             match self.authenticate_user(&token).await {
                                 Ok(auth_result) => {

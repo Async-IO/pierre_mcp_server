@@ -742,27 +742,21 @@ impl Database {
         if let Some(row) = row {
             let mut profile = serde_json::Map::new();
 
-            if let Ok(age) = row.try_get::<Option<i64>, _>("age") {
-                if let Some(age) = age {
-                    profile.insert("age".to_string(), serde_json::Value::Number(age.into()));
-                }
+            if let Ok(Some(age)) = row.try_get::<Option<i64>, _>("age") {
+                profile.insert("age".to_string(), serde_json::Value::Number(age.into()));
             }
 
-            if let Ok(gender) = row.try_get::<Option<String>, _>("gender") {
-                if let Some(gender) = gender {
-                    profile.insert("gender".to_string(), serde_json::Value::String(gender));
-                }
+            if let Ok(Some(gender)) = row.try_get::<Option<String>, _>("gender") {
+                profile.insert("gender".to_string(), serde_json::Value::String(gender));
             }
 
-            if let Ok(weight_kg) = row.try_get::<Option<f64>, _>("weight_kg") {
-                if let Some(weight) = weight_kg {
-                    profile.insert(
-                        "weight_kg".to_string(),
-                        serde_json::Value::Number(
-                            serde_json::Number::from_f64(weight).unwrap_or_else(|| 0.into()),
-                        ),
-                    );
-                }
+            if let Ok(Some(weight)) = row.try_get::<Option<f64>, _>("weight_kg") {
+                profile.insert(
+                    "weight_kg".to_string(),
+                    serde_json::Value::Number(
+                        serde_json::Number::from_f64(weight).unwrap_or_else(|| 0.into()),
+                    ),
+                );
             }
 
             if let Ok(fitness_level) = row.try_get::<String, _>("fitness_level") {
@@ -1023,6 +1017,7 @@ pub fn generate_encryption_key() -> [u8; 32] {
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_test_module)]
 mod tests {
     use super::*;
 
@@ -1744,11 +1739,11 @@ impl Database {
 
         Ok(())
     }
-    
+
     /// Clean up expired API keys (deactivate them)
     pub async fn cleanup_expired_api_keys(&self) -> Result<u64> {
         let now = Utc::now().to_rfc3339();
-        
+
         let result = sqlx::query(
             r#"
             UPDATE api_keys 
@@ -1762,14 +1757,14 @@ impl Database {
         .bind(&now)
         .execute(&self.pool)
         .await?;
-        
+
         Ok(result.rows_affected())
     }
-    
+
     /// Get all expired but still active API keys
     pub async fn get_expired_api_keys(&self) -> Result<Vec<ApiKey>> {
         let now = Utc::now().to_rfc3339();
-        
+
         let rows = sqlx::query(
             r#"
             SELECT * FROM api_keys 
@@ -1782,14 +1777,14 @@ impl Database {
         .bind(&now)
         .fetch_all(&self.pool)
         .await?;
-        
+
         let mut api_keys = Vec::new();
         for row in rows {
             if let Ok(api_key) = self.parse_api_key_row(row) {
                 api_keys.push(api_key);
             }
         }
-        
+
         Ok(api_keys)
     }
 

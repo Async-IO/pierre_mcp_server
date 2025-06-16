@@ -21,7 +21,7 @@ async fn main() -> Result<()> {
         "id": 1
     });
 
-    let request_str = format!("{}\n", init_request.to_string());
+    let request_str = format!("{}\n", init_request);
     writer.write_all(request_str.as_bytes()).await?;
 
     let mut response = String::new();
@@ -49,7 +49,7 @@ async fn main() -> Result<()> {
         "id": 2
     });
 
-    let request_str = format!("{}\n", athlete_request.to_string());
+    let request_str = format!("{}\n", athlete_request);
     writer.write_all(request_str.as_bytes()).await?;
 
     let mut response = String::new();
@@ -90,7 +90,7 @@ async fn main() -> Result<()> {
         "id": 3
     });
 
-    let request_str = format!("{}\n", activities_request.to_string());
+    let request_str = format!("{}\n", activities_request);
     writer.write_all(request_str.as_bytes()).await?;
 
     let mut response = String::new();
@@ -140,7 +140,7 @@ async fn main() -> Result<()> {
         "id": 4
     });
 
-    let request_str = format!("{}\n", stats_request.to_string());
+    let request_str = format!("{}\n", stats_request);
     writer.write_all(request_str.as_bytes()).await?;
 
     let mut response = String::new();
