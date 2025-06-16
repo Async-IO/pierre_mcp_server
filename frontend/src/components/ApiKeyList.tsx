@@ -1,9 +1,14 @@
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../services/api';
 import type { ApiKeysResponse, ApiKey } from '../types/api';
+import RequestMonitor from './RequestMonitor';
+import { Button, Card, CardHeader, Badge } from './ui';
 
 export default function ApiKeyList() {
   const queryClient = useQueryClient();
+  const [selectedKeyId, setSelectedKeyId] = useState<string | null>(null);
+  const [showRequestMonitor, setShowRequestMonitor] = useState(false);
 
   const { data: apiKeys, isLoading } = useQuery<ApiKeysResponse>({
     queryKey: ['api-keys'],
@@ -32,23 +37,21 @@ export default function ApiKeyList() {
   if (isLoading) {
     return (
       <div className="flex justify-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-api-blue"></div>
+        <div className="pierre-spinner"></div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="card">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold">Your API Keys</h2>
-          <span className="text-gray-500">
-            {apiKeys?.api_keys?.length || 0} total keys
-          </span>
-        </div>
+      <Card>
+        <CardHeader 
+          title="Your API Keys" 
+          subtitle={`${apiKeys?.api_keys?.length || 0} total keys`}
+        />
 
         {!apiKeys?.api_keys?.length ? (
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-8 text-pierre-gray-500">
             <div className="text-4xl mb-4">🔑</div>
             <p className="text-lg mb-2">No API keys yet</p>
             <p>Create your first API key to get started</p>
@@ -56,35 +59,31 @@ export default function ApiKeyList() {
         ) : (
           <div className="space-y-4">
             {apiKeys.api_keys.map((key: ApiKey) => (
-              <div key={key.id} className="border rounded-lg p-4">
+              <div key={key.id} className="border border-pierre-gray-200 rounded-lg p-4">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
                       <h3 className="font-medium text-lg">{key.name}</h3>
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        key.is_active 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-red-100 text-red-800'
-                      }`}>
+                      <Badge variant={key.is_active ? 'success' : 'error'}>
                         {key.is_active ? 'Active' : 'Inactive'}
-                      </span>
-                      <span className="px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800 capitalize">
+                      </Badge>
+                      <Badge variant={key.tier as any}>
                         {key.tier}
-                      </span>
+                      </Badge>
                     </div>
                     
                     {key.description && (
-                      <p className="text-gray-600 text-sm mb-2">{key.description}</p>
+                      <p className="text-pierre-gray-600 text-sm mb-2">{key.description}</p>
                     )}
                     
-                    <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+                    <div className="grid grid-cols-2 gap-4 text-sm text-pierre-gray-600">
                       <div>
                         <span className="font-medium">Key Prefix:</span>
-                        <div className="font-mono bg-gray-100 px-2 py-1 rounded mt-1">
+                        <div className="font-mono bg-pierre-gray-100 px-2 py-1 rounded mt-1">
                           {key.key_prefix}****
                           <button
                             onClick={() => copyToClipboard(key.key_prefix)}
-                            className="ml-2 text-api-blue hover:text-blue-700"
+                            className="ml-2 text-pierre-blue-600 hover:text-pierre-blue-700"
                             title="Copy prefix"
                           >
                             📋
@@ -119,20 +118,26 @@ export default function ApiKeyList() {
                   </div>
                   
                   <div className="flex gap-2 ml-4">
-                    <button
-                      onClick={() => {/* Navigate to usage details */}}
-                      className="btn-secondary text-xs px-3 py-1"
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedKeyId(key.id);
+                        setShowRequestMonitor(true);
+                      }}
                     >
                       View Usage
-                    </button>
+                    </Button>
                     {key.is_active && (
-                      <button
-                        onClick={() => handleDeactivate(key.id, key.name)}
+                      <Button
+                        variant="danger"
+                        size="sm"
                         disabled={deactivateMutation.isPending}
-                        className="btn-danger text-xs px-3 py-1 disabled:opacity-50"
+                        loading={deactivateMutation.isPending}
+                        onClick={() => handleDeactivate(key.id, key.name)}
                       >
                         {deactivateMutation.isPending ? 'Deactivating...' : 'Deactivate'}
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -140,7 +145,26 @@ export default function ApiKeyList() {
             ))}
           </div>
         )}
-      </div>
+      </Card>
+
+      {/* Request Monitor Modal/Overlay */}
+      {showRequestMonitor && (
+        <div className="mt-8">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-medium">
+              Request Monitor {selectedKeyId && `- ${apiKeys?.api_keys.find(k => k.id === selectedKeyId)?.name}`}
+            </h3>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowRequestMonitor(false)}
+            >
+              Close Monitor
+            </Button>
+          </div>
+          <RequestMonitor apiKeyId={selectedKeyId || undefined} />
+        </div>
+      )}
     </div>
   );
 }

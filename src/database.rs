@@ -1648,6 +1648,7 @@ impl Database {
         .bind(&api_key.key_hash)
         .bind(&api_key.description)
         .bind(match api_key.tier {
+            ApiKeyTier::Trial => "trial",
             ApiKeyTier::Starter => "starter",
             ApiKeyTier::Professional => "professional",
             ApiKeyTier::Enterprise => "enterprise",
@@ -1742,6 +1743,54 @@ impl Database {
         .await?;
 
         Ok(())
+    }
+    
+    /// Clean up expired API keys (deactivate them)
+    pub async fn cleanup_expired_api_keys(&self) -> Result<u64> {
+        let now = Utc::now().to_rfc3339();
+        
+        let result = sqlx::query(
+            r#"
+            UPDATE api_keys 
+            SET is_active = false, updated_at = ?1
+            WHERE is_active = true 
+            AND expires_at IS NOT NULL 
+            AND expires_at < ?2
+            "#,
+        )
+        .bind(&now)
+        .bind(&now)
+        .execute(&self.pool)
+        .await?;
+        
+        Ok(result.rows_affected())
+    }
+    
+    /// Get all expired but still active API keys
+    pub async fn get_expired_api_keys(&self) -> Result<Vec<ApiKey>> {
+        let now = Utc::now().to_rfc3339();
+        
+        let rows = sqlx::query(
+            r#"
+            SELECT * FROM api_keys 
+            WHERE is_active = true 
+            AND expires_at IS NOT NULL 
+            AND expires_at < ?1
+            ORDER BY expires_at ASC
+            "#,
+        )
+        .bind(&now)
+        .fetch_all(&self.pool)
+        .await?;
+        
+        let mut api_keys = Vec::new();
+        for row in rows {
+            if let Ok(api_key) = self.parse_api_key_row(row) {
+                api_keys.push(api_key);
+            }
+        }
+        
+        Ok(api_keys)
     }
 
     /// Record API key usage
@@ -1861,6 +1910,7 @@ impl Database {
     fn parse_api_key_row(&self, row: sqlx::sqlite::SqliteRow) -> Result<ApiKey> {
         let tier_str: String = row.get("tier");
         let tier = match tier_str.as_str() {
+            "trial" => ApiKeyTier::Trial,
             "starter" => ApiKeyTier::Starter,
             "professional" => ApiKeyTier::Professional,
             "enterprise" => ApiKeyTier::Enterprise,

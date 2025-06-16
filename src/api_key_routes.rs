@@ -188,4 +188,52 @@ impl ApiKeyRoutes {
 
         Ok(ApiKeyUsageResponse { stats })
     }
+    
+    /// Create a trial API key with default settings
+    pub async fn create_trial_key(
+        &self,
+        auth_header: Option<&str>,
+        name: String,
+        description: Option<String>,
+    ) -> Result<ApiKeyCreateResponse> {
+        let user_id = self.authenticate_user(auth_header).await?;
+        
+        // Check if user already has a trial key
+        let existing_keys = self.database.get_user_api_keys(user_id).await?;
+        let has_trial_key = existing_keys.iter().any(|k| k.tier == ApiKeyTier::Trial);
+        
+        if has_trial_key {
+            return Err(anyhow::anyhow!("User already has a trial API key"));
+        }
+        
+        // Create the trial key
+        let (api_key, full_key) = self
+            .api_key_manager
+            .create_trial_key(user_id, name, description)
+            .await?;
+        
+        // Store in database
+        self.database.create_api_key(&api_key).await?;
+        
+        Ok(ApiKeyCreateResponse {
+            api_key: full_key,
+            key_info: ApiKeyInfo {
+                id: api_key.id.clone(),
+                name: api_key.name,
+                description: api_key.description,
+                tier: api_key.tier,
+                key_prefix: api_key.key_prefix,
+                is_active: api_key.is_active,
+                last_used_at: api_key.last_used_at,
+                expires_at: api_key.expires_at,
+                created_at: api_key.created_at,
+            },
+            warning: format!(
+                "This is a trial API key that will expire on {}. Store it securely - it cannot be recovered once lost.",
+                api_key.expires_at
+                    .map(|d| d.format("%Y-%m-%d").to_string())
+                    .unwrap_or_else(|| "N/A".to_string())
+            ),
+        })
+    }
 }

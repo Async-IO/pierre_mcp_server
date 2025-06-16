@@ -324,6 +324,40 @@ impl MultiTenantMcpServer {
                 }
             });
 
+        // Trial API key endpoint
+        let create_trial_key = warp::path("api")
+            .and(warp::path("keys"))
+            .and(warp::path("trial"))
+            .and(warp::post())
+            .and(warp::header::optional::<String>("authorization"))
+            .and(warp::body::json())
+            .and_then({
+                let api_key_routes = api_key_routes.clone();
+                move |auth_header: Option<String>, request: serde_json::Value| {
+                    let api_key_routes = api_key_routes.clone();
+                    async move {
+                        let name = request.get("name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("Trial API Key")
+                            .to_string();
+                        let description = request.get("description")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
+                        
+                        match api_key_routes
+                            .create_trial_key(auth_header.as_deref(), name, description)
+                            .await
+                        {
+                            Ok(response) => Ok(warp::reply::json(&response)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
+
         let get_api_key_usage = warp::path("api")
             .and(warp::path("keys"))
             .and(warp::path!(String))
@@ -463,6 +497,7 @@ impl MultiTenantMcpServer {
             .or(oauth_auth)
             .or(oauth_callback)
             .or(create_api_key)
+            .or(create_trial_key)
             .or(list_api_keys)
             .or(deactivate_api_key)
             .or(get_api_key_usage)

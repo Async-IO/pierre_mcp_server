@@ -64,14 +64,50 @@ export interface RateLimitOverview {
   requests_per_day: number;
   limit: number;
   usage_percentage: number;
-  current_usage: {
-    minute: number;
-    hour: number;
-    day: number;
-  };
+  current_usage: number;
   reset_times: {
     minute: string;
     hour: string;
     day: string;
   };
+}
+
+export interface RequestLog {
+  id: string;
+  api_key_id: string;
+  api_key_prefix: string;
+  timestamp: string;
+  tool_name: string;
+  status_code: number;
+  response_time_ms?: number;
+  error_message?: string;
+  request_size_bytes?: number;
+  response_size_bytes?: number;
+  ip_address?: string;
+  user_agent?: string;
+}
+
+export interface RequestStats {
+  total_requests: number;
+  success_rate: number;
+  avg_response_time: number;
+  requests_per_minute: number;
+  error_count: number;
+  most_used_tool: string;
+  peak_hour: string;
+}
+
+export interface RequestFilter {
+  timeRange: string;
+  status: string;
+  tool: string;
+}
+
+export interface ToolUsageBreakdown {
+  tool_name: string;
+  request_count: number;
+  success_rate: number;
+  avg_response_time: number;
+  error_count: number;
+  percentage_of_total: number;
 }
