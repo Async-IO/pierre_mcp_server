@@ -457,8 +457,8 @@ async fn test_usage_analytics() {
     database.create_api_key(&api_key).await.unwrap();
 
     // Record diverse usage patterns
-    let tools = vec!["get_activities", "get_athlete", "analyze_activity"];
-    let status_codes = vec![200, 200, 400, 200, 500]; // Mix of success and errors
+    let tools = ["get_activities", "get_athlete", "analyze_activity"];
+    let status_codes = [200, 200, 400, 200, 500]; // Mix of success and errors
 
     for (i, &status_code) in status_codes.iter().enumerate() {
         let usage = ApiKeyUsage {

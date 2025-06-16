@@ -188,7 +188,7 @@ impl ApiKeyRoutes {
 
         Ok(ApiKeyUsageResponse { stats })
     }
-    
+
     /// Create a trial API key with default settings
     pub async fn create_trial_key(
         &self,
@@ -197,24 +197,24 @@ impl ApiKeyRoutes {
         description: Option<String>,
     ) -> Result<ApiKeyCreateResponse> {
         let user_id = self.authenticate_user(auth_header).await?;
-        
+
         // Check if user already has a trial key
         let existing_keys = self.database.get_user_api_keys(user_id).await?;
         let has_trial_key = existing_keys.iter().any(|k| k.tier == ApiKeyTier::Trial);
-        
+
         if has_trial_key {
             return Err(anyhow::anyhow!("User already has a trial API key"));
         }
-        
+
         // Create the trial key
         let (api_key, full_key) = self
             .api_key_manager
             .create_trial_key(user_id, name, description)
             .await?;
-        
+
         // Store in database
         self.database.create_api_key(&api_key).await?;
-        
+
         Ok(ApiKeyCreateResponse {
             api_key: full_key,
             key_info: ApiKeyInfo {

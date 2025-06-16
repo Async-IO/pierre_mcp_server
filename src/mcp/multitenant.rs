@@ -22,6 +22,7 @@ use crate::mcp::schema::InitializeResponse;
 use crate::models::AuthRequest;
 use crate::providers::{create_provider, AuthData, FitnessProvider};
 use crate::routes::{AuthRoutes, LoginRequest, OAuthRoutes, RegisterRequest};
+use crate::security::SecurityConfig;
 use crate::websocket::WebSocketManager;
 
 use anyhow::Result;
@@ -29,12 +30,16 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
+use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 use uuid::Uuid;
 
 // Constants are now imported from the constants module
+
+/// Type alias for the complex provider storage type
+type UserProviderStorage = Arc<RwLock<HashMap<String, HashMap<String, Box<dyn FitnessProvider>>>>>;
 
 /// Multi-tenant MCP server supporting user authentication
 pub struct MultiTenantMcpServer {
@@ -43,7 +48,7 @@ pub struct MultiTenantMcpServer {
     auth_middleware: Arc<McpAuthMiddleware>,
     websocket_manager: Arc<WebSocketManager>,
     // Per-user provider instances
-    user_providers: Arc<RwLock<HashMap<String, HashMap<String, Box<dyn FitnessProvider>>>>>,
+    user_providers: UserProviderStorage,
 }
 
 impl MultiTenantMcpServer {
@@ -114,6 +119,10 @@ impl MultiTenantMcpServer {
 
         info!("HTTP authentication server starting on port {}", port);
 
+        // Security configuration (use development config for now)
+        let security_config = SecurityConfig::development();
+        info!("Security headers enabled with development configuration");
+
         let auth_routes = AuthRoutes::new((*database).clone(), (*auth_manager).clone());
         let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
         let api_key_routes = ApiKeyRoutes::new((*database).clone(), (*auth_manager).clone());
@@ -123,13 +132,13 @@ impl MultiTenantMcpServer {
         let cors = warp::cors()
             .allow_any_origin()
             .allow_headers(vec![
-                "content-type", 
-                "authorization", 
+                "content-type",
+                "authorization",
                 "x-requested-with",
                 "accept",
                 "origin",
                 "access-control-request-method",
-                "access-control-request-headers"
+                "access-control-request-headers",
             ])
             .allow_methods(vec!["GET", "POST", "PUT", "DELETE", "OPTIONS"]);
 
@@ -336,14 +345,16 @@ impl MultiTenantMcpServer {
                 move |auth_header: Option<String>, request: serde_json::Value| {
                     let api_key_routes = api_key_routes.clone();
                     async move {
-                        let name = request.get("name")
+                        let name = request
+                            .get("name")
                             .and_then(|v| v.as_str())
                             .unwrap_or("Trial API Key")
                             .to_string();
-                        let description = request.get("description")
+                        let description = request
+                            .get("description")
                             .and_then(|v| v.as_str())
                             .map(|s| s.to_string());
-                        
+
                         match api_key_routes
                             .create_trial_key(auth_header.as_deref(), name, description)
                             .await
@@ -492,6 +503,20 @@ impl MultiTenantMcpServer {
         // Start periodic WebSocket updates
         websocket_manager.start_periodic_updates();
 
+        // Create security headers filter
+        let security_headers_filter = warp::reply::with::headers({
+            let headers = security_config.to_headers();
+            let mut header_map = warp::http::HeaderMap::new();
+            for (name, value) in headers {
+                if let Ok(header_name) = warp::http::HeaderName::from_str(name) {
+                    if let Ok(header_value) = warp::http::HeaderValue::from_str(&value) {
+                        header_map.insert(header_name, header_value);
+                    }
+                }
+            }
+            header_map
+        });
+
         let routes = register
             .or(login)
             .or(oauth_auth)
@@ -507,6 +532,7 @@ impl MultiTenantMcpServer {
             .or(websocket_route)
             .or(health)
             .with(cors)
+            .with(security_headers_filter)
             .recover(handle_rejection);
 
         info!("HTTP server ready on port {}", port);
@@ -559,12 +585,13 @@ impl MultiTenantMcpServer {
     }
 
     /// Handle MCP request with authentication
+    #[allow(clippy::type_complexity)]
     async fn handle_request(
         request: McpRequest,
         database: &Arc<Database>,
         auth_manager: &Arc<AuthManager>,
         auth_middleware: &Arc<McpAuthMiddleware>,
-        user_providers: &Arc<RwLock<HashMap<String, HashMap<String, Box<dyn FitnessProvider>>>>>,
+        user_providers: &UserProviderStorage,
     ) -> McpResponse {
         match request.method.as_str() {
             "initialize" => {
@@ -586,12 +613,19 @@ impl MultiTenantMcpServer {
                 // Extract authorization header from request
                 let auth_token = request.auth_token.as_deref();
 
-                tracing::debug!("MCP tool call authentication attempt for method: {}", request.method);
-                
+                tracing::debug!(
+                    "MCP tool call authentication attempt for method: {}",
+                    request.method
+                );
+
                 match auth_middleware.authenticate_request(auth_token).await {
                     Ok(auth_result) => {
-                        tracing::info!("MCP tool call authentication successful for user: {} (method: {})", auth_result.user_id, auth_result.auth_method.display_name());
-                        
+                        tracing::info!(
+                            "MCP tool call authentication successful for user: {} (method: {})",
+                            auth_result.user_id,
+                            auth_result.auth_method.display_name()
+                        );
+
                         // Update user's last active timestamp
                         let _ = database.update_last_active(auth_result.user_id).await;
 
@@ -605,18 +639,25 @@ impl MultiTenantMcpServer {
                     }
                     Err(e) => {
                         warn!("MCP tool call authentication failed: {}", e);
-                        
+
                         // Determine specific error code based on error message
                         let error_message = e.to_string();
-                        let (error_code, error_msg) = if error_message.contains("JWT token expired") {
-                            (crate::constants::errors::ERROR_TOKEN_EXPIRED, 
-                             crate::constants::errors::MSG_TOKEN_EXPIRED)
+                        let (error_code, error_msg) = if error_message.contains("JWT token expired")
+                        {
+                            (
+                                crate::constants::errors::ERROR_TOKEN_EXPIRED,
+                                crate::constants::errors::MSG_TOKEN_EXPIRED,
+                            )
                         } else if error_message.contains("JWT token signature is invalid") {
-                            (crate::constants::errors::ERROR_TOKEN_INVALID,
-                             crate::constants::errors::MSG_TOKEN_INVALID)
+                            (
+                                crate::constants::errors::ERROR_TOKEN_INVALID,
+                                crate::constants::errors::MSG_TOKEN_INVALID,
+                            )
                         } else if error_message.contains("JWT token is malformed") {
-                            (crate::constants::errors::ERROR_TOKEN_MALFORMED,
-                             crate::constants::errors::MSG_TOKEN_MALFORMED)
+                            (
+                                crate::constants::errors::ERROR_TOKEN_MALFORMED,
+                                crate::constants::errors::MSG_TOKEN_MALFORMED,
+                            )
                         } else {
                             (ERROR_UNAUTHORIZED, "Authentication required")
                         };
@@ -681,21 +722,22 @@ impl MultiTenantMcpServer {
     }
 
     /// Handle authenticated tool call with user context and rate limiting
+    #[allow(clippy::type_complexity)]
     async fn handle_authenticated_tool_call(
         request: McpRequest,
         auth_result: AuthResult,
         database: &Arc<Database>,
-        user_providers: &Arc<RwLock<HashMap<String, HashMap<String, Box<dyn FitnessProvider>>>>>,
+        user_providers: &UserProviderStorage,
     ) -> McpResponse {
         let params = request.params.unwrap_or_default();
         let tool_name = params["name"].as_str().unwrap_or("");
         let args = &params["arguments"];
         let user_id = auth_result.user_id;
-        
+
         tracing::info!(
-            "Executing tool call: {} for user: {} using {} authentication", 
-            tool_name, 
-            user_id, 
+            "Executing tool call: {} for user: {} using {} authentication",
+            tool_name,
+            user_id,
             auth_result.auth_method.display_name()
         );
 
@@ -748,7 +790,7 @@ impl MultiTenantMcpServer {
                     .await;
                 }
 
-                return response;
+                response
             }
             _ => {
                 // Check if this is a known tool that requires a provider
@@ -803,7 +845,12 @@ impl MultiTenantMcpServer {
                 // Execute tool call with user-scoped provider
                 let start_time = std::time::Instant::now();
                 let response = Self::execute_tool_call(
-                    tool_name, args, &provider, request.id, user_id, database,
+                    tool_name,
+                    args,
+                    provider.as_ref(),
+                    request.id,
+                    user_id,
+                    database,
                 )
                 .await;
 
@@ -829,7 +876,7 @@ impl MultiTenantMcpServer {
         user_id: Uuid,
         provider_name: &str,
         database: &Arc<Database>,
-        user_providers: &Arc<RwLock<HashMap<String, HashMap<String, Box<dyn FitnessProvider>>>>>,
+        user_providers: &UserProviderStorage,
     ) -> Result<Box<dyn FitnessProvider>> {
         let user_key = user_id.to_string();
 
@@ -1267,7 +1314,7 @@ impl MultiTenantMcpServer {
     async fn execute_tool_call(
         tool_name: &str,
         args: &Value,
-        provider: &Box<dyn FitnessProvider>,
+        provider: &dyn FitnessProvider,
         id: Value,
         _user_id: Uuid,
         _database: &Arc<Database>,
@@ -2036,20 +2083,29 @@ struct ApiError(serde_json::Value);
 
 impl warp::reject::Reject for ApiError {}
 
-/// Add CORS headers to a reply
+/// Add CORS and security headers to a reply
 fn with_cors_headers(reply: impl warp::Reply) -> impl warp::Reply {
+    let security_config = SecurityConfig::development();
+    let headers = security_config.to_headers();
+
+    // Add main CORS headers and a security header
+    let csp_value = headers
+        .get("Content-Security-Policy")
+        .cloned()
+        .unwrap_or_else(|| "default-src 'self'".to_string());
+
     warp::reply::with_header(
         warp::reply::with_header(
             warp::reply::with_header(
-                reply,
-                "access-control-allow-origin",
-                "*",
+                warp::reply::with_header(reply, "access-control-allow-origin", "*"),
+                "access-control-allow-methods",
+                "GET, POST, PUT, DELETE, OPTIONS",
             ),
-            "access-control-allow-methods",
-            "GET, POST, PUT, DELETE, OPTIONS",
+            "access-control-allow-headers",
+            "content-type, authorization, x-requested-with, accept, origin",
         ),
-        "access-control-allow-headers",
-        "content-type, authorization, x-requested-with, accept, origin",
+        "Content-Security-Policy",
+        csp_value,
     )
 }
 
@@ -2059,38 +2115,26 @@ async fn handle_rejection(
 ) -> Result<Box<dyn warp::Reply>, std::convert::Infallible> {
     if let Some(api_error) = err.find::<ApiError>() {
         let json = warp::reply::json(&api_error.0);
-        let reply = warp::reply::with_status(
-            json,
-            warp::http::StatusCode::BAD_REQUEST,
-        );
+        let reply = warp::reply::with_status(json, warp::http::StatusCode::BAD_REQUEST);
         Ok(Box::new(with_cors_headers(reply)))
     } else if err.find::<warp::reject::MethodNotAllowed>().is_some() {
         // Handle CORS preflight and method not allowed
         let json = warp::reply::json(&serde_json::json!({}));
-        let reply = warp::reply::with_status(
-            json,
-            warp::http::StatusCode::OK,
-        );
+        let reply = warp::reply::with_status(json, warp::http::StatusCode::OK);
         Ok(Box::new(with_cors_headers(reply)))
     } else if err.is_not_found() {
         let json = warp::reply::json(&serde_json::json!({
             "error": "Not Found",
             "message": "The requested endpoint was not found"
         }));
-        let reply = warp::reply::with_status(
-            json,
-            warp::http::StatusCode::NOT_FOUND,
-        );
+        let reply = warp::reply::with_status(json, warp::http::StatusCode::NOT_FOUND);
         Ok(Box::new(with_cors_headers(reply)))
     } else {
         let json = warp::reply::json(&serde_json::json!({
             "error": "Internal Server Error",
             "message": "Something went wrong"
         }));
-        let reply = warp::reply::with_status(
-            json,
-            warp::http::StatusCode::INTERNAL_SERVER_ERROR,
-        );
+        let reply = warp::reply::with_status(json, warp::http::StatusCode::INTERNAL_SERVER_ERROR);
         Ok(Box::new(with_cors_headers(reply)))
     }
 }

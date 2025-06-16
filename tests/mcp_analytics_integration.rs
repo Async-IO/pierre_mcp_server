@@ -52,7 +52,7 @@ impl McpTestClient {
         let mut response_line = String::new();
         reader.read_line(&mut response_line).await?;
 
-        let response: Value = serde_json::from_str(&response_line.trim())?;
+        let response: Value = serde_json::from_str(response_line.trim())?;
         Ok(response)
     }
 
@@ -212,7 +212,7 @@ async fn test_analytics_workflow_without_provider() -> Result<()> {
     let score = fitness_score["result"]["fitness_score"]["overall_score"]
         .as_f64()
         .unwrap();
-    assert!(score >= 0.0 && score <= 100.0);
+    assert!((0.0..=100.0).contains(&score));
 
     // Test training recommendations
     let recommendations = client
@@ -461,7 +461,7 @@ async fn test_fitness_report_generation_workflow() -> Result<()> {
     let score = fitness_score["result"]["fitness_score"]["overall_score"]
         .as_f64()
         .unwrap();
-    assert!(score >= 0.0 && score <= 100.0);
+    assert!((0.0..=100.0).contains(&score));
 
     // Step 3: Analyze training load
     let training_load = client

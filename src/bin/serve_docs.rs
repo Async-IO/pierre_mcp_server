@@ -120,8 +120,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn create_swagger_ui_html() -> String {
-    format!(
-        r#"
+    r#"
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -287,6 +286,5 @@ fn create_swagger_ui_html() -> String {
     </script>
 </body>
 </html>
-    "#
-    )
+    "#.to_string()
 }

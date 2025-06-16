@@ -161,37 +161,51 @@ async fn test_config_env_workflow() -> Result<()> {
 
     // Use mutex to prevent test interference
     static ENV_MUTEX: Mutex<()> = Mutex::new(());
-    let _guard = ENV_MUTEX.lock().unwrap();
+    let config = {
+        let _guard = ENV_MUTEX.lock().unwrap();
 
-    // Store original values
-    let original_client_id = std::env::var("STRAVA_CLIENT_ID").ok();
-    let original_client_secret = std::env::var("STRAVA_CLIENT_SECRET").ok();
+        // Store original values
+        let original_client_id = std::env::var("STRAVA_CLIENT_ID").ok();
+        let original_client_secret = std::env::var("STRAVA_CLIENT_SECRET").ok();
 
-    // Set test environment variables
-    std::env::set_var("STRAVA_CLIENT_ID", "env_test_client");
-    std::env::set_var("STRAVA_CLIENT_SECRET", "env_test_secret");
-    std::env::set_var("STRAVA_ACCESS_TOKEN", "env_test_access");
+        // Set test environment variables
+        std::env::set_var("STRAVA_CLIENT_ID", "env_test_client");
+        std::env::set_var("STRAVA_CLIENT_SECRET", "env_test_secret");
+        std::env::set_var("STRAVA_ACCESS_TOKEN", "env_test_access");
 
-    // Create non-existent config path
-    let temp_dir = TempDir::new()?;
-    let nonexistent_config = temp_dir.path().join("nonexistent.toml");
+        // Create non-existent config path
+        let temp_dir = TempDir::new()?;
+        let nonexistent_config = temp_dir.path().join("nonexistent.toml");
 
-    // Load config (should fall back to env vars)
-    let config = Config::load(Some(nonexistent_config.to_string_lossy().to_string()))?;
+        // Load config (should fall back to env vars)
+        let config = Config::load(Some(nonexistent_config.to_string_lossy().to_string()))?;
 
-    // Verify Strava provider was created from env vars
-    assert!(config.providers.contains_key("strava"));
-    let strava_config = &config.providers["strava"];
-    assert_eq!(strava_config.auth_type, "oauth2");
-    assert_eq!(strava_config.client_id, Some("env_test_client".to_string()));
-    assert_eq!(
-        strava_config.client_secret,
-        Some("env_test_secret".to_string())
-    );
-    assert_eq!(
-        strava_config.access_token,
-        Some("env_test_access".to_string())
-    );
+        // Verify Strava provider was created from env vars
+        assert!(config.providers.contains_key("strava"));
+        let strava_config = &config.providers["strava"];
+        assert_eq!(strava_config.auth_type, "oauth2");
+        assert_eq!(strava_config.client_id, Some("env_test_client".to_string()));
+        assert_eq!(
+            strava_config.client_secret,
+            Some("env_test_secret".to_string())
+        );
+        assert_eq!(
+            strava_config.access_token,
+            Some("env_test_access".to_string())
+        );
+
+        // Restore original values
+        match original_client_id {
+            Some(val) => std::env::set_var("STRAVA_CLIENT_ID", val),
+            None => std::env::remove_var("STRAVA_CLIENT_ID"),
+        }
+        match original_client_secret {
+            Some(val) => std::env::set_var("STRAVA_CLIENT_SECRET", val),
+            None => std::env::remove_var("STRAVA_CLIENT_SECRET"),
+        }
+
+        config
+    }; // Guard is dropped here
 
     // Test MCP server with env-loaded config
     let server = McpServer::new(config);
@@ -207,18 +221,6 @@ async fn test_config_env_workflow() -> Result<()> {
     );
 
     server_task.abort();
-
-    // Restore environment variables
-    std::env::remove_var("STRAVA_CLIENT_ID");
-    std::env::remove_var("STRAVA_CLIENT_SECRET");
-    std::env::remove_var("STRAVA_ACCESS_TOKEN");
-
-    if let Some(val) = original_client_id {
-        std::env::set_var("STRAVA_CLIENT_ID", val);
-    }
-    if let Some(val) = original_client_secret {
-        std::env::set_var("STRAVA_CLIENT_SECRET", val);
-    }
 
     Ok(())
 }

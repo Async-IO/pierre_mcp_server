@@ -173,7 +173,7 @@ pub mod errors {
     pub const MSG_AUTH_REQUIRED: &str = "Authentication required";
     pub const MSG_AUTH_FAILED: &str = "Authentication failed";
     pub const MSG_INVALID_TOKEN: &str = "Invalid or expired token";
-    
+
     /// Token-specific error messages
     pub const MSG_TOKEN_EXPIRED: &str = "JWT token has expired";
     pub const MSG_TOKEN_INVALID: &str = "JWT token signature is invalid";

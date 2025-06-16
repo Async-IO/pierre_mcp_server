@@ -196,7 +196,7 @@ fn test_provider_parameter_consistency() {
         let tool = tools
             .iter()
             .find(|t| t.name == *tool_name)
-            .expect(&format!("Tool {} should exist", tool_name));
+            .unwrap_or_else(|| panic!("Tool {} should exist", tool_name));
 
         if let Some(required) = &tool.input_schema.required {
             assert!(
@@ -233,7 +233,7 @@ fn test_goal_tools_consistency() {
         let tool = tools
             .iter()
             .find(|t| t.name == *tool_name)
-            .expect(&format!("Tool {} should exist", tool_name));
+            .unwrap_or_else(|| panic!("Tool {} should exist", tool_name));
 
         // Description should mention goals
         assert!(

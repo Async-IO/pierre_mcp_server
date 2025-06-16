@@ -214,8 +214,8 @@ fn main() -> Result<()> {
                     // Collect activities from the longest streak
                     longest_streak_activities.clear();
                     let start_idx = i - current_streak;
-                    for j in start_idx..i {
-                        longest_streak_activities.push(daily_runs[j].1);
+                    for item in daily_runs.iter().take(i).skip(start_idx) {
+                        longest_streak_activities.push(item.1);
                     }
                 }
 
@@ -235,8 +235,8 @@ fn main() -> Result<()> {
         // Collect activities from the final streak
         longest_streak_activities.clear();
         let start_idx = daily_runs.len() - current_streak;
-        for j in start_idx..daily_runs.len() {
-            longest_streak_activities.push(daily_runs[j].1);
+        for item in daily_runs.iter().skip(start_idx) {
+            longest_streak_activities.push(item.1);
         }
     }
 

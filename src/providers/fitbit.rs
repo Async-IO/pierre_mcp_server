@@ -38,6 +38,12 @@ pub struct FitbitProvider {
     refresh_token: Option<String>,
 }
 
+impl Default for FitbitProvider {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FitbitProvider {
     /// Create a new Fitbit provider instance
     pub fn new() -> Self {

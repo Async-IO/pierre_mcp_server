@@ -328,85 +328,6 @@ fn create_disconnect_provider_tool() -> ToolSchema {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json;
-
-    #[test]
-    fn test_initialize_response_serialization() {
-        let response = InitializeResponse::new(
-            "2024-11-05".to_string(),
-            "test-server".to_string(),
-            "1.0.0".to_string(),
-        );
-
-        let json = serde_json::to_value(&response).expect("Should serialize");
-
-        assert_eq!(json["protocolVersion"], "2024-11-05");
-        assert_eq!(json["serverInfo"]["name"], "test-server");
-        assert_eq!(json["serverInfo"]["version"], "1.0.0");
-        assert!(json["capabilities"]["tools"].is_array());
-
-        let tools = json["capabilities"]["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 21);
-
-        let tool_names: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
-
-        assert!(tool_names.contains(&"get_activities"));
-        assert!(tool_names.contains(&"get_athlete"));
-        assert!(tool_names.contains(&"get_stats"));
-        assert!(tool_names.contains(&"get_activity_intelligence"));
-        assert!(tool_names.contains(&"connect_strava"));
-        assert!(tool_names.contains(&"connect_fitbit"));
-        assert!(tool_names.contains(&"get_connection_status"));
-        assert!(tool_names.contains(&"disconnect_provider"));
-    }
-
-    #[test]
-    fn test_tool_schema_structure() {
-        let tool = create_get_activities_tool();
-
-        assert_eq!(tool.name, "get_activities");
-        assert!(!tool.description.is_empty());
-        assert_eq!(tool.input_schema.schema_type, "object");
-        assert!(tool.input_schema.properties.is_some());
-        assert!(tool.input_schema.required.is_some());
-
-        let properties = tool.input_schema.properties.unwrap();
-        assert!(properties.contains_key("provider"));
-        assert!(properties.contains_key("limit"));
-        assert!(properties.contains_key("offset"));
-
-        let required = tool.input_schema.required.unwrap();
-        assert!(required.contains(&"provider".to_string()));
-    }
-
-    #[test]
-    fn test_round_trip_serialization() {
-        let original = InitializeResponse::new(
-            "2024-11-05".to_string(),
-            "pierre-mcp-server".to_string(),
-            "0.1.0".to_string(),
-        );
-
-        let json_str = serde_json::to_string(&original).expect("Should serialize");
-        let deserialized: InitializeResponse =
-            serde_json::from_str(&json_str).expect("Should deserialize");
-
-        assert_eq!(original.protocol_version, deserialized.protocol_version);
-        assert_eq!(original.server_info.name, deserialized.server_info.name);
-        assert_eq!(
-            original.server_info.version,
-            deserialized.server_info.version
-        );
-        assert_eq!(
-            original.capabilities.tools.len(),
-            deserialized.capabilities.tools.len()
-        );
-    }
-}
-
 // === ADVANCED ANALYTICS TOOLS ===
 
 /// Create the analyze_activity tool schema
@@ -928,5 +849,83 @@ fn create_analyze_training_load_tool() -> ToolSchema {
             properties: Some(properties),
             required: Some(vec!["provider".to_string()]),
         },
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json;
+
+    #[test]
+    fn test_initialize_response_serialization() {
+        let response = InitializeResponse::new(
+            "2024-11-05".to_string(),
+            "test-server".to_string(),
+            "1.0.0".to_string(),
+        );
+
+        let json = serde_json::to_value(&response).expect("Should serialize");
+
+        assert_eq!(json["protocolVersion"], "2024-11-05");
+        assert_eq!(json["serverInfo"]["name"], "test-server");
+        assert_eq!(json["serverInfo"]["version"], "1.0.0");
+        assert!(json["capabilities"]["tools"].is_array());
+
+        let tools = json["capabilities"]["tools"].as_array().unwrap();
+        assert_eq!(tools.len(), 21);
+
+        let tool_names: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
+
+        assert!(tool_names.contains(&"get_activities"));
+        assert!(tool_names.contains(&"get_athlete"));
+        assert!(tool_names.contains(&"get_stats"));
+        assert!(tool_names.contains(&"get_activity_intelligence"));
+        assert!(tool_names.contains(&"connect_strava"));
+        assert!(tool_names.contains(&"connect_fitbit"));
+        assert!(tool_names.contains(&"get_connection_status"));
+        assert!(tool_names.contains(&"disconnect_provider"));
+    }
+
+    #[test]
+    fn test_tool_schema_structure() {
+        let tool = create_get_activities_tool();
+
+        assert_eq!(tool.name, "get_activities");
+        assert!(!tool.description.is_empty());
+        assert_eq!(tool.input_schema.schema_type, "object");
+        assert!(tool.input_schema.properties.is_some());
+        assert!(tool.input_schema.required.is_some());
+
+        let properties = tool.input_schema.properties.unwrap();
+        assert!(properties.contains_key("provider"));
+        assert!(properties.contains_key("limit"));
+        assert!(properties.contains_key("offset"));
+
+        let required = tool.input_schema.required.unwrap();
+        assert!(required.contains(&"provider".to_string()));
+    }
+
+    #[test]
+    fn test_round_trip_serialization() {
+        let original = InitializeResponse::new(
+            "2024-11-05".to_string(),
+            "pierre-mcp-server".to_string(),
+            "0.1.0".to_string(),
+        );
+
+        let json_str = serde_json::to_string(&original).expect("Should serialize");
+        let deserialized: InitializeResponse =
+            serde_json::from_str(&json_str).expect("Should deserialize");
+
+        assert_eq!(original.protocol_version, deserialized.protocol_version);
+        assert_eq!(original.server_info.name, deserialized.server_info.name);
+        assert_eq!(
+            original.server_info.version,
+            deserialized.server_info.version
+        );
+        assert_eq!(
+            original.capabilities.tools.len(),
+            deserialized.capabilities.tools.len()
+        );
     }
 }

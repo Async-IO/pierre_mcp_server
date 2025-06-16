@@ -21,7 +21,7 @@ pub struct FitnessConfig {
 }
 
 /// Intelligence analysis configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct IntelligenceConfig {
     pub effort_thresholds: EffortThresholds,
     pub zone_thresholds: ZoneThresholds,
@@ -187,17 +187,6 @@ impl Default for FitnessConfig {
             sport_types,
             intelligence: IntelligenceConfig::default(),
             weather_api: Some(WeatherApiConfig::default()),
-        }
-    }
-}
-
-impl Default for IntelligenceConfig {
-    fn default() -> Self {
-        Self {
-            effort_thresholds: EffortThresholds::default(),
-            zone_thresholds: ZoneThresholds::default(),
-            weather_mapping: WeatherMapping::default(),
-            personal_records: PersonalRecordConfig::default(),
         }
     }
 }

@@ -67,7 +67,7 @@ export default function ApiKeyList() {
                       <Badge variant={key.is_active ? 'success' : 'error'}>
                         {key.is_active ? 'Active' : 'Inactive'}
                       </Badge>
-                      <Badge variant={key.tier as any}>
+                      <Badge variant={key.tier as 'starter' | 'professional' | 'enterprise' | 'trial'}>
                         {key.tier}
                       </Badge>
                     </div>

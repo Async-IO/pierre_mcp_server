@@ -40,7 +40,7 @@ impl ApiKeyTier {
     pub fn rate_limit_window(&self) -> u32 {
         30 * 24 * 60 * 60 // 30 days in seconds
     }
-    
+
     /// Default expiration in days for trial keys
     pub fn default_trial_days(&self) -> Option<i64> {
         match self {
@@ -48,7 +48,7 @@ impl ApiKeyTier {
             _ => None,
         }
     }
-    
+
     /// Check if this is a trial tier
     pub fn is_trial(&self) -> bool {
         matches!(self, ApiKeyTier::Trial)
@@ -159,7 +159,11 @@ impl ApiKeyManager {
             .collect();
 
         // Full key format: pk_live_<32 random chars> or pk_trial_<32 random chars>
-        let prefix = if is_trial { "pk_trial_" } else { &self.key_prefix };
+        let prefix = if is_trial {
+            "pk_trial_"
+        } else {
+            &self.key_prefix
+        };
         let full_key = format!("{}{}", prefix, random_bytes);
 
         // Create key prefix for identification (first 12 chars)
@@ -203,7 +207,7 @@ impl ApiKeyManager {
         hasher.update(api_key.as_bytes());
         format!("{:x}", hasher.finalize())
     }
-    
+
     /// Check if an API key string is a trial key
     pub fn is_trial_key(&self, api_key: &str) -> bool {
         api_key.starts_with("pk_trial_")
@@ -217,14 +221,15 @@ impl ApiKeyManager {
     ) -> Result<(ApiKey, String)> {
         // Check if this is a trial key
         let is_trial = request.tier.is_trial();
-        
+
         // Generate the key components
         let (full_key, key_prefix, key_hash) = self.generate_api_key(is_trial);
 
         // Calculate expiration
         // For trial keys, use default trial days if not specified
         let expires_at = if is_trial {
-            let days = request.expires_in_days
+            let days = request
+                .expires_in_days
                 .or_else(|| request.tier.default_trial_days())
                 .unwrap_or(14);
             Some(Utc::now() + Duration::days(days))
@@ -258,7 +263,7 @@ impl ApiKeyManager {
 
         Ok((api_key, full_key))
     }
-    
+
     /// Create a trial API key with default settings
     pub async fn create_trial_key(
         &self,
@@ -272,7 +277,7 @@ impl ApiKeyManager {
             tier: ApiKeyTier::Trial,
             expires_in_days: None, // Will use default 14 days
         };
-        
+
         self.create_api_key(user_id, request).await
     }
 
@@ -354,14 +359,14 @@ mod tests {
     #[test]
     fn test_api_key_generation() {
         let manager = ApiKeyManager::new();
-        
+
         // Test regular key generation
         let (full_key, prefix, hash) = manager.generate_api_key(false);
         assert!(full_key.starts_with("pk_live_"));
         assert_eq!(full_key.len(), 40);
         assert_eq!(prefix.len(), 12);
         assert_eq!(hash.len(), 64); // SHA-256 hex
-        
+
         // Test trial key generation
         let (trial_key, trial_prefix, trial_hash) = manager.generate_api_key(true);
         assert!(trial_key.starts_with("pk_trial_"));
@@ -378,12 +383,12 @@ mod tests {
         assert!(manager
             .validate_key_format("pk_live_abcdefghijklmnopqrstuvwxyz123456")
             .is_ok());
-            
+
         // Test trial key validation
         assert!(manager
             .validate_key_format("pk_trial_abcdefghijklmnopqrstuvwxyz123456")
             .is_ok());
-            
+
         // Test invalid keys
         assert!(manager.validate_key_format("invalid_key").is_err());
         assert!(manager.validate_key_format("pk_live_short").is_err());
@@ -396,7 +401,7 @@ mod tests {
         assert_eq!(ApiKeyTier::Starter.monthly_limit(), Some(10_000));
         assert_eq!(ApiKeyTier::Professional.monthly_limit(), Some(100_000));
         assert_eq!(ApiKeyTier::Enterprise.monthly_limit(), None);
-        
+
         // Test trial defaults
         assert_eq!(ApiKeyTier::Trial.default_trial_days(), Some(14));
         assert_eq!(ApiKeyTier::Starter.default_trial_days(), None);
@@ -765,57 +770,60 @@ mod tests {
             }
         }
     }
-    
+
     #[tokio::test]
     async fn test_create_trial_key() {
         let manager = ApiKeyManager::new();
         let user_id = Uuid::new_v4();
-        
+
         // Create a trial key using the convenience method
-        let (api_key, full_key) = manager.create_trial_key(
-            user_id,
-            "Test Trial Key".to_string(),
-            Some("Testing trial functionality".to_string()),
-        ).await.unwrap();
-        
+        let (api_key, full_key) = manager
+            .create_trial_key(
+                user_id,
+                "Test Trial Key".to_string(),
+                Some("Testing trial functionality".to_string()),
+            )
+            .await
+            .unwrap();
+
         // Verify trial key properties
         assert_eq!(api_key.tier, ApiKeyTier::Trial);
         assert_eq!(api_key.rate_limit_requests, 1_000);
         assert!(api_key.expires_at.is_some());
-        
+
         // Verify key format
         assert!(full_key.starts_with("pk_trial_"));
         assert!(manager.is_trial_key(&full_key));
         assert!(manager.validate_key_format(&full_key).is_ok());
-        
+
         // Verify expiration is set to 14 days
         let expires_at = api_key.expires_at.unwrap();
         let expected_expiry = Utc::now() + Duration::days(14);
         let diff = (expires_at - expected_expiry).num_seconds().abs();
         assert!(diff < 60, "Trial key should expire in 14 days");
     }
-    
+
     #[tokio::test]
     async fn test_create_trial_key_with_custom_expiration() {
         let manager = ApiKeyManager::new();
         let user_id = Uuid::new_v4();
-        
+
         let request = CreateApiKeyRequest {
             name: "Custom Trial".to_string(),
             description: None,
             tier: ApiKeyTier::Trial,
             expires_in_days: Some(7), // Custom 7 day trial
         };
-        
+
         let (api_key, full_key) = manager.create_api_key(user_id, request).await.unwrap();
-        
+
         // Verify custom expiration is respected
         assert!(api_key.expires_at.is_some());
         let expires_at = api_key.expires_at.unwrap();
         let expected_expiry = Utc::now() + Duration::days(7);
         let diff = (expires_at - expected_expiry).num_seconds().abs();
         assert!(diff < 60, "Trial key should expire in 7 days");
-        
+
         assert!(full_key.starts_with("pk_trial_"));
     }
 }

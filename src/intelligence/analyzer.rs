@@ -105,7 +105,7 @@ impl ActivityAnalyzer {
             effort += (elevation / 100.0) as f32 * 0.3;
         }
 
-        effort.min(10.0).max(1.0)
+        effort.clamp(1.0, 10.0)
     }
 
     /// Calculate heart rate zone distribution
@@ -218,7 +218,7 @@ impl ActivityAnalyzer {
             efficiency += consistency * 20.0;
         }
 
-        efficiency.min(100.0).max(0.0)
+        efficiency.clamp(0.0, 100.0)
     }
 
     /// Calculate trend indicators (simplified - would need historical data)
@@ -441,7 +441,7 @@ mod tests {
     #[test]
     fn test_activity_analyzer_creation() {
         let _analyzer = ActivityAnalyzer::new();
-        assert!(true); // Just test it can be created
+        // Test creation - no assertion needed
     }
 
     #[test]
@@ -450,7 +450,7 @@ mod tests {
         let activity = create_test_activity();
 
         let effort = analyzer.calculate_relative_effort(&activity);
-        assert!(effort >= 1.0 && effort <= 10.0);
+        assert!((1.0..=10.0).contains(&effort));
         assert!(effort > 3.0); // Should be moderate effort for 10km run
     }
 
@@ -532,7 +532,7 @@ mod tests {
         let activity = create_test_activity();
 
         let efficiency = analyzer.calculate_efficiency_score(&activity);
-        assert!(efficiency >= 0.0 && efficiency <= 100.0);
+        assert!((0.0..=100.0).contains(&efficiency));
     }
 
     #[tokio::test]
