@@ -123,7 +123,7 @@ impl ServerConfig {
         info!("Loading configuration from environment variables");
 
         // Load .env file if it exists
-        if let Err(e) = dotenv::dotenv() {
+        if let Err(e) = dotenvy::dotenv() {
             warn!("No .env file found or failed to load: {}", e);
         }
 

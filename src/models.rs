@@ -19,11 +19,11 @@
 //!
 //! ## Core Models
 //!
-//! - [`Activity`]: Represents a single fitness activity (run, ride, etc.)
-//! - [`Athlete`]: User profile information
-//! - [`Stats`]: Aggregated fitness statistics
-//! - [`PersonalRecord`]: Individual performance records
-//! - [`SportType`]: Enumeration of supported activity types
+//! - `Activity`: Represents a single fitness activity (run, ride, etc.)
+//! - `Athlete`: User profile information
+//! - `Stats`: Aggregated fitness statistics
+//! - `PersonalRecord`: Individual performance records
+//! - `SportType`: Enumeration of supported activity types
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
