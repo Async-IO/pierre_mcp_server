@@ -13,8 +13,43 @@ use crate::api_keys::{ApiKey, ApiKeyTier, ApiKeyUsage, ApiKeyUsageStats};
 use crate::models::{DecryptedToken, EncryptedToken, User};
 use anyhow::Result;
 use chrono::{DateTime, Datelike, Timelike, Utc};
+use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Row, Sqlite, SqlitePool};
 use uuid::Uuid;
+
+/// A2A Usage record for tracking agent-to-agent communication
+#[derive(Debug, Serialize, Deserialize)]
+pub struct A2AUsage {
+    pub id: Option<i64>,
+    pub client_id: String,
+    pub session_token: Option<String>,
+    pub timestamp: DateTime<Utc>,
+    pub tool_name: String,
+    pub response_time_ms: Option<u32>,
+    pub status_code: u16,
+    pub error_message: Option<String>,
+    pub request_size_bytes: Option<u32>,
+    pub response_size_bytes: Option<u32>,
+    pub ip_address: Option<String>,
+    pub user_agent: Option<String>,
+    pub protocol_version: String,
+    pub client_capabilities: Vec<String>,
+    pub granted_scopes: Vec<String>,
+}
+
+/// A2A Usage statistics
+#[derive(Debug, Serialize, Deserialize)]
+pub struct A2AUsageStats {
+    pub client_id: String,
+    pub period_start: DateTime<Utc>,
+    pub period_end: DateTime<Utc>,
+    pub total_requests: u32,
+    pub successful_requests: u32,
+    pub failed_requests: u32,
+    pub total_response_time_ms: u64,
+    pub tool_usage: serde_json::Value, // JSON object with tool counts
+    pub capability_usage: serde_json::Value, // JSON object with capability counts
+}
 
 /// Database manager for user and token storage
 #[derive(Clone)]
@@ -187,6 +222,9 @@ impl Database {
         // Create API key management tables
         self.create_api_key_tables().await?;
 
+        // Create A2A extension tables
+        self.create_a2a_tables().await?;
+
         Ok(())
     }
 
@@ -324,6 +362,197 @@ impl Database {
         )
         .execute(&self.pool)
         .await?;
+
+        Ok(())
+    }
+
+    /// Create A2A extension tables (migration 003)
+    async fn create_a2a_tables(&self) -> Result<()> {
+        // A2A Clients table - extends API keys for agent-to-agent communication
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS a2a_clients (
+                id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+                api_key_id TEXT NOT NULL REFERENCES api_keys(id) ON DELETE CASCADE,
+                
+                -- Client identity
+                name TEXT NOT NULL,
+                description TEXT,
+                public_key TEXT,
+                
+                -- A2A capabilities
+                capabilities TEXT NOT NULL DEFAULT '[]', -- JSON array of supported capabilities
+                redirect_uris TEXT NOT NULL DEFAULT '[]', -- JSON array for OAuth2
+                
+                -- Client metadata
+                agent_version TEXT,
+                contact_email TEXT,
+                documentation_url TEXT,
+                
+                -- Status
+                is_verified BOOLEAN NOT NULL DEFAULT false,
+                verification_token TEXT,
+                verified_at TIMESTAMP,
+                
+                -- Timestamps
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                
+                -- Ensure unique client names
+                UNIQUE(name)
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // A2A Sessions table - track active agent sessions
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS a2a_sessions (
+                id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+                client_id TEXT NOT NULL REFERENCES a2a_clients(id) ON DELETE CASCADE,
+                
+                -- Session info
+                session_token TEXT NOT NULL UNIQUE,
+                user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+                
+                -- Capabilities granted in this session
+                granted_scopes TEXT NOT NULL DEFAULT '[]', -- JSON array
+                
+                -- Session metadata
+                ip_address TEXT,
+                user_agent TEXT,
+                
+                -- Timestamps
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP NOT NULL,
+                last_activity TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                
+                -- Status
+                is_active BOOLEAN NOT NULL DEFAULT true
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // A2A Tasks table - track long-running operations
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS a2a_tasks (
+                id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+                client_id TEXT NOT NULL REFERENCES a2a_clients(id) ON DELETE CASCADE,
+                session_id TEXT REFERENCES a2a_sessions(id) ON DELETE SET NULL,
+                
+                -- Task definition
+                task_type TEXT NOT NULL,
+                input_data TEXT, -- JSON
+                
+                -- Status tracking
+                status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'running', 'completed', 'failed', 'cancelled')),
+                progress_percentage INTEGER DEFAULT 0,
+                
+                -- Results
+                result_data TEXT, -- JSON
+                error_message TEXT,
+                
+                -- Timestamps
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                started_at TIMESTAMP,
+                completed_at TIMESTAMP,
+                
+                -- Metadata
+                estimated_duration_seconds INTEGER,
+                priority INTEGER DEFAULT 0
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create indexes for A2A tables
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_a2a_clients_api_key_id ON a2a_clients(api_key_id)",
+        )
+        .execute(&self.pool)
+        .await?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_a2a_clients_verified ON a2a_clients(is_verified)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_a2a_sessions_client_id ON a2a_sessions(client_id)",
+        )
+        .execute(&self.pool)
+        .await?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_a2a_sessions_active ON a2a_sessions(is_active)",
+        )
+        .execute(&self.pool)
+        .await?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_a2a_sessions_expires ON a2a_sessions(expires_at)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_a2a_tasks_client_id ON a2a_tasks(client_id)")
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_a2a_tasks_status ON a2a_tasks(status)")
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_a2a_tasks_created ON a2a_tasks(created_at)")
+            .execute(&self.pool)
+            .await?;
+
+        // A2A Usage table - track A2A protocol usage similar to API key usage
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS a2a_usage (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                client_id TEXT NOT NULL REFERENCES a2a_clients(id) ON DELETE CASCADE,
+                session_token TEXT REFERENCES a2a_sessions(session_token) ON DELETE SET NULL,
+                
+                -- Usage metrics
+                timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                tool_name TEXT NOT NULL,
+                response_time_ms INTEGER,
+                status_code INTEGER NOT NULL,
+                error_message TEXT,
+                
+                -- Request metadata
+                request_size_bytes INTEGER,
+                response_size_bytes INTEGER,
+                ip_address TEXT,
+                user_agent TEXT,
+                
+                -- A2A specific fields
+                protocol_version TEXT DEFAULT '1.0',
+                client_capabilities TEXT, -- JSON array of capabilities used in request
+                granted_scopes TEXT -- JSON array of scopes granted for this request
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Indexes for A2A usage analytics
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_a2a_usage_client_id ON a2a_usage(client_id)")
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_a2a_usage_session_token ON a2a_usage(session_token)")
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_a2a_usage_timestamp ON a2a_usage(timestamp)")
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_a2a_usage_tool_name ON a2a_usage(tool_name)")
+            .execute(&self.pool)
+            .await?;
 
         Ok(())
     }
@@ -1938,5 +2167,573 @@ impl Database {
                 .unwrap()
                 .with_timezone(&Utc),
         })
+    }
+
+    // === A2A CLIENT MANAGEMENT ===
+
+    /// Create a new A2A client linked to an API key
+    pub async fn create_a2a_client(
+        &self,
+        client: &crate::a2a::A2AClient,
+        api_key_id: &str,
+    ) -> Result<String> {
+        // Use the client's existing ID instead of generating a new one
+        let client_id = &client.id;
+
+        sqlx::query(
+            r#"
+            INSERT INTO a2a_clients (
+                id, api_key_id, name, description, public_key, capabilities, 
+                redirect_uris, agent_version, contact_email, documentation_url
+            )
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+            "#,
+        )
+        .bind(client_id)
+        .bind(api_key_id)
+        .bind(&client.name)
+        .bind(&client.description)
+        .bind(&client.public_key)
+        .bind(serde_json::to_string(&client.capabilities)?)
+        .bind(serde_json::to_string(&client.redirect_uris)?)
+        .bind("1.0.0") // Default agent version
+        .bind(Option::<String>::None) // contact_email
+        .bind(Option::<String>::None) // documentation_url
+        .execute(&self.pool)
+        .await?;
+
+        Ok(client_id.to_string())
+    }
+
+    /// Get A2A client by ID
+    pub async fn get_a2a_client(&self, client_id: &str) -> Result<Option<crate::a2a::A2AClient>> {
+        let row = sqlx::query(
+            r#"
+            SELECT id, name, description, public_key, capabilities, redirect_uris, 
+                   is_verified, created_at
+            FROM a2a_clients 
+            WHERE id = ?1
+            "#,
+        )
+        .bind(client_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            let capabilities: Vec<String> =
+                serde_json::from_str(&row.get::<String, _>("capabilities"))?;
+            let redirect_uris: Vec<String> =
+                serde_json::from_str(&row.get::<String, _>("redirect_uris"))?;
+
+            Ok(Some(crate::a2a::A2AClient {
+                id: row.get("id"),
+                name: row.get("name"),
+                description: row.get("description"),
+                public_key: row.get("public_key"),
+                capabilities,
+                redirect_uris,
+                is_active: row.get("is_verified"),
+                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))
+                    .unwrap()
+                    .with_timezone(&Utc),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Get A2A client by name
+    pub async fn get_a2a_client_by_name(
+        &self,
+        name: &str,
+    ) -> Result<Option<crate::a2a::A2AClient>> {
+        let row = sqlx::query(
+            r#"
+            SELECT id, name, description, public_key, capabilities, redirect_uris, 
+                   is_verified, created_at
+            FROM a2a_clients 
+            WHERE name = ?1
+            "#,
+        )
+        .bind(name)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            let capabilities: Vec<String> =
+                serde_json::from_str(&row.get::<String, _>("capabilities"))?;
+            let redirect_uris: Vec<String> =
+                serde_json::from_str(&row.get::<String, _>("redirect_uris"))?;
+
+            Ok(Some(crate::a2a::A2AClient {
+                id: row.get("id"),
+                name: row.get("name"),
+                description: row.get("description"),
+                public_key: row.get("public_key"),
+                capabilities,
+                redirect_uris,
+                is_active: row.get("is_verified"),
+                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))
+                    .unwrap()
+                    .with_timezone(&Utc),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// List A2A clients for a user
+    pub async fn list_a2a_clients(&self, user_id: &Uuid) -> Result<Vec<crate::a2a::A2AClient>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT c.id, c.name, c.description, c.public_key, c.capabilities, 
+                   c.redirect_uris, c.is_verified, c.created_at
+            FROM a2a_clients c
+            INNER JOIN api_keys ak ON c.api_key_id = ak.id
+            WHERE ak.user_id = ?1 AND ak.is_active = true
+            ORDER BY c.created_at DESC
+            "#,
+        )
+        .bind(user_id.to_string())
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut clients = Vec::new();
+        for row in rows {
+            let capabilities: Vec<String> =
+                serde_json::from_str(&row.get::<String, _>("capabilities"))?;
+            let redirect_uris: Vec<String> =
+                serde_json::from_str(&row.get::<String, _>("redirect_uris"))?;
+
+            clients.push(crate::a2a::A2AClient {
+                id: row.get("id"),
+                name: row.get("name"),
+                description: row.get("description"),
+                public_key: row.get("public_key"),
+                capabilities,
+                redirect_uris,
+                is_active: row.get("is_verified"),
+                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))
+                    .unwrap()
+                    .with_timezone(&Utc),
+            });
+        }
+
+        Ok(clients)
+    }
+
+    /// Create A2A session
+    pub async fn create_a2a_session(
+        &self,
+        client_id: &str,
+        user_id: Option<&Uuid>,
+        granted_scopes: &[String],
+        expires_in_hours: i64,
+    ) -> Result<String> {
+        let session_id = uuid::Uuid::new_v4().to_string();
+        let session_token = uuid::Uuid::new_v4().to_string();
+        let expires_at = Utc::now() + chrono::Duration::hours(expires_in_hours);
+
+        sqlx::query(
+            r#"
+            INSERT INTO a2a_sessions (
+                id, client_id, session_token, user_id, granted_scopes, expires_at
+            )
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            "#,
+        )
+        .bind(&session_id)
+        .bind(client_id)
+        .bind(&session_token)
+        .bind(user_id.map(|u| u.to_string()))
+        .bind(serde_json::to_string(granted_scopes)?)
+        .bind(expires_at.to_rfc3339())
+        .execute(&self.pool)
+        .await?;
+
+        Ok(session_token)
+    }
+
+    /// Get A2A session by token
+    pub async fn get_a2a_session(
+        &self,
+        session_token: &str,
+    ) -> Result<Option<crate::a2a::client::A2ASession>> {
+        let row = sqlx::query(
+            r#"
+            SELECT id, client_id, user_id, granted_scopes, created_at, expires_at, 
+                   last_activity, is_active
+            FROM a2a_sessions 
+            WHERE session_token = ?1 AND is_active = true AND expires_at > datetime('now')
+            "#,
+        )
+        .bind(session_token)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            let granted_scopes: Vec<String> =
+                serde_json::from_str(&row.get::<String, _>("granted_scopes"))?;
+
+            Ok(Some(crate::a2a::client::A2ASession {
+                id: row.get("id"),
+                client_id: row.get("client_id"),
+                user_id: row.get::<Option<String>, _>("user_id"),
+                granted_scopes,
+                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))
+                    .unwrap()
+                    .with_timezone(&Utc),
+                expires_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("expires_at"))
+                    .unwrap()
+                    .with_timezone(&Utc),
+                last_activity: DateTime::parse_from_rfc3339(&row.get::<String, _>("last_activity"))
+                    .unwrap()
+                    .with_timezone(&Utc),
+                requests_count: 0, // Would need additional query to get actual count
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Update A2A session activity
+    pub async fn update_a2a_session_activity(&self, session_token: &str) -> Result<()> {
+        sqlx::query(
+            r#"
+            UPDATE a2a_sessions 
+            SET last_activity = datetime('now')
+            WHERE session_token = ?1
+            "#,
+        )
+        .bind(session_token)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Create A2A task
+    pub async fn create_a2a_task(
+        &self,
+        client_id: &str,
+        session_id: Option<&str>,
+        task_type: &str,
+        input_data: &serde_json::Value,
+    ) -> Result<String> {
+        let task_id = uuid::Uuid::new_v4().to_string();
+
+        sqlx::query(
+            r#"
+            INSERT INTO a2a_tasks (id, client_id, session_id, task_type, input_data)
+            VALUES (?1, ?2, ?3, ?4, ?5)
+            "#,
+        )
+        .bind(&task_id)
+        .bind(client_id)
+        .bind(session_id)
+        .bind(task_type)
+        .bind(serde_json::to_string(input_data)?)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(task_id)
+    }
+
+    /// Get A2A task by ID
+    pub async fn get_a2a_task(
+        &self,
+        task_id: &str,
+    ) -> Result<Option<crate::a2a::protocol::A2ATask>> {
+        let row = sqlx::query(
+            r#"
+            SELECT id, status, created_at, started_at, completed_at, 
+                   result_data, error_message, progress_percentage
+            FROM a2a_tasks 
+            WHERE id = ?1
+            "#,
+        )
+        .bind(task_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            let status_str: String = row.get("status");
+            let status = match status_str.as_str() {
+                "pending" => crate::a2a::protocol::TaskStatus::Pending,
+                "running" => crate::a2a::protocol::TaskStatus::Running,
+                "completed" => crate::a2a::protocol::TaskStatus::Completed,
+                "failed" => crate::a2a::protocol::TaskStatus::Failed,
+                "cancelled" => crate::a2a::protocol::TaskStatus::Cancelled,
+                _ => crate::a2a::protocol::TaskStatus::Pending,
+            };
+
+            Ok(Some(crate::a2a::protocol::A2ATask {
+                id: row.get("id"),
+                status,
+                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))
+                    .unwrap()
+                    .with_timezone(&Utc),
+                completed_at: row
+                    .get::<Option<String>, _>("completed_at")
+                    .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+                    .map(|dt| dt.with_timezone(&Utc)),
+                result: row
+                    .get::<Option<String>, _>("result_data")
+                    .and_then(|s| serde_json::from_str(&s).ok()),
+                error: row.get("error_message"),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Update A2A task status
+    pub async fn update_a2a_task_status(
+        &self,
+        task_id: &str,
+        status: &crate::a2a::protocol::TaskStatus,
+        result: Option<&serde_json::Value>,
+        error: Option<&str>,
+    ) -> Result<()> {
+        let status_str = match status {
+            crate::a2a::protocol::TaskStatus::Pending => "pending",
+            crate::a2a::protocol::TaskStatus::Running => "running",
+            crate::a2a::protocol::TaskStatus::Completed => "completed",
+            crate::a2a::protocol::TaskStatus::Failed => "failed",
+            crate::a2a::protocol::TaskStatus::Cancelled => "cancelled",
+        };
+
+        let completed_at = if matches!(
+            status,
+            crate::a2a::protocol::TaskStatus::Completed | crate::a2a::protocol::TaskStatus::Failed
+        ) {
+            Some(Utc::now().to_rfc3339())
+        } else {
+            None
+        };
+
+        sqlx::query(
+            r#"
+            UPDATE a2a_tasks 
+            SET status = ?2, result_data = ?3, error_message = ?4, completed_at = ?5
+            WHERE id = ?1
+            "#,
+        )
+        .bind(task_id)
+        .bind(status_str)
+        .bind(result.map(|r| serde_json::to_string(r).unwrap_or_default()))
+        .bind(error)
+        .bind(completed_at)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    // === A2A USAGE TRACKING ===
+
+    /// Record A2A usage for tracking and analytics
+    pub async fn record_a2a_usage(&self, usage: &A2AUsage) -> Result<()> {
+        sqlx::query(
+            r#"
+            INSERT INTO a2a_usage (
+                client_id, session_token, timestamp, tool_name, response_time_ms, status_code,
+                error_message, request_size_bytes, response_size_bytes,
+                ip_address, user_agent, protocol_version, client_capabilities, granted_scopes
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+            "#,
+        )
+        .bind(&usage.client_id)
+        .bind(&usage.session_token)
+        .bind(usage.timestamp.to_rfc3339())
+        .bind(&usage.tool_name)
+        .bind(usage.response_time_ms.map(|ms| ms as i64))
+        .bind(usage.status_code as i64)
+        .bind(&usage.error_message)
+        .bind(usage.request_size_bytes.map(|b| b as i64))
+        .bind(usage.response_size_bytes.map(|b| b as i64))
+        .bind(&usage.ip_address)
+        .bind(&usage.user_agent)
+        .bind(&usage.protocol_version)
+        .bind(serde_json::to_string(&usage.client_capabilities)?)
+        .bind(serde_json::to_string(&usage.granted_scopes)?)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Get current month usage for an A2A client
+    pub async fn get_a2a_client_current_usage(&self, client_id: &str) -> Result<u32> {
+        let start_of_month = Utc::now()
+            .with_day(1)
+            .unwrap()
+            .with_hour(0)
+            .unwrap()
+            .with_minute(0)
+            .unwrap()
+            .with_second(0)
+            .unwrap();
+
+        let count: i64 = sqlx::query_scalar(
+            r#"
+            SELECT COUNT(*) FROM a2a_usage 
+            WHERE client_id = ?1 AND timestamp >= ?2
+            "#,
+        )
+        .bind(client_id)
+        .bind(start_of_month.to_rfc3339())
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(count as u32)
+    }
+
+    /// Get A2A usage statistics for a client
+    pub async fn get_a2a_usage_stats(
+        &self,
+        client_id: &str,
+        start_date: DateTime<Utc>,
+        end_date: DateTime<Utc>,
+    ) -> Result<A2AUsageStats> {
+        // First get overall stats
+        let stats_row = sqlx::query(
+            r#"
+            SELECT 
+                COUNT(*) as total_requests,
+                SUM(CASE WHEN status_code >= 200 AND status_code < 300 THEN 1 ELSE 0 END) as successful_requests,
+                SUM(CASE WHEN status_code >= 400 THEN 1 ELSE 0 END) as failed_requests,
+                COALESCE(SUM(response_time_ms), 0) as total_response_time_ms
+            FROM a2a_usage
+            WHERE client_id = ?1 AND timestamp >= ?2 AND timestamp < ?3
+            "#,
+        )
+        .bind(client_id)
+        .bind(start_date.to_rfc3339())
+        .bind(end_date.to_rfc3339())
+        .fetch_one(&self.pool)
+        .await?;
+
+        // Then get tool usage counts
+        let tool_rows = sqlx::query(
+            r#"
+            SELECT tool_name, COUNT(*) as count
+            FROM a2a_usage
+            WHERE client_id = ?1 AND timestamp >= ?2 AND timestamp < ?3
+            GROUP BY tool_name
+            "#,
+        )
+        .bind(client_id)
+        .bind(start_date.to_rfc3339())
+        .bind(end_date.to_rfc3339())
+        .fetch_all(&self.pool)
+        .await?;
+
+        // Get capability usage (from client_capabilities JSON arrays)
+        let capability_rows = sqlx::query(
+            r#"
+            SELECT client_capabilities, COUNT(*) as count
+            FROM a2a_usage
+            WHERE client_id = ?1 AND timestamp >= ?2 AND timestamp < ?3
+            GROUP BY client_capabilities
+            "#,
+        )
+        .bind(client_id)
+        .bind(start_date.to_rfc3339())
+        .bind(end_date.to_rfc3339())
+        .fetch_all(&self.pool)
+        .await?;
+
+        // Build tool usage JSON
+        let mut tool_usage = serde_json::Map::new();
+        for row in tool_rows {
+            let tool_name: String = row.get("tool_name");
+            let count: i64 = row.get("count");
+            tool_usage.insert(tool_name, serde_json::Value::Number(count.into()));
+        }
+
+        // Build capability usage JSON (aggregate across all capability combinations)
+        let mut capability_usage = serde_json::Map::new();
+        for row in capability_rows {
+            let capabilities_json: String = row.get("client_capabilities");
+            let count: i64 = row.get("count");
+            
+            if let Ok(capabilities) = serde_json::from_str::<Vec<String>>(&capabilities_json) {
+                for capability in capabilities {
+                    let current_count = capability_usage
+                        .get(&capability)
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(0);
+                    capability_usage.insert(
+                        capability,
+                        serde_json::Value::Number((current_count + count).into()),
+                    );
+                }
+            }
+        }
+
+        Ok(A2AUsageStats {
+            client_id: client_id.to_string(),
+            period_start: start_date,
+            period_end: end_date,
+            total_requests: stats_row.get::<i64, _>("total_requests") as u32,
+            successful_requests: stats_row.get::<i64, _>("successful_requests") as u32,
+            failed_requests: stats_row.get::<i64, _>("failed_requests") as u32,
+            total_response_time_ms: stats_row.get::<i64, _>("total_response_time_ms") as u64,
+            tool_usage: serde_json::Value::Object(tool_usage),
+            capability_usage: serde_json::Value::Object(capability_usage),
+        })
+    }
+
+    /// Get recent A2A usage records for a client
+    pub async fn get_a2a_client_usage_history(
+        &self,
+        client_id: &str,
+        limit: Option<i32>,
+    ) -> Result<Vec<A2AUsage>> {
+        let limit = limit.unwrap_or(100);
+
+        let rows = sqlx::query(
+            r#"
+            SELECT * FROM a2a_usage 
+            WHERE client_id = ?1 
+            ORDER BY timestamp DESC 
+            LIMIT ?2
+            "#,
+        )
+        .bind(client_id)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut usage_records = Vec::new();
+        for row in rows {
+            let client_capabilities: Vec<String> = 
+                serde_json::from_str(&row.get::<String, _>("client_capabilities"))?;
+            let granted_scopes: Vec<String> = 
+                serde_json::from_str(&row.get::<String, _>("granted_scopes"))?;
+
+            usage_records.push(A2AUsage {
+                id: Some(row.get("id")),
+                client_id: row.get("client_id"),
+                session_token: row.get("session_token"),
+                timestamp: DateTime::parse_from_rfc3339(&row.get::<String, _>("timestamp"))
+                    .unwrap()
+                    .with_timezone(&Utc),
+                tool_name: row.get("tool_name"),
+                response_time_ms: row.get::<Option<i64>, _>("response_time_ms").map(|ms| ms as u32),
+                status_code: row.get::<i64, _>("status_code") as u16,
+                error_message: row.get("error_message"),
+                request_size_bytes: row.get::<Option<i64>, _>("request_size_bytes").map(|b| b as u32),
+                response_size_bytes: row.get::<Option<i64>, _>("response_size_bytes").map(|b| b as u32),
+                ip_address: row.get("ip_address"),
+                user_agent: row.get("user_agent"),
+                protocol_version: row.get("protocol_version"),
+                client_capabilities,
+                granted_scopes,
+            });
+        }
+
+        Ok(usage_records)
     }
 }
