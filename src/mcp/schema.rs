@@ -48,6 +48,36 @@ pub struct JsonSchema {
     pub required: Option<Vec<String>>,
 }
 
+/// Tool Call for executing a tool
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolCall {
+    pub name: String,
+    pub arguments: Option<serde_json::Value>,
+}
+
+/// Tool Response after execution
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolResponse {
+    pub content: Vec<Content>,
+    pub is_error: bool,
+}
+
+/// Content types for MCP messages
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum Content {
+    #[serde(rename = "text")]
+    Text { text: String },
+}
+
+/// Tool definition structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Tool {
+    pub name: String,
+    pub description: String,
+    pub input_schema: serde_json::Value,
+}
+
 /// JSON Schema Property Definition
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PropertySchema {

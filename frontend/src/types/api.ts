@@ -111,3 +111,110 @@ export interface ToolUsageBreakdown {
   error_count: number;
   percentage_of_total: number;
 }
+
+// A2A (Agent-to-Agent) Protocol Types
+
+export interface A2AClient {
+  id: string;
+  name: string;
+  description: string;
+  public_key?: string;
+  capabilities: string[];
+  redirect_uris: string[];
+  agent_version?: string;
+  contact_email?: string;
+  documentation_url?: string;
+  is_verified: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface A2AClientRegistrationRequest {
+  name: string;
+  description: string;
+  capabilities: string[];
+  redirect_uris?: string[];
+  contact_email: string;
+  agent_version?: string;
+  documentation_url?: string;
+}
+
+export interface A2AClientCredentials {
+  client_id: string;
+  client_secret: string;
+  api_key: string;
+}
+
+export interface A2ASession {
+  id: string;
+  client_id: string;
+  user_id?: string;
+  granted_scopes: string[];
+  created_at: string;
+  expires_at: string;
+  last_activity: string;
+  requests_count: number;
+}
+
+export interface A2ARateLimitStatus {
+  is_rate_limited: boolean;
+  limit?: number;
+  remaining?: number;
+  reset_at?: string;
+  tier: string;
+}
+
+export interface A2AUsageStats {
+  client_id: string;
+  requests_today: number;
+  requests_this_month: number;
+  total_requests: number;
+  last_request_at?: string;
+  rate_limit_tier: string;
+  tool_usage_breakdown: Array<{
+    tool_name: string;
+    usage_count: number;
+    percentage: number;
+  }>;
+  capability_usage: Array<{
+    capability: string;
+    usage_count: number;
+    percentage: number;
+  }>;
+}
+
+export interface A2AUsageRecord {
+  id: number;
+  client_id: string;
+  session_token?: string;
+  timestamp: string;
+  tool_name: string;
+  response_time_ms?: number;
+  status_code: number;
+  error_message?: string;
+  request_size_bytes?: number;
+  response_size_bytes?: number;
+  ip_address?: string;
+  user_agent?: string;
+  protocol_version: string;
+  client_capabilities: string[];
+  granted_scopes: string[];
+}
+
+export interface A2ADashboardOverview {
+  total_clients: number;
+  active_clients: number;
+  total_sessions: number;
+  active_sessions: number;
+  requests_today: number;
+  requests_this_month: number;
+  most_used_capability: string;
+  error_rate: number;
+  usage_by_tier: Array<{
+    tier: string;
+    client_count: number;
+    request_count: number;
+    percentage: number;
+  }>;
+}

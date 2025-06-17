@@ -295,10 +295,22 @@ impl HealthChecker {
         let start = Instant::now();
 
         // Check if we can reach external APIs (simplified)
-        let client = reqwest::Client::builder()
+        let client = match reqwest::Client::builder()
             .timeout(Duration::from_secs(5))
             .build()
-            .unwrap();
+        {
+            Ok(client) => client,
+            Err(e) => {
+                tracing::error!("Failed to create HTTP client for health check: {}", e);
+                return ComponentHealth {
+                    name: "external_apis".to_string(),
+                    status: HealthStatus::Unhealthy,
+                    message: format!("Failed to create HTTP client: {}", e),
+                    duration_ms: start.elapsed().as_millis() as u64,
+                    metadata: None,
+                };
+            }
+        };
 
         let mut healthy_apis = 0;
         let mut total_apis = 0;

@@ -51,17 +51,17 @@ pub mod env_config {
     /// Get MCP server port from environment or default
     pub fn mcp_port() -> u16 {
         env::var("MCP_PORT")
-            .unwrap_or_else(|_| "8080".to_string())
+            .unwrap_or_else(|_| crate::constants::ports::DEFAULT_MCP_PORT.to_string())
             .parse()
-            .unwrap_or(8080)
+            .unwrap_or(crate::constants::ports::DEFAULT_MCP_PORT)
     }
 
     /// Get HTTP server port from environment or default
     pub fn http_port() -> u16 {
         env::var("HTTP_PORT")
-            .unwrap_or_else(|_| "8081".to_string())
+            .unwrap_or_else(|_| crate::constants::ports::DEFAULT_HTTP_PORT.to_string())
             .parse()
-            .unwrap_or(8081)
+            .unwrap_or(crate::constants::ports::DEFAULT_HTTP_PORT)
     }
 
     /// Get database URL from environment or default
@@ -99,8 +99,12 @@ pub mod env_config {
 
     /// Get Strava redirect URI from environment or default
     pub fn strava_redirect_uri() -> String {
-        env::var("STRAVA_REDIRECT_URI")
-            .unwrap_or_else(|_| "http://localhost:8081/oauth/callback/strava".to_string())
+        env::var("STRAVA_REDIRECT_URI").unwrap_or_else(|_| {
+            format!(
+                "http://localhost:{}/oauth/callback/strava",
+                crate::constants::ports::DEFAULT_HTTP_PORT
+            )
+        })
     }
 
     /// Get OpenWeather API key from environment
@@ -187,10 +191,18 @@ pub mod endpoints {
     pub const STRAVA_AUTH_URL: &str = "https://www.strava.com/oauth/authorize";
     pub const STRAVA_TOKEN_URL: &str = "https://www.strava.com/oauth/token";
 
-    /// Fitbit API (placeholder - not implemented)
+    /// Fitbit API
     pub const FITBIT_API_BASE: &str = "https://api.fitbit.com";
     pub const FITBIT_AUTH_URL: &str = "https://www.fitbit.com/oauth2/authorize";
     pub const FITBIT_TOKEN_URL: &str = "https://api.fitbit.com/oauth2/token";
+}
+
+/// Default port configurations
+pub mod ports {
+    /// Default MCP server port
+    pub const DEFAULT_MCP_PORT: u16 = 8080;
+    /// Default HTTP server port  
+    pub const DEFAULT_HTTP_PORT: u16 = 8081;
 }
 
 /// HTTP routes and paths

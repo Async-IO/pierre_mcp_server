@@ -3,15 +3,23 @@ import { clsx } from 'clsx';
 
 interface StatusIndicatorProps {
   status: 'online' | 'offline' | 'error';
-  label: string;
+  label?: string;
+  size?: 'sm' | 'md' | 'lg';
+  className?: string;
 }
 
-export const StatusIndicator: React.FC<StatusIndicatorProps> = ({ status, label }) => {
+export const StatusIndicator: React.FC<StatusIndicatorProps> = ({ status, label, size = 'md', className }) => {
   const dotClasses = clsx('status-dot', {
     'status-online': status === 'online',
     'status-offline': status === 'offline',
     'status-error': status === 'error',
-  });
+    'status-sm': size === 'sm',
+    'status-lg': size === 'lg',
+  }, className);
+
+  if (!label) {
+    return <span className={dotClasses} />;
+  }
 
   return (
     <div className="flex items-center">

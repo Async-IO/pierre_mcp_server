@@ -258,7 +258,10 @@ impl Default for WeatherApiConfig {
             enabled: true,
             cache_duration_hours: 24,
             request_timeout_seconds: 10,
-            fallback_to_mock: true,
+            // In production, don't fall back to mock data by default
+            fallback_to_mock: std::env::var("WEATHER_FALLBACK_TO_MOCK")
+                .map(|v| v.to_lowercase() == "true")
+                .unwrap_or(false),
             rate_limit_requests_per_minute: 60,
         }
     }

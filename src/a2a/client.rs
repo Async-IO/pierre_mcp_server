@@ -12,6 +12,7 @@
 use crate::a2a::auth::A2AClient;
 use crate::database::Database;
 use chrono::Timelike;
+use chrono::{DateTime, Datelike, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -46,6 +47,46 @@ pub struct ClientUsageStats {
     pub rate_limit_tier: String,
 }
 
+/// A2A Client rate limit tiers
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub enum A2AClientTier {
+    #[default]
+    Trial, // 1,000 requests/month, auto-expires in 30 days
+    Standard,     // 10,000 requests/month
+    Professional, // 100,000 requests/month
+    Enterprise,   // Unlimited
+}
+
+impl A2AClientTier {
+    pub fn monthly_limit(&self) -> Option<u32> {
+        match self {
+            A2AClientTier::Trial => Some(1000),
+            A2AClientTier::Standard => Some(10000),
+            A2AClientTier::Professional => Some(100000),
+            A2AClientTier::Enterprise => None, // Unlimited
+        }
+    }
+
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            A2AClientTier::Trial => "Trial",
+            A2AClientTier::Standard => "Standard",
+            A2AClientTier::Professional => "Professional",
+            A2AClientTier::Enterprise => "Enterprise",
+        }
+    }
+}
+
+/// A2A Rate limit status
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct A2ARateLimitStatus {
+    pub is_rate_limited: bool,
+    pub limit: Option<u32>,
+    pub remaining: Option<u32>,
+    pub reset_at: Option<DateTime<Utc>>,
+    pub tier: A2AClientTier,
+}
+
 /// A2A Active session information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct A2ASession {
@@ -57,6 +98,23 @@ pub struct A2ASession {
     pub expires_at: chrono::DateTime<chrono::Utc>,
     pub last_activity: chrono::DateTime<chrono::Utc>,
     pub requests_count: u64,
+}
+
+/// Parameters for detailed A2A usage recording
+#[derive(Debug, Clone)]
+pub struct A2AUsageParams {
+    pub client_id: String,
+    pub session_token: Option<String>,
+    pub tool_name: String,
+    pub response_time_ms: Option<u32>,
+    pub status_code: u16,
+    pub error_message: Option<String>,
+    pub request_size_bytes: Option<u32>,
+    pub response_size_bytes: Option<u32>,
+    pub ip_address: Option<String>,
+    pub user_agent: Option<String>,
+    pub client_capabilities: Vec<String>,
+    pub granted_scopes: Vec<String>,
 }
 
 /// A2A Client Manager
@@ -93,7 +151,7 @@ impl A2AClientManager {
             id: client_id.clone(),
             name: request.name,
             description: request.description,
-            public_key: "".to_string(), // TODO: Generate or accept public key
+            public_key: "".to_string(), // Public key generation not implemented yet
             capabilities: request.capabilities,
             redirect_uris: request.redirect_uris,
             is_active: true,
@@ -224,7 +282,7 @@ impl A2AClientManager {
 
     /// Deactivate a client
     pub async fn deactivate_client(&self, _client_id: &str) -> Result<(), crate::a2a::A2AError> {
-        // TODO: Implement client deactivation
+        // Client deactivation would set is_active=false in database
         // This would involve:
         // 1. Setting is_active to false
         // 2. Invalidating active sessions
@@ -239,7 +297,8 @@ impl A2AClientManager {
         client_id: &str,
     ) -> Result<ClientUsageStats, crate::a2a::A2AError> {
         // Get current month usage
-        let requests_this_month = self.database
+        let requests_this_month = self
+            .database
             .get_a2a_client_current_usage(client_id)
             .await
             .map_err(|e| {
@@ -256,7 +315,8 @@ impl A2AClientManager {
             .unwrap();
         let end_of_day = chrono::Utc::now();
 
-        let today_stats = self.database
+        let today_stats = self
+            .database
             .get_a2a_usage_stats(client_id, start_of_day, end_of_day)
             .await
             .map_err(|e| {
@@ -264,7 +324,8 @@ impl A2AClientManager {
             })?;
 
         // Get last request from recent usage history
-        let recent_usage = self.database
+        let recent_usage = self
+            .database
             .get_a2a_client_usage_history(client_id, Some(1))
             .await
             .map_err(|e| {
@@ -275,7 +336,8 @@ impl A2AClientManager {
 
         // Get total requests (use a long period to approximate total)
         let total_start = chrono::Utc::now() - chrono::Duration::days(365);
-        let total_stats = self.database
+        let total_stats = self
+            .database
             .get_a2a_usage_stats(client_id, total_start, chrono::Utc::now())
             .await
             .map_err(|e| {
@@ -348,70 +410,147 @@ impl A2AClientManager {
         method: &str,
         success: bool,
     ) -> Result<(), crate::a2a::A2AError> {
-        self.record_detailed_usage(
-            client_id,
-            None, // No session token for simple usage
-            method,
-            None, // No response time
-            if success { 200 } else { 500 },
-            None, // No error message
-            None, // No request size
-            None, // No response size
-            None, // No IP address
-            None, // No user agent
-            &[], // No specific capabilities
-            &[], // No specific scopes
-        ).await
+        let params = A2AUsageParams {
+            client_id: client_id.to_string(),
+            session_token: None,
+            tool_name: method.to_string(),
+            response_time_ms: None,
+            status_code: if success { 200 } else { 500 },
+            error_message: None,
+            request_size_bytes: None,
+            response_size_bytes: None,
+            ip_address: None,
+            user_agent: None,
+            client_capabilities: vec![],
+            granted_scopes: vec![],
+        };
+        self.record_detailed_usage(params).await
     }
 
     /// Record detailed A2A usage for tracking and analytics
     pub async fn record_detailed_usage(
         &self,
-        client_id: &str,
-        session_token: Option<&str>,
-        tool_name: &str,
-        response_time_ms: Option<u32>,
-        status_code: u16,
-        error_message: Option<&str>,
-        request_size_bytes: Option<u32>,
-        response_size_bytes: Option<u32>,
-        ip_address: Option<&str>,
-        user_agent: Option<&str>,
-        client_capabilities: &[String],
-        granted_scopes: &[String],
+        params: A2AUsageParams,
     ) -> Result<(), crate::a2a::A2AError> {
         let usage = crate::database::A2AUsage {
             id: None,
-            client_id: client_id.to_string(),
-            session_token: session_token.map(|s| s.to_string()),
+            client_id: params.client_id.clone(),
+            session_token: params.session_token,
             timestamp: chrono::Utc::now(),
-            tool_name: tool_name.to_string(),
-            response_time_ms,
-            status_code,
-            error_message: error_message.map(|s| s.to_string()),
-            request_size_bytes,
-            response_size_bytes,
-            ip_address: ip_address.map(|s| s.to_string()),
-            user_agent: user_agent.map(|s| s.to_string()),
+            tool_name: params.tool_name.clone(),
+            response_time_ms: params.response_time_ms,
+            status_code: params.status_code,
+            error_message: params.error_message,
+            request_size_bytes: params.request_size_bytes,
+            response_size_bytes: params.response_size_bytes,
+            ip_address: params.ip_address,
+            user_agent: params.user_agent,
             protocol_version: "1.0".to_string(),
-            client_capabilities: client_capabilities.to_vec(),
-            granted_scopes: granted_scopes.to_vec(),
+            client_capabilities: params.client_capabilities,
+            granted_scopes: params.granted_scopes,
         };
 
-        self.database
-            .record_a2a_usage(&usage)
-            .await
-            .map_err(|e| {
-                crate::a2a::A2AError::InternalError(format!("Failed to record A2A usage: {}", e))
-            })?;
+        self.database.record_a2a_usage(&usage).await.map_err(|e| {
+            crate::a2a::A2AError::InternalError(format!("Failed to record A2A usage: {}", e))
+        })?;
 
         tracing::debug!(
             "A2A usage recorded - Client: {}, Tool: {}, Status: {}",
-            client_id,
-            tool_name,
-            status_code
+            params.client_id,
+            params.tool_name,
+            params.status_code
         );
         Ok(())
+    }
+
+    /// Calculate rate limit status for a client
+    pub async fn calculate_rate_limit_status(
+        &self,
+        client_id: &str,
+        tier: A2AClientTier,
+    ) -> Result<A2ARateLimitStatus, crate::a2a::A2AError> {
+        match tier {
+            A2AClientTier::Enterprise => Ok(A2ARateLimitStatus {
+                is_rate_limited: false,
+                limit: None,
+                remaining: None,
+                reset_at: None,
+                tier,
+            }),
+            _ => {
+                let current_usage = self
+                    .database
+                    .get_a2a_client_current_usage(client_id)
+                    .await
+                    .map_err(|e| {
+                        crate::a2a::A2AError::InternalError(format!(
+                            "Failed to get current usage: {}",
+                            e
+                        ))
+                    })?;
+
+                let limit = tier.monthly_limit().unwrap_or(0);
+                let remaining = limit.saturating_sub(current_usage);
+                let is_rate_limited = current_usage >= limit;
+
+                // Calculate reset time (beginning of next month)
+                let reset_at = self.calculate_next_month_start();
+
+                Ok(A2ARateLimitStatus {
+                    is_rate_limited,
+                    limit: Some(limit),
+                    remaining: Some(remaining),
+                    reset_at: Some(reset_at),
+                    tier,
+                })
+            }
+        }
+    }
+
+    /// Check if a client is rate limited
+    pub async fn is_client_rate_limited(
+        &self,
+        client_id: &str,
+        tier: A2AClientTier,
+    ) -> Result<bool, crate::a2a::A2AError> {
+        let status = self.calculate_rate_limit_status(client_id, tier).await?;
+        Ok(status.is_rate_limited)
+    }
+
+    /// Get rate limit status for a client by ID
+    pub async fn get_client_rate_limit_status(
+        &self,
+        client_id: &str,
+    ) -> Result<A2ARateLimitStatus, crate::a2a::A2AError> {
+        // For now, default to trial tier. In production, this would be stored in the database
+        let tier = A2AClientTier::Trial;
+        self.calculate_rate_limit_status(client_id, tier).await
+    }
+
+    /// Calculate the start of next month for rate limit reset
+    fn calculate_next_month_start(&self) -> DateTime<Utc> {
+        let now = Utc::now();
+
+        let next_month = if now.month() == 12 {
+            now.with_year(now.year() + 1)
+                .unwrap()
+                .with_month(1)
+                .unwrap()
+        } else {
+            now.with_month(now.month() + 1).unwrap()
+        };
+
+        next_month
+            .with_day(1)
+            .unwrap()
+            .with_hour(0)
+            .unwrap()
+            .with_minute(0)
+            .unwrap()
+            .with_second(0)
+            .unwrap()
+            .with_nanosecond(0)
+            .unwrap()
     }
 }
 
@@ -571,30 +710,32 @@ mod tests {
             .unwrap();
 
         // Test detailed usage recording with real session
-        let result = manager
-            .record_detailed_usage(
-                &credentials.client_id,
-                Some(&session_token),
-                "analyze_activity",
-                Some(150),
-                200,
-                None,
-                Some(256),
-                Some(512),
-                Some("127.0.0.1"),
-                Some("test-agent/1.0"),
-                &["fitness-data-analysis".to_string()],
-                &["fitness:read".to_string()],
-            )
-            .await;
-        
+        let usage_params = crate::a2a::client::A2AUsageParams {
+            client_id: credentials.client_id.clone(),
+            session_token: Some(session_token),
+            tool_name: "analyze_activity".to_string(),
+            response_time_ms: Some(150),
+            status_code: 200,
+            error_message: None,
+            request_size_bytes: Some(256),
+            response_size_bytes: Some(512),
+            ip_address: Some("127.0.0.1".to_string()),
+            user_agent: Some("test-agent/1.0".to_string()),
+            client_capabilities: vec!["fitness-data-analysis".to_string()],
+            granted_scopes: vec!["fitness:read".to_string()],
+        };
+        let result = manager.record_detailed_usage(usage_params).await;
+
         if let Err(ref e) = result {
             println!("Error recording detailed usage: {:?}", e);
         }
         assert!(result.is_ok());
 
         // Test getting usage statistics
-        let usage_stats = manager.get_client_usage(&credentials.client_id).await.unwrap();
+        let usage_stats = manager
+            .get_client_usage(&credentials.client_id)
+            .await
+            .unwrap();
         assert_eq!(usage_stats.client_id, credentials.client_id);
         assert_eq!(usage_stats.total_requests, 2); // Two usage records above
     }

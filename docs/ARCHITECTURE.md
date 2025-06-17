@@ -13,14 +13,15 @@
 
 ## System Overview
 
-Pierre MCP Server is a multi-tenant fitness data platform that provides secure access to fitness data from multiple providers (Strava, Fitbit) through both the Model Context Protocol (MCP) and traditional REST APIs. The system is designed for B2B use cases, allowing AI assistants and applications to access fitness data with proper authentication and rate limiting.
+Pierre MCP Server is a multi-tenant fitness data platform that provides secure access to fitness data from multiple providers (Strava, Fitbit) through the Model Context Protocol (MCP), A2A (Agent-to-Agent) Protocol, and traditional REST APIs. The system is designed for B2B use cases, allowing AI assistants, autonomous agents, and applications to access fitness data with proper authentication and rate limiting.
 
 ### Core Services
 
 1. **MCP Server (Port 8080)**: Handles MCP protocol connections for AI assistants
-2. **HTTP API Server (Port 8081)**: Provides REST endpoints for authentication, API key management, and dashboard access
+2. **HTTP API Server (Port 8081)**: Provides REST endpoints for authentication, API key management, dashboard access, and A2A protocol
 3. **Admin Service (Port 8082)**: Manages API key approval workflows and email notifications
 4. **Frontend (Port 5173)**: React-based dashboard for user management and analytics
+5. **A2A Protocol Handler**: Embedded in HTTP API server, handles agent-to-agent communication
 
 ## Architecture Components
 
@@ -219,6 +220,164 @@ pub enum ApiKeyTier {
    - Deactivates expired trial keys
    - Maintains audit trail
 
+## A2A (Agent-to-Agent) Protocol
+
+### Overview
+
+The A2A Protocol enables agent-to-agent communication and collaboration, allowing other AI systems to discover, authenticate with, and utilize Pierre's fitness intelligence capabilities through a standardized JSON-RPC 2.0 interface.
+
+### Protocol Implementation
+
+Pierre's A2A implementation provides:
+
+- **JSON-RPC 2.0 Communication**: Standard protocol for agent-to-agent messaging
+- **Agent Card Discovery**: Automated capability discovery via `/.well-known/agent.json`
+- **Client Registration**: Secure registration and management of AI agents
+- **Session Management**: Persistent sessions with configurable expiration
+- **Task Management**: Asynchronous task execution with persistent storage
+- **Universal Tool Access**: Same tools available through both MCP and A2A protocols
+
+### Agent Card & Discovery
+
+Pierre exposes its capabilities through an Agent Card located at:
+
+```
+GET http://localhost:8081/a2a/agent-card
+```
+
+The Agent Card includes:
+- Agent identity and version information
+- Available tool schemas and parameters
+- Authentication requirements
+- Rate limits and usage tiers
+- Supported protocol capabilities
+
+Example Agent Card structure:
+```json
+{
+  "agent": {
+    "name": "Pierre Fitness Intelligence Agent",
+    "version": "1.0.0",
+    "description": "AI-powered fitness data analysis platform"
+  },
+  "authentication": {
+    "type": "api_key",
+    "description": "API key authentication required"
+  },
+  "tools": [
+    {
+      "name": "get_activities",
+      "description": "Retrieve user fitness activities",
+      "parameters": { ... }
+    },
+    {
+      "name": "analyze_activity", 
+      "description": "AI analysis of fitness activity",
+      "parameters": { ... }
+    }
+  ]
+}
+```
+
+### Authentication & Authorization
+
+A2A clients must register before accessing the protocol:
+
+1. **Client Registration**: Clients register with name, description, and capabilities
+2. **Credential Issuance**: System generates client_id, client_secret, and API key
+3. **API Key Authentication**: Clients use API key for subsequent requests
+4. **Session Creation**: Authenticated clients can create persistent sessions
+
+Registration flow:
+```bash
+POST /a2a/clients
+{
+  "name": "FitnessAnalyzer",
+  "description": "AI agent for fitness analytics",
+  "capabilities": ["fitness-data-analysis", "goal-management"]
+}
+```
+
+### Available Methods
+
+Core A2A Protocol methods:
+
+| Method | Description |
+|--------|-------------|
+| `a2a/initialize` | Initialize A2A connection and get capabilities |
+| `a2a/tools/list` | List all available tools |
+| `a2a/tools/call` | Execute a specific tool |
+| `a2a/tasks/create` | Create an asynchronous task |
+| `a2a/tasks/get` | Get task status and results |
+| `a2a/tasks/list` | List tasks for a client |
+| `a2a/message/send` | Send a message to Pierre |
+| `a2a/message/stream` | Stream messages (future feature) |
+
+### Message Types & Formats
+
+A2A uses standard JSON-RPC 2.0 message formats:
+
+**Request Format:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "a2a/tools/call",
+  "params": {
+    "tool_name": "get_activities",
+    "parameters": {
+      "provider": "strava",
+      "limit": 10
+    }
+  },
+  "id": 1
+}
+```
+
+**Response Format:**
+```json
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "activities": [...],
+    "total_count": 10
+  },
+  "id": 1
+}
+```
+
+### Task Management
+
+A2A supports asynchronous task execution for long-running operations:
+
+1. **Task Creation**: Client creates a task with parameters
+2. **Task Execution**: Server executes task asynchronously
+3. **Status Polling**: Client polls for task completion
+4. **Result Retrieval**: Client retrieves task results
+
+Task lifecycle:
+- `pending` → `running` → `completed`/`failed`/`cancelled`
+
+### Database Schema Integration
+
+A2A protocol data is stored in dedicated tables:
+
+- **a2a_clients**: Registered A2A clients and their capabilities
+- **a2a_sessions**: Active sessions with expiration tracking
+- **a2a_tasks**: Asynchronous tasks with status and results
+
+These tables integrate with the existing user and API key system for authentication.
+
+### Integration with Universal Tool Layer
+
+A2A requests are processed through the Universal Tool Layer, which provides:
+
+- **Protocol Abstraction**: Same tools work with MCP and A2A
+- **Request Translation**: A2A requests converted to universal format
+- **Response Formatting**: Universal responses formatted for A2A protocol
+- **Error Handling**: Consistent error responses across protocols
+
+This architecture ensures feature parity between MCP and A2A while maintaining protocol-specific optimizations.
+
 ## Database Schema
 
 ### Core Tables
@@ -283,6 +442,63 @@ CREATE TABLE api_key_usage (
     user_agent TEXT,
     FOREIGN KEY (api_key_id) REFERENCES api_keys(id)
 );
+
+-- A2A Clients table - registered A2A agents
+CREATE TABLE a2a_clients (
+    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    api_key_id TEXT NOT NULL REFERENCES api_keys(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    description TEXT,
+    public_key TEXT,
+    capabilities TEXT NOT NULL DEFAULT '[]',
+    redirect_uris TEXT NOT NULL DEFAULT '[]',
+    agent_version TEXT,
+    contact_email TEXT,
+    documentation_url TEXT,
+    is_verified BOOLEAN NOT NULL DEFAULT false,
+    verification_token TEXT,
+    verified_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(name)
+);
+
+-- A2A Sessions table - persistent agent sessions
+CREATE TABLE a2a_sessions (
+    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    client_id TEXT NOT NULL REFERENCES a2a_clients(id) ON DELETE CASCADE,
+    user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+    granted_scopes TEXT NOT NULL DEFAULT '[]',
+    session_token TEXT NOT NULL UNIQUE,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_activity TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    requests_count INTEGER NOT NULL DEFAULT 0
+);
+
+-- A2A Tasks table - asynchronous task management
+CREATE TABLE a2a_tasks (
+    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    client_id TEXT NOT NULL REFERENCES a2a_clients(id) ON DELETE CASCADE,
+    session_id TEXT REFERENCES a2a_sessions(id) ON DELETE SET NULL,
+    task_type TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    parameters TEXT,
+    result TEXT,
+    error_message TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP
+);
+
+-- Indexes for A2A tables
+CREATE INDEX idx_a2a_clients_api_key ON a2a_clients(api_key_id);
+CREATE INDEX idx_a2a_sessions_client ON a2a_sessions(client_id);
+CREATE INDEX idx_a2a_sessions_token ON a2a_sessions(session_token);
+CREATE INDEX idx_a2a_sessions_expires ON a2a_sessions(expires_at);
+CREATE INDEX idx_a2a_tasks_client ON a2a_tasks(client_id);
+CREATE INDEX idx_a2a_tasks_status ON a2a_tasks(status);
 ```
 
 ### Encryption

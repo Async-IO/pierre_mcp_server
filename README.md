@@ -3,7 +3,7 @@
 [![CI](https://github.com/jfarcand/pierre_mcp_server/actions/workflows/ci.yml/badge.svg)](https://github.com/jfarcand/pierre_mcp_server/actions/workflows/ci.yml)
 [![Frontend Tests](https://github.com/jfarcand/pierre_mcp_server/actions/workflows/frontend-tests.yml/badge.svg)](https://github.com/jfarcand/pierre_mcp_server/actions/workflows/frontend-tests.yml)
 
-A multi-tenant fitness data platform providing secure B2B API access to fitness data from multiple providers (Strava, Fitbit) through both the Model Context Protocol (MCP) and REST APIs. Built for developers and AI assistants, Pierre MCP Server features enterprise-grade API key management with tiered rate limiting, trial keys with automatic expiration, OAuth integration, real-time analytics, and comprehensive activity intelligence.
+A multi-tenant fitness data platform providing secure B2B API access to fitness data from multiple providers (Strava, Fitbit) through the Model Context Protocol (MCP), A2A (Agent-to-Agent) Protocol, and REST APIs. Built for developers and AI assistants, Pierre MCP Server features enterprise-grade API key management with tiered rate limiting, trial keys with automatic expiration, OAuth integration, real-time analytics, comprehensive activity intelligence, and support for AI agent communication.
 
 ## LLM Prompt Examples
 
@@ -174,6 +174,13 @@ Analyze my adaptation to different training environments over time.
   - **Natural Language Summaries**: Human-readable insights with full context
   - **Personal Records**: Automatic detection with location and weather correlation
 - **MCP Protocol Compliance**: Works seamlessly with Claude and GitHub Copilot
+- **🤖 A2A (Agent-to-Agent) Protocol**: Open protocol for AI agent communication
+  - **JSON-RPC 2.0**: Standard protocol for agent-to-agent communication
+  - **Client Registration**: Secure registration and management of AI agents
+  - **Capabilities Discovery**: Agent Card for automatic capability detection
+  - **Session Management**: Persistent sessions with configurable expiration
+  - **Task Management**: Async task execution with persistent storage
+  - **Universal Tool Layer**: Protocol-agnostic tool execution (MCP & A2A)
 - **Extensible Design**: Easy to add new fitness providers in the future
 - **Production Ready**: Comprehensive testing and clean error handling
 
@@ -245,7 +252,7 @@ curl -X POST http://localhost:8081/api/keys/trial \
 }
 ```
 
-### Rate Limiting
+### Rate Limiting Systems example
 
 | Tier | Monthly Limit | Key Prefix | Expiration |
 |------|--------------|------------|------------|
@@ -260,7 +267,7 @@ curl -X POST http://localhost:8081/api/keys/trial \
 
 ```bash
 # Test the trial key system
-./test_trial_keys.sh
+./scripts/test_trial_keys.sh
 ```
 
 This script will:
@@ -277,7 +284,7 @@ For detailed technical documentation, see [docs/ARCHITECTURE.md](docs/ARCHITECTU
 ### Key Components:
 - **MCP Server** (Port 8080): AI assistant connections
 - **HTTP API** (Port 8081): REST endpoints and dashboard
-- **Admin Service** (Port 8082): API key approval workflow
+- **Admin Service** (Port 8082): API key approval workflow (repo private for now)
 - **SQLite Database**: User data and encrypted tokens
 - **Background Tasks**: Expired key cleanup, usage tracking
 
@@ -617,6 +624,117 @@ cargo run --bin check-longest-run-gps
 # Location-only analysis  
 # {"method": "tools/call", "params": {"name": "get_activity_intelligence", "arguments": {"provider": "strava", "activity_id": "12345", "include_weather": false, "include_location": true}}}
 ```
+
+## A2A Protocol Integration
+
+Pierre MCP Server supports the A2A (Agent-to-Agent) Protocol, enabling AI agents to communicate and collaborate on fitness data analysis. A2A is an open protocol that provides a standardized way for AI agents to discover capabilities, exchange messages, and execute tools.
+
+### A2A Features
+
+- **Agent Registration**: Register AI agents with specific capabilities
+- **Capability Discovery**: Automatic discovery of agent capabilities through Agent Cards
+- **Session Management**: Secure, persistent sessions for agent communication
+- **Task Execution**: Asynchronous task management with persistent storage
+- **Tool Interoperability**: Same tools available through both MCP and A2A protocols
+
+### A2A Client Registration
+
+```bash
+# Register a new A2A client
+curl -X POST http://localhost:8081/a2a/clients \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "FitnessAnalyzer",
+    "description": "AI agent for advanced fitness analytics",
+    "capabilities": ["fitness-data-analysis", "goal-management"],
+    "redirect_uris": ["https://example.com/callback"],
+    "contact_email": "contact@example.com"
+  }'
+
+# Response includes client credentials
+{
+  "client_id": "a2a_client_123...",
+  "client_secret": "a2a_secret_456...",
+  "api_key": "a2a_789..."
+}
+```
+
+### A2A Protocol Endpoints
+
+```bash
+# Initialize A2A connection
+curl -X POST http://localhost:8081/a2a \
+  -H "Authorization: Bearer a2a_789..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "a2a/initialize",
+    "id": 1
+  }'
+
+# List available tools
+curl -X POST http://localhost:8081/a2a \
+  -H "Authorization: Bearer a2a_789..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "a2a/tools/list",
+    "id": 2
+  }'
+
+# Execute a tool
+curl -X POST http://localhost:8081/a2a \
+  -H "Authorization: Bearer a2a_789..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "a2a/tools/call",
+    "params": {
+      "tool_name": "get_activities",
+      "parameters": {
+        "provider": "strava",
+        "limit": 10
+      }
+    },
+    "id": 3
+  }'
+```
+
+### Agent Card
+
+Pierre exposes its capabilities through an Agent Card, accessible at:
+
+```bash
+curl http://localhost:8081/a2a/agent-card
+```
+
+The Agent Card includes:
+- Agent identity and version
+- Available tools and their schemas
+- Authentication requirements
+- Rate limits and usage tiers
+- Protocol capabilities
+
+### A2A Use Cases
+
+1. **Multi-Agent Fitness Analysis**: Multiple AI agents collaborating to analyze fitness data from different perspectives
+2. **Automated Coaching**: AI coaches that can access and analyze athlete data programmatically
+3. **Integration Hub**: Connect Pierre to other A2A-compatible fitness and health platforms
+4. **Research Applications**: Academic and research agents analyzing aggregated fitness trends
+
+### A2A vs MCP
+
+| Feature | MCP | A2A |
+|---------|-----|-----|
+| Protocol | Custom JSON-RPC | Standard A2A JSON-RPC 2.0 |
+| Authentication | API Key | API Key + Client Registration |
+| Sessions | Stateless | Persistent Sessions |
+| Discovery | Manual | Agent Card |
+| Tasks | Synchronous | Async with persistent storage |
+| Use Case | Direct AI assistant integration | Agent-to-agent communication |
+
+Both protocols have access to the same underlying tools through the Universal Tool Layer.
 
 ## Adding to Claude or GitHub Copilot
 
