@@ -318,22 +318,23 @@ impl ApiKeyManager {
                 let now = Utc::now();
                 let next_month = if now.month() == 12 {
                     now.with_year(now.year() + 1)
-                        .unwrap()
+                        .expect("Failed to set year for next month calculation")
                         .with_month(1)
-                        .unwrap()
+                        .expect("Failed to set month to January")
                 } else {
-                    now.with_month(now.month() + 1).unwrap()
+                    now.with_month(now.month() + 1)
+                        .expect("Failed to increment month")
                 };
 
                 let reset_at = next_month
                     .with_day(1)
-                    .unwrap()
+                    .expect("Failed to set day to 1st of month")
                     .with_hour(0)
-                    .unwrap()
+                    .expect("Failed to set hour to 0")
                     .with_minute(0)
-                    .unwrap()
+                    .expect("Failed to set minute to 0")
                     .with_second(0)
-                    .unwrap();
+                    .expect("Failed to set second to 0");
 
                 RateLimitStatus {
                     is_rate_limited,

@@ -544,9 +544,11 @@ impl Database {
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_a2a_usage_client_id ON a2a_usage(client_id)")
             .execute(&self.pool)
             .await?;
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_a2a_usage_session_token ON a2a_usage(session_token)")
-            .execute(&self.pool)
-            .await?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_a2a_usage_session_token ON a2a_usage(session_token)",
+        )
+        .execute(&self.pool)
+        .await?;
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_a2a_usage_timestamp ON a2a_usage(timestamp)")
             .execute(&self.pool)
             .await?;
@@ -2657,7 +2659,7 @@ impl Database {
         for row in capability_rows {
             let capabilities_json: String = row.get("client_capabilities");
             let count: i64 = row.get("count");
-            
+
             if let Ok(capabilities) = serde_json::from_str::<Vec<String>>(&capabilities_json) {
                 for capability in capabilities {
                     let current_count = capability_usage
@@ -2708,9 +2710,9 @@ impl Database {
 
         let mut usage_records = Vec::new();
         for row in rows {
-            let client_capabilities: Vec<String> = 
+            let client_capabilities: Vec<String> =
                 serde_json::from_str(&row.get::<String, _>("client_capabilities"))?;
-            let granted_scopes: Vec<String> = 
+            let granted_scopes: Vec<String> =
                 serde_json::from_str(&row.get::<String, _>("granted_scopes"))?;
 
             usage_records.push(A2AUsage {
@@ -2721,11 +2723,17 @@ impl Database {
                     .unwrap()
                     .with_timezone(&Utc),
                 tool_name: row.get("tool_name"),
-                response_time_ms: row.get::<Option<i64>, _>("response_time_ms").map(|ms| ms as u32),
+                response_time_ms: row
+                    .get::<Option<i64>, _>("response_time_ms")
+                    .map(|ms| ms as u32),
                 status_code: row.get::<i64, _>("status_code") as u16,
                 error_message: row.get("error_message"),
-                request_size_bytes: row.get::<Option<i64>, _>("request_size_bytes").map(|b| b as u32),
-                response_size_bytes: row.get::<Option<i64>, _>("response_size_bytes").map(|b| b as u32),
+                request_size_bytes: row
+                    .get::<Option<i64>, _>("request_size_bytes")
+                    .map(|b| b as u32),
+                response_size_bytes: row
+                    .get::<Option<i64>, _>("response_size_bytes")
+                    .map(|b| b as u32),
                 ip_address: row.get("ip_address"),
                 user_agent: row.get("user_agent"),
                 protocol_version: row.get("protocol_version"),

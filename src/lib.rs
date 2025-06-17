@@ -87,6 +87,12 @@ pub mod mcp;
 /// Athlete Intelligence for activity analysis and insights
 pub mod intelligence;
 
+/// A2A (Agent-to-Agent) protocol implementation
+pub mod a2a;
+
+/// HTTP routes for A2A protocol endpoints
+pub mod a2a_routes;
+
 /// Multi-tenant database management
 pub mod database;
 
@@ -116,3 +122,6 @@ pub mod websocket;
 
 /// Security headers and protection middleware
 pub mod security;
+
+/// Universal protocol support for MCP and A2A
+pub mod protocols;

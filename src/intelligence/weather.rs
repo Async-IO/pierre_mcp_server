@@ -481,7 +481,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_weather_at_time() {
-        let mut service = WeatherService::with_default_config();
+        let config = WeatherApiConfig {
+            fallback_to_mock: true,
+            ..Default::default()
+        };
+        let mut service = WeatherService::new(config);
         let result = service
             .get_weather_at_time(45.5017, -73.5673, Utc::now())
             .await; // Montreal coords
@@ -493,7 +497,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_weather_for_activity_with_coords() {
-        let mut service = WeatherService::with_default_config();
+        let config = WeatherApiConfig {
+            fallback_to_mock: true,
+            ..Default::default()
+        };
+        let mut service = WeatherService::new(config);
         let result = service
             .get_weather_for_activity(Some(45.5017), Some(-73.5673), Utc::now())
             .await;

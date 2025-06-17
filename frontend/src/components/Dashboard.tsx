@@ -9,6 +9,7 @@ import CreateApiKey from './CreateApiKey';
 import UsageAnalytics from './UsageAnalytics';
 import RequestMonitor from './RequestMonitor';
 import ToolUsageBreakdown from './ToolUsageBreakdown';
+import A2AManagement from './A2AManagement';
 import { Line } from 'react-chartjs-2';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useEffect } from 'react';
@@ -92,6 +93,7 @@ export default function Dashboard() {
     { id: 'analytics', name: 'Analytics', icon: '📈' },
     { id: 'monitor', name: 'Monitor', icon: '📡' },
     { id: 'tools', name: 'Tools', icon: '🔧' },
+    { id: 'a2a', name: 'A2A', icon: '🤖' },
     { id: 'create-key', name: 'Create Key', icon: '➕' },
   ];
 
@@ -280,6 +282,7 @@ export default function Dashboard() {
             <ToolUsageBreakdown />
           </div>
         )}
+        {activeTab === 'a2a' && <A2AManagement />}
         {activeTab === 'create-key' && <CreateApiKey />}
       </div>
     </div>

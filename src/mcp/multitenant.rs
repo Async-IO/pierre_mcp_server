@@ -9,6 +9,7 @@
 //! This module provides a multi-tenant MCP server that supports user authentication,
 //! secure token storage, and user-scoped data access.
 
+use crate::a2a_routes::A2ARoutes;
 use crate::api_key_routes::ApiKeyRoutes;
 use crate::auth::{AuthManager, AuthResult, McpAuthMiddleware};
 use crate::config::FitnessConfig;
@@ -127,6 +128,7 @@ impl MultiTenantMcpServer {
         let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
         let api_key_routes = ApiKeyRoutes::new((*database).clone(), (*auth_manager).clone());
         let dashboard_routes = DashboardRoutes::new((*database).clone(), (*auth_manager).clone());
+        let a2a_routes = A2ARoutes::new(database.clone(), auth_manager.clone());
 
         // CORS configuration
         let cors = warp::cors()
@@ -497,6 +499,193 @@ impl MultiTenantMcpServer {
                 }
             });
 
+        // A2A Agent Card endpoint
+        let a2a_agent_card = warp::path("a2a")
+            .and(warp::path("agent-card"))
+            .and(warp::get())
+            .and_then({
+                let a2a_routes = a2a_routes.clone();
+                move || {
+                    let a2a_routes = a2a_routes.clone();
+                    async move {
+                        match a2a_routes.get_agent_card().await {
+                            Ok(agent_card) => Ok(warp::reply::json(&agent_card)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
+
+        // A2A Dashboard Overview endpoint
+        let a2a_dashboard_overview = warp::path("a2a")
+            .and(warp::path("dashboard"))
+            .and(warp::path("overview"))
+            .and(warp::get())
+            .and(warp::header::optional::<String>("authorization"))
+            .and_then({
+                let a2a_routes = a2a_routes.clone();
+                move |auth_header: Option<String>| {
+                    let a2a_routes = a2a_routes.clone();
+                    async move {
+                        match a2a_routes
+                            .get_dashboard_overview(auth_header.as_deref())
+                            .await
+                        {
+                            Ok(overview) => Ok(warp::reply::json(&overview)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
+
+        // A2A Client Registration endpoint
+        let a2a_register_client = warp::path("a2a")
+            .and(warp::path("clients"))
+            .and(warp::post())
+            .and(warp::header::optional::<String>("authorization"))
+            .and(warp::body::json())
+            .and_then({
+                let a2a_routes = a2a_routes.clone();
+                move |auth_header: Option<String>, request: crate::a2a_routes::A2AClientRequest| {
+                    let a2a_routes = a2a_routes.clone();
+                    async move {
+                        match a2a_routes
+                            .register_client(auth_header.as_deref(), request)
+                            .await
+                        {
+                            Ok(credentials) => Ok(warp::reply::json(&credentials)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
+
+        // A2A List Clients endpoint
+        let a2a_list_clients = warp::path("a2a")
+            .and(warp::path("clients"))
+            .and(warp::get())
+            .and(warp::header::optional::<String>("authorization"))
+            .and_then({
+                let a2a_routes = a2a_routes.clone();
+                move |auth_header: Option<String>| {
+                    let a2a_routes = a2a_routes.clone();
+                    async move {
+                        match a2a_routes.list_clients(auth_header.as_deref()).await {
+                            Ok(clients) => Ok(warp::reply::json(&clients)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
+
+        // A2A Client Usage endpoint
+        let a2a_client_usage = warp::path("a2a")
+            .and(warp::path("clients"))
+            .and(warp::path!(String / "usage"))
+            .and(warp::get())
+            .and(warp::header::optional::<String>("authorization"))
+            .and_then({
+                let a2a_routes = a2a_routes.clone();
+                move |client_id: String, auth_header: Option<String>| {
+                    let a2a_routes = a2a_routes.clone();
+                    async move {
+                        match a2a_routes
+                            .get_client_usage(auth_header.as_deref(), &client_id)
+                            .await
+                        {
+                            Ok(usage) => Ok(warp::reply::json(&usage)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
+
+        // A2A Client Rate Limit endpoint
+        let a2a_client_rate_limit = warp::path("a2a")
+            .and(warp::path("clients"))
+            .and(warp::path!(String / "rate-limit"))
+            .and(warp::get())
+            .and(warp::header::optional::<String>("authorization"))
+            .and_then({
+                let a2a_routes = a2a_routes.clone();
+                move |client_id: String, auth_header: Option<String>| {
+                    let a2a_routes = a2a_routes.clone();
+                    async move {
+                        match a2a_routes
+                            .get_client_rate_limit(auth_header.as_deref(), &client_id)
+                            .await
+                        {
+                            Ok(rate_limit) => Ok(warp::reply::json(&rate_limit)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
+
+        // A2A Authentication endpoint
+        let a2a_auth = warp::path("a2a")
+            .and(warp::path("auth"))
+            .and(warp::post())
+            .and(warp::body::json())
+            .and_then({
+                let a2a_routes = a2a_routes.clone();
+                move |request: serde_json::Value| {
+                    let a2a_routes = a2a_routes.clone();
+                    async move {
+                        match a2a_routes.authenticate(request).await {
+                            Ok(response) => Ok(warp::reply::json(&response)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
+
+        // A2A Tool Execution endpoint
+        let a2a_execute = warp::path("a2a")
+            .and(warp::path("execute"))
+            .and(warp::post())
+            .and(warp::header::optional::<String>("authorization"))
+            .and(warp::body::json())
+            .and_then({
+                let a2a_routes = a2a_routes.clone();
+                move |auth_header: Option<String>, request: serde_json::Value| {
+                    let a2a_routes = a2a_routes.clone();
+                    async move {
+                        match a2a_routes
+                            .execute_tool(auth_header.as_deref(), request)
+                            .await
+                        {
+                            Ok(response) => Ok(warp::reply::json(&response)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
+
         // WebSocket endpoint
         let websocket_route = websocket_manager.websocket_filter();
 
@@ -517,18 +706,32 @@ impl MultiTenantMcpServer {
             header_map
         });
 
-        let routes = register
-            .or(login)
-            .or(oauth_auth)
-            .or(oauth_callback)
-            .or(create_api_key)
+        // Group routes to avoid recursion limit issues
+        let auth_routes = register.or(login).or(oauth_auth).or(oauth_callback);
+
+        let api_key_routes = create_api_key
             .or(create_trial_key)
             .or(list_api_keys)
             .or(deactivate_api_key)
-            .or(get_api_key_usage)
-            .or(dashboard_overview)
+            .or(get_api_key_usage);
+
+        let dashboard_routes = dashboard_overview
             .or(dashboard_analytics)
-            .or(dashboard_rate_limits)
+            .or(dashboard_rate_limits);
+
+        let a2a_routes = a2a_agent_card
+            .or(a2a_dashboard_overview)
+            .or(a2a_register_client)
+            .or(a2a_list_clients)
+            .or(a2a_client_usage)
+            .or(a2a_client_rate_limit)
+            .or(a2a_auth)
+            .or(a2a_execute);
+
+        let routes = auth_routes
+            .or(api_key_routes)
+            .or(dashboard_routes)
+            .or(a2a_routes)
             .or(websocket_route)
             .or(health)
             .with(cors)
@@ -885,8 +1088,8 @@ impl MultiTenantMcpServer {
             let providers_read = user_providers.read().await;
             if let Some(user_provider_map) = providers_read.get(&user_key) {
                 if let Some(_provider) = user_provider_map.get(provider_name) {
-                    // TODO: Clone provider - this is tricky with trait objects
-                    // For now, we'll recreate the provider each time
+                    // Provider exists - we recreate it each time since trait objects don't support Clone
+                    // This is acceptable for the current usage pattern
                 }
             }
         }

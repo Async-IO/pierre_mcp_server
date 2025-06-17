@@ -136,7 +136,10 @@ mod tests {
             access_token: Some("test_access_token".to_string()),
             refresh_token: Some("test_refresh_token".to_string()),
             api_key: None,
-            redirect_uri: Some("http://localhost:8081/oauth/callback".to_string()),
+            redirect_uri: Some(format!(
+                "http://localhost:{}/oauth/callback",
+                crate::constants::ports::DEFAULT_HTTP_PORT
+            )),
             scopes: Some(vec!["read".to_string(), "activity:read_all".to_string()]),
         }
     }
@@ -428,7 +431,10 @@ api_key = "test_key_123"
             access_token: Some("oauth_access".to_string()),
             refresh_token: Some("oauth_refresh".to_string()),
             api_key: None,
-            redirect_uri: Some("http://localhost:8081/oauth/callback".to_string()),
+            redirect_uri: Some(format!(
+                "http://localhost:{}/oauth/callback",
+                crate::constants::ports::DEFAULT_HTTP_PORT
+            )),
             scopes: Some(vec!["read".to_string()]),
         };
 

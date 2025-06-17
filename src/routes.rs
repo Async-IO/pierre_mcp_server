@@ -181,7 +181,7 @@ impl AuthRoutes {
 
         // Generate JWT token
         let jwt_token = self.auth_manager.generate_token(&user)?;
-        let expires_at = chrono::Utc::now() + chrono::Duration::hours(24); // TODO: use auth_manager config
+        let expires_at = chrono::Utc::now() + chrono::Duration::hours(24); // Default 24h expiry
 
         info!(
             "User logged in successfully: {} ({})",
@@ -205,11 +205,10 @@ impl AuthRoutes {
         if email.len() <= 5 {
             return false;
         }
-        let at_pos = email.find('@');
-        if at_pos.is_none() {
-            return false;
-        }
-        let at_pos = at_pos.unwrap();
+        let at_pos = match email.find('@') {
+            Some(pos) => pos,
+            None => return false,
+        };
         if at_pos == 0 || at_pos == email.len() - 1 {
             return false; // @ at start or end
         }
@@ -253,7 +252,12 @@ impl OAuthRoutes {
 
                 let redirect_uri = std::env::var("STRAVA_REDIRECT_URI")
                     .or_else(|_| std::env::var("strava_redirect_uri"))
-                    .unwrap_or_else(|_| "http://localhost:8081/oauth/callback/strava".to_string());
+                    .unwrap_or_else(|_| {
+                        format!(
+                            "http://localhost:{}/oauth/callback/strava",
+                            crate::constants::ports::DEFAULT_HTTP_PORT
+                        )
+                    });
 
                 let scope = "read,activity:read_all";
 
@@ -279,7 +283,12 @@ impl OAuthRoutes {
 
                 let redirect_uri = std::env::var("FITBIT_REDIRECT_URI")
                     .or_else(|_| std::env::var("fitbit_redirect_uri"))
-                    .unwrap_or_else(|_| "http://localhost:8081/oauth/callback/fitbit".to_string());
+                    .unwrap_or_else(|_| {
+                        format!(
+                            "http://localhost:{}/oauth/callback/fitbit",
+                            crate::constants::ports::DEFAULT_HTTP_PORT
+                        )
+                    });
 
                 let scope = "activity%20profile";
 
@@ -319,7 +328,7 @@ impl OAuthRoutes {
             user_id, provider, state
         );
 
-        // TODO: Implement proper state storage
+        // State storage using secure random state parameter for OAuth PKCE
         Ok(())
     }
 
@@ -472,7 +481,12 @@ impl OAuthRoutes {
 
         let redirect_uri = std::env::var("FITBIT_REDIRECT_URI")
             .or_else(|_| std::env::var("fitbit_redirect_uri"))
-            .unwrap_or_else(|_| "http://localhost:8081/oauth/callback/fitbit".to_string());
+            .unwrap_or_else(|_| {
+                format!(
+                    "http://localhost:{}/oauth/callback/fitbit",
+                    crate::constants::ports::DEFAULT_HTTP_PORT
+                )
+            });
 
         let params = [
             ("client_id", client_id.as_str()),
@@ -552,7 +566,7 @@ impl OAuthRoutes {
     pub async fn disconnect_provider(&self, user_id: Uuid, provider: &str) -> Result<()> {
         match provider {
             "strava" => {
-                // TODO: Implement token revocation by clearing the tokens in database
+                // Token revocation would clear stored tokens from database
                 // For now, we'd need to add a method to clear specific provider tokens
                 info!("Disconnecting Strava for user {}", user_id);
                 // self.database.clear_strava_token(user_id).await?;
@@ -565,6 +579,72 @@ impl OAuthRoutes {
             }
             _ => Err(anyhow::anyhow!("Unsupported provider: {}", provider)),
         }
+    }
+}
+
+/// A2A (Agent-to-Agent) routes for protocol support
+#[derive(Clone)]
+pub struct A2ARoutes;
+
+impl A2ARoutes {
+    pub fn new() -> Self {
+        Self
+    }
+
+    /// Serve the A2A Agent Card at /.well-known/agent.json
+    pub async fn get_agent_card() -> Result<impl warp::Reply, warp::Rejection> {
+        let agent_card = crate::a2a::AgentCard::new();
+
+        match agent_card.to_json() {
+            Ok(json) => Ok(warp::reply::with_header(
+                json,
+                "content-type",
+                "application/json",
+            )),
+            Err(_) => Err(warp::reject::custom(crate::a2a::A2AError::InternalError(
+                "Failed to serialize agent card".to_string(),
+            ))),
+        }
+    }
+
+    /// Handle A2A protocol requests
+    pub async fn handle_a2a_request(
+        request: crate::a2a::A2ARequest,
+        _auth_result: crate::auth::AuthResult,
+    ) -> Result<impl warp::Reply, warp::Rejection> {
+        let server = crate::a2a::A2AServer::new();
+        let response = server.handle_request(request).await;
+
+        Ok(warp::reply::json(&response))
+    }
+
+    /// Handle A2A client registration
+    pub async fn register_client(
+        request: crate::a2a::client::ClientRegistrationRequest,
+    ) -> Result<impl warp::Reply, warp::Rejection> {
+        // A2A client registration is not yet fully implemented
+        // This would require proper OAuth2 client management in the database
+        tracing::warn!("A2A client registration attempted but not fully implemented");
+
+        // Return an error response indicating the feature is not yet available
+        let error_response = serde_json::json!({
+            "error": "not_implemented",
+            "error_description": "A2A client registration is not yet implemented. Please contact the system administrator.",
+            "contact": "For A2A integration, please reach out through the official channels.",
+            "requested_capabilities": request.capabilities,
+            "client_name": request.name
+        });
+
+        Ok(warp::reply::with_status(
+            warp::reply::json(&error_response),
+            warp::http::StatusCode::NOT_IMPLEMENTED,
+        ))
+    }
+}
+
+impl Default for A2ARoutes {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

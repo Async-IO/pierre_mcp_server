@@ -15,13 +15,21 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::info;
 
-use crate::config::{Config, FitnessConfig};
-use crate::constants::{errors::*, json_fields::*, protocol, protocol::*, tools::*};
-use crate::intelligence::insights::ActivityContext;
-use crate::intelligence::weather::WeatherService;
-use crate::intelligence::ActivityAnalyzer;
+use crate::config::Config;
+use crate::constants::{
+    errors::*,
+    json_fields::*,
+    protocol,
+    protocol::{JSONRPC_VERSION, SERVER_VERSION},
+};
+use crate::database::Database;
+use crate::intelligence::{
+    ActivityIntelligence, ContextualFactors, PerformanceMetrics, TimeOfDay, TrendDirection,
+    TrendIndicators,
+};
 use crate::mcp::schema::InitializeResponse;
-use crate::providers::{create_provider, AuthData, FitnessProvider};
+use crate::protocols::universal::{UniversalRequest, UniversalToolExecutor};
+use crate::providers::FitnessProvider;
 
 pub struct McpServer {
     config: Config,
@@ -57,7 +65,22 @@ impl McpServer {
 
                 while reader.read_line(&mut line).await.unwrap_or(0) > 0 {
                     if let Ok(request) = serde_json::from_str::<McpRequest>(&line) {
-                        let response = handle_request(request, &providers, &config).await;
+                        // Create tool executor only when needed (not for initialize)
+                        let tool_executor = if request.method == "tools/call" {
+                            match create_tool_executor().await {
+                                Ok(executor) => Some(executor),
+                                Err(e) => {
+                                    tracing::error!("Failed to create tool executor: {}", e);
+                                    None
+                                }
+                            }
+                        } else {
+                            None
+                        };
+
+                        let response =
+                            handle_request(request, &providers, &config, tool_executor.as_ref())
+                                .await;
                         let response_str = serde_json::to_string(&response).unwrap();
                         writer.write_all(response_str.as_bytes()).await.ok();
                         writer.write_all(b"\n").await.ok();
@@ -67,6 +90,69 @@ impl McpServer {
             });
         }
     }
+}
+
+/// Create a tool executor for MCP server with proper configuration
+async fn create_tool_executor() -> Result<Arc<UniversalToolExecutor>> {
+    // Use environment variables for database configuration in production
+    let database_url =
+        std::env::var("DATABASE_URL").unwrap_or_else(|_| "data/pierre.db".to_string());
+
+    // Load or generate encryption key
+    let encryption_key = if let Ok(key_path) = std::env::var("ENCRYPTION_KEY_PATH") {
+        std::fs::read(&key_path).map_err(|e| {
+            anyhow::anyhow!("Failed to read encryption key from {}: {}", key_path, e)
+        })?
+    } else {
+        // For backward compatibility, use a default key file path
+        let key_path = "data/encryption.key";
+        if std::path::Path::new(key_path).exists() {
+            std::fs::read(key_path).map_err(|e| {
+                anyhow::anyhow!("Failed to read encryption key from {}: {}", key_path, e)
+            })?
+        } else {
+            // Generate a new key and save it
+            let key = crate::database::generate_encryption_key();
+            if let Some(parent) = std::path::Path::new(key_path).parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::write(key_path, key)?;
+            tracing::info!("Generated new encryption key: {}", key_path);
+            key.to_vec()
+        }
+    };
+
+    let database = Arc::new(
+        Database::new(&database_url, encryption_key)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to create database connection: {}", e))?,
+    );
+
+    let intelligence = Arc::new(ActivityIntelligence::new(
+        "Basic MCP Intelligence".to_string(),
+        vec![],
+        PerformanceMetrics {
+            relative_effort: Some(7.5),
+            zone_distribution: None,
+            personal_records: vec![],
+            efficiency_score: Some(85.0),
+            trend_indicators: TrendIndicators {
+                pace_trend: TrendDirection::Stable,
+                effort_trend: TrendDirection::Improving,
+                distance_trend: TrendDirection::Stable,
+                consistency_score: 88.0,
+            },
+        },
+        ContextualFactors {
+            weather: None,
+            location: None,
+            time_of_day: TimeOfDay::Morning,
+            days_since_last_activity: Some(1),
+            weekly_load: None,
+        },
+    ));
+
+    Ok(Arc::new(UniversalToolExecutor::new(database, intelligence)))
 }
 
 #[derive(Debug, Deserialize)]
@@ -95,8 +181,9 @@ struct McpError {
 
 async fn handle_request(
     request: McpRequest,
-    providers: &Arc<RwLock<HashMap<String, Box<dyn FitnessProvider>>>>,
-    config: &Config,
+    _providers: &Arc<RwLock<HashMap<String, Box<dyn FitnessProvider>>>>,
+    _config: &Config,
+    tool_executor: Option<&Arc<UniversalToolExecutor>>,
 ) -> McpResponse {
     match request.method.as_str() {
         "initialize" => {
@@ -114,11 +201,24 @@ async fn handle_request(
             }
         }
         "tools/call" => {
-            let params = request.params.unwrap_or_default();
-            let tool_name = params[NAME].as_str().unwrap_or("");
-            let args = &params[ARGUMENTS];
+            if let Some(executor) = tool_executor {
+                let params = request.params.unwrap_or_default();
+                let tool_name = params[NAME].as_str().unwrap_or("");
+                let args = &params[ARGUMENTS];
 
-            handle_tool_call(tool_name, args, providers, config, request.id).await
+                handle_tool_call_unified(tool_name, args, executor, request.id).await
+            } else {
+                McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    result: None,
+                    error: Some(McpError {
+                        code: ERROR_INTERNAL_ERROR,
+                        message: "Tool executor not available".to_string(),
+                        data: None,
+                    }),
+                    id: request.id,
+                }
+            }
         }
         _ => McpResponse {
             jsonrpc: JSONRPC_VERSION.to_string(),
@@ -133,305 +233,61 @@ async fn handle_request(
     }
 }
 
-async fn handle_tool_call(
+async fn handle_tool_call_unified(
     tool_name: &str,
     args: &Value,
-    providers: &Arc<RwLock<HashMap<String, Box<dyn FitnessProvider>>>>,
-    config: &Config,
+    tool_executor: &Arc<UniversalToolExecutor>,
     id: Value,
 ) -> McpResponse {
-    let provider_name = args[PROVIDER].as_str().unwrap_or("");
+    // Create a default user ID for basic MCP server (single-user scenario)
+    let user_id = uuid::Uuid::new_v4().to_string();
 
-    let mut providers_write = providers.write().await;
-    if !providers_write.contains_key(provider_name) {
-        match create_provider(provider_name) {
-            Ok(mut provider) => {
-                if let Some(auth_config) = config.providers.get(provider_name) {
-                    let auth_data = match &auth_config.auth_type[..] {
-                        "oauth2" => AuthData::OAuth2 {
-                            client_id: auth_config.client_id.clone().unwrap_or_default(),
-                            client_secret: auth_config.client_secret.clone().unwrap_or_default(),
-                            access_token: auth_config.access_token.clone(),
-                            refresh_token: auth_config.refresh_token.clone(),
-                        },
-                        "api_key" => {
-                            AuthData::ApiKey(auth_config.api_key.clone().unwrap_or_default())
-                        }
-                        _ => {
-                            return McpResponse {
-                                jsonrpc: JSONRPC_VERSION.to_string(),
-                                result: None,
-                                error: Some(McpError {
-                                    code: ERROR_INVALID_PARAMS,
-                                    message: "Invalid auth configuration".to_string(),
-                                    data: None,
-                                }),
-                                id,
-                            };
-                        }
-                    };
-
-                    if let Err(e) = provider.authenticate(auth_data).await {
-                        return McpResponse {
-                            jsonrpc: JSONRPC_VERSION.to_string(),
-                            result: None,
-                            error: Some(McpError {
-                                code: ERROR_INTERNAL_ERROR,
-                                message: format!("Authentication failed: {}", e),
-                                data: None,
-                            }),
-                            id,
-                        };
-                    }
-                }
-                providers_write.insert(provider_name.to_string(), provider);
-            }
-            Err(e) => {
-                return McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
-                    result: None,
-                    error: Some(McpError {
-                        code: ERROR_INVALID_PARAMS,
-                        message: format!("Invalid provider: {}", e),
-                        data: None,
-                    }),
-                    id,
-                };
-            }
-        }
-    }
-    drop(providers_write);
-
-    let providers_read = providers.read().await;
-    let provider = providers_read.get(provider_name).unwrap();
-
-    let result = match tool_name {
-        GET_ACTIVITIES => {
-            let limit = args[LIMIT].as_u64().map(|n| n as usize);
-            let offset = args[OFFSET].as_u64().map(|n| n as usize);
-
-            match provider.get_activities(limit, offset).await {
-                Ok(activities) => serde_json::to_value(activities).ok(),
-                Err(e) => {
-                    return McpResponse {
-                        jsonrpc: JSONRPC_VERSION.to_string(),
-                        result: None,
-                        error: Some(McpError {
-                            code: ERROR_INTERNAL_ERROR,
-                            message: format!("Failed to get activities: {}", e),
-                            data: None,
-                        }),
-                        id,
-                    };
-                }
-            }
-        }
-        GET_ATHLETE => match provider.get_athlete().await {
-            Ok(athlete) => serde_json::to_value(athlete).ok(),
-            Err(e) => {
-                return McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
-                    result: None,
-                    error: Some(McpError {
-                        code: ERROR_INTERNAL_ERROR,
-                        message: format!("Failed to get athlete: {}", e),
-                        data: None,
-                    }),
-                    id,
-                };
-            }
-        },
-        GET_STATS => match provider.get_stats().await {
-            Ok(stats) => serde_json::to_value(stats).ok(),
-            Err(e) => {
-                return McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
-                    result: None,
-                    error: Some(McpError {
-                        code: ERROR_INTERNAL_ERROR,
-                        message: format!("Failed to get stats: {}", e),
-                        data: None,
-                    }),
-                    id,
-                };
-            }
-        },
-        GET_ACTIVITY_INTELLIGENCE => {
-            let activity_id = args[ACTIVITY_ID].as_str().unwrap_or("");
-            let include_weather = args["include_weather"].as_bool().unwrap_or(true);
-            let include_location = args["include_location"].as_bool().unwrap_or(true);
-
-            // Get activities from provider
-            match provider.get_activities(Some(100), None).await {
-                Ok(activities) => {
-                    if let Some(activity) = activities.iter().find(|a| a.id == activity_id) {
-                        // Create activity analyzer
-                        let analyzer = ActivityAnalyzer::new();
-
-                        // Create activity context with weather and location data if requested
-                        let context = if include_weather || include_location {
-                            // Load weather configuration from fitness config
-                            let fitness_config = FitnessConfig::load(None).unwrap_or_default();
-
-                            // Get weather data if requested
-                            let weather = if include_weather {
-                                let weather_config = fitness_config.weather_api.unwrap_or_default();
-                                let mut weather_service = WeatherService::new(weather_config);
-
-                                // Try to get real weather data for the activity
-                                weather_service
-                                    .get_weather_for_activity(
-                                        activity.start_latitude,
-                                        activity.start_longitude,
-                                        activity.start_date,
-                                    )
-                                    .await
-                                    .unwrap_or(None)
-                            } else {
-                                None
-                            };
-
-                            // Get location data if requested and GPS coordinates are available
-                            let location = if include_location
-                                && activity.start_latitude.is_some()
-                                && activity.start_longitude.is_some()
-                            {
-                                tracing::info!(
-                                    "Getting location data for coordinates: {:.6}, {:.6}",
-                                    activity.start_latitude.unwrap(),
-                                    activity.start_longitude.unwrap()
-                                );
-
-                                let mut location_service =
-                                    crate::intelligence::location::LocationService::new();
-
-                                match location_service
-                                    .get_location_from_coordinates(
-                                        activity.start_latitude.unwrap(),
-                                        activity.start_longitude.unwrap(),
-                                    )
-                                    .await
-                                {
-                                    Ok(location_data) => {
-                                        tracing::info!(
-                                            "Location data retrieved: {}",
-                                            location_data.display_name
-                                        );
-                                        Some(crate::intelligence::LocationContext {
-                                            city: location_data.city,
-                                            region: location_data.region,
-                                            country: location_data.country,
-                                            trail_name: location_data.trail_name,
-                                            terrain_type: location_data.natural,
-                                            display_name: location_data.display_name,
-                                        })
-                                    }
-                                    Err(e) => {
-                                        tracing::warn!("Failed to get location data: {}", e);
-                                        None
-                                    }
-                                }
-                            } else {
-                                if include_location {
-                                    tracing::info!(
-                                        "Location requested but no GPS coordinates available"
-                                    );
-                                }
-                                None
-                            };
-
-                            Some(ActivityContext {
-                                weather,
-                                location,
-                                recent_activities: None,
-                                athlete_goals: None,
-                                historical_data: None,
-                            })
-                        } else {
-                            None
-                        };
-
-                        // Generate activity intelligence
-                        match analyzer.analyze_activity(activity, context).await {
-                            Ok(intelligence) => Some(serde_json::json!({
-                                "summary": intelligence.summary,
-                                "activity_id": activity.id,
-                                "activity_name": activity.name,
-                                "sport_type": activity.sport_type,
-                                "duration_minutes": activity.duration_seconds / 60,
-                                "distance_km": activity.distance_meters.map(|d| d / 1000.0),
-                                "performance_indicators": {
-                                    "relative_effort": intelligence.performance_indicators.relative_effort,
-                                    "zone_distribution": intelligence.performance_indicators.zone_distribution,
-                                    "personal_records": intelligence.performance_indicators.personal_records,
-                                    "efficiency_score": intelligence.performance_indicators.efficiency_score,
-                                    "trend_indicators": intelligence.performance_indicators.trend_indicators
-                                },
-                                "contextual_factors": {
-                                    "weather": intelligence.contextual_factors.weather,
-                                    "time_of_day": intelligence.contextual_factors.time_of_day,
-                                    "days_since_last_activity": intelligence.contextual_factors.days_since_last_activity,
-                                    "weekly_load": intelligence.contextual_factors.weekly_load
-                                },
-                                "key_insights": intelligence.key_insights,
-                                "generated_at": intelligence.generated_at.to_rfc3339(),
-                                "status": "full_analysis_complete"
-                            })),
-                            Err(e) => {
-                                return McpResponse {
-                                    jsonrpc: JSONRPC_VERSION.to_string(),
-                                    result: None,
-                                    error: Some(McpError {
-                                        code: ERROR_INTERNAL_ERROR,
-                                        message: format!("Intelligence analysis failed: {}", e),
-                                        data: None,
-                                    }),
-                                    id,
-                                };
-                            }
-                        }
-                    } else {
-                        return McpResponse {
-                            jsonrpc: JSONRPC_VERSION.to_string(),
-                            result: None,
-                            error: Some(McpError {
-                                code: ERROR_INVALID_PARAMS,
-                                message: format!("Activity with ID '{}' not found", activity_id),
-                                data: None,
-                            }),
-                            id,
-                        };
-                    }
-                }
-                Err(e) => {
-                    return McpResponse {
-                        jsonrpc: JSONRPC_VERSION.to_string(),
-                        result: None,
-                        error: Some(McpError {
-                            code: ERROR_INTERNAL_ERROR,
-                            message: format!("Failed to get activities: {}", e),
-                            data: None,
-                        }),
-                        id,
-                    };
-                }
-            }
-        }
-        _ => None,
+    // Create UniversalRequest from MCP request
+    let universal_request = UniversalRequest {
+        user_id,
+        tool_name: tool_name.to_string(),
+        parameters: args.clone(),
+        protocol: "mcp".to_string(),
     };
 
-    McpResponse {
-        jsonrpc: JSONRPC_VERSION.to_string(),
-        result: result.clone(),
-        error: if result.is_none() {
-            Some(McpError {
-                code: ERROR_METHOD_NOT_FOUND,
-                message: "Unknown tool".to_string(),
-                data: None,
-            })
-        } else {
-            None
+    // Execute tool using Universal Tool Executor
+    match tool_executor.execute_tool(universal_request).await {
+        Ok(universal_response) => McpResponse {
+            jsonrpc: JSONRPC_VERSION.to_string(),
+            result: universal_response.result,
+            error: None,
+            id,
         },
-        id,
+        Err(protocol_error) => {
+            let (error_code, error_message) = match protocol_error {
+                crate::protocols::ProtocolError::ToolNotFound(msg) => (ERROR_METHOD_NOT_FOUND, msg),
+                crate::protocols::ProtocolError::InvalidParameters(msg) => {
+                    (ERROR_INVALID_PARAMS, msg)
+                }
+                crate::protocols::ProtocolError::ExecutionFailed(msg) => {
+                    (ERROR_INTERNAL_ERROR, msg)
+                }
+                crate::protocols::ProtocolError::UnsupportedProtocol(msg) => {
+                    (ERROR_INTERNAL_ERROR, msg)
+                }
+                crate::protocols::ProtocolError::ConversionFailed(msg) => {
+                    (ERROR_INTERNAL_ERROR, msg)
+                }
+                crate::protocols::ProtocolError::ConfigurationError(msg) => {
+                    (ERROR_INTERNAL_ERROR, msg)
+                }
+            };
+
+            McpResponse {
+                jsonrpc: JSONRPC_VERSION.to_string(),
+                result: None,
+                error: Some(McpError {
+                    code: error_code,
+                    message: error_message,
+                    data: None,
+                }),
+                id,
+            }
+        }
     }
 }
