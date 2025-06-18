@@ -48,8 +48,8 @@ cargo run --bin pierre-mcp-server -- --single-tenant \
 For detailed technical documentation, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ### Key Components:
-- **MCP Server** (Port 8080): AI assistant connections
-- **HTTP API** (Port 8081): REST endpoints and dashboard
+- **MCP Protocol Handler** (Port 8080): AI assistant connections via Model Context Protocol  
+- **A2A & HTTP API Server** (Port 8081): REST endpoints, dashboard, and Agent-to-Agent protocol
 - **Admin Service** (Port 8082): API key approval workflow (repo private for now)
 - **SQLite Database**: User data and encrypted tokens
 - **Background Tasks**: Expired key cleanup, usage tracking

@@ -17,8 +17,8 @@ Pierre Fitness API is a multi-tenant fitness data platform that provides secure 
 
 ### Core Services
 
-1. **MCP Server (Port 8080)**: Handles MCP protocol connections for AI assistants
-2. **HTTP API Server (Port 8081)**: Provides REST endpoints for authentication, API key management, dashboard access, and A2A protocol
+1. **MCP Protocol Handler (Port 8080)**: Handles Model Context Protocol connections for AI assistants
+2. **A2A & HTTP API Server (Port 8081)**: Provides REST endpoints for authentication, API key management, dashboard access, and A2A protocol
 3. **Admin Service (Port 8082)**: Manages API key approval workflows and email notifications
 4. **Frontend (Port 5173)**: React-based dashboard for user management and analytics
 5. **A2A Protocol Handler**: Embedded in HTTP API server, handles agent-to-agent communication
