@@ -264,13 +264,18 @@ impl WebSocketManager {
 
     /// Get current system statistics
     async fn get_system_stats(&self) -> Result<SystemStats> {
-        // Since specific methods don't exist yet, return zeros instead of mock data
-        // In a full implementation, this would query the database for real statistics
-        tracing::info!("System statistics requested - using default values until database methods are fully implemented");
+        // Query the database for real statistics
+        let (today_count, month_count) = self.database.get_system_stats().await?;
+
+        tracing::debug!(
+            "System statistics: {} requests today, {} this month",
+            today_count,
+            month_count
+        );
 
         Ok(SystemStats {
-            total_requests_today: 0,
-            total_requests_this_month: 0,
+            total_requests_today: today_count,
+            total_requests_this_month: month_count,
         })
     }
 
