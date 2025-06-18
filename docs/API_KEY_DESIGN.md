@@ -11,17 +11,28 @@ The Pierre Fitness API implements a comprehensive API Key Management System desi
 ```mermaid
 graph TB
     A[MCP Client] --> B[Auth Middleware]
+    AA[A2A Client] --> B[Auth Middleware]
     B --> C{Auth Type?}
     C -->|JWT| D[JWT Validation]
     C -->|API Key| E[API Key Validation]
     E --> F[Rate Limit Check]
-    F --> G[Tool Execution]
+    F --> G[Universal Tool Executor]
     G --> H[Usage Tracking]
     H --> I[Database Storage]
     
-    J[HTTP API] --> K[API Key Routes]
+    J[A2A REST API] --> K[API Key Routes]
     K --> L[CRUD Operations]
     L --> I
+    
+    subgraph "Pierre Fitness API"
+        B
+        C
+        D
+        E
+        F
+        G
+        H
+    end
     
     subgraph "Database Layer"
         I --> M[api_keys table]
