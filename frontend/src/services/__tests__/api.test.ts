@@ -12,11 +12,11 @@ describe('API Service', () => {
       
       apiService.setToken('test-token')
       expect(apiService.getToken()).toBe('test-token')
-      expect(localStorage.getItem('token')).toBe('test-token')
+      expect(localStorage.getItem('auth_token')).toBe('test-token')
       
       apiService.clearToken()
       expect(apiService.getToken()).toBeNull()
-      expect(localStorage.getItem('token')).toBeNull()
+      expect(localStorage.getItem('auth_token')).toBeNull()
     })
 
     it('should set auth header correctly', () => {

@@ -32,6 +32,12 @@ pub struct LoginRequest {
     pub password: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct RefreshTokenRequest {
+    pub token: String,
+    pub user_id: String,
+}
+
 #[derive(Debug, Serialize)]
 pub struct LoginResponse {
     pub jwt_token: String,
@@ -190,6 +196,41 @@ impl AuthRoutes {
 
         Ok(LoginResponse {
             jwt_token,
+            expires_at: expires_at.to_rfc3339(),
+            user: UserInfo {
+                user_id: user.id.to_string(),
+                email: user.email,
+                display_name: user.display_name,
+            },
+        })
+    }
+
+    /// Handle token refresh
+    pub async fn refresh_token(&self, request: RefreshTokenRequest) -> Result<LoginResponse> {
+        info!("Token refresh attempt for user: {}", request.user_id);
+
+        // Parse user ID
+        let user_uuid = uuid::Uuid::parse_str(&request.user_id)
+            .map_err(|_| anyhow::anyhow!("Invalid user ID format"))?;
+
+        // Get user from database
+        let user = self
+            .database
+            .get_user(user_uuid)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+
+        // Validate the current token and refresh it
+        let new_jwt_token = self.auth_manager.refresh_token(&request.token, &user)?;
+        let expires_at = chrono::Utc::now() + chrono::Duration::hours(24);
+
+        // Update last active timestamp
+        self.database.update_last_active(user.id).await?;
+
+        info!("Token refreshed successfully for user: {}", user.id);
+
+        Ok(LoginResponse {
+            jwt_token: new_jwt_token,
             expires_at: expires_at.to_rfc3339(),
             user: UserInfo {
                 user_id: user.id.to_string(),

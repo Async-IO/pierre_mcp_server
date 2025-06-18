@@ -17,9 +17,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setToken(storedToken);
       setUser(JSON.parse(storedUser));
       apiService.setAuthToken(storedToken);
+      
+      // Check if token needs refresh
+      apiService.checkAndRefreshToken().catch((error) => {
+        console.error('Token refresh failed on startup:', error);
+        // Don't logout on startup refresh failure, let it handle naturally
+      });
     }
     
     setIsLoading(false);
+
+    // Listen for auth failures from API service
+    const handleAuthFailure = () => {
+      logout();
+    };
+
+    // Listen for token updates from API service
+    const handleTokenUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<{ token: string }>;
+      const newToken = customEvent.detail.token;
+      setToken(newToken);
+    };
+
+    window.addEventListener('auth-failure', handleAuthFailure);
+    window.addEventListener('token-updated', handleTokenUpdate);
+    
+    // Set up periodic token refresh check (every 10 minutes)
+    const refreshInterval = setInterval(() => {
+      if (apiService.getToken()) {
+        apiService.checkAndRefreshToken().catch((error) => {
+          console.error('Periodic token refresh failed:', error);
+        });
+      }
+    }, 10 * 60 * 1000); // 10 minutes
+
+    return () => {
+      window.removeEventListener('auth-failure', handleAuthFailure);
+      window.removeEventListener('token-updated', handleTokenUpdate);
+      clearInterval(refreshInterval);
+    };
   }, []);
 
   const login = async (email: string, password: string) => {
