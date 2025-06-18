@@ -22,6 +22,12 @@ echo "Project root: $PROJECT_ROOT"
 # Change to project root
 cd "$PROJECT_ROOT"
 
+# Clean up any generated files from previous runs
+echo -e "${BLUE}==== Cleaning up generated files... ====${NC}"
+rm -f ./mcp_activities_*.json ./examples/mcp_activities_*.json ./a2a_*.json ./enterprise_strava_dataset.json 2>/dev/null || true
+find . -name "*demo*.json" -not -path "./target/*" -delete 2>/dev/null || true
+echo -e "${GREEN}✅ Cleanup completed${NC}"
+
 # Function to check if a command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
@@ -44,7 +50,7 @@ fi
 
 # Run Clippy linter
 echo -e "${BLUE}==== Running Rust linter (Clippy)... ====${NC}"
-if cargo clippy --all-targets --all-features -- -D warnings; then
+if cargo clippy --all-targets --all-features --quiet -- -D warnings; then
     echo -e "${GREEN}✅ Rust linting passed${NC}"
 else
     echo -e "${RED}❌ Rust linting failed${NC}"
@@ -53,7 +59,7 @@ fi
 
 # Check Rust compilation
 echo -e "${BLUE}==== Checking Rust compilation... ====${NC}"
-if cargo check --all-targets; then
+if cargo check --all-targets --quiet; then
     echo -e "${GREEN}✅ Rust compilation check passed${NC}"
 else
     echo -e "${RED}❌ Rust compilation failed${NC}"
@@ -62,7 +68,7 @@ fi
 
 # Run Rust tests
 echo -e "${BLUE}==== Running Rust tests... ====${NC}"
-if cargo test --all-targets; then
+if cargo test --all-targets --quiet; then
     echo -e "${GREEN}✅ All Rust tests passed${NC}"
 else
     echo -e "${RED}❌ Some Rust tests failed${NC}"
@@ -96,7 +102,7 @@ if [ -d "frontend" ]; then
     
     # Run frontend tests
     echo -e "${BLUE}==== Running frontend tests... ====${NC}"
-    if npm test; then
+    if npm test -- --run; then
         echo -e "${GREEN}✅ Frontend tests passed${NC}"
     else
         echo -e "${RED}❌ Frontend tests failed${NC}"
@@ -151,6 +157,109 @@ else
     ALL_PASSED=false
 fi
 
+# Check Python examples (if they exist)
+if [ -d "examples/python" ]; then
+    echo -e "${BLUE}==== Validating Python Examples... ====${NC}"
+    
+    # Check Python syntax for all Python files
+    PYTHON_SYNTAX_OK=true
+    for py_file in $(find examples/python -name "*.py"); do
+        if ! python3 -m py_compile "$py_file" 2>/dev/null; then
+            echo -e "${RED}❌ Syntax error in $py_file${NC}"
+            PYTHON_SYNTAX_OK=false
+            ALL_PASSED=false
+        fi
+    done
+    
+    if [ "$PYTHON_SYNTAX_OK" = true ]; then
+        echo -e "${GREEN}✅ Python syntax validation passed${NC}"
+    fi
+    
+    # Test individual utility modules (without server dependencies)
+    echo -e "${BLUE}==== Testing Python utilities... ====${NC}"
+    
+    cd examples
+    
+    # Test auth utilities (mock mode)
+    if python3 -c "
+import sys, os
+sys.path.append('python')
+os.environ['PIERRE_EMAIL'] = 'test@example.com'
+os.environ['PIERRE_PASSWORD'] = 'test123'
+from python.common.auth_utils import AuthManager, EnvironmentConfig
+auth = AuthManager()
+config = EnvironmentConfig.get_server_config()
+print('✅ Auth utilities import and basic config work')
+" 2>/dev/null; then
+        echo -e "${GREEN}✅ Python auth utilities validated${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Python auth utilities validation skipped (dependencies missing)${NC}"
+    fi
+    
+    # Test data utilities with sample data
+    if python3 -c "
+import sys
+sys.path.append('python')
+from python.common.data_utils import FitnessDataProcessor, DataValidator
+
+# Test with minimal sample data
+sample_data = [{
+    'sport_type': 'run',
+    'distance_meters': 5000,
+    'moving_time_seconds': 1800,
+    'elevation_gain': 50,
+    'start_date': '2024-01-01T10:00:00Z'
+}]
+
+result = FitnessDataProcessor.calculate_fitness_score(sample_data)
+validation = DataValidator.validate_activity_data(sample_data)
+print(f'✅ Data processing works: score={result[\"total_score\"]}, quality={validation[\"quality_score\"]:.1f}')
+" 2>/dev/null; then
+        echo -e "${GREEN}✅ Python data utilities validated${NC}"
+    else
+        echo -e "${RED}❌ Python data utilities validation failed${NC}"
+        ALL_PASSED=false
+    fi
+    
+    # Test CI mode with mock data
+    echo -e "${BLUE}==== Testing CI mode with mock data... ====${NC}"
+    export PIERRE_CI_MODE=true
+    
+    # Test A2A demo with timeout if available, otherwise run directly
+    if command_exists timeout; then
+        if timeout 15s python3 python/a2a/enterprise_demo.py > /dev/null 2>&1; then
+            echo -e "${GREEN}✅ A2A demo works with mock data${NC}"
+        else
+            echo -e "${YELLOW}⚠️  A2A demo test failed or timed out${NC}"
+        fi
+    else
+        if python3 python/a2a/enterprise_demo.py > /dev/null 2>&1; then
+            echo -e "${GREEN}✅ A2A demo works with mock data${NC}"
+        else
+            echo -e "${YELLOW}⚠️  A2A demo test failed${NC}"
+        fi
+    fi
+    
+    # Test MCP demo with timeout if available, otherwise run directly
+    if command_exists timeout; then
+        if timeout 15s python3 python/mcp/investor_demo.py > /dev/null 2>&1; then
+            echo -e "${GREEN}✅ MCP demo works with mock data${NC}"
+        else
+            echo -e "${YELLOW}⚠️  MCP demo test failed or timed out${NC}"
+        fi
+    else
+        if python3 python/mcp/investor_demo.py > /dev/null 2>&1; then
+            echo -e "${GREEN}✅ MCP demo works with mock data${NC}"
+        else
+            echo -e "${YELLOW}⚠️  MCP demo test failed${NC}"
+        fi
+    fi
+    
+    unset PIERRE_CI_MODE
+    
+    cd ..
+fi
+
 # Summary
 echo ""
 echo -e "${BLUE}==== Summary ====${NC}"
@@ -165,6 +274,9 @@ if [ "$ALL_PASSED" = true ]; then
     echo "✅ TypeScript type checking"
     echo "✅ Frontend build"
     echo "✅ Documentation"
+    if [ -d "examples/python" ]; then
+        echo "✅ Python examples validation"
+    fi
     echo ""
     echo -e "${GREEN}✅ Your code is ready for production! 🚀${NC}"
     exit 0

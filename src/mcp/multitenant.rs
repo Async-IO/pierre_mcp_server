@@ -778,8 +778,13 @@ impl MultiTenantMcpServer {
                         .await;
 
                         let response_str = serde_json::to_string(&response).unwrap();
-                        writer.write_all(response_str.as_bytes()).await.ok();
-                        writer.write_all(b"\n").await.ok();
+                        if let (Ok(()), Ok(()), Ok(())) = (
+                            writer.write_all(response_str.as_bytes()).await,
+                            writer.write_all(b"\n").await,
+                            writer.flush().await,
+                        ) {
+                            // Response sent successfully
+                        }
                     }
                     line.clear();
                 }
