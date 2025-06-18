@@ -125,3 +125,6 @@ pub mod security;
 
 /// Universal protocol support for MCP and A2A
 pub mod protocols;
+
+/// Unified OAuth management for all fitness providers
+pub mod oauth;

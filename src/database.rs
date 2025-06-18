@@ -774,6 +774,26 @@ impl Database {
         }
     }
 
+    /// Clear Strava token for a user (delete from database)
+    pub async fn clear_strava_token(&self, user_id: Uuid) -> Result<()> {
+        sqlx::query("UPDATE users SET strava_access_token = NULL, strava_refresh_token = NULL, strava_expires_at = NULL, strava_scope = NULL, strava_nonce = NULL WHERE id = ?1")
+            .bind(user_id.to_string())
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Clear Fitbit token for a user (delete from database)  
+    pub async fn clear_fitbit_token(&self, user_id: Uuid) -> Result<()> {
+        sqlx::query("UPDATE users SET fitbit_access_token = NULL, fitbit_refresh_token = NULL, fitbit_expires_at = NULL, fitbit_scope = NULL, fitbit_nonce = NULL WHERE id = ?1")
+            .bind(user_id.to_string())
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
     /// Update user's last active timestamp
     pub async fn update_last_active(&self, user_id: Uuid) -> Result<()> {
         sqlx::query("UPDATE users SET last_active = ?1 WHERE id = ?2")

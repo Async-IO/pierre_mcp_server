@@ -66,6 +66,44 @@ impl UniversalToolExecutor {
         executor
     }
 
+    /// Get valid token for a provider, automatically refreshing if needed
+    async fn get_valid_token(
+        &self,
+        user_id: uuid::Uuid,
+        provider: &str,
+    ) -> Result<Option<crate::oauth::TokenData>, crate::oauth::OAuthError> {
+        let mut oauth_manager = crate::oauth::manager::OAuthManager::new(self.database.clone());
+
+        // Register the appropriate provider
+        match provider {
+            "strava" => {
+                if let Ok(strava_provider) = crate::oauth::providers::StravaOAuthProvider::new() {
+                    oauth_manager.register_provider(Box::new(strava_provider));
+                } else {
+                    return Err(crate::oauth::OAuthError::ConfigurationError(
+                        "Failed to initialize Strava provider".to_string(),
+                    ));
+                }
+            }
+            "fitbit" => {
+                if let Ok(fitbit_provider) = crate::oauth::providers::FitbitOAuthProvider::new() {
+                    oauth_manager.register_provider(Box::new(fitbit_provider));
+                } else {
+                    return Err(crate::oauth::OAuthError::ConfigurationError(
+                        "Failed to initialize Fitbit provider".to_string(),
+                    ));
+                }
+            }
+            _ => {
+                return Err(crate::oauth::OAuthError::UnsupportedProvider(
+                    provider.to_string(),
+                ))
+            }
+        }
+
+        oauth_manager.ensure_valid_token(user_id, provider).await
+    }
+
     /// Register all default tools
     fn register_default_tools(&mut self) {
         // Register sync tools
@@ -188,6 +226,9 @@ impl UniversalToolExecutor {
             "get_activity_intelligence" => {
                 self.handle_get_activity_intelligence_async(request).await
             }
+            "get_connection_status" => self.handle_connection_status_async(request).await,
+            "connect_strava" => self.handle_connect_strava_async(request).await,
+            "connect_fitbit" => self.handle_connect_fitbit_async(request).await,
             _ => {
                 // Handle synchronous tools
                 let tool = self.tools.get(&request.tool_name).ok_or_else(|| {
@@ -230,9 +271,9 @@ impl UniversalToolExecutor {
         let activities = if provider_type == "strava" {
             match uuid::Uuid::parse_str(&request.user_id) {
                 Ok(user_uuid) => {
-                    // Try to get Strava token from database
-                    match self.database.get_strava_token(user_uuid).await {
-                        Ok(Some(strava_token)) => {
+                    // Get valid Strava token (with automatic refresh if needed)
+                    match self.get_valid_token(user_uuid, "strava").await {
+                        Ok(Some(token_data)) => {
                             // Create Strava provider with real token
                             match create_provider("strava") {
                                 Ok(mut provider) => {
@@ -241,8 +282,8 @@ impl UniversalToolExecutor {
                                             .unwrap_or_default(),
                                         client_secret: std::env::var("STRAVA_CLIENT_SECRET")
                                             .unwrap_or_default(),
-                                        access_token: Some(strava_token.access_token),
-                                        refresh_token: Some(strava_token.refresh_token),
+                                        access_token: Some(token_data.access_token.clone()),
+                                        refresh_token: Some(token_data.refresh_token.clone()),
                                     };
 
                                     // Authenticate and get REAL activities
@@ -307,10 +348,11 @@ impl UniversalToolExecutor {
                             })]
                         }
                         Err(e) => {
-                            eprintln!("Database error: {}", e);
+                            eprintln!("OAuth error: {}", e);
                             vec![serde_json::json!({
-                                "error": format!("Database error: {}", e),
-                                "is_real_data": false
+                                "error": format!("OAuth error: {}", e),
+                                "is_real_data": false,
+                                "note": "Token may have expired or been revoked. Please reconnect your Strava account."
                             })]
                         }
                     }
@@ -351,15 +393,15 @@ impl UniversalToolExecutor {
     ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
         // Get REAL athlete data
         let athlete_data = match uuid::Uuid::parse_str(&request.user_id) {
-            Ok(user_uuid) => match self.database.get_strava_token(user_uuid).await {
-                Ok(Some(strava_token)) => match create_provider("strava") {
+            Ok(user_uuid) => match self.get_valid_token(user_uuid, "strava").await {
+                Ok(Some(token_data)) => match create_provider("strava") {
                     Ok(mut provider) => {
                         let auth_data = AuthData::OAuth2 {
                             client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
                             client_secret: std::env::var("STRAVA_CLIENT_SECRET")
                                 .unwrap_or_default(),
-                            access_token: Some(strava_token.access_token),
-                            refresh_token: Some(strava_token.refresh_token),
+                            access_token: Some(token_data.access_token.clone()),
+                            refresh_token: Some(token_data.refresh_token.clone()),
                         };
 
                         match provider.authenticate(auth_data).await {
@@ -436,9 +478,9 @@ impl UniversalToolExecutor {
 
         // Get real activity data async
         let activity_result = {
-            // Get Strava token from database
-            match self.database.get_strava_token(user_uuid).await {
-                Ok(Some(strava_token)) => {
+            // Get valid Strava token (with automatic refresh if needed)
+            match self.get_valid_token(user_uuid, "strava").await {
+                Ok(Some(token_data)) => {
                     // Create Strava provider with real token
                     match create_provider("strava") {
                         Ok(mut provider) => {
@@ -446,8 +488,8 @@ impl UniversalToolExecutor {
                                 client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
                                 client_secret: std::env::var("STRAVA_CLIENT_SECRET")
                                     .unwrap_or_default(),
-                                access_token: Some(strava_token.access_token),
-                                refresh_token: Some(strava_token.refresh_token),
+                                access_token: Some(token_data.access_token.clone()),
+                                refresh_token: Some(token_data.refresh_token.clone()),
                             };
 
                             // Authenticate and get real activity
@@ -549,29 +591,40 @@ impl UniversalToolExecutor {
             crate::protocols::ProtocolError::InvalidParameters("Invalid user ID format".to_string())
         })?;
 
-        // Use blocking runtime to check database for real connection status
+        // Use OAuth manager to check connection status for all providers
         let database = executor.database.clone();
         let rt = tokio::runtime::Handle::current();
-        let strava_connected = rt.block_on(async {
-            match database.get_strava_token(user_uuid).await {
-                Ok(Some(_)) => true,
-                Ok(None) => false,
-                Err(_) => false,
+        let connection_status = rt.block_on(async {
+            let mut oauth_manager = crate::oauth::manager::OAuthManager::new(database);
+
+            // Register all providers
+            if let Ok(strava_provider) = crate::oauth::providers::StravaOAuthProvider::new() {
+                oauth_manager.register_provider(Box::new(strava_provider));
+            }
+            if let Ok(fitbit_provider) = crate::oauth::providers::FitbitOAuthProvider::new() {
+                oauth_manager.register_provider(Box::new(fitbit_provider));
+            }
+
+            match oauth_manager.get_connection_status(user_uuid).await {
+                Ok(statuses) => statuses,
+                Err(_) => {
+                    let mut default_status = std::collections::HashMap::new();
+                    default_status.insert("strava".to_string(), false);
+                    default_status.insert("fitbit".to_string(), false);
+                    default_status
+                }
             }
         });
-
-        // Check for other providers if needed
-        let fitbit_connected = false; // No Fitbit implementation yet
 
         let status = serde_json::json!({
             "providers": {
                 "strava": {
-                    "connected": strava_connected,
-                    "status": if strava_connected { "active" } else { "not_connected" }
+                    "connected": connection_status.get("strava").unwrap_or(&false),
+                    "status": if *connection_status.get("strava").unwrap_or(&false) { "active" } else { "not_connected" }
                 },
                 "fitbit": {
-                    "connected": fitbit_connected,
-                    "status": "not_connected"
+                    "connected": connection_status.get("fitbit").unwrap_or(&false),
+                    "status": if *connection_status.get("fitbit").unwrap_or(&false) { "active" } else { "not_connected" }
                 }
             }
         });
@@ -703,15 +756,15 @@ impl UniversalToolExecutor {
 
         // Get REAL stats from the provider
         let stats = match uuid::Uuid::parse_str(&request.user_id) {
-            Ok(user_uuid) => match self.database.get_strava_token(user_uuid).await {
-                Ok(Some(strava_token)) => match create_provider(provider_type) {
+            Ok(user_uuid) => match self.get_valid_token(user_uuid, provider_type).await {
+                Ok(Some(token_data)) => match create_provider(provider_type) {
                     Ok(mut provider) => {
                         let auth_data = AuthData::OAuth2 {
                             client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
                             client_secret: std::env::var("STRAVA_CLIENT_SECRET")
                                 .unwrap_or_default(),
-                            access_token: Some(strava_token.access_token),
-                            refresh_token: Some(strava_token.refresh_token),
+                            access_token: Some(token_data.access_token.clone()),
+                            refresh_token: Some(token_data.refresh_token.clone()),
                         };
 
                         match provider.authenticate(auth_data).await {
@@ -792,60 +845,225 @@ impl UniversalToolExecutor {
         })
     }
 
-    /// Handle connect_strava tool
-    fn handle_connect_strava(
-        _executor: &UniversalToolExecutor,
+    /// Handle connection status check asynchronously
+    async fn handle_connection_status_async(
+        &self,
         request: UniversalRequest,
     ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
-        // Strava connection requires OAuth flow which cannot be completed
-        // directly through a tool call. Return authorization URL instead.
-        let client_id = std::env::var("STRAVA_CLIENT_ID").map_err(|_| {
-            crate::protocols::ProtocolError::ConfigurationError(
-                "STRAVA_CLIENT_ID environment variable not set".to_string(),
-            )
+        // Parse user ID
+        let user_uuid = uuid::Uuid::parse_str(&request.user_id).map_err(|_| {
+            crate::protocols::ProtocolError::InvalidParameters("Invalid user ID format".to_string())
         })?;
 
-        let redirect_uri = std::env::var("STRAVA_REDIRECT_URI").unwrap_or_else(|_| {
-            format!(
-                "http://localhost:{}/oauth/callback/strava",
-                crate::constants::ports::DEFAULT_HTTP_PORT
-            )
+        // Use OAuth manager to check connection status for all providers
+        let database = self.database.clone();
+        let mut oauth_manager = crate::oauth::manager::OAuthManager::new(database);
+
+        // Register all providers
+        if let Ok(strava_provider) = crate::oauth::providers::StravaOAuthProvider::new() {
+            oauth_manager.register_provider(Box::new(strava_provider));
+        }
+        if let Ok(fitbit_provider) = crate::oauth::providers::FitbitOAuthProvider::new() {
+            oauth_manager.register_provider(Box::new(fitbit_provider));
+        }
+
+        let connection_status = match oauth_manager.get_connection_status(user_uuid).await {
+            Ok(statuses) => statuses,
+            Err(_) => {
+                let mut default_status = std::collections::HashMap::new();
+                default_status.insert("strava".to_string(), false);
+                default_status.insert("fitbit".to_string(), false);
+                default_status
+            }
+        };
+
+        let status = serde_json::json!({
+            "providers": {
+                "strava": {
+                    "connected": connection_status.get("strava").unwrap_or(&false),
+                    "status": if *connection_status.get("strava").unwrap_or(&false) { "active" } else { "not_connected" }
+                },
+                "fitbit": {
+                    "connected": connection_status.get("fitbit").unwrap_or(&false),
+                    "status": if *connection_status.get("fitbit").unwrap_or(&false) { "active" } else { "not_connected" }
+                }
+            }
         });
-
-        let scope = "read,activity:read_all";
-        let state = uuid::Uuid::new_v4().to_string();
-
-        let auth_url = format!(
-            "https://www.strava.com/oauth/authorize?client_id={}&redirect_uri={}&response_type=code&scope={}&state={}",
-            client_id, redirect_uri, scope, state
-        );
 
         Ok(UniversalResponse {
             success: true,
-            result: Some(serde_json::json!({
-                "authorization_url": auth_url,
-                "instructions": "Visit the authorization URL to connect your Strava account. Complete the OAuth flow through your web browser.",
-                "state": state,
-                "next_step": "After authorization, use the returned code to complete the connection process"
-            })),
+            result: Some(status),
             error: None,
-            metadata: Some({
-                let mut map = std::collections::HashMap::new();
-                map.insert(
-                    "protocol".to_string(),
-                    serde_json::Value::String(request.protocol),
-                );
-                map.insert(
-                    "requires_browser".to_string(),
-                    serde_json::Value::Bool(true),
-                );
-                map.insert(
-                    "oauth_provider".to_string(),
-                    serde_json::Value::String("strava".to_string()),
-                );
-                map
-            }),
+            metadata: None,
         })
+    }
+
+    /// Handle Strava connection asynchronously
+    async fn handle_connect_strava_async(
+        &self,
+        request: UniversalRequest,
+    ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
+        // Parse user ID
+        let user_uuid = uuid::Uuid::parse_str(&request.user_id).map_err(|_| {
+            crate::protocols::ProtocolError::InvalidParameters("Invalid user ID format".to_string())
+        })?;
+
+        // Create OAuth manager with database
+        let mut oauth_manager = crate::oauth::manager::OAuthManager::new(self.database.clone());
+
+        // Register Strava provider
+        match crate::oauth::providers::StravaOAuthProvider::new() {
+            Ok(strava_provider) => {
+                oauth_manager.register_provider(Box::new(strava_provider));
+
+                // Generate authorization URL
+                match oauth_manager.generate_auth_url(user_uuid, "strava").await {
+                    Ok(auth_response) => Ok(UniversalResponse {
+                        success: true,
+                        result: Some(serde_json::json!({
+                            "authorization_url": auth_response.authorization_url,
+                            "state": auth_response.state,
+                            "provider": auth_response.provider
+                        })),
+                        error: None,
+                        metadata: None,
+                    }),
+                    Err(e) => Ok(UniversalResponse {
+                        success: false,
+                        result: None,
+                        error: Some(format!(
+                            "Failed to generate Strava authorization URL: {}",
+                            e
+                        )),
+                        metadata: None,
+                    }),
+                }
+            }
+            Err(e) => Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(format!("Failed to initialize Strava provider: {}", e)),
+                metadata: None,
+            }),
+        }
+    }
+
+    /// Handle Fitbit connection asynchronously
+    async fn handle_connect_fitbit_async(
+        &self,
+        request: UniversalRequest,
+    ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
+        // Parse user ID
+        let user_uuid = uuid::Uuid::parse_str(&request.user_id).map_err(|_| {
+            crate::protocols::ProtocolError::InvalidParameters("Invalid user ID format".to_string())
+        })?;
+
+        // Create OAuth manager with database
+        let mut oauth_manager = crate::oauth::manager::OAuthManager::new(self.database.clone());
+
+        // Register Fitbit provider
+        match crate::oauth::providers::FitbitOAuthProvider::new() {
+            Ok(fitbit_provider) => {
+                oauth_manager.register_provider(Box::new(fitbit_provider));
+
+                // Generate authorization URL
+                match oauth_manager.generate_auth_url(user_uuid, "fitbit").await {
+                    Ok(auth_response) => Ok(UniversalResponse {
+                        success: true,
+                        result: Some(serde_json::json!({
+                            "authorization_url": auth_response.authorization_url,
+                            "state": auth_response.state,
+                            "provider": auth_response.provider
+                        })),
+                        error: None,
+                        metadata: None,
+                    }),
+                    Err(e) => Ok(UniversalResponse {
+                        success: false,
+                        result: None,
+                        error: Some(format!(
+                            "Failed to generate Fitbit authorization URL: {}",
+                            e
+                        )),
+                        metadata: None,
+                    }),
+                }
+            }
+            Err(e) => Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(format!("Failed to initialize Fitbit provider: {}", e)),
+                metadata: None,
+            }),
+        }
+    }
+
+    /// Handle connect_strava tool using OAuth manager
+    fn handle_connect_strava(
+        executor: &UniversalToolExecutor,
+        request: UniversalRequest,
+    ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
+        // Parse user ID
+        let user_uuid = uuid::Uuid::parse_str(&request.user_id).map_err(|_| {
+            crate::protocols::ProtocolError::InvalidParameters("Invalid user ID format".to_string())
+        })?;
+
+        // Use OAuth manager to generate authorization URL
+        let rt = tokio::runtime::Handle::current();
+        let auth_response = rt.block_on(async {
+            // Create OAuth manager with database
+            let mut oauth_manager =
+                crate::oauth::manager::OAuthManager::new(executor.database.clone());
+
+            // Register Strava provider
+            match crate::oauth::providers::StravaOAuthProvider::new() {
+                Ok(provider) => {
+                    oauth_manager.register_provider(Box::new(provider));
+                    oauth_manager.generate_auth_url(user_uuid, "strava").await
+                }
+                Err(e) => Err(crate::oauth::OAuthError::ConfigurationError(e.to_string())),
+            }
+        });
+
+        match auth_response {
+            Ok(auth_resp) => Ok(UniversalResponse {
+                success: true,
+                result: Some(serde_json::json!({
+                    "authorization_url": auth_resp.authorization_url,
+                    "instructions": auth_resp.instructions,
+                    "state": auth_resp.state,
+                    "provider": auth_resp.provider,
+                    "expires_in_minutes": auth_resp.expires_in_minutes,
+                    "next_step": "Visit the authorization URL to complete the OAuth flow. After authorization, tokens will be automatically stored."
+                })),
+                error: None,
+                metadata: Some({
+                    let mut map = std::collections::HashMap::new();
+                    map.insert(
+                        "protocol".to_string(),
+                        serde_json::Value::String(request.protocol),
+                    );
+                    map.insert(
+                        "requires_browser".to_string(),
+                        serde_json::Value::Bool(true),
+                    );
+                    map.insert(
+                        "oauth_provider".to_string(),
+                        serde_json::Value::String("strava".to_string()),
+                    );
+                    map
+                }),
+            }),
+            Err(e) => Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(format!(
+                    "Failed to generate Strava authorization URL: {}",
+                    e
+                )),
+                metadata: None,
+            }),
+        }
     }
 
     /// Handle connect_fitbit tool
