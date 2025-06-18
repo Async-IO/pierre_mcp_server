@@ -2152,6 +2152,45 @@ impl Database {
         })
     }
 
+    /// Get system-wide usage statistics
+    pub async fn get_system_stats(&self) -> Result<(u64, u64)> {
+        let now = Utc::now();
+        let today_start = now.date_naive().and_hms_opt(0, 0, 0).unwrap().and_utc();
+        let month_start = now
+            .date_naive()
+            .with_day(1)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .and_utc();
+
+        // Get today's total requests
+        let today_count: i64 = sqlx::query_scalar(
+            r#"
+            SELECT COUNT(*) 
+            FROM api_key_usage
+            WHERE timestamp >= ?1
+            "#,
+        )
+        .bind(today_start.to_rfc3339())
+        .fetch_one(&self.pool)
+        .await?;
+
+        // Get this month's total requests
+        let month_count: i64 = sqlx::query_scalar(
+            r#"
+            SELECT COUNT(*) 
+            FROM api_key_usage
+            WHERE timestamp >= ?1
+            "#,
+        )
+        .bind(month_start.to_rfc3339())
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok((today_count as u64, month_count as u64))
+    }
+
     /// Parse API key row from database
     fn parse_api_key_row(&self, row: sqlx::sqlite::SqliteRow) -> Result<ApiKey> {
         let tier_str: String = row.get("tier");

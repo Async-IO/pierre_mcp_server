@@ -1,25 +1,20 @@
 # Python Client Examples
 
-This directory contains comprehensive examples for integrating with Pierre's AI Fitness Platform using both supported protocols.
+This directory contains comprehensive examples for integrating with Pierre Fitness API using both supported protocols.
 
 ## 📁 Structure
 
 ```
 examples/python/
 ├── mcp/                    # Model Context Protocol examples
-│   ├── data_collection.py  # Bulk activity collection
-│   ├── fitness_analysis.py # Comprehensive fitness analysis
-│   ├── running_analysis.py # Sport-specific analysis
+│   ├── data_collection.py  # Bulk activity collection via MCP
 │   └── investor_demo.py    # Complete investor demonstration
 ├── a2a/                    # Agent-to-Agent Protocol examples  
-│   ├── api_client.py       # A2A API client library
-│   ├── fitness_report.py   # Generate fitness reports via A2A
-│   ├── bulk_analysis.py    # Bulk data processing via A2A
+│   ├── api_client.py       # A2A REST API client library
 │   └── enterprise_demo.py  # Enterprise A2A demonstration
 ├── common/                 # Shared utilities
 │   ├── auth_utils.py       # Authentication helpers
-│   ├── data_utils.py       # Data processing utilities
-│   └── visualization.py    # Data visualization helpers
+│   └── data_utils.py       # Data processing & analytics
 └── README.md              # This file
 ```
 
@@ -27,25 +22,19 @@ examples/python/
 
 ### MCP Protocol (Real-time Analysis)
 ```bash
-# Run comprehensive fitness analysis
-python examples/python/mcp/fitness_analysis.py
+# Collect fitness data via MCP
+python examples/python/mcp/data_collection.py
 
-# Collect and analyze running data
-python examples/python/mcp/running_analysis.py
-
-# Full investor demonstration
+# Full investor demonstration with real-time analysis
 python examples/python/mcp/investor_demo.py
 ```
 
 ### A2A Protocol (Enterprise Integration)
 ```bash
-# Generate fitness report via API
-python examples/python/a2a/fitness_report.py
+# Test A2A API client
+python examples/python/a2a/api_client.py
 
-# Enterprise bulk processing
-python examples/python/a2a/bulk_analysis.py
-
-# Complete enterprise demo
+# Complete enterprise demonstration
 python examples/python/a2a/enterprise_demo.py
 ```
 
@@ -59,19 +48,15 @@ python examples/python/a2a/enterprise_demo.py
 | **Best For** | Interactive clients | Server-to-server |
 | **Performance** | Low latency | High throughput |
 
-## 📊 Example Use Cases
+## 📊 Available Examples
 
 ### MCP Examples
-- **Real-time fitness coaching** - Immediate analysis and recommendations
-- **Interactive dashboards** - Live data updates and visualizations  
-- **Mobile applications** - Responsive fitness tracking
-- **AI assistants** - Conversational fitness guidance
+- **data_collection.py** - Shows how to connect to MCP server and collect fitness activities
+- **investor_demo.py** - Complete demonstration featuring real-time fitness analysis, scoring, and insights
 
 ### A2A Examples
-- **Enterprise reporting** - Scheduled fitness report generation
-- **Bulk data processing** - Large-scale analysis workflows
-- **Third-party integrations** - Connect with existing systems
-- **B2B services** - White-label fitness analytics
+- **api_client.py** - A2A client library demonstrating authentication, tool execution, and API usage
+- **enterprise_demo.py** - Full enterprise demonstration with bulk processing, analytics, and reporting
 
 ## 🛠️ Setup Requirements
 
@@ -114,14 +99,19 @@ export PIERRE_API_KEY=your_api_key_here
 3. **Run Basic Example** to verify connection
 4. **Adapt to Your Needs** using provided templates
 
-## 💼 Enterprise Examples
+## 💼 What the Examples Demonstrate
 
-Both protocols include enterprise-ready examples demonstrating:
-- Error handling and retry logic
-- Rate limiting and throttling
-- Bulk data processing
-- Professional reporting
-- Performance monitoring
+### Common Utilities
+- **auth_utils.py**: JWT authentication, API key management, environment configuration
+- **data_utils.py**: Fitness scoring algorithms, data validation, anonymization for privacy
+
+### MCP Protocol Examples
+- **data_collection.py**: WebSocket connection, real-time data streaming, error handling
+- **investor_demo.py**: Complete fitness analysis workflow, AI insights generation, report creation
+
+### A2A Protocol Examples  
+- **api_client.py**: REST API integration, authentication flows, tool execution
+- **enterprise_demo.py**: Bulk processing, enterprise reporting, API usage monitoring
 
 ## 🔐 Security Best Practices
 
