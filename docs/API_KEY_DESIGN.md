@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Pierre MCP Server implements a comprehensive API Key Management System designed for B2B SaaS monetization. This system provides secure authentication, usage tracking, rate limiting, and billing analytics for enterprise customers integrating with the fitness data platform.
+The Pierre Fitness API implements a comprehensive API Key Management System designed for B2B SaaS monetization. This system provides secure authentication, usage tracking, rate limiting, and billing analytics for enterprise customers integrating with the fitness data platform.
 
 ## Architecture
 

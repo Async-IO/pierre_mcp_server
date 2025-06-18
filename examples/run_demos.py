@@ -40,7 +40,7 @@ def run_command(cmd, description):
 def main():
     """Run demonstration scripts"""
     
-    print("🚀 PIERRE AI FITNESS PLATFORM - DEMO RUNNER")
+    print("🚀 PIERRE FITNESS API - DEMO RUNNER")
     print("=" * 55)
     print("Choose a demonstration to run:")
     print()

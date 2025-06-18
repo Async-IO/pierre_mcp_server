@@ -4,9 +4,9 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-//! # Multi-Tenant MCP Server Binary
+//! # Pierre Fitness API Server Binary
 //!
-//! This binary starts the multi-tenant Pierre MCP Server with user authentication,
+//! This binary starts the multi-protocol Pierre Fitness API with user authentication,
 //! secure token storage, and database management.
 
 use anyhow::Result;
@@ -26,7 +26,7 @@ use warp::Filter;
 
 #[derive(Parser)]
 #[command(name = "pierre-mcp-server")]
-#[command(about = "Pierre MCP Server for fitness data aggregation")]
+#[command(about = "Pierre Fitness API - Multi-protocol fitness data API for LLMs")]
 pub struct Args {
     /// Run in single-tenant mode (no authentication required)
     #[arg(long, default_value = "false")]
@@ -67,7 +67,7 @@ async fn main() -> Result<()> {
         // Legacy mode with simple logging
         tracing_subscriber::fmt::init();
 
-        info!("Starting Pierre MCP Server - Single-Tenant Mode");
+        info!("Starting Pierre Fitness API - Single-Tenant Mode");
 
         // In single-tenant mode, use the original server with OAuth support
         let config = pierre_mcp_server::config::Config::load(args.config)?;
@@ -106,7 +106,7 @@ async fn main() -> Result<()> {
         // Initialize production logging
         logging::init_from_env()?;
 
-        info!("🚀 Starting Pierre MCP Server - Production Mode");
+        info!("🚀 Starting Pierre Fitness API - Production Mode");
         info!("{}", config.summary());
 
         // Load or generate encryption key
@@ -372,7 +372,7 @@ async fn handle_oauth_callback(
                 r#"<!DOCTYPE html>
 <html>
 <head>
-    <title>OAuth Success - Pierre MCP Server</title>
+    <title>OAuth Success - Pierre Fitness API</title>
     <style>
         body {{ font-family: Arial, sans-serif; margin: 40px; text-align: center; }}
         .success {{ color: #4CAF50; }}
@@ -383,7 +383,7 @@ async fn handle_oauth_callback(
 <body>
     <h1 class="success">✅ OAuth Authorization Successful!</h1>
     <div class="info">
-        <p>Your {} account has been successfully connected to Pierre MCP Server.</p>
+        <p>Your {} account has been successfully connected to Pierre Fitness API.</p>
         <p>You can now close this browser window and return to your MCP client.</p>
     </div>
     <div class="details">
@@ -418,7 +418,7 @@ async fn handle_oauth_callback(
                 r#"<!DOCTYPE html>
 <html>
 <head>
-    <title>OAuth Error - Pierre MCP Server</title>
+    <title>OAuth Error - Pierre Fitness API</title>
     <style>
         body {{ font-family: Arial, sans-serif; margin: 40px; text-align: center; }}
         .error {{ color: #f44336; }}

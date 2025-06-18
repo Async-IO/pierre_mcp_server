@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-Pierre MCP Server exposes **21 comprehensive tools** organized into categories for complete fitness data analysis and management.
+Pierre Fitness API exposes **21 comprehensive tools** organized into categories for complete fitness data analysis and management.
 
 ## 🏃 Core Data Access Tools
 
