@@ -61,7 +61,7 @@ def _generate_mock_activities(count: int = 100):
 def investor_demonstration():
     """Complete investor demonstration showcasing MCP capabilities"""
     
-    print("🚀 PIERRE AI FITNESS PLATFORM - MCP DEMONSTRATION")
+    print("🚀 PIERRE FITNESS API - MCP DEMONSTRATION")
     print("=" * 60)
     print("🎯 Purpose: Real-time AI fitness analysis for investors")
     print("📡 Protocol: Model Context Protocol (MCP)")

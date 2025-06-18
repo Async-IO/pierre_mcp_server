@@ -1,6 +1,6 @@
 # Setup Guide
 
-This guide covers installation, OAuth configuration, and initial setup of Pierre MCP Server.
+This guide covers installation, OAuth configuration, and initial setup of Pierre Fitness API.
 
 ## Quick Start
 

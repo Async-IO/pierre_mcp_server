@@ -54,7 +54,7 @@ For detailed technical documentation, see [docs/ARCHITECTURE.md](docs/ARCHITECTU
 - **SQLite Database**: User data and encrypted tokens
 - **Background Tasks**: Expired key cleanup, usage tracking
 
-Pierre MCP Server supports two deployment modes:
+Pierre Fitness API supports two deployment modes:
 
 ### 🏠 Single-Tenant Mode (Personal Use)
 - **Perfect for individual users** who want to run the server locally

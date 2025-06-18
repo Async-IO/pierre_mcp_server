@@ -1,9 +1,9 @@
-# Pierre MCP|A2A Fitness Platform
+# Pierre Fitness API
 
 [![CI](https://github.com/jfarcand/pierre_mcp_server/actions/workflows/ci.yml/badge.svg)](https://github.com/jfarcand/pierre_mcp_server/actions/workflows/ci.yml)
 [![Frontend Tests](https://github.com/jfarcand/pierre_mcp_server/actions/workflows/frontend-tests.yml/badge.svg)](https://github.com/jfarcand/pierre_mcp_server/actions/workflows/frontend-tests.yml)
 
-A multi-tenant fitness data platform providing secure B2B API access to fitness data from multiple providers (Strava, Fitbit) through the Model Context Protocol (MCP), A2A (Agent-to-Agent) Protocol, and REST APIs. Built for developers and AI assistants, Pierre MCP Server features enterprise-grade API key management with tiered rate limiting, trial keys with automatic expiration, OAuth integration, real-time analytics, comprehensive activity intelligence, and support for AI agent communication.
+A multi-protocol fitness data API providing secure access to fitness data from multiple providers (Strava, Fitbit) through the Model Context Protocol (MCP), A2A (Agent-to-Agent) Protocol, and REST APIs. Built for LLMs and AI applications, Pierre Fitness API features enterprise-grade API key management with tiered rate limiting, trial keys with automatic expiration, OAuth integration, real-time analytics, comprehensive activity intelligence, and multi-protocol support for AI agent communication.
 
 ## LLM Prompt Examples
 
@@ -159,7 +159,7 @@ Analyze my adaptation to different training environments over time.
 
 ## Real-World Connection Flows
 
-Pierre MCP Server provides multiple ways for users and AI agents to connect and access fitness data, all built on secure OAuth2 flows with real-time data access.
+Pierre Fitness API provides multiple ways for users and AI agents to connect and access fitness data, all built on secure OAuth2 flows with real-time data access.
 
 ### 🤖 AI Assistant Integration (MCP Protocol)
 
@@ -355,7 +355,7 @@ Complete documentation is organized in the `docs/` directory:
 
 ## Architecture
 
-Pierre MCP Server supports two deployment modes:
+Pierre Fitness API supports two deployment modes:
 
 ### 🏠 Single-Tenant Mode (Personal Use)
 - **Perfect for individual users** who want to run the server locally

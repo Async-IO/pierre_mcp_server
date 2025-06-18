@@ -67,7 +67,7 @@ def _generate_mock_activities(count: int = 200):
 def enterprise_demonstration():
     """Complete enterprise demonstration showcasing A2A capabilities"""
     
-    print("🏢 PIERRE AI FITNESS PLATFORM - A2A ENTERPRISE DEMO")
+    print("🏢 PIERRE FITNESS API - A2A ENTERPRISE DEMO")
     print("=" * 65)
     print("🎯 Purpose: Enterprise-grade fitness analytics for B2B clients")
     print("📡 Protocol: Agent-to-Agent (A2A) REST API")

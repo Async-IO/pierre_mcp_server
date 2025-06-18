@@ -1,6 +1,6 @@
-# Pierre AI Fitness Platform - Examples
+# Pierre Fitness API - Examples
 
-This directory contains comprehensive examples demonstrating both MCP (Model Context Protocol) and A2A (Agent-to-Agent) protocols for the Pierre AI Fitness Platform.
+This directory contains comprehensive examples demonstrating both MCP (Model Context Protocol) and A2A (Agent-to-Agent) protocols for the Pierre Fitness API.
 
 ## Quick Start
 
@@ -15,7 +15,7 @@ python3 python/a2a/enterprise_demo.py   # A2A enterprise demonstration
 
 ## Architecture Overview
 
-The Pierre AI Fitness Platform supports two protocols:
+The Pierre Fitness API supports two protocols:
 
 ### 🔄 MCP (Model Context Protocol)
 - **Use Case**: Real-time fitness analysis, mobile apps, dashboards

@@ -1,4 +1,4 @@
-# Pierre MCP Server - Technical Architecture Documentation
+# Pierre Fitness API - Technical Architecture Documentation
 
 ## Table of Contents
 1. [System Overview](#system-overview)
@@ -13,7 +13,7 @@
 
 ## System Overview
 
-Pierre MCP Server is a multi-tenant fitness data platform that provides secure access to fitness data from multiple providers (Strava, Fitbit) through the Model Context Protocol (MCP), A2A (Agent-to-Agent) Protocol, and traditional REST APIs. The system is designed for B2B use cases, allowing AI assistants, autonomous agents, and applications to access fitness data with proper authentication and rate limiting.
+Pierre Fitness API is a multi-tenant fitness data platform that provides secure access to fitness data from multiple providers (Strava, Fitbit) through the Model Context Protocol (MCP), A2A (Agent-to-Agent) Protocol, and traditional REST APIs. The system is designed for B2B use cases, allowing AI assistants, autonomous agents, and applications to access fitness data with proper authentication and rate limiting.
 
 ### Core Services
 
