@@ -22,7 +22,7 @@ use crate::intelligence::ActivityAnalyzer;
 use crate::mcp::schema::InitializeResponse;
 use crate::models::AuthRequest;
 use crate::providers::{create_provider, AuthData, FitnessProvider};
-use crate::routes::{AuthRoutes, LoginRequest, OAuthRoutes, RegisterRequest};
+use crate::routes::{AuthRoutes, LoginRequest, OAuthRoutes, RefreshTokenRequest, RegisterRequest};
 use crate::security::SecurityConfig;
 use crate::websocket::WebSocketManager;
 
@@ -176,6 +176,28 @@ impl MultiTenantMcpServer {
                     let auth_routes = auth_routes.clone();
                     async move {
                         match auth_routes.login(request).await {
+                            Ok(response) => Ok(warp::reply::json(&response)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
+
+        // Token refresh endpoint
+        let refresh = warp::path("auth")
+            .and(warp::path("refresh"))
+            .and(warp::path::end())
+            .and(warp::post())
+            .and(warp::body::json())
+            .and_then({
+                let auth_routes = auth_routes.clone();
+                move |request: RefreshTokenRequest| {
+                    let auth_routes = auth_routes.clone();
+                    async move {
+                        match auth_routes.refresh_token(request).await {
                             Ok(response) => Ok(warp::reply::json(&response)),
                             Err(e) => {
                                 let error = serde_json::json!({"error": e.to_string()});
@@ -707,7 +729,11 @@ impl MultiTenantMcpServer {
         });
 
         // Group routes to avoid recursion limit issues
-        let auth_routes = register.or(login).or(oauth_auth).or(oauth_callback);
+        let auth_routes = register
+            .or(login)
+            .or(refresh)
+            .or(oauth_auth)
+            .or(oauth_callback);
 
         let api_key_routes = create_api_key
             .or(create_trial_key)
