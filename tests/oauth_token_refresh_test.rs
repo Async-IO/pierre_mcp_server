@@ -340,6 +340,10 @@ async fn test_oauth_provider_init_failure() {
     };
     database.create_user(&user).await.unwrap();
 
+    // Save current environment variables
+    let original_client_id = std::env::var("STRAVA_CLIENT_ID").ok();
+    let original_client_secret = std::env::var("STRAVA_CLIENT_SECRET").ok();
+
     // Don't set environment variables - provider init will fail
     std::env::remove_var("STRAVA_CLIENT_ID");
     std::env::remove_var("STRAVA_CLIENT_SECRET");
@@ -361,4 +365,12 @@ async fn test_oauth_provider_init_failure() {
         .error
         .unwrap()
         .contains("Failed to initialize Strava provider"));
+
+    // Restore environment variables
+    if let Some(client_id) = original_client_id {
+        std::env::set_var("STRAVA_CLIENT_ID", client_id);
+    }
+    if let Some(client_secret) = original_client_secret {
+        std::env::set_var("STRAVA_CLIENT_SECRET", client_secret);
+    }
 }
