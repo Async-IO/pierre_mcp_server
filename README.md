@@ -157,136 +157,203 @@ Suggest new training locations based on my performance preferences.
 Analyze my adaptation to different training environments over time.
 ```
 
+## Real-World Connection Flows
+
+Pierre MCP Server provides multiple ways for users and AI agents to connect and access fitness data, all built on secure OAuth2 flows with real-time data access.
+
+### 🤖 AI Assistant Integration (MCP Protocol)
+
+**For users connecting AI assistants like Claude Desktop or GitHub Copilot:**
+
+#### Complete User Journey
+
+1. **Account Setup**
+   ```bash
+   # User registers on your Pierre instance
+   curl -X POST https://your-pierre-server.com/auth/register \
+     -H "Content-Type: application/json" \
+     -d '{
+       "email": "user@example.com",
+       "password": "secure_password",
+       "display_name": "John Runner"
+     }'
+   ```
+
+2. **Strava Connection**
+   ```bash
+   # User connects their Strava account via OAuth
+   curl -X GET "https://your-pierre-server.com/oauth/auth/strava/{user_id}" \
+     -H "Authorization: Bearer USER_JWT_TOKEN"
+   # Returns: Real Strava OAuth URL for browser authorization
+   ```
+
+3. **AI Assistant Configuration**
+   ```json
+   // ~/.claude/claude_desktop_config.json
+   {
+     "mcpServers": {
+       "pierre-fitness": {
+         "command": "mcp-client",
+         "args": ["--server", "wss://your-pierre-server.com:8080"],
+         "env": {
+           "JWT_TOKEN": "your_jwt_token_here"
+         }
+       }
+     }
+   }
+   ```
+
+4. **Natural Language Queries**
+   ```
+   User → Claude: "What was my longest run this year and where did I run it?"
+   Claude → Pierre: get_activities + get_activity_intelligence
+   Pierre → Strava: Fetch real activity data with location
+   Claude → User: "Your longest run was 21.5km in Saint-Hippolyte, Québec on March 15th..."
+   ```
+
+### 🔗 Developer Integration (A2A Protocol)
+
+**For applications and AI agents connecting programmatically:**
+
+#### A2A Client Registration
+```bash
+# Developer registers their application
+curl -X POST https://your-pierre-server.com/a2a/clients \
+  -H "Authorization: Bearer USER_JWT_TOKEN" \
+  -d '{
+    "name": "FitnessCoach AI",
+    "description": "AI-powered fitness coaching application",
+    "capabilities": ["fitness-analysis", "goal-tracking", "performance-prediction"],
+    "redirect_uris": ["https://myapp.com/oauth/callback"],
+    "contact_email": "developer@myapp.com"
+  }'
+# Returns: client_id, client_secret, api_key
+```
+
+#### Real-Time Data Access
+```bash
+# Application accesses user's fitness data
+curl -X POST https://your-pierre-server.com/a2a/execute \
+  -H "Authorization: Bearer A2A_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "tools.execute",
+    "id": 1,
+    "params": {
+      "tool_name": "get_activities",
+      "parameters": {
+        "provider": "strava",
+        "limit": 20
+      }
+    }
+  }'
+```
+
+#### Activity Intelligence with Context
+```bash
+# Get AI-powered insights with weather and location
+curl -X POST https://your-pierre-server.com/a2a/execute \
+  -H "Authorization: Bearer A2A_API_KEY" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "tools.execute",
+    "params": {
+      "tool_name": "get_activity_intelligence",
+      "parameters": {
+        "provider": "strava",
+        "activity_id": "14816735354",
+        "include_weather": true,
+        "include_location": true
+      }
+    }
+  }'
+```
+
+### 🔄 Real OAuth Flow Example
+
+**Complete end-to-end example with actual Strava data:**
+
+```bash
+# 1. User registration
+curl -X POST http://localhost:8081/auth/register \
+  -d '{"email": "athlete@example.com", "password": "secure123"}'
+# Returns: {"user_id": "ca33ad77-728b-4e6d-83c5-d2878a69a9dc"}
+
+# 2. Login for JWT token
+curl -X POST http://localhost:8081/auth/login \
+  -d '{"email": "athlete@example.com", "password": "secure123"}'
+# Returns: {"jwt_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."}
+
+# 3. Generate Strava OAuth URL
+curl -X GET "http://localhost:8081/oauth/auth/strava/ca33ad77-728b-4e6d-83c5-d2878a69a9dc" \
+  -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+# Returns: {"authorization_url": "https://www.strava.com/oauth/authorize?client_id=163846&..."}
+
+# 4. User visits URL in browser → Strava authorization → automatic callback processing
+
+# 5. Access real fitness data
+curl -X POST http://localhost:8081/a2a/execute \
+  -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..." \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "tools.execute",
+    "params": {
+      "tool_name": "get_athlete",
+      "parameters": {"provider": "strava"}
+    }
+  }'
+# Returns: Real Strava athlete data with profile, stats, and activity access
+```
+
+## 📚 Documentation
+
+Complete documentation is organized in the `docs/` directory:
+
+### 📋 [Setup & Installation](docs/SETUP.md)
+- Local development setup
+- OAuth2 configuration for Strava and Fitbit
+- Environment variables and configuration files
+- Docker deployment options
+
+### 🛠️ [MCP Tools Reference](docs/TOOLS.md)
+- Complete reference for all 21 fitness analysis tools
+- Tool categories: Data Access, Intelligence, Connections, Goals, Analytics
+- Real-world examples with live Strava data
+- API usage patterns and best practices
+
+### 🌦️ [Weather Integration](docs/WEATHER.md)
+- OpenWeatherMap API integration
+- Mock weather system for development
+- Weather-enhanced activity intelligence
+- Setup and configuration guide
+
+### 🔑 [API Reference](docs/API_REFERENCE.md)
+- B2B API platform features
+- API key management and tiers
+- Enterprise security features
+- Usage analytics and monitoring
+
+### 🚀 [Deployment Guide](docs/DEPLOYMENT.md)
+- Production deployment scenarios
+- Docker and Kubernetes configurations
+- Cloud deployment (AWS, GCP, Azure)
+- Monitoring and observability
+
 ## Features
 
 - **Multi-Provider Support**: Strava and Fitbit integration with unified API
 - **Enhanced Security**: OAuth2 authentication with PKCE (Proof Key for Code Exchange)
 - **Comprehensive Data Access**: Activities, athlete profiles, and aggregated statistics
 - **🗺️ Location Intelligence**: GPS-based location detection with trail and region identification
-  - **Reverse Geocoding**: GPS coordinates → "Saint-Hippolyte, Québec, Canada"
-  - **Trail Detection**: Automatic recognition of trails, paths, and routes
-  - **Regional Context**: City, region, and country identification for training analysis
-  - **Location-Aware Summaries**: "Run in the rain **in Saint-Hippolyte, Québec**"
 - **🌦️ Intelligent Weather Integration**: Real-time and historical weather analysis with contextual insights
 - **🧠 Activity Intelligence**: AI-powered activity analysis with performance metrics, location, and weather context
-  - **Performance Metrics**: Heart rate zones, effort levels, efficiency scores
-  - **Environmental Context**: Weather conditions, location impact, terrain analysis
-  - **Natural Language Summaries**: Human-readable insights with full context
-  - **Personal Records**: Automatic detection with location and weather correlation
 - **MCP Protocol Compliance**: Works seamlessly with Claude and GitHub Copilot
 - **🤖 A2A (Agent-to-Agent) Protocol**: Open protocol for AI agent communication
-  - **JSON-RPC 2.0**: Standard protocol for agent-to-agent communication
-  - **Client Registration**: Secure registration and management of AI agents
-  - **Capabilities Discovery**: Agent Card for automatic capability detection
-  - **Session Management**: Persistent sessions with configurable expiration
-  - **Task Management**: Async task execution with persistent storage
-  - **Universal Tool Layer**: Protocol-agnostic tool execution (MCP & A2A)
 - **Extensible Design**: Easy to add new fitness providers in the future
 - **Production Ready**: Comprehensive testing and clean error handling
 
-## B2B API Platform Features
-
-### 🔑 API Key Management
-- **Tiered Access**: Trial (1K/month), Starter (10K/month), Professional (100K/month), Enterprise (Unlimited)
-- **Trial Keys**: 14-day auto-expiring trial keys with one-per-user limit
-- **Rate Limiting**: Automatic monthly rate limiting with real-time tracking
-- **Usage Analytics**: Detailed usage statistics per tool and time period
-- **Secure Storage**: SHA-256 hashed keys with prefix-based identification
-
-### 📊 Developer Dashboard
-- **Real-time Monitoring**: WebSocket-based live updates
-- **Usage Analytics**: Tool-specific usage breakdown and trends
-- **Rate Limit Status**: Visual indicators and warnings
-- **API Key Management**: Create, list, and deactivate keys
-
-### 🔐 Enterprise Security
-- **JWT Authentication**: 24-hour tokens with detailed error messages
-- **API Key Authentication**: Production (`pk_live_`) and trial (`pk_trial_`) keys
-- **Encrypted Storage**: AES-256-GCM for OAuth tokens at rest
-- **CORS Support**: Full cross-origin resource sharing configuration
-- **User Isolation**: Complete data separation between tenants
-
-## API Key System
-
-### Creating API Keys
-
-```bash
-# Login to get JWT token
-curl -X POST http://localhost:8081/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email": "your@email.com", "password": "your_password"}'
-
-# Create a production API key
-curl -X POST http://localhost:8081/api/keys \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Production Key",
-    "description": "Main production API key",
-    "tier": "Professional"
-  }'
-
-# Create a trial key (14-day expiration)
-curl -X POST http://localhost:8081/api/keys/trial \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Trial Key",
-    "description": "Testing the platform"
-  }'
-```
-
-### Using API Keys with MCP
-
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "get_activities",
-    "arguments": {
-      "provider": "strava",
-      "limit": 10
-    }
-  },
-  "auth": "pk_live_your_api_key_here"
-}
-```
-
-### Rate Limiting Systems example
-
-| Tier | Monthly Limit | Key Prefix | Expiration |
-|------|--------------|------------|------------|
-| Trial | 1,000 requests | `pk_trial_` | 14 days |
-| Starter | 10,000 requests | `pk_live_` | None |
-| Professional | 100,000 requests | `pk_live_` | None |
-| Enterprise | Unlimited | `pk_live_` | None |
-
-## Testing the System
-
-### Quick Start Script
-
-```bash
-# Test the trial key system
-./scripts/test_trial_keys.sh
-```
-
-This script will:
-1. Register a test user
-2. Login and get JWT token
-3. Create a trial API key
-4. Test rate limiting
-5. Verify one-trial-per-user enforcement
-
 ## Architecture
-
-For detailed technical documentation, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
-
-### Key Components:
-- **MCP Server** (Port 8080): AI assistant connections
-- **HTTP API** (Port 8081): REST endpoints and dashboard
-- **Admin Service** (Port 8082): API key approval workflow (repo private for now)
-- **SQLite Database**: User data and encrypted tokens
-- **Background Tasks**: Expired key cleanup, usage tracking
 
 Pierre MCP Server supports two deployment modes:
 
@@ -304,444 +371,30 @@ Pierre MCP Server supports two deployment modes:
 - **User Isolation** ensuring data privacy between users
 - **Cloud-Ready** for deployment on any cloud provider
 
-## Installation
+## Quick Start
 
 ### Local Development
-
 ```bash
+# Clone and build
+git clone https://github.com/jfarcand/pierre_mcp_server.git
+cd pierre_mcp_server
 cargo build --release
+
+# Run in single-tenant mode
+cargo run --bin pierre-mcp-server -- --single-tenant
 ```
 
 ### Docker Deployment
-
-The server supports Docker deployment with direnv (.envrc) integration:
-
-1. **Setup Environment Variables**:
-   ```bash
-   # Copy the example to .envrc
-   cp .env.example .envrc
-   # Edit .envrc with your OAuth credentials
-   # If using direnv: direnv allow
-   ```
-
-2. **Using Docker Compose with direnv**:
-   ```bash
-   # Use the helper script that loads .envrc
-   ./docker-compose-with-envrc.sh up
-   
-   # Or manually export variables and run docker-compose
-   eval $(cat .envrc | grep export) && docker-compose up
-   ```
-
-3. **Production Deployment**:
-   ```bash
-   # Build and run in production mode
-   docker-compose -f docker-compose.prod.yml up -d
-   ```
-
-4. **Health Checks**: Available at `http://localhost:8081/health`
-
-**Note**: The Docker setup includes automatic health checks, backup services, and optional SQLite web interface for development.
-
-## OAuth2 Setup
-
-### Strava
-
-1. Create a Strava application at https://www.strava.com/settings/api
-2. Note your Client ID and Client Secret
-3. Run the auth setup tool:
-
 ```bash
-cargo run --bin auth-setup -- strava \
-  --client-id YOUR_CLIENT_ID \
-  --client-secret YOUR_CLIENT_SECRET
+# Setup environment
+cp .env.example .envrc
+# Edit .envrc with your OAuth credentials
+
+# Run with Docker Compose
+./docker-compose-with-envrc.sh up
 ```
 
-4. Follow the browser prompts to authorize the application
-5. The tool will save your tokens to the config file
-
-### Fitbit
-
-1. Create a Fitbit application at https://dev.fitbit.com/apps/new
-   - **Application Type**: Personal
-   - **OAuth 2.0 Application Type**: Confidential
-   - **Redirect URL**: `http://localhost:8080/callback` (or your callback URL)
-   - **Default Access Type**: Read Only
-2. Note your Client ID and Client Secret
-3. Run the auth setup tool:
-
-```bash
-cargo run --bin auth-setup -- fitbit \
-  --client-id YOUR_CLIENT_ID \
-  --client-secret YOUR_CLIENT_SECRET
-```
-
-4. Follow the browser prompts to authorize the application
-5. The tool will save your tokens to the config file
-
-**Note**: Fitbit requires explicit scopes. The server requests `activity`, `profile`, and `sleep` permissions.
-
-## Weather Integration
-
-The server includes comprehensive weather integration that automatically enhances activity analysis with contextual weather data.
-
-### Features
-
-- ✅ **Real-time Weather**: Current weather data from OpenWeatherMap
-- ✅ **Historical Weather**: Historical weather data for past activities (with subscription)
-- ✅ **GPS-Based**: Extracts coordinates from activity start locations
-- ✅ **Smart Fallback**: Intelligent mock weather when API unavailable
-- ✅ **Activity Intelligence**: Weather context in activity summaries
-- ✅ **Impact Analysis**: Weather difficulty and performance adjustments
-
-### Setup (Optional)
-
-Weather integration works out-of-the-box with realistic mock weather patterns. For real weather data:
-
-1. **Get OpenWeatherMap API Key** (free tier available)
-   - Visit https://openweathermap.org/api
-   - Sign up for free account
-   - Copy your API key
-
-2. **Set Environment Variable**
-   ```bash
-   export OPENWEATHER_API_KEY="your_api_key_here"
-   ```
-
-3. **Configure Settings** (optional)
-   Edit `fitness_config.toml`:
-   ```toml
-   [weather_api]
-   provider = "openweathermap"
-   enabled = true
-   cache_duration_hours = 24
-   fallback_to_mock = true
-   ```
-
-### Weather Intelligence Examples
-
-With weather integration, activity analysis includes contextual insights:
-
-```json
-{
-  "summary": "Morning run in the rain with moderate intensity",
-  "contextual_factors": {
-    "weather": {
-      "temperature_celsius": 15.2,
-      "humidity_percentage": 85.0,
-      "wind_speed_kmh": 12.5,
-      "conditions": "rain"
-    },
-    "time_of_day": "morning"
-  }
-}
-```
-
-### Weather Features
-
-| Feature | Free Tier | Paid Tier |
-|---------|-----------|-----------|
-| **Mock Weather** | ✅ Realistic patterns | ✅ Available |
-| **Current Weather** | ✅ Real-time data | ✅ Real-time data |
-| **Historical Weather** | 🎭 Mock fallback | ✅ Real historical data |
-| **API Calls** | 1,000/day free | Unlimited with subscription |
-| **Production Ready** | ✅ Zero costs | ✅ Precise data |
-
-### Testing Weather Integration
-
-```bash
-# Test weather system
-cargo run --bin test-weather-integration
-
-# Diagnose API setup
-cargo run --bin diagnose-weather-api
-```
-
-## Configuration
-
-The server supports multiple configuration methods:
-
-### Using direnv (.envrc):
-```bash
-# Copy the example file
-cp .envrc.example .envrc
-
-# Edit with your credentials
-vim .envrc
-
-# Allow direnv to load the file
-direnv allow
-```
-
-### Using .env file:
-```env
-# Strava Configuration
-STRAVA_CLIENT_ID=your_strava_client_id
-STRAVA_CLIENT_SECRET=your_strava_client_secret
-STRAVA_ACCESS_TOKEN=your_strava_access_token
-STRAVA_REFRESH_TOKEN=your_strava_refresh_token
-
-# Fitbit Configuration
-FITBIT_CLIENT_ID=your_fitbit_client_id
-FITBIT_CLIENT_SECRET=your_fitbit_client_secret
-FITBIT_ACCESS_TOKEN=your_fitbit_access_token
-FITBIT_REFRESH_TOKEN=your_fitbit_refresh_token
-
-# Weather Configuration (optional)
-OPENWEATHER_API_KEY=your_openweather_api_key
-```
-
-### Using config.toml:
-```toml
-[providers.strava]
-auth_type = "oauth2"
-client_id = "your_strava_client_id"
-client_secret = "your_strava_client_secret"
-access_token = "your_strava_access_token"
-refresh_token = "your_strava_refresh_token"
-
-[providers.fitbit]
-auth_type = "oauth2"
-client_id = "your_fitbit_client_id"
-client_secret = "your_fitbit_client_secret"
-access_token = "your_fitbit_access_token"
-refresh_token = "your_fitbit_refresh_token"
-```
-
-## Usage
-
-### Single-Tenant Mode (Personal Use)
-
-```bash
-# Run in single-tenant mode (default, backwards compatible)
-cargo run --bin pierre-mcp-server -- --single-tenant
-
-# Run with custom port
-cargo run --bin pierre-mcp-server -- --single-tenant --port 9000
-
-# Run with custom config file
-cargo run --bin pierre-mcp-server -- --single-tenant --config /path/to/config.toml
-```
-
-### Multi-Tenant Mode (Cloud Deployment)
-
-```bash
-# Run in multi-tenant mode with authentication
-cargo run --bin pierre-mcp-server
-
-# Specify database and authentication settings
-cargo run --bin pierre-mcp-server -- \
-  --database-url "sqlite:./users.db" \
-  --token-expiry-hours 24 \
-  --port 8080
-
-# Use custom encryption and JWT secret files
-cargo run --bin pierre-mcp-server -- \
-  --encryption-key-file ./custom-encryption.key \
-  --jwt-secret-file ./custom-jwt.secret
-```
-
-### Multi-Tenant Authentication Flow
-
-1. **User Registration/Login** (Phase 2 - Coming Soon)
-   ```bash
-   # Register new user
-   curl -X POST http://localhost:8080/auth/register \
-     -H "Content-Type: application/json" \
-     -d '{"email": "user@example.com", "password": "secure_password"}'
-
-   # Login to get JWT token
-   curl -X POST http://localhost:8080/auth/login \
-     -H "Content-Type: application/json" \
-     -d '{"email": "user@example.com", "password": "secure_password"}'
-   ```
-
-2. **Use JWT Token in MCP calls**
-   ```json
-   {
-     "method": "authenticate",
-     "params": {
-       "jwt_token": "your_jwt_token_here"
-     }
-   }
-   ```
-
-### Security Features
-
-- **Encryption at Rest**: All OAuth tokens encrypted with AES-256-GCM
-- **JWT Authentication**: Stateless authentication with configurable expiry
-- **User Isolation**: Complete data separation between users
-- **Secure Defaults**: Encryption keys auto-generated if not provided
-- **No Shared State**: Each user's data completely isolated
-
-## MCP Tools
-
-The server exposes the following tools for all supported providers:
-
-- `get_activities`: Fetch fitness activities from a provider (supports pagination with limit/offset)
-  - **Providers**: `strava`, `fitbit`
-  - **Strava**: Uses activity list API with pagination
-  - **Fitbit**: Uses date-based activity queries (last 30 days by default)
-- `get_athlete`: Get athlete profile information
-  - **Strava**: Returns detailed athlete profile with avatar
-  - **Fitbit**: Returns user profile with display name and avatar
-- `get_stats`: Get aggregated statistics
-  - **Strava**: Uses athlete stats API with activity-based fallback
-  - **Fitbit**: Uses lifetime stats API with floor-to-elevation conversion
-- `get_activity_intelligence`: Generate AI-powered activity analysis with weather and location context
-  - **Parameters**: `include_weather` (bool), `include_location` (bool)
-  - **Performance Metrics**: Heart rate zones, effort levels, efficiency scores, personal records
-  - **🌦️ Weather Context**: Automatic GPS-based weather retrieval with intelligent fallback
-  - **🗺️ Location Intelligence**: Reverse geocoding, trail detection, regional context
-  - **Environmental Analysis**: Weather impact, terrain difficulty, location-specific insights
-  - **Natural Language**: Comprehensive summaries with full environmental context
-  - **Example**: "Run in the rain in Saint-Hippolyte, Québec with very high intensity"
-
-### Example Usage
-
-```bash
-# Test the server with example queries
-cargo run --bin find-2025-longest-run
-cargo run --bin find-2024-longest-run
-cargo run --bin find-consecutive-10k-runs
-
-# Test location intelligence features
-cargo run --bin test-location-intelligence
-cargo run --bin test-intelligence-for-longest-run
-cargo run --bin check-longest-run-gps
-
-# Example MCP tool calls:
-# {"method": "tools/call", "params": {"name": "get_activities", "arguments": {"provider": "strava", "limit": 10}}}
-# {"method": "tools/call", "params": {"name": "get_activities", "arguments": {"provider": "fitbit", "limit": 20}}}
-# {"method": "tools/call", "params": {"name": "get_athlete", "arguments": {"provider": "strava"}}}
-
-# Activity Intelligence with full context
-# {"method": "tools/call", "params": {"name": "get_activity_intelligence", "arguments": {"provider": "strava", "activity_id": "12345", "include_weather": true, "include_location": true}}}
-
-# Weather-only analysis
-# {"method": "tools/call", "params": {"name": "get_activity_intelligence", "arguments": {"provider": "strava", "activity_id": "12345", "include_weather": true, "include_location": false}}}
-
-# Location-only analysis  
-# {"method": "tools/call", "params": {"name": "get_activity_intelligence", "arguments": {"provider": "strava", "activity_id": "12345", "include_weather": false, "include_location": true}}}
-```
-
-## A2A Protocol Integration
-
-Pierre MCP Server supports the A2A (Agent-to-Agent) Protocol, enabling AI agents to communicate and collaborate on fitness data analysis. A2A is an open protocol that provides a standardized way for AI agents to discover capabilities, exchange messages, and execute tools.
-
-### A2A Features
-
-- **Agent Registration**: Register AI agents with specific capabilities
-- **Capability Discovery**: Automatic discovery of agent capabilities through Agent Cards
-- **Session Management**: Secure, persistent sessions for agent communication
-- **Task Execution**: Asynchronous task management with persistent storage
-- **Tool Interoperability**: Same tools available through both MCP and A2A protocols
-
-### A2A Client Registration
-
-```bash
-# Register a new A2A client
-curl -X POST http://localhost:8081/a2a/clients \
-  -H "Authorization: Bearer $JWT_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "FitnessAnalyzer",
-    "description": "AI agent for advanced fitness analytics",
-    "capabilities": ["fitness-data-analysis", "goal-management"],
-    "redirect_uris": ["https://example.com/callback"],
-    "contact_email": "contact@example.com"
-  }'
-
-# Response includes client credentials
-{
-  "client_id": "a2a_client_123...",
-  "client_secret": "a2a_secret_456...",
-  "api_key": "a2a_789..."
-}
-```
-
-### A2A Protocol Endpoints
-
-```bash
-# Initialize A2A connection
-curl -X POST http://localhost:8081/a2a \
-  -H "Authorization: Bearer a2a_789..." \
-  -H "Content-Type: application/json" \
-  -d '{
-    "jsonrpc": "2.0",
-    "method": "a2a/initialize",
-    "id": 1
-  }'
-
-# List available tools
-curl -X POST http://localhost:8081/a2a \
-  -H "Authorization: Bearer a2a_789..." \
-  -H "Content-Type: application/json" \
-  -d '{
-    "jsonrpc": "2.0",
-    "method": "a2a/tools/list",
-    "id": 2
-  }'
-
-# Execute a tool
-curl -X POST http://localhost:8081/a2a \
-  -H "Authorization: Bearer a2a_789..." \
-  -H "Content-Type: application/json" \
-  -d '{
-    "jsonrpc": "2.0",
-    "method": "a2a/tools/call",
-    "params": {
-      "tool_name": "get_activities",
-      "parameters": {
-        "provider": "strava",
-        "limit": 10
-      }
-    },
-    "id": 3
-  }'
-```
-
-### Agent Card
-
-Pierre exposes its capabilities through an Agent Card, accessible at:
-
-```bash
-curl http://localhost:8081/a2a/agent-card
-```
-
-The Agent Card includes:
-- Agent identity and version
-- Available tools and their schemas
-- Authentication requirements
-- Rate limits and usage tiers
-- Protocol capabilities
-
-### A2A Use Cases
-
-1. **Multi-Agent Fitness Analysis**: Multiple AI agents collaborating to analyze fitness data from different perspectives
-2. **Automated Coaching**: AI coaches that can access and analyze athlete data programmatically
-3. **Integration Hub**: Connect Pierre to other A2A-compatible fitness and health platforms
-4. **Research Applications**: Academic and research agents analyzing aggregated fitness trends
-
-### A2A vs MCP
-
-| Feature | MCP | A2A |
-|---------|-----|-----|
-| Protocol | Custom JSON-RPC | Standard A2A JSON-RPC 2.0 |
-| Authentication | API Key | API Key + Client Registration |
-| Sessions | Stateless | Persistent Sessions |
-| Discovery | Manual | Agent Card |
-| Tasks | Synchronous | Async with persistent storage |
-| Use Case | Direct AI assistant integration | Agent-to-agent communication |
-
-Both protocols have access to the same underlying tools through the Universal Tool Layer.
-
-## Adding to Claude or GitHub Copilot
-
-### Single-Tenant Mode Configuration
-
-Add to your MCP configuration:
-
+### Adding to Claude Desktop
 ```json
 {
   "mcpServers": {
@@ -752,225 +405,6 @@ Add to your MCP configuration:
   }
 }
 ```
-
-Or for development:
-
-```json
-{
-  "mcpServers": {
-    "pierre-fitness-dev": {
-      "command": "cargo",
-      "args": ["run", "--bin", "pierre-mcp-server", "--", "--single-tenant", "--port", "8080"],
-      "cwd": "/path/to/pierre_mcp_server"
-    }
-  }
-}
-```
-
-### Multi-Tenant Mode Configuration
-
-For cloud deployments, connect to your hosted multi-tenant server:
-
-```json
-{
-  "mcpServers": {
-    "pierre-fitness-cloud": {
-      "command": "mcp-client",
-      "args": ["--url", "https://your-cloud-server.com:8080", "--auth-type", "jwt"]
-    }
-  }
-}
-```
-
-## Development Roadmap
-
-### ✅ Phase 1: Multi-Tenant Architecture (Completed)
-- ✅ Multi-tenant server with JWT authentication
-- ✅ Encrypted token storage with AES-256-GCM
-- ✅ User isolation and database management
-- ✅ Unified server supporting both single and multi-tenant modes
-- ✅ Backwards compatibility for existing users
-
-### 🚧 Phase 2: OAuth Integration & User Onboarding (In Progress)
-- 🔄 User registration and login endpoints
-- 🔄 OAuth2 flow integration for Strava/Fitbit in multi-tenant mode
-- 🔄 Web interface for user onboarding
-- 🔄 Token refresh automation
-- 🔄 User management dashboard
-
-### 📋 Phase 3: Cloud Deployment Infrastructure
-- ⏳ Docker containerization
-- ⏳ Kubernetes deployment manifests
-- ⏳ Cloud provider templates (AWS, GCP, Azure)
-- ⏳ Load balancing and scaling configuration
-- ⏳ Monitoring and observability setup
-
-### 📋 Phase 4: Advanced Features
-- ⏳ Rate limiting and API quotas
-- ⏳ Advanced analytics and reporting
-- ⏳ WebSocket support for real-time updates
-- ⏳ Plugin system for custom providers
-- ⏳ GraphQL API support
-
-## What's Next
-
-The platform is production-ready with enterprise B2B features. Upcoming enhancements include:
-
-### High Priority
-- Enhanced frontend dashboard with real-time analytics
-- Webhook support for activity notifications
-- Advanced ML-based performance predictions
-
-### Enterprise Features
-- Team management and multi-user organizations
-- Custom SLA and rate limiting
-- SOC 2 and HIPAA compliance
-
-For the complete roadmap, see [docs/ARCHITECTURE.md#whats-next](docs/ARCHITECTURE.md#whats-next).
-
-## Contributing
-
-We welcome contributions! Please see our [contribution guidelines](CONTRIBUTING.md) for details.
-
-### Quick Start for Contributors
-
-1. **Fork and clone the repository**
-   ```bash
-   git clone https://github.com/jfarcand/pierre_mcp_server.git
-   cd pierre_mcp_server
-   ```
-
-2. **Set up development environment**
-   ```bash
-   # Install Rust (if not already installed)
-   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-   ```
-
-3. **Run tests**
-   ```bash
-   # Run backend tests
-   cargo test
-   
-   # Run tests with output
-   cargo test -- --nocapture
-   
-   # Run frontend tests
-   cd frontend && npm test
-   
-   # Run frontend tests with UI
-   cd frontend && npm run test:ui
-   ```
-
-4. **Development workflow**
-   ```bash
-   # Format code
-   cargo fmt
-   
-   # Lint code
-   cargo clippy
-   ```
-
-### Continuous Integration
-
-The project uses **GitHub Actions** for automated testing and quality assurance.
-
-#### Workflows
-
-1. **Full CI Pipeline** (`.github/workflows/ci.yml`)
-   - Runs on pushes to `main` and `develop` branches
-   - Tests both backend (Rust) and frontend (TypeScript/React)
-   - Includes formatting, linting, type checking, and integration tests
-
-2. **Frontend-Only Tests** (`.github/workflows/frontend-tests.yml`)
-   - Triggers only when frontend files change
-   - Tests across Node.js versions 18, 20, and 22
-   - Generates coverage reports and build artifacts
-
-#### Quality Gates
-
-- **Backend**: `cargo fmt`, `cargo clippy`, `cargo test`
-- **Frontend**: ESLint, TypeScript check, Vitest tests
-- **Coverage**: Automated coverage reporting with Codecov integration
-- **Build Verification**: Ensures both backend and frontend build successfully
-
-#### Badges
-
-The README includes real-time status badges showing:
-- [![CI](https://github.com/jfarcand/pierre_mcp_server/actions/workflows/ci.yml/badge.svg)](https://github.com/jfarcand/pierre_mcp_server/actions/workflows/ci.yml) Overall CI status
-- [![Frontend Tests](https://github.com/jfarcand/pierre_mcp_server/actions/workflows/frontend-tests.yml/badge.svg)](https://github.com/jfarcand/pierre_mcp_server/actions/workflows/frontend-tests.yml) Frontend-specific testing
-
-### Frontend Testing
-
-The frontend includes a comprehensive test suite built with **Vitest** and **React Testing Library**.
-
-#### Available Test Commands
-
-```bash
-# Navigate to frontend directory
-cd frontend
-
-# Run all tests once
-npm test
-
-# Run tests with interactive UI
-npm run test:ui
-
-# Run tests with coverage report
-npm run test:coverage
-```
-
-#### Test Structure
-
-- **7 test files** with **33+ test cases**
-- **Component tests**: Login, RealTimeIndicator, Dashboard components
-- **Hook tests**: WebSocket integration and authentication
-- **Service tests**: API service functionality
-- **Context tests**: Authentication state management
-
-#### Test Configuration
-
-- **Framework**: Vitest with jsdom environment
-- **Testing Library**: @testing-library/react for component testing
-- **Mocking**: Comprehensive mocks for WebSocket, API calls, and Chart.js
-- **Setup**: Automated setup with global test utilities
-- **Coverage**: V8 provider with lcov, text, json, and HTML reports
-
-#### Running Specific Tests
-
-```bash
-# Run tests for a specific file
-npm test RealTimeIndicator
-
-# Run tests matching a pattern
-npm test --grep "should render"
-
-# Run tests in verbose mode
-npm test -- --reporter=verbose
-```
-
-### Adding a New Provider
-
-1. Create a new file in `src/providers/your_provider.rs`
-2. Implement the `FitnessProvider` trait
-3. Add OAuth2 or API key authentication
-4. Update the provider factory in `src/providers/mod.rs`
-5. Add comprehensive tests in `tests/provider_integration.rs`
-6. Update configuration examples in README
-
-### Code Style
-
-- Follow standard formatting (`cargo fmt`)
-- Use clippy for linting (`cargo clippy`)
-- Write comprehensive tests for new features
-- Document public APIs with comments
-- Follow the existing error handling patterns
-
-### Commit Guidelines
-
-- Use conventional commit format: `feat:`, `fix:`, `docs:`, etc.
-- Write clear, descriptive commit messages
-- Keep commits focused and atomic
-- Reference issues in commit messages when applicable
 
 ## License
 
