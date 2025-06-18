@@ -23,20 +23,20 @@ pub mod analyzer;
 pub mod insights;
 pub mod location;
 pub mod weather;
-// Temporarily disable complex analyzers during compilation fix
-// pub mod activity_analyzer;
-// pub mod performance_analyzer;
-// pub mod goal_engine;
-// pub mod recommendation_engine;
-// pub mod metrics;
+// Re-enabling advanced intelligence modules
+pub mod activity_analyzer;
+pub mod goal_engine;
+pub mod metrics;
+pub mod performance_analyzer;
+pub mod recommendation_engine;
 
+pub use activity_analyzer::*;
 pub use analyzer::ActivityAnalyzer;
+pub use goal_engine::*;
 pub use insights::Insight;
-// pub use activity_analyzer::*;
-// pub use performance_analyzer::*;
-// pub use goal_engine::*;
-// pub use recommendation_engine::*;
-// pub use metrics::*;
+pub use metrics::*;
+pub use performance_analyzer::*;
+pub use recommendation_engine::*;
 
 /// Activity intelligence summary with insights and analysis
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -106,7 +106,7 @@ pub struct TrendIndicators {
 }
 
 /// Direction of a trend
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum TrendDirection {
     Improving,
@@ -184,9 +184,8 @@ impl ActivityIntelligence {
 }
 
 // === ADVANCED ANALYTICS TYPES ===
-// Temporarily disabled during compilation fixes
+// Re-enabled for full AI functionality
 
-/*
 /// Time frame for analysis
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TimeFrame {
@@ -195,7 +194,10 @@ pub enum TimeFrame {
     Quarter,
     SixMonths,
     Year,
-    Custom { start: DateTime<Utc>, end: DateTime<Utc> },
+    Custom {
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    },
 }
 
 impl TimeFrame {
@@ -266,17 +268,16 @@ impl Confidence {
     }
 }
 
-// Temporarily disabled - will re-enable after fixing field mismatches
-// /// Enhanced activity insights with advanced analytics
-// #[derive(Debug, Clone, Serialize, Deserialize)]
-// pub struct ActivityInsights {
-//     pub activity_id: String,
-//     pub overall_score: f64,
-//     pub insights: Vec<AdvancedInsight>,
-//     pub metrics: AdvancedMetrics,
-//     pub recommendations: Vec<String>,
-//     pub anomalies: Vec<Anomaly>,
-// }
+/// Enhanced activity insights with advanced analytics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActivityInsights {
+    pub activity_id: String,
+    pub overall_score: f64,
+    pub insights: Vec<AdvancedInsight>,
+    pub metrics: AdvancedMetrics,
+    pub recommendations: Vec<String>,
+    pub anomalies: Vec<Anomaly>,
+}
 
 /// Advanced insight with confidence and metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -347,11 +348,26 @@ pub struct Goal {
 /// Type of fitness goal
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum GoalType {
-    Distance { sport: String, timeframe: TimeFrame },
-    Time { sport: String, distance: f64 },
-    Frequency { sport: String, sessions_per_week: i32 },
-    Performance { metric: String, improvement_percent: f64 },
-    Custom { metric: String, unit: String },
+    Distance {
+        sport: String,
+        timeframe: TimeFrame,
+    },
+    Time {
+        sport: String,
+        distance: f64,
+    },
+    Frequency {
+        sport: String,
+        sessions_per_week: i32,
+    },
+    Performance {
+        metric: String,
+        improvement_percent: f64,
+    },
+    Custom {
+        metric: String,
+        unit: String,
+    },
 }
 
 /// Status of a goal
@@ -397,7 +413,7 @@ pub struct TrainingRecommendation {
 }
 
 /// Type of training recommendation
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum RecommendationType {
     Intensity,
     Volume,
@@ -456,7 +472,6 @@ pub struct TimeAvailability {
     pub preferred_days: Vec<String>,
     pub preferred_duration_minutes: Option<i32>,
 }
-*/
 
 #[cfg(test)]
 mod tests {

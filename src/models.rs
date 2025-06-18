@@ -135,7 +135,7 @@ impl Default for Activity {
 /// This enum covers the most common fitness activities across all providers.
 /// The `Other` variant handles provider-specific activity types that don't
 /// map to the standard categories.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum SportType {
     /// Running activity

@@ -14,7 +14,7 @@ use pierre_mcp_server::config::{Config, ProviderConfig};
 use pierre_mcp_server::mcp::McpServer;
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 use tokio::time::{timeout, Duration};
 
@@ -87,14 +87,14 @@ async fn test_mcp_initialize_request() -> Result<()> {
     let server = McpServer::new(config);
 
     // Start server on a specific port for testing
-    let server_task = tokio::spawn(async move { server.run(8081).await });
+    let server_task = tokio::spawn(async move { server.run(9081).await });
 
     // Give server time to start
     tokio::time::sleep(Duration::from_millis(200)).await;
 
     // Connect to server
     let mut stream =
-        timeout(Duration::from_secs(5), TcpStream::connect("127.0.0.1:8081")).await??;
+        timeout(Duration::from_secs(5), TcpStream::connect("127.0.0.1:9081")).await??;
     let (mut read_half, mut write_half) = stream.split();
     let mut reader = BufReader::new(&mut read_half);
 
@@ -110,25 +110,9 @@ async fn test_mcp_initialize_request() -> Result<()> {
     write_half.write_all(request_str.as_bytes()).await?;
     write_half.write_all(b"\n").await?;
 
-    // Read response (may be large due to 21 tools)
-    let mut response_data = Vec::new();
-    let mut buffer = [0; 4096];
-
-    loop {
-        match timeout(Duration::from_secs(5), reader.read(&mut buffer)).await? {
-            Ok(0) => break,
-            Ok(n) => {
-                response_data.extend_from_slice(&buffer[..n]);
-                // Check if we have a complete line
-                if response_data.ends_with(b"\n") {
-                    break;
-                }
-            }
-            Err(e) => return Err(e.into()),
-        }
-    }
-
-    let response_line = String::from_utf8(response_data)?;
+    // Read response line
+    let mut response_line = String::new();
+    timeout(Duration::from_secs(5), reader.read_line(&mut response_line)).await??;
 
     let response: Value = serde_json::from_str(&response_line)?;
 
@@ -163,13 +147,13 @@ async fn test_mcp_unknown_method() -> Result<()> {
     let server = McpServer::new(config);
 
     // Start server
-    let server_task = tokio::spawn(async move { server.run(8095).await });
+    let server_task = tokio::spawn(async move { server.run(9095).await });
 
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     // Connect and send unknown method
     let mut stream =
-        timeout(Duration::from_secs(5), TcpStream::connect("127.0.0.1:8095")).await??;
+        timeout(Duration::from_secs(5), TcpStream::connect("127.0.0.1:9095")).await??;
     let (mut read_half, mut write_half) = stream.split();
     let mut reader = BufReader::new(&mut read_half);
 
@@ -209,12 +193,12 @@ async fn test_mcp_tools_call_invalid_provider() -> Result<()> {
     let config = create_test_config();
     let server = McpServer::new(config);
 
-    let server_task = tokio::spawn(async move { server.run(8083).await });
+    let server_task = tokio::spawn(async move { server.run(9083).await });
 
     tokio::time::sleep(Duration::from_millis(200)).await;
 
     let mut stream =
-        timeout(Duration::from_secs(5), TcpStream::connect("127.0.0.1:8083")).await??;
+        timeout(Duration::from_secs(5), TcpStream::connect("127.0.0.1:9083")).await??;
     let (mut read_half, mut write_half) = stream.split();
     let mut reader = BufReader::new(&mut read_half);
 
@@ -235,24 +219,9 @@ async fn test_mcp_tools_call_invalid_provider() -> Result<()> {
     write_half.write_all(request_str.as_bytes()).await?;
     write_half.write_all(b"\n").await?;
 
-    // Read response (may be large)
-    let mut response_data = Vec::new();
-    let mut buffer = [0; 4096];
-
-    loop {
-        match timeout(Duration::from_secs(5), reader.read(&mut buffer)).await? {
-            Ok(0) => break,
-            Ok(n) => {
-                response_data.extend_from_slice(&buffer[..n]);
-                if response_data.ends_with(b"\n") {
-                    break;
-                }
-            }
-            Err(e) => return Err(e.into()),
-        }
-    }
-
-    let response_line = String::from_utf8(response_data)?;
+    // Read response line
+    let mut response_line = String::new();
+    timeout(Duration::from_secs(5), reader.read_line(&mut response_line)).await??;
     let response: Value = serde_json::from_str(&response_line)?;
 
     // Tools now work with Universal Tool Executor - may return result or error
@@ -269,7 +238,7 @@ async fn test_mcp_multiple_connections() -> Result<()> {
     let config = create_test_config();
     let server = McpServer::new(config);
 
-    let server_task = tokio::spawn(async move { server.run(8084).await });
+    let server_task = tokio::spawn(async move { server.run(9084).await });
 
     tokio::time::sleep(Duration::from_millis(200)).await;
 
@@ -278,7 +247,7 @@ async fn test_mcp_multiple_connections() -> Result<()> {
 
     for i in 0..3 {
         let task = tokio::spawn(async move {
-            let mut stream = TcpStream::connect("127.0.0.1:8084").await.unwrap();
+            let mut stream = TcpStream::connect("127.0.0.1:9084").await.unwrap();
             let (mut read_half, mut write_half) = stream.split();
             let mut reader = BufReader::new(&mut read_half);
 
@@ -321,12 +290,12 @@ async fn test_mcp_json_rpc_protocol_compliance() -> Result<()> {
     let config = create_test_config();
     let server = McpServer::new(config);
 
-    let server_task = tokio::spawn(async move { server.run(8085).await });
+    let server_task = tokio::spawn(async move { server.run(9085).await });
 
     tokio::time::sleep(Duration::from_millis(200)).await;
 
     let mut stream =
-        timeout(Duration::from_secs(5), TcpStream::connect("127.0.0.1:8085")).await??;
+        timeout(Duration::from_secs(5), TcpStream::connect("127.0.0.1:9085")).await??;
     let (mut read_half, mut write_half) = stream.split();
     let mut reader = BufReader::new(&mut read_half);
 
