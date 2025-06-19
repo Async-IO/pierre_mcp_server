@@ -75,6 +75,32 @@ pub struct RateLimitOverview {
     pub reset_date: Option<chrono::DateTime<Utc>>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct RequestLog {
+    pub id: String,
+    pub timestamp: chrono::DateTime<Utc>,
+    pub api_key_id: String,
+    pub api_key_name: String,
+    pub tool_name: String,
+    pub status_code: u16,
+    pub response_time_ms: Option<u32>,
+    pub error_message: Option<String>,
+    pub request_size_bytes: Option<u32>,
+    pub response_size_bytes: Option<u32>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RequestStats {
+    pub total_requests: u64,
+    pub successful_requests: u64,
+    pub failed_requests: u64,
+    pub average_response_time: f64,
+    pub min_response_time: Option<u32>,
+    pub max_response_time: Option<u32>,
+    pub requests_per_minute: f64,
+    pub error_rate: f64,
+}
+
 #[derive(Clone)]
 pub struct DashboardRoutes {
     database: Database,
@@ -377,25 +403,268 @@ impl DashboardRoutes {
     }
 
     /// Get recent activity for user
-    async fn get_recent_activity(
-        &self,
-        _user_id: Uuid,
-        _limit: u32,
-    ) -> Result<Vec<RecentActivity>> {
-        // This would require a more complex query to join API keys with usage
-        // For now, return empty vector - would need to enhance database layer
-        Ok(Vec::new())
+    async fn get_recent_activity(&self, user_id: Uuid, limit: u32) -> Result<Vec<RecentActivity>> {
+        let api_keys = self.database.get_user_api_keys(user_id).await?;
+        let mut recent_activity = Vec::new();
+
+        // Get recent usage for all user's API keys
+        for api_key in api_keys {
+            let start_time = Utc::now() - Duration::days(7); // Last 7 days
+            let logs = self
+                .database
+                .get_request_logs(
+                    Some(&api_key.id),
+                    Some(start_time),
+                    Some(Utc::now()),
+                    None,
+                    None,
+                )
+                .await?;
+
+            for log in logs.into_iter().take(limit as usize) {
+                recent_activity.push(RecentActivity {
+                    timestamp: log.timestamp,
+                    api_key_name: log.api_key_name,
+                    tool_name: log.tool_name,
+                    status_code: log.status_code,
+                    response_time_ms: log.response_time_ms,
+                });
+            }
+        }
+
+        // Sort by timestamp (newest first) and limit
+        recent_activity.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        recent_activity.truncate(limit as usize);
+
+        Ok(recent_activity)
     }
 
     /// Get top tools analysis
     async fn get_top_tools_analysis(
         &self,
-        _user_id: Uuid,
-        _start_date: chrono::DateTime<Utc>,
-        _end_date: chrono::DateTime<Utc>,
+        user_id: Uuid,
+        start_date: chrono::DateTime<Utc>,
+        end_date: chrono::DateTime<Utc>,
     ) -> Result<Vec<ToolUsage>> {
-        // This would require enhanced database queries
-        // For now, return empty vector - would need to enhance database layer
-        Ok(Vec::new())
+        let api_keys = self.database.get_user_api_keys(user_id).await?;
+        let mut tool_stats: std::collections::HashMap<String, (u64, u64, u64)> =
+            std::collections::HashMap::new();
+
+        // Aggregate tool usage across all user's API keys
+        for api_key in api_keys {
+            let stats = self
+                .database
+                .get_api_key_usage_stats(&api_key.id, start_date, end_date)
+                .await?;
+
+            // Extract tool usage from the JSON
+            if let Some(tool_usage_obj) = stats.tool_usage.as_object() {
+                for (tool_name, count_val) in tool_usage_obj {
+                    if let Some(count) = count_val.as_u64() {
+                        let entry = tool_stats.entry(tool_name.clone()).or_insert((0, 0, 0));
+                        entry.0 += count; // total requests
+                        entry.1 += stats.successful_requests as u64; // successful requests
+                        entry.2 += stats.total_response_time_ms; // total response time
+                    }
+                }
+            }
+        }
+
+        // Convert to ToolUsage structs
+        let mut tool_usage: Vec<ToolUsage> = tool_stats
+            .into_iter()
+            .map(
+                |(tool_name, (total_requests, successful_requests, total_response_time))| {
+                    let success_rate = if total_requests > 0 {
+                        (successful_requests as f64 / total_requests as f64) * 100.0
+                    } else {
+                        0.0
+                    };
+
+                    let average_response_time = if total_requests > 0 {
+                        total_response_time as f64 / total_requests as f64
+                    } else {
+                        0.0
+                    };
+
+                    ToolUsage {
+                        tool_name,
+                        request_count: total_requests,
+                        success_rate,
+                        average_response_time,
+                    }
+                },
+            )
+            .collect();
+
+        // Sort by request count (descending) and take top 10
+        tool_usage.sort_by(|a, b| b.request_count.cmp(&a.request_count));
+        tool_usage.truncate(10);
+
+        Ok(tool_usage)
+    }
+
+    /// Get request logs with filtering
+    pub async fn get_request_logs(
+        &self,
+        auth_header: Option<&str>,
+        api_key_id: Option<&str>,
+        time_range: Option<&str>,
+        status: Option<&str>,
+        tool: Option<&str>,
+    ) -> Result<Vec<RequestLog>> {
+        tracing::debug!("Dashboard request logs request received");
+
+        let claims = self.validate_auth_header(auth_header)?;
+        let user_id = Uuid::parse_str(&claims.sub)?;
+
+        tracing::info!(
+            "Dashboard request logs access granted for user: {}",
+            user_id
+        );
+
+        // Get user's API keys to filter by
+        let api_keys = self.database.get_user_api_keys(user_id).await?;
+
+        // If specific API key is requested, verify user owns it
+        if let Some(key_id) = api_key_id {
+            if !api_keys.iter().any(|k| k.id == key_id) {
+                return Err(anyhow::anyhow!("API key not found or access denied"));
+            }
+        }
+
+        // Parse time range
+        let start_time = match time_range {
+            Some("1h") => Utc::now() - Duration::hours(1),
+            Some("24h") => Utc::now() - Duration::hours(24),
+            Some("7d") => Utc::now() - Duration::days(7),
+            Some("30d") => Utc::now() - Duration::days(30),
+            _ => Utc::now() - Duration::hours(1), // Default to 1 hour
+        };
+
+        // Query real data from the database
+        let logs = self
+            .database
+            .get_request_logs(api_key_id, Some(start_time), Some(Utc::now()), status, tool)
+            .await?;
+
+        Ok(logs)
+    }
+
+    /// Get request statistics
+    pub async fn get_request_stats(
+        &self,
+        auth_header: Option<&str>,
+        api_key_id: Option<&str>,
+        time_range: Option<&str>,
+    ) -> Result<RequestStats> {
+        tracing::debug!("Dashboard request stats request received");
+
+        let claims = self.validate_auth_header(auth_header)?;
+        let user_id = Uuid::parse_str(&claims.sub)?;
+
+        tracing::info!(
+            "Dashboard request stats access granted for user: {}",
+            user_id
+        );
+
+        // Get user's API keys
+        let api_keys = self.database.get_user_api_keys(user_id).await?;
+
+        // If specific API key is requested, verify user owns it
+        if let Some(key_id) = api_key_id {
+            if !api_keys.iter().any(|k| k.id == key_id) {
+                return Err(anyhow::anyhow!("API key not found or access denied"));
+            }
+        }
+
+        // Parse time range
+        let (start_time, duration_minutes) = match time_range {
+            Some("1h") => (Utc::now() - Duration::hours(1), 60.0),
+            Some("24h") => (Utc::now() - Duration::hours(24), 1440.0),
+            Some("7d") => (Utc::now() - Duration::days(7), 10080.0),
+            Some("30d") => (Utc::now() - Duration::days(30), 43200.0),
+            _ => (Utc::now() - Duration::hours(1), 60.0), // Default to 1 hour
+        };
+
+        // Calculate stats from user's API keys
+        let mut total_requests = 0u64;
+        let mut successful_requests = 0u64;
+        let mut failed_requests = 0u64;
+        let mut total_response_time = 0u64;
+
+        let keys_to_check = if let Some(key_id) = api_key_id {
+            api_keys.into_iter().filter(|k| k.id == key_id).collect()
+        } else {
+            api_keys
+        };
+
+        for api_key in keys_to_check {
+            let stats = self
+                .database
+                .get_api_key_usage_stats(&api_key.id, start_time, Utc::now())
+                .await?;
+
+            total_requests += stats.total_requests as u64;
+            successful_requests += stats.successful_requests as u64;
+            failed_requests += stats.failed_requests as u64;
+            total_response_time += stats.total_response_time_ms;
+        }
+
+        let average_response_time = if total_requests > 0 {
+            total_response_time as f64 / total_requests as f64
+        } else {
+            0.0
+        };
+
+        let requests_per_minute = total_requests as f64 / duration_minutes;
+
+        let error_rate = if total_requests > 0 {
+            (failed_requests as f64 / total_requests as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        Ok(RequestStats {
+            total_requests,
+            successful_requests,
+            failed_requests,
+            average_response_time,
+            min_response_time: None, // Not available in current stats
+            max_response_time: None, // Not available in current stats
+            requests_per_minute,
+            error_rate,
+        })
+    }
+
+    /// Get tool usage breakdown for analytics
+    pub async fn get_tool_usage_breakdown(
+        &self,
+        auth_header: Option<&str>,
+        _api_key_id: Option<&str>,
+        time_range: Option<&str>,
+    ) -> Result<Vec<ToolUsage>> {
+        tracing::debug!("Dashboard tool usage breakdown request received");
+
+        let claims = self.validate_auth_header(auth_header)?;
+        let user_id = Uuid::parse_str(&claims.sub)?;
+
+        tracing::info!(
+            "Dashboard tool usage breakdown access granted for user: {}",
+            user_id
+        );
+
+        // Parse time range
+        let start_time = match time_range {
+            Some("1h") => Utc::now() - Duration::hours(1),
+            Some("24h") => Utc::now() - Duration::hours(24),
+            Some("7d") => Utc::now() - Duration::days(7),
+            Some("30d") => Utc::now() - Duration::days(30),
+            _ => Utc::now() - Duration::days(7), // Default to 7 days
+        };
+
+        // Get tool usage analysis
+        self.get_top_tools_analysis(user_id, start_time, Utc::now())
+            .await
     }
 }

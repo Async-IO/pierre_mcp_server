@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import { AuthProvider } from './contexts/AuthContext';
+import { WebSocketProvider } from './contexts/WebSocketProvider';
 import { useAuth } from './hooks/useAuth';
 import './App.css';
 
@@ -32,7 +33,9 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <AppContent />
+        <WebSocketProvider>
+          <AppContent />
+        </WebSocketProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

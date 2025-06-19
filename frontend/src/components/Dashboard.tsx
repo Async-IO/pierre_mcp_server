@@ -4,22 +4,21 @@ import { useAuth } from '../hooks/useAuth';
 import { apiService } from '../services/api';
 import type { DashboardOverview, RateLimitOverview, TierUsage } from '../types/api';
 import type { AnalyticsData, TimeSeriesPoint } from '../types/chart';
-import ApiKeyList from './ApiKeyList';
-import CreateApiKey from './CreateApiKey';
 import UsageAnalytics from './UsageAnalytics';
 import RequestMonitor from './RequestMonitor';
 import ToolUsageBreakdown from './ToolUsageBreakdown';
-import A2AManagement from './A2AManagement';
+import UnifiedConnections from './UnifiedConnections';
 import { Line } from 'react-chartjs-2';
-import { useWebSocket } from '../hooks/useWebSocket';
+import { useWebSocketContext } from '../hooks/useWebSocketContext';
 import { useEffect } from 'react';
-import { Button, Card, Badge, StatusIndicator } from './ui';
+import { Button, Card, Badge } from './ui';
+import RealTimeIndicator from './RealTimeIndicator';
 import { clsx } from 'clsx';
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
-  const { lastMessage } = useWebSocket();
+  const { lastMessage } = useWebSocketContext();
 
   const { data: overview, isLoading: overviewLoading, refetch: refetchOverview } = useQuery<DashboardOverview>({
     queryKey: ['dashboard-overview'],
@@ -34,6 +33,11 @@ export default function Dashboard() {
   const { data: weeklyUsage } = useQuery<AnalyticsData>({
     queryKey: ['usage-analytics', 7],
     queryFn: () => apiService.getUsageAnalytics(7),
+  });
+
+  const { data: a2aOverview } = useQuery({
+    queryKey: ['a2a-dashboard-overview'],
+    queryFn: () => apiService.getA2ADashboardOverview(),
   });
 
   // Prepare mini chart data for the overview
@@ -89,12 +93,10 @@ export default function Dashboard() {
 
   const tabs = [
     { id: 'overview', name: 'Overview', icon: '📊' },
-    { id: 'api-keys', name: 'API Keys', icon: '🔑' },
+    { id: 'connections', name: 'Connections', icon: '🔌' },
     { id: 'analytics', name: 'Analytics', icon: '📈' },
     { id: 'monitor', name: 'Monitor', icon: '📡' },
     { id: 'tools', name: 'Tools', icon: '🔧' },
-    { id: 'a2a', name: 'A2A', icon: '🤖' },
-    { id: 'create-key', name: 'Create Key', icon: '➕' },
   ];
 
   return (
@@ -106,11 +108,11 @@ export default function Dashboard() {
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <span className="text-2xl">🗿</span>
-                <h1 className="text-3xl font-bold text-pierre-gray-900">Pierre MCP Server</h1>
+                <h1 className="text-3xl font-bold text-pierre-gray-900">Pierre Fitness API</h1>
               </div>
               <div className="flex items-center space-x-4">
                 <p className="text-pierre-gray-600">Welcome back, {user?.display_name || user?.email}</p>
-                <StatusIndicator status="online" label="Real-time Updates" />
+                <RealTimeIndicator />
               </div>
             </div>
             <Button variant="secondary" onClick={logout}>
@@ -148,31 +150,43 @@ export default function Dashboard() {
               </div>
             ) : (
               <>
-                {/* Stats Cards */}
+                {/* Unified Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <Card variant="stat">
                     <div className="text-2xl font-bold text-pierre-blue-600">
-                      {overview?.total_api_keys || 0}
+                      {(overview?.total_api_keys || 0) + (a2aOverview?.total_clients || 0)}
                     </div>
-                    <div className="text-sm text-pierre-gray-600">Total API Keys</div>
+                    <div className="text-sm text-pierre-gray-600">Total Connections</div>
+                    <div className="text-xs text-pierre-gray-500 mt-1">
+                      {overview?.total_api_keys || 0} API Keys • {a2aOverview?.total_clients || 0} Apps
+                    </div>
                   </Card>
                   <Card variant="stat">
                     <div className="text-2xl font-bold text-pierre-green-600">
-                      {overview?.active_api_keys || 0}
+                      {(overview?.active_api_keys || 0) + (a2aOverview?.active_clients || 0)}
                     </div>
-                    <div className="text-sm text-pierre-gray-600">Active Keys</div>
+                    <div className="text-sm text-pierre-gray-600">Active Connections</div>
+                    <div className="text-xs text-pierre-gray-500 mt-1">
+                      {overview?.active_api_keys || 0} Keys • {a2aOverview?.active_clients || 0} Apps
+                    </div>
                   </Card>
                   <Card variant="stat">
                     <div className="text-2xl font-bold text-pierre-yellow-600">
-                      {overview?.total_requests_today || 0}
+                      {(overview?.total_requests_today || 0) + (a2aOverview?.requests_today || 0)}
                     </div>
                     <div className="text-sm text-pierre-gray-600">Requests Today</div>
+                    <div className="text-xs text-pierre-gray-500 mt-1">
+                      All connections combined
+                    </div>
                   </Card>
                   <Card variant="stat">
                     <div className="text-2xl font-bold text-pierre-gray-700">
-                      {overview?.total_requests_this_month || 0}
+                      {(overview?.total_requests_this_month || 0) + (a2aOverview?.requests_this_month || 0)}
                     </div>
                     <div className="text-sm text-pierre-gray-600">Requests This Month</div>
+                    <div className="text-xs text-pierre-gray-500 mt-1">
+                      All connections combined
+                    </div>
                   </Card>
                 </div>
 
@@ -258,14 +272,14 @@ export default function Dashboard() {
           </div>
         )}
 
-        {activeTab === 'api-keys' && <ApiKeyList />}
+        {activeTab === 'connections' && <UnifiedConnections />}
         {activeTab === 'analytics' && <UsageAnalytics />}
         {activeTab === 'monitor' && (
           <div className="space-y-6">
             <Card>
               <h2 className="text-xl font-semibold mb-4">Real-time Request Monitor</h2>
               <p className="text-pierre-gray-600 mb-4">
-                Monitor API requests in real-time across all your keys. See request status, response times, and error details as they happen.
+                Monitor API requests in real-time across all your connections. See request status, response times, and error details as they happen.
               </p>
             </Card>
             <RequestMonitor showAllKeys={true} />
@@ -276,14 +290,12 @@ export default function Dashboard() {
             <Card>
               <h2 className="text-xl font-semibold mb-4">Tool Usage Analysis</h2>
               <p className="text-pierre-gray-600 mb-4">
-                Analyze which MCP tools are being used most frequently, their performance metrics, and success rates.
+                Analyze which fitness tools are being used most frequently, their performance metrics, and success rates.
               </p>
             </Card>
             <ToolUsageBreakdown />
           </div>
         )}
-        {activeTab === 'a2a' && <A2AManagement />}
-        {activeTab === 'create-key' && <CreateApiKey />}
       </div>
     </div>
   );

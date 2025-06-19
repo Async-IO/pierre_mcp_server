@@ -521,6 +521,105 @@ impl MultiTenantMcpServer {
                 }
             });
 
+        // Dashboard Request Logs endpoint
+        let dashboard_request_logs = warp::path("dashboard")
+            .and(warp::path("request-logs"))
+            .and(warp::get())
+            .and(warp::header::optional::<String>("authorization"))
+            .and(warp::query::<std::collections::HashMap<String, String>>())
+            .and_then({
+                let dashboard_routes = dashboard_routes.clone();
+                move |auth_header: Option<String>,
+                      params: std::collections::HashMap<String, String>| {
+                    let dashboard_routes = dashboard_routes.clone();
+                    async move {
+                        let api_key_id = params.get("api_key_id").map(|s| s.as_str());
+                        let time_range = params.get("time_range").map(|s| s.as_str());
+                        let status = params.get("status").map(|s| s.as_str());
+                        let tool = params.get("tool").map(|s| s.as_str());
+
+                        match dashboard_routes
+                            .get_request_logs(
+                                auth_header.as_deref(),
+                                api_key_id,
+                                time_range,
+                                status,
+                                tool,
+                            )
+                            .await
+                        {
+                            Ok(logs) => Ok(warp::reply::json(&logs)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
+
+        // Dashboard Request Stats endpoint
+        let dashboard_request_stats = warp::path("dashboard")
+            .and(warp::path("request-stats"))
+            .and(warp::get())
+            .and(warp::header::optional::<String>("authorization"))
+            .and(warp::query::<std::collections::HashMap<String, String>>())
+            .and_then({
+                let dashboard_routes = dashboard_routes.clone();
+                move |auth_header: Option<String>,
+                      params: std::collections::HashMap<String, String>| {
+                    let dashboard_routes = dashboard_routes.clone();
+                    async move {
+                        let api_key_id = params.get("api_key_id").map(|s| s.as_str());
+                        let time_range = params.get("time_range").map(|s| s.as_str());
+
+                        match dashboard_routes
+                            .get_request_stats(auth_header.as_deref(), api_key_id, time_range)
+                            .await
+                        {
+                            Ok(stats) => Ok(warp::reply::json(&stats)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
+
+        // Dashboard Tool Usage endpoint
+        let dashboard_tool_usage = warp::path("dashboard")
+            .and(warp::path("tool-usage"))
+            .and(warp::get())
+            .and(warp::header::optional::<String>("authorization"))
+            .and(warp::query::<std::collections::HashMap<String, String>>())
+            .and_then({
+                let dashboard_routes = dashboard_routes.clone();
+                move |auth_header: Option<String>,
+                      params: std::collections::HashMap<String, String>| {
+                    let dashboard_routes = dashboard_routes.clone();
+                    async move {
+                        let api_key_id = params.get("api_key_id").map(|s| s.as_str());
+                        let time_range = params.get("time_range").map(|s| s.as_str());
+
+                        match dashboard_routes
+                            .get_tool_usage_breakdown(
+                                auth_header.as_deref(),
+                                api_key_id,
+                                time_range,
+                            )
+                            .await
+                        {
+                            Ok(usage) => Ok(warp::reply::json(&usage)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
+
         // A2A Agent Card endpoint
         let a2a_agent_card = warp::path("a2a")
             .and(warp::path("agent-card"))
@@ -743,7 +842,10 @@ impl MultiTenantMcpServer {
 
         let dashboard_routes = dashboard_overview
             .or(dashboard_analytics)
-            .or(dashboard_rate_limits);
+            .or(dashboard_rate_limits)
+            .or(dashboard_request_logs)
+            .or(dashboard_request_stats)
+            .or(dashboard_tool_usage);
 
         let a2a_routes = a2a_agent_card
             .or(a2a_dashboard_overview)
@@ -754,15 +856,20 @@ impl MultiTenantMcpServer {
             .or(a2a_auth)
             .or(a2a_execute);
 
-        let routes = auth_routes
+        // HTTP routes with security headers (exclude WebSocket)
+        let http_routes = auth_routes
             .or(api_key_routes)
             .or(dashboard_routes)
             .or(a2a_routes)
-            .or(websocket_route)
             .or(health)
-            .with(cors)
-            .with(security_headers_filter)
-            .recover(handle_rejection);
+            .with(cors.clone())
+            .with(security_headers_filter);
+
+        // WebSocket route without security headers (security headers break WebSocket handshake)
+        let ws_routes = websocket_route.with(cors);
+
+        // Combine routes
+        let routes = http_routes.or(ws_routes).recover(handle_rejection);
 
         info!("HTTP server ready on port {}", port);
         warp::serve(routes).run(([127, 0, 0, 1], port)).await;
@@ -1138,8 +1245,9 @@ impl MultiTenantMcpServer {
         if let Some(decrypted_token) = token {
             // Authenticate provider with user's token
             let auth_data = AuthData::OAuth2 {
-                client_id: String::new(),     // Will be set from config
-                client_secret: String::new(), // Will be set from config
+                client_id: crate::constants::env_config::strava_client_id().unwrap_or_default(),
+                client_secret: crate::constants::env_config::strava_client_secret()
+                    .unwrap_or_default(),
                 access_token: Some(decrypted_token.access_token),
                 refresh_token: Some(decrypted_token.refresh_token),
             };
@@ -1165,8 +1273,9 @@ impl MultiTenantMcpServer {
         let mut new_provider = create_provider(provider_name)?;
         if let Some(decrypted_token) = database.get_strava_token(user_id).await? {
             let auth_data = AuthData::OAuth2 {
-                client_id: String::new(),
-                client_secret: String::new(),
+                client_id: crate::constants::env_config::strava_client_id().unwrap_or_default(),
+                client_secret: crate::constants::env_config::strava_client_secret()
+                    .unwrap_or_default(),
                 access_token: Some(decrypted_token.access_token),
                 refresh_token: Some(decrypted_token.refresh_token),
             };

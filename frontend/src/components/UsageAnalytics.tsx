@@ -13,6 +13,7 @@ import {
   Tooltip,
   Legend,
   ArcElement,
+  Filler,
 } from 'chart.js';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 
@@ -25,7 +26,8 @@ ChartJS.register(
   Title,
   Tooltip,
   Legend,
-  ArcElement
+  ArcElement,
+  Filler
 );
 
 export default function UsageAnalytics() {
@@ -49,6 +51,7 @@ export default function UsageAnalytics() {
         borderColor: 'rgb(37, 99, 235)',
         backgroundColor: 'rgba(37, 99, 235, 0.1)',
         tension: 0.4,
+        fill: true,
       },
       {
         label: 'Errors',
@@ -56,6 +59,7 @@ export default function UsageAnalytics() {
         borderColor: 'rgb(220, 38, 38)',
         backgroundColor: 'rgba(220, 38, 38, 0.1)',
         tension: 0.4,
+        fill: true,
       },
     ],
   };

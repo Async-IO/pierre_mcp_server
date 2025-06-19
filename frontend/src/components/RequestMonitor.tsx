@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiService } from '../services/api';
-import { useWebSocket } from '../hooks/useWebSocket';
+import { useWebSocketContext } from '../hooks/useWebSocketContext';
+import RealTimeIndicator from './RealTimeIndicator';
 import type { RequestLog, RequestStats } from '../types/api';
 
 interface RequestMonitorProps {
@@ -16,7 +17,7 @@ export default function RequestMonitor({ apiKeyId, showAllKeys = false }: Reques
     tool: 'all'
   });
   const [liveRequests, setLiveRequests] = useState<RequestLog[]>([]);
-  const { lastMessage } = useWebSocket();
+  const { lastMessage } = useWebSocketContext();
 
   const { data: requestLogs, isLoading } = useQuery<RequestLog[]>({
     queryKey: ['request-logs', apiKeyId, filter],
@@ -85,13 +86,15 @@ export default function RequestMonitor({ apiKeyId, showAllKeys = false }: Reques
           </div>
           <div className="stat-card">
             <div className="text-2xl font-bold text-api-green">
-              {requestStats.success_rate.toFixed(1)}%
+              {requestStats.total_requests > 0 
+                ? ((requestStats.successful_requests / requestStats.total_requests) * 100).toFixed(1)
+                : '0.0'}%
             </div>
             <div className="text-sm text-gray-600">Success Rate</div>
           </div>
           <div className="stat-card">
             <div className="text-2xl font-bold text-api-yellow">
-              {formatDuration(requestStats.avg_response_time)}
+              {formatDuration(requestStats.average_response_time)}
             </div>
             <div className="text-sm text-gray-600">Avg Response Time</div>
           </div>
@@ -155,10 +158,7 @@ export default function RequestMonitor({ apiKeyId, showAllKeys = false }: Reques
             </select>
           </div>
 
-          <div className="flex items-center space-x-2 ml-auto">
-            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-sm text-gray-600">Live Updates</span>
-          </div>
+          <RealTimeIndicator className="ml-auto" />
         </div>
       </div>
 
@@ -213,7 +213,7 @@ export default function RequestMonitor({ apiKeyId, showAllKeys = false }: Reques
                   </div>
                   {showAllKeys && (
                     <div className="text-xs text-gray-500 font-mono">
-                      {request.api_key_prefix}
+                      {request.api_key_name}
                     </div>
                   )}
                 </div>

@@ -5,6 +5,8 @@ export interface ChartDataset {
   borderColor?: string | string[];
   borderWidth?: number;
   tension?: number;
+  fill?: boolean | string;
+  pointRadius?: number;
 }
 
 export interface ChartData {

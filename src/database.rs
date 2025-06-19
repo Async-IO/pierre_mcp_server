@@ -2152,6 +2152,99 @@ impl Database {
         })
     }
 
+    /// Get request logs with filtering
+    pub async fn get_request_logs(
+        &self,
+        api_key_id: Option<&str>,
+        start_time: Option<chrono::DateTime<Utc>>,
+        end_time: Option<chrono::DateTime<Utc>>,
+        status_filter: Option<&str>,
+        tool_filter: Option<&str>,
+    ) -> Result<Vec<crate::dashboard_routes::RequestLog>> {
+        let mut query = r#"
+            SELECT 
+                u.*,
+                k.name as api_key_name
+            FROM api_key_usage u
+            JOIN api_keys k ON u.api_key_id = k.id
+            WHERE 1=1
+        "#
+        .to_string();
+        let mut params: Vec<String> = Vec::new();
+
+        // Add filters
+        if let Some(key_id) = api_key_id {
+            query.push_str(" AND u.api_key_id = ?");
+            params.push(key_id.to_string());
+        }
+
+        if let Some(start) = start_time {
+            query.push_str(" AND u.timestamp >= ?");
+            params.push(start.to_rfc3339());
+        }
+
+        if let Some(end) = end_time {
+            query.push_str(" AND u.timestamp <= ?");
+            params.push(end.to_rfc3339());
+        }
+
+        if let Some(status) = status_filter {
+            match status {
+                "success" => {
+                    query.push_str(" AND u.status_code >= 200 AND u.status_code < 300");
+                }
+                "error" => {
+                    query.push_str(" AND u.status_code >= 400");
+                }
+                _ => {} // "all" or unknown - no filtering
+            }
+        }
+
+        if let Some(tool) = tool_filter {
+            if tool != "all" {
+                query.push_str(" AND u.tool_name = ?");
+                params.push(tool.to_string());
+            }
+        }
+
+        query.push_str(" ORDER BY u.timestamp DESC LIMIT 100");
+
+        let mut sql_query = sqlx::query(&query);
+        for param in params {
+            sql_query = sql_query.bind(param);
+        }
+
+        let rows = sql_query.fetch_all(&self.pool).await?;
+
+        let mut logs = Vec::new();
+        for row in rows {
+            let api_key_id: String = row.get("api_key_id");
+            let timestamp_str: String = row.get("timestamp");
+
+            logs.push(crate::dashboard_routes::RequestLog {
+                id: format!("{}_{}", api_key_id, timestamp_str),
+                timestamp: chrono::DateTime::parse_from_rfc3339(&timestamp_str)?
+                    .with_timezone(&Utc),
+                api_key_id,
+                api_key_name: row.get("api_key_name"),
+                tool_name: row.get("tool_name"),
+                status_code: row.get::<i64, _>("status_code") as u16,
+                response_time_ms: row
+                    .get::<Option<i64>, _>("response_time_ms")
+                    .map(|ms| ms as u32),
+                error_message: row.get("error_message"),
+                request_size_bytes: row
+                    .get::<Option<i64>, _>("request_size_bytes")
+                    .map(|b| b as u32),
+                response_size_bytes: row
+                    .get::<Option<i64>, _>("response_size_bytes")
+                    .map(|b| b as u32),
+            });
+        }
+
+        Ok(logs)
+    }
+
     /// Get system-wide usage statistics
     pub async fn get_system_stats(&self) -> Result<(u64, u64)> {
         let now = Utc::now();

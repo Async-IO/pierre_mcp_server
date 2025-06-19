@@ -75,7 +75,7 @@ export interface RateLimitOverview {
 export interface RequestLog {
   id: string;
   api_key_id: string;
-  api_key_prefix: string;
+  api_key_name: string;
   timestamp: string;
   tool_name: string;
   status_code: number;
@@ -89,12 +89,13 @@ export interface RequestLog {
 
 export interface RequestStats {
   total_requests: number;
-  success_rate: number;
-  avg_response_time: number;
+  successful_requests: number;
+  failed_requests: number;
+  average_response_time: number;
+  min_response_time?: number;
+  max_response_time?: number;
   requests_per_minute: number;
-  error_count: number;
-  most_used_tool: string;
-  peak_hour: string;
+  error_rate: number;
 }
 
 export interface RequestFilter {
@@ -107,9 +108,9 @@ export interface ToolUsageBreakdown {
   tool_name: string;
   request_count: number;
   success_rate: number;
-  avg_response_time: number;
-  error_count: number;
-  percentage_of_total: number;
+  average_response_time: number;
+  error_count?: number;
+  percentage_of_total?: number;
 }
 
 // A2A (Agent-to-Agent) Protocol Types

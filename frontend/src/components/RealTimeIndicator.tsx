@@ -1,11 +1,11 @@
-import { useWebSocket } from '../hooks/useWebSocket';
+import { useWebSocketContext } from '../hooks/useWebSocketContext';
 
 interface RealTimeIndicatorProps {
   className?: string;
 }
 
 export default function RealTimeIndicator({ className = '' }: RealTimeIndicatorProps) {
-  const { isConnected, lastMessage } = useWebSocket();
+  const { isConnected, lastMessage } = useWebSocketContext();
   
   const getStatusColor = () => {
     if (!isConnected) return 'bg-red-500';
