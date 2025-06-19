@@ -126,7 +126,10 @@ async fn main() -> Result<()> {
 
         // Initialize database
         let database = Database::new(&config.database.url, encryption_key.to_vec()).await?;
-        info!("Database initialized successfully: {}", database.backend_info());
+        info!(
+            "Database initialized successfully: {}",
+            database.backend_info()
+        );
         info!("Database URL: {}", &config.database.url);
 
         // Initialize authentication manager
@@ -326,8 +329,11 @@ async fn handle_oauth_callback(
                 )))
             })?,
     );
-    
-    tracing::info!("OAuth callback handler initialized with: {}", database.backend_info());
+
+    tracing::info!(
+        "OAuth callback handler initialized with: {}",
+        database.backend_info()
+    );
 
     // Create OAuth manager and register providers
     let mut oauth_manager = OAuthManager::new(database);

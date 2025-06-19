@@ -1,12 +1,11 @@
 //! Demo showing database backend logging
 
 use pierre_mcp_server::database_plugins::factory::Database;
-use tracing_subscriber;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logging
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt().init();
 
     println!("🔧 Pierre MCP Server Database Backend Logging Demo");
     println!("==================================================");
@@ -15,7 +14,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n1️⃣  Initializing SQLite database:");
     let encryption_key = (0..32).collect::<Vec<u8>>();
     let sqlite_db = Database::new("sqlite::memory:", encryption_key.clone()).await?;
-    
+
     println!("   Backend: {}", sqlite_db.backend_info());
     println!("   Type: {:?}", sqlite_db.database_type());
     println!("\n   Detailed info:");
