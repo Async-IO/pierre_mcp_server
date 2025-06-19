@@ -7,7 +7,7 @@ A multi-protocol fitness data API providing secure access to fitness data from m
 
 ## 🤖 AI-Powered Fitness Analysis
 
-Pierre connects your fitness data to AI assistants like Claude, providing intelligent analysis with location, weather, and performance context.
+Pierre connects your fitness data to AI assistants like Claude, ChatGPT, and any agents supporting the MCP/A2A protocol, providing intelligent analysis with location, weather, and performance context.
 
 | Analysis Type | Example Queries | Key Features |
 |---------------|----------------|--------------|
@@ -27,7 +27,7 @@ Pierre supports multiple integration patterns for different use cases:
 
 | Integration Type | Best For | Setup Complexity | Authentication |
 |------------------|----------|------------------|----------------|
-| **🤖 MCP Protocol** | AI assistants (Claude, Copilot) | Low | JWT Token |
+| **🤖 MCP Protocol** | AI assistants (Claude, ChatGPT, Copilot) | Low | JWT Token |
 | **🔗 A2A Protocol** | AI agents & applications | Medium | API Keys |
 | **🌐 REST API** | Web apps & dashboards | Medium | OAuth2 + JWT |
 | **🏠 Single-Tenant** | Personal local use | Minimal | Optional |
@@ -35,11 +35,11 @@ Pierre supports multiple integration patterns for different use cases:
 ### Quick Setup Examples
 
 <details>
-<summary><strong>🤖 Claude Desktop Integration</strong></summary>
+<summary><strong>🤖 AI Assistant Integration (Claude, ChatGPT, etc.)</strong></summary>
 
 1. **Configure MCP Server**
    ```json
-   // ~/.claude/claude_desktop_config.json
+   // For Claude Desktop (~/.claude/claude_desktop_config.json)
    {
      "mcpServers": {
        "pierre-fitness": {
@@ -48,12 +48,20 @@ Pierre supports multiple integration patterns for different use cases:
        }
      }
    }
+   
+   // For ChatGPT or other MCP-compatible clients
+   // Use the same MCP protocol with your client's configuration
    ```
 
 2. **Connect to Strava**
    - Visit the OAuth URL provided by Pierre
    - Authorize access to your Strava data
    - Start asking questions in natural language
+
+3. **Works with any MCP/A2A compatible agent**
+   - Claude Desktop, ChatGPT with MCP support
+   - Custom AI agents, GitHub Copilot extensions
+   - Any application supporting MCP or A2A protocols
 
 </details>
 
@@ -108,7 +116,7 @@ curl -X POST https://your-pierre-server.com/a2a/execute \
 |--------|---------|----------|
 | **🏠 Local** | `cargo run --bin pierre-mcp-server -- --single-tenant` | Personal use, development |
 | **🐳 Docker** | `./docker-compose-with-envrc.sh up` | Easy deployment, cloud-ready |
-| **🤖 Claude** | Add to `claude_desktop_config.json` | AI assistant integration |
+| **🤖 AI Assistants** | Add to MCP client config | Claude, ChatGPT, agent integration |
 
 ### One-Minute Setup
 ```bash
@@ -119,7 +127,7 @@ cd pierre_mcp_server && cargo build --release
 # 2. Run locally (single-tenant mode)
 cargo run --bin pierre-mcp-server -- --single-tenant
 
-# 3. Configure Claude Desktop
+# 3. Configure AI Assistant (Claude, ChatGPT, etc.)
 echo '{
   "mcpServers": {
     "pierre-fitness": {
