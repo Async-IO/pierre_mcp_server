@@ -1,6 +1,6 @@
 # 🤖 Comprehensive Prompt Examples
 
-This guide provides 50+ real-world prompt examples for using Pierre Fitness API with AI assistants like Claude. These prompts demonstrate the power of combining fitness data with location intelligence, weather analysis, and AI insights.
+This guide provides 50+ real-world prompt examples for using Pierre Fitness API with AI assistants like Claude, ChatGPT, and any agents supporting MCP/A2A protocols. These prompts demonstrate the power of combining fitness data with location intelligence, weather analysis, and AI insights.
 
 ## 🏃 Running Analysis
 
