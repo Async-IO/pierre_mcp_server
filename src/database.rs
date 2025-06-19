@@ -133,6 +133,7 @@ impl Database {
                 hours_per_week REAL DEFAULT 0,
                 preferred_days TEXT, -- JSON array
                 preferred_duration_minutes INTEGER,
+                extra_data TEXT DEFAULT '{}', -- JSON object for additional fields
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
@@ -906,15 +907,43 @@ impl Database {
     ) -> Result<()> {
         let now = Utc::now().to_rfc3339();
 
+        // Extract known schema fields
+        let known_fields = [
+            "age",
+            "gender",
+            "weight_kg",
+            "height_cm",
+            "fitness_level",
+            "primary_sports",
+            "training_history_months",
+            "preferred_units",
+            "training_focus",
+            "injury_history",
+            "hours_per_week",
+            "preferred_days",
+            "preferred_duration_minutes",
+        ];
+
+        // Build extra_data JSON for fields not in the schema
+        let mut extra_data = serde_json::Map::new();
+        if let serde_json::Value::Object(profile_obj) = &profile_data {
+            for (key, value) in profile_obj {
+                if !known_fields.contains(&key.as_str()) {
+                    extra_data.insert(key.clone(), value.clone());
+                }
+            }
+        }
+        let extra_data_json = serde_json::Value::Object(extra_data).to_string();
+
         sqlx::query(
             r#"
             INSERT OR REPLACE INTO user_profiles (
                 user_id, age, gender, weight_kg, height_cm, fitness_level,
                 primary_sports, training_history_months, preferred_units,
                 training_focus, injury_history, hours_per_week, preferred_days,
-                preferred_duration_minutes, created_at, updated_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, 
-                     COALESCE((SELECT created_at FROM user_profiles WHERE user_id = ?1), ?15), ?16)
+                preferred_duration_minutes, extra_data, created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, 
+                     COALESCE((SELECT created_at FROM user_profiles WHERE user_id = ?1), ?16), ?17)
             "#,
         )
         .bind(user_id.to_string())
@@ -975,6 +1004,7 @@ impl Database {
                 .get("preferred_duration_minutes")
                 .and_then(|v| v.as_i64()),
         )
+        .bind(&extra_data_json) // extra_data
         .bind(&now) // for created_at when inserting new record
         .bind(&now) // for updated_at
         .execute(&self.pool)
@@ -993,6 +1023,7 @@ impl Database {
         if let Some(row) = row {
             let mut profile = serde_json::Map::new();
 
+            // Extract schema fields
             if let Ok(Some(age)) = row.try_get::<Option<i64>, _>("age") {
                 profile.insert("age".to_string(), serde_json::Value::Number(age.into()));
             }
@@ -1010,11 +1041,90 @@ impl Database {
                 );
             }
 
+            if let Ok(Some(height)) = row.try_get::<Option<f64>, _>("height_cm") {
+                profile.insert(
+                    "height_cm".to_string(),
+                    serde_json::Value::Number(
+                        serde_json::Number::from_f64(height).unwrap_or_else(|| 0.into()),
+                    ),
+                );
+            }
+
             if let Ok(fitness_level) = row.try_get::<String, _>("fitness_level") {
                 profile.insert(
                     "fitness_level".to_string(),
                     serde_json::Value::String(fitness_level),
                 );
+            }
+
+            if let Ok(Some(primary_sports)) = row.try_get::<Option<String>, _>("primary_sports") {
+                if let Ok(sports_json) = serde_json::from_str::<serde_json::Value>(&primary_sports)
+                {
+                    profile.insert("primary_sports".to_string(), sports_json);
+                }
+            }
+
+            if let Ok(Some(training_history)) =
+                row.try_get::<Option<i64>, _>("training_history_months")
+            {
+                profile.insert(
+                    "training_history_months".to_string(),
+                    serde_json::Value::Number(training_history.into()),
+                );
+            }
+
+            if let Ok(Some(units)) = row.try_get::<Option<String>, _>("preferred_units") {
+                profile.insert(
+                    "preferred_units".to_string(),
+                    serde_json::Value::String(units),
+                );
+            }
+
+            if let Ok(Some(training_focus)) = row.try_get::<Option<String>, _>("training_focus") {
+                if let Ok(focus_json) = serde_json::from_str::<serde_json::Value>(&training_focus) {
+                    profile.insert("training_focus".to_string(), focus_json);
+                }
+            }
+
+            if let Ok(Some(injury_history)) = row.try_get::<Option<String>, _>("injury_history") {
+                if let Ok(injury_json) = serde_json::from_str::<serde_json::Value>(&injury_history)
+                {
+                    profile.insert("injury_history".to_string(), injury_json);
+                }
+            }
+
+            if let Ok(Some(hours)) = row.try_get::<Option<f64>, _>("hours_per_week") {
+                profile.insert(
+                    "hours_per_week".to_string(),
+                    serde_json::Value::Number(
+                        serde_json::Number::from_f64(hours).unwrap_or_else(|| 0.into()),
+                    ),
+                );
+            }
+
+            if let Ok(Some(preferred_days)) = row.try_get::<Option<String>, _>("preferred_days") {
+                if let Ok(days_json) = serde_json::from_str::<serde_json::Value>(&preferred_days) {
+                    profile.insert("preferred_days".to_string(), days_json);
+                }
+            }
+
+            if let Ok(Some(duration)) = row.try_get::<Option<i64>, _>("preferred_duration_minutes")
+            {
+                profile.insert(
+                    "preferred_duration_minutes".to_string(),
+                    serde_json::Value::Number(duration.into()),
+                );
+            }
+
+            // Merge in extra_data
+            if let Ok(extra_data_str) = row.try_get::<String, _>("extra_data") {
+                if let Ok(serde_json::Value::Object(extra_obj)) =
+                    serde_json::from_str::<serde_json::Value>(&extra_data_str)
+                {
+                    for (key, value) in extra_obj {
+                        profile.insert(key, value);
+                    }
+                }
             }
 
             Ok(Some(serde_json::Value::Object(profile)))
@@ -1053,6 +1163,7 @@ impl Database {
         .bind(
             goal_data
                 .get("goal_type")
+                .or_else(|| goal_data.get("type"))
                 .and_then(|v| v.as_str())
                 .unwrap_or("custom"),
         )
@@ -1060,18 +1171,21 @@ impl Database {
         .bind(
             goal_data
                 .get("target_value")
+                .or_else(|| goal_data.get("target"))
                 .and_then(|v| v.as_f64())
                 .unwrap_or(0.0),
         )
         .bind(
             goal_data
                 .get("target_date")
+                .or_else(|| goal_data.get("deadline"))
                 .and_then(|v| v.as_str())
                 .unwrap_or(&now),
         )
         .bind(
             goal_data
                 .get("current_value")
+                .or_else(|| goal_data.get("current"))
                 .and_then(|v| v.as_f64())
                 .unwrap_or(0.0),
         )
@@ -1104,23 +1218,32 @@ impl Database {
             if let Ok(goal_type) = row.try_get::<String, _>("goal_type") {
                 goal.insert(
                     "goal_type".to_string(),
-                    serde_json::Value::String(goal_type),
+                    serde_json::Value::String(goal_type.clone()),
                 );
+                // Also provide as 'type' for compatibility with tests
+                goal.insert("type".to_string(), serde_json::Value::String(goal_type));
             }
             if let Ok(target_value) = row.try_get::<f64, _>("target_value") {
+                let target_num =
+                    serde_json::Number::from_f64(target_value).unwrap_or_else(|| 0.into());
                 goal.insert(
                     "target_value".to_string(),
-                    serde_json::Value::Number(
-                        serde_json::Number::from_f64(target_value).unwrap_or_else(|| 0.into()),
-                    ),
+                    serde_json::Value::Number(target_num.clone()),
                 );
+                // Also provide as 'target' for compatibility with tests
+                goal.insert("target".to_string(), serde_json::Value::Number(target_num));
             }
             if let Ok(current_value) = row.try_get::<f64, _>("current_value") {
+                let current_num =
+                    serde_json::Number::from_f64(current_value).unwrap_or_else(|| 0.into());
                 goal.insert(
                     "current_value".to_string(),
-                    serde_json::Value::Number(
-                        serde_json::Number::from_f64(current_value).unwrap_or_else(|| 0.into()),
-                    ),
+                    serde_json::Value::Number(current_num.clone()),
+                );
+                // Also provide as 'current' for compatibility with tests
+                goal.insert(
+                    "current".to_string(),
+                    serde_json::Value::Number(current_num),
                 );
             }
             if let Ok(status) = row.try_get::<String, _>("status") {
@@ -2247,41 +2370,28 @@ impl Database {
 
     /// Get system-wide usage statistics
     pub async fn get_system_stats(&self) -> Result<(u64, u64)> {
-        let now = Utc::now();
-        let today_start = now.date_naive().and_hms_opt(0, 0, 0).unwrap().and_utc();
-        let month_start = now
-            .date_naive()
-            .with_day(1)
-            .unwrap()
-            .and_hms_opt(0, 0, 0)
-            .unwrap()
-            .and_utc();
-
-        // Get today's total requests
-        let today_count: i64 = sqlx::query_scalar(
+        // Get total user count
+        let user_count: i64 = sqlx::query_scalar(
             r#"
             SELECT COUNT(*) 
-            FROM api_key_usage
-            WHERE timestamp >= ?1
+            FROM users
             "#,
         )
-        .bind(today_start.to_rfc3339())
         .fetch_one(&self.pool)
         .await?;
 
-        // Get this month's total requests
-        let month_count: i64 = sqlx::query_scalar(
+        // Get total API key count
+        let api_key_count: i64 = sqlx::query_scalar(
             r#"
             SELECT COUNT(*) 
-            FROM api_key_usage
-            WHERE timestamp >= ?1
+            FROM api_keys
+            WHERE is_active = true
             "#,
         )
-        .bind(month_start.to_rfc3339())
         .fetch_one(&self.pool)
         .await?;
 
-        Ok((today_count as u64, month_count as u64))
+        Ok((user_count as u64, api_key_count as u64))
     }
 
     /// Parse API key row from database

@@ -69,6 +69,10 @@ path = "src/bin/test_oauth_callback.rs"
 name = "serve-docs"
 path = "src/bin/serve_docs.rs"
 
+[features]
+default = ["sqlite"]
+sqlite = []
+postgresql = ["sqlx/postgres"]
 
 [dependencies]
 tokio = { version = "1.45", features = ["full"] }

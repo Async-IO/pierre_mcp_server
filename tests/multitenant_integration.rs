@@ -1,7 +1,8 @@
 use anyhow::Result;
 use pierre_mcp_server::{
     auth::{generate_jwt_secret, AuthManager},
-    database::{generate_encryption_key, Database},
+    database::generate_encryption_key,
+    database_plugins::{factory::Database, DatabaseProvider},
     routes::{AuthRoutes, LoginRequest, RegisterRequest},
 };
 use tempfile::TempDir;

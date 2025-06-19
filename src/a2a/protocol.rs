@@ -96,7 +96,7 @@ pub enum TaskStatus {
 /// A2A Protocol Server implementation
 pub struct A2AServer {
     pub version: String,
-    pub database: Option<std::sync::Arc<crate::database::Database>>,
+    pub database: Option<std::sync::Arc<crate::database_plugins::factory::Database>>,
     pub intelligence: Option<std::sync::Arc<crate::intelligence::ActivityIntelligence>>,
 }
 
@@ -110,7 +110,7 @@ impl A2AServer {
     }
 
     pub fn new_with_dependencies(
-        database: std::sync::Arc<crate::database::Database>,
+        database: std::sync::Arc<crate::database_plugins::factory::Database>,
         intelligence: std::sync::Arc<crate::intelligence::ActivityIntelligence>,
     ) -> Self {
         Self {

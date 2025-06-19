@@ -9,7 +9,7 @@
 use anyhow::Result;
 use pierre_mcp_server::auth::AuthManager;
 use pierre_mcp_server::database::generate_encryption_key;
-use pierre_mcp_server::database::Database;
+use pierre_mcp_server::database_plugins::factory::Database;
 use pierre_mcp_server::routes::{AuthRoutes, LoginRequest, OAuthRoutes, RegisterRequest};
 use uuid::Uuid;
 

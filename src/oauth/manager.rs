@@ -10,7 +10,7 @@
 //! Handles the complete OAuth flow from authorization to token management.
 
 use super::{CallbackResponse, OAuthError, OAuthProvider, ProviderRegistry, TokenData};
-use crate::database::Database;
+use crate::database_plugins::{factory::Database, DatabaseProvider};
 use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;

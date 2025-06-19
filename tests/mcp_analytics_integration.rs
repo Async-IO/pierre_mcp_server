@@ -14,7 +14,8 @@
 
 use anyhow::Result;
 use pierre_mcp_server::auth::AuthManager;
-use pierre_mcp_server::database::{generate_encryption_key, Database};
+use pierre_mcp_server::database::generate_encryption_key;
+use pierre_mcp_server::database_plugins::factory::Database;
 use pierre_mcp_server::mcp::multitenant::MultiTenantMcpServer;
 use pierre_mcp_server::routes::{AuthRoutes, LoginRequest, RegisterRequest};
 use serde_json::{json, Value};

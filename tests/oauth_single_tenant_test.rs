@@ -8,7 +8,8 @@
 //!
 //! Tests for OAuth functionality in single-tenant mode.
 
-use pierre_mcp_server::database::{generate_encryption_key, Database};
+use pierre_mcp_server::database::generate_encryption_key;
+use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
 use pierre_mcp_server::models::User;
 use pierre_mcp_server::oauth::{manager::OAuthManager, providers::StravaOAuthProvider};
 use std::sync::Arc;
@@ -19,7 +20,7 @@ use uuid::Uuid;
 async fn test_single_tenant_oauth_flow() {
     // Create in-memory database for testing
     let database = Arc::new(
-        Database::new(":memory:", generate_encryption_key().to_vec())
+        Database::new("sqlite::memory:", generate_encryption_key().to_vec())
             .await
             .unwrap(),
     );
@@ -52,7 +53,7 @@ async fn test_single_tenant_oauth_flow() {
 async fn test_oauth_callback_invalid_state() {
     // Create in-memory database for testing
     let database = Arc::new(
-        Database::new(":memory:", generate_encryption_key().to_vec())
+        Database::new("sqlite::memory:", generate_encryption_key().to_vec())
             .await
             .unwrap(),
     );
@@ -77,7 +78,7 @@ async fn test_oauth_callback_invalid_state() {
 async fn test_connection_status_single_tenant() {
     // Create in-memory database for testing
     let database = Arc::new(
-        Database::new(":memory:", generate_encryption_key().to_vec())
+        Database::new("sqlite::memory:", generate_encryption_key().to_vec())
             .await
             .unwrap(),
     );
@@ -125,7 +126,7 @@ async fn test_connection_status_single_tenant() {
 async fn test_token_refresh() {
     // Create in-memory database for testing
     let database = Arc::new(
-        Database::new(":memory:", generate_encryption_key().to_vec())
+        Database::new("sqlite::memory:", generate_encryption_key().to_vec())
             .await
             .unwrap(),
     );
@@ -179,7 +180,7 @@ async fn test_token_refresh() {
 async fn test_disconnect_provider() {
     // Create in-memory database for testing
     let database = Arc::new(
-        Database::new(":memory:", generate_encryption_key().to_vec())
+        Database::new("sqlite::memory:", generate_encryption_key().to_vec())
             .await
             .unwrap(),
     );
@@ -236,7 +237,7 @@ async fn test_disconnect_provider() {
 async fn test_multi_provider_oauth() {
     // Create in-memory database for testing
     let database = Arc::new(
-        Database::new(":memory:", generate_encryption_key().to_vec())
+        Database::new("sqlite::memory:", generate_encryption_key().to_vec())
             .await
             .unwrap(),
     );

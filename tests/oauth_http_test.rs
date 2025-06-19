@@ -8,7 +8,8 @@
 //!
 //! Tests for OAuth HTTP callback endpoints in single-tenant mode.
 
-use pierre_mcp_server::database::{generate_encryption_key, Database};
+use pierre_mcp_server::database::generate_encryption_key;
+use pierre_mcp_server::database_plugins::factory::Database;
 use pierre_mcp_server::oauth::manager::OAuthManager;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -199,7 +200,7 @@ async fn test_multiple_provider_endpoints() {
 async fn test_oauth_state_validation() {
     // Create in-memory database for testing
     let database = Arc::new(
-        Database::new(":memory:", generate_encryption_key().to_vec())
+        Database::new("sqlite::memory:", generate_encryption_key().to_vec())
             .await
             .unwrap(),
     );
@@ -236,7 +237,7 @@ async fn test_oauth_state_validation() {
 async fn test_concurrent_oauth_requests() {
     // Create in-memory database for testing
     let database = Arc::new(
-        Database::new(":memory:", generate_encryption_key().to_vec())
+        Database::new("sqlite::memory:", generate_encryption_key().to_vec())
             .await
             .unwrap(),
     );

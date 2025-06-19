@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: pierre
+      POSTGRES_PASSWORD: pierre_dev_password
+      POSTGRES_DB: pierre_mcp_server
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pierre -d pierre_mcp_server"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Test runner service for integration testing
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://pierre:pierre_dev_password@postgres:5432/pierre_mcp_server
+      ENCRYPTION_KEY: YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXowMTIzNDU2  # Base64 encoded 32-byte key
+      RUST_LOG: debug
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: ["cargo", "test", "--features", "postgresql", "--", "--test-threads=1"]
+
+  # Optional: pgAdmin for database management
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@pierre.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "8080:80"
+    depends_on:
+      - postgres
+    profiles:
+      - admin
+
+volumes:
+  postgres_data:

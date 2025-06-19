@@ -10,7 +10,8 @@ use chrono::{Datelike, Duration, Timelike, Utc};
 use pierre_mcp_server::{
     api_keys::{ApiKey, ApiKeyManager, ApiKeyTier, ApiKeyUsage},
     auth::{AuthManager, McpAuthMiddleware},
-    database::{generate_encryption_key, Database},
+    database::generate_encryption_key,
+    database_plugins::{factory::Database, DatabaseProvider},
     models::User,
 };
 use std::sync::Arc;

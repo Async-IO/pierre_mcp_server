@@ -1,0 +1,272 @@
+//! Database abstraction layer for Pierre MCP Server
+//!
+//! This module provides a plugin architecture for database support,
+//! allowing easy switching between SQLite (local) and PostgreSQL (cloud).
+
+use crate::a2a::auth::A2AClient;
+use crate::a2a::client::A2ASession;
+use crate::a2a::protocol::{A2ATask, TaskStatus};
+use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
+use crate::models::{DecryptedToken, User};
+use anyhow::Result;
+use async_trait::async_trait;
+use chrono::{DateTime, Utc};
+use serde_json::Value;
+use uuid::Uuid;
+
+// Re-export the A2A types from the main database module
+pub use crate::database::{A2AUsage, A2AUsageStats};
+
+pub mod factory;
+pub mod sqlite;
+
+#[cfg(feature = "postgresql")]
+pub mod postgres;
+
+/// Core database abstraction trait
+///
+/// All database implementations must implement this trait to provide
+/// a consistent interface for the application layer.
+#[async_trait]
+pub trait DatabaseProvider: Send + Sync + Clone {
+    /// Create a new database connection with encryption key
+    async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self>
+    where
+        Self: Sized;
+
+    /// Run database migrations to set up schema
+    async fn migrate(&self) -> Result<()>;
+
+    // ================================
+    // User Management
+    // ================================
+
+    /// Create a new user account
+    async fn create_user(&self, user: &User) -> Result<Uuid>;
+
+    /// Get user by ID
+    async fn get_user(&self, user_id: Uuid) -> Result<Option<User>>;
+
+    /// Get user by email address
+    async fn get_user_by_email(&self, email: &str) -> Result<Option<User>>;
+
+    /// Get user by email (required - fails if not found)
+    async fn get_user_by_email_required(&self, email: &str) -> Result<User>;
+
+    /// Update user's last active timestamp
+    async fn update_last_active(&self, user_id: Uuid) -> Result<()>;
+
+    /// Get total number of users
+    async fn get_user_count(&self) -> Result<i64>;
+
+    // ================================
+    // OAuth Token Management
+    // ================================
+
+    /// Update Strava OAuth tokens for a user
+    async fn update_strava_token(
+        &self,
+        user_id: Uuid,
+        access_token: &str,
+        refresh_token: &str,
+        expires_at: DateTime<Utc>,
+        scope: String,
+    ) -> Result<()>;
+
+    /// Get Strava tokens for a user
+    async fn get_strava_token(&self, user_id: Uuid) -> Result<Option<DecryptedToken>>;
+
+    /// Update Fitbit OAuth tokens for a user
+    async fn update_fitbit_token(
+        &self,
+        user_id: Uuid,
+        access_token: &str,
+        refresh_token: &str,
+        expires_at: DateTime<Utc>,
+        scope: String,
+    ) -> Result<()>;
+
+    /// Get Fitbit tokens for a user
+    async fn get_fitbit_token(&self, user_id: Uuid) -> Result<Option<DecryptedToken>>;
+
+    /// Clear Strava tokens for a user
+    async fn clear_strava_token(&self, user_id: Uuid) -> Result<()>;
+
+    /// Clear Fitbit tokens for a user
+    async fn clear_fitbit_token(&self, user_id: Uuid) -> Result<()>;
+
+    // ================================
+    // User Profiles & Goals
+    // ================================
+
+    /// Upsert user profile data
+    async fn upsert_user_profile(&self, user_id: Uuid, profile_data: Value) -> Result<()>;
+
+    /// Get user profile data
+    async fn get_user_profile(&self, user_id: Uuid) -> Result<Option<Value>>;
+
+    /// Create a new goal for a user
+    async fn create_goal(&self, user_id: Uuid, goal_data: Value) -> Result<String>;
+
+    /// Get all goals for a user
+    async fn get_user_goals(&self, user_id: Uuid) -> Result<Vec<Value>>;
+
+    /// Update progress on a goal
+    async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> Result<()>;
+
+    // ================================
+    // Insights & Analytics
+    // ================================
+
+    /// Store an AI-generated insight
+    async fn store_insight(&self, user_id: Uuid, insight_data: Value) -> Result<String>;
+
+    /// Get insights for a user
+    async fn get_user_insights(
+        &self,
+        user_id: Uuid,
+        insight_type: Option<&str>,
+        limit: Option<u32>,
+    ) -> Result<Vec<Value>>;
+
+    // ================================
+    // API Key Management
+    // ================================
+
+    /// Create a new API key
+    async fn create_api_key(&self, api_key: &ApiKey) -> Result<()>;
+
+    /// Get API key by its prefix and hash
+    async fn get_api_key_by_prefix(&self, prefix: &str, hash: &str) -> Result<Option<ApiKey>>;
+
+    /// Get all API keys for a user
+    async fn get_user_api_keys(&self, user_id: Uuid) -> Result<Vec<ApiKey>>;
+
+    /// Update API key last used timestamp
+    async fn update_api_key_last_used(&self, api_key_id: &str) -> Result<()>;
+
+    /// Deactivate an API key
+    async fn deactivate_api_key(&self, api_key_id: &str, user_id: Uuid) -> Result<()>;
+
+    /// Clean up expired API keys
+    async fn cleanup_expired_api_keys(&self) -> Result<u64>;
+
+    /// Get expired API keys
+    async fn get_expired_api_keys(&self) -> Result<Vec<ApiKey>>;
+
+    /// Record API key usage
+    async fn record_api_key_usage(&self, usage: &ApiKeyUsage) -> Result<()>;
+
+    /// Get current usage count for an API key
+    async fn get_api_key_current_usage(&self, api_key_id: &str) -> Result<u32>;
+
+    /// Get usage statistics for an API key
+    async fn get_api_key_usage_stats(
+        &self,
+        api_key_id: &str,
+        start_date: DateTime<Utc>,
+        end_date: DateTime<Utc>,
+    ) -> Result<ApiKeyUsageStats>;
+
+    // ================================
+    // Request Logs & System Stats
+    // ================================
+
+    /// Get request logs with filtering options
+    async fn get_request_logs(
+        &self,
+        api_key_id: Option<&str>,
+        start_time: Option<DateTime<Utc>>,
+        end_time: Option<DateTime<Utc>>,
+        status_filter: Option<&str>,
+        tool_filter: Option<&str>,
+    ) -> Result<Vec<crate::dashboard_routes::RequestLog>>;
+
+    /// Get system-wide statistics
+    async fn get_system_stats(&self) -> Result<(u64, u64)>;
+
+    // ================================
+    // A2A (Agent-to-Agent) Support
+    // ================================
+
+    /// Create a new A2A client
+    async fn create_a2a_client(&self, client: &A2AClient, api_key_id: &str) -> Result<String>;
+
+    /// Get A2A client by ID
+    async fn get_a2a_client(&self, client_id: &str) -> Result<Option<A2AClient>>;
+
+    /// Get A2A client by name
+    async fn get_a2a_client_by_name(&self, name: &str) -> Result<Option<A2AClient>>;
+
+    /// List all A2A clients for a user
+    async fn list_a2a_clients(&self, user_id: &Uuid) -> Result<Vec<A2AClient>>;
+
+    /// Create a new A2A session
+    async fn create_a2a_session(
+        &self,
+        client_id: &str,
+        user_id: Option<&Uuid>,
+        granted_scopes: &[String],
+        expires_in_hours: i64,
+    ) -> Result<String>;
+
+    /// Get A2A session by token
+    async fn get_a2a_session(&self, session_token: &str) -> Result<Option<A2ASession>>;
+
+    /// Update A2A session activity timestamp
+    async fn update_a2a_session_activity(&self, session_token: &str) -> Result<()>;
+
+    /// Create a new A2A task
+    async fn create_a2a_task(
+        &self,
+        client_id: &str,
+        session_id: Option<&str>,
+        task_type: &str,
+        input_data: &Value,
+    ) -> Result<String>;
+
+    /// Get A2A task by ID
+    async fn get_a2a_task(&self, task_id: &str) -> Result<Option<A2ATask>>;
+
+    /// Update A2A task status
+    async fn update_a2a_task_status(
+        &self,
+        task_id: &str,
+        status: &TaskStatus,
+        result: Option<&Value>,
+        error: Option<&str>,
+    ) -> Result<()>;
+
+    /// Record A2A usage for analytics
+    async fn record_a2a_usage(&self, usage: &A2AUsage) -> Result<()>;
+
+    /// Get current A2A usage count for a client
+    async fn get_a2a_client_current_usage(&self, client_id: &str) -> Result<u32>;
+
+    /// Get A2A usage statistics for a client
+    async fn get_a2a_usage_stats(
+        &self,
+        client_id: &str,
+        start_date: DateTime<Utc>,
+        end_date: DateTime<Utc>,
+    ) -> Result<A2AUsageStats>;
+
+    /// Get A2A client usage history
+    async fn get_a2a_client_usage_history(
+        &self,
+        client_id: &str,
+        days: u32,
+    ) -> Result<Vec<(DateTime<Utc>, u32, u32)>>;
+
+    // ================================
+    // Analytics & Intelligence
+    // ================================
+
+    /// Get top tools analysis for dashboard
+    async fn get_top_tools_analysis(
+        &self,
+        user_id: Uuid,
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
+    ) -> Result<Vec<crate::dashboard_routes::ToolUsage>>;
+}

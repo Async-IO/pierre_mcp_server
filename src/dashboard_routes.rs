@@ -7,7 +7,7 @@
 //! Dashboard routes for the API Key Management System frontend
 
 use crate::auth::AuthManager;
-use crate::database::Database;
+use crate::database_plugins::{factory::Database, DatabaseProvider};
 use anyhow::Result;
 use chrono::{Datelike, Duration, Timelike, Utc};
 use serde::Serialize;

@@ -1,0 +1,111 @@
+name: Database Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'src/database**'
+      - 'tests/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'src/database**'
+      - 'tests/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  database-matrix-test:
+    name: Database Tests (${{ matrix.backend }})
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        include:
+          - backend: SQLite
+            features: ""
+            database_url: "sqlite::memory:"
+          - backend: PostgreSQL
+            features: "postgresql"
+            database_url: "postgresql://pierre:test_password@localhost:5432/pierre_test"
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: pierre
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: pierre_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+        # Only start PostgreSQL for PostgreSQL tests
+        if: matrix.backend == 'PostgreSQL'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache Cargo dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-cargo-${{ matrix.backend }}-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Wait for PostgreSQL (PostgreSQL only)
+      if: matrix.backend == 'PostgreSQL'
+      run: |
+        echo "Waiting for PostgreSQL to be ready..."
+        timeout 60 bash -c 'until pg_isready -h localhost -p 5432 -U pierre; do sleep 2; done'
+        echo "PostgreSQL is ready!"
+
+    - name: Test database connection (PostgreSQL only)
+      if: matrix.backend == 'PostgreSQL'
+      run: |
+        PGPASSWORD=test_password psql -h localhost -U pierre -d pierre_test -c "SELECT 'PostgreSQL connection successful';"
+
+    - name: Run database plugin tests
+      run: |
+        if [ "${{ matrix.features }}" = "" ]; then
+          echo "🔧 Testing ${{ matrix.backend }} (default features)"
+          cargo test database_plugins_test --verbose
+        else
+          echo "🔧 Testing ${{ matrix.backend }} (features: ${{ matrix.features }})"
+          cargo test --features ${{ matrix.features }} database_plugins_test --verbose -- --test-threads=1
+        fi
+      env:
+        DATABASE_URL: ${{ matrix.database_url }}
+        ENCRYPTION_KEY: YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXowMTIzNDU2
+        RUST_LOG: info
+
+    - name: Run integration tests
+      run: |
+        if [ "${{ matrix.features }}" = "" ]; then
+          echo "🧪 Running integration tests with ${{ matrix.backend }}"
+          cargo test --test oauth_integration --test api_key_integration_test --verbose
+        else
+          echo "🧪 Running integration tests with ${{ matrix.backend }}"
+          cargo test --features ${{ matrix.features }} --test oauth_integration --test api_key_integration_test --verbose -- --test-threads=1
+        fi
+      env:
+        DATABASE_URL: ${{ matrix.database_url }}
+        ENCRYPTION_KEY: YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXowMTIzNDU2
+        RUST_LOG: debug

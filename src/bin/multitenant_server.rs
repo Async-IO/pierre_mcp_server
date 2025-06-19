@@ -15,7 +15,8 @@ use pierre_mcp_server::{
     auth::{generate_jwt_secret, AuthManager},
     config::environment::ServerConfig,
     constants::env_config,
-    database::{generate_encryption_key, Database},
+    database::generate_encryption_key,
+    database_plugins::factory::Database,
     health::HealthChecker,
     logging,
     mcp::multitenant::MultiTenantMcpServer,
@@ -125,7 +126,8 @@ async fn main() -> Result<()> {
 
         // Initialize database
         let database = Database::new(&config.database.url, encryption_key.to_vec()).await?;
-        info!("Database initialized successfully");
+        info!("Database initialized successfully: {}", database.backend_info());
+        info!("Database URL: {}", &config.database.url);
 
         // Initialize authentication manager
         let auth_manager =
@@ -260,7 +262,7 @@ async fn handle_oauth_callback(
     provider: &str,
     query: std::collections::HashMap<String, String>,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-    use pierre_mcp_server::{database::Database, oauth::manager::OAuthManager};
+    use pierre_mcp_server::oauth::manager::OAuthManager;
 
     // Extract code and state from query parameters
     let code = query.get("code").ok_or_else(|| {
@@ -324,6 +326,8 @@ async fn handle_oauth_callback(
                 )))
             })?,
     );
+    
+    tracing::info!("OAuth callback handler initialized with: {}", database.backend_info());
 
     // Create OAuth manager and register providers
     let mut oauth_manager = OAuthManager::new(database);

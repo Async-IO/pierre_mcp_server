@@ -10,7 +10,7 @@
 //! that connect to Pierre for agent-to-agent communication.
 
 use crate::a2a::auth::A2AClient;
-use crate::database::Database;
+use crate::database_plugins::{factory::Database, DatabaseProvider};
 use chrono::Timelike;
 use chrono::{DateTime, Datelike, Utc};
 use serde::{Deserialize, Serialize};
@@ -326,13 +326,13 @@ impl A2AClientManager {
         // Get last request from recent usage history
         let recent_usage = self
             .database
-            .get_a2a_client_usage_history(client_id, Some(1))
+            .get_a2a_client_usage_history(client_id, 1)
             .await
             .map_err(|e| {
                 crate::a2a::A2AError::InternalError(format!("Failed to get recent usage: {}", e))
             })?;
 
-        let last_request_at = recent_usage.first().map(|usage| usage.timestamp);
+        let last_request_at = recent_usage.first().map(|usage| usage.0);
 
         // Get total requests (use a long period to approximate total)
         let total_start = chrono::Utc::now() - chrono::Duration::days(365);
@@ -557,11 +557,13 @@ impl A2AClientManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::database::Database;
+    use crate::database_plugins::factory::Database;
 
     async fn create_test_database() -> Arc<Database> {
         // Use in-memory database for tests to avoid file system issues
-        let database = Database::new(":memory:", vec![0u8; 32]).await.unwrap();
+        let database = Database::new("sqlite::memory:", vec![0u8; 32])
+            .await
+            .unwrap();
         Arc::new(database)
     }
 

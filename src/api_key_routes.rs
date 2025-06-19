@@ -14,7 +14,7 @@ use uuid::Uuid;
 use crate::{
     api_keys::{ApiKeyManager, ApiKeyTier, ApiKeyUsageStats, CreateApiKeyRequest},
     auth::AuthManager,
-    database::Database,
+    database_plugins::{factory::Database, DatabaseProvider},
 };
 
 #[derive(Debug, Serialize)]

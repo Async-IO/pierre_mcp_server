@@ -10,7 +10,7 @@
 //! supporting API keys and OAuth2 for agent-to-agent communication.
 
 use crate::auth::{AuthMethod, AuthResult};
-use crate::database::Database;
+use crate::database_plugins::{factory::Database, DatabaseProvider};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use warp::Filter;
@@ -260,11 +260,13 @@ pub fn with_a2a_auth(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::database::Database;
+    use crate::database_plugins::factory::Database;
 
     async fn create_test_database() -> Arc<Database> {
         // Use in-memory database for tests to avoid file system issues
-        let database = Database::new(":memory:", vec![0u8; 32]).await.unwrap();
+        let database = Database::new("sqlite::memory:", vec![0u8; 32])
+            .await
+            .unwrap();
         Arc::new(database)
     }
 
