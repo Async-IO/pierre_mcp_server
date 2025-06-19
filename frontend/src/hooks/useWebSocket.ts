@@ -30,10 +30,34 @@ export function useWebSocket(): UseWebSocketReturn {
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastConnectAttemptRef = useRef<number>(0);
   const [, setSubscriptions] = useState<string[]>([]);
 
   const connect = useCallback(() => {
-    if (!token) return;
+    if (!token) {
+      console.log('WebSocket: No token available, skipping connection');
+      return;
+    }
+
+    // Debounce connection attempts (prevent rapid reconnects)
+    const now = Date.now();
+    if (now - lastConnectAttemptRef.current < 1000) {
+      console.log('WebSocket: Debouncing connection attempt');
+      return;
+    }
+    lastConnectAttemptRef.current = now;
+
+    // Don't connect if already connected
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      console.log('WebSocket: Already connected');
+      return;
+    }
+
+    // Don't connect if already connecting
+    if (wsRef.current?.readyState === WebSocket.CONNECTING) {
+      console.log('WebSocket: Already connecting');
+      return;
+    }
 
     try {
       // Use the same host but WebSocket protocol
@@ -41,6 +65,7 @@ export function useWebSocket(): UseWebSocketReturn {
       const wsHost = window.location.hostname === 'localhost' ? 'localhost:8081' : window.location.host;
       const wsUrl = `${wsProtocol}//${wsHost}/ws`;
       
+      console.log('WebSocket: Connecting to', wsUrl);
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
@@ -74,13 +99,18 @@ export function useWebSocket(): UseWebSocketReturn {
         }
       };
 
-      ws.onclose = () => {
-        console.log('WebSocket disconnected');
+      ws.onclose = (event) => {
+        console.log('WebSocket disconnected, code:', event.code, 'reason:', event.reason);
         setIsConnected(false);
-        wsRef.current = null;
         
-        // Reconnect after 5 seconds if we have a token
-        if (token) {
+        // Only clear ref if this is the current connection
+        if (wsRef.current === ws) {
+          wsRef.current = null;
+        }
+        
+        // Only reconnect for unexpected closures (not normal close)
+        if (event.code !== 1000 && token && wsRef.current === null) {
+          console.log('WebSocket: Scheduling reconnect in 5 seconds');
           reconnectTimeoutRef.current = setTimeout(connect, 5000);
         }
       };
@@ -88,6 +118,11 @@ export function useWebSocket(): UseWebSocketReturn {
       ws.onerror = (error) => {
         console.error('WebSocket error:', error);
         setIsConnected(false);
+        
+        // Only set to null if this is the current connection
+        if (wsRef.current === ws) {
+          wsRef.current = null;
+        }
       };
 
     } catch (error) {
@@ -110,38 +145,38 @@ export function useWebSocket(): UseWebSocketReturn {
   };
 
   const disconnect = useCallback(() => {
+    console.log('WebSocket: Disconnecting');
+    
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
     }
     
     if (wsRef.current) {
-      wsRef.current.close();
+      wsRef.current.close(1000, 'User disconnected'); // Normal closure
       wsRef.current = null;
     }
     
+    // Reset connection attempt tracking
+    lastConnectAttemptRef.current = 0;
     setIsConnected(false);
   }, []);
 
   // Connect when we have a token
   useEffect(() => {
-    if (token) {
+    let mounted = true;
+    
+    if (token && mounted) {
       connect();
-    } else {
+    } else if (!token) {
       disconnect();
     }
 
     return () => {
+      mounted = false;
       disconnect();
     };
   }, [token, connect, disconnect]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      disconnect();
-    };
-  }, [disconnect]);
 
   return {
     isConnected,

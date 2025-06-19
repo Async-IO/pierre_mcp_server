@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import RealTimeIndicator from '../RealTimeIndicator'
-import { useWebSocket } from '../../hooks/useWebSocket'
+import { useWebSocketContext } from '../../hooks/useWebSocketContext'
 
-// Mock the useWebSocket hook
-vi.mock('../../hooks/useWebSocket', () => ({
-  useWebSocket: vi.fn()
+// Mock the useWebSocketContext hook
+vi.mock('../../hooks/useWebSocketContext', () => ({
+  useWebSocketContext: vi.fn()
 }))
 
 describe('RealTimeIndicator Component', () => {
@@ -14,9 +14,11 @@ describe('RealTimeIndicator Component', () => {
   })
 
   it('should show disconnected state when not connected', () => {
-    vi.mocked(useWebSocket).mockReturnValue({
+    vi.mocked(useWebSocketContext).mockReturnValue({
       isConnected: false,
-      lastMessage: null
+      lastMessage: null,
+      sendMessage: vi.fn(),
+      subscribe: vi.fn()
     })
 
     render(<RealTimeIndicator />)
@@ -29,9 +31,11 @@ describe('RealTimeIndicator Component', () => {
   })
 
   it('should show connected state when connected', () => {
-    vi.mocked(useWebSocket).mockReturnValue({
+    vi.mocked(useWebSocketContext).mockReturnValue({
       isConnected: true,
-      lastMessage: null
+      lastMessage: null,
+      sendMessage: vi.fn(),
+      subscribe: vi.fn()
     })
 
     render(<RealTimeIndicator />)
@@ -49,9 +53,11 @@ describe('RealTimeIndicator Component', () => {
       requests_today: 150
     }
     
-    vi.mocked(useWebSocket).mockReturnValue({
+    vi.mocked(useWebSocketContext).mockReturnValue({
       isConnected: true,
-      lastMessage: mockMessage
+      lastMessage: mockMessage,
+      sendMessage: vi.fn(),
+      subscribe: vi.fn()
     })
 
     render(<RealTimeIndicator />)
@@ -66,9 +72,11 @@ describe('RealTimeIndicator Component', () => {
       total_requests_today: 500
     }
     
-    vi.mocked(useWebSocket).mockReturnValue({
+    vi.mocked(useWebSocketContext).mockReturnValue({
       isConnected: true,
-      lastMessage: mockMessage
+      lastMessage: mockMessage,
+      sendMessage: vi.fn(),
+      subscribe: vi.fn()
     })
 
     render(<RealTimeIndicator />)
@@ -82,9 +90,11 @@ describe('RealTimeIndicator Component', () => {
       message: 'Authentication successful'
     }
     
-    vi.mocked(useWebSocket).mockReturnValue({
+    vi.mocked(useWebSocketContext).mockReturnValue({
       isConnected: true,
-      lastMessage: mockMessage
+      lastMessage: mockMessage,
+      sendMessage: vi.fn(),
+      subscribe: vi.fn()
     })
 
     render(<RealTimeIndicator />)
@@ -98,9 +108,11 @@ describe('RealTimeIndicator Component', () => {
       message: 'Connection failed'
     }
     
-    vi.mocked(useWebSocket).mockReturnValue({
+    vi.mocked(useWebSocketContext).mockReturnValue({
       isConnected: true,
-      lastMessage: mockMessage
+      lastMessage: mockMessage,
+      sendMessage: vi.fn(),
+      subscribe: vi.fn()
     })
 
     render(<RealTimeIndicator />)
@@ -113,9 +125,11 @@ describe('RealTimeIndicator Component', () => {
       type: 'unknown_type'
     }
     
-    vi.mocked(useWebSocket).mockReturnValue({
+    vi.mocked(useWebSocketContext).mockReturnValue({
       isConnected: true,
-      lastMessage: mockMessage
+      lastMessage: mockMessage,
+      sendMessage: vi.fn(),
+      subscribe: vi.fn()
     })
 
     render(<RealTimeIndicator />)
@@ -124,9 +138,11 @@ describe('RealTimeIndicator Component', () => {
   })
 
   it('should apply custom className', () => {
-    vi.mocked(useWebSocket).mockReturnValue({
+    vi.mocked(useWebSocketContext).mockReturnValue({
       isConnected: true,
-      lastMessage: null
+      lastMessage: null,
+      sendMessage: vi.fn(),
+      subscribe: vi.fn()
     })
 
     const { container } = render(<RealTimeIndicator className="custom-class" />)
@@ -137,9 +153,11 @@ describe('RealTimeIndicator Component', () => {
   })
 
   it('should not display last update info when no message', () => {
-    vi.mocked(useWebSocket).mockReturnValue({
+    vi.mocked(useWebSocketContext).mockReturnValue({
       isConnected: true,
-      lastMessage: null
+      lastMessage: null,
+      sendMessage: vi.fn(),
+      subscribe: vi.fn()
     })
 
     render(<RealTimeIndicator />)

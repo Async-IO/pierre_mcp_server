@@ -66,7 +66,7 @@ export default function ToolUsageBreakdownComponent({
     datasets: [
       {
         label: 'Avg Response Time (ms)',
-        data: toolUsage.map(tool => tool.avg_response_time),
+        data: toolUsage.map(tool => tool.average_response_time),
         backgroundColor: 'rgba(37, 99, 235, 0.6)',
         borderColor: 'rgb(37, 99, 235)',
         borderWidth: 1,
@@ -85,7 +85,9 @@ export default function ToolUsageBreakdownComponent({
         callbacks: {
           label: function(context: { label: string; dataIndex: number }) {
             const tool = toolUsage[context.dataIndex];
-            return `${context.label}: ${tool.request_count} requests (${tool.percentage_of_total.toFixed(1)}%)`;
+            const totalRequests = toolUsage.reduce((sum, t) => sum + t.request_count, 0);
+            const percentage = totalRequests > 0 ? (tool.request_count / totalRequests) * 100 : 0;
+            return `${context.label}: ${tool.request_count} requests (${percentage.toFixed(1)}%)`;
           }
         }
       }
@@ -200,21 +202,30 @@ export default function ToolUsageBreakdownComponent({
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {tool.avg_response_time.toFixed(0)}ms
+                    {tool.average_response_time.toFixed(0)}ms
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                      tool.error_count === 0 
-                        ? 'bg-green-100 text-green-800'
-                        : tool.error_count < 10
-                        ? 'bg-yellow-100 text-yellow-800'
-                        : 'bg-red-100 text-red-800'
-                    }`}>
-                      {tool.error_count}
-                    </span>
+                    {(() => {
+                      const errorCount = Math.round(tool.request_count * (100 - tool.success_rate) / 100);
+                      return (
+                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                          errorCount === 0 
+                            ? 'bg-green-100 text-green-800'
+                            : errorCount < 10
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {errorCount}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {tool.percentage_of_total.toFixed(1)}%
+                    {(() => {
+                      const totalRequests = toolUsage?.reduce((sum, t) => sum + t.request_count, 0) || 1;
+                      const percentage = (tool.request_count / totalRequests) * 100;
+                      return percentage.toFixed(1);
+                    })()}%
                   </td>
                 </tr>
               ))}
@@ -246,7 +257,7 @@ export default function ToolUsageBreakdownComponent({
         </div>
         <div className="stat-card">
           <div className="text-2xl font-bold text-gray-700">
-            {(toolUsage.reduce((sum, tool) => sum + tool.avg_response_time * tool.request_count, 0) / 
+            {(toolUsage.reduce((sum, tool) => sum + tool.average_response_time * tool.request_count, 0) / 
              toolUsage.reduce((sum, tool) => sum + tool.request_count, 0)).toFixed(0)}ms
           </div>
           <div className="text-sm text-gray-600">Avg Response Time</div>

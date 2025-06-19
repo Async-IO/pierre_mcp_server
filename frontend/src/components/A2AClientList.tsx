@@ -139,18 +139,20 @@ export default function A2AClientList({ onCreateClient }: A2AClientListProps) {
 
   if (!clients || clients.length === 0) {
     return (
-      <Card>
-        <div className="text-center py-12">
-          <div className="text-6xl mb-4">🤖</div>
-          <h3 className="text-lg font-medium text-pierre-gray-900 mb-2">No A2A Clients</h3>
-          <p className="text-pierre-gray-600 mb-6">
-            You haven't registered any Agent-to-Agent clients yet. Create your first A2A client to enable agent communication.
-          </p>
-          <Button onClick={onCreateClient}>
-            Register A2A Client
-          </Button>
-        </div>
-      </Card>
+      <div className="text-center py-16 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+        <div className="text-6xl mb-4 text-gray-400">🤖</div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">No Connected Apps Yet</h3>
+        <p className="text-gray-600 mb-6 max-w-md mx-auto">
+          Register your first app to enable secure agent-to-agent communication with AI assistants and third-party integrations.
+        </p>
+        <Button 
+          onClick={onCreateClient}
+          className="inline-flex items-center space-x-2"
+        >
+          <span>+</span>
+          <span>Register Your First App</span>
+        </Button>
+      </div>
     );
   }
 

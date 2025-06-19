@@ -258,9 +258,17 @@ async fn test_goal_management_workflow() -> Result<()> {
     let server = MultiTenantMcpServer::new(database, auth_manager);
     let server_handle = tokio::spawn(async move { server.run(test_port).await });
 
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    // Wait longer for server to start and retry connection
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
-    let mut client = McpTestClient::connect(test_port).await?;
+    let mut client = match McpTestClient::connect(test_port).await {
+        Ok(client) => client,
+        Err(_) => {
+            // Retry after additional wait
+            tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+            McpTestClient::connect(test_port).await?
+        }
+    };
     client.initialize().await?;
     client.set_token(jwt_token);
 
