@@ -86,7 +86,7 @@ cargo test database_plugins_test
 2. Run tests:
 ```bash
 export DATABASE_URL="postgresql://pierre:pierre_dev_password@localhost:5432/pierre_mcp_server"
-export ENCRYPTION_KEY="YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXowMTIzNDU2"
+export ENCRYPTION_KEY="$(openssl rand -base64 32)"
 cargo test --features postgresql database_plugins_test
 ```
 
