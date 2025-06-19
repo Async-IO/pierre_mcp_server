@@ -11,7 +11,7 @@ env:
 
 jobs:
   backend-tests:
-    name: Backend Tests
+    name: Backend Tests (SQLite)
     runs-on: ubuntu-latest
     
     steps:
@@ -40,8 +40,73 @@ jobs:
       - name: Lint with Clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
 
-      - name: Run backend tests
+      - name: Run backend tests (SQLite)
         run: cargo test --verbose
+        env:
+          DATABASE_URL: sqlite::memory:
+          ENCRYPTION_KEY: YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXowMTIzNDU2
+
+  postgres-tests:
+    name: Backend Tests (PostgreSQL)
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: pierre
+          POSTGRES_PASSWORD: ci_test_password
+          POSTGRES_DB: pierre_mcp_server
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-postgres-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Wait for PostgreSQL
+        run: |
+          echo "🐘 Waiting for PostgreSQL to be ready..."
+          timeout 60 bash -c 'until pg_isready -h localhost -p 5432 -U pierre; do sleep 2; done'
+          echo "✅ PostgreSQL is ready!"
+
+      - name: Verify PostgreSQL connection
+        run: |
+          echo "🔧 Testing PostgreSQL connection..."
+          PGPASSWORD=ci_test_password psql -h localhost -U pierre -d pierre_mcp_server -c "SELECT version();"
+
+      - name: Run database plugin tests (PostgreSQL)
+        run: cargo test --features postgresql database_plugins_test --verbose -- --test-threads=1
+        env:
+          DATABASE_URL: postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server
+          ENCRYPTION_KEY: YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXowMTIzNDU2
+          RUST_LOG: info
+
+      - name: Run all tests (PostgreSQL)
+        run: cargo test --features postgresql --verbose -- --test-threads=1
+        env:
+          DATABASE_URL: postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server
+          ENCRYPTION_KEY: YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXowMTIzNDU2
+          RUST_LOG: debug
 
   frontend-tests:
     name: Frontend Tests

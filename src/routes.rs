@@ -6,7 +6,11 @@
 
 //! HTTP routes for user authentication and OAuth flows in multi-tenant mode
 
-use crate::{auth::AuthManager, database::Database, models::User};
+use crate::{
+    auth::AuthManager,
+    database_plugins::{factory::Database, DatabaseProvider},
+    models::User,
+};
 use anyhow::Result;
 use base64::{engine::general_purpose, Engine};
 use serde::{Deserialize, Serialize};

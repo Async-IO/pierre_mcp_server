@@ -93,8 +93,11 @@ pub mod a2a;
 /// HTTP routes for A2A protocol endpoints
 pub mod a2a_routes;
 
-/// Multi-tenant database management
+/// Multi-tenant database management (legacy)
 pub mod database;
+
+/// Database abstraction layer with plugin support  
+pub mod database_plugins;
 
 /// Authentication and session management
 pub mod auth;

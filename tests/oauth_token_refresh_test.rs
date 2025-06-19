@@ -8,7 +8,8 @@
 //!
 //! Tests for automatic token refresh in Universal Tool Executor.
 
-use pierre_mcp_server::database::{generate_encryption_key, Database};
+use pierre_mcp_server::database::generate_encryption_key;
+use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
 use pierre_mcp_server::intelligence::{
     ActivityIntelligence, ContextualFactors, PerformanceMetrics, TimeOfDay, TrendDirection,
     TrendIndicators,
@@ -22,7 +23,7 @@ use uuid::Uuid;
 /// Create a test UniversalToolExecutor with in-memory database
 async fn create_test_executor() -> (Arc<UniversalToolExecutor>, Arc<Database>) {
     let database = Arc::new(
-        Database::new(":memory:", generate_encryption_key().to_vec())
+        Database::new("sqlite::memory:", generate_encryption_key().to_vec())
             .await
             .unwrap(),
     );

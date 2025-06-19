@@ -8,7 +8,8 @@
 
 use pierre_mcp_server::{
     auth::AuthManager,
-    database::{generate_encryption_key, Database},
+    database::generate_encryption_key,
+    database_plugins::factory::Database,
     routes::{AuthRoutes, LoginRequest, RegisterRequest},
 };
 

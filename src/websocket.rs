@@ -10,7 +10,7 @@
 //! and system metrics via WebSocket connections.
 
 use crate::auth::{AuthManager, AuthResult, McpAuthMiddleware};
-use crate::database::Database;
+use crate::database_plugins::{factory::Database, DatabaseProvider};
 use anyhow::Result;
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};

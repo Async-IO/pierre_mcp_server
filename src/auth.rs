@@ -10,7 +10,7 @@
 //! for the multi-tenant Pierre MCP Server.
 
 use crate::api_keys::{ApiKeyManager, RateLimitStatus};
-use crate::database::Database;
+use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::models::{AuthRequest, AuthResponse, User, UserSession};
 use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
@@ -638,7 +638,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_mcp_auth_middleware() {
-        use crate::database::{generate_encryption_key, Database};
+        use crate::database::generate_encryption_key;
+        use crate::database_plugins::factory::Database;
         use std::sync::Arc;
 
         let auth_manager = create_auth_manager();
@@ -667,7 +668,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_mcp_auth_middleware_invalid_header() {
-        use crate::database::{generate_encryption_key, Database};
+        use crate::database::generate_encryption_key;
+        use crate::database_plugins::factory::Database;
         use std::sync::Arc;
 
         let auth_manager = create_auth_manager();
@@ -692,7 +694,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_provider_access_check() {
-        use crate::database::{generate_encryption_key, Database};
+        use crate::database::generate_encryption_key;
+        use crate::database_plugins::factory::Database;
         use std::sync::Arc;
 
         let auth_manager = create_auth_manager();

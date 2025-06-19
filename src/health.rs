@@ -6,7 +6,7 @@
 
 //! Health check endpoints and monitoring utilities
 
-use crate::database::Database;
+use crate::database_plugins::{factory::Database, DatabaseProvider};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -357,7 +357,8 @@ impl HealthChecker {
         let query_duration = start.elapsed().as_millis() as u64;
 
         Ok(serde_json::json!({
-            "type": "sqlite",
+            "backend": format!("{:?}", self.database.database_type()),
+            "backend_info": self.database.backend_info(),
             "query_duration_ms": query_duration,
             "status": "connected",
             "user_count": user_count

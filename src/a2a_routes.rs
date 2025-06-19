@@ -15,7 +15,7 @@ use crate::a2a::{
     A2AError,
 };
 use crate::auth::AuthManager;
-use crate::database::Database;
+use crate::database_plugins::factory::Database;
 use crate::intelligence::ActivityIntelligence;
 use crate::protocols::universal::{UniversalRequest, UniversalToolExecutor};
 use anyhow::Result;

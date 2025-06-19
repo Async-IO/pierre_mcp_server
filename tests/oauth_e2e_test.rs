@@ -7,8 +7,7 @@
 //! End-to-end tests for OAuth flow with MCP integration
 
 use pierre_mcp_server::{
-    auth::AuthManager,
-    database::{generate_encryption_key, Database},
+    auth::AuthManager, database::generate_encryption_key, database_plugins::factory::Database,
     mcp::multitenant::MultiTenantMcpServer,
 };
 use serde_json::json;

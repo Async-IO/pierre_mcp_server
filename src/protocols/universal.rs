@@ -11,7 +11,7 @@
 
 #![allow(clippy::single_match)]
 
-use crate::database::Database;
+use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::intelligence::activity_analyzer::ActivityAnalyzerTrait;
 use crate::intelligence::goal_engine::GoalEngineTrait;
 use crate::intelligence::performance_analyzer::PerformanceAnalyzerTrait;
@@ -2764,11 +2764,15 @@ impl UniversalToolExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::database::Database;
+    use crate::database_plugins::factory::Database;
 
     async fn create_test_executor() -> UniversalToolExecutor {
         // Use in-memory database for tests to avoid file system issues
-        let database = Arc::new(Database::new(":memory:", vec![0u8; 32]).await.unwrap());
+        let database = Arc::new(
+            Database::new("sqlite::memory:", vec![0u8; 32])
+                .await
+                .unwrap(),
+        );
         let intelligence = Arc::new(ActivityIntelligence::new(
             "Test intelligence".to_string(),
             vec![],

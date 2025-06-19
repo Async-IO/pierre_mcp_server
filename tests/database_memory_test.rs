@@ -7,7 +7,8 @@
 //! Tests to ensure in-memory databases don't create physical files
 
 use anyhow::Result;
-use pierre_mcp_server::database::{generate_encryption_key, Database};
+use pierre_mcp_server::database::generate_encryption_key;
+use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
 use std::fs;
 
 #[tokio::test]

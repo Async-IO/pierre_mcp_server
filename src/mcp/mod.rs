@@ -22,7 +22,7 @@ use crate::constants::{
     protocol,
     protocol::{JSONRPC_VERSION, SERVER_VERSION},
 };
-use crate::database::Database;
+use crate::database_plugins::factory::Database;
 use crate::intelligence::{
     ActivityIntelligence, ContextualFactors, PerformanceMetrics, TimeOfDay, TrendDirection,
     TrendIndicators,

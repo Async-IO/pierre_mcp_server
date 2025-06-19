@@ -15,7 +15,7 @@ use crate::auth::{AuthManager, AuthResult, McpAuthMiddleware};
 use crate::config::FitnessConfig;
 use crate::constants::{errors::*, json_fields::*, protocol, protocol::*, tools::*};
 use crate::dashboard_routes::DashboardRoutes;
-use crate::database::Database;
+use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::intelligence::insights::ActivityContext;
 use crate::intelligence::weather::WeatherService;
 use crate::intelligence::ActivityAnalyzer;
