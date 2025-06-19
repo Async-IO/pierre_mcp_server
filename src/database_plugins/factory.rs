@@ -9,7 +9,7 @@ use crate::a2a::client::A2ASession;
 use crate::a2a::protocol::{A2ATask, TaskStatus};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use tracing::{info, debug};
+use tracing::{debug, info};
 
 #[cfg(feature = "postgresql")]
 use super::postgres::PostgresDatabase;
@@ -52,23 +52,17 @@ impl Database {
     /// Get detailed database information for logging/monitoring
     pub fn info_summary(&self) -> String {
         match self {
-            Database::SQLite(_) => {
-                format!(
-                    "Database Backend: SQLite\n\
+            Database::SQLite(_) => "Database Backend: SQLite\n\
                      Type: Embedded file-based database\n\
                      Use Case: Local development and testing\n\
                      Features: Zero-configuration, serverless, lightweight"
-                )
-            }
+                .to_string(),
             #[cfg(feature = "postgresql")]
-            Database::PostgreSQL(_) => {
-                format!(
-                    "Database Backend: PostgreSQL\n\
+            Database::PostgreSQL(_) => "Database Backend: PostgreSQL\n\
                      Type: Client-server relational database\n\
                      Use Case: Production and cloud deployments\n\
                      Features: Concurrent access, advanced queries, scalability"
-                )
-            }
+                .to_string(),
         }
     }
 
@@ -94,7 +88,8 @@ impl Database {
             }
             #[cfg(not(feature = "postgresql"))]
             DatabaseType::PostgreSQL => {
-                let err_msg = "PostgreSQL support not enabled. Enable the 'postgresql' feature flag.";
+                let err_msg =
+                    "PostgreSQL support not enabled. Enable the 'postgresql' feature flag.";
                 tracing::error!("❌ {}", err_msg);
                 Err(anyhow!(err_msg))
             }
