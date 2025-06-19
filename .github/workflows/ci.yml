@@ -43,8 +43,8 @@ jobs:
       - name: Run backend tests (SQLite)
         run: cargo test --verbose
         env:
-          DATABASE_URL: sqlite::memory:
-          ENCRYPTION_KEY: YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXowMTIzNDU2
+          DATABASE_URL: "sqlite::memory:"
+          ENCRYPTION_KEY: "dGVzdF9lbmNyeXB0aW9uX2tleV9mb3JfY2lfb25seV8zMg=="
 
   postgres-tests:
     name: Backend Tests (PostgreSQL)
@@ -97,16 +97,16 @@ jobs:
       - name: Run database plugin tests (PostgreSQL)
         run: cargo test --features postgresql database_plugins_test --verbose -- --test-threads=1
         env:
-          DATABASE_URL: postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server
-          ENCRYPTION_KEY: YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXowMTIzNDU2
-          RUST_LOG: info
+          DATABASE_URL: "postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server"
+          ENCRYPTION_KEY: "dGVzdF9lbmNyeXB0aW9uX2tleV9mb3JfY2lfb25seV8zMg=="
+          RUST_LOG: "info"
 
       - name: Run all tests (PostgreSQL)
         run: cargo test --features postgresql --verbose -- --test-threads=1
         env:
-          DATABASE_URL: postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server
-          ENCRYPTION_KEY: YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXowMTIzNDU2
-          RUST_LOG: debug
+          DATABASE_URL: "postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server"
+          ENCRYPTION_KEY: "dGVzdF9lbmNyeXB0aW9uX2tleV9mb3JfY2lfb25seV8zMg=="
+          RUST_LOG: "debug"
 
   frontend-tests:
     name: Frontend Tests
