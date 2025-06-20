@@ -7,7 +7,7 @@
 //! Fitbit provider implementation for fitness data retrieval.
 //!
 //! This module provides integration with the Fitbit Web API, supporting:
-//! - OAuth2 authentication with PKCE for enhanced security
+//! - `OAuth2` authentication with PKCE for enhanced security
 //! - Activity data retrieval with comprehensive metrics
 //! - User profile information
 //! - Aggregated fitness statistics

@@ -1905,7 +1905,7 @@ impl UniversalToolExecutor {
             .parameters
             .get("target_value")
             .and_then(|v| v.as_f64())
-            .unwrap_or(100000.0); // Default 100km
+            .unwrap_or(100_000.0); // Default 100km
 
         let rt = tokio::runtime::Handle::current();
         let progress_result = rt.block_on(async {

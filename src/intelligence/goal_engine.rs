@@ -705,7 +705,7 @@ mod tests {
                 sport: "Run".to_string(),
                 timeframe: TimeFrame::Month,
             },
-            target_value: 100000.0, // 100km in meters
+            target_value: 100_000.0, // 100km in meters
             target_date: Utc::now() + Duration::days(30),
             current_value: 0.0,
             created_at: Utc::now() - Duration::days(10),

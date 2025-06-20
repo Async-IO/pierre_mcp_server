@@ -30,7 +30,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// User tier for rate limiting - same as API key tiers for consistency
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum UserTier {
     /// Free tier with basic limits
@@ -43,7 +43,7 @@ pub enum UserTier {
 
 impl UserTier {
     /// Get monthly request limit for this tier
-    pub fn monthly_limit(&self) -> Option<u32> {
+    pub const fn monthly_limit(&self) -> Option<u32> {
         match self {
             UserTier::Starter => Some(10_000),
             UserTier::Professional => Some(100_000),
@@ -52,7 +52,7 @@ impl UserTier {
     }
 
     /// Get display name for this tier
-    pub fn display_name(&self) -> &'static str {
+    pub const fn display_name(&self) -> &'static str {
         match self {
             UserTier::Starter => "Starter",
             UserTier::Professional => "Professional",
@@ -356,7 +356,7 @@ impl SportType {
     }
 
     /// Get the human-readable name for this sport type
-    pub fn display_name(&self) -> &'static str {
+    pub const fn display_name(&self) -> &'static str {
         match self {
             SportType::Run => "run",
             SportType::Ride => "bike ride",
@@ -623,16 +623,14 @@ impl User {
     pub fn has_strava_access(&self) -> bool {
         self.strava_token
             .as_ref()
-            .map(|token| token.expires_at > Utc::now())
-            .unwrap_or(false)
+            .is_some_and(|token| token.expires_at > Utc::now())
     }
 
     /// Check if user has valid Fitbit token
     pub fn has_fitbit_access(&self) -> bool {
         self.fitbit_token
             .as_ref()
-            .map(|token| token.expires_at > Utc::now())
-            .unwrap_or(false)
+            .is_some_and(|token| token.expires_at > Utc::now())
     }
 
     /// Get list of available providers for this user
@@ -869,14 +867,14 @@ mod tests {
     fn test_stats_creation() {
         let stats = Stats {
             total_activities: 150,
-            total_distance: 1500000.0, // 1500 km
-            total_duration: 540000,    // 150 hours
+            total_distance: 1_500_000.0, // 1500 km
+            total_duration: 540_000,     // 150 hours
             total_elevation_gain: 25000.0,
         };
 
         assert_eq!(stats.total_activities, 150);
-        assert_eq!(stats.total_distance, 1500000.0);
-        assert_eq!(stats.total_duration, 540000);
+        assert_eq!(stats.total_distance, 1_500_000.0);
+        assert_eq!(stats.total_duration, 540_000);
         assert_eq!(stats.total_elevation_gain, 25000.0);
     }
 
@@ -884,8 +882,8 @@ mod tests {
     fn test_stats_serialization() {
         let stats = Stats {
             total_activities: 100,
-            total_distance: 1000000.0,
-            total_duration: 360000,
+            total_distance: 1_000_000.0,
+            total_duration: 360_000,
             total_elevation_gain: 15000.0,
         };
 

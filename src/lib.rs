@@ -8,12 +8,12 @@
 //!
 //! A Model Context Protocol (MCP) server for fitness data aggregation and analysis.
 //! This server provides a unified interface to access fitness data from various providers
-//! like Strava, Garmin Connect, and RunKeeper through the MCP protocol.
+//! like Strava, Garmin Connect, and `RunKeeper` through the MCP protocol.
 //!
 //! ## Features
 //!
-//! - **Multi-provider support**: Connect to Strava, Garmin, RunKeeper, and more
-//! - **OAuth2 authentication**: Secure authentication flow for fitness providers
+//! - **Multi-provider support**: Connect to Strava, Garmin, `RunKeeper`, and more
+//! - **`OAuth2` authentication**: Secure authentication flow for fitness providers
 //! - **MCP protocol**: Standard interface for Claude and other AI assistants
 //! - **Real-time data**: Access to activities, athlete profiles, and statistics
 //! - **Extensible architecture**: Easy to add new fitness providers
@@ -30,7 +30,7 @@
 //! - **Providers**: Abstract fitness provider implementations
 //! - **Models**: Common data structures for fitness data
 //! - **MCP**: Model Context Protocol server implementation
-//! - **OAuth2**: Authentication client for secure API access
+//! - **`OAuth2`**: Authentication client for secure API access
 //! - **Config**: Configuration management and persistence
 //!
 //! ## Example Usage

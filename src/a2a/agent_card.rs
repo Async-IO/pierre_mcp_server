@@ -290,7 +290,7 @@ impl AgentCard {
             serde_json::json!({
                 "trial": {"requests_per_month": 1000},
                 "starter": {"requests_per_month": 10000},
-                "professional": {"requests_per_month": 100000},
+                "professional": {"requests_per_month": 100_000},
                 "enterprise": {"requests_per_month": -1}
             }),
         );

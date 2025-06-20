@@ -299,7 +299,7 @@ impl RateLimitPeriod {
         match self {
             RateLimitPeriod::Hour => 3600,
             RateLimitPeriod::Day => 86400,
-            RateLimitPeriod::Month => 2592000, // 30 days
+            RateLimitPeriod::Month => 2_592_000, // 30 days
         }
     }
 }
@@ -362,7 +362,7 @@ mod tests {
     #[test]
     fn test_rate_limit_period_conversion() {
         let period = RateLimitPeriod::Month;
-        assert_eq!(period.window_seconds(), 2592000);
+        assert_eq!(period.window_seconds(), 2_592_000);
         assert_eq!(period.to_string(), "month");
     }
 }
