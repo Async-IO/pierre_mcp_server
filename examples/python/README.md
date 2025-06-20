@@ -6,6 +6,9 @@ This directory contains comprehensive examples for integrating with Pierre Fitne
 
 ```
 examples/python/
+├── provisioning/           # Enterprise provisioning examples
+│   ├── provisioning_example.py    # Complete B2B workflow demo
+│   └── mock_strava_provider.py    # Realistic fitness data generator
 ├── mcp/                    # Model Context Protocol examples
 │   ├── data_collection.py  # Bulk activity collection via MCP
 │   └── investor_demo.py    # Complete investor demonstration
@@ -19,6 +22,15 @@ examples/python/
 ```
 
 ## 🚀 Quick Start
+
+### Enterprise Provisioning (B2B Setup)
+```bash
+# Complete enterprise provisioning workflow
+python examples/python/provisioning/provisioning_example.py
+
+# Generate mock fitness data for testing
+python examples/python/provisioning/mock_strava_provider.py
+```
 
 ### MCP Protocol (Real-time Analysis)
 ```bash
@@ -49,6 +61,10 @@ python examples/python/a2a/enterprise_demo.py
 | **Performance** | Low latency | High throughput |
 
 ## 📊 Available Examples
+
+### Provisioning Examples
+- **provisioning_example.py** - Complete B2B enterprise provisioning workflow based on [docs/PROVISIONING.md](../../docs/PROVISIONING.md)
+- **mock_strava_provider.py** - Realistic fitness data generator for testing and development
 
 ### MCP Examples
 - **data_collection.py** - Shows how to connect to MCP server and collect fitness activities
@@ -100,6 +116,10 @@ export PIERRE_API_KEY=your_api_key_here
 4. **Adapt to Your Needs** using provided templates
 
 ## 💼 What the Examples Demonstrate
+
+### Enterprise Provisioning Examples
+- **provisioning_example.py**: Multi-tenant B2B workflows, admin token generation, API key provisioning, customer integration patterns
+- **mock_strava_provider.py**: Realistic fitness data generation, testing scenarios, performance simulation
 
 ### Common Utilities
 - **auth_utils.py**: JWT authentication, API key management, environment configuration
