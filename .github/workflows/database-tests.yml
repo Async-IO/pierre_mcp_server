@@ -2,14 +2,14 @@ name: Database Tests
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]
     paths:
       - 'src/database**'
       - 'tests/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main ]
     paths:
       - 'src/database**'
       - 'tests/**'
