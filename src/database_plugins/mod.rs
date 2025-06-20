@@ -148,6 +148,18 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// Deactivate an API key
     async fn deactivate_api_key(&self, api_key_id: &str, user_id: Uuid) -> Result<()>;
 
+    /// Get API key by ID
+    async fn get_api_key_by_id(&self, api_key_id: &str) -> Result<Option<ApiKey>>;
+
+    /// Get API keys with optional filters
+    async fn get_api_keys_filtered(
+        &self,
+        user_email: Option<&str>,
+        active_only: bool,
+        limit: Option<i32>,
+        offset: Option<i32>,
+    ) -> Result<Vec<ApiKey>>;
+
     /// Clean up expired API keys
     async fn cleanup_expired_api_keys(&self) -> Result<u64>;
 
@@ -269,4 +281,75 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
     ) -> Result<Vec<crate::dashboard_routes::ToolUsage>>;
+
+    // ================================
+    // Admin Token Management
+    // ================================
+
+    /// Create a new admin token
+    async fn create_admin_token(
+        &self,
+        request: &crate::admin::models::CreateAdminTokenRequest,
+    ) -> Result<crate::admin::models::GeneratedAdminToken>;
+
+    /// Get admin token by ID
+    async fn get_admin_token_by_id(
+        &self,
+        token_id: &str,
+    ) -> Result<Option<crate::admin::models::AdminToken>>;
+
+    /// Get admin token by prefix for fast lookup
+    async fn get_admin_token_by_prefix(
+        &self,
+        token_prefix: &str,
+    ) -> Result<Option<crate::admin::models::AdminToken>>;
+
+    /// List all admin tokens (super admin only)
+    async fn list_admin_tokens(
+        &self,
+        include_inactive: bool,
+    ) -> Result<Vec<crate::admin::models::AdminToken>>;
+
+    /// Deactivate admin token
+    async fn deactivate_admin_token(&self, token_id: &str) -> Result<()>;
+
+    /// Update admin token last used timestamp
+    async fn update_admin_token_last_used(
+        &self,
+        token_id: &str,
+        ip_address: Option<&str>,
+    ) -> Result<()>;
+
+    /// Record admin token usage for audit trail
+    async fn record_admin_token_usage(
+        &self,
+        usage: &crate::admin::models::AdminTokenUsage,
+    ) -> Result<()>;
+
+    /// Get admin token usage history
+    async fn get_admin_token_usage_history(
+        &self,
+        token_id: &str,
+        start_date: DateTime<Utc>,
+        end_date: DateTime<Utc>,
+    ) -> Result<Vec<crate::admin::models::AdminTokenUsage>>;
+
+    /// Record API key provisioning by admin
+    async fn record_admin_provisioned_key(
+        &self,
+        admin_token_id: &str,
+        api_key_id: &str,
+        user_email: &str,
+        tier: &str,
+        rate_limit_requests: u32,
+        rate_limit_period: &str,
+    ) -> Result<()>;
+
+    /// Get admin provisioned keys history
+    async fn get_admin_provisioned_keys(
+        &self,
+        admin_token_id: Option<&str>,
+        start_date: DateTime<Utc>,
+        end_date: DateTime<Utc>,
+    ) -> Result<Vec<serde_json::Value>>;
 }

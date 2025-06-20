@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Test script for trial API keys
+# Test script for enterprise API key provisioning system
 
-echo "Testing Trial API Key System"
-echo "============================"
+echo "Testing Enterprise API Key Provisioning System"
+echo "============================================="
 
 # Set base URL
 BASE_URL="http://localhost:8081"
@@ -33,14 +33,25 @@ LOGIN_RESPONSE=$(curl -s -X POST "$BASE_URL/auth/login" \
 JWT_TOKEN=$(echo "$LOGIN_RESPONSE" | grep -o '"jwt_token":"[^"]*"' | cut -d'"' -f4)
 echo "JWT Token obtained: ${JWT_TOKEN:0:20}..."
 
-echo -e "\n${YELLOW}3. Create a trial API key${NC}"
-TRIAL_KEY_RESPONSE=$(curl -s -X POST "$BASE_URL/api/keys/trial" \
+echo -e "\n${YELLOW}3. Setup admin authentication and provision API key${NC}"
+# Note: In production, admin tokens are generated using the admin-setup binary
+# For testing, we simulate admin token (this would be a real admin JWT in production)
+ADMIN_TOKEN="simulated_admin_token_for_testing"
+
+# Provision API key via admin endpoint (simulated for testing)
+echo "Simulating admin API key provisioning..."
+TRIAL_KEY_RESPONSE=$(curl -s -X POST "$BASE_URL/admin/provision-api-key" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $JWT_TOKEN" \
-  -d '{
-    "name": "My Trial Key",
-    "description": "Testing trial functionality"
-  }')
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -d "{
+    \"user_email\": \"$EMAIL\",
+    \"tier\": \"trial\",
+    \"rate_limit_requests\": 1000,
+    \"rate_limit_period\": \"month\",
+    \"expires_in_days\": 14,
+    \"name\": \"Test Trial Key\",
+    \"description\": \"Testing enterprise provisioning\"
+  }")
 
 echo "Trial Key Response: $TRIAL_KEY_RESPONSE"
 
@@ -59,19 +70,23 @@ LIST_RESPONSE=$(curl -s -X GET "$BASE_URL/api/keys" \
 
 echo "API Keys: $LIST_RESPONSE"
 
-echo -e "\n${YELLOW}5. Try to create another trial key (should fail)${NC}"
-SECOND_TRIAL_RESPONSE=$(curl -s -X POST "$BASE_URL/api/keys/trial" \
+echo -e "\n${YELLOW}5. Test enterprise provisioning controls${NC}"
+# In enterprise model, only admins can provision keys
+# Regular users cannot create keys themselves
+echo "Testing that regular users cannot self-provision keys..."
+SELF_SERVICE_RESPONSE=$(curl -s -X POST "$BASE_URL/api/keys/trial" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $JWT_TOKEN" \
   -d '{
-    "name": "Second Trial Key",
-    "description": "Should fail"
+    "name": "Unauthorized Key",
+    "description": "Should be blocked"
   }')
 
-if [[ $SECOND_TRIAL_RESPONSE == *"already has a trial"* ]]; then
-  echo -e "${GREEN}✓ Correctly prevented creating second trial key${NC}"
+if [[ $SELF_SERVICE_RESPONSE == *"forbidden"* || $SELF_SERVICE_RESPONSE == *"not found"* || $SELF_SERVICE_RESPONSE == *"unauthorized"* ]]; then
+  echo -e "${GREEN}✓ Correctly blocked self-service API key creation${NC}"
 else
-  echo -e "${RED}✗ Should have prevented second trial key${NC}"
+  echo -e "${RED}✗ Should have blocked self-service API key creation${NC}"
+  echo "Response: $SELF_SERVICE_RESPONSE"
 fi
 
 echo -e "\n${YELLOW}6. Test trial key authentication${NC}"
@@ -81,4 +96,9 @@ TEST_RESPONSE=$(curl -s -X POST "$BASE_URL/dashboard/overview" \
 
 echo "Trial key test response: $TEST_RESPONSE"
 
-echo -e "\n${GREEN}Trial Key System Test Complete!${NC}"
+echo -e "\n${GREEN}Enterprise API Key Provisioning Test Complete!${NC}"
+echo -e "\n${YELLOW}Note:${NC} In production:"
+echo "  • Admin tokens are generated using the admin-setup binary"
+echo "  • Only administrators can provision API keys for users"
+echo "  • Users receive keys through secure channels (email/dashboard)"
+echo "  • Self-service key creation is disabled for security"

@@ -288,30 +288,9 @@ impl MultiTenantMcpServer {
                 }
             });
 
-        // API Key endpoints
-        let create_api_key = warp::path("api")
-            .and(warp::path("keys"))
-            .and(warp::post())
-            .and(warp::header::optional::<String>("authorization"))
-            .and(warp::body::json())
-            .and_then({
-                let api_key_routes = api_key_routes.clone();
-                move |auth_header: Option<String>, request: crate::api_keys::CreateApiKeyRequest| {
-                    let api_key_routes = api_key_routes.clone();
-                    async move {
-                        match api_key_routes
-                            .create_api_key(auth_header.as_deref(), request)
-                            .await
-                        {
-                            Ok(response) => Ok(warp::reply::json(&response)),
-                            Err(e) => {
-                                let error = serde_json::json!({"error": e.to_string()});
-                                Err(warp::reject::custom(ApiError(error)))
-                            }
-                        }
-                    }
-                }
-            });
+        // API Key endpoints - REMOVED: Self-service API key creation
+        // For enterprise deployment, only administrators can provision API keys
+        // via the admin endpoints at /admin/provision-api-key
 
         let list_api_keys = warp::path("api")
             .and(warp::path("keys"))
@@ -357,41 +336,8 @@ impl MultiTenantMcpServer {
                 }
             });
 
-        // Trial API key endpoint
-        let create_trial_key = warp::path("api")
-            .and(warp::path("keys"))
-            .and(warp::path("trial"))
-            .and(warp::post())
-            .and(warp::header::optional::<String>("authorization"))
-            .and(warp::body::json())
-            .and_then({
-                let api_key_routes = api_key_routes.clone();
-                move |auth_header: Option<String>, request: serde_json::Value| {
-                    let api_key_routes = api_key_routes.clone();
-                    async move {
-                        let name = request
-                            .get("name")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("Trial API Key")
-                            .to_string();
-                        let description = request
-                            .get("description")
-                            .and_then(|v| v.as_str())
-                            .map(|s| s.to_string());
-
-                        match api_key_routes
-                            .create_trial_key(auth_header.as_deref(), name, description)
-                            .await
-                        {
-                            Ok(response) => Ok(warp::reply::json(&response)),
-                            Err(e) => {
-                                let error = serde_json::json!({"error": e.to_string()});
-                                Err(warp::reject::custom(ApiError(error)))
-                            }
-                        }
-                    }
-                }
-            });
+        // Trial API key endpoint - REMOVED: Self-service trial key creation
+        // For enterprise deployment, trial keys must be provisioned by administrators
 
         let get_api_key_usage = warp::path("api")
             .and(warp::path("keys"))
@@ -834,11 +780,7 @@ impl MultiTenantMcpServer {
             .or(oauth_auth)
             .or(oauth_callback);
 
-        let api_key_routes = create_api_key
-            .or(create_trial_key)
-            .or(list_api_keys)
-            .or(deactivate_api_key)
-            .or(get_api_key_usage);
+        let api_key_routes = list_api_keys.or(deactivate_api_key).or(get_api_key_usage);
 
         let dashboard_routes = dashboard_overview
             .or(dashboard_analytics)
@@ -2387,6 +2329,16 @@ impl MultiTenantMcpServer {
 
         database.record_api_key_usage(&usage).await?;
         Ok(())
+    }
+
+    /// Get database reference for admin API
+    pub fn database(&self) -> &Database {
+        &self.database
+    }
+
+    /// Get auth manager reference for admin API
+    pub fn auth_manager(&self) -> &AuthManager {
+        &self.auth_manager
     }
 }
 

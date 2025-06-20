@@ -26,32 +26,31 @@ This document covers the B2B API platform features, API key management, and auth
 
 ## API Key System
 
-### Creating API Keys
+### Creating API Keys (Enterprise Model)
+
+Pierre uses an enterprise API key provisioning model where only administrators can create API keys for users. This ensures proper access control and compliance with enterprise security requirements.
 
 ```bash
-# Login to get JWT token
+# Step 1: User registers and logs in (standard flow)
 curl -X POST http://localhost:8081/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email": "your@email.com", "password": "your_password"}'
 
-# Create a production API key
-curl -X POST http://localhost:8081/api/keys \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+# Step 2: Administrator provisions API key for the user
+# Only administrators with ProvisionKeys permission can create API keys
+curl -X POST http://localhost:8081/admin/provision-api-key \
+  -H "Authorization: Bearer ADMIN_JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "Production Key",
-    "description": "Main production API key",
-    "tier": "Professional"
+    "user_email": "user@company.com",
+    "tier": "professional", 
+    "rate_limit_requests": 100000,
+    "rate_limit_period": "month",
+    "expires_in_days": 365
   }'
 
-# Create a trial key (14-day expiration)
-curl -X POST http://localhost:8081/api/keys/trial \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Trial Key",
-    "description": "Testing the platform"
-  }'
+# Step 3: User receives API key through secure channel
+# API keys are distributed through email or admin dashboard
 ```
 
 ### Using API Keys with MCP
@@ -90,15 +89,15 @@ curl -X POST http://localhost:8081/api/keys/trial \
 
 This script will:
 1. Register a test user
-2. Login and get JWT token
-3. Create a trial API key
+2. Setup admin authentication
+3. Provision a trial API key via admin endpoint
 4. Test rate limiting
-5. Verify one-trial-per-user enforcement
+5. Verify enterprise provisioning workflow
 
-### Manual Testing
+### Manual Testing (Enterprise Model)
 
 ```bash
-# Register a test user
+# Step 1: Register a test user
 curl -X POST http://localhost:8081/auth/register \
   -H "Content-Type: application/json" \
   -d '{
@@ -107,26 +106,24 @@ curl -X POST http://localhost:8081/auth/register \
     "display_name": "Test User"
   }'
 
-# Login to get JWT token
-curl -X POST http://localhost:8081/auth/login \
+# Step 2: Admin provisions API key for the test user
+# Note: This requires admin credentials with ProvisionKeys permission
+curl -X POST http://localhost:8081/admin/provision-api-key \
+  -H "Authorization: Bearer ADMIN_JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "test@example.com",
-    "password": "secure_password"
-  }'
-
-# Create a trial API key
-curl -X POST http://localhost:8081/api/keys/trial \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
+    "user_email": "test@example.com",
+    "tier": "trial",
+    "rate_limit_requests": 1000,
+    "rate_limit_period": "month",
+    "expires_in_days": 14,
     "name": "Test Trial Key",
     "description": "Testing the platform features"
   }'
 
-# Test API key usage
+# Step 3: Test API key usage (user receives key from admin)
 curl -X POST http://localhost:8081/a2a/execute \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Authorization: Bearer PROVISIONED_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",

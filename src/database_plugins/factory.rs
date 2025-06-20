@@ -379,6 +379,34 @@ impl DatabaseProvider for Database {
         }
     }
 
+    async fn get_api_key_by_id(&self, api_key_id: &str) -> Result<Option<crate::api_keys::ApiKey>> {
+        match self {
+            Database::SQLite(db) => db.get_api_key_by_id(api_key_id).await,
+            #[cfg(feature = "postgresql")]
+            Database::PostgreSQL(db) => db.get_api_key_by_id(api_key_id).await,
+        }
+    }
+
+    async fn get_api_keys_filtered(
+        &self,
+        user_email: Option<&str>,
+        active_only: bool,
+        limit: Option<i32>,
+        offset: Option<i32>,
+    ) -> Result<Vec<crate::api_keys::ApiKey>> {
+        match self {
+            Database::SQLite(db) => {
+                db.get_api_keys_filtered(user_email, active_only, limit, offset)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Database::PostgreSQL(db) => {
+                db.get_api_keys_filtered(user_email, active_only, limit, offset)
+                    .await
+            }
+        }
+    }
+
     async fn cleanup_expired_api_keys(&self) -> Result<u64> {
         match self {
             Database::SQLite(db) => db.cleanup_expired_api_keys().await,
@@ -636,6 +664,159 @@ impl DatabaseProvider for Database {
             #[cfg(feature = "postgresql")]
             Database::PostgreSQL(db) => {
                 db.get_top_tools_analysis(user_id, start_time, end_time)
+                    .await
+            }
+        }
+    }
+
+    // ================================
+    // Admin Token Management
+    // ================================
+
+    async fn create_admin_token(
+        &self,
+        request: &crate::admin::models::CreateAdminTokenRequest,
+    ) -> Result<crate::admin::models::GeneratedAdminToken> {
+        match self {
+            Database::SQLite(db) => db.create_admin_token(request).await,
+            #[cfg(feature = "postgresql")]
+            Database::PostgreSQL(db) => db.create_admin_token(request).await,
+        }
+    }
+
+    async fn get_admin_token_by_id(
+        &self,
+        token_id: &str,
+    ) -> Result<Option<crate::admin::models::AdminToken>> {
+        match self {
+            Database::SQLite(db) => db.get_admin_token_by_id(token_id).await,
+            #[cfg(feature = "postgresql")]
+            Database::PostgreSQL(db) => db.get_admin_token_by_id(token_id).await,
+        }
+    }
+
+    async fn get_admin_token_by_prefix(
+        &self,
+        token_prefix: &str,
+    ) -> Result<Option<crate::admin::models::AdminToken>> {
+        match self {
+            Database::SQLite(db) => db.get_admin_token_by_prefix(token_prefix).await,
+            #[cfg(feature = "postgresql")]
+            Database::PostgreSQL(db) => db.get_admin_token_by_prefix(token_prefix).await,
+        }
+    }
+
+    async fn list_admin_tokens(
+        &self,
+        include_inactive: bool,
+    ) -> Result<Vec<crate::admin::models::AdminToken>> {
+        match self {
+            Database::SQLite(db) => db.list_admin_tokens(include_inactive).await,
+            #[cfg(feature = "postgresql")]
+            Database::PostgreSQL(db) => db.list_admin_tokens(include_inactive).await,
+        }
+    }
+
+    async fn deactivate_admin_token(&self, token_id: &str) -> Result<()> {
+        match self {
+            Database::SQLite(db) => db.deactivate_admin_token(token_id).await,
+            #[cfg(feature = "postgresql")]
+            Database::PostgreSQL(db) => db.deactivate_admin_token(token_id).await,
+        }
+    }
+
+    async fn update_admin_token_last_used(
+        &self,
+        token_id: &str,
+        ip_address: Option<&str>,
+    ) -> Result<()> {
+        match self {
+            Database::SQLite(db) => db.update_admin_token_last_used(token_id, ip_address).await,
+            #[cfg(feature = "postgresql")]
+            Database::PostgreSQL(db) => db.update_admin_token_last_used(token_id, ip_address).await,
+        }
+    }
+
+    async fn record_admin_token_usage(
+        &self,
+        usage: &crate::admin::models::AdminTokenUsage,
+    ) -> Result<()> {
+        match self {
+            Database::SQLite(db) => db.record_admin_token_usage(usage).await,
+            #[cfg(feature = "postgresql")]
+            Database::PostgreSQL(db) => db.record_admin_token_usage(usage).await,
+        }
+    }
+
+    async fn get_admin_token_usage_history(
+        &self,
+        token_id: &str,
+        start_date: chrono::DateTime<chrono::Utc>,
+        end_date: chrono::DateTime<chrono::Utc>,
+    ) -> Result<Vec<crate::admin::models::AdminTokenUsage>> {
+        match self {
+            Database::SQLite(db) => {
+                db.get_admin_token_usage_history(token_id, start_date, end_date)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Database::PostgreSQL(db) => {
+                db.get_admin_token_usage_history(token_id, start_date, end_date)
+                    .await
+            }
+        }
+    }
+
+    async fn record_admin_provisioned_key(
+        &self,
+        admin_token_id: &str,
+        api_key_id: &str,
+        user_email: &str,
+        tier: &str,
+        rate_limit_requests: u32,
+        rate_limit_period: &str,
+    ) -> Result<()> {
+        match self {
+            Database::SQLite(db) => {
+                db.record_admin_provisioned_key(
+                    admin_token_id,
+                    api_key_id,
+                    user_email,
+                    tier,
+                    rate_limit_requests,
+                    rate_limit_period,
+                )
+                .await
+            }
+            #[cfg(feature = "postgresql")]
+            Database::PostgreSQL(db) => {
+                db.record_admin_provisioned_key(
+                    admin_token_id,
+                    api_key_id,
+                    user_email,
+                    tier,
+                    rate_limit_requests,
+                    rate_limit_period,
+                )
+                .await
+            }
+        }
+    }
+
+    async fn get_admin_provisioned_keys(
+        &self,
+        admin_token_id: Option<&str>,
+        start_date: chrono::DateTime<chrono::Utc>,
+        end_date: chrono::DateTime<chrono::Utc>,
+    ) -> Result<Vec<serde_json::Value>> {
+        match self {
+            Database::SQLite(db) => {
+                db.get_admin_provisioned_keys(admin_token_id, start_date, end_date)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Database::PostgreSQL(db) => {
+                db.get_admin_provisioned_keys(admin_token_id, start_date, end_date)
                     .await
             }
         }

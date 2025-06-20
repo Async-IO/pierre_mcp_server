@@ -126,6 +126,12 @@ pub mod websocket;
 /// Security headers and protection middleware
 pub mod security;
 
+/// Admin token authentication and API key provisioning
+pub mod admin;
+
+/// Admin REST API routes for external services
+pub mod admin_routes;
+
 /// Universal protocol support for MCP and A2A
 pub mod protocols;
 
