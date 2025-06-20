@@ -330,6 +330,7 @@ async fn handle_provision_api_key(
                 email: request.user_email.clone(),
                 display_name: Some(format!("API User ({})", request.user_email)),
                 password_hash: "api-key-only".to_string(), // API-only user
+                tier: crate::models::UserTier::Starter,    // Default tier for API users
                 strava_token: None,
                 fitbit_token: None,
                 is_active: true,

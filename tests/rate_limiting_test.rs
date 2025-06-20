@@ -77,7 +77,7 @@ async fn test_starter_tier_rate_limiting() {
             .await
             .unwrap();
 
-        let rate_limit = auth_result.rate_limit.unwrap();
+        let rate_limit = &auth_result.rate_limit;
         assert!(!rate_limit.is_rate_limited);
         assert_eq!(rate_limit.limit, Some(5));
         assert_eq!(rate_limit.remaining, Some(5 - i)); // Remaining should decrease
@@ -142,7 +142,7 @@ async fn test_professional_tier_rate_limiting() {
         .await
         .unwrap();
 
-    let rate_limit = auth_result.rate_limit.unwrap();
+    let rate_limit = &auth_result.rate_limit;
     assert!(!rate_limit.is_rate_limited);
     assert_eq!(rate_limit.limit, Some(100_000));
     assert_eq!(rate_limit.remaining, Some(100_000));
@@ -209,7 +209,7 @@ async fn test_enterprise_tier_unlimited() {
         .await
         .unwrap();
 
-    let rate_limit = auth_result.rate_limit.unwrap();
+    let rate_limit = &auth_result.rate_limit;
     assert!(!rate_limit.is_rate_limited);
     assert_eq!(rate_limit.limit, None); // Unlimited
     assert_eq!(rate_limit.remaining, None);
@@ -250,7 +250,7 @@ async fn test_enterprise_tier_unlimited() {
         .authenticate_request(Some(full_key))
         .await
         .unwrap();
-    assert!(!auth_result2.rate_limit.unwrap().is_rate_limited);
+    assert!(!auth_result2.rate_limit.is_rate_limited);
 }
 
 #[tokio::test]

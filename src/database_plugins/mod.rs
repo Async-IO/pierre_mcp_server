@@ -8,6 +8,7 @@ use crate::a2a::client::A2ASession;
 use crate::a2a::protocol::{A2ATask, TaskStatus};
 use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
 use crate::models::{DecryptedToken, User};
+use crate::rate_limiting::JwtUsage;
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -179,6 +180,16 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
     ) -> Result<ApiKeyUsageStats>;
+
+    // ================================
+    // JWT Usage Tracking
+    // ================================
+
+    /// Record JWT token usage for rate limiting and analytics
+    async fn record_jwt_usage(&self, usage: &JwtUsage) -> Result<()>;
+
+    /// Get current JWT usage count for rate limiting (current month)
+    async fn get_jwt_current_usage(&self, user_id: Uuid) -> Result<u32>;
 
     // ================================
     // Request Logs & System Stats

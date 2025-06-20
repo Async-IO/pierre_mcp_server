@@ -137,3 +137,6 @@ pub mod protocols;
 
 /// Unified OAuth management for all fitness providers
 pub mod oauth;
+
+/// Unified rate limiting system for API keys and JWT tokens
+pub mod rate_limiting;

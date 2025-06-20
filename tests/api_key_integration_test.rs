@@ -83,10 +83,10 @@ async fn test_end_to_end_api_key_workflow() {
         auth_result.auth_method,
         pierre_mcp_server::auth::AuthMethod::ApiKey { .. }
     ));
-    assert!(auth_result.rate_limit.is_some());
+    assert!(auth_result.rate_limit.limit.is_some());
 
     // Step 3: Verify rate limit status
-    let rate_limit = auth_result.rate_limit.unwrap();
+    let rate_limit = &auth_result.rate_limit;
     assert!(!rate_limit.is_rate_limited);
     assert_eq!(rate_limit.limit, Some(100_000)); // Professional tier
     assert_eq!(rate_limit.remaining, Some(100_000)); // No usage yet
@@ -162,7 +162,7 @@ async fn test_api_key_rate_limiting() {
         .authenticate_request(Some(&full_key))
         .await
         .unwrap();
-    assert!(!auth_result1.rate_limit.unwrap().is_rate_limited);
+    assert!(!auth_result1.rate_limit.is_rate_limited);
 
     // Record usage to approach the limit
     for i in 0..2 {
@@ -258,7 +258,7 @@ async fn test_enterprise_tier_unlimited_usage() {
         .authenticate_request(Some(&full_key))
         .await
         .unwrap();
-    assert!(!auth_result.rate_limit.unwrap().is_rate_limited);
+    assert!(!auth_result.rate_limit.is_rate_limited);
 }
 
 #[tokio::test]

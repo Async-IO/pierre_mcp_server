@@ -141,6 +141,7 @@ async fn main() -> anyhow::Result<()> {
         email: "testuser@example.com".to_string(),
         display_name: Some("Test User".to_string()),
         password_hash: "test_hash".to_string(),
+        tier: pierre_mcp_server::models::UserTier::Starter,
         strava_token: None,
         fitbit_token: None,
         is_active: true,

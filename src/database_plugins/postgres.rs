@@ -9,7 +9,8 @@ use crate::a2a::client::A2ASession;
 use crate::a2a::protocol::{A2ATask, TaskStatus};
 use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
 use crate::database::{A2AUsage, A2AUsageStats};
-use crate::models::{DecryptedToken, EncryptedToken, User};
+use crate::models::{DecryptedToken, EncryptedToken, User, UserTier};
+use crate::rate_limiting::JwtUsage;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -424,6 +425,16 @@ impl DatabaseProvider for PostgresDatabase {
                 email: row.get("email"),
                 display_name: row.get("display_name"),
                 password_hash: row.get("password_hash"),
+                tier: {
+                    let tier_str: String = row
+                        .try_get("tier")
+                        .unwrap_or_else(|_| "starter".to_string());
+                    match tier_str.as_str() {
+                        "professional" => UserTier::Professional,
+                        "enterprise" => UserTier::Enterprise,
+                        _ => UserTier::Starter,
+                    }
+                },
                 strava_token: None, // Tokens are loaded separately
                 fitbit_token: None, // Tokens are loaded separately
                 created_at: row.get("created_at"),
@@ -453,6 +464,16 @@ impl DatabaseProvider for PostgresDatabase {
                 email: row.get("email"),
                 display_name: row.get("display_name"),
                 password_hash: row.get("password_hash"),
+                tier: {
+                    let tier_str: String = row
+                        .try_get("tier")
+                        .unwrap_or_else(|_| "starter".to_string());
+                    match tier_str.as_str() {
+                        "professional" => UserTier::Professional,
+                        "enterprise" => UserTier::Enterprise,
+                        _ => UserTier::Starter,
+                    }
+                },
                 strava_token: None, // Tokens are loaded separately
                 fitbit_token: None, // Tokens are loaded separately
                 created_at: row.get("created_at"),
@@ -1228,6 +1249,47 @@ impl DatabaseProvider for PostgresDatabase {
                 .unwrap_or(0.0) as u64,
             tool_usage: serde_json::json!({}), // TODO: Implement tool usage aggregation
         })
+    }
+
+    async fn record_jwt_usage(&self, usage: &JwtUsage) -> Result<()> {
+        sqlx::query(
+            r#"
+            INSERT INTO jwt_usage (
+                user_id, timestamp, tool_name, response_time_ms, status_code,
+                error_message, request_size_bytes, response_size_bytes, 
+                ip_address, user_agent
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            "#,
+        )
+        .bind(usage.user_id)
+        .bind(usage.timestamp)
+        .bind(&usage.tool_name)
+        .bind(usage.response_time_ms.map(|t| t as i32))
+        .bind(usage.status_code as i32)
+        .bind(&usage.error_message)
+        .bind(usage.request_size_bytes.map(|s| s as i32))
+        .bind(usage.response_size_bytes.map(|s| s as i32))
+        .bind(&usage.ip_address)
+        .bind(&usage.user_agent)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    async fn get_jwt_current_usage(&self, user_id: Uuid) -> Result<u32> {
+        let row = sqlx::query(
+            r#"
+            SELECT COUNT(*) as count
+            FROM jwt_usage 
+            WHERE user_id = $1 AND timestamp >= DATE_TRUNC('month', CURRENT_DATE)
+            "#,
+        )
+        .bind(user_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(row.get::<i64, _>("count") as u32)
     }
 
     async fn get_request_logs(

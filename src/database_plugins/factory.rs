@@ -7,6 +7,7 @@ use super::DatabaseProvider;
 use crate::a2a::auth::A2AClient;
 use crate::a2a::client::A2ASession;
 use crate::a2a::protocol::{A2ATask, TaskStatus};
+use crate::rate_limiting::JwtUsage;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use tracing::{debug, info};
@@ -455,6 +456,22 @@ impl DatabaseProvider for Database {
                 db.get_api_key_usage_stats(api_key_id, start_date, end_date)
                     .await
             }
+        }
+    }
+
+    async fn record_jwt_usage(&self, usage: &JwtUsage) -> Result<()> {
+        match self {
+            Database::SQLite(db) => db.record_jwt_usage(usage).await,
+            #[cfg(feature = "postgresql")]
+            Database::PostgreSQL(db) => db.record_jwt_usage(usage).await,
+        }
+    }
+
+    async fn get_jwt_current_usage(&self, user_id: uuid::Uuid) -> Result<u32> {
+        match self {
+            Database::SQLite(db) => db.get_jwt_current_usage(user_id).await,
+            #[cfg(feature = "postgresql")]
+            Database::PostgreSQL(db) => db.get_jwt_current_usage(user_id).await,
         }
     }
 
