@@ -62,10 +62,15 @@ pub struct A2ARoutes {
     client_manager: Arc<A2AClientManager>,
     authenticator: Arc<A2AAuthenticator>,
     tool_executor: UniversalToolExecutor,
+    config: Arc<crate::config::environment::ServerConfig>,
 }
 
 impl A2ARoutes {
-    pub fn new(database: Arc<Database>, auth_manager: Arc<AuthManager>) -> Self {
+    pub fn new(
+        database: Arc<Database>,
+        auth_manager: Arc<AuthManager>,
+        config: Arc<crate::config::environment::ServerConfig>,
+    ) -> Self {
         let client_manager = Arc::new(A2AClientManager::new(database.clone()));
         let authenticator = Arc::new(A2AAuthenticator::new(database.clone()));
 
@@ -94,7 +99,8 @@ impl A2ARoutes {
             },
         ));
 
-        let tool_executor = UniversalToolExecutor::new(database.clone(), intelligence);
+        let tool_executor =
+            UniversalToolExecutor::new(database.clone(), intelligence, config.clone());
 
         Self {
             database,
@@ -102,6 +108,7 @@ impl A2ARoutes {
             client_manager,
             authenticator,
             tool_executor,
+            config,
         }
     }
 
@@ -372,7 +379,8 @@ impl Clone for A2ARoutes {
             },
         ));
 
-        let tool_executor = UniversalToolExecutor::new(self.database.clone(), intelligence);
+        let tool_executor =
+            UniversalToolExecutor::new(self.database.clone(), intelligence, self.config.clone());
 
         Self {
             database: self.database.clone(),
@@ -380,6 +388,7 @@ impl Clone for A2ARoutes {
             client_manager: self.client_manager.clone(),
             authenticator: self.authenticator.clone(),
             tool_executor,
+            config: self.config.clone(),
         }
     }
 }

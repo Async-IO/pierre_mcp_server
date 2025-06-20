@@ -212,7 +212,16 @@ async fn test_oauth_state_validation() {
     std::env::set_var("STRAVA_CLIENT_ID", "test_client");
     std::env::set_var("STRAVA_CLIENT_SECRET", "test_secret");
 
-    let strava_provider = pierre_mcp_server::oauth::providers::StravaOAuthProvider::new().unwrap();
+    let strava_config = pierre_mcp_server::config::environment::OAuthProviderConfig {
+        client_id: Some("test_client".to_string()),
+        client_secret: Some("test_secret".to_string()),
+        redirect_uri: None,
+        scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+        enabled: true,
+    };
+    let strava_provider =
+        pierre_mcp_server::oauth::providers::StravaOAuthProvider::from_config(&strava_config)
+            .unwrap();
     oauth_manager.register_provider(Box::new(strava_provider));
 
     // Generate auth URL to create a valid state
@@ -249,7 +258,16 @@ async fn test_concurrent_oauth_requests() {
     std::env::set_var("STRAVA_CLIENT_ID", "test_client");
     std::env::set_var("STRAVA_CLIENT_SECRET", "test_secret");
 
-    let strava_provider = pierre_mcp_server::oauth::providers::StravaOAuthProvider::new().unwrap();
+    let strava_config = pierre_mcp_server::config::environment::OAuthProviderConfig {
+        client_id: Some("test_client".to_string()),
+        client_secret: Some("test_secret".to_string()),
+        redirect_uri: None,
+        scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+        enabled: true,
+    };
+    let strava_provider =
+        pierre_mcp_server::oauth::providers::StravaOAuthProvider::from_config(&strava_config)
+            .unwrap();
     oauth_manager.register_provider(Box::new(strava_provider));
 
     // Generate multiple auth URLs concurrently

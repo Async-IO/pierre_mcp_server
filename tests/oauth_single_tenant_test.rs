@@ -35,7 +35,14 @@ async fn test_single_tenant_oauth_flow() {
     std::env::set_var("STRAVA_CLIENT_ID", "test_client");
     std::env::set_var("STRAVA_CLIENT_SECRET", "test_secret");
 
-    let strava_provider = StravaOAuthProvider::new().unwrap();
+    let config = pierre_mcp_server::config::environment::OAuthProviderConfig {
+        client_id: Some("test_client".to_string()),
+        client_secret: Some("test_secret".to_string()),
+        redirect_uri: None,
+        scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+        enabled: true,
+    };
+    let strava_provider = StravaOAuthProvider::from_config(&config).unwrap();
     oauth_manager.register_provider(Box::new(strava_provider));
 
     // Test authorization URL generation
@@ -121,10 +128,26 @@ async fn test_connection_status_single_tenant() {
     std::env::set_var("FITBIT_CLIENT_ID", "test_fitbit");
     std::env::set_var("FITBIT_CLIENT_SECRET", "test_fitbit_secret");
 
-    let strava_provider = StravaOAuthProvider::new().unwrap();
+    let strava_config = pierre_mcp_server::config::environment::OAuthProviderConfig {
+        client_id: Some("test_client".to_string()),
+        client_secret: Some("test_secret".to_string()),
+        redirect_uri: None,
+        scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+        enabled: true,
+    };
+    let strava_provider = StravaOAuthProvider::from_config(&strava_config).unwrap();
     oauth_manager.register_provider(Box::new(strava_provider));
 
-    let fitbit_provider = pierre_mcp_server::oauth::providers::FitbitOAuthProvider::new().unwrap();
+    let fitbit_config = pierre_mcp_server::config::environment::OAuthProviderConfig {
+        client_id: Some("test_fitbit".to_string()),
+        client_secret: Some("test_fitbit_secret".to_string()),
+        redirect_uri: None,
+        scopes: vec!["activity".to_string(), "profile".to_string()],
+        enabled: true,
+    };
+    let fitbit_provider =
+        pierre_mcp_server::oauth::providers::FitbitOAuthProvider::from_config(&fitbit_config)
+            .unwrap();
     oauth_manager.register_provider(Box::new(fitbit_provider));
 
     // Get connection status
@@ -237,7 +260,14 @@ async fn test_disconnect_provider() {
     std::env::set_var("STRAVA_CLIENT_ID", "test_client");
     std::env::set_var("STRAVA_CLIENT_SECRET", "test_secret");
 
-    let strava_provider = StravaOAuthProvider::new().unwrap();
+    let strava_config = pierre_mcp_server::config::environment::OAuthProviderConfig {
+        client_id: Some("test_client".to_string()),
+        client_secret: Some("test_secret".to_string()),
+        redirect_uri: None,
+        scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+        enabled: true,
+    };
+    let strava_provider = StravaOAuthProvider::from_config(&strava_config).unwrap();
     oauth_manager.register_provider(Box::new(strava_provider));
 
     // Disconnect provider (revocation will fail but local deletion should work)
@@ -267,10 +297,26 @@ async fn test_multi_provider_oauth() {
     std::env::set_var("FITBIT_CLIENT_ID", "fitbit_client");
     std::env::set_var("FITBIT_CLIENT_SECRET", "fitbit_secret");
 
-    let strava_provider = StravaOAuthProvider::new().unwrap();
+    let strava_config = pierre_mcp_server::config::environment::OAuthProviderConfig {
+        client_id: Some("strava_client".to_string()),
+        client_secret: Some("strava_secret".to_string()),
+        redirect_uri: None,
+        scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+        enabled: true,
+    };
+    let strava_provider = StravaOAuthProvider::from_config(&strava_config).unwrap();
     oauth_manager.register_provider(Box::new(strava_provider));
 
-    let fitbit_provider = pierre_mcp_server::oauth::providers::FitbitOAuthProvider::new().unwrap();
+    let fitbit_config = pierre_mcp_server::config::environment::OAuthProviderConfig {
+        client_id: Some("fitbit_client".to_string()),
+        client_secret: Some("fitbit_secret".to_string()),
+        redirect_uri: None,
+        scopes: vec!["activity".to_string(), "profile".to_string()],
+        enabled: true,
+    };
+    let fitbit_provider =
+        pierre_mcp_server::oauth::providers::FitbitOAuthProvider::from_config(&fitbit_config)
+            .unwrap();
     oauth_manager.register_provider(Box::new(fitbit_provider));
 
     // Generate auth URLs for both providers
