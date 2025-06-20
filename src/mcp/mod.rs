@@ -7,7 +7,7 @@
 pub mod multitenant;
 pub mod schema;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -100,15 +100,14 @@ async fn create_tool_executor() -> Result<Arc<UniversalToolExecutor>> {
 
     // Load or generate encryption key
     let encryption_key = if let Ok(key_path) = std::env::var("ENCRYPTION_KEY_PATH") {
-        std::fs::read(&key_path).map_err(|e| {
-            anyhow::anyhow!("Failed to read encryption key from {}: {}", key_path, e)
-        })?
+        std::fs::read(&key_path)
+            .with_context(|| format!("Failed to read encryption key from {}", key_path))?
     } else {
         // For backward compatibility, use a default key file path
         let key_path = "data/encryption.key";
         if std::path::Path::new(key_path).exists() {
-            std::fs::read(key_path).map_err(|e| {
-                anyhow::anyhow!("Failed to read encryption key from {}: {}", key_path, e)
+            std::fs::read(key_path).with_context(|| {
+                format!("Failed to read default encryption key from {}", key_path)
             })?
         } else {
             // Generate a new key and save it
@@ -125,7 +124,7 @@ async fn create_tool_executor() -> Result<Arc<UniversalToolExecutor>> {
     let database = Arc::new(
         Database::new(&database_url, encryption_key)
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to create database connection: {}", e))?,
+            .with_context(|| format!("Failed to create database connection to {}", database_url))?,
     );
 
     let intelligence = Arc::new(ActivityIntelligence::new(

@@ -102,10 +102,8 @@ async fn test_starter_tier_rate_limiting() {
     // Next request should be rate limited
     let auth_result = auth_middleware.authenticate_request(Some(full_key)).await;
     assert!(auth_result.is_err());
-    assert!(auth_result
-        .unwrap_err()
-        .to_string()
-        .contains("rate limit exceeded"));
+    let error_msg = auth_result.unwrap_err().to_string();
+    assert!(error_msg.contains("Rate limit reached for API key"));
 }
 
 #[tokio::test]

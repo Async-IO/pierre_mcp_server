@@ -13,7 +13,7 @@ use crate::api_keys::ApiKeyManager;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::models::{AuthRequest, AuthResponse, User, UserSession};
 use crate::rate_limiting::{UnifiedRateLimitCalculator, UnifiedRateLimitInfo};
-use anyhow::Result;
+use anyhow::{Context, Result};
 use chrono::{DateTime, Duration, Utc};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
@@ -375,8 +375,12 @@ impl AuthManager {
             &validation,
         )?;
 
-        Uuid::parse_str(&token_data.claims.sub)
-            .map_err(|e| anyhow::anyhow!("Invalid user ID in token: {}", e))
+        Uuid::parse_str(&token_data.claims.sub).with_context(|| {
+            format!(
+                "Failed to parse user ID from JWT token subject: {}",
+                token_data.claims.sub
+            )
+        })
     }
 }
 
@@ -429,7 +433,8 @@ impl McpAuthMiddleware {
             }
             None => {
                 tracing::warn!("Authentication failed: Missing authorization header");
-                return Err(anyhow::anyhow!("Missing authorization header"));
+                return Err(anyhow::anyhow!("Authentication failed: Missing authorization header")
+                    .context("Request authentication requires Authorization header with Bearer token or API key"));
             }
         };
 
@@ -465,7 +470,8 @@ impl McpAuthMiddleware {
             }
         } else {
             tracing::warn!("Authentication failed: Invalid authorization header format (expected 'Bearer ...' or 'pk_live_...')");
-            Err(anyhow::anyhow!("Invalid authorization header format"))
+            Err(anyhow::anyhow!("Invalid authorization header format")
+                .context("Authorization header must be 'Bearer <token>' or 'pk_live_<api_key>'"))
         }
     }
 
@@ -483,7 +489,7 @@ impl McpAuthMiddleware {
             .database
             .get_api_key_by_prefix(&key_prefix, &key_hash)
             .await?
-            .ok_or_else(|| anyhow::anyhow!("Invalid API key"))?;
+            .with_context(|| format!("API key not found or invalid: {}", &key_prefix))?;
 
         // Validate key status
         self.api_key_manager.is_key_valid(&db_key)?;
@@ -496,7 +502,13 @@ impl McpAuthMiddleware {
 
         // Check rate limit
         if rate_limit.is_rate_limited {
-            return Err(anyhow::anyhow!("API key rate limit exceeded"));
+            return Err(
+                anyhow::anyhow!("API key rate limit exceeded").context(format!(
+                    "Rate limit reached for API key: {}/{} requests",
+                    current_usage,
+                    rate_limit.limit.unwrap_or(0)
+                )),
+            );
         }
 
         // Update last used timestamp

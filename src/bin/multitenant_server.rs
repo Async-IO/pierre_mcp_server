@@ -125,12 +125,19 @@ async fn main() -> Result<()> {
         );
 
         // Initialize database
-        let database = Database::new(&config.database.url, encryption_key.to_vec()).await?;
+        let database = Database::new(
+            &config.database.url.to_connection_string(),
+            encryption_key.to_vec(),
+        )
+        .await?;
         info!(
             "Database initialized successfully: {}",
             database.backend_info()
         );
-        info!("Database URL: {}", &config.database.url);
+        info!(
+            "Database URL: {}",
+            &config.database.url.to_connection_string()
+        );
 
         // Initialize authentication manager
         let auth_manager =
@@ -142,7 +149,11 @@ async fn main() -> Result<()> {
         info!("Health checker initialized");
 
         // Create and run multi-tenant server with health checks
-        let server = MultiTenantMcpServer::new(database, auth_manager);
+        let server = MultiTenantMcpServer::new(
+            database,
+            auth_manager,
+            config.security.headers.environment.to_string(),
+        );
 
         info!(
             "🚀 Multi-tenant MCP server starting on ports {} (MCP) and {} (HTTP)",

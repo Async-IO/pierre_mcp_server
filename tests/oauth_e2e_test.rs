@@ -24,7 +24,11 @@ async fn test_oauth_flow_through_mcp() {
     let auth_manager = AuthManager::new(vec![0u8; 64], 24);
 
     // Create server instance
-    let _server = MultiTenantMcpServer::new(database.clone(), auth_manager.clone());
+    let _server = MultiTenantMcpServer::new(
+        database.clone(),
+        auth_manager.clone(),
+        "development".to_string(),
+    );
 
     // Start server in background (we'll simulate MCP requests instead of real TCP)
     let server_handle = tokio::spawn(async move {

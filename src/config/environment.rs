@@ -13,6 +13,176 @@ use std::env;
 use std::path::PathBuf;
 use tracing::{info, warn};
 
+/// Strongly typed log level configuration
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum LogLevel {
+    Error,
+    Warn,
+    #[default]
+    Info,
+    Debug,
+    Trace,
+}
+
+impl LogLevel {
+    /// Convert to tracing::Level
+    pub fn to_tracing_level(&self) -> tracing::Level {
+        match self {
+            LogLevel::Error => tracing::Level::ERROR,
+            LogLevel::Warn => tracing::Level::WARN,
+            LogLevel::Info => tracing::Level::INFO,
+            LogLevel::Debug => tracing::Level::DEBUG,
+            LogLevel::Trace => tracing::Level::TRACE,
+        }
+    }
+
+    /// Parse from string with fallback
+    pub fn from_str_or_default(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "error" => LogLevel::Error,
+            "warn" => LogLevel::Warn,
+            "info" => LogLevel::Info,
+            "debug" => LogLevel::Debug,
+            "trace" => LogLevel::Trace,
+            _ => LogLevel::Info, // Default fallback
+        }
+    }
+}
+
+impl std::fmt::Display for LogLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LogLevel::Error => write!(f, "error"),
+            LogLevel::Warn => write!(f, "warn"),
+            LogLevel::Info => write!(f, "info"),
+            LogLevel::Debug => write!(f, "debug"),
+            LogLevel::Trace => write!(f, "trace"),
+        }
+    }
+}
+
+/// Environment type for security and other configurations
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum Environment {
+    #[default]
+    Development,
+    Production,
+    Testing,
+}
+
+impl Environment {
+    /// Parse from string with fallback
+    pub fn from_str_or_default(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "production" | "prod" => Environment::Production,
+            "testing" | "test" => Environment::Testing,
+            "development" | "dev" => Environment::Development,
+            _ => Environment::Development, // Default fallback for unrecognized values
+        }
+    }
+
+    /// Check if this is a production environment
+    pub fn is_production(&self) -> bool {
+        matches!(self, Environment::Production)
+    }
+
+    /// Check if this is a development environment
+    pub fn is_development(&self) -> bool {
+        matches!(self, Environment::Development)
+    }
+
+    /// Check if this is a testing environment
+    pub fn is_testing(&self) -> bool {
+        matches!(self, Environment::Testing)
+    }
+}
+
+impl std::fmt::Display for Environment {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Environment::Development => write!(f, "development"),
+            Environment::Production => write!(f, "production"),
+            Environment::Testing => write!(f, "testing"),
+        }
+    }
+}
+
+/// Type-safe database configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum DatabaseUrl {
+    /// SQLite database with file path
+    SQLite { path: PathBuf },
+    /// PostgreSQL connection
+    PostgreSQL { connection_string: String },
+    /// In-memory SQLite (for testing)
+    Memory,
+}
+
+impl DatabaseUrl {
+    /// Parse from string with validation
+    pub fn parse_url(s: &str) -> Result<Self> {
+        if s.starts_with("sqlite:") {
+            let path_str = s.strip_prefix("sqlite:").unwrap_or(s);
+            if path_str == ":memory:" {
+                Ok(DatabaseUrl::Memory)
+            } else {
+                Ok(DatabaseUrl::SQLite {
+                    path: PathBuf::from(path_str),
+                })
+            }
+        } else if s.starts_with("postgresql://") || s.starts_with("postgres://") {
+            Ok(DatabaseUrl::PostgreSQL {
+                connection_string: s.to_string(),
+            })
+        } else {
+            // Fallback: treat as SQLite file path
+            Ok(DatabaseUrl::SQLite {
+                path: PathBuf::from(s),
+            })
+        }
+    }
+
+    /// Convert to connection string
+    pub fn to_connection_string(&self) -> String {
+        match self {
+            DatabaseUrl::SQLite { path } => format!("sqlite:{}", path.display()),
+            DatabaseUrl::PostgreSQL { connection_string } => connection_string.clone(),
+            DatabaseUrl::Memory => "sqlite::memory:".to_string(),
+        }
+    }
+
+    /// Check if this is an in-memory database
+    pub fn is_memory(&self) -> bool {
+        matches!(self, DatabaseUrl::Memory)
+    }
+
+    /// Check if this is a SQLite database
+    pub fn is_sqlite(&self) -> bool {
+        matches!(self, DatabaseUrl::SQLite { .. } | DatabaseUrl::Memory)
+    }
+
+    /// Check if this is a PostgreSQL database
+    pub fn is_postgresql(&self) -> bool {
+        matches!(self, DatabaseUrl::PostgreSQL { .. })
+    }
+}
+
+impl Default for DatabaseUrl {
+    fn default() -> Self {
+        DatabaseUrl::SQLite {
+            path: PathBuf::from("./data/users.db"),
+        }
+    }
+}
+
+impl std::fmt::Display for DatabaseUrl {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_connection_string())
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerConfig {
     /// MCP server port
@@ -20,7 +190,7 @@ pub struct ServerConfig {
     /// HTTP API port  
     pub http_port: u16,
     /// Log level
-    pub log_level: String,
+    pub log_level: LogLevel,
     /// Database configuration
     pub database: DatabaseConfig,
     /// Authentication configuration
@@ -29,12 +199,16 @@ pub struct ServerConfig {
     pub oauth: OAuthConfig,
     /// Security settings
     pub security: SecurityConfig,
+    /// External service configuration
+    pub external_services: ExternalServicesConfig,
+    /// Application behavior settings
+    pub app_behavior: AppBehaviorConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseConfig {
     /// Database URL (SQLite path or PostgreSQL connection string)
-    pub url: String,
+    pub url: DatabaseUrl,
     /// Path to encryption key file
     pub encryption_key_path: PathBuf,
     /// Enable database migrations on startup
@@ -95,6 +269,14 @@ pub struct SecurityConfig {
     pub rate_limit: RateLimitConfig,
     /// TLS configuration
     pub tls: TlsConfig,
+    /// Security headers configuration
+    pub headers: SecurityHeadersConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecurityHeadersConfig {
+    /// Environment type for security headers (development, production)
+    pub environment: Environment,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -117,6 +299,68 @@ pub struct TlsConfig {
     pub key_path: Option<PathBuf>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExternalServicesConfig {
+    /// Weather service configuration
+    pub weather: WeatherServiceConfig,
+    /// Strava API configuration
+    pub strava_api: StravaApiConfig,
+    /// Fitbit API configuration  
+    pub fitbit_api: FitbitApiConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WeatherServiceConfig {
+    /// OpenWeather API key
+    pub api_key: Option<String>,
+    /// Weather service base URL
+    pub base_url: String,
+    /// Enable weather service
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StravaApiConfig {
+    /// Strava API base URL
+    pub base_url: String,
+    /// Strava auth URL
+    pub auth_url: String,
+    /// Strava token URL
+    pub token_url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FitbitApiConfig {
+    /// Fitbit API base URL
+    pub base_url: String,
+    /// Fitbit auth URL
+    pub auth_url: String,
+    /// Fitbit token URL
+    pub token_url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AppBehaviorConfig {
+    /// Maximum activities to fetch in one request
+    pub max_activities_fetch: usize,
+    /// Default limit for activities queries
+    pub default_activities_limit: usize,
+    /// Enable CI mode for testing
+    pub ci_mode: bool,
+    /// Protocol configuration
+    pub protocol: ProtocolConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProtocolConfig {
+    /// MCP protocol version
+    pub mcp_version: String,
+    /// Server name
+    pub server_name: String,
+    /// Server version (from Cargo.toml)
+    pub server_version: String,
+}
+
 impl ServerConfig {
     /// Load configuration from environment variables
     pub fn from_env() -> Result<Self> {
@@ -130,10 +374,11 @@ impl ServerConfig {
         let config = ServerConfig {
             mcp_port: env_config::mcp_port(),
             http_port: env_config::http_port(),
-            log_level: env_config::log_level(),
+            log_level: LogLevel::from_str_or_default(&env_config::log_level()),
 
             database: DatabaseConfig {
-                url: env_config::database_url(),
+                url: DatabaseUrl::parse_url(&env_config::database_url())
+                    .unwrap_or_else(|_| DatabaseUrl::default()),
                 encryption_key_path: PathBuf::from(env_config::encryption_key_path()),
                 auto_migrate: env_var_or("AUTO_MIGRATE", "true")?
                     .parse()
@@ -216,6 +461,64 @@ impl ServerConfig {
                     cert_path: env::var("TLS_CERT_PATH").ok().map(PathBuf::from),
                     key_path: env::var("TLS_KEY_PATH").ok().map(PathBuf::from),
                 },
+                headers: SecurityHeadersConfig {
+                    environment: Environment::from_str_or_default(&env_var_or(
+                        "SECURITY_HEADERS_ENV",
+                        "development",
+                    )?),
+                },
+            },
+
+            external_services: ExternalServicesConfig {
+                weather: WeatherServiceConfig {
+                    api_key: env::var("OPENWEATHER_API_KEY").ok(),
+                    base_url: env_var_or(
+                        "OPENWEATHER_BASE_URL",
+                        "https://api.openweathermap.org/data/2.5",
+                    )?,
+                    enabled: env_var_or("WEATHER_SERVICE_ENABLED", "true")?
+                        .parse()
+                        .context("Invalid WEATHER_SERVICE_ENABLED value")?,
+                },
+                strava_api: StravaApiConfig {
+                    base_url: env_var_or("STRAVA_API_BASE", "https://www.strava.com/api/v3")?,
+                    auth_url: env_var_or(
+                        "STRAVA_AUTH_URL",
+                        "https://www.strava.com/oauth/authorize",
+                    )?,
+                    token_url: env_var_or(
+                        "STRAVA_TOKEN_URL",
+                        "https://www.strava.com/oauth/token",
+                    )?,
+                },
+                fitbit_api: FitbitApiConfig {
+                    base_url: env_var_or("FITBIT_API_BASE", "https://api.fitbit.com")?,
+                    auth_url: env_var_or(
+                        "FITBIT_AUTH_URL",
+                        "https://www.fitbit.com/oauth2/authorize",
+                    )?,
+                    token_url: env_var_or(
+                        "FITBIT_TOKEN_URL",
+                        "https://api.fitbit.com/oauth2/token",
+                    )?,
+                },
+            },
+
+            app_behavior: AppBehaviorConfig {
+                max_activities_fetch: env_var_or("MAX_ACTIVITIES_FETCH", "100")?
+                    .parse()
+                    .context("Invalid MAX_ACTIVITIES_FETCH value")?,
+                default_activities_limit: env_var_or("DEFAULT_ACTIVITIES_LIMIT", "20")?
+                    .parse()
+                    .context("Invalid DEFAULT_ACTIVITIES_LIMIT value")?,
+                ci_mode: env_var_or("CI", "false")?
+                    .parse()
+                    .context("Invalid CI value")?,
+                protocol: ProtocolConfig {
+                    mcp_version: env_var_or("MCP_PROTOCOL_VERSION", "2024-11-05")?,
+                    server_name: env_var_or("SERVER_NAME", "pierre-mcp-server")?,
+                    server_version: env!("CARGO_PKG_VERSION").to_string(),
+                },
             },
         };
 
@@ -231,10 +534,7 @@ impl ServerConfig {
             return Err(anyhow::anyhow!("MCP_PORT and HTTP_PORT cannot be the same"));
         }
 
-        // Database validation
-        if self.database.url.is_empty() {
-            return Err(anyhow::anyhow!("DATABASE_URL cannot be empty"));
-        }
+        // Database validation - URLs are now type-safe, so no need to check emptiness
 
         // OAuth validation
         if self.oauth.strava.enabled
@@ -271,15 +571,18 @@ impl ServerConfig {
              - Database: {}\n\
              - Strava OAuth: {}\n\
              - Fitbit OAuth: {}\n\
+             - Weather Service: {}\n\
              - TLS: {}\n\
-             - Rate Limiting: {}",
+             - Rate Limiting: {}\n\
+             - CI Mode: {}\n\
+             - Protocol Version: {}",
             self.mcp_port,
             self.http_port,
             self.log_level,
-            if self.database.url.starts_with("sqlite:") {
+            if self.database.url.is_sqlite() {
                 "SQLite"
             } else {
-                "External DB"
+                "PostgreSQL"
             },
             if self.oauth.strava.enabled && self.oauth.strava.client_id.is_some() {
                 "Enabled"
@@ -287,6 +590,13 @@ impl ServerConfig {
                 "Disabled"
             },
             if self.oauth.fitbit.enabled && self.oauth.fitbit.client_id.is_some() {
+                "Enabled"
+            } else {
+                "Disabled"
+            },
+            if self.external_services.weather.enabled
+                && self.external_services.weather.api_key.is_some()
+            {
                 "Enabled"
             } else {
                 "Disabled"
@@ -300,7 +610,47 @@ impl ServerConfig {
                 "Enabled"
             } else {
                 "Disabled"
-            }
+            },
+            self.app_behavior.ci_mode,
+            self.app_behavior.protocol.mcp_version
+        )
+    }
+
+    /// Convenience methods for accessing commonly used values
+    /// Get the OpenWeather API key if available
+    pub fn openweather_api_key(&self) -> Option<&str> {
+        self.external_services.weather.api_key.as_deref()
+    }
+
+    /// Get Strava API configuration
+    pub fn strava_api_config(&self) -> &StravaApiConfig {
+        &self.external_services.strava_api
+    }
+
+    /// Get Fitbit API configuration
+    pub fn fitbit_api_config(&self) -> &FitbitApiConfig {
+        &self.external_services.fitbit_api
+    }
+
+    /// Check if CI mode is enabled
+    pub fn is_ci_mode(&self) -> bool {
+        self.app_behavior.ci_mode
+    }
+
+    /// Get protocol information
+    pub fn protocol_info(&self) -> (&str, &str, &str) {
+        (
+            &self.app_behavior.protocol.mcp_version,
+            &self.app_behavior.protocol.server_name,
+            &self.app_behavior.protocol.server_version,
+        )
+    }
+
+    /// Get activity fetch limits
+    pub fn activity_limits(&self) -> (usize, usize) {
+        (
+            self.app_behavior.max_activities_fetch,
+            self.app_behavior.default_activities_limit,
         )
     }
 }
@@ -359,14 +709,81 @@ mod tests {
     }
 
     #[test]
+    fn test_log_level_parsing() {
+        assert_eq!(LogLevel::from_str_or_default("error"), LogLevel::Error);
+        assert_eq!(LogLevel::from_str_or_default("WARN"), LogLevel::Warn);
+        assert_eq!(LogLevel::from_str_or_default("info"), LogLevel::Info);
+        assert_eq!(LogLevel::from_str_or_default("Debug"), LogLevel::Debug);
+        assert_eq!(LogLevel::from_str_or_default("trace"), LogLevel::Trace);
+        assert_eq!(LogLevel::from_str_or_default("invalid"), LogLevel::Info); // Default fallback
+    }
+
+    #[test]
+    fn test_environment_parsing() {
+        assert_eq!(
+            Environment::from_str_or_default("production"),
+            Environment::Production
+        );
+        assert_eq!(
+            Environment::from_str_or_default("PROD"),
+            Environment::Production
+        );
+        assert_eq!(
+            Environment::from_str_or_default("development"),
+            Environment::Development
+        );
+        assert_eq!(
+            Environment::from_str_or_default("dev"),
+            Environment::Development
+        );
+        assert_eq!(
+            Environment::from_str_or_default("testing"),
+            Environment::Testing
+        );
+        assert_eq!(
+            Environment::from_str_or_default("test"),
+            Environment::Testing
+        );
+        assert_eq!(
+            Environment::from_str_or_default("invalid"),
+            Environment::Development
+        ); // Default fallback
+    }
+
+    #[test]
+    fn test_database_url_parsing() {
+        // SQLite URLs
+        let sqlite_url = DatabaseUrl::parse_url("sqlite:./test.db").unwrap();
+        assert!(sqlite_url.is_sqlite());
+        assert!(!sqlite_url.is_postgresql());
+        assert_eq!(sqlite_url.to_connection_string(), "sqlite:./test.db");
+
+        // Memory database
+        let memory_url = DatabaseUrl::parse_url("sqlite::memory:").unwrap();
+        assert!(memory_url.is_memory());
+        assert!(memory_url.is_sqlite());
+
+        // PostgreSQL URLs
+        let pg_url = DatabaseUrl::parse_url("postgresql://user:pass@localhost/db").unwrap();
+        assert!(pg_url.is_postgresql());
+        assert!(!pg_url.is_sqlite());
+
+        // Fallback to SQLite
+        let fallback_url = DatabaseUrl::parse_url("./some/path.db").unwrap();
+        assert!(fallback_url.is_sqlite());
+    }
+
+    #[test]
     fn test_config_validation() {
         // Test port conflict
         let mut config = ServerConfig {
             mcp_port: env_config::mcp_port(),
             http_port: env_config::mcp_port(), // Same as MCP port - should fail validation
-            log_level: env_config::log_level(),
+            log_level: LogLevel::default(),
             database: DatabaseConfig {
-                url: "sqlite:test.db".to_string(),
+                url: DatabaseUrl::SQLite {
+                    path: PathBuf::from("test.db"),
+                },
                 encryption_key_path: PathBuf::from("test.key"),
                 auto_migrate: true,
                 backup: BackupConfig {
@@ -408,6 +825,36 @@ mod tests {
                     enabled: false,
                     cert_path: None,
                     key_path: None,
+                },
+                headers: SecurityHeadersConfig {
+                    environment: Environment::Development,
+                },
+            },
+            external_services: ExternalServicesConfig {
+                weather: WeatherServiceConfig {
+                    api_key: None,
+                    base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                    enabled: false,
+                },
+                strava_api: StravaApiConfig {
+                    base_url: "https://www.strava.com/api/v3".to_string(),
+                    auth_url: "https://www.strava.com/oauth/authorize".to_string(),
+                    token_url: "https://www.strava.com/oauth/token".to_string(),
+                },
+                fitbit_api: FitbitApiConfig {
+                    base_url: "https://api.fitbit.com".to_string(),
+                    auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
+                    token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+                },
+            },
+            app_behavior: AppBehaviorConfig {
+                max_activities_fetch: 100,
+                default_activities_limit: 20,
+                ci_mode: false,
+                protocol: ProtocolConfig {
+                    mcp_version: "2024-11-05".to_string(),
+                    server_name: "pierre-mcp-server".to_string(),
+                    server_version: "test".to_string(),
                 },
             },
         };

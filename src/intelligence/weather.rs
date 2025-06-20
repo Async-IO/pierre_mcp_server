@@ -19,6 +19,7 @@ pub struct WeatherService {
     client: Client,
     config: WeatherApiConfig,
     cache: HashMap<String, CachedWeatherData>,
+    api_key: Option<String>,
 }
 
 /// Cached weather data with timestamp
@@ -51,8 +52,8 @@ struct OpenWeatherCondition {
 }
 
 impl WeatherService {
-    /// Create a new weather service with configuration
-    pub fn new(config: WeatherApiConfig) -> Self {
+    /// Create a new weather service with configuration and API key
+    pub fn new(config: WeatherApiConfig, api_key: Option<String>) -> Self {
         Self {
             client: Client::builder()
                 .timeout(Duration::from_secs(config.request_timeout_seconds))
@@ -60,12 +61,16 @@ impl WeatherService {
                 .unwrap_or_else(|_| Client::new()),
             config,
             cache: HashMap::new(),
+            api_key,
         }
     }
 
     /// Create weather service with default configuration
     pub fn with_default_config() -> Self {
-        Self::new(WeatherApiConfig::default())
+        Self::new(
+            WeatherApiConfig::default(),
+            std::env::var("OPENWEATHER_API_KEY").ok(),
+        )
     }
 
     /// Get the current weather service configuration
@@ -158,8 +163,8 @@ impl WeatherService {
         longitude: f64,
         timestamp: DateTime<Utc>,
     ) -> Result<WeatherConditions, WeatherError> {
-        let api_key = std::env::var("OPENWEATHER_API_KEY").map_err(|_| {
-            WeatherError::ApiError("OPENWEATHER_API_KEY environment variable not set".to_string())
+        let api_key = self.api_key.as_ref().ok_or_else(|| {
+            WeatherError::ApiError("OpenWeather API key not configured".to_string())
         })?;
 
         let url = format!(
@@ -409,14 +414,14 @@ mod tests {
     #[test]
     fn test_weather_service_creation() {
         let config = crate::config::fitness_config::WeatherApiConfig::default();
-        let _service = WeatherService::new(config);
+        let _service = WeatherService::new(config, None);
         // Just test creation - no assertion needed
     }
 
     #[test]
     fn test_generate_mock_weather() {
         let config = crate::config::fitness_config::WeatherApiConfig::default();
-        let service = WeatherService::new(config);
+        let service = WeatherService::new(config, None);
         let weather = service.generate_mock_weather();
 
         assert!(weather.temperature_celsius > -20.0 && weather.temperature_celsius < 40.0);
@@ -428,7 +433,7 @@ mod tests {
     #[test]
     fn test_analyze_weather_impact_cold() {
         let config = crate::config::fitness_config::WeatherApiConfig::default();
-        let service = WeatherService::new(config);
+        let service = WeatherService::new(config, None);
         let cold_weather = WeatherConditions {
             temperature_celsius: -10.0,
             humidity_percentage: Some(50.0),
@@ -448,7 +453,7 @@ mod tests {
     #[test]
     fn test_analyze_weather_impact_ideal() {
         let config = crate::config::fitness_config::WeatherApiConfig::default();
-        let service = WeatherService::new(config);
+        let service = WeatherService::new(config, None);
         let ideal_weather = WeatherConditions {
             temperature_celsius: 15.0,
             humidity_percentage: Some(50.0),
@@ -463,7 +468,7 @@ mod tests {
     #[test]
     fn test_analyze_weather_impact_hot_humid() {
         let config = crate::config::fitness_config::WeatherApiConfig::default();
-        let service = WeatherService::new(config);
+        let service = WeatherService::new(config, None);
         let hot_humid_weather = WeatherConditions {
             temperature_celsius: 32.0,
             humidity_percentage: Some(85.0),
@@ -485,7 +490,7 @@ mod tests {
             fallback_to_mock: true,
             ..Default::default()
         };
-        let mut service = WeatherService::new(config);
+        let mut service = WeatherService::new(config, None);
         let result = service
             .get_weather_at_time(45.5017, -73.5673, Utc::now())
             .await; // Montreal coords
@@ -501,7 +506,7 @@ mod tests {
             fallback_to_mock: true,
             ..Default::default()
         };
-        let mut service = WeatherService::new(config);
+        let mut service = WeatherService::new(config, None);
         let result = service
             .get_weather_for_activity(Some(45.5017), Some(-73.5673), Utc::now())
             .await;
