@@ -203,6 +203,8 @@ pub mod ports {
     pub const DEFAULT_MCP_PORT: u16 = 8080;
     /// Default HTTP server port  
     pub const DEFAULT_HTTP_PORT: u16 = 8081;
+    /// Default documentation server port
+    pub const DEFAULT_DOCS_PORT: u16 = 3000;
 }
 
 /// HTTP routes and paths
@@ -235,6 +237,7 @@ pub mod limits {
     /// Rate limiting defaults
     pub const DEFAULT_RATE_LIMIT_REQUESTS: u32 = 100;
     pub const DEFAULT_RATE_LIMIT_WINDOW_SECS: u64 = 60;
+    pub const RATE_LIMIT_WINDOW_DAYS: i64 = 30;
 
     /// Backup defaults
     pub const DEFAULT_BACKUP_INTERVAL_SECS: u64 = 21600; // 6 hours
@@ -251,6 +254,51 @@ pub mod limits {
     pub const SECONDS_PER_MINUTE: u64 = 60;
     pub const METERS_PER_KILOMETER: f64 = 1000.0;
     pub const METERS_PER_MILE: f64 = 1609.34;
+}
+
+/// Timeout and duration constants
+pub mod timeouts {
+    /// Health check timeouts
+    pub const HEALTH_CHECK_TIMEOUT_SECS: u64 = 5;
+    pub const HEALTH_CACHE_TTL_SECS: u64 = 30;
+    pub const HEALTH_CHECK_INTERVAL_SECS: u64 = 3600; // 1 hour
+
+    /// OAuth timeouts
+    pub const OAUTH_STATE_EXPIRY_MINUTES: i64 = 10;
+    pub const TOKEN_REFRESH_BUFFER_MINUTES: i64 = 5;
+    pub const TOKEN_EXPIRY_WARNING_MINUTES: i64 = 5;
+    pub const DEFAULT_TOKEN_EXPIRY_HOURS: i64 = 6;
+
+    /// Auth setup and general operations
+    pub const AUTH_SETUP_WAIT_SECS: u64 = 60;
+
+    /// Admin token expiry
+    pub const ADMIN_TOKEN_DEFAULT_EXPIRY_DAYS: i64 = 365;
+
+    /// Trial period
+    pub const DEFAULT_TRIAL_DAYS: i64 = 14;
+}
+
+/// Cryptographic and security constants
+pub mod crypto {
+    /// JWT and secret lengths
+    pub const JWT_SECRET_LENGTH: usize = 64;
+
+    /// API key configuration
+    pub const API_KEY_RANDOM_LENGTH: usize = 32;
+    pub const API_KEY_PREFIX_LENGTH: usize = 12;
+    pub const TRIAL_KEY_LENGTH: usize = 41;
+    pub const LIVE_KEY_LENGTH: usize = 40;
+
+    /// OAuth and PKCE
+    pub const PKCE_CODE_VERIFIER_LENGTH: usize = 128;
+}
+
+/// Security header constants
+pub mod security {
+    /// HSTS max-age values
+    pub const HSTS_MAX_AGE_DEV: u32 = 86400; // 1 day in seconds
+    pub const HSTS_MAX_AGE_PROD: u32 = 31536000; // 1 year in seconds
 }
 
 /// OAuth scopes and provider defaults

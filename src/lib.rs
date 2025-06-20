@@ -140,3 +140,9 @@ pub mod oauth;
 
 /// Unified rate limiting system for API keys and JWT tokens
 pub mod rate_limiting;
+
+/// Rate limiting middleware with HTTP headers and proper error responses
+pub mod rate_limiting_middleware;
+
+/// Unified error handling system with standard error codes and HTTP responses
+pub mod errors;
