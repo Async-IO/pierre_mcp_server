@@ -31,9 +31,9 @@ struct McpTestClient {
 
 impl McpTestClient {
     async fn connect(port: u16) -> Result<Self> {
-        // Retry connection with exponential backoff
+        // Retry connection with exponential backoff - increased attempts for high-concurrency environments
         let mut attempts = 0;
-        let max_attempts = 5;
+        let max_attempts = 8;
         let mut delay = tokio::time::Duration::from_millis(100);
 
         loop {
@@ -120,8 +120,8 @@ async fn setup_test_environment() -> Result<(Database, AuthManager, u16)> {
     let database = Database::new("sqlite::memory:", encryption_key).await?;
     let auth_manager = AuthManager::new(vec![0u8; 64], 24);
 
-    // Use a random port for testing
-    let test_port = 9000 + rand::random::<u16>() % 1000;
+    // Use a random port for testing with wider range to avoid conflicts
+    let test_port = 19000 + rand::random::<u16>() % 10000;
 
     Ok((database, auth_manager, test_port))
 }
@@ -159,7 +159,7 @@ async fn test_mcp_server_initialization() -> Result<()> {
     let (database, auth_manager, test_port) = setup_test_environment().await?;
 
     // Start MCP server in background
-    let server = MultiTenantMcpServer::new(database, auth_manager);
+    let server = MultiTenantMcpServer::new(database, auth_manager, "development".to_string());
     let server_handle = tokio::spawn(async move { server.run(test_port).await });
 
     // Give server time to start
@@ -205,7 +205,7 @@ async fn test_analytics_workflow_without_provider() -> Result<()> {
     let (_user_id, jwt_token) = create_test_user(&database, &auth_manager).await?;
 
     // Start MCP server
-    let server = MultiTenantMcpServer::new(database, auth_manager);
+    let server = MultiTenantMcpServer::new(database, auth_manager, "development".to_string());
     let server_handle = tokio::spawn(async move { server.run(test_port).await });
 
     // Give server more time to start
@@ -277,7 +277,7 @@ async fn test_goal_management_workflow() -> Result<()> {
     let (_user_id, jwt_token) = create_test_user(&database, &auth_manager).await?;
 
     // Start MCP server
-    let server = MultiTenantMcpServer::new(database, auth_manager);
+    let server = MultiTenantMcpServer::new(database, auth_manager, "development".to_string());
     let server_handle = tokio::spawn(async move { server.run(test_port).await });
 
     // Wait longer for server to start and retry connection
@@ -346,12 +346,21 @@ async fn test_analytics_tools_comprehensive() -> Result<()> {
     let (database, auth_manager, test_port) = setup_test_environment().await?;
     let (_user_id, jwt_token) = create_test_user(&database, &auth_manager).await?;
 
-    let server = MultiTenantMcpServer::new(database, auth_manager);
+    let server = MultiTenantMcpServer::new(database, auth_manager, "development".to_string());
     let server_handle = tokio::spawn(async move { server.run(test_port).await });
 
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    // Wait longer for server to start in high-concurrency test environments
+    tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
 
-    let mut client = McpTestClient::connect(test_port).await?;
+    // Use the enhanced connection logic with retries
+    let mut client = match McpTestClient::connect(test_port).await {
+        Ok(client) => client,
+        Err(_) => {
+            // Extra retry with longer wait for high-concurrency scenarios
+            tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
+            McpTestClient::connect(test_port).await?
+        }
+    };
     client.initialize().await?;
     client.set_token(jwt_token);
 
@@ -412,7 +421,7 @@ async fn test_analytics_tools_comprehensive() -> Result<()> {
 async fn test_authentication_required() -> Result<()> {
     let (database, auth_manager, test_port) = setup_test_environment().await?;
 
-    let server = MultiTenantMcpServer::new(database, auth_manager);
+    let server = MultiTenantMcpServer::new(database, auth_manager, "development".to_string());
     let server_handle = tokio::spawn(async move { server.run(test_port).await });
 
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
@@ -440,7 +449,7 @@ async fn test_error_handling_invalid_tool() -> Result<()> {
     let (database, auth_manager, test_port) = setup_test_environment().await?;
     let (_user_id, jwt_token) = create_test_user(&database, &auth_manager).await?;
 
-    let server = MultiTenantMcpServer::new(database, auth_manager);
+    let server = MultiTenantMcpServer::new(database, auth_manager, "development".to_string());
     let server_handle = tokio::spawn(async move { server.run(test_port).await });
 
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
@@ -465,7 +474,7 @@ async fn test_fitness_report_generation_workflow() -> Result<()> {
     let (database, auth_manager, test_port) = setup_test_environment().await?;
     let (_user_id, jwt_token) = create_test_user(&database, &auth_manager).await?;
 
-    let server = MultiTenantMcpServer::new(database, auth_manager);
+    let server = MultiTenantMcpServer::new(database, auth_manager, "development".to_string());
     let server_handle = tokio::spawn(async move { server.run(test_port).await });
 
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;

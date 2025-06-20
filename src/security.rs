@@ -65,6 +65,15 @@ impl Default for SecurityConfig {
 }
 
 impl SecurityConfig {
+    /// Create security configuration based on environment string
+    pub fn from_environment(env: &str) -> Self {
+        match env.to_lowercase().as_str() {
+            "production" | "prod" => Self::production(),
+            "development" | "dev" => Self::development(),
+            _ => Self::development(),
+        }
+    }
+
     /// Create a development-friendly security configuration
     pub fn development() -> Self {
         Self {
@@ -356,6 +365,26 @@ mod tests {
 
         assert_eq!(config1.csp, config2.csp);
         assert_eq!(config1.frame_options, config2.frame_options);
+    }
+
+    #[test]
+    fn test_from_environment() {
+        let dev_config = SecurityConfig::from_environment("development");
+        assert!(dev_config.csp.contains("localhost"));
+        assert!(dev_config.hsts.is_none());
+
+        let prod_config = SecurityConfig::from_environment("production");
+        assert!(prod_config.csp.contains("upgrade-insecure-requests"));
+        assert!(prod_config.hsts.is_some());
+        assert!(prod_config.hsts.as_ref().unwrap().contains("preload"));
+
+        // Test case insensitive
+        let prod_config2 = SecurityConfig::from_environment("PRODUCTION");
+        assert_eq!(prod_config.csp, prod_config2.csp);
+
+        // Test default fallback
+        let default_config = SecurityConfig::from_environment("unknown");
+        assert_eq!(default_config.csp, dev_config.csp);
     }
 
     #[test]

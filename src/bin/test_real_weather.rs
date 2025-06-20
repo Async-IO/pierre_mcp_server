@@ -25,7 +25,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create weather service
     let config = WeatherApiConfig::default();
-    let mut weather_service = WeatherService::new(config);
+    let mut weather_service =
+        WeatherService::new(config, std::env::var("OPENWEATHER_API_KEY").ok());
 
     println!("\n📅 Testing Historical Weather Data");
     println!("==================================");

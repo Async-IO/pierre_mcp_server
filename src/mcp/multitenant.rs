@@ -50,11 +50,17 @@ pub struct MultiTenantMcpServer {
     websocket_manager: Arc<WebSocketManager>,
     // Per-user provider instances
     user_providers: UserProviderStorage,
+    // Security headers environment setting
+    security_headers_env: String,
 }
 
 impl MultiTenantMcpServer {
     /// Create a new multi-tenant MCP server
-    pub fn new(database: Database, auth_manager: AuthManager) -> Self {
+    pub fn new(
+        database: Database,
+        auth_manager: AuthManager,
+        security_headers_env: String,
+    ) -> Self {
         let database_arc = Arc::new(database);
         let auth_manager_arc = Arc::new(auth_manager);
         let auth_middleware =
@@ -70,6 +76,7 @@ impl MultiTenantMcpServer {
             auth_middleware: Arc::new(auth_middleware),
             websocket_manager,
             user_providers: Arc::new(RwLock::new(HashMap::new())),
+            security_headers_env,
         }
     }
 
@@ -95,12 +102,14 @@ impl MultiTenantMcpServer {
         let auth_manager_http = auth_manager.clone();
         let websocket_manager_http = self.websocket_manager.clone();
 
+        let security_headers_env = self.security_headers_env.clone();
         tokio::spawn(async move {
             Self::run_http_server(
                 http_port,
                 database_http,
                 auth_manager_http,
                 websocket_manager_http,
+                &security_headers_env,
             )
             .await
         });
@@ -115,14 +124,18 @@ impl MultiTenantMcpServer {
         database: Arc<Database>,
         auth_manager: Arc<AuthManager>,
         websocket_manager: Arc<WebSocketManager>,
+        security_headers_env: &str,
     ) -> Result<()> {
         use warp::Filter;
 
         info!("HTTP authentication server starting on port {}", port);
 
-        // Security configuration (use development config for now)
-        let security_config = SecurityConfig::development();
-        info!("Security headers enabled with development configuration");
+        // Security configuration based on environment
+        let security_config = SecurityConfig::from_environment(security_headers_env);
+        info!(
+            "Security headers enabled with {} configuration",
+            security_headers_env
+        );
 
         let auth_routes = AuthRoutes::new((*database).clone(), (*auth_manager).clone());
         let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
@@ -1676,7 +1689,8 @@ impl MultiTenantMcpServer {
                                 let weather = if include_weather {
                                     let weather_config =
                                         fitness_config.weather_api.unwrap_or_default();
-                                    let mut weather_service = WeatherService::new(weather_config);
+                                    let mut weather_service =
+                                        WeatherService::new(weather_config, None);
 
                                     weather_service
                                         .get_weather_for_activity(
@@ -2379,8 +2393,12 @@ struct ApiError(serde_json::Value);
 impl warp::reject::Reject for ApiError {}
 
 /// Add CORS and security headers to a reply
-fn with_cors_headers(reply: impl warp::Reply) -> impl warp::Reply {
-    let security_config = SecurityConfig::development();
+fn with_cors_headers(
+    reply: impl warp::Reply,
+    security_headers_env: Option<&str>,
+) -> impl warp::Reply {
+    let env = security_headers_env.unwrap_or("development");
+    let security_config = SecurityConfig::from_environment(env);
     let headers = security_config.to_headers();
 
     // Add main CORS headers and a security header
@@ -2411,25 +2429,25 @@ async fn handle_rejection(
     if let Some(api_error) = err.find::<ApiError>() {
         let json = warp::reply::json(&api_error.0);
         let reply = warp::reply::with_status(json, warp::http::StatusCode::BAD_REQUEST);
-        Ok(Box::new(with_cors_headers(reply)))
+        Ok(Box::new(with_cors_headers(reply, None)))
     } else if err.find::<warp::reject::MethodNotAllowed>().is_some() {
         // Handle CORS preflight and method not allowed
         let json = warp::reply::json(&serde_json::json!({}));
         let reply = warp::reply::with_status(json, warp::http::StatusCode::OK);
-        Ok(Box::new(with_cors_headers(reply)))
+        Ok(Box::new(with_cors_headers(reply, None)))
     } else if err.is_not_found() {
         let json = warp::reply::json(&serde_json::json!({
             "error": "Not Found",
             "message": "The requested endpoint was not found"
         }));
         let reply = warp::reply::with_status(json, warp::http::StatusCode::NOT_FOUND);
-        Ok(Box::new(with_cors_headers(reply)))
+        Ok(Box::new(with_cors_headers(reply, None)))
     } else {
         let json = warp::reply::json(&serde_json::json!({
             "error": "Internal Server Error",
             "message": "Something went wrong"
         }));
         let reply = warp::reply::with_status(json, warp::http::StatusCode::INTERNAL_SERVER_ERROR);
-        Ok(Box::new(with_cors_headers(reply)))
+        Ok(Box::new(with_cors_headers(reply, None)))
     }
 }

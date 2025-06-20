@@ -28,7 +28,10 @@ async fn test_single_tenant_oauth_flow() {
     // Create OAuth manager
     let mut oauth_manager = OAuthManager::new(database.clone());
 
-    // Register Strava provider with test credentials
+    // Register Strava provider with test credentials - save original values for cleanup
+    let original_client_id = std::env::var("STRAVA_CLIENT_ID").ok();
+    let original_client_secret = std::env::var("STRAVA_CLIENT_SECRET").ok();
+
     std::env::set_var("STRAVA_CLIENT_ID", "test_client");
     std::env::set_var("STRAVA_CLIENT_SECRET", "test_secret");
 
@@ -46,6 +49,16 @@ async fn test_single_tenant_oauth_flow() {
     assert!(auth_response.authorization_url.contains("test_client"));
     assert!(!auth_response.state.is_empty());
     assert_eq!(auth_response.provider, "strava");
+
+    // Cleanup environment variables
+    match original_client_id {
+        Some(val) => std::env::set_var("STRAVA_CLIENT_ID", val),
+        None => std::env::remove_var("STRAVA_CLIENT_ID"),
+    }
+    match original_client_secret {
+        Some(val) => std::env::set_var("STRAVA_CLIENT_SECRET", val),
+        None => std::env::remove_var("STRAVA_CLIENT_SECRET"),
+    }
 }
 
 /// Test OAuth callback handling with invalid state

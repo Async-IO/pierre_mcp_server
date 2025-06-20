@@ -196,10 +196,8 @@ async fn test_api_key_rate_limiting() {
     // Authentication should fail due to rate limiting
     let auth_result = auth_middleware.authenticate_request(Some(&full_key)).await;
     assert!(auth_result.is_err());
-    assert!(auth_result
-        .unwrap_err()
-        .to_string()
-        .contains("rate limit exceeded"));
+    let error_msg = auth_result.unwrap_err().to_string();
+    assert!(error_msg.contains("Rate limit reached for API key"));
 }
 
 #[tokio::test]
@@ -326,10 +324,8 @@ async fn test_deactivated_api_key() {
     // Authentication should now fail
     let auth_result = auth_middleware.authenticate_request(Some(&full_key)).await;
     assert!(auth_result.is_err());
-    assert!(auth_result
-        .unwrap_err()
-        .to_string()
-        .contains("Invalid API key"));
+    let error_msg = auth_result.unwrap_err().to_string();
+    assert!(error_msg.contains("API key not found or invalid"));
 }
 
 #[tokio::test]

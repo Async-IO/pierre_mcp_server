@@ -7,7 +7,7 @@ use crate::admin::{
     models::{AdminPermission, AdminTokenUsage, ValidatedAdminToken},
 };
 use crate::database_plugins::{factory::Database, DatabaseProvider};
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{info, warn};
@@ -46,21 +46,33 @@ impl AdminAuthService {
             .database
             .get_admin_token_by_id(&validated_token.token_id)
             .await?
-            .ok_or_else(|| anyhow!("Admin token not found in database"))?;
+            .with_context(|| {
+                format!(
+                    "Admin token with ID {} not found in database",
+                    validated_token.token_id
+                )
+            })?;
 
         if !stored_token.is_active {
-            return Err(anyhow!("Admin token is inactive"));
+            return Err(
+                anyhow!("Authentication failed: Admin token is inactive").context(format!(
+                    "Token ID {} has been deactivated",
+                    validated_token.token_id
+                )),
+            );
         }
 
         // Step 3: Verify token hash
         if !AdminJwtManager::verify_token_hash(token, &stored_token.token_hash)? {
-            return Err(anyhow!("Invalid token hash"));
+            return Err(anyhow!("Authentication failed: Invalid token hash")
+                .context("Token hash verification failed - token may be tampered with"));
         }
 
         // Step 4: Check expiration
         if let Some(expires_at) = stored_token.expires_at {
             if chrono::Utc::now() > expires_at {
-                return Err(anyhow!("Admin token has expired"));
+                return Err(anyhow!("Authentication failed: Admin token has expired")
+                    .context(format!("Token expired at {}", expires_at)));
             }
         }
 
@@ -69,10 +81,12 @@ impl AdminAuthService {
             .permissions
             .has_permission(&required_permission)
         {
-            return Err(anyhow!(
-                "Insufficient permissions. Required: {:?}",
-                required_permission
-            ));
+            return Err(
+                anyhow!("Authorization failed: Insufficient permissions").context(format!(
+                    "Required permission: {:?}, token has: {:?}",
+                    required_permission, stored_token.permissions
+                )),
+            );
         }
 
         // Step 6: Log usage
