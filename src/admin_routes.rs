@@ -267,10 +267,10 @@ fn extract_bearer_token(auth_header: &str) -> Result<String> {
 /// Convert rate limit period string to window duration in seconds
 fn convert_rate_limit_period(period: &str) -> Result<u32> {
     match period.to_lowercase().as_str() {
-        "hour" => Ok(3600),     // 1 hour
-        "day" => Ok(86400),     // 24 hours
-        "week" => Ok(604800),   // 7 days
-        "month" => Ok(2592000), // 30 days
+        "hour" => Ok(3600),       // 1 hour
+        "day" => Ok(86400),       // 24 hours
+        "week" => Ok(604_800),    // 7 days
+        "month" => Ok(2_592_000), // 30 days
         _ => Err(anyhow!(
             "Invalid rate limit period. Supported: hour, day, week, month"
         )),

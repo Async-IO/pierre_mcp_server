@@ -90,10 +90,9 @@ impl LocationService {
             if entry.timestamp.elapsed().unwrap_or(Duration::from_secs(0)) < self.cache_duration {
                 debug!("Using cached location data for {}", cache_key);
                 return Ok(entry.location.clone());
-            } else {
-                debug!("Cache entry expired for {}", cache_key);
-                self.cache.remove(&cache_key);
             }
+            debug!("Cache entry expired for {}", cache_key);
+            self.cache.remove(&cache_key);
         }
 
         info!(

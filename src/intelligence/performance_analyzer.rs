@@ -66,16 +66,17 @@ impl AdvancedPerformanceAnalyzer {
         let n = data_points.len() as f64;
         let sum_x: f64 = (0..data_points.len()).map(|i| i as f64).sum();
         let sum_y: f64 = data_points.iter().map(|p| p.value).sum();
-        let sum_xy: f64 = data_points
+        let sum_x_y: f64 = data_points
             .iter()
             .enumerate()
             .map(|(i, p)| i as f64 * p.value)
             .sum();
-        let sum_x2: f64 = (0..data_points.len()).map(|i| (i as f64).powi(2)).sum();
-        let sum_y2: f64 = data_points.iter().map(|p| p.value.powi(2)).sum();
+        let sum_x_squared: f64 = (0..data_points.len()).map(|i| (i as f64).powi(2)).sum();
+        let sum_values_squared: f64 = data_points.iter().map(|p| p.value.powi(2)).sum();
 
-        let numerator = n * sum_xy - sum_x * sum_y;
-        let denominator = ((n * sum_x2 - sum_x.powi(2)) * (n * sum_y2 - sum_y.powi(2))).sqrt();
+        let numerator = n * sum_x_y - sum_x * sum_y;
+        let denominator =
+            ((n * sum_x_squared - sum_x.powi(2)) * (n * sum_values_squared - sum_y.powi(2))).sqrt();
 
         if denominator == 0.0 {
             return 0.0;

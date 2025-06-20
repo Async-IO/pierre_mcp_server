@@ -62,12 +62,12 @@ impl A2AClientTier {
         match self {
             A2AClientTier::Trial => Some(1000),
             A2AClientTier::Standard => Some(10000),
-            A2AClientTier::Professional => Some(100000),
+            A2AClientTier::Professional => Some(100_000),
             A2AClientTier::Enterprise => None, // Unlimited
         }
     }
 
-    pub fn display_name(&self) -> &'static str {
+    pub const fn display_name(&self) -> &'static str {
         match self {
             A2AClientTier::Trial => "Trial",
             A2AClientTier::Standard => "Standard",

@@ -447,15 +447,14 @@ impl From<StravaActivity> for Activity {
         let fitness_config = FitnessConfig::default();
 
         // Extract GPS coordinates from start_latlng array
-        let (start_latitude, start_longitude) = if let Some(coords) = strava.start_latlng {
-            if coords.len() >= 2 {
-                (Some(coords[0]), Some(coords[1]))
-            } else {
-                (None, None)
-            }
-        } else {
-            (None, None)
-        };
+        let (start_latitude, start_longitude) =
+            strava.start_latlng.map_or((None, None), |coords| {
+                if coords.len() >= 2 {
+                    (Some(coords[0]), Some(coords[1]))
+                } else {
+                    (None, None)
+                }
+            });
 
         Activity {
             id: strava.id.to_string(),
@@ -465,8 +464,10 @@ impl From<StravaActivity> for Activity {
             duration_seconds: strava.elapsed_time,
             distance_meters: strava.distance,
             elevation_gain: strava.total_elevation_gain,
-            average_heart_rate: strava.average_heartrate.map(|hr| hr as u32),
-            max_heart_rate: strava.max_heartrate.map(|hr| hr as u32),
+            average_heart_rate: strava
+                .average_heartrate
+                .map(|hr| hr.round().max(0.0) as u32),
+            max_heart_rate: strava.max_heartrate.map(|hr| hr.round().max(0.0) as u32),
             average_speed: strava.average_speed,
             max_speed: strava.max_speed,
             calories: None,
