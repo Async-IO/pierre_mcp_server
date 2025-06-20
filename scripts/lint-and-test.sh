@@ -256,6 +256,22 @@ print(f'✅ Data processing works: score={result[\"total_score\"]}, quality={val
         fi
     fi
     
+    # Test provisioning mock provider
+    echo -e "${BLUE}==== Testing provisioning mock provider... ====${NC}"
+    if command_exists timeout; then
+        if timeout 10s python3 python/provisioning/mock_strava_provider.py > /dev/null 2>&1; then
+            echo -e "${GREEN}✅ Mock Strava provider works${NC}"
+        else
+            echo -e "${YELLOW}⚠️  Mock Strava provider test failed or timed out${NC}"
+        fi
+    else
+        if python3 python/provisioning/mock_strava_provider.py > /dev/null 2>&1; then
+            echo -e "${GREEN}✅ Mock Strava provider works${NC}"
+        else
+            echo -e "${YELLOW}⚠️  Mock Strava provider test failed${NC}"
+        fi
+    fi
+    
     unset PIERRE_CI_MODE
     
     cd ..
