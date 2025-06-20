@@ -319,6 +319,33 @@ Access via the admin service at `https://admin.yourdomain.com`:
 - Generate billing reports
 - Manage customer tiers
 
+## 🔧 Troubleshooting
+
+### Common Issues
+
+**API Key Authentication Fails**
+```bash
+# Verify API key format and permissions
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+     http://localhost:8081/admin/api-keys/validate
+```
+
+**Rate Limiting Issues**
+- Check current usage: GET `/admin/api-keys/{key_id}/usage`
+- Adjust rate limits in configuration
+- Implement exponential backoff in your client
+
+**Connection Issues**
+- Verify server is running: `curl http://localhost:8081/health`
+- Check firewall settings for ports 8081-8082
+- Validate environment variables are set
+
+### Getting Help
+
+- 📖 **Documentation**: Review [API_REFERENCE.md](API_REFERENCE.md)
+- 🐛 **Issues**: Report bugs via GitHub Issues
+- 💬 **Community**: Join discussions on GitHub
+
 For detailed setup instructions, see:
 - [SETUP.md](SETUP.md) - Initial server setup
 - [DEPLOYMENT.md](DEPLOYMENT.md) - Production deployment

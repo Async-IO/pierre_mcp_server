@@ -99,6 +99,7 @@ curl -X POST https://your-pierre-server.com/a2a/execute \
 | **🛠️ [MCP Tools Reference](docs/TOOLS.md)** | All 21 fitness tools | Data access, intelligence, goals, analytics |
 | **🌦️ [Weather Integration](docs/WEATHER.md)** | Weather-enhanced analysis | OpenWeatherMap setup, mock data, intelligence |
 | **🔑 [API Reference](docs/API_REFERENCE.md)** | Enterprise features | API keys, rate limiting, security, monitoring |
+| **🏢 [Enterprise Provisioning](docs/PROVISIONING.md)** | B2B deployment guide | API key provisioning, multi-tenant setup, admin workflows |
 | **🚀 [Deployment Guide](docs/DEPLOYMENT.md)** | Production deployment | Docker, Kubernetes, cloud platforms |
 
 ## ⭐ Key Features
