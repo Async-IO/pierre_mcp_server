@@ -3,7 +3,7 @@
 [![CI](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml)
 [![Frontend Tests](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/frontend-tests.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/frontend-tests.yml)
 
-A multi-protocol fitness data API providing secure access to fitness data from multiple providers (Strava, Fitbit) through the [Model Context Protocol](https://modelcontextprotocol.io/specification/draft) (MCP), [A2A](https://github.com/google-a2a/A2A) (Agent-to-Agent) Protocol, and REST APIs. Built for LLMs and AI applications, Pierre Fitness API features enterprise-grade API key management with tiered rate limiting, trial keys with automatic expiration, OAuth integration, real-time analytics, comprehensive activity intelligence, and multi-protocol support for AI agent communication. Architecture technical details availaibe on [DeepWiki](https://deepwiki.com/Async-IO/pierre_mcp_server) 
+A multi-protocol fitness data API providing secure access to fitness data from multiple providers (Strava, Fitbit) through the [Model Context Protocol](https://modelcontextprotocol.io/specification/draft) (MCP), [A2A](https://github.com/google-a2a/A2A) (Agent-to-Agent) Protocol, and REST APIs. Built for LLMs and AI applications, Pierre Fitness API features comprehensive API key management with tiered rate limiting, trial keys with automatic expiration, OAuth integration, real-time analytics, comprehensive activity intelligence, and multi-protocol support for AI agent communication. Architecture technical details availaibe on [DeepWiki](https://deepwiki.com/Async-IO/pierre_mcp_server) 
 
 ## 🤖 AI-Powered Fitness Analysis
 
@@ -109,7 +109,7 @@ curl -X POST https://your-pierre-server.com/a2a/execute \
 | **🔗 Integrations** | Strava, Fitbit • MCP Protocol • A2A Protocol • REST APIs |
 | **🛡️ Security** | OAuth2 + PKCE • JWT Authentication • Encrypted storage • Rate limiting |
 | **🧠 Intelligence** | AI activity analysis • Location detection • Weather integration |
-| **🏗️ Architecture** | Single & multi-tenant • Cloud-ready • Extensible • Production-ready |
+| **🏗️ Architecture** | Single & multi-tenant • Cloud-ready • Extensible • Deployment-ready |
 
 ## 🚀 Quick Start
 

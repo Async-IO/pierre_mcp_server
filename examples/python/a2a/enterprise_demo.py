@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-A2A Enterprise Demonstration
-Complete enterprise-grade fitness analytics via Agent-to-Agent protocol
+A2A Business Demonstration
+Complete fitness analytics via Agent-to-Agent protocol
 """
 
 import sys
@@ -69,7 +69,7 @@ def enterprise_demonstration():
     
     print("🏢 PIERRE FITNESS API - A2A ENTERPRISE DEMO")
     print("=" * 65)
-    print("🎯 Purpose: Enterprise-grade fitness analytics for B2B clients")
+    print("🎯 Purpose: Scalable fitness analytics for B2B clients")
     print("📡 Protocol: Agent-to-Agent (A2A) REST API")
     print("⚡ Benefits: High throughput, scalable, enterprise integration")
     print("=" * 65)
@@ -103,7 +103,7 @@ def enterprise_demonstration():
     else:
         api_key = client.create_api_key(
             name='Enterprise Demo Key',
-            description='Production-grade API key for enterprise demonstration',
+            description='API key for business demonstration',
             tier='professional'
         )
         
@@ -168,9 +168,9 @@ def enterprise_demonstration():
     print(f"📊 Data Quality Score: {quality_score:.1f}/100")
     
     if quality_score >= 90:
-        quality_level = "🟢 ENTERPRISE GRADE"
+        quality_level = "🟢 HIGH QUALITY"
     elif quality_score >= 80:
-        quality_level = "🟡 PRODUCTION READY"
+        quality_level = "🟡 GOOD QUALITY"
     else:
         quality_level = "🔴 QUALITY ISSUES"
     
@@ -333,21 +333,29 @@ def enterprise_demonstration():
     # Enterprise demonstration summary
     print(f"\n🎯 ENTERPRISE DEMONSTRATION SUMMARY")
     print("=" * 45)
-    print("✅ A2A Protocol: Enterprise API integration validated")
+    print("✅ A2A Protocol: Business API integration validated")
     print(f"✅ Scalability: {len(activities)} activities processed in {processing_time:.2f}s")
-    print(f"✅ Data Quality: {quality_score:.1f}/100 enterprise validation")
+    print(f"✅ Data Quality: {quality_score:.1f}/100 validation score")
     print(f"✅ AI Analytics: Comprehensive fitness intelligence delivered")
-    print(f"✅ API Management: Production-grade key provisioning")
+    print(f"✅ API Management: Automated key provisioning")
     print(f"✅ Monitoring: Usage tracking and analytics available")
-    print(f"✅ Reporting: Enterprise report generated ({report_filename})")
+    print(f"✅ Reporting: Business report generated ({report_filename})")
     
-    print(f"\n🚀 A2A ENTERPRISE VALUE PROPOSITION:")
+    print(f"\n🚀 A2A BUSINESS VALUE:")
     print("   • High-throughput batch processing")
-    print("   • Enterprise-grade API key management")
+    print("   • Multi-tier API key management")
     print("   • Scalable REST API architecture")
     print("   • B2B integration ready")
-    print("   • Production monitoring and analytics")
-    print("   • Comprehensive enterprise reporting")
+    print("   • Monitoring and analytics")
+    print("   • Comprehensive business reporting")
+    
+    # Cleanup generated report file
+    try:
+        if os.path.exists(report_filename):
+            os.remove(report_filename)
+            print(f"🧹 Cleaned up report file: {report_filename}")
+    except Exception as e:
+        print(f"⚠️ Cleanup failed: {e}")
     
     return True
 
@@ -358,7 +366,7 @@ def main():
     EnvironmentConfig.setup_environment()
     
     print("🏢 Starting A2A Enterprise Demonstration...")
-    print("📋 This demo showcases enterprise-grade fitness analytics")
+    print("📋 This demo showcases scalable fitness analytics")
     print()
     
     success = enterprise_demonstration()

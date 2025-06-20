@@ -279,6 +279,15 @@ def investor_demonstration():
     print("   • Ideal for mobile apps and dashboards")
     print("   • Professional-grade AI insights")
     
+    # Cleanup generated demo file
+    try:
+        import os
+        if os.path.exists(filename):
+            os.remove(filename)
+            print(f"🧹 Cleaned up demo file: {filename}")
+    except Exception as e:
+        print(f"⚠️ Cleanup failed: {e}")
+    
     return True
 
 def main():
