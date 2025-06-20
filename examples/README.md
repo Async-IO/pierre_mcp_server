@@ -90,7 +90,7 @@ examples/
 
 #### Authentication (`python/common/auth_utils.py`)
 - JWT token management with caching
-- API key creation and storage
+- API key retrieval and storage (keys provisioned by admin)
 - Environment-based configuration
 - Robust error handling
 
@@ -115,7 +115,7 @@ export MCP_SERVER_PORT="8080"
 ### Automatic Authentication
 All examples include automatic authentication setup:
 - JWT tokens are cached for 23 hours
-- API keys are created and stored automatically
+- API keys are retrieved from environment or config (provisioned by admin)
 - Fallback to default test credentials
 
 ## Prerequisites

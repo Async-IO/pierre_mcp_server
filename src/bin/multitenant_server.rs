@@ -166,8 +166,32 @@ async fn run_production_server(
     config: ServerConfig,
     health_checker: HealthChecker,
 ) -> Result<()> {
-    // Setup HTTP routes with health checks
-    let routes = pierre_mcp_server::health::middleware::routes(health_checker);
+    // Load admin JWT secret for admin API authentication
+    let admin_jwt_secret = load_or_generate_admin_jwt_secret(&config.auth.jwt_secret_path)?;
+    let admin_jwt_secret_str = String::from_utf8(admin_jwt_secret.to_vec())
+        .unwrap_or_else(|_| "fallback_admin_secret".to_string());
+
+    // Setup HTTP routes with health checks and admin API
+    let health_routes = pierre_mcp_server::health::middleware::routes(health_checker);
+
+    // Setup admin API routes
+    let admin_context = pierre_mcp_server::admin_routes::AdminApiContext::new(
+        server.database().clone(),
+        &admin_jwt_secret_str,
+        server.auth_manager().clone(),
+    );
+    let admin_routes = pierre_mcp_server::admin_routes::admin_routes(admin_context);
+
+    // Combine all routes
+    let routes = health_routes.or(admin_routes);
+
+    info!("🔧 Admin API enabled at /admin/* endpoints");
+    info!("📋 Available admin endpoints:");
+    info!("  POST /admin/provision-api-key - Provision API keys for users");
+    info!("  POST /admin/revoke-api-key - Revoke existing API keys");
+    info!("  GET  /admin/list-api-keys - List API keys (with filters)");
+    info!("  GET  /admin/token-info - Get admin token information");
+    info!("  GET  /admin/health - Admin API health check");
 
     // Run HTTP server and MCP server concurrently
     let http_server = warp::serve(routes).run(([0, 0, 0, 0], config.http_port));
@@ -522,4 +546,11 @@ fn load_or_generate_jwt_secret(secret_file: &PathBuf) -> Result<[u8; 64]> {
         info!("Generated new JWT secret: {}", secret_file.display());
         Ok(secret)
     }
+}
+
+/// Load admin JWT secret from file or generate a new one (reuses user JWT secret)
+fn load_or_generate_admin_jwt_secret(secret_file: &PathBuf) -> Result<[u8; 64]> {
+    // For now, we reuse the same JWT secret for admin tokens
+    // In production, you might want separate secrets
+    load_or_generate_jwt_secret(secret_file)
 }

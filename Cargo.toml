@@ -20,6 +20,9 @@ path = "src/bin/multitenant_server.rs"
 name = "auth-setup"
 path = "src/bin/auth_setup.rs"
 
+[[bin]]
+name = "admin-setup"
+path = "src/bin/admin_setup.rs"
 
 [[bin]]
 name = "test-with-data"
@@ -111,3 +114,4 @@ env_logger = "0.11"
 [dev-dependencies]
 mockito = "1.6"
 tempfile = "3.20"
+serial_test = "3.1"

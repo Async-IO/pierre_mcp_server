@@ -292,6 +292,98 @@ impl DatabaseProvider for PostgresDatabase {
             .execute(&self.pool)
             .await?;
 
+        // Create admin tokens tables
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS admin_tokens (
+                id TEXT PRIMARY KEY,
+                service_name TEXT NOT NULL,
+                service_description TEXT,
+                token_hash TEXT NOT NULL,
+                token_prefix TEXT NOT NULL,
+                jwt_secret_hash TEXT NOT NULL,
+                permissions TEXT NOT NULL DEFAULT '["provision_keys"]',
+                is_super_admin BOOLEAN NOT NULL DEFAULT false,
+                is_active BOOLEAN NOT NULL DEFAULT true,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMPTZ,
+                last_used_at TIMESTAMPTZ,
+                last_used_ip INET,
+                usage_count BIGINT NOT NULL DEFAULT 0
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS admin_token_usage (
+                id SERIAL PRIMARY KEY,
+                admin_token_id TEXT NOT NULL REFERENCES admin_tokens(id) ON DELETE CASCADE,
+                timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                action TEXT NOT NULL,
+                target_resource TEXT,
+                ip_address INET,
+                user_agent TEXT,
+                request_size_bytes INTEGER,
+                success BOOLEAN NOT NULL,
+                error_message TEXT,
+                response_time_ms INTEGER
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS admin_provisioned_keys (
+                id SERIAL PRIMARY KEY,
+                admin_token_id TEXT NOT NULL REFERENCES admin_tokens(id) ON DELETE CASCADE,
+                api_key_id TEXT NOT NULL,
+                user_email TEXT NOT NULL,
+                requested_tier TEXT NOT NULL,
+                provisioned_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                provisioned_by_service TEXT NOT NULL,
+                rate_limit_requests INTEGER NOT NULL,
+                rate_limit_period TEXT NOT NULL,
+                key_status TEXT NOT NULL DEFAULT 'active',
+                revoked_at TIMESTAMPTZ,
+                revoked_reason TEXT
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create indexes for admin tables
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_admin_tokens_service ON admin_tokens(service_name)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_admin_tokens_prefix ON admin_tokens(token_prefix)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_admin_usage_token_id ON admin_token_usage(admin_token_id)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_admin_usage_timestamp ON admin_token_usage(timestamp)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_admin_provisioned_token ON admin_provisioned_keys(admin_token_id)")
+            .execute(&self.pool)
+            .await?;
+
         Ok(())
     }
 
@@ -874,6 +966,138 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(())
     }
 
+    async fn get_api_key_by_id(&self, api_key_id: &str) -> Result<Option<ApiKey>> {
+        let row = sqlx::query(
+            r#"
+            SELECT id, user_id, name, description, key_prefix, key_hash, tier, 
+                   rate_limit_requests, rate_limit_window, is_active, 
+                   created_at, last_used_at, expires_at, updated_at
+            FROM api_keys
+            WHERE id = $1
+            "#,
+        )
+        .bind(api_key_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        match row {
+            Some(row) => {
+                use sqlx::Row;
+                let tier_str: String = row.get("tier");
+                let tier = match tier_str.as_str() {
+                    "trial" => crate::api_keys::ApiKeyTier::Trial,
+                    "starter" => crate::api_keys::ApiKeyTier::Starter,
+                    "professional" => crate::api_keys::ApiKeyTier::Professional,
+                    "enterprise" => crate::api_keys::ApiKeyTier::Enterprise,
+                    _ => crate::api_keys::ApiKeyTier::Starter,
+                };
+
+                Ok(Some(ApiKey {
+                    id: row.get("id"),
+                    user_id: row.get("user_id"),
+                    name: row.get("name"),
+                    key_prefix: row.get("key_prefix"),
+                    description: row.get("description"),
+                    key_hash: row.get("key_hash"),
+                    tier,
+                    rate_limit_requests: row.get::<i32, _>("rate_limit_requests") as u32,
+                    rate_limit_window: row.get::<i32, _>("rate_limit_window") as u32,
+                    is_active: row.get("is_active"),
+                    created_at: row.get("created_at"),
+                    last_used_at: row.get("last_used_at"),
+                    expires_at: row.get("expires_at"),
+                    updated_at: row.get("updated_at"),
+                }))
+            }
+            None => Ok(None),
+        }
+    }
+
+    async fn get_api_keys_filtered(
+        &self,
+        user_email: Option<&str>,
+        active_only: bool,
+        limit: Option<i32>,
+        offset: Option<i32>,
+    ) -> Result<Vec<ApiKey>> {
+        let mut query = "SELECT ak.id, ak.user_id, ak.name, ak.description, ak.key_prefix, ak.key_hash, ak.tier, ak.rate_limit_requests, ak.rate_limit_window, ak.is_active, ak.created_at, ak.last_used_at, ak.expires_at, ak.updated_at FROM api_keys ak".to_string();
+
+        let mut conditions = Vec::new();
+        let mut param_count = 0;
+
+        if user_email.is_some() {
+            query.push_str(" JOIN users u ON ak.user_id = u.id");
+            param_count += 1;
+            conditions.push(format!("u.email = ${}", param_count));
+        }
+
+        if active_only {
+            conditions.push("ak.is_active = true".to_string());
+        }
+
+        if !conditions.is_empty() {
+            query.push_str(" WHERE ");
+            query.push_str(&conditions.join(" AND "));
+        }
+
+        query.push_str(" ORDER BY ak.created_at DESC");
+
+        if let Some(_limit) = limit {
+            param_count += 1;
+            query.push_str(&format!(" LIMIT ${}", param_count));
+            if let Some(_offset) = offset {
+                param_count += 1;
+                query.push_str(&format!(" OFFSET ${}", param_count));
+            }
+        }
+
+        let mut sqlx_query = sqlx::query(&query);
+
+        if let Some(email) = user_email {
+            sqlx_query = sqlx_query.bind(email);
+        }
+
+        if let Some(limit) = limit {
+            sqlx_query = sqlx_query.bind(limit);
+            if let Some(offset) = offset {
+                sqlx_query = sqlx_query.bind(offset);
+            }
+        }
+
+        let rows = sqlx_query.fetch_all(&self.pool).await?;
+
+        let mut api_keys = Vec::new();
+        for row in rows {
+            let tier_str: String = row.get("tier");
+            let tier = match tier_str.as_str() {
+                "trial" => crate::api_keys::ApiKeyTier::Trial,
+                "starter" => crate::api_keys::ApiKeyTier::Starter,
+                "professional" => crate::api_keys::ApiKeyTier::Professional,
+                "enterprise" => crate::api_keys::ApiKeyTier::Enterprise,
+                _ => crate::api_keys::ApiKeyTier::Starter,
+            };
+
+            api_keys.push(ApiKey {
+                id: row.get("id"),
+                user_id: row.get("user_id"),
+                name: row.get("name"),
+                key_prefix: row.get("key_prefix"),
+                description: row.get("description"),
+                key_hash: row.get("key_hash"),
+                tier,
+                rate_limit_requests: row.get::<i32, _>("rate_limit_requests") as u32,
+                rate_limit_window: row.get::<i32, _>("rate_limit_window") as u32,
+                is_active: row.get("is_active"),
+                created_at: row.get("created_at"),
+                last_used_at: row.get("last_used_at"),
+                expires_at: row.get("expires_at"),
+                updated_at: row.get("updated_at"),
+            });
+        }
+
+        Ok(api_keys)
+    }
+
     async fn cleanup_expired_api_keys(&self) -> Result<u64> {
         let result = sqlx::query(
             r#"
@@ -1219,5 +1443,447 @@ impl DatabaseProvider for PostgresDatabase {
         Err(anyhow!(
             "PostgreSQL analytics methods not yet fully implemented"
         ))
+    }
+
+    // ================================
+    // Admin Token Management (PostgreSQL)
+    // ================================
+
+    async fn create_admin_token(
+        &self,
+        request: &crate::admin::models::CreateAdminTokenRequest,
+    ) -> Result<crate::admin::models::GeneratedAdminToken> {
+        use crate::admin::{
+            jwt::AdminJwtManager,
+            models::{AdminPermissions, GeneratedAdminToken},
+        };
+        use uuid::Uuid;
+
+        // Generate unique token ID
+        let token_id = format!("admin_{}", Uuid::new_v4().simple());
+
+        // Generate JWT secret and manager
+        let jwt_secret = AdminJwtManager::generate_jwt_secret();
+        let jwt_manager = AdminJwtManager::with_secret(&jwt_secret);
+
+        // Get permissions
+        let permissions = match &request.permissions {
+            Some(perms) => AdminPermissions::new(perms.clone()),
+            None => {
+                if request.is_super_admin {
+                    AdminPermissions::super_admin()
+                } else {
+                    AdminPermissions::default_admin()
+                }
+            }
+        };
+
+        // Calculate expiration
+        let expires_at = request
+            .expires_in_days
+            .map(|days| chrono::Utc::now() + chrono::Duration::days(days as i64));
+
+        // Generate JWT token
+        let jwt_token = jwt_manager.generate_token(
+            &token_id,
+            &request.service_name,
+            &permissions,
+            request.is_super_admin,
+            expires_at,
+        )?;
+
+        // Generate token prefix and hash for storage
+        let token_prefix = AdminJwtManager::generate_token_prefix(&jwt_token);
+        let token_hash = AdminJwtManager::hash_token_for_storage(&jwt_token)?;
+        let jwt_secret_hash = AdminJwtManager::hash_secret(&jwt_secret);
+
+        // Store in database
+        let query = r#"
+            INSERT INTO admin_tokens (
+                id, service_name, service_description, token_hash, token_prefix,
+                jwt_secret_hash, permissions, is_super_admin, is_active,
+                created_at, expires_at, usage_count
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        "#;
+
+        let permissions_json = permissions.to_json()?;
+        let created_at = chrono::Utc::now();
+
+        sqlx::query(query)
+            .bind(&token_id)
+            .bind(&request.service_name)
+            .bind(&request.service_description)
+            .bind(&token_hash)
+            .bind(&token_prefix)
+            .bind(&jwt_secret_hash)
+            .bind(&permissions_json)
+            .bind(request.is_super_admin)
+            .bind(true) // is_active
+            .bind(created_at)
+            .bind(expires_at)
+            .bind(0i64) // usage_count
+            .execute(&self.pool)
+            .await?;
+
+        Ok(GeneratedAdminToken {
+            token_id,
+            service_name: request.service_name.clone(),
+            jwt_token,
+            token_prefix,
+            permissions,
+            is_super_admin: request.is_super_admin,
+            expires_at,
+            created_at,
+        })
+    }
+
+    async fn get_admin_token_by_id(
+        &self,
+        token_id: &str,
+    ) -> Result<Option<crate::admin::models::AdminToken>> {
+        let query = r#"
+            SELECT id, service_name, service_description, token_hash, token_prefix,
+                   jwt_secret_hash, permissions, is_super_admin, is_active,
+                   created_at, expires_at, last_used_at, last_used_ip, usage_count
+            FROM admin_tokens WHERE id = $1
+        "#;
+
+        let row = sqlx::query(query)
+            .bind(token_id)
+            .fetch_optional(&self.pool)
+            .await?;
+
+        if let Some(row) = row {
+            Ok(Some(self.row_to_admin_token(row)?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn get_admin_token_by_prefix(
+        &self,
+        token_prefix: &str,
+    ) -> Result<Option<crate::admin::models::AdminToken>> {
+        let query = r#"
+            SELECT id, service_name, service_description, token_hash, token_prefix,
+                   jwt_secret_hash, permissions, is_super_admin, is_active,
+                   created_at, expires_at, last_used_at, last_used_ip, usage_count
+            FROM admin_tokens WHERE token_prefix = $1
+        "#;
+
+        let row = sqlx::query(query)
+            .bind(token_prefix)
+            .fetch_optional(&self.pool)
+            .await?;
+
+        if let Some(row) = row {
+            Ok(Some(self.row_to_admin_token(row)?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn list_admin_tokens(
+        &self,
+        include_inactive: bool,
+    ) -> Result<Vec<crate::admin::models::AdminToken>> {
+        let query = if include_inactive {
+            r#"
+                SELECT id, service_name, service_description, token_hash, token_prefix,
+                       jwt_secret_hash, permissions, is_super_admin, is_active,
+                       created_at, expires_at, last_used_at, last_used_ip, usage_count
+                FROM admin_tokens ORDER BY created_at DESC
+            "#
+        } else {
+            r#"
+                SELECT id, service_name, service_description, token_hash, token_prefix,
+                       jwt_secret_hash, permissions, is_super_admin, is_active,
+                       created_at, expires_at, last_used_at, last_used_ip, usage_count
+                FROM admin_tokens WHERE is_active = true ORDER BY created_at DESC
+            "#
+        };
+
+        let rows = sqlx::query(query).fetch_all(&self.pool).await?;
+
+        let mut tokens = Vec::new();
+        for row in rows {
+            tokens.push(self.row_to_admin_token(row)?);
+        }
+
+        Ok(tokens)
+    }
+
+    async fn deactivate_admin_token(&self, token_id: &str) -> Result<()> {
+        let query = "UPDATE admin_tokens SET is_active = false WHERE id = $1";
+
+        sqlx::query(query)
+            .bind(token_id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    async fn update_admin_token_last_used(
+        &self,
+        token_id: &str,
+        ip_address: Option<&str>,
+    ) -> Result<()> {
+        let query = r#"
+            UPDATE admin_tokens 
+            SET last_used_at = CURRENT_TIMESTAMP, last_used_ip = $1, usage_count = usage_count + 1
+            WHERE id = $2
+        "#;
+
+        sqlx::query(query)
+            .bind(ip_address)
+            .bind(token_id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    async fn record_admin_token_usage(
+        &self,
+        usage: &crate::admin::models::AdminTokenUsage,
+    ) -> Result<()> {
+        let query = r#"
+            INSERT INTO admin_token_usage (
+                admin_token_id, timestamp, action, target_resource,
+                ip_address, user_agent, request_size_bytes, success,
+                error_message, response_time_ms
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        "#;
+
+        sqlx::query(query)
+            .bind(&usage.admin_token_id)
+            .bind(usage.timestamp)
+            .bind(usage.action.to_string())
+            .bind(&usage.target_resource)
+            .bind(&usage.ip_address)
+            .bind(&usage.user_agent)
+            .bind(usage.request_size_bytes.map(|x| x as i32))
+            .bind(usage.success)
+            .bind(&usage.error_message)
+            .bind(usage.response_time_ms.map(|x| x as i32))
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    async fn get_admin_token_usage_history(
+        &self,
+        token_id: &str,
+        start_date: DateTime<Utc>,
+        end_date: DateTime<Utc>,
+    ) -> Result<Vec<crate::admin::models::AdminTokenUsage>> {
+        let query = r#"
+            SELECT id, admin_token_id, timestamp, action, target_resource,
+                   ip_address, user_agent, request_size_bytes, success,
+                   error_message, response_time_ms
+            FROM admin_token_usage 
+            WHERE admin_token_id = $1 AND timestamp BETWEEN $2 AND $3
+            ORDER BY timestamp DESC
+        "#;
+
+        let rows = sqlx::query(query)
+            .bind(token_id)
+            .bind(start_date)
+            .bind(end_date)
+            .fetch_all(&self.pool)
+            .await?;
+
+        let mut usage_history = Vec::new();
+        for row in rows {
+            usage_history.push(self.row_to_admin_token_usage(row)?);
+        }
+
+        Ok(usage_history)
+    }
+
+    async fn record_admin_provisioned_key(
+        &self,
+        admin_token_id: &str,
+        api_key_id: &str,
+        user_email: &str,
+        tier: &str,
+        rate_limit_requests: u32,
+        rate_limit_period: &str,
+    ) -> Result<()> {
+        let query = r#"
+            INSERT INTO admin_provisioned_keys (
+                admin_token_id, api_key_id, user_email, requested_tier,
+                provisioned_at, provisioned_by_service, rate_limit_requests,
+                rate_limit_period, key_status
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        "#;
+
+        // Get service name from admin token
+        let service_name = if let Some(token) = self.get_admin_token_by_id(admin_token_id).await? {
+            token.service_name
+        } else {
+            "unknown".to_string()
+        };
+
+        sqlx::query(query)
+            .bind(admin_token_id)
+            .bind(api_key_id)
+            .bind(user_email)
+            .bind(tier)
+            .bind(chrono::Utc::now())
+            .bind(service_name)
+            .bind(rate_limit_requests as i32)
+            .bind(rate_limit_period)
+            .bind("active")
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    async fn get_admin_provisioned_keys(
+        &self,
+        admin_token_id: Option<&str>,
+        start_date: DateTime<Utc>,
+        end_date: DateTime<Utc>,
+    ) -> Result<Vec<serde_json::Value>> {
+        // Simplified implementation using direct queries instead of complex dynamic binding
+        if let Some(token_id) = admin_token_id {
+            let rows = sqlx::query(
+                r#"
+                    SELECT id, admin_token_id, api_key_id, user_email, requested_tier,
+                           provisioned_at, provisioned_by_service, rate_limit_requests,
+                           rate_limit_period, key_status, revoked_at, revoked_reason
+                    FROM admin_provisioned_keys 
+                    WHERE admin_token_id = $1 AND provisioned_at BETWEEN $2 AND $3
+                    ORDER BY provisioned_at DESC
+                "#,
+            )
+            .bind(token_id)
+            .bind(start_date)
+            .bind(end_date)
+            .fetch_all(&self.pool)
+            .await?;
+
+            let mut results = Vec::new();
+            for row in rows {
+                let result = serde_json::json!({
+                    "id": row.get::<i32, _>("id"),
+                    "admin_token_id": row.get::<String, _>("admin_token_id"),
+                    "api_key_id": row.get::<String, _>("api_key_id"),
+                    "user_email": row.get::<String, _>("user_email"),
+                    "requested_tier": row.get::<String, _>("requested_tier"),
+                    "provisioned_at": row.get::<DateTime<Utc>, _>("provisioned_at"),
+                    "provisioned_by_service": row.get::<String, _>("provisioned_by_service"),
+                    "rate_limit_requests": row.get::<i32, _>("rate_limit_requests"),
+                    "rate_limit_period": row.get::<String, _>("rate_limit_period"),
+                    "key_status": row.get::<String, _>("key_status"),
+                    "revoked_at": row.get::<Option<DateTime<Utc>>, _>("revoked_at"),
+                    "revoked_reason": row.get::<Option<String>, _>("revoked_reason"),
+                });
+                results.push(result);
+            }
+            Ok(results)
+        } else {
+            let rows = sqlx::query(
+                r#"
+                    SELECT id, admin_token_id, api_key_id, user_email, requested_tier,
+                           provisioned_at, provisioned_by_service, rate_limit_requests,
+                           rate_limit_period, key_status, revoked_at, revoked_reason
+                    FROM admin_provisioned_keys 
+                    WHERE provisioned_at BETWEEN $1 AND $2
+                    ORDER BY provisioned_at DESC
+                "#,
+            )
+            .bind(start_date)
+            .bind(end_date)
+            .fetch_all(&self.pool)
+            .await?;
+
+            let mut results = Vec::new();
+            for row in rows {
+                let result = serde_json::json!({
+                    "id": row.get::<i32, _>("id"),
+                    "admin_token_id": row.get::<String, _>("admin_token_id"),
+                    "api_key_id": row.get::<String, _>("api_key_id"),
+                    "user_email": row.get::<String, _>("user_email"),
+                    "requested_tier": row.get::<String, _>("requested_tier"),
+                    "provisioned_at": row.get::<DateTime<Utc>, _>("provisioned_at"),
+                    "provisioned_by_service": row.get::<String, _>("provisioned_by_service"),
+                    "rate_limit_requests": row.get::<i32, _>("rate_limit_requests"),
+                    "rate_limit_period": row.get::<String, _>("rate_limit_period"),
+                    "key_status": row.get::<String, _>("key_status"),
+                    "revoked_at": row.get::<Option<DateTime<Utc>>, _>("revoked_at"),
+                    "revoked_reason": row.get::<Option<String>, _>("revoked_reason"),
+                });
+                results.push(result);
+            }
+            Ok(results)
+        }
+    }
+}
+
+impl PostgresDatabase {
+    /// Convert database row to AdminToken
+    fn row_to_admin_token(
+        &self,
+        row: sqlx::postgres::PgRow,
+    ) -> Result<crate::admin::models::AdminToken> {
+        use crate::admin::models::{AdminPermissions, AdminToken};
+        use sqlx::Row;
+
+        let permissions_json: String = row.try_get("permissions")?;
+        let permissions = AdminPermissions::from_json(&permissions_json)?;
+
+        Ok(AdminToken {
+            id: row.try_get("id")?,
+            service_name: row.try_get("service_name")?,
+            service_description: row.try_get("service_description")?,
+            token_hash: row.try_get("token_hash")?,
+            token_prefix: row.try_get("token_prefix")?,
+            jwt_secret_hash: row.try_get("jwt_secret_hash")?,
+            permissions,
+            is_super_admin: row.try_get("is_super_admin")?,
+            is_active: row.try_get("is_active")?,
+            created_at: row.try_get("created_at")?,
+            expires_at: row.try_get("expires_at")?,
+            last_used_at: row.try_get("last_used_at")?,
+            last_used_ip: row.try_get("last_used_ip")?,
+            usage_count: row.try_get::<i64, _>("usage_count")? as u64,
+        })
+    }
+
+    /// Convert database row to AdminTokenUsage
+    fn row_to_admin_token_usage(
+        &self,
+        row: sqlx::postgres::PgRow,
+    ) -> Result<crate::admin::models::AdminTokenUsage> {
+        use crate::admin::models::{AdminAction, AdminTokenUsage};
+        use sqlx::Row;
+
+        let action_str: String = row.try_get("action")?;
+        let action = action_str
+            .parse::<AdminAction>()
+            .unwrap_or(AdminAction::ProvisionKey);
+
+        Ok(AdminTokenUsage {
+            id: Some(row.try_get::<i64, _>("id")?),
+            admin_token_id: row.try_get("admin_token_id")?,
+            timestamp: row.try_get("timestamp")?,
+            action,
+            target_resource: row.try_get("target_resource")?,
+            ip_address: row.try_get("ip_address")?,
+            user_agent: row.try_get("user_agent")?,
+            request_size_bytes: row
+                .try_get::<Option<i32>, _>("request_size_bytes")?
+                .map(|v| v as u32),
+            success: row.try_get("success")?,
+            error_message: row.try_get("error_message")?,
+            response_time_ms: row
+                .try_get::<Option<i32>, _>("response_time_ms")?
+                .map(|v| v as u32),
+        })
     }
 }

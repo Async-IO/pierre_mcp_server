@@ -19,27 +19,30 @@ The A2A (Agent-to-Agent) Protocol is an open standard for AI agent communication
 
 ## Quick Start
 
-### 1. Register Your Agent
+### 1. Register Your Agent (Enterprise Model)
 
 ```bash
-# Register a new A2A client
-curl -X POST http://localhost:8081/a2a/clients \
-  -H "Authorization: Bearer $JWT_TOKEN" \
+# Admin provisions A2A client for developer
+# Note: Only administrators can register A2A clients
+curl -X POST http://localhost:8081/admin/provision-a2a-client \
+  -H "Authorization: Bearer $ADMIN_JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
+    "user_email": "developer@company.com",
     "name": "FitnessCoach",
     "description": "AI fitness coaching agent",
     "capabilities": ["fitness-data-analysis", "goal-management"],
     "contact_email": "dev@example.com"
   }'
+# Returns: client_id, client_secret, api_key (delivered securely to developer)
 ```
 
 ### 2. Initialize Connection
 
 ```bash
-# Initialize A2A connection
+# Initialize A2A connection using admin-provisioned API key
 curl -X POST http://localhost:8081/a2a \
-  -H "Authorization: Bearer a2a_YOUR_API_KEY" \
+  -H "Authorization: Bearer a2a_ADMIN_PROVISIONED_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",

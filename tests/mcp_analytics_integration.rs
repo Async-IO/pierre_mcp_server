@@ -31,11 +31,31 @@ struct McpTestClient {
 
 impl McpTestClient {
     async fn connect(port: u16) -> Result<Self> {
-        let stream = TcpStream::connect(format!("127.0.0.1:{}", port)).await?;
-        Ok(Self {
-            stream,
-            jwt_token: None,
-        })
+        // Retry connection with exponential backoff
+        let mut attempts = 0;
+        let max_attempts = 5;
+        let mut delay = tokio::time::Duration::from_millis(100);
+
+        loop {
+            match TcpStream::connect(format!("127.0.0.1:{}", port)).await {
+                Ok(stream) => {
+                    return Ok(Self {
+                        stream,
+                        jwt_token: None,
+                    });
+                }
+                Err(e) if attempts < max_attempts => {
+                    attempts += 1;
+                    eprintln!(
+                        "Connection attempt {} failed: {}. Retrying in {:?}...",
+                        attempts, e, delay
+                    );
+                    tokio::time::sleep(delay).await;
+                    delay *= 2; // Exponential backoff
+                }
+                Err(e) => return Err(e.into()),
+            }
+        }
     }
 
     async fn send_request(&mut self, request: Value) -> Result<Value> {
@@ -143,7 +163,7 @@ async fn test_mcp_server_initialization() -> Result<()> {
     let server_handle = tokio::spawn(async move { server.run(test_port).await });
 
     // Give server time to start
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
     // Test MCP client connection
     let mut client = McpTestClient::connect(test_port).await?;
@@ -188,9 +208,10 @@ async fn test_analytics_workflow_without_provider() -> Result<()> {
     let server = MultiTenantMcpServer::new(database, auth_manager);
     let server_handle = tokio::spawn(async move { server.run(test_port).await });
 
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    // Give server more time to start
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
-    // Connect and authenticate
+    // Connect and authenticate (with retry logic)
     let mut client = McpTestClient::connect(test_port).await?;
     client.initialize().await?;
     client.set_token(jwt_token);
@@ -328,7 +349,7 @@ async fn test_analytics_tools_comprehensive() -> Result<()> {
     let server = MultiTenantMcpServer::new(database, auth_manager);
     let server_handle = tokio::spawn(async move { server.run(test_port).await });
 
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
     let mut client = McpTestClient::connect(test_port).await?;
     client.initialize().await?;
@@ -394,7 +415,7 @@ async fn test_authentication_required() -> Result<()> {
     let server = MultiTenantMcpServer::new(database, auth_manager);
     let server_handle = tokio::spawn(async move { server.run(test_port).await });
 
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
     let mut client = McpTestClient::connect(test_port).await?;
     client.initialize().await?;
@@ -422,7 +443,7 @@ async fn test_error_handling_invalid_tool() -> Result<()> {
     let server = MultiTenantMcpServer::new(database, auth_manager);
     let server_handle = tokio::spawn(async move { server.run(test_port).await });
 
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
     let mut client = McpTestClient::connect(test_port).await?;
     client.initialize().await?;
@@ -447,7 +468,7 @@ async fn test_fitness_report_generation_workflow() -> Result<()> {
     let server = MultiTenantMcpServer::new(database, auth_manager);
     let server_handle = tokio::spawn(async move { server.run(test_port).await });
 
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
     let mut client = McpTestClient::connect(test_port).await?;
     client.initialize().await?;

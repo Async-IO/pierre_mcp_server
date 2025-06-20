@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Pierre Fitness API implements a comprehensive API Key Management System designed for B2B SaaS monetization. This system provides secure authentication, usage tracking, rate limiting, and billing analytics for enterprise customers integrating with the fitness data platform.
+The Pierre Fitness API implements a comprehensive API Key Management System designed for enterprise B2B deployment. This system follows an enterprise security model where only administrators can provision API keys, ensuring proper access control, compliance, and governance for organizations integrating with the fitness data platform.
 
 ## Architecture
 
@@ -86,17 +86,23 @@ pk_live_<32_random_characters>
 
 ## Authentication Flow
 
-### 1. API Key Creation
+### 1. API Key Creation (Enterprise Model)
+
+API keys are created through the admin provisioning system, not by end users directly.
+
 ```http
-POST /api/keys
-Authorization: Bearer <jwt_token>
+POST /admin/provision-api-key
+Authorization: Bearer <admin_jwt_token>
 Content-Type: application/json
 
 {
-  "name": "Production API Key",
-  "description": "Main production integration",
+  "user_email": "user@company.com",
   "tier": "professional",
-  "expires_in_days": 365
+  "rate_limit_requests": 100000,
+  "rate_limit_period": "month",
+  "expires_in_days": 365,
+  "name": "Production API Key",
+  "description": "Main production integration"
 }
 ```
 
@@ -232,19 +238,22 @@ ORDER BY usage_count DESC;
 
 ## API Endpoints
 
-### Create API Key
+### Create API Key (Admin Only)
 ```http
-POST /api/keys
-Authorization: Bearer <jwt_token>
+POST /admin/provision-api-key
+Authorization: Bearer <admin_jwt_token>
 ```
 
 **Request**:
 ```json
 {
-  "name": "Production Key",
-  "description": "Main production integration",
+  "user_email": "user@company.com",
   "tier": "professional",
-  "expires_in_days": 365
+  "rate_limit_requests": 100000,
+  "rate_limit_period": "month",
+  "expires_in_days": 365,
+  "name": "Production Key",
+  "description": "Main production integration"
 }
 ```
 
@@ -381,14 +390,18 @@ Authorization: Bearer <jwt_token>
 
 ### cURL
 ```bash
-# Create API key
-curl -X POST https://api.pierre-mcp.com/api/keys \
-  -H "Authorization: Bearer <jwt_token>" \
+# Admin provisions API key for user
+curl -X POST https://api.pierre-mcp.com/admin/provision-api-key \
+  -H "Authorization: Bearer <admin_jwt_token>" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "My Integration",
+    "user_email": "user@company.com",
     "tier": "professional",
-    "expires_in_days": 365
+    "rate_limit_requests": 100000,
+    "rate_limit_period": "month",
+    "expires_in_days": 365,
+    "name": "My Integration",
+    "description": "Production integration key"
   }'
 
 # Use API key with MCP

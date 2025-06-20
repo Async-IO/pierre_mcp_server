@@ -81,6 +81,11 @@ impl Database {
         Ok(db)
     }
 
+    /// Get a reference to the database pool for advanced operations
+    pub fn pool(&self) -> &Pool<Sqlite> {
+        &self.pool
+    }
+
     /// Run database migrations
     pub async fn migrate(&self) -> Result<()> {
         // Create users table
@@ -554,6 +559,98 @@ impl Database {
             .execute(&self.pool)
             .await?;
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_a2a_usage_tool_name ON a2a_usage(tool_name)")
+            .execute(&self.pool)
+            .await?;
+
+        // Create admin tokens tables
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS admin_tokens (
+                id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+                service_name TEXT NOT NULL,
+                service_description TEXT,
+                token_hash TEXT NOT NULL,
+                token_prefix TEXT NOT NULL,
+                jwt_secret_hash TEXT NOT NULL,
+                permissions TEXT NOT NULL DEFAULT '["provision_keys"]',
+                is_super_admin BOOLEAN NOT NULL DEFAULT false,
+                is_active BOOLEAN NOT NULL DEFAULT true,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP,
+                last_used_at TIMESTAMP,
+                last_used_ip TEXT,
+                usage_count INTEGER NOT NULL DEFAULT 0
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS admin_token_usage (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                admin_token_id TEXT NOT NULL REFERENCES admin_tokens(id) ON DELETE CASCADE,
+                timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                action TEXT NOT NULL,
+                target_resource TEXT,
+                ip_address TEXT,
+                user_agent TEXT,
+                request_size_bytes INTEGER,
+                success BOOLEAN NOT NULL,
+                error_message TEXT,
+                response_time_ms INTEGER
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS admin_provisioned_keys (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                admin_token_id TEXT NOT NULL REFERENCES admin_tokens(id) ON DELETE CASCADE,
+                api_key_id TEXT NOT NULL,
+                user_email TEXT NOT NULL,
+                requested_tier TEXT NOT NULL,
+                provisioned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                provisioned_by_service TEXT NOT NULL,
+                rate_limit_requests INTEGER NOT NULL,
+                rate_limit_period TEXT NOT NULL,
+                key_status TEXT NOT NULL DEFAULT 'active',
+                revoked_at TIMESTAMP,
+                revoked_reason TEXT
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create indexes for admin tables
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_admin_tokens_service ON admin_tokens(service_name)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_admin_tokens_prefix ON admin_tokens(token_prefix)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_admin_usage_token_id ON admin_token_usage(admin_token_id)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_admin_usage_timestamp ON admin_token_usage(timestamp)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_admin_provisioned_token ON admin_provisioned_keys(admin_token_id)")
             .execute(&self.pool)
             .await?;
 
@@ -2112,6 +2209,160 @@ impl Database {
         .await?;
 
         Ok(())
+    }
+
+    pub async fn get_api_key_by_id(&self, api_key_id: &str) -> Result<Option<ApiKey>> {
+        let row = sqlx::query(
+            r#"
+            SELECT id, user_id, name, description, key_prefix, key_hash, tier, 
+                   rate_limit_requests, rate_limit_window, is_active, 
+                   created_at, last_used_at, expires_at, updated_at
+            FROM api_keys
+            WHERE id = ?
+            "#,
+        )
+        .bind(api_key_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        match row {
+            Some(row) => {
+                use sqlx::Row;
+                let user_id_str: String = row.get("user_id");
+                let user_id = Uuid::parse_str(&user_id_str)?;
+                let tier_str: String = row.get("tier");
+                let tier = match tier_str.as_str() {
+                    "trial" => ApiKeyTier::Trial,
+                    "starter" => ApiKeyTier::Starter,
+                    "professional" => ApiKeyTier::Professional,
+                    "enterprise" => ApiKeyTier::Enterprise,
+                    _ => ApiKeyTier::Starter,
+                };
+
+                let created_at_str: String = row.get("created_at");
+                let updated_at_str: String = row.get("updated_at");
+
+                Ok(Some(ApiKey {
+                    id: row.get("id"),
+                    user_id,
+                    name: row.get("name"),
+                    key_prefix: row.get("key_prefix"),
+                    description: row.get("description"),
+                    key_hash: row.get("key_hash"),
+                    tier,
+                    rate_limit_requests: row.get::<i64, _>("rate_limit_requests") as u32,
+                    rate_limit_window: row.get::<i64, _>("rate_limit_window") as u32,
+                    is_active: row.get::<i64, _>("is_active") != 0,
+                    created_at: DateTime::parse_from_rfc3339(&created_at_str)?.with_timezone(&Utc),
+                    last_used_at: row
+                        .get::<Option<String>, _>("last_used_at")
+                        .map(|dt_str| DateTime::parse_from_rfc3339(&dt_str))
+                        .transpose()?
+                        .map(|dt| dt.with_timezone(&Utc)),
+                    expires_at: row
+                        .get::<Option<String>, _>("expires_at")
+                        .map(|dt_str| DateTime::parse_from_rfc3339(&dt_str))
+                        .transpose()?
+                        .map(|dt| dt.with_timezone(&Utc)),
+                    updated_at: DateTime::parse_from_rfc3339(&updated_at_str)?.with_timezone(&Utc),
+                }))
+            }
+            None => Ok(None),
+        }
+    }
+
+    pub async fn get_api_keys_filtered(
+        &self,
+        user_email: Option<&str>,
+        active_only: bool,
+        limit: Option<i32>,
+        offset: Option<i32>,
+    ) -> Result<Vec<ApiKey>> {
+        let mut query = "SELECT ak.id, ak.user_id, ak.name, ak.description, ak.key_prefix, ak.key_hash, ak.tier, ak.rate_limit_requests, ak.rate_limit_window, ak.is_active, ak.created_at, ak.last_used_at, ak.expires_at, ak.updated_at FROM api_keys ak".to_string();
+
+        let mut conditions = Vec::new();
+        let mut bind_values: Vec<String> = Vec::new();
+
+        if let Some(email) = user_email {
+            query.push_str(" JOIN users u ON ak.user_id = u.id");
+            conditions.push("u.email = ?");
+            bind_values.push(email.to_string());
+        }
+
+        if active_only {
+            conditions.push("ak.is_active = 1");
+        }
+
+        if !conditions.is_empty() {
+            query.push_str(" WHERE ");
+            query.push_str(&conditions.join(" AND "));
+        }
+
+        query.push_str(" ORDER BY ak.created_at DESC");
+
+        if let Some(limit) = limit {
+            query.push_str(&format!(" LIMIT {}", limit));
+            if let Some(offset) = offset {
+                query.push_str(&format!(" OFFSET {}", offset));
+            }
+        }
+
+        let mut sqlx_query = sqlx::query(&query);
+        for value in bind_values {
+            sqlx_query = sqlx_query.bind(value);
+        }
+
+        let rows = sqlx_query.fetch_all(&self.pool).await?;
+
+        let mut api_keys = Vec::new();
+        for row in rows {
+            let user_id: String = row.get("user_id");
+            let user_id = Uuid::parse_str(&user_id)?;
+
+            let tier_str: String = row.get("tier");
+            let tier = match tier_str.as_str() {
+                "trial" => ApiKeyTier::Trial,
+                "starter" => ApiKeyTier::Starter,
+                "professional" => ApiKeyTier::Professional,
+                "enterprise" => ApiKeyTier::Enterprise,
+                _ => ApiKeyTier::Starter,
+            };
+
+            let created_at_str: String = row.get("created_at");
+            let created_at = DateTime::parse_from_rfc3339(&created_at_str)?.with_timezone(&Utc);
+
+            let last_used_at = match row.try_get::<Option<String>, _>("last_used_at")? {
+                Some(dt_str) => Some(DateTime::parse_from_rfc3339(&dt_str)?.with_timezone(&Utc)),
+                None => None,
+            };
+
+            let expires_at = match row.try_get::<Option<String>, _>("expires_at")? {
+                Some(dt_str) => Some(DateTime::parse_from_rfc3339(&dt_str)?.with_timezone(&Utc)),
+                None => None,
+            };
+
+            let updated_at_str: String = row.get("updated_at");
+            let updated_at = DateTime::parse_from_rfc3339(&updated_at_str)?.with_timezone(&Utc);
+
+            api_keys.push(ApiKey {
+                id: row.get("id"),
+                user_id,
+                name: row.get("name"),
+                key_prefix: row.get("key_prefix"),
+                description: row.get("description"),
+                key_hash: row.get("key_hash"),
+                tier,
+                rate_limit_requests: row.get::<i64, _>("rate_limit_requests") as u32,
+                rate_limit_window: row.get::<i64, _>("rate_limit_window") as u32,
+                is_active: row.get::<i64, _>("is_active") != 0,
+                created_at,
+                last_used_at,
+                expires_at,
+                updated_at,
+            });
+        }
+
+        Ok(api_keys)
     }
 
     /// Clean up expired API keys (deactivate them)
