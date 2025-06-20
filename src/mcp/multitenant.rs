@@ -50,8 +50,7 @@ pub struct MultiTenantMcpServer {
     websocket_manager: Arc<WebSocketManager>,
     // Per-user provider instances
     user_providers: UserProviderStorage,
-    // Security headers environment setting
-    security_headers_env: String,
+    config: Arc<crate::config::environment::ServerConfig>,
 }
 
 impl MultiTenantMcpServer {
@@ -59,7 +58,7 @@ impl MultiTenantMcpServer {
     pub fn new(
         database: Database,
         auth_manager: AuthManager,
-        security_headers_env: String,
+        config: Arc<crate::config::environment::ServerConfig>,
     ) -> Self {
         let database_arc = Arc::new(database);
         let auth_manager_arc = Arc::new(auth_manager);
@@ -76,7 +75,7 @@ impl MultiTenantMcpServer {
             auth_middleware: Arc::new(auth_middleware),
             websocket_manager,
             user_providers: Arc::new(RwLock::new(HashMap::new())),
-            security_headers_env,
+            config,
         }
     }
 
@@ -102,14 +101,14 @@ impl MultiTenantMcpServer {
         let auth_manager_http = auth_manager.clone();
         let websocket_manager_http = self.websocket_manager.clone();
 
-        let security_headers_env = self.security_headers_env.clone();
+        let config_http = self.config.clone();
         tokio::spawn(async move {
             Self::run_http_server(
                 http_port,
                 database_http,
                 auth_manager_http,
                 websocket_manager_http,
-                &security_headers_env,
+                config_http,
             )
             .await
         });
@@ -124,24 +123,25 @@ impl MultiTenantMcpServer {
         database: Arc<Database>,
         auth_manager: Arc<AuthManager>,
         websocket_manager: Arc<WebSocketManager>,
-        security_headers_env: &str,
+        config: Arc<crate::config::environment::ServerConfig>,
     ) -> Result<()> {
         use warp::Filter;
 
         info!("HTTP authentication server starting on port {}", port);
 
         // Security configuration based on environment
-        let security_config = SecurityConfig::from_environment(security_headers_env);
+        let security_config =
+            SecurityConfig::from_environment(&config.security.headers.environment.to_string());
         info!(
             "Security headers enabled with {} configuration",
-            security_headers_env
+            config.security.headers.environment
         );
 
         let auth_routes = AuthRoutes::new((*database).clone(), (*auth_manager).clone());
         let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
         let api_key_routes = ApiKeyRoutes::new((*database).clone(), (*auth_manager).clone());
         let dashboard_routes = DashboardRoutes::new((*database).clone(), (*auth_manager).clone());
-        let a2a_routes = A2ARoutes::new(database.clone(), auth_manager.clone());
+        let a2a_routes = A2ARoutes::new(database.clone(), auth_manager.clone(), config.clone());
 
         // CORS configuration
         let cors = warp::cors()

@@ -58,14 +58,20 @@ pub struct UniversalTool {
 pub struct UniversalToolExecutor {
     pub database: Arc<Database>,
     pub intelligence: Arc<ActivityIntelligence>,
+    pub config: Arc<crate::config::environment::ServerConfig>,
     tools: HashMap<String, UniversalTool>,
 }
 
 impl UniversalToolExecutor {
-    pub fn new(database: Arc<Database>, intelligence: Arc<ActivityIntelligence>) -> Self {
+    pub fn new(
+        database: Arc<Database>,
+        intelligence: Arc<ActivityIntelligence>,
+        config: Arc<crate::config::environment::ServerConfig>,
+    ) -> Self {
         let mut executor = Self {
             database,
             intelligence,
+            config,
             tools: HashMap::new(),
         };
 
@@ -81,10 +87,14 @@ impl UniversalToolExecutor {
     ) -> Result<Option<crate::oauth::TokenData>, crate::oauth::OAuthError> {
         let mut oauth_manager = crate::oauth::manager::OAuthManager::new(self.database.clone());
 
-        // Register the appropriate provider
+        // Register the appropriate provider using centralized config
         match provider {
             "strava" => {
-                if let Ok(strava_provider) = crate::oauth::providers::StravaOAuthProvider::new() {
+                if let Ok(strava_provider) =
+                    crate::oauth::providers::StravaOAuthProvider::from_config(
+                        &self.config.oauth.strava,
+                    )
+                {
                     oauth_manager.register_provider(Box::new(strava_provider));
                 } else {
                     return Err(crate::oauth::OAuthError::ConfigurationError(
@@ -93,7 +103,11 @@ impl UniversalToolExecutor {
                 }
             }
             "fitbit" => {
-                if let Ok(fitbit_provider) = crate::oauth::providers::FitbitOAuthProvider::new() {
+                if let Ok(fitbit_provider) =
+                    crate::oauth::providers::FitbitOAuthProvider::from_config(
+                        &self.config.oauth.fitbit,
+                    )
+                {
                     oauth_manager.register_provider(Box::new(fitbit_provider));
                 } else {
                     return Err(crate::oauth::OAuthError::ConfigurationError(
@@ -604,11 +618,15 @@ impl UniversalToolExecutor {
         let connection_status = rt.block_on(async {
             let mut oauth_manager = crate::oauth::manager::OAuthManager::new(database);
 
-            // Register all providers
-            if let Ok(strava_provider) = crate::oauth::providers::StravaOAuthProvider::new() {
+            // Register all providers using centralized config
+            if let Ok(strava_provider) = crate::oauth::providers::StravaOAuthProvider::from_config(
+                &executor.config.oauth.strava,
+            ) {
                 oauth_manager.register_provider(Box::new(strava_provider));
             }
-            if let Ok(fitbit_provider) = crate::oauth::providers::FitbitOAuthProvider::new() {
+            if let Ok(fitbit_provider) = crate::oauth::providers::FitbitOAuthProvider::from_config(
+                &executor.config.oauth.fitbit,
+            ) {
                 oauth_manager.register_provider(Box::new(fitbit_provider));
             }
 
@@ -866,11 +884,15 @@ impl UniversalToolExecutor {
         let database = self.database.clone();
         let mut oauth_manager = crate::oauth::manager::OAuthManager::new(database);
 
-        // Register all providers
-        if let Ok(strava_provider) = crate::oauth::providers::StravaOAuthProvider::new() {
+        // Register all providers using centralized config
+        if let Ok(strava_provider) =
+            crate::oauth::providers::StravaOAuthProvider::from_config(&self.config.oauth.strava)
+        {
             oauth_manager.register_provider(Box::new(strava_provider));
         }
-        if let Ok(fitbit_provider) = crate::oauth::providers::FitbitOAuthProvider::new() {
+        if let Ok(fitbit_provider) =
+            crate::oauth::providers::FitbitOAuthProvider::from_config(&self.config.oauth.fitbit)
+        {
             oauth_manager.register_provider(Box::new(fitbit_provider));
         }
 
@@ -918,8 +940,8 @@ impl UniversalToolExecutor {
         // Create OAuth manager with database
         let mut oauth_manager = crate::oauth::manager::OAuthManager::new(self.database.clone());
 
-        // Register Strava provider
-        match crate::oauth::providers::StravaOAuthProvider::new() {
+        // Register Strava provider using centralized config
+        match crate::oauth::providers::StravaOAuthProvider::from_config(&self.config.oauth.strava) {
             Ok(strava_provider) => {
                 oauth_manager.register_provider(Box::new(strava_provider));
 
@@ -968,8 +990,8 @@ impl UniversalToolExecutor {
         // Create OAuth manager with database
         let mut oauth_manager = crate::oauth::manager::OAuthManager::new(self.database.clone());
 
-        // Register Fitbit provider
-        match crate::oauth::providers::FitbitOAuthProvider::new() {
+        // Register Fitbit provider using centralized config
+        match crate::oauth::providers::FitbitOAuthProvider::from_config(&self.config.oauth.fitbit) {
             Ok(fitbit_provider) => {
                 oauth_manager.register_provider(Box::new(fitbit_provider));
 
@@ -1022,8 +1044,10 @@ impl UniversalToolExecutor {
             let mut oauth_manager =
                 crate::oauth::manager::OAuthManager::new(executor.database.clone());
 
-            // Register Strava provider
-            match crate::oauth::providers::StravaOAuthProvider::new() {
+            // Register Strava provider using centralized config
+            match crate::oauth::providers::StravaOAuthProvider::from_config(
+                &executor.config.oauth.strava,
+            ) {
                 Ok(provider) => {
                     oauth_manager.register_provider(Box::new(provider));
                     oauth_manager.generate_auth_url(user_uuid, "strava").await
@@ -1159,7 +1183,7 @@ impl UniversalToolExecutor {
             // Register the provider based on type
             let provider_result = match provider {
                 "strava" => {
-                    match crate::oauth::providers::StravaOAuthProvider::new() {
+                    match crate::oauth::providers::StravaOAuthProvider::from_config(&executor.config.oauth.strava) {
                         Ok(strava_provider) => {
                             oauth_manager.register_provider(Box::new(strava_provider));
                             oauth_manager.disconnect_provider(user_uuid, "strava").await
@@ -1168,7 +1192,7 @@ impl UniversalToolExecutor {
                     }
                 }
                 "fitbit" => {
-                    match crate::oauth::providers::FitbitOAuthProvider::new() {
+                    match crate::oauth::providers::FitbitOAuthProvider::from_config(&executor.config.oauth.fitbit) {
                         Ok(fitbit_provider) => {
                             oauth_manager.register_provider(Box::new(fitbit_provider));
                             oauth_manager.disconnect_provider(user_uuid, "fitbit").await
@@ -2797,7 +2821,89 @@ mod tests {
             },
         ));
 
-        UniversalToolExecutor::new(database, intelligence)
+        // Create test config
+        let test_config = Arc::new(crate::config::environment::ServerConfig {
+            mcp_port: 3000,
+            http_port: 4000,
+            log_level: crate::config::environment::LogLevel::Info,
+            database: crate::config::environment::DatabaseConfig {
+                url: crate::config::environment::DatabaseUrl::Memory,
+                encryption_key_path: std::path::PathBuf::from("test.key"),
+                auto_migrate: true,
+                backup: crate::config::environment::BackupConfig {
+                    enabled: false,
+                    interval_seconds: 3600,
+                    retention_count: 7,
+                    directory: std::path::PathBuf::from("test_backups"),
+                },
+            },
+            auth: crate::config::environment::AuthConfig {
+                jwt_secret_path: std::path::PathBuf::from("test.secret"),
+                jwt_expiry_hours: 24,
+                enable_refresh_tokens: false,
+            },
+            oauth: crate::config::environment::OAuthConfig {
+                strava: crate::config::environment::OAuthProviderConfig {
+                    client_id: Some("test_client_id".to_string()),
+                    client_secret: Some("test_client_secret".to_string()),
+                    redirect_uri: Some("http://localhost:3000/oauth/callback/strava".to_string()),
+                    scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+                    enabled: true,
+                },
+                fitbit: crate::config::environment::OAuthProviderConfig {
+                    client_id: Some("test_fitbit_id".to_string()),
+                    client_secret: Some("test_fitbit_secret".to_string()),
+                    redirect_uri: Some("http://localhost:3000/oauth/callback/fitbit".to_string()),
+                    scopes: vec!["activity".to_string(), "profile".to_string()],
+                    enabled: true,
+                },
+            },
+            security: crate::config::environment::SecurityConfig {
+                cors_origins: vec!["*".to_string()],
+                rate_limit: crate::config::environment::RateLimitConfig {
+                    enabled: false,
+                    requests_per_window: 100,
+                    window_seconds: 60,
+                },
+                tls: crate::config::environment::TlsConfig {
+                    enabled: false,
+                    cert_path: None,
+                    key_path: None,
+                },
+                headers: crate::config::environment::SecurityHeadersConfig {
+                    environment: crate::config::environment::Environment::Development,
+                },
+            },
+            external_services: crate::config::environment::ExternalServicesConfig {
+                weather: crate::config::environment::WeatherServiceConfig {
+                    api_key: None,
+                    base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                    enabled: false,
+                },
+                strava_api: crate::config::environment::StravaApiConfig {
+                    base_url: "https://www.strava.com/api/v3".to_string(),
+                    auth_url: "https://www.strava.com/oauth/authorize".to_string(),
+                    token_url: "https://www.strava.com/oauth/token".to_string(),
+                },
+                fitbit_api: crate::config::environment::FitbitApiConfig {
+                    base_url: "https://api.fitbit.com".to_string(),
+                    auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
+                    token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+                },
+            },
+            app_behavior: crate::config::environment::AppBehaviorConfig {
+                max_activities_fetch: 100,
+                default_activities_limit: 20,
+                ci_mode: true,
+                protocol: crate::config::environment::ProtocolConfig {
+                    mcp_version: "2024-11-05".to_string(),
+                    server_name: "pierre-mcp-server-test".to_string(),
+                    server_version: env!("CARGO_PKG_VERSION").to_string(),
+                },
+            },
+        });
+
+        UniversalToolExecutor::new(database, intelligence, test_config)
     }
 
     #[tokio::test]

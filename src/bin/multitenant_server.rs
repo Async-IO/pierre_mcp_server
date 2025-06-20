@@ -22,6 +22,7 @@ use pierre_mcp_server::{
     mcp::multitenant::MultiTenantMcpServer,
 };
 use std::path::PathBuf;
+use std::sync::Arc;
 use tracing::{error, info};
 use warp::Filter;
 
@@ -149,11 +150,7 @@ async fn main() -> Result<()> {
         info!("Health checker initialized");
 
         // Create and run multi-tenant server with health checks
-        let server = MultiTenantMcpServer::new(
-            database,
-            auth_manager,
-            config.security.headers.environment.to_string(),
-        );
+        let server = MultiTenantMcpServer::new(database, auth_manager, Arc::new(config.clone()));
 
         info!(
             "🚀 Multi-tenant MCP server starting on ports {} (MCP) and {} (HTTP)",
@@ -375,25 +372,79 @@ async fn handle_oauth_callback(
 
     match provider {
         "strava" => {
-            let strava_provider = pierre_mcp_server::oauth::providers::StravaOAuthProvider::new()
-                .map_err(|e| {
-                tracing::error!("Failed to create Strava provider: {}", e);
-                warp::reject::custom(OAuthCallbackError::ServerError(format!(
-                    "Provider error: {}",
-                    e
-                )))
+            // For single-tenant mode, read from environment variables
+            let client_id = std::env::var("STRAVA_CLIENT_ID").map_err(|_| {
+                warp::reject::custom(OAuthCallbackError::ServerError(
+                    "STRAVA_CLIENT_ID not set".to_string(),
+                ))
             })?;
+            let client_secret = std::env::var("STRAVA_CLIENT_SECRET").map_err(|_| {
+                warp::reject::custom(OAuthCallbackError::ServerError(
+                    "STRAVA_CLIENT_SECRET not set".to_string(),
+                ))
+            })?;
+            let redirect_uri = std::env::var("STRAVA_REDIRECT_URI").ok();
+
+            let config = pierre_mcp_server::config::environment::OAuthProviderConfig {
+                client_id: Some(client_id),
+                client_secret: Some(client_secret),
+                redirect_uri,
+                scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+                enabled: true,
+            };
+
+            let strava_provider =
+                pierre_mcp_server::oauth::providers::StravaOAuthProvider::from_config(&config)
+                    .map_err(|e| {
+                        tracing::error!("Failed to create Strava provider: {}", e);
+                        warp::reject::custom(OAuthCallbackError::ServerError(format!(
+                            "Provider error: {}",
+                            e
+                        )))
+                    })?;
             oauth_manager.register_provider(Box::new(strava_provider));
         }
         "fitbit" => {
-            let fitbit_provider = pierre_mcp_server::oauth::providers::FitbitOAuthProvider::new()
-                .map_err(|e| {
-                tracing::error!("Failed to create Fitbit provider: {}", e);
-                warp::reject::custom(OAuthCallbackError::ServerError(format!(
-                    "Provider error: {}",
-                    e
-                )))
+            // For single-tenant mode, read from environment variables
+            let client_id = std::env::var("FITBIT_CLIENT_ID").map_err(|_| {
+                warp::reject::custom(OAuthCallbackError::ServerError(
+                    "FITBIT_CLIENT_ID not set".to_string(),
+                ))
             })?;
+            let client_secret = std::env::var("FITBIT_CLIENT_SECRET").map_err(|_| {
+                warp::reject::custom(OAuthCallbackError::ServerError(
+                    "FITBIT_CLIENT_SECRET not set".to_string(),
+                ))
+            })?;
+            let redirect_uri = std::env::var("FITBIT_REDIRECT_URI").ok();
+
+            let config = pierre_mcp_server::config::environment::OAuthProviderConfig {
+                client_id: Some(client_id),
+                client_secret: Some(client_secret),
+                redirect_uri,
+                scopes: vec![
+                    "activity".to_string(),
+                    "heartrate".to_string(),
+                    "location".to_string(),
+                    "nutrition".to_string(),
+                    "profile".to_string(),
+                    "settings".to_string(),
+                    "sleep".to_string(),
+                    "social".to_string(),
+                    "weight".to_string(),
+                ],
+                enabled: true,
+            };
+
+            let fitbit_provider =
+                pierre_mcp_server::oauth::providers::FitbitOAuthProvider::from_config(&config)
+                    .map_err(|e| {
+                        tracing::error!("Failed to create Fitbit provider: {}", e);
+                        warp::reject::custom(OAuthCallbackError::ServerError(format!(
+                            "Provider error: {}",
+                            e
+                        )))
+                    })?;
             oauth_manager.register_provider(Box::new(fitbit_provider));
         }
         _ => {

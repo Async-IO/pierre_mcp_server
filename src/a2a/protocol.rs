@@ -303,8 +303,98 @@ impl A2AServer {
             }
         };
 
-        let executor =
-            crate::protocols::universal::UniversalToolExecutor::new(database, intelligence);
+        // Create a minimal config for A2A protocol (TODO: pass proper ServerConfig)
+        let fallback_config = std::sync::Arc::new(
+            crate::config::environment::ServerConfig::from_env().unwrap_or_else(|_| {
+                // Create a minimal fallback config
+                crate::config::environment::ServerConfig {
+                    mcp_port: 3000,
+                    http_port: 4000,
+                    log_level: crate::config::environment::LogLevel::Info,
+                    database: crate::config::environment::DatabaseConfig {
+                        url: crate::config::environment::DatabaseUrl::default(),
+                        encryption_key_path: std::path::PathBuf::from("data/encryption.key"),
+                        auto_migrate: true,
+                        backup: crate::config::environment::BackupConfig {
+                            enabled: false,
+                            interval_seconds: 3600,
+                            retention_count: 7,
+                            directory: std::path::PathBuf::from("data/backups"),
+                        },
+                    },
+                    auth: crate::config::environment::AuthConfig {
+                        jwt_secret_path: std::path::PathBuf::from("data/jwt.secret"),
+                        jwt_expiry_hours: 24,
+                        enable_refresh_tokens: false,
+                    },
+                    oauth: crate::config::environment::OAuthConfig {
+                        strava: crate::config::environment::OAuthProviderConfig {
+                            client_id: std::env::var("STRAVA_CLIENT_ID").ok(),
+                            client_secret: std::env::var("STRAVA_CLIENT_SECRET").ok(),
+                            redirect_uri: std::env::var("STRAVA_REDIRECT_URI").ok(),
+                            scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+                            enabled: true,
+                        },
+                        fitbit: crate::config::environment::OAuthProviderConfig {
+                            client_id: std::env::var("FITBIT_CLIENT_ID").ok(),
+                            client_secret: std::env::var("FITBIT_CLIENT_SECRET").ok(),
+                            redirect_uri: std::env::var("FITBIT_REDIRECT_URI").ok(),
+                            scopes: vec!["activity".to_string(), "profile".to_string()],
+                            enabled: true,
+                        },
+                    },
+                    security: crate::config::environment::SecurityConfig {
+                        cors_origins: vec!["*".to_string()],
+                        rate_limit: crate::config::environment::RateLimitConfig {
+                            enabled: false,
+                            requests_per_window: 100,
+                            window_seconds: 60,
+                        },
+                        tls: crate::config::environment::TlsConfig {
+                            enabled: false,
+                            cert_path: None,
+                            key_path: None,
+                        },
+                        headers: crate::config::environment::SecurityHeadersConfig {
+                            environment: crate::config::environment::Environment::Development,
+                        },
+                    },
+                    external_services: crate::config::environment::ExternalServicesConfig {
+                        weather: crate::config::environment::WeatherServiceConfig {
+                            api_key: std::env::var("OPENWEATHER_API_KEY").ok(),
+                            base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                            enabled: false,
+                        },
+                        strava_api: crate::config::environment::StravaApiConfig {
+                            base_url: "https://www.strava.com/api/v3".to_string(),
+                            auth_url: "https://www.strava.com/oauth/authorize".to_string(),
+                            token_url: "https://www.strava.com/oauth/token".to_string(),
+                        },
+                        fitbit_api: crate::config::environment::FitbitApiConfig {
+                            base_url: "https://api.fitbit.com".to_string(),
+                            auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
+                            token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+                        },
+                    },
+                    app_behavior: crate::config::environment::AppBehaviorConfig {
+                        max_activities_fetch: 100,
+                        default_activities_limit: 20,
+                        ci_mode: false,
+                        protocol: crate::config::environment::ProtocolConfig {
+                            mcp_version: "2024-11-05".to_string(),
+                            server_name: "pierre-mcp-server".to_string(),
+                            server_version: env!("CARGO_PKG_VERSION").to_string(),
+                        },
+                    },
+                }
+            }),
+        );
+
+        let executor = crate::protocols::universal::UniversalToolExecutor::new(
+            database,
+            intelligence,
+            fallback_config,
+        );
 
         match executor.execute_tool(universal_request).await {
             Ok(response) => A2AResponse {

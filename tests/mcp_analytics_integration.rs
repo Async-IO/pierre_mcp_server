@@ -23,6 +23,91 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 use uuid::Uuid;
 
+/// Create a test ServerConfig for analytics integration tests
+fn create_test_server_config(
+) -> std::sync::Arc<pierre_mcp_server::config::environment::ServerConfig> {
+    std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
+        mcp_port: 3000,
+        http_port: 4000,
+        log_level: pierre_mcp_server::config::environment::LogLevel::Info,
+        database: pierre_mcp_server::config::environment::DatabaseConfig {
+            url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
+            encryption_key_path: std::path::PathBuf::from("test.key"),
+            auto_migrate: true,
+            backup: pierre_mcp_server::config::environment::BackupConfig {
+                enabled: false,
+                interval_seconds: 3600,
+                retention_count: 7,
+                directory: std::path::PathBuf::from("test_backups"),
+            },
+        },
+        auth: pierre_mcp_server::config::environment::AuthConfig {
+            jwt_secret_path: std::path::PathBuf::from("test.secret"),
+            jwt_expiry_hours: 24,
+            enable_refresh_tokens: false,
+        },
+        oauth: pierre_mcp_server::config::environment::OAuthConfig {
+            strava: pierre_mcp_server::config::environment::OAuthProviderConfig {
+                client_id: Some("test_client_id".to_string()),
+                client_secret: Some("test_client_secret".to_string()),
+                redirect_uri: Some("http://localhost:3000/oauth/callback/strava".to_string()),
+                scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+                enabled: true,
+            },
+            fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig {
+                client_id: Some("test_fitbit_id".to_string()),
+                client_secret: Some("test_fitbit_secret".to_string()),
+                redirect_uri: Some("http://localhost:3000/oauth/callback/fitbit".to_string()),
+                scopes: vec!["activity".to_string(), "profile".to_string()],
+                enabled: true,
+            },
+        },
+        security: pierre_mcp_server::config::environment::SecurityConfig {
+            cors_origins: vec!["*".to_string()],
+            rate_limit: pierre_mcp_server::config::environment::RateLimitConfig {
+                enabled: false,
+                requests_per_window: 100,
+                window_seconds: 60,
+            },
+            tls: pierre_mcp_server::config::environment::TlsConfig {
+                enabled: false,
+                cert_path: None,
+                key_path: None,
+            },
+            headers: pierre_mcp_server::config::environment::SecurityHeadersConfig {
+                environment: pierre_mcp_server::config::environment::Environment::Development,
+            },
+        },
+        external_services: pierre_mcp_server::config::environment::ExternalServicesConfig {
+            weather: pierre_mcp_server::config::environment::WeatherServiceConfig {
+                api_key: None,
+                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                enabled: false,
+            },
+            strava_api: pierre_mcp_server::config::environment::StravaApiConfig {
+                base_url: "https://www.strava.com/api/v3".to_string(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
+                token_url: "https://www.strava.com/oauth/token".to_string(),
+            },
+            fitbit_api: pierre_mcp_server::config::environment::FitbitApiConfig {
+                base_url: "https://api.fitbit.com".to_string(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+            },
+        },
+        app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
+            max_activities_fetch: 100,
+            default_activities_limit: 20,
+            ci_mode: true,
+            protocol: pierre_mcp_server::config::environment::ProtocolConfig {
+                mcp_version: "2024-11-05".to_string(),
+                server_name: "pierre-mcp-server-test".to_string(),
+                server_version: env!("CARGO_PKG_VERSION").to_string(),
+            },
+        },
+    })
+}
+
 /// MCP client for testing analytics functionality
 struct McpTestClient {
     stream: TcpStream,
@@ -159,7 +244,7 @@ async fn test_mcp_server_initialization() -> Result<()> {
     let (database, auth_manager, test_port) = setup_test_environment().await?;
 
     // Start MCP server in background
-    let server = MultiTenantMcpServer::new(database, auth_manager, "development".to_string());
+    let server = MultiTenantMcpServer::new(database, auth_manager, create_test_server_config());
     let server_handle = tokio::spawn(async move { server.run(test_port).await });
 
     // Give server time to start
@@ -205,7 +290,7 @@ async fn test_analytics_workflow_without_provider() -> Result<()> {
     let (_user_id, jwt_token) = create_test_user(&database, &auth_manager).await?;
 
     // Start MCP server
-    let server = MultiTenantMcpServer::new(database, auth_manager, "development".to_string());
+    let server = MultiTenantMcpServer::new(database, auth_manager, create_test_server_config());
     let server_handle = tokio::spawn(async move { server.run(test_port).await });
 
     // Give server more time to start
@@ -277,7 +362,7 @@ async fn test_goal_management_workflow() -> Result<()> {
     let (_user_id, jwt_token) = create_test_user(&database, &auth_manager).await?;
 
     // Start MCP server
-    let server = MultiTenantMcpServer::new(database, auth_manager, "development".to_string());
+    let server = MultiTenantMcpServer::new(database, auth_manager, create_test_server_config());
     let server_handle = tokio::spawn(async move { server.run(test_port).await });
 
     // Wait longer for server to start and retry connection
@@ -346,7 +431,7 @@ async fn test_analytics_tools_comprehensive() -> Result<()> {
     let (database, auth_manager, test_port) = setup_test_environment().await?;
     let (_user_id, jwt_token) = create_test_user(&database, &auth_manager).await?;
 
-    let server = MultiTenantMcpServer::new(database, auth_manager, "development".to_string());
+    let server = MultiTenantMcpServer::new(database, auth_manager, create_test_server_config());
     let server_handle = tokio::spawn(async move { server.run(test_port).await });
 
     // Wait longer for server to start in high-concurrency test environments
@@ -421,7 +506,7 @@ async fn test_analytics_tools_comprehensive() -> Result<()> {
 async fn test_authentication_required() -> Result<()> {
     let (database, auth_manager, test_port) = setup_test_environment().await?;
 
-    let server = MultiTenantMcpServer::new(database, auth_manager, "development".to_string());
+    let server = MultiTenantMcpServer::new(database, auth_manager, create_test_server_config());
     let server_handle = tokio::spawn(async move { server.run(test_port).await });
 
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
@@ -449,7 +534,7 @@ async fn test_error_handling_invalid_tool() -> Result<()> {
     let (database, auth_manager, test_port) = setup_test_environment().await?;
     let (_user_id, jwt_token) = create_test_user(&database, &auth_manager).await?;
 
-    let server = MultiTenantMcpServer::new(database, auth_manager, "development".to_string());
+    let server = MultiTenantMcpServer::new(database, auth_manager, create_test_server_config());
     let server_handle = tokio::spawn(async move { server.run(test_port).await });
 
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
@@ -474,7 +559,7 @@ async fn test_fitness_report_generation_workflow() -> Result<()> {
     let (database, auth_manager, test_port) = setup_test_environment().await?;
     let (_user_id, jwt_token) = create_test_user(&database, &auth_manager).await?;
 
-    let server = MultiTenantMcpServer::new(database, auth_manager, "development".to_string());
+    let server = MultiTenantMcpServer::new(database, auth_manager, create_test_server_config());
     let server_handle = tokio::spawn(async move { server.run(test_port).await });
 
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;

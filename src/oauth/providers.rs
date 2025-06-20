@@ -9,6 +9,7 @@
 //! Concrete implementations of OAuth providers for different fitness platforms.
 
 use super::{AuthorizationResponse, OAuthError, OAuthProvider, TokenData};
+use crate::config::environment::OAuthProviderConfig;
 use anyhow::Result;
 use base64::{engine::general_purpose, Engine as _};
 use serde::Deserialize;
@@ -31,6 +32,40 @@ struct StravaTokenResponse {
 }
 
 impl StravaOAuthProvider {
+    /// Create a new Strava OAuth provider from configuration
+    pub fn from_config(config: &OAuthProviderConfig) -> Result<Self, OAuthError> {
+        let client_id = config
+            .client_id
+            .as_ref()
+            .ok_or_else(|| {
+                OAuthError::ConfigurationError("Strava client_id not configured".to_string())
+            })?
+            .clone();
+
+        let client_secret = config
+            .client_secret
+            .as_ref()
+            .ok_or_else(|| {
+                OAuthError::ConfigurationError("Strava client_secret not configured".to_string())
+            })?
+            .clone();
+
+        let redirect_uri = config.redirect_uri.as_ref().cloned().unwrap_or_else(|| {
+            format!(
+                "http://localhost:{}/oauth/callback/strava",
+                crate::constants::ports::DEFAULT_HTTP_PORT
+            )
+        });
+
+        Ok(Self {
+            client_id,
+            client_secret,
+            redirect_uri,
+        })
+    }
+
+    /// Legacy constructor that reads from environment variables (deprecated)
+    #[deprecated(note = "Use from_config() instead for centralized configuration")]
     pub fn new() -> Result<Self, OAuthError> {
         let client_id = std::env::var("STRAVA_CLIENT_ID")
             .map_err(|_| OAuthError::ConfigurationError("STRAVA_CLIENT_ID not set".to_string()))?;
@@ -209,6 +244,40 @@ struct FitbitTokenResponse {
 }
 
 impl FitbitOAuthProvider {
+    /// Create a new Fitbit OAuth provider from configuration
+    pub fn from_config(config: &OAuthProviderConfig) -> Result<Self, OAuthError> {
+        let client_id = config
+            .client_id
+            .as_ref()
+            .ok_or_else(|| {
+                OAuthError::ConfigurationError("Fitbit client_id not configured".to_string())
+            })?
+            .clone();
+
+        let client_secret = config
+            .client_secret
+            .as_ref()
+            .ok_or_else(|| {
+                OAuthError::ConfigurationError("Fitbit client_secret not configured".to_string())
+            })?
+            .clone();
+
+        let redirect_uri = config.redirect_uri.as_ref().cloned().unwrap_or_else(|| {
+            format!(
+                "http://localhost:{}/oauth/callback/fitbit",
+                crate::constants::ports::DEFAULT_HTTP_PORT
+            )
+        });
+
+        Ok(Self {
+            client_id,
+            client_secret,
+            redirect_uri,
+        })
+    }
+
+    /// Legacy constructor that reads from environment variables (deprecated)
+    #[deprecated(note = "Use from_config() instead for centralized configuration")]
     pub fn new() -> Result<Self, OAuthError> {
         let client_id = std::env::var("FITBIT_CLIENT_ID")
             .map_err(|_| OAuthError::ConfigurationError("FITBIT_CLIENT_ID not set".to_string()))?;
