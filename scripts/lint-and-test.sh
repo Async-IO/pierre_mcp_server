@@ -277,6 +277,14 @@ print(f'✅ Data processing works: score={result[\"total_score\"]}, quality={val
     cd ..
 fi
 
+# Final cleanup after tests
+echo -e "${BLUE}==== Final cleanup after tests... ====${NC}"
+rm -f ./mcp_activities_*.json ./examples/mcp_activities_*.json ./a2a_*.json ./enterprise_strava_dataset.json 2>/dev/null || true
+find . -name "*demo*.json" -not -path "./target/*" -delete 2>/dev/null || true
+find . -name "a2a_enterprise_report_*.json" -delete 2>/dev/null || true
+find . -name "mcp_investor_demo_*.json" -delete 2>/dev/null || true
+echo -e "${GREEN}✅ Final cleanup completed${NC}"
+
 # Summary
 echo ""
 echo -e "${BLUE}==== Summary ====${NC}"

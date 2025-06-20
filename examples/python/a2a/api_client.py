@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 A2A API Client Example
-Enterprise-grade fitness data access via Agent-to-Agent protocol
+Scalable fitness data access via Agent-to-Agent protocol
 """
 
 import json
@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import List, Dict, Optional
 
 class A2AClient:
-    """Professional A2A API client for enterprise integration"""
+    """A2A API client for business integration"""
     
     def __init__(self, base_url: str = 'http://localhost:8081', api_key: Optional[str] = None):
         self.base_url = base_url.rstrip('/')
