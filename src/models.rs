@@ -29,6 +29,38 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+/// User tier for rate limiting - same as API key tiers for consistency
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum UserTier {
+    /// Free tier with basic limits
+    Starter,
+    /// Professional tier with higher limits  
+    Professional,
+    /// Enterprise tier with unlimited access
+    Enterprise,
+}
+
+impl UserTier {
+    /// Get monthly request limit for this tier
+    pub fn monthly_limit(&self) -> Option<u32> {
+        match self {
+            UserTier::Starter => Some(10_000),
+            UserTier::Professional => Some(100_000),
+            UserTier::Enterprise => None, // Unlimited
+        }
+    }
+
+    /// Get display name for this tier
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            UserTier::Starter => "Starter",
+            UserTier::Professional => "Professional",
+            UserTier::Enterprise => "Enterprise",
+        }
+    }
+}
+
 /// Represents a single fitness activity from any provider
 ///
 /// An activity contains all the essential information about a workout,
@@ -481,6 +513,8 @@ pub struct User {
     pub display_name: Option<String>,
     /// Hashed password for authentication
     pub password_hash: String,
+    /// User tier for rate limiting
+    pub tier: UserTier,
     /// Encrypted Strava tokens
     pub strava_token: Option<EncryptedToken>,
     /// Encrypted Fitbit tokens
@@ -576,6 +610,7 @@ impl User {
             email,
             display_name,
             password_hash,
+            tier: UserTier::Starter, // Default to starter tier
             strava_token: None,
             fitbit_token: None,
             created_at: now,

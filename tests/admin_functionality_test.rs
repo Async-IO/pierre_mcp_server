@@ -34,6 +34,7 @@ async fn create_test_user(db: &Database) -> Result<(Uuid, User)> {
         email: "test@example.com".to_string(),
         display_name: Some("Test User".to_string()),
         password_hash: "test_hash".to_string(),
+        tier: pierre_mcp_server::models::UserTier::Starter,
         strava_token: None,
         fitbit_token: None,
         created_at: Utc::now(),

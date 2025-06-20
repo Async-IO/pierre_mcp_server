@@ -10,6 +10,7 @@ use crate::a2a::protocol::{A2ATask, TaskStatus};
 use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
 use crate::database::A2AUsage;
 use crate::models::{DecryptedToken, User};
+use crate::rate_limiting::JwtUsage;
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -216,6 +217,14 @@ impl DatabaseProvider for SqliteDatabase {
         self.inner
             .get_api_key_usage_stats(api_key_id, start_date, end_date)
             .await
+    }
+
+    async fn record_jwt_usage(&self, usage: &JwtUsage) -> Result<()> {
+        self.inner.record_jwt_usage(usage).await
+    }
+
+    async fn get_jwt_current_usage(&self, user_id: Uuid) -> Result<u32> {
+        self.inner.get_jwt_current_usage(user_id).await
     }
 
     async fn get_request_logs(

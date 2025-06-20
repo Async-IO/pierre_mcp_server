@@ -9,9 +9,10 @@
 //! This module provides JWT-based authentication and session management
 //! for the multi-tenant Pierre MCP Server.
 
-use crate::api_keys::{ApiKeyManager, RateLimitStatus};
+use crate::api_keys::ApiKeyManager;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::models::{AuthRequest, AuthResponse, User, UserSession};
+use crate::rate_limiting::{UnifiedRateLimitCalculator, UnifiedRateLimitInfo};
 use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
@@ -120,15 +121,18 @@ pub struct AuthResult {
     pub user_id: Uuid,
     /// Authentication method used
     pub auth_method: AuthMethod,
-    /// Rate limit status (only for API keys)
-    pub rate_limit: Option<RateLimitStatus>,
+    /// Rate limit information (always provided for both API keys and JWT tokens)
+    pub rate_limit: UnifiedRateLimitInfo,
 }
 
 /// Authentication method used
 #[derive(Debug, Clone)]
 pub enum AuthMethod {
     /// JWT token authentication
-    JwtToken,
+    JwtToken {
+        /// User tier for rate limiting
+        tier: String,
+    },
     /// API key authentication
     ApiKey {
         /// API key ID
@@ -142,7 +146,7 @@ impl AuthMethod {
     /// Get a human-readable display name for the authentication method
     pub fn display_name(&self) -> &str {
         match self {
-            AuthMethod::JwtToken => "JWT Token",
+            AuthMethod::JwtToken { .. } => "JWT Token",
             AuthMethod::ApiKey { .. } => "API Key",
         }
     }
@@ -150,7 +154,9 @@ impl AuthMethod {
     /// Get detailed information about the authentication method
     pub fn details(&self) -> String {
         match self {
-            AuthMethod::JwtToken => "JWT Token".to_string(),
+            AuthMethod::JwtToken { tier } => {
+                format!("JWT Token (tier: {})", tier)
+            }
             AuthMethod::ApiKey { key_id, tier } => {
                 format!("API Key (tier: {}, id: {})", tier, key_id)
             }
@@ -390,6 +396,7 @@ pub fn generate_jwt_secret() -> [u8; 64] {
 pub struct McpAuthMiddleware {
     auth_manager: AuthManager,
     api_key_manager: ApiKeyManager,
+    rate_limit_calculator: UnifiedRateLimitCalculator,
     database: std::sync::Arc<Database>,
 }
 
@@ -399,6 +406,7 @@ impl McpAuthMiddleware {
         Self {
             auth_manager,
             api_key_manager: ApiKeyManager::new(),
+            rate_limit_calculator: UnifiedRateLimitCalculator::new(),
             database,
         }
     }
@@ -483,8 +491,8 @@ impl McpAuthMiddleware {
         // Get current usage for rate limiting
         let current_usage = self.database.get_api_key_current_usage(&db_key.id).await?;
         let rate_limit = self
-            .api_key_manager
-            .calculate_rate_limit_status(&db_key, current_usage);
+            .rate_limit_calculator
+            .calculate_api_key_rate_limit(&db_key, current_usage);
 
         // Check rate limit
         if rate_limit.is_rate_limited {
@@ -500,7 +508,7 @@ impl McpAuthMiddleware {
                 key_id: db_key.id,
                 tier: format!("{:?}", db_key.tier).to_lowercase(),
             },
-            rate_limit: Some(rate_limit),
+            rate_limit,
         })
     }
 
@@ -511,10 +519,30 @@ impl McpAuthMiddleware {
                 let user_id = Uuid::parse_str(&claims.sub)
                     .map_err(|_| anyhow::anyhow!("Invalid user ID in token"))?;
 
+                // Get user from database to check tier and rate limits
+                let user = self
+                    .database
+                    .get_user(user_id)
+                    .await?
+                    .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+
+                // Get current usage for rate limiting
+                let current_usage = self.database.get_jwt_current_usage(user_id).await?;
+                let rate_limit = self
+                    .rate_limit_calculator
+                    .calculate_jwt_rate_limit(&user, current_usage);
+
+                // Check rate limit
+                if rate_limit.is_rate_limited {
+                    return Err(anyhow::anyhow!("JWT token rate limit exceeded"));
+                }
+
                 Ok(AuthResult {
                     user_id,
-                    auth_method: AuthMethod::JwtToken,
-                    rate_limit: None,
+                    auth_method: AuthMethod::JwtToken {
+                        tier: format!("{:?}", user.tier).to_lowercase(),
+                    },
+                    rate_limit,
                 })
             }
             Err(jwt_error) => Err(anyhow::anyhow!("{}", jwt_error)),
@@ -640,6 +668,7 @@ mod tests {
     async fn test_mcp_auth_middleware() {
         use crate::database::generate_encryption_key;
         use crate::database_plugins::factory::Database;
+        use crate::database_plugins::DatabaseProvider;
         use std::sync::Arc;
 
         let auth_manager = create_auth_manager();
@@ -649,6 +678,9 @@ mod tests {
         let database_url = "sqlite::memory:";
         let encryption_key = generate_encryption_key().to_vec();
         let database = Arc::new(Database::new(database_url, encryption_key).await.unwrap());
+
+        // Create the user in the database first (required for JWT rate limiting)
+        database.create_user(&user).await.unwrap();
 
         let middleware = McpAuthMiddleware::new(auth_manager, database);
 
@@ -662,7 +694,7 @@ mod tests {
         assert_eq!(auth_result.user_id, user.id);
         assert!(matches!(
             auth_result.auth_method,
-            crate::auth::AuthMethod::JwtToken
+            crate::auth::AuthMethod::JwtToken { .. }
         ));
     }
 

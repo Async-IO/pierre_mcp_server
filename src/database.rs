@@ -10,7 +10,8 @@
 //! It handles user storage, token encryption, and secure data access patterns.
 
 use crate::api_keys::{ApiKey, ApiKeyTier, ApiKeyUsage, ApiKeyUsageStats};
-use crate::models::{DecryptedToken, EncryptedToken, User};
+use crate::models::{DecryptedToken, EncryptedToken, User, UserTier};
+use crate::rate_limiting::JwtUsage;
 use anyhow::Result;
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use serde::{Deserialize, Serialize};
@@ -96,6 +97,7 @@ impl Database {
                 email TEXT UNIQUE NOT NULL,
                 display_name TEXT,
                 password_hash TEXT NOT NULL,
+                tier TEXT NOT NULL DEFAULT 'starter' CHECK (tier IN ('starter', 'professional', 'enterprise')),
                 strava_access_token TEXT,
                 strava_refresh_token TEXT,
                 strava_expires_at TEXT,
@@ -227,6 +229,9 @@ impl Database {
 
         // Create API key management tables
         self.create_api_key_tables().await?;
+
+        // Create JWT usage tracking tables
+        self.create_jwt_usage_tables().await?;
 
         // Create A2A extension tables
         self.create_a2a_tables().await?;
@@ -368,6 +373,76 @@ impl Database {
         )
         .execute(&self.pool)
         .await?;
+
+        Ok(())
+    }
+
+    /// Create JWT usage tracking tables (migration 004)
+    async fn create_jwt_usage_tables(&self) -> Result<()> {
+        // JWT Usage table - track JWT token usage for rate limiting
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS jwt_usage (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                
+                -- Usage metrics
+                timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                tool_name TEXT NOT NULL,
+                response_time_ms INTEGER,
+                status_code INTEGER NOT NULL,
+                error_message TEXT,
+                
+                -- Request metadata
+                request_size_bytes INTEGER,
+                response_size_bytes INTEGER,
+                ip_address TEXT,
+                user_agent TEXT
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Indexes for analytics and rate limiting lookups
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_jwt_usage_user_id ON jwt_usage(user_id)")
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_jwt_usage_timestamp ON jwt_usage(timestamp)")
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_jwt_usage_tool_name ON jwt_usage(tool_name)")
+            .execute(&self.pool)
+            .await?;
+
+        // JWT Usage stats table - aggregated metrics for performance
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS jwt_usage_stats (
+                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                period_start TIMESTAMP NOT NULL,
+                period_end TIMESTAMP NOT NULL,
+                
+                -- Aggregated metrics
+                total_requests INTEGER NOT NULL DEFAULT 0,
+                successful_requests INTEGER NOT NULL DEFAULT 0,
+                failed_requests INTEGER NOT NULL DEFAULT 0,
+                total_response_time_ms INTEGER NOT NULL DEFAULT 0,
+                
+                -- Per-tool breakdown (JSON)
+                tool_usage TEXT NOT NULL DEFAULT '{}',
+                
+                PRIMARY KEY (user_id, period_start)
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Index for time-based queries
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_jwt_stats_period ON jwt_usage_stats(period_start, period_end)")
+            .execute(&self.pool)
+            .await?;
 
         Ok(())
     }
@@ -661,14 +736,19 @@ impl Database {
     pub async fn create_user(&self, user: &User) -> Result<Uuid> {
         sqlx::query(
             r#"
-            INSERT INTO users (id, email, display_name, password_hash, created_at, last_active, is_active)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+            INSERT INTO users (id, email, display_name, password_hash, tier, created_at, last_active, is_active)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
             "#,
         )
         .bind(user.id.to_string())
         .bind(&user.email)
         .bind(&user.display_name)
         .bind(&user.password_hash)
+        .bind(match user.tier {
+            UserTier::Starter => "starter",
+            UserTier::Professional => "professional",
+            UserTier::Enterprise => "enterprise",
+        })
         .bind(user.created_at.to_rfc3339())
         .bind(user.last_active.to_rfc3339())
         .bind(user.is_active)
@@ -689,6 +769,11 @@ impl Database {
             Some(row) => Ok(Some(self.row_to_user(row)?)),
             None => Ok(None),
         }
+    }
+
+    /// Alias for get_user for consistency with auth middleware
+    pub async fn get_user_by_id(&self, user_id: Uuid) -> Result<Option<User>> {
+        self.get_user(user_id).await
     }
 
     /// Get user by email
@@ -922,6 +1007,15 @@ impl Database {
         let display_name: Option<String> = row.try_get("display_name")?;
         let password_hash: String = row.try_get("password_hash")?;
 
+        let tier_str: String = row
+            .try_get("tier")
+            .unwrap_or_else(|_| "starter".to_string());
+        let tier = match tier_str.as_str() {
+            "professional" => UserTier::Professional,
+            "enterprise" => UserTier::Enterprise,
+            _ => UserTier::Starter,
+        };
+
         let created_at_str: String = row.try_get("created_at")?;
         let created_at = DateTime::parse_from_rfc3339(&created_at_str)?.with_timezone(&Utc);
 
@@ -939,6 +1033,7 @@ impl Database {
             email,
             display_name,
             password_hash,
+            tier,
             strava_token,
             fitbit_token,
             created_at,
@@ -2524,6 +2619,59 @@ impl Database {
             total_response_time_ms: stats_row.get::<i64, _>("total_response_time_ms") as u64,
             tool_usage: serde_json::Value::Object(tool_usage),
         })
+    }
+
+    /// Record JWT token usage for rate limiting and analytics
+    pub async fn record_jwt_usage(&self, usage: &JwtUsage) -> Result<()> {
+        sqlx::query(
+            r#"
+            INSERT INTO jwt_usage (
+                user_id, timestamp, tool_name, response_time_ms, status_code,
+                error_message, request_size_bytes, response_size_bytes, 
+                ip_address, user_agent
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+            "#,
+        )
+        .bind(usage.user_id.to_string())
+        .bind(usage.timestamp.to_rfc3339())
+        .bind(&usage.tool_name)
+        .bind(usage.response_time_ms.map(|t| t as i64))
+        .bind(usage.status_code as i64)
+        .bind(&usage.error_message)
+        .bind(usage.request_size_bytes.map(|s| s as i64))
+        .bind(usage.response_size_bytes.map(|s| s as i64))
+        .bind(&usage.ip_address)
+        .bind(&usage.user_agent)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Get current JWT usage count for rate limiting (current month)
+    pub async fn get_jwt_current_usage(&self, user_id: Uuid) -> Result<u32> {
+        let start_of_month = Utc::now()
+            .with_day(1)
+            .unwrap()
+            .with_hour(0)
+            .unwrap()
+            .with_minute(0)
+            .unwrap()
+            .with_second(0)
+            .unwrap();
+
+        let count: i64 = sqlx::query_scalar(
+            r#"
+            SELECT COUNT(*) FROM jwt_usage 
+            WHERE user_id = ?1 AND timestamp >= ?2
+            "#,
+        )
+        .bind(user_id.to_string())
+        .bind(start_of_month.to_rfc3339())
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(count as u32)
     }
 
     /// Get request logs with filtering
