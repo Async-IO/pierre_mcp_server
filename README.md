@@ -27,8 +27,8 @@ Pierre supports multiple integration patterns for different use cases:
 
 | Integration Type | Best For | Setup Complexity | Authentication |
 |------------------|----------|------------------|----------------|
-| **MCP Protocol** (2025-06-18) | AI assistants (Claude, ChatGPT, Copilot) | Low | JWT Token |
-| **A2A Protocol** (v0.2.3) | AI agents & applications | Medium | API Keys |
+| **MCP Protocol**<br/>(2025-06-18) | AI assistants ([Claude](https://claude.ai), [ChatGPT](https://chatgpt.com), any MCP compliant client) | Low | JWT Token |
+| **A2A Protocol**<br/>(v0.2.3) | AI agents & applications | Medium | API Keys |
 | **REST API** | Web apps & dashboards | Medium | OAuth2 + JWT |
 | **Single-Tenant** | Personal local use | Minimal | Optional |
 
@@ -95,11 +95,13 @@ curl -X POST https://your-pierre-server.com/a2a/execute \
 
 | Guide | Description | Key Topics |
 |-------|-------------|------------|
-| **[Setup & Installation](docs/SETUP.md)** | Get started quickly | Local setup, OAuth config, Docker deployment |
+| **[Setup & Installation](docs/SETUP.md)** | Get started quickly | Local setup, OAuth config, Docker deployment, binaries |
+| **[Configuration](docs/CONFIGURATION.md)** | Complete configuration guide | Environment variables, config files, security |
 | **[MCP Tools Reference](docs/TOOLS.md)** | All 21 fitness tools | Data access, intelligence, goals, analytics |
 | **[Weather Integration](docs/WEATHER.md)** | Weather-enhanced analysis | OpenWeatherMap setup, mock data, intelligence |
-| **[API Reference](docs/API_REFERENCE.md)** | Enterprise features | API keys, rate limiting, security, monitoring |
+| **[API Reference](docs/API_REFERENCE.md)** | Enterprise features | API keys, rate limiting, security, monitoring, error handling |
 | **[Business Provisioning](docs/PROVISIONING.md)** | B2B deployment guide | API key provisioning, multi-tenant setup, admin workflows |
+| **[Testing & Development](docs/TESTING.md)** | Development workflow | Test suites, debugging, CI/CD, quality assurance |
 | **[Deployment Guide](docs/DEPLOYMENT.md)** | Production deployment | Docker, Kubernetes, cloud platforms |
 | **[Architecture Guide](docs/ARCHITECTURE.md)** | Technical deep-dive | System design, extensibility, contribution areas |
 

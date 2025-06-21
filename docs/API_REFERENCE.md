@@ -24,6 +24,180 @@ This document covers the B2B API platform features, API key management, and auth
 - **CORS Support**: Full cross-origin resource sharing configuration
 - **User Isolation**: Complete data separation between tenants
 
+## Admin API Endpoints
+
+### Complete Admin REST API
+
+| Endpoint | Method | Description | Required Permission |
+|----------|--------|-------------|-------------------|
+| `/admin/provision-api-key` | POST | Create new API key for user | ProvisionKeys |
+| `/admin/revoke-api-key` | POST | Revoke existing API key | RevokeKeys |
+| `/admin/list-api-keys` | GET | List API keys with filters | ListKeys |
+| `/admin/token-info` | GET | Get admin token information | ManageAdminTokens |
+| `/admin/setup-status` | GET | Check if admin setup required | None (public) |
+| `/admin/health` | GET | Admin service health check | None (public) |
+
+### Admin Authentication
+
+All admin endpoints (except `setup-status` and `health`) require an admin JWT token:
+
+```bash
+Authorization: Bearer <admin_jwt_token>
+```
+
+Admin tokens are generated using the `admin-setup` binary and include specific permissions.
+
+### List API Keys Endpoint
+
+Get filtered list of API keys with pagination:
+
+```bash
+GET /admin/list-api-keys?user_email=user@example.com&active_only=true&limit=50&offset=0
+```
+
+**Query Parameters:**
+- `user_email` (optional): Filter by user email
+- `active_only` (optional): Only return active keys (default: true)
+- `limit` (optional): Number of keys to return (1-100, default: unset)
+- `offset` (optional): Number of keys to skip (default: 0)
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Found 3 API keys",
+  "data": {
+    "filters": {
+      "user_email": "user@example.com",
+      "active_only": true,
+      "limit": 50,
+      "offset": 0
+    },
+    "keys": [
+      {
+        "id": "key_abc123",
+        "user_id": "user_def456",
+        "name": "Production Key",
+        "description": "Main API key",
+        "tier": "professional",
+        "rate_limit": {
+          "requests": 100000,
+          "window": 2592000
+        },
+        "is_active": true,
+        "created_at": "2024-01-15T10:30:00Z",
+        "last_used_at": "2024-06-20T14:22:00Z",
+        "expires_at": "2025-01-15T10:30:00Z",
+        "usage_count": 0
+      }
+    ],
+    "count": 3
+  }
+}
+```
+
+### Token Info Endpoint
+
+Get detailed information about the current admin token:
+
+```bash
+GET /admin/token-info
+Authorization: Bearer <admin_jwt_token>
+```
+
+**Response:**
+```json
+{
+  "token_id": "admin_token_123",
+  "service_name": "enterprise_provisioner",
+  "permissions": ["provision_keys", "revoke_keys", "list_keys"],
+  "is_super_admin": false,
+  "created_at": "2024-01-01T00:00:00Z",
+  "last_used_at": "2024-06-20T15:30:00Z",
+  "usage_count": 42
+}
+```
+
+### Setup Status Endpoint
+
+Check if admin setup is required (public endpoint):
+
+```bash
+GET /admin/setup-status
+```
+
+**Response:**
+```json
+{
+  "needs_setup": false,
+  "admin_user_exists": true,
+  "message": "System is properly configured"
+}
+```
+
+### Admin Health Check
+
+Check admin service health (public endpoint):
+
+```bash
+GET /admin/health
+```
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "service": "pierre-mcp-admin-api",
+  "timestamp": "2024-06-20T15:45:00Z",
+  "version": "0.1.0"
+}
+```
+
+### Error Response Formats
+
+All admin API endpoints return standardized error responses:
+
+**Standard Error Response:**
+```json
+{
+  "success": false,
+  "message": "Detailed error description",
+  "data": null
+}
+```
+
+**Common HTTP Status Codes:**
+- `400 Bad Request`: Invalid request parameters or JSON body
+- `401 Unauthorized`: Missing or invalid admin token
+- `403 Forbidden`: Admin token lacks required permissions
+- `404 Not Found`: Requested resource (API key, user) not found
+- `500 Internal Server Error`: Database or system error
+
+**Authentication Error Example:**
+```json
+{
+  "success": false,
+  "message": "Token expired at 2024-06-20T10:00:00Z, current time is 2024-06-20T15:30:00Z",
+  "data": null
+}
+```
+
+**Rate Limiting Error Example:**
+```json
+{
+  "success": false,
+  "message": "Rate limit exceeded. Monthly limit: 100000, current usage: 100000. Resets: 2024-07-01T00:00:00Z",
+  "data": {
+    "rate_limit": {
+      "limit": 100000,
+      "current": 100000,
+      "reset_date": "2024-07-01T00:00:00Z",
+      "tier": "professional"
+    }
+  }
+}
+```
+
 ## API Key System
 
 ### Creating API Keys (Enterprise Model)
