@@ -100,7 +100,7 @@ fn create_test_server_config(
             default_activities_limit: 20,
             ci_mode: true,
             protocol: pierre_mcp_server::config::environment::ProtocolConfig {
-                mcp_version: "2024-11-05".to_string(),
+                mcp_version: "2025-06-18".to_string(),
                 server_name: "pierre-mcp-server-test".to_string(),
                 server_version: env!("CARGO_PKG_VERSION").to_string(),
             },
@@ -184,6 +184,16 @@ impl McpTestClient {
         self.jwt_token = Some(token);
     }
 
+    async fn list_tools(&mut self) -> Result<Value> {
+        let request = json!({
+            "jsonrpc": "2.0",
+            "id": rand::random::<u32>(),
+            "method": "tools/list"
+        });
+
+        self.send_request(request).await
+    }
+
     async fn call_tool(&mut self, tool_name: &str, arguments: Value) -> Result<Value> {
         let request = json!({
             "jsonrpc": "2.0",
@@ -256,12 +266,17 @@ async fn test_mcp_server_initialization() -> Result<()> {
 
     // Verify initialization response
     assert_eq!(init_response["jsonrpc"], "2.0");
-    assert!(init_response["result"]["capabilities"]["tools"].is_array());
+    assert!(init_response["result"]["capabilities"]["tools"].is_object());
+    assert_eq!(
+        init_response["result"]["capabilities"]["tools"]["listChanged"],
+        false
+    );
 
-    // Check that we have all 21 expected tools
-    let tools = init_response["result"]["capabilities"]["tools"]
-        .as_array()
-        .unwrap();
+    // Get tools via tools/list method
+    let tools_response = client.list_tools().await?;
+    assert!(tools_response["result"]["tools"].is_array());
+
+    let tools = tools_response["result"]["tools"].as_array().unwrap();
     assert_eq!(tools.len(), 21);
 
     // Verify key analytics tools are present

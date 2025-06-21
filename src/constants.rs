@@ -17,7 +17,7 @@ pub mod protocol {
 
     /// Get MCP Protocol version from environment or default
     pub fn mcp_protocol_version() -> String {
-        env::var("MCP_PROTOCOL_VERSION").unwrap_or_else(|_| "2024-11-05".to_string())
+        env::var("MCP_PROTOCOL_VERSION").unwrap_or_else(|_| "2025-06-18".to_string())
     }
 
     /// JSON-RPC version (standard, not configurable)
@@ -39,7 +39,7 @@ pub mod protocol {
     pub const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
 
     // For backward compatibility and performance, provide const versions with defaults
-    pub const MCP_PROTOCOL_VERSION: &str = "2024-11-05";
+    pub const MCP_PROTOCOL_VERSION: &str = "2025-06-18";
     pub const SERVER_NAME: &str = "pierre-mcp-server";
     pub const SERVER_NAME_MULTITENANT: &str = "pierre-mcp-server-multitenant";
 }

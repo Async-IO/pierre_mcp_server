@@ -281,7 +281,6 @@ def investor_demonstration():
     
     # Cleanup generated demo file
     try:
-        import os
         if os.path.exists(filename):
             os.remove(filename)
             print(f"🧹 Cleaned up demo file: {filename}")

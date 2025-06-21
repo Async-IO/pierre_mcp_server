@@ -904,6 +904,23 @@ impl MultiTenantMcpServer {
                     id: request.id,
                 }
             }
+            "ping" => McpResponse {
+                jsonrpc: JSONRPC_VERSION.to_string(),
+                result: Some(serde_json::json!({})),
+                error: None,
+                id: request.id,
+            },
+            "tools/list" => {
+                let tools = crate::mcp::schema::get_tools();
+                McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    result: Some(serde_json::json!({
+                        "tools": tools
+                    })),
+                    error: None,
+                    id: request.id,
+                }
+            }
             "authenticate" => Self::handle_authenticate(request, auth_manager).await,
             "tools/call" => {
                 // Extract authorization header from request

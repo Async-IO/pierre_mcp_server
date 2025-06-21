@@ -124,6 +124,17 @@ impl A2AServer {
     pub async fn handle_request(&self, request: A2ARequest) -> A2AResponse {
         match request.method.as_str() {
             "a2a/initialize" => self.handle_initialize(request).await,
+            "message/send" => self.handle_message_send(request).await,
+            "message/stream" => self.handle_message_stream(request).await,
+            "tasks/create" => self.handle_task_create(request).await,
+            "tasks/get" => self.handle_task_get(request).await,
+            "tasks/cancel" => self.handle_task_cancel(request).await,
+            "tasks/pushNotificationConfig/set" => {
+                self.handle_push_notification_config(request).await
+            }
+            "tools/list" => self.handle_tools_list(request).await,
+            "tools/call" => self.handle_tool_call(request).await,
+            // Legacy A2A prefix support (backwards compatibility)
             "a2a/message/send" => self.handle_message_send(request).await,
             "a2a/message/stream" => self.handle_message_stream(request).await,
             "a2a/tasks/create" => self.handle_task_create(request).await,
@@ -143,7 +154,8 @@ impl A2AServer {
                 "message/stream",
                 "tasks/create",
                 "tasks/get",
-                "tasks/list",
+                "tasks/cancel",
+                "tasks/pushNotificationConfig/set",
                 "tools/list",
                 "tools/call"
             ],
@@ -413,6 +425,46 @@ impl A2AServer {
                 }),
                 id: request.id,
             },
+        }
+    }
+
+    async fn handle_task_cancel(&self, request: A2ARequest) -> A2AResponse {
+        let params = request.params.unwrap_or_default();
+        let task_id = params
+            .get("task_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
+
+        // In a full implementation, this would cancel an active task
+        // For now, we'll simulate task cancellation
+        A2AResponse {
+            jsonrpc: "2.0".to_string(),
+            result: Some(serde_json::json!({
+                "task_id": task_id,
+                "status": "cancelled",
+                "cancelled_at": chrono::Utc::now().to_rfc3339()
+            })),
+            error: None,
+            id: request.id,
+        }
+    }
+
+    async fn handle_push_notification_config(&self, request: A2ARequest) -> A2AResponse {
+        let params = request.params.unwrap_or_default();
+
+        // Extract notification configuration from params
+        let config = params.get("config").cloned().unwrap_or_default();
+
+        // In a full implementation, this would store push notification settings
+        A2AResponse {
+            jsonrpc: "2.0".to_string(),
+            result: Some(serde_json::json!({
+                "status": "configured",
+                "config": config,
+                "updated_at": chrono::Utc::now().to_rfc3339()
+            })),
+            error: None,
+            id: request.id,
         }
     }
 

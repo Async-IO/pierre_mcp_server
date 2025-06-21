@@ -89,16 +89,34 @@ async fn test_complete_server_workflow() -> Result<()> {
 
     // 6. Verify server capabilities
     let capabilities = &init_response["result"]["capabilities"];
-    assert!(capabilities["tools"].is_array());
+    assert!(capabilities["tools"].is_object());
+    assert_eq!(capabilities["tools"]["listChanged"], false);
 
-    let tools = capabilities["tools"].as_array().unwrap();
+    // 7. Test tools/list to verify available tools
+    let tools_list_msg = r#"{"jsonrpc": "2.0", "method": "tools/list", "id": 2}"#;
+    write_half.write_all(tools_list_msg.as_bytes()).await?;
+    write_half.write_all(b"\n").await?;
+
+    let mut tools_response_line = String::new();
+    timeout(
+        Duration::from_secs(5),
+        reader.read_line(&mut tools_response_line),
+    )
+    .await??;
+
+    let tools_response: Value = serde_json::from_str(&tools_response_line)?;
+    assert_eq!(tools_response["jsonrpc"], "2.0");
+    assert_eq!(tools_response["id"], 2);
+    assert!(tools_response["result"]["tools"].is_array());
+
+    let tools = tools_response["result"]["tools"].as_array().unwrap();
     let tool_names: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
 
     assert!(tool_names.contains(&"get_activities"));
     assert!(tool_names.contains(&"get_athlete"));
     assert!(tool_names.contains(&"get_stats"));
 
-    // 7. Test tool call with invalid provider (should fail gracefully)
+    // 8. Test tool call with invalid provider (should fail gracefully)
     let invalid_tool_request = json!({
         "jsonrpc": "2.0",
         "method": "tools/call",
@@ -108,7 +126,7 @@ async fn test_complete_server_workflow() -> Result<()> {
                 "provider": "nonexistent"
             }
         },
-        "id": 2
+        "id": 3
     });
 
     let request_str = serde_json::to_string(&invalid_tool_request)?;
@@ -120,7 +138,7 @@ async fn test_complete_server_workflow() -> Result<()> {
 
     let tool_response: Value = serde_json::from_str(&response_line)?;
     assert_eq!(tool_response["jsonrpc"], "2.0");
-    assert_eq!(tool_response["id"], 2);
+    assert_eq!(tool_response["id"], 3);
     // Tool now works with Universal Tool Executor but may return an error result
     assert!(tool_response["result"].is_object() || tool_response["error"].is_object());
 

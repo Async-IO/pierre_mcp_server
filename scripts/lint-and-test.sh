@@ -76,6 +76,15 @@ else
     ALL_PASSED=false
 fi
 
+# Run A2A compliance tests specifically
+echo -e "${BLUE}==== Running A2A compliance tests... ====${NC}"
+if cargo test --test a2a_compliance_test --quiet; then
+    echo -e "${GREEN}✅ A2A compliance tests passed${NC}"
+else
+    echo -e "${RED}❌ A2A compliance tests failed${NC}"
+    ALL_PASSED=false
+fi
+
 # Frontend checks
 if [ -d "frontend" ]; then
     echo ""
@@ -246,13 +255,15 @@ print(f'✅ Data processing works: score={result[\"total_score\"]}, quality={val
         if timeout 15s python3 python/mcp/investor_demo.py > /dev/null 2>&1; then
             echo -e "${GREEN}✅ MCP demo works with mock data${NC}"
         else
-            echo -e "${YELLOW}⚠️  MCP demo test failed or timed out${NC}"
+            echo -e "${RED}❌ MCP demo test failed or timed out${NC}"
+            ALL_PASSED=false
         fi
     else
         if python3 python/mcp/investor_demo.py > /dev/null 2>&1; then
             echo -e "${GREEN}✅ MCP demo works with mock data${NC}"
         else
-            echo -e "${YELLOW}⚠️  MCP demo test failed${NC}"
+            echo -e "${RED}❌ MCP demo test failed${NC}"
+            ALL_PASSED=false
         fi
     fi
     
@@ -295,6 +306,7 @@ if [ "$ALL_PASSED" = true ]; then
     echo "✅ Rust linting (Clippy)"
     echo "✅ Rust compilation"
     echo "✅ Rust tests"
+    echo "✅ A2A compliance tests"
     echo "✅ Frontend linting"
     echo "✅ TypeScript type checking"
     echo "✅ Frontend build"
