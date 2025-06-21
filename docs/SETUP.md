@@ -41,6 +41,97 @@ The server supports Docker deployment with direnv (.envrc) integration:
 
 **Note**: The Docker setup includes automatic health checks, backup services, and optional SQLite web interface for development.
 
+## Available Binaries
+
+Pierre includes several utility binaries for setup, testing, and administration:
+
+### Core Binaries
+
+| Binary | Purpose | Usage |
+|--------|---------|-------|
+| `pierre-mcp-server` | Main server binary | Production deployment |
+| `auth-setup` | OAuth credential setup | Initial provider configuration |
+| `admin-setup` | Admin token management | Generate/manage admin tokens |
+
+### Testing & Utility Binaries
+
+| Binary | Purpose | Usage |
+|--------|---------|-------|
+| `test-with-data` | Test with real fitness data | Development/debugging |
+| `test-weather-integration` | Test weather API integration | Weather setup validation |
+| `test-real-weather` | Test with OpenWeatherMap API | Real weather API testing |
+| `diagnose-weather-api` | Weather API diagnostics | Troubleshoot weather issues |
+| `test-intelligence-for-longest-run` | Test activity intelligence | AI analysis validation |
+| `test-location-intelligence` | Test location detection | GPS/location testing |
+| `test-oauth-callback` | Test OAuth callback flow | OAuth integration testing |
+| `serve-docs` | Local documentation server | Documentation development |
+
+### Activity Analysis Utilities
+
+| Binary | Purpose | Usage |
+|--------|---------|-------|
+| `find-2024-longest-run` | Find longest run in 2024 | Data analysis |
+| `find-2025-longest-run` | Find longest run in 2025 | Data analysis |
+| `find-consecutive-10k-runs` | Find consecutive 10k+ runs | Training pattern analysis |
+| `check-longest-run-gps` | Check GPS data for longest run | GPS validation |
+
+### Running Binaries
+
+All binaries are available via cargo:
+
+```bash
+# Core server
+cargo run --bin pierre-mcp-server -- --help
+
+# Setup utilities
+cargo run --bin auth-setup -- --help
+cargo run --bin admin-setup -- --help
+
+# Testing utilities
+cargo run --bin test-weather-integration
+cargo run --bin diagnose-weather-api
+
+# Activity analysis
+cargo run --bin find-2024-longest-run
+```
+
+### Binary Documentation
+
+**pierre-mcp-server**
+```bash
+cargo run --bin pierre-mcp-server -- --help
+
+# Single-tenant mode (personal use)
+cargo run --bin pierre-mcp-server -- --single-tenant --port 8080
+
+# Multi-tenant mode (cloud deployment)
+cargo run --bin pierre-mcp-server -- --database-url sqlite:./users.db --port 8081
+```
+
+**auth-setup**
+```bash
+# Setup Strava OAuth
+cargo run --bin auth-setup -- strava --client-id CLIENT_ID --client-secret CLIENT_SECRET
+
+# Setup Fitbit OAuth  
+cargo run --bin auth-setup -- fitbit --client-id CLIENT_ID --client-secret CLIENT_SECRET
+```
+
+**admin-setup**
+```bash
+# Generate admin token
+cargo run --bin admin-setup -- generate-token \
+  --service "admin_service" \
+  --permissions "provision_keys,revoke_keys" \
+  --expires-in-days 90
+
+# List admin tokens
+cargo run --bin admin-setup -- list-tokens
+
+# Rotate admin token
+cargo run --bin admin-setup -- rotate-token TOKEN_ID
+```
+
 ## OAuth2 Setup
 
 ### Strava

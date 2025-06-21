@@ -72,15 +72,36 @@ pub struct MultiTenantMcpServer {
 - WebSocket support for real-time updates
 - Tool-based interface for fitness data access
 
-**Available Tools:**
-- `get_activities`: Retrieve user activities
-- `get_athlete`: Get athlete profile information
-- `get_stats`: Fetch fitness statistics
-- `get_activity_intelligence`: AI-enhanced activity analysis
-- `connect_strava/connect_fitbit`: OAuth integration
-- `set_goal/track_progress`: Goal management
-- `analyze_training_load`: Training analysis
-- `calculate_fitness_score`: Fitness scoring
+### Universal Tool Executor
+
+Pierre implements a Universal Tool Executor pattern that abstracts tool execution across protocols:
+
+```rust
+pub struct UniversalToolExecutor {
+    providers: Arc<RwLock<HashMap<String, Box<dyn FitnessProvider>>>>,
+    intelligence: Arc<ActivityAnalyzer>,
+    weather: Arc<WeatherService>,
+}
+
+impl UniversalToolExecutor {
+    pub async fn execute_tool(&self, request: ToolRequest) -> Result<ToolResponse> {
+        match request.tool_name.as_str() {
+            "get_activities" => self.handle_get_activities(request).await,
+            "get_activity_intelligence" => self.handle_intelligence(request).await,
+            // ... other tools
+        }
+    }
+}
+```
+
+**Available Tools (21 total):**
+- **Data Access**: `get_activities`, `get_athlete`, `get_stats`
+- **Intelligence**: `get_activity_intelligence`, `analyze_activity`, `calculate_metrics`
+- **Analytics**: `analyze_performance_trends`, `compare_activities`, `detect_patterns`
+- **Goal Management**: `set_goal`, `track_progress`, `suggest_goals`, `analyze_goal_feasibility`
+- **Recommendations**: `generate_recommendations`, `calculate_fitness_score`, `predict_performance`
+- **Training**: `analyze_training_load`
+- **OAuth**: `connect_strava`, `connect_fitbit`, `get_connection_status`, `disconnect_provider`
 
 ### 2. HTTP API Server
 
@@ -492,6 +513,38 @@ CREATE TABLE a2a_tasks (
     completed_at TIMESTAMP
 );
 
+-- Admin tokens table - for admin authentication
+CREATE TABLE admin_tokens (
+    id TEXT PRIMARY KEY,
+    service_name TEXT NOT NULL,
+    permissions TEXT NOT NULL DEFAULT '[]',
+    token_hash TEXT NOT NULL,
+    is_super_admin BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_used_at TIMESTAMP,
+    expires_at TIMESTAMP,
+    usage_count INTEGER NOT NULL DEFAULT 0,
+    created_by TEXT,
+    UNIQUE(service_name)
+);
+
+-- User goals table - fitness goals and tracking
+CREATE TABLE user_goals (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    description TEXT,
+    goal_type TEXT NOT NULL,
+    target_value REAL NOT NULL,
+    current_value REAL NOT NULL DEFAULT 0.0,
+    target_date TEXT NOT NULL,
+    sport_type TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP
+);
+
 -- Indexes for A2A tables
 CREATE INDEX idx_a2a_clients_api_key ON a2a_clients(api_key_id);
 CREATE INDEX idx_a2a_sessions_client ON a2a_sessions(client_id);
@@ -499,6 +552,13 @@ CREATE INDEX idx_a2a_sessions_token ON a2a_sessions(session_token);
 CREATE INDEX idx_a2a_sessions_expires ON a2a_sessions(expires_at);
 CREATE INDEX idx_a2a_tasks_client ON a2a_tasks(client_id);
 CREATE INDEX idx_a2a_tasks_status ON a2a_tasks(status);
+
+-- Indexes for admin and goals tables
+CREATE INDEX idx_admin_tokens_service ON admin_tokens(service_name);
+CREATE INDEX idx_admin_tokens_expires ON admin_tokens(expires_at);
+CREATE INDEX idx_user_goals_user ON user_goals(user_id);
+CREATE INDEX idx_user_goals_active ON user_goals(is_active);
+CREATE INDEX idx_user_goals_target_date ON user_goals(target_date);
 ```
 
 ### Encryption
@@ -549,10 +609,39 @@ sequenceDiagram
 
 ### 3. WebSocket Integration
 
-Real-time updates for dashboard:
+Pierre includes WebSocket support for real-time updates:
+
+```rust
+pub struct WebSocketManager {
+    connections: Arc<RwLock<HashMap<String, WebSocketConnection>>>,
+    database: Database,
+    auth_manager: AuthManager,
+}
+
+impl WebSocketManager {
+    pub async fn handle_connection(&self, ws: WebSocket, user_id: String) {
+        // Authenticate WebSocket connection
+        // Register connection for user
+        // Handle real-time messages
+    }
+    
+    pub async fn broadcast_to_user(&self, user_id: &str, message: WebSocketMessage) {
+        // Send message to all user's active connections
+    }
+}
+```
+
+**WebSocket Endpoints:**
+- `/ws/dashboard` - Dashboard real-time updates
+- `/ws/api-usage` - API usage notifications
+- `/ws/metrics` - System metrics streaming
+
+**Real-time Features:**
 - API key usage notifications
-- Rate limit warnings
-- Connection status updates
+- Rate limit warnings and status
+- OAuth connection status updates
+- System health notifications
+- Activity data streaming (future feature)
 
 ## Deployment Architecture
 
