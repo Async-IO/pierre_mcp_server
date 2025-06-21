@@ -122,18 +122,16 @@ async fn test_mcp_initialize_request() -> Result<()> {
     assert!(response["result"].is_object());
 
     let result = &response["result"];
-    assert_eq!(result["protocolVersion"], "2024-11-05");
+    assert_eq!(result["protocolVersion"], "2025-06-18");
     assert!(result["serverInfo"].is_object());
     assert!(result["capabilities"].is_object());
-    assert!(result["capabilities"]["tools"].is_array());
+    assert!(result["capabilities"]["tools"].is_object());
 
-    // Verify expected tools are present
-    let tools = result["capabilities"]["tools"].as_array().unwrap();
-    let tool_names: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
+    // With new schema, tools capability indicates tool support
+    assert_eq!(result["capabilities"]["tools"]["listChanged"], false);
 
-    assert!(tool_names.contains(&"get_activities"));
-    assert!(tool_names.contains(&"get_athlete"));
-    assert!(tool_names.contains(&"get_stats"));
+    // Verify server info
+    assert_eq!(result["serverInfo"]["name"], "pierre-mcp-server");
 
     // Clean up
     server_task.abort();

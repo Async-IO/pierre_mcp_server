@@ -107,12 +107,14 @@ impl ProtocolConverter {
     /// Convert universal response to MCP format
     pub fn universal_to_mcp(response: UniversalResponse) -> ToolResponse {
         if response.success {
+            let result_text =
+                serde_json::to_string_pretty(&response.result.as_ref().unwrap_or(&Value::Null))
+                    .unwrap_or("{}".to_string());
+
             ToolResponse {
-                content: vec![crate::mcp::schema::Content::Text {
-                    text: serde_json::to_string_pretty(&response.result.unwrap_or(Value::Null))
-                        .unwrap_or("{}".to_string()),
-                }],
+                content: vec![crate::mcp::schema::Content::Text { text: result_text }],
                 is_error: false,
+                structured_content: response.result,
             }
         } else {
             ToolResponse {
@@ -123,6 +125,7 @@ impl ProtocolConverter {
                     ),
                 }],
                 is_error: true,
+                structured_content: None,
             }
         }
     }
@@ -288,6 +291,12 @@ mod tests {
                 assert!(text.contains("\"data\""));
                 assert!(text.contains("\"test\""));
             }
+            crate::mcp::schema::Content::Image { .. } => {
+                panic!("Expected text content, got image");
+            }
+            crate::mcp::schema::Content::Resource { .. } => {
+                panic!("Expected text content, got resource");
+            }
         }
     }
 
@@ -304,8 +313,17 @@ mod tests {
 
         assert!(mcp_response.is_error);
         assert_eq!(mcp_response.content.len(), 1);
-        let crate::mcp::schema::Content::Text { text } = &mcp_response.content[0];
-        assert!(text.contains("Invalid parameters"));
+        match &mcp_response.content[0] {
+            crate::mcp::schema::Content::Text { text } => {
+                assert!(text.contains("Invalid parameters"));
+            }
+            crate::mcp::schema::Content::Image { .. } => {
+                panic!("Expected text content, got image");
+            }
+            crate::mcp::schema::Content::Resource { .. } => {
+                panic!("Expected text content, got resource");
+            }
+        }
     }
 
     #[test]

@@ -59,7 +59,10 @@ pub struct ToolCall {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolResponse {
     pub content: Vec<Content>,
+    #[serde(rename = "isError")]
     pub is_error: bool,
+    #[serde(rename = "structuredContent", skip_serializing_if = "Option::is_none")]
+    pub structured_content: Option<serde_json::Value>,
 }
 
 /// Content types for MCP messages
@@ -68,6 +71,20 @@ pub struct ToolResponse {
 pub enum Content {
     #[serde(rename = "text")]
     Text { text: String },
+    #[serde(rename = "image")]
+    Image {
+        data: String,
+        #[serde(rename = "mimeType")]
+        mime_type: String,
+    },
+    #[serde(rename = "resource")]
+    Resource {
+        uri: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        text: Option<String>,
+        #[serde(rename = "mimeType", skip_serializing_if = "Option::is_none")]
+        mime_type: Option<String>,
+    },
 }
 
 /// Tool definition structure
@@ -90,7 +107,65 @@ pub struct PropertySchema {
 /// MCP Server Capabilities
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerCapabilities {
-    pub tools: Vec<ToolSchema>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub experimental: Option<HashMap<String, serde_json::Value>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub logging: Option<LoggingCapability>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompts: Option<PromptsCapability>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resources: Option<ResourcesCapability>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tools: Option<ToolsCapability>,
+}
+
+/// Tools capability
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolsCapability {
+    #[serde(rename = "listChanged", skip_serializing_if = "Option::is_none")]
+    pub list_changed: Option<bool>,
+}
+
+/// Logging capability
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoggingCapability {}
+
+/// Prompts capability
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PromptsCapability {
+    #[serde(rename = "listChanged", skip_serializing_if = "Option::is_none")]
+    pub list_changed: Option<bool>,
+}
+
+/// Resources capability
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResourcesCapability {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subscribe: Option<bool>,
+    #[serde(rename = "listChanged", skip_serializing_if = "Option::is_none")]
+    pub list_changed: Option<bool>,
+}
+
+/// Client capabilities (for processing client initialize requests)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClientCapabilities {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub experimental: Option<HashMap<String, serde_json::Value>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sampling: Option<SamplingCapability>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub roots: Option<RootsCapability>,
+}
+
+/// Sampling capability
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SamplingCapability {}
+
+/// Roots capability
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RootsCapability {
+    #[serde(rename = "listChanged", skip_serializing_if = "Option::is_none")]
+    pub list_changed: Option<bool>,
 }
 
 /// Complete MCP Initialize Response
@@ -101,6 +176,25 @@ pub struct InitializeResponse {
     #[serde(rename = "serverInfo")]
     pub server_info: ServerInfo,
     pub capabilities: ServerCapabilities,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub instructions: Option<String>,
+}
+
+/// Initialize Request from client
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InitializeRequest {
+    #[serde(rename = "protocolVersion")]
+    pub protocol_version: String,
+    #[serde(rename = "clientInfo")]
+    pub client_info: ClientInfo,
+    pub capabilities: ClientCapabilities,
+}
+
+/// Client Information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClientInfo {
+    pub name: String,
+    pub version: String,
 }
 
 impl InitializeResponse {
@@ -113,8 +207,15 @@ impl InitializeResponse {
                 version: server_version,
             },
             capabilities: ServerCapabilities {
-                tools: create_fitness_tools(),
+                experimental: None,
+                logging: None,
+                prompts: None,
+                resources: None,
+                tools: Some(ToolsCapability {
+                    list_changed: Some(false),
+                }),
             },
+            instructions: Some("This server provides fitness data tools for Strava and Fitbit integration. Use connect_strava or connect_fitbit to authenticate, then use get_activities, get_athlete, and other analytics tools to access your fitness data.".to_string()),
         }
     }
 }
@@ -889,22 +990,26 @@ mod tests {
     #[test]
     fn test_initialize_response_serialization() {
         let response = InitializeResponse::new(
-            "2024-11-05".to_string(),
+            "2025-06-18".to_string(),
             "test-server".to_string(),
             "1.0.0".to_string(),
         );
 
         let json = serde_json::to_value(&response).expect("Should serialize");
 
-        assert_eq!(json["protocolVersion"], "2024-11-05");
+        assert_eq!(json["protocolVersion"], "2025-06-18");
         assert_eq!(json["serverInfo"]["name"], "test-server");
         assert_eq!(json["serverInfo"]["version"], "1.0.0");
-        assert!(json["capabilities"]["tools"].is_array());
+        assert!(json["capabilities"]["tools"].is_object());
 
-        let tools = json["capabilities"]["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 21);
+        // With new schema, tools capability is an object with listChanged property
+        assert_eq!(json["capabilities"]["tools"]["listChanged"], false);
 
-        let tool_names: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
+        // Check that tools are available via tools/list
+        let available_tools = get_tools();
+        assert_eq!(available_tools.len(), 21);
+
+        let tool_names: Vec<&str> = available_tools.iter().map(|t| t.name.as_str()).collect();
 
         assert!(tool_names.contains(&"get_activities"));
         assert!(tool_names.contains(&"get_athlete"));
@@ -953,9 +1058,8 @@ mod tests {
             original.server_info.version,
             deserialized.server_info.version
         );
-        assert_eq!(
-            original.capabilities.tools.len(),
-            deserialized.capabilities.tools.len()
-        );
+        // Check that both have tools capability
+        assert!(original.capabilities.tools.is_some());
+        assert!(deserialized.capabilities.tools.is_some());
     }
 }

@@ -126,15 +126,15 @@ fn test_tool_parameter_validation() {
 #[test]
 fn test_initialize_response() {
     let response = InitializeResponse::new(
-        "2024-11-05".to_string(),
+        "2025-06-18".to_string(),
         "pierre-mcp-server-multitenant".to_string(),
         "0.1.0".to_string(),
     );
 
-    assert_eq!(response.protocol_version, "2024-11-05");
+    assert_eq!(response.protocol_version, "2025-06-18");
     assert_eq!(response.server_info.name, "pierre-mcp-server-multitenant");
     assert_eq!(response.server_info.version, "0.1.0");
-    assert_eq!(response.capabilities.tools.len(), 21);
+    assert!(response.capabilities.tools.is_some());
 }
 
 #[test]

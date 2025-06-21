@@ -277,6 +277,12 @@ async fn handle_request(
 ) -> McpResponse {
     match request.method.as_str() {
         "initialize" => {
+            // Parse client capabilities from params if provided
+            let _client_capabilities = request
+                .params
+                .as_ref()
+                .and_then(|p| serde_json::from_value::<schema::InitializeRequest>(p.clone()).ok());
+
             let init_response = InitializeResponse::new(
                 protocol::mcp_protocol_version(),
                 protocol::server_name(),
@@ -286,6 +292,23 @@ async fn handle_request(
             McpResponse {
                 jsonrpc: JSONRPC_VERSION.to_string(),
                 result: serde_json::to_value(&init_response).ok(),
+                error: None,
+                id: request.id,
+            }
+        }
+        "ping" => McpResponse {
+            jsonrpc: JSONRPC_VERSION.to_string(),
+            result: Some(serde_json::json!({})),
+            error: None,
+            id: request.id,
+        },
+        "tools/list" => {
+            let tools = schema::get_tools();
+            McpResponse {
+                jsonrpc: JSONRPC_VERSION.to_string(),
+                result: Some(serde_json::json!({
+                    "tools": tools
+                })),
                 error: None,
                 id: request.id,
             }
@@ -342,12 +365,27 @@ async fn handle_tool_call_unified(
 
     // Execute tool using Universal Tool Executor
     match tool_executor.execute_tool(universal_request).await {
-        Ok(universal_response) => McpResponse {
-            jsonrpc: JSONRPC_VERSION.to_string(),
-            result: universal_response.result,
-            error: None,
-            id,
-        },
+        Ok(universal_response) => {
+            // Convert to MCP-compliant tool response format
+            let tool_response = schema::ToolResponse {
+                content: vec![schema::Content::Text {
+                    text: universal_response
+                        .result
+                        .as_ref()
+                        .map(|v| serde_json::to_string_pretty(v).unwrap_or_else(|_| v.to_string()))
+                        .unwrap_or_else(|| "No result".to_string()),
+                }],
+                is_error: !universal_response.success,
+                structured_content: universal_response.result,
+            };
+
+            McpResponse {
+                jsonrpc: JSONRPC_VERSION.to_string(),
+                result: serde_json::to_value(tool_response).ok(),
+                error: None,
+                id,
+            }
+        }
         Err(protocol_error) => {
             let (error_code, error_message) = match protocol_error {
                 crate::protocols::ProtocolError::ToolNotFound(msg) => (ERROR_METHOD_NOT_FOUND, msg),
