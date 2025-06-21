@@ -27,8 +27,8 @@ Pierre supports multiple integration patterns for different use cases:
 
 | Integration Type | Best For | Setup Complexity | Authentication |
 |------------------|----------|------------------|----------------|
-| **MCP Protocol** | AI assistants (Claude, ChatGPT, Copilot) | Low | JWT Token |
-| **A2A Protocol** | AI agents & applications | Medium | API Keys |
+| **MCP Protocol** (2025-06-18) | AI assistants (Claude, ChatGPT, Copilot) | Low | JWT Token |
+| **A2A Protocol** (v0.2.3) | AI agents & applications | Medium | API Keys |
 | **REST API** | Web apps & dashboards | Medium | OAuth2 + JWT |
 | **Single-Tenant** | Personal local use | Minimal | Optional |
 
@@ -147,25 +147,6 @@ echo '{
 | **Single-Tenant** | Personal use | Local config, no auth required, simple setup |
 | **Multi-Tenant** | Cloud deployment | JWT auth, encrypted storage, user isolation |
 
-## Contributing
-
-We welcome contributions from developers of all skill levels! Pierre is built by the community, for the community.
-
-### Why Contribute?
-- **Learn modern tech**: MCP protocol, A2A communication, Rust async, AI integration
-- **Real impact**: Used by developers building AI fitness applications
-- **Growing ecosystem**: New fitness providers, client libraries, and integrations needed
-- **Welcoming community**: All skill levels welcome, mentorship available
-
-### Quick Ways to Contribute
-- **Report bugs** or suggest features via GitHub Issues
-- **Improve docs** - add examples, fix typos, clarify guides  
-- **Add providers** - Garmin, Polar, Suunto, local CSV imports
-- **Build clients** - Go, JavaScript, Ruby, PHP client libraries
-- **Write tests** - improve reliability and coverage
-
-**[See full contribution guide below](#contributing-1)**
-
 ## License
 
 This project is dual-licensed under either of:
@@ -177,87 +158,4 @@ at your option.
 
 ## Contributing
 
-We welcome contributions from developers of all skill levels! Pierre is built by the community, for the community.
-
-### Quick Start for Contributors
-
-1. **Fork the repository** and clone locally
-2. **Read the code** - architecture is documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-3. **Pick an area**:
-   - **Rust backend**: Core MCP/A2A protocols, fitness providers, database layers
-   - **TypeScript frontend**: Admin dashboard, analytics UI, real-time monitoring
-   - **Python examples**: Client libraries, integration demos, data processing
-   - **Documentation**: Guides, examples, API references
-
-### Contribution Areas
-
-| Area | Good for | Examples |
-|------|----------|----------|
-| **New Fitness Providers** | API integration experience | Garmin, Polar, Suunto connectors |
-| **MCP Protocol Extensions** | Protocol/networking knowledge | New tool types, enhanced schemas |
-| **Analytics & Intelligence** | Data science/ML background | Advanced metrics, insights |
-| **Client Libraries** | SDK development | Go, JavaScript, Ruby clients |
-| **DevOps & Deployment** | Infrastructure expertise | Kubernetes, monitoring, scaling |
-
-### Ideas & Discussions
-
-- **GitHub Discussions**: Share ideas, ask questions, propose features
-- **Issues**: Bug reports, feature requests, technical discussions  
-- **Documentation**: Improve guides, add examples, fix typos
-- **Testing**: Add test cases, improve CI/CD, performance testing
-
-### Development Setup
-
-```bash
-# Clone and setup
-git clone https://github.com/YOUR_USERNAME/pierre_mcp_server.git
-cd pierre_mcp_server
-
-# Backend development
-cargo build
-cargo test
-./scripts/lint-and-test.sh
-
-# Frontend development  
-cd frontend && npm install && npm run dev
-
-# Documentation
-# Edit .md files and test with any markdown renderer
-```
-
-### Architecture Overview
-
-Pierre is designed to be modular and extensible:
-
-- **Core**: MCP server, A2A protocol, authentication
-- **Providers**: Pluggable fitness data sources (Strava, Fitbit, etc.)
-- **Intelligence**: Analysis and insights  
-- **Clients**: Multiple language SDKs and examples
-
-### Recognition
-
-Contributors are recognized in:
-- Release notes and changelogs
-- GitHub contributor graphs
-- Documentation credits
-- Community showcases
-
-### Getting Help
-
-- **Documentation**: Start with [docs/SETUP.md](docs/SETUP.md)
-- **Discussions**: Ask questions in GitHub Discussions
-- **Issues**: Report bugs or request features
-- **Maintainers**: Tag @maintainers for architectural questions
-
-### Contribution Process
-
-1. **Discuss first** for large changes (GitHub Discussions/Issues)
-2. **Fork & branch** from main
-3. **Write tests** for new functionality  
-4. **Run lint**: `./scripts/lint-and-test.sh`
-5. **Submit PR** with clear description
-6. **Iterate** based on review feedback
-
-### License
-
-Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to get started.
