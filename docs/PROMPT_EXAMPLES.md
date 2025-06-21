@@ -1,8 +1,8 @@
-# 🤖 Comprehensive Prompt Examples
+# Comprehensive Prompt Examples
 
-This guide provides 50+ real-world prompt examples for using Pierre Fitness API with AI assistants like Claude, ChatGPT, and any agents supporting MCP/A2A protocols. These prompts demonstrate the power of combining fitness data with location intelligence, weather analysis, and AI insights.
+This guide provides 50+ real-world prompt examples for using Pierre Fitness API with AI assistants like Claude, ChatGPT, and any agents supporting MCP/A2A protocols. These prompts demonstrate the capabilities of combining fitness data with location intelligence, weather analysis, and insights.
 
-## 🏃 Running Analysis
+## Running Analysis
 
 ### Basic Queries
 ```
@@ -34,7 +34,7 @@ Find correlations between my running routes and performance improvements.
 Compare my uphill vs downhill running efficiency across different locations.
 ```
 
-## 🚴 Cross-Training Analysis
+## Cross-Training Analysis
 
 ### Multi-Sport Comparison
 ```
@@ -64,7 +64,7 @@ Analyze my recovery patterns between high-intensity sessions.
 Compare my performance metrics across swimming, cycling, and running.
 ```
 
-## 🗺️ Location Intelligence
+## Location Intelligence
 
 ### Geographic Performance Analysis
 ```
@@ -100,7 +100,7 @@ Identify optimal starting points for different types of training sessions.
 Show me how route familiarity affects my performance over time.
 ```
 
-## 🌦️ Weather & Environmental Impact
+## Weather & Environmental Impact
 
 ### Weather Correlation Analysis
 ```
@@ -134,7 +134,7 @@ Compare my cold weather gear effectiveness based on performance data.
 Show me how wind speed and direction affect my cycling vs running.
 ```
 
-## 📊 Comprehensive Activity Intelligence
+## Comprehensive Activity Intelligence
 
 ### Deep Activity Analysis
 ```
@@ -166,7 +166,7 @@ Find correlations between my pre-workout nutrition and performance outcomes.
 Compare my morning vs evening workout performance across different environments.
 ```
 
-## 🎯 Goal Tracking & Performance
+## Goal Tracking & Performance
 
 ### Progress Monitoring
 ```
@@ -196,7 +196,7 @@ Find optimal goal progression rates based on my historical data.
 Compare my achievement rates for distance vs time-based goals.
 ```
 
-## 📈 Advanced Intelligence Analysis
+## Advanced Intelligence Analysis
 
 ### Long-term Pattern Recognition
 ```
@@ -230,9 +230,9 @@ Find early warning signs of overtraining based on location and weather patterns.
 Predict optimal training locations for specific fitness goals.
 ```
 
-## 🧠 AI-Powered Insights
+## Intelligent Insights
 
-### Intelligent Summaries
+### Analysis and Summaries
 ```
 Generate intelligent summaries for my recent activities with full context.
 
@@ -260,7 +260,7 @@ Analyze my data to suggest equipment or gear improvements.
 Provide insights on training intensity distribution across different environments.
 ```
 
-## 🏆 Competition & Event Analysis
+## Competition & Event Analysis
 
 ### Race Preparation
 ```
@@ -284,7 +284,7 @@ Find my competitive advantages based on environmental performance data.
 Show me which types of events suit my physiological profile best.
 ```
 
-## 💡 Pro Tips for Effective Prompts
+## Pro Tips for Effective Prompts
 
 ### Best Practices
 - **Be specific about timeframes**: "last 3 months" vs "recently"
@@ -310,4 +310,4 @@ Analyze my marathon performance over the past 2 years, including:
 
 ---
 
-> 💡 **Remember**: Pierre's AI analysis becomes more powerful with more data. The more activities you have connected, the better the insights become!
+> **Remember**: Pierre's analysis becomes more valuable with more data. The more activities you have connected, the better the insights become!

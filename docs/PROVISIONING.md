@@ -1,8 +1,8 @@
 # Pierre MCP Server - API Key Provisioning Guide
 
-This document explains how to deploy, configure, and use the Pierre MCP Server for enterprise API key provisioning and MCP client integration.
+This document explains how to deploy, configure, and use the Pierre MCP Server for API key provisioning and MCP client integration.
 
-## 🏗️ Architecture Overview
+## Architecture Overview
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
@@ -34,7 +34,7 @@ This document explains how to deploy, configure, and use the Pierre MCP Server f
 └────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## 🚀 Deployment Scenarios
+## Deployment Scenarios
 
 ### Scenario 1: Single-Tenant (Personal Use)
 
@@ -59,10 +59,10 @@ cargo run --bin pierre-mcp-server -- --single-tenant --port 8080
 
 **No provisioning needed** - Claude can immediately use all fitness tools.
 
-### Scenario 2: Enterprise B2B (Multi-Tenant)
+### Scenario 2: Multi-Tenant Deployment
 
-**Use Case**: SaaS provider offering fitness APIs to enterprise customers
-**Target Users**: Companies building fitness apps, AI assistants, health platforms
+**Use Case**: Multi-user environments, API service provider
+**Target Users**: Organizations, developers building fitness applications
 
 ```bash
 # 1. Deploy MCP server in multi-tenant mode
@@ -75,14 +75,14 @@ cd ../pierre_admin_service
 ./scripts/setup-admin-token.sh
 cargo run --bin pierre_admin_service
 
-# 3. Provision customers via admin API
+# 3. Provision users via admin API
 ```
 
-## 🔑 API Key Provisioning Methods
+## API Key Provisioning Methods
 
 ### Method 1: Direct Admin Provisioning
 
-**Best for**: B2B customers, enterprise accounts, programmatic provisioning
+**Best for**: Programmatic provisioning, enterprise accounts
 
 ```bash
 # Step 1: Generate admin token
@@ -91,18 +91,18 @@ cargo run --bin admin-setup -- generate-token \
   --permissions "provision_keys,revoke_keys,list_keys" \
   --expires-in-days 365
 
-# Step 2: Provision API key for customer
+# Step 2: Provision API key for user
 curl -X POST http://localhost:8081/admin/provision-api-key \
   -H "Authorization: Bearer <admin_jwt_token>" \
   -H "Content-Type: application/json" \
   -d '{
-    "user_email": "customer@enterprise.com",
+    "user_email": "user@example.com",
     "tier": "professional",
     "rate_limit_requests": 100000,
     "rate_limit_period": "month",
     "expires_in_days": 365,
     "name": "Production Claude Integration",
-    "description": "API key for enterprise Claude desktop"
+    "description": "API key for Claude desktop"
   }'
 
 # Response includes the API key:
@@ -118,15 +118,15 @@ curl -X POST http://localhost:8081/admin/provision-api-key \
 
 ### Method 2: Admin Service with Approval Workflow
 
-**Best for**: Public API requests, trial accounts, self-service with approval
+**Best for**: Self-service with approval, trial accounts
 
 The `pierre_admin_service` provides a complete approval workflow:
 
 ```bash
-# 1. Customer visits landing page
+# 1. User visits landing page
 https://your-domain.com:8082
 
-# 2. Customer fills out request form:
+# 2. User fills out request form:
 # - Email address
 # - Company name
 # - Use case description
@@ -137,20 +137,20 @@ https://your-domain.com:8082
 # 4. Admin reviews and approves via dashboard
 https://your-domain.com:8082/admin
 
-# 5. API key automatically provisioned and emailed to customer
+# 5. API key automatically provisioned and emailed to user
 ```
 
-## 🎯 Customer Integration Guide
+## Client Integration Guide
 
 ### For Claude Desktop Users
 
-Once a customer receives their API key:
+Once a user receives their API key:
 
 ```json
 // ~/.claude/claude_desktop_config.json
 {
   "mcpServers": {
-    "pierre-fitness-enterprise": {
+    "pierre-fitness": {
       "command": "mcp-client",
       "args": [
         "--url", "https://your-api-server.com:8081",
@@ -204,7 +204,7 @@ response = requests.post("https://your-api-server.com:8081/", json={
 activities = response.json()["result"]
 ```
 
-## 🔧 Production Deployment
+## Production Deployment
 
 ### Docker Deployment
 
@@ -262,14 +262,14 @@ export SENDGRID_API_KEY="your-sendgrid-api-key"
 export BASE_APP_URL="https://api.yourdomain.com"
 ```
 
-## 🔐 Security and Authentication
+## Security and Authentication
 
 ### Admin Token Management
 
 ```bash
 # Generate new admin token
 cargo run --bin admin-setup -- generate-token \
-  --service "customer_provisioner" \
+  --service "user_provisioner" \
   --permissions "provision_keys,list_keys" \
   --expires-in-days 90
 
@@ -283,9 +283,9 @@ cargo run --bin admin-setup -- list-tokens
 ### API Key Management
 
 ```bash
-# List customer's API keys
+# List user's API keys
 curl -H "Authorization: Bearer <admin_token>" \
-     http://localhost:8081/admin/api-keys?user_email=customer@company.com
+     http://localhost:8081/admin/api-keys?user_email=user@company.com
 
 # Revoke API key
 curl -X DELETE \
@@ -297,7 +297,7 @@ curl -H "Authorization: Bearer <admin_token>" \
      "http://localhost:8081/admin/api-keys/key_abc123/usage?start_date=2024-01-01&end_date=2024-01-31"
 ```
 
-## 📈 Monitoring and Analytics
+## Monitoring and Analytics
 
 ### Real-time Monitoring
 
@@ -313,13 +313,13 @@ The MCP server provides comprehensive usage analytics:
 
 Access via the admin service at `https://admin.yourdomain.com`:
 
-- View all customer API keys
+- View all user API keys
 - Monitor usage in real-time
 - Set up alerts for high usage
-- Generate billing reports
-- Manage customer tiers
+- Generate reports
+- Manage user tiers
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -342,9 +342,9 @@ curl -H "Authorization: Bearer YOUR_API_KEY" \
 
 ### Getting Help
 
-- 📖 **Documentation**: Review [API_REFERENCE.md](API_REFERENCE.md)
-- 🐛 **Issues**: Report bugs via GitHub Issues
-- 💬 **Community**: Join discussions on GitHub
+- **Documentation**: Review [API_REFERENCE.md](API_REFERENCE.md)
+- **Issues**: Report bugs via GitHub Issues
+- **Community**: Join discussions on GitHub
 
 For detailed setup instructions, see:
 - [SETUP.md](SETUP.md) - Initial server setup
