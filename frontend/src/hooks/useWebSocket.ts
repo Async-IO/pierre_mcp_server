@@ -62,8 +62,9 @@ export function useWebSocket(): UseWebSocketReturn {
     try {
       // Use the same host but WebSocket protocol
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsHost = window.location.hostname === 'localhost' ? 'localhost:8081' : window.location.host;
-      const wsUrl = `${wsProtocol}//${wsHost}/ws`;
+      // Get WebSocket URL from environment or use default based on current location
+      const wsBaseUrl = import.meta.env.VITE_WS_BASE_URL;
+      const wsUrl = wsBaseUrl || `${wsProtocol}//${window.location.hostname === 'localhost' ? 'localhost:8081' : window.location.host}/ws`;
       
       console.log('WebSocket: Connecting to', wsUrl);
       const ws = new WebSocket(wsUrl);

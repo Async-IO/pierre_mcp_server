@@ -149,6 +149,12 @@ pub mod env_config {
             .parse()
             .unwrap_or(20)
     }
+
+    /// Get OpenWeather API base URL from environment or default
+    pub fn openweather_api_base() -> String {
+        env::var("OPENWEATHER_API_BASE_URL")
+            .unwrap_or_else(|_| "https://api.openweathermap.org".to_string())
+    }
 }
 
 /// JSON-RPC and MCP error codes

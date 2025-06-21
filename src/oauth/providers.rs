@@ -102,8 +102,10 @@ impl OAuthProvider for StravaOAuthProvider {
     ) -> Result<AuthorizationResponse, OAuthError> {
         let scope = "read,activity:read_all";
 
+        let auth_base_url = crate::constants::env_config::strava_auth_url();
         let auth_url = format!(
-            "https://www.strava.com/oauth/authorize?client_id={}&redirect_uri={}&response_type=code&scope={}&state={}",
+            "{}?client_id={}&redirect_uri={}&response_type=code&scope={}&state={}",
+            auth_base_url,
             urlencoding::encode(&self.client_id),
             urlencoding::encode(&self.redirect_uri),
             urlencoding::encode(scope),
@@ -129,8 +131,9 @@ impl OAuthProvider for StravaOAuthProvider {
             ("grant_type", "authorization_code"),
         ];
 
+        let token_url = crate::constants::env_config::strava_token_url();
         let response = client
-            .post("https://www.strava.com/oauth/token")
+            .post(&token_url)
             .form(&params)
             .send()
             .await
@@ -169,8 +172,9 @@ impl OAuthProvider for StravaOAuthProvider {
             ("grant_type", "refresh_token"),
         ];
 
+        let token_url = crate::constants::env_config::strava_token_url();
         let response = client
-            .post("https://www.strava.com/oauth/token")
+            .post(&token_url)
             .form(&params)
             .send()
             .await
