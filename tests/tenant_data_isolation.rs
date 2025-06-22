@@ -155,6 +155,7 @@ async fn test_cross_tenant_api_key_access_blocked() -> Result<()> {
         description: Some("Secret API key for user 1".to_string()),
         tier: ApiKeyTier::Professional,
         expires_in_days: Some(30),
+        rate_limit_requests: None,
     };
 
     let (user1_api_key, _user1_key_string) = api_key_manager
@@ -262,6 +263,7 @@ async fn test_admin_cross_tenant_access_prevention() -> Result<()> {
         description: Some("Key for tenant 1".to_string()),
         tier: ApiKeyTier::Enterprise,
         expires_in_days: Some(365),
+        rate_limit_requests: None,
     };
 
     let create_request2 = CreateApiKeyRequest {
@@ -269,6 +271,7 @@ async fn test_admin_cross_tenant_access_prevention() -> Result<()> {
         description: Some("Key for tenant 2".to_string()),
         tier: ApiKeyTier::Enterprise,
         expires_in_days: Some(365),
+        rate_limit_requests: None,
     };
 
     let (key1, _) = api_key_manager
@@ -329,6 +332,7 @@ async fn test_concurrent_tenant_isolation() -> Result<()> {
                 description: Some(format!("Key for user {}", i)),
                 tier: ApiKeyTier::Professional,
                 expires_in_days: Some(30),
+                rate_limit_requests: None,
             };
 
             let (api_key, _) = manager.create_api_key(user_id, create_request).await?;

@@ -70,6 +70,7 @@ impl DatabaseProvider for PostgresDatabase {
                 email TEXT UNIQUE NOT NULL,
                 display_name TEXT,
                 password_hash TEXT NOT NULL,
+                tier TEXT NOT NULL DEFAULT 'starter' CHECK (tier IN ('starter', 'professional', 'enterprise')),
                 strava_access_token TEXT,
                 strava_refresh_token TEXT,
                 strava_expires_at TIMESTAMPTZ,
@@ -80,6 +81,7 @@ impl DatabaseProvider for PostgresDatabase {
                 fitbit_expires_at TIMESTAMPTZ,
                 fitbit_scope TEXT,
                 fitbit_nonce TEXT,
+                is_active BOOLEAN NOT NULL DEFAULT true,
                 created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                 last_active TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             )
@@ -393,14 +395,22 @@ impl DatabaseProvider for PostgresDatabase {
 
         sqlx::query(
             r#"
-            INSERT INTO users (id, email, display_name, password_hash)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO users (id, email, display_name, password_hash, tier, is_active, created_at, last_active)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             "#,
         )
-        .bind(user_id)
+        .bind(user.id)
         .bind(&user.email)
         .bind(&user.display_name)
         .bind(&user.password_hash)
+        .bind(match user.tier {
+            UserTier::Starter => "starter",
+            UserTier::Professional => "professional",
+            UserTier::Enterprise => "enterprise",
+        })
+        .bind(user.is_active)
+        .bind(user.created_at)
+        .bind(user.last_active)
         .execute(&self.pool)
         .await?;
 
@@ -410,7 +420,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_user(&self, user_id: Uuid) -> Result<Option<User>> {
         let row = sqlx::query(
             r#"
-            SELECT id, email, display_name, password_hash, created_at, last_active
+            SELECT id, email, display_name, password_hash, tier, is_active, created_at, last_active
             FROM users
             WHERE id = $1
             "#,
@@ -426,9 +436,7 @@ impl DatabaseProvider for PostgresDatabase {
                 display_name: row.get("display_name"),
                 password_hash: row.get("password_hash"),
                 tier: {
-                    let tier_str: String = row
-                        .try_get("tier")
-                        .unwrap_or_else(|_| "starter".to_string());
+                    let tier_str: String = row.get("tier");
                     match tier_str.as_str() {
                         "professional" => UserTier::Professional,
                         "enterprise" => UserTier::Enterprise,
@@ -439,7 +447,7 @@ impl DatabaseProvider for PostgresDatabase {
                 fitbit_token: None, // Tokens are loaded separately
                 created_at: row.get("created_at"),
                 last_active: row.get("last_active"),
-                is_active: true, // Default to active
+                is_active: row.get("is_active"),
             }))
         } else {
             Ok(None)
@@ -449,7 +457,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_user_by_email(&self, email: &str) -> Result<Option<User>> {
         let row = sqlx::query(
             r#"
-            SELECT id, email, display_name, password_hash, created_at, last_active
+            SELECT id, email, display_name, password_hash, tier, is_active, created_at, last_active
             FROM users
             WHERE email = $1
             "#,
@@ -465,9 +473,7 @@ impl DatabaseProvider for PostgresDatabase {
                 display_name: row.get("display_name"),
                 password_hash: row.get("password_hash"),
                 tier: {
-                    let tier_str: String = row
-                        .try_get("tier")
-                        .unwrap_or_else(|_| "starter".to_string());
+                    let tier_str: String = row.get("tier");
                     match tier_str.as_str() {
                         "professional" => UserTier::Professional,
                         "enterprise" => UserTier::Enterprise,
@@ -478,7 +484,7 @@ impl DatabaseProvider for PostgresDatabase {
                 fitbit_token: None, // Tokens are loaded separately
                 created_at: row.get("created_at"),
                 last_active: row.get("last_active"),
-                is_active: true, // Default to active
+                is_active: row.get("is_active"),
             }))
         } else {
             Ok(None)

@@ -2,15 +2,14 @@ import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../services/api';
 import type { CreateApiKeyRequest } from '../types/api';
-import { Button, Card, Badge } from './ui';
+import { Button, Card } from './ui';
 
 export default function CreateApiKey() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [tier, setTier] = useState<'starter' | 'professional' | 'enterprise'>('professional');
+  const [rateLimitRequests, setRateLimitRequests] = useState<number>(10000);
   const [expiresInDays, setExpiresInDays] = useState<number | ''>('');
   const [createdKey, setCreatedKey] = useState<string | null>(null);
-  const [keyType, setKeyType] = useState<'regular' | 'trial'>('regular');
   
   const queryClient = useQueryClient();
 
@@ -23,64 +22,37 @@ export default function CreateApiKey() {
       // Reset form
       setName('');
       setDescription('');
-      setTier('professional');
+      setRateLimitRequests(10000);
       setExpiresInDays('');
     },
   });
 
-  const createTrialMutation = useMutation({
-    mutationFn: (data: { name: string; description?: string }) => apiService.createTrialKey(data),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['api-keys'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-overview'] });
-      setCreatedKey(data.api_key);
-      // Reset form
-      setName('');
-      setDescription('');
-    },
-  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (keyType === 'trial') {
-      const trialData = {
-        name,
-        description: description || undefined,
-      };
-      createTrialMutation.mutate(trialData);
-    } else {
-      const data = {
-        name,
-        description: description || undefined,
-        tier,
-        expires_in_days: expiresInDays ? Number(expiresInDays) : undefined,
-      };
-      createMutation.mutate(data);
-    }
+    const data = {
+      name,
+      description: description || undefined,
+      rate_limit_requests: rateLimitRequests,
+      expires_in_days: expiresInDays ? Number(expiresInDays) : undefined,
+    };
+    createMutation.mutate(data);
   };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
   };
 
-  const tierInfo = {
-    starter: {
-      limit: '10,000 requests/month',
-      description: 'Perfect for development and small projects',
-      color: 'text-pierre-blue-600',
-    },
-    professional: {
-      limit: '100,000 requests/month',
-      description: 'Ideal for production applications',
-      color: 'text-pierre-green-600',
-    },
-    enterprise: {
-      limit: 'Unlimited requests',
-      description: 'For high-volume enterprise applications',
-      color: 'text-pierre-purple-600',
-    },
-  };
+  const rateLimitOptions = [
+    { value: 500, label: '500 requests/month', description: 'Light usage' },
+    { value: 1000, label: '1,000 requests/month', description: 'Basic usage' },
+    { value: 5000, label: '5,000 requests/month', description: 'Regular usage' },
+    { value: 10000, label: '10,000 requests/month', description: 'Professional usage' },
+    { value: 50000, label: '50,000 requests/month', description: 'High usage' },
+    { value: 100000, label: '100,000 requests/month', description: 'Enterprise usage' },
+    { value: 0, label: 'Unlimited', description: 'No rate limits' },
+  ];
 
   return (
     <div className="space-y-6">
@@ -122,56 +94,6 @@ export default function CreateApiKey() {
         <h2 className="text-xl font-semibold mb-6">Create New API Key</h2>
         
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Key Type Selection */}
-          <div>
-            <label className="label">
-              Key Type *
-            </label>
-            <div className="space-y-3">
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="radio"
-                  name="keyType"
-                  value="regular"
-                  checked={keyType === 'regular'}
-                  onChange={(e) => setKeyType(e.target.value as 'regular' | 'trial')}
-                  className="mt-1"
-                />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">Production Key</span>
-                    <Badge variant="info">
-                      Full access
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-pierre-gray-600">Choose your tier and configure custom settings</p>
-                </div>
-              </label>
-              
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="radio"
-                  name="keyType"
-                  value="trial"
-                  checked={keyType === 'trial'}
-                  onChange={(e) => setKeyType(e.target.value as 'regular' | 'trial')}
-                  className="mt-1"
-                />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">Trial Key</span>
-                    <Badge variant="success">
-                      1,000 requests/month
-                    </Badge>
-                    <Badge variant="warning">
-                      14-day expiry
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-pierre-gray-600">Perfect for testing the platform with automatic expiration</p>
-                </div>
-              </label>
-            </div>
-          </div>
           <div>
             <label htmlFor="name" className="label">
               API Key Name *
@@ -204,81 +126,55 @@ export default function CreateApiKey() {
             />
           </div>
 
-          {keyType === 'regular' && (
-            <div>
-              <label className="label">
-                API Key Tier *
-              </label>
-              <div className="space-y-3">
-                {Object.entries(tierInfo).map(([tierKey, info]) => (
-                  <label key={tierKey} className="flex items-start gap-3 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="tier"
-                      value={tierKey}
-                      checked={tier === tierKey}
-                      onChange={(e) => setTier(e.target.value as 'starter' | 'professional' | 'enterprise')}
-                      className="mt-1"
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium capitalize">{tierKey}</span>
-                        <span className={`text-sm font-medium ${info.color}`}>
-                          {info.limit}
-                        </span>
-                      </div>
-                      <p className="text-sm text-pierre-gray-600">{info.description}</p>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
+          <div>
+            <label className="label">
+              Rate Limit *
+            </label>
+            <select
+              value={rateLimitRequests}
+              onChange={(e) => setRateLimitRequests(Number(e.target.value))}
+              className="input-field"
+              required
+            >
+              {rateLimitOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label} - {option.description}
+                </option>
+              ))}
+            </select>
+            <p className="help-text">
+              Choose your monthly request limit. Select "Unlimited" for no rate limiting.
+            </p>
+          </div>
 
-          {keyType === 'regular' && (
-            <div>
-              <label htmlFor="expires" className="label">
-                Expires In (Days)
-              </label>
-              <input
-                type="number"
-                id="expires"
-                min="1"
-                max="365"
-                className="input-field"
-                placeholder="Leave empty for no expiration"
-                value={expiresInDays}
-                onChange={(e) => setExpiresInDays(e.target.value ? Number(e.target.value) : '')}
-              />
-              <p className="help-text">
-                Optional. Set an expiration date for enhanced security.
-              </p>
-            </div>
-          )}
+          <div>
+            <label htmlFor="expires" className="label">
+              Expires In (Days)
+            </label>
+            <input
+              type="number"
+              id="expires"
+              min="1"
+              max="365"
+              className="input-field"
+              placeholder="Leave empty for no expiration"
+              value={expiresInDays}
+              onChange={(e) => setExpiresInDays(e.target.value ? Number(e.target.value) : '')}
+            />
+            <p className="help-text">
+              Optional. Set an expiration date for enhanced security.
+            </p>
+          </div>
 
-          {keyType === 'trial' && (
-            <div className="bg-pierre-yellow-50 border border-pierre-yellow-200 rounded-lg p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-pierre-yellow-600">ℹ️</span>
-                <span className="font-medium text-pierre-yellow-800">Trial Key Information</span>
-              </div>
-              <ul className="text-sm text-pierre-yellow-700 space-y-1">
-                <li>• Limited to 1,000 requests per month</li>
-                <li>• Automatically expires in 14 days</li>
-                <li>• Only one trial key per account</li>
-                <li>• Perfect for testing and evaluation</li>
-              </ul>
-            </div>
-          )}
 
           <div className="flex gap-4">
             <Button
               type="submit"
               variant="primary"
-              disabled={createMutation.isPending || createTrialMutation.isPending || !name.trim()}
-              loading={createMutation.isPending || createTrialMutation.isPending}
+              disabled={createMutation.isPending || !name.trim()}
+              loading={createMutation.isPending}
             >
-              {keyType === 'trial' ? 'Create Trial Key' : 'Create API Key'}
+              Create API Key
             </Button>
             
             <Button
@@ -287,7 +183,7 @@ export default function CreateApiKey() {
               onClick={() => {
                 setName('');
                 setDescription('');
-                setTier('professional');
+                setRateLimitRequests(10000);
                 setExpiresInDays('');
               }}
             >
@@ -295,24 +191,14 @@ export default function CreateApiKey() {
             </Button>
           </div>
 
-          {(createMutation.isError || createTrialMutation.isError) && (
+          {createMutation.isError && (
             <div className="bg-pierre-red-50 border border-pierre-red-200 text-pierre-red-600 px-4 py-3 rounded">
-              {createMutation.error?.message || createTrialMutation.error?.message || 'Failed to create API key'}
+              {createMutation.error?.message || 'Failed to create API key'}
             </div>
           )}
         </form>
       </Card>
 
-      <Card className="bg-pierre-blue-50 border-pierre-blue-200">
-        <h3 className="font-semibold text-pierre-blue-800 mb-3">💡 Best Practices</h3>
-        <ul className="text-sm text-pierre-blue-700 space-y-2">
-          <li>• Store API keys securely in environment variables</li>
-          <li>• Use different keys for development and production</li>
-          <li>• Set expiration dates for enhanced security</li>
-          <li>• Monitor usage regularly to detect anomalies</li>
-          <li>• Deactivate unused keys to minimize risk</li>
-        </ul>
-      </Card>
     </div>
   );
 }

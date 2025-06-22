@@ -233,6 +233,7 @@ impl A2AClientManager {
             name: format!("A2A Client: {}", client.name),
             description: Some(format!("API key for A2A client: {}", client.description)),
             tier: crate::api_keys::ApiKeyTier::Professional, // Default tier for A2A clients
+            rate_limit_requests: None,                       // Use tier default
             expires_in_days: None,                           // No expiration
         };
 

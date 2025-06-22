@@ -105,17 +105,67 @@ pub fn admin_routes(
     let revoke_route = revoke_api_key_route(context.clone());
     let list_keys_route = list_api_keys_route(context.clone());
     let token_info_route = token_info_route(context.clone());
+    let setup_status_route = setup_status_route(context.clone());
+
+    // Admin token management routes
+    let admin_tokens_list_route = admin_tokens_list_route(context.clone());
+    let admin_tokens_create_route = admin_tokens_create_route(context.clone());
+    let admin_tokens_details_route = admin_tokens_details_route(context.clone());
+    let admin_tokens_revoke_route = admin_tokens_revoke_route(context.clone());
+    let admin_tokens_rotate_route = admin_tokens_rotate_route(context.clone());
+
     let health_route = admin_health_route();
 
     let admin_routes = provision_route
         .or(revoke_route)
         .or(list_keys_route)
         .or(token_info_route)
+        .or(setup_status_route)
+        .or(admin_tokens_list_route)
+        .or(admin_tokens_create_route)
+        .or(admin_tokens_details_route)
+        .or(admin_tokens_revoke_route)
+        .or(admin_tokens_rotate_route)
         .or(health_route);
 
     warp::path("admin")
         .and(admin_routes)
         .recover(handle_admin_rejection)
+}
+
+/// Create admin routes filter without recovery (maintains Rejection error type)
+/// This is used for embedding in other servers that handle rejections differently
+pub fn admin_routes_with_rejection(
+    context: AdminApiContext,
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    let provision_route = provision_api_key_route(context.clone());
+    let revoke_route = revoke_api_key_route(context.clone());
+    let list_keys_route = list_api_keys_route(context.clone());
+    let token_info_route = token_info_route(context.clone());
+    let setup_status_route = setup_status_route(context.clone());
+
+    // Admin token management routes
+    let admin_tokens_list_route = admin_tokens_list_route(context.clone());
+    let admin_tokens_create_route = admin_tokens_create_route(context.clone());
+    let admin_tokens_details_route = admin_tokens_details_route(context.clone());
+    let admin_tokens_revoke_route = admin_tokens_revoke_route(context.clone());
+    let admin_tokens_rotate_route = admin_tokens_rotate_route(context.clone());
+
+    let health_route = admin_health_route();
+
+    let admin_routes = provision_route
+        .or(revoke_route)
+        .or(list_keys_route)
+        .or(token_info_route)
+        .or(setup_status_route)
+        .or(admin_tokens_list_route)
+        .or(admin_tokens_create_route)
+        .or(admin_tokens_details_route)
+        .or(admin_tokens_revoke_route)
+        .or(admin_tokens_rotate_route)
+        .or(health_route);
+
+    warp::path("admin").and(admin_routes)
 }
 
 /// Provision API key endpoint
@@ -373,6 +423,7 @@ async fn handle_provision_api_key(
             admin_token.service_name
         )),
         tier: tier.clone(),
+        rate_limit_requests: request.rate_limit_requests,
         expires_in_days: request.expires_in_days.map(|d| d as i64),
     };
 
@@ -729,6 +780,49 @@ async fn handle_admin_rejection(err: Rejection) -> Result<impl Reply, std::conve
     Ok(with_status(json(&response), status))
 }
 
+/// Setup status endpoint - check if admin user exists (no authentication required)
+fn setup_status_route(
+    context: AdminApiContext,
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    warp::path!("setup-status")
+        .and(warp::get())
+        .and(warp::any().map(move || context.clone()))
+        .and_then(handle_setup_status)
+}
+
+/// Handle setup status check
+async fn handle_setup_status(context: AdminApiContext) -> Result<impl Reply, Rejection> {
+    info!("🔍 Checking setup status - admin user existence");
+
+    match context
+        .auth_manager
+        .check_setup_status(&context.database)
+        .await
+    {
+        Ok(status) => {
+            info!(
+                "Setup status check complete - needs_setup: {}, admin_exists: {}",
+                status.needs_setup, status.admin_user_exists
+            );
+            Ok(with_status(json(&status), StatusCode::OK))
+        }
+        Err(e) => {
+            warn!("Failed to check setup status: {}", e);
+            let error_status = crate::routes::SetupStatusResponse {
+                needs_setup: true,
+                admin_user_exists: false,
+                message: Some(
+                    "Error checking setup status. Please contact administrator.".to_string(),
+                ),
+            };
+            Ok(with_status(
+                json(&error_status),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -761,5 +855,358 @@ mod tests {
 
         assert_eq!(request.user_email, "test@example.com");
         assert_eq!(request.tier, "starter");
+    }
+}
+
+/// Admin token management routes
+/// List admin tokens endpoint
+fn admin_tokens_list_route(
+    context: AdminApiContext,
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    warp::path!("tokens")
+        .and(warp::get())
+        .and(admin_auth_filter(
+            context.clone(),
+            AdminPermission::ProvisionKeys, // Admin with provision permission can view tokens
+        ))
+        .and(warp::query::<std::collections::HashMap<String, String>>())
+        .and(with_context(context))
+        .and_then(handle_admin_tokens_list)
+}
+
+/// Create admin token endpoint
+fn admin_tokens_create_route(
+    context: AdminApiContext,
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    warp::path!("tokens")
+        .and(warp::post())
+        .and(admin_auth_filter(
+            context.clone(),
+            AdminPermission::ProvisionKeys, // Admin with provision permission can create tokens
+        ))
+        .and(warp::body::json())
+        .and(with_context(context))
+        .and_then(handle_admin_tokens_create)
+}
+
+/// Get admin token details endpoint
+fn admin_tokens_details_route(
+    context: AdminApiContext,
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    warp::path!("tokens" / String)
+        .and(warp::get())
+        .and(admin_auth_filter(
+            context.clone(),
+            AdminPermission::ProvisionKeys,
+        ))
+        .and(with_context(context))
+        .and_then(handle_admin_tokens_details)
+}
+
+/// Revoke admin token endpoint
+fn admin_tokens_revoke_route(
+    context: AdminApiContext,
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    warp::path!("tokens" / String / "revoke")
+        .and(warp::post())
+        .and(admin_auth_filter(
+            context.clone(),
+            AdminPermission::RevokeKeys,
+        ))
+        .and(with_context(context))
+        .and_then(handle_admin_tokens_revoke)
+}
+
+/// Rotate admin token endpoint
+fn admin_tokens_rotate_route(
+    context: AdminApiContext,
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    warp::path!("tokens" / String / "rotate")
+        .and(warp::post())
+        .and(admin_auth_filter(
+            context.clone(),
+            AdminPermission::ProvisionKeys,
+        ))
+        .and(warp::body::json())
+        .and(with_context(context))
+        .and_then(handle_admin_tokens_rotate)
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct CreateAdminTokenRequest {
+    service_name: String,
+    service_description: Option<String>,
+    is_super_admin: Option<bool>,
+    expires_in_days: Option<u64>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct RotateAdminTokenRequest {
+    expires_in_days: Option<u64>,
+}
+
+/// Handle list admin tokens
+async fn handle_admin_tokens_list(
+    _admin_token: crate::admin::models::ValidatedAdminToken,
+    query_params: std::collections::HashMap<String, String>,
+    context: AdminApiContext,
+) -> Result<impl Reply, Rejection> {
+    info!("📋 Listing admin tokens");
+
+    let include_inactive = query_params
+        .get("include_inactive")
+        .and_then(|v| v.parse::<bool>().ok())
+        .unwrap_or(false);
+
+    match context.database.list_admin_tokens(include_inactive).await {
+        Ok(tokens) => {
+            let response = AdminResponse {
+                success: true,
+                message: format!("Found {} admin tokens", tokens.len()),
+                data: Some(serde_json::json!({
+                    "tokens": tokens,
+                    "count": tokens.len(),
+                    "include_inactive": include_inactive
+                })),
+            };
+            Ok(with_status(json(&response), StatusCode::OK))
+        }
+        Err(e) => {
+            warn!("Failed to list admin tokens: {}", e);
+            let response = AdminResponse {
+                success: false,
+                message: format!("Failed to list admin tokens: {}", e),
+                data: None,
+            };
+            Ok(with_status(
+                json(&response),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ))
+        }
+    }
+}
+
+/// Handle create admin token
+async fn handle_admin_tokens_create(
+    _admin_token: crate::admin::models::ValidatedAdminToken,
+    request: CreateAdminTokenRequest,
+    context: AdminApiContext,
+) -> Result<impl Reply, Rejection> {
+    info!(
+        "🔑 Creating admin token for service: {}",
+        request.service_name
+    );
+
+    // Create token request
+    let mut token_request = if request.is_super_admin.unwrap_or(false) {
+        crate::admin::models::CreateAdminTokenRequest::super_admin(request.service_name.clone())
+    } else {
+        crate::admin::models::CreateAdminTokenRequest::new(request.service_name.clone())
+    };
+
+    if let Some(desc) = request.service_description {
+        token_request.service_description = Some(desc);
+    }
+
+    if let Some(expires) = request.expires_in_days {
+        if expires == 0 {
+            token_request.expires_in_days = None; // Never expires
+        } else {
+            token_request.expires_in_days = Some(expires);
+        }
+    }
+
+    // TODO: Handle custom permissions from request.permissions
+
+    match context.database.create_admin_token(&token_request).await {
+        Ok(generated_token) => {
+            info!(
+                "✅ Admin token created successfully: {}",
+                generated_token.token_id
+            );
+            let response = AdminResponse {
+                success: true,
+                message: "Admin token created successfully".to_string(),
+                data: Some(serde_json::json!(generated_token)),
+            };
+            Ok(with_status(json(&response), StatusCode::CREATED))
+        }
+        Err(e) => {
+            warn!("Failed to create admin token: {}", e);
+            let response = AdminResponse {
+                success: false,
+                message: format!("Failed to create admin token: {}", e),
+                data: None,
+            };
+            Ok(with_status(
+                json(&response),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ))
+        }
+    }
+}
+
+/// Handle get admin token details
+async fn handle_admin_tokens_details(
+    token_id: String,
+    _admin_token: crate::admin::models::ValidatedAdminToken,
+    context: AdminApiContext,
+) -> Result<impl Reply, Rejection> {
+    info!("🔍 Getting admin token details: {}", token_id);
+
+    match context.database.get_admin_token_by_id(&token_id).await {
+        Ok(Some(token)) => {
+            let response = AdminResponse {
+                success: true,
+                message: "Admin token details retrieved".to_string(),
+                data: Some(serde_json::json!(token)),
+            };
+            Ok(with_status(json(&response), StatusCode::OK))
+        }
+        Ok(None) => {
+            let response = AdminResponse {
+                success: false,
+                message: "Admin token not found".to_string(),
+                data: None,
+            };
+            Ok(with_status(json(&response), StatusCode::NOT_FOUND))
+        }
+        Err(e) => {
+            warn!("Failed to get admin token details: {}", e);
+            let response = AdminResponse {
+                success: false,
+                message: format!("Failed to get admin token details: {}", e),
+                data: None,
+            };
+            Ok(with_status(
+                json(&response),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ))
+        }
+    }
+}
+
+/// Handle revoke admin token
+async fn handle_admin_tokens_revoke(
+    token_id: String,
+    _admin_token: crate::admin::models::ValidatedAdminToken,
+    context: AdminApiContext,
+) -> Result<impl Reply, Rejection> {
+    info!("🗑️ Revoking admin token: {}", token_id);
+
+    match context.database.deactivate_admin_token(&token_id).await {
+        Ok(_) => {
+            info!("✅ Admin token revoked successfully: {}", token_id);
+            let response = AdminResponse {
+                success: true,
+                message: "Admin token revoked successfully".to_string(),
+                data: Some(serde_json::json!({
+                    "token_id": token_id,
+                    "status": "revoked"
+                })),
+            };
+            Ok(with_status(json(&response), StatusCode::OK))
+        }
+        Err(e) => {
+            warn!("Failed to revoke admin token: {}", e);
+            let response = AdminResponse {
+                success: false,
+                message: format!("Failed to revoke admin token: {}", e),
+                data: None,
+            };
+            Ok(with_status(
+                json(&response),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ))
+        }
+    }
+}
+
+/// Handle rotate admin token
+async fn handle_admin_tokens_rotate(
+    token_id: String,
+    _admin_token: crate::admin::models::ValidatedAdminToken,
+    request: RotateAdminTokenRequest,
+    context: AdminApiContext,
+) -> Result<impl Reply, Rejection> {
+    info!("🔄 Rotating admin token: {}", token_id);
+
+    // Get existing token first
+    let old_token = match context.database.get_admin_token_by_id(&token_id).await {
+        Ok(Some(token)) => token,
+        Ok(None) => {
+            let response = AdminResponse {
+                success: false,
+                message: "Admin token not found".to_string(),
+                data: None,
+            };
+            return Ok(with_status(json(&response), StatusCode::NOT_FOUND));
+        }
+        Err(e) => {
+            warn!("Failed to get admin token for rotation: {}", e);
+            let response = AdminResponse {
+                success: false,
+                message: format!("Failed to get admin token: {}", e),
+                data: None,
+            };
+            return Ok(with_status(
+                json(&response),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ));
+        }
+    };
+
+    // Create new token with same properties
+    let mut new_token_request = crate::admin::models::CreateAdminTokenRequest {
+        service_name: old_token.service_name.clone(),
+        service_description: old_token.service_description.clone(),
+        permissions: Some(old_token.permissions.to_vec()),
+        expires_in_days: request.expires_in_days.or(Some(365)),
+        is_super_admin: old_token.is_super_admin,
+    };
+
+    if old_token.is_super_admin {
+        new_token_request.expires_in_days = None; // Super admin tokens never expire
+    }
+
+    // Create new token and revoke old one
+    match context
+        .database
+        .create_admin_token(&new_token_request)
+        .await
+    {
+        Ok(new_token) => {
+            // Revoke old token
+            if let Err(e) = context.database.deactivate_admin_token(&token_id).await {
+                warn!("Failed to revoke old token during rotation: {}", e);
+                // Continue anyway since new token was created
+            }
+
+            info!(
+                "✅ Admin token rotated successfully: {} -> {}",
+                token_id, new_token.token_id
+            );
+            let response = AdminResponse {
+                success: true,
+                message: "Admin token rotated successfully".to_string(),
+                data: Some(serde_json::json!({
+                    "old_token_id": token_id,
+                    "new_token": new_token
+                })),
+            };
+            Ok(with_status(json(&response), StatusCode::OK))
+        }
+        Err(e) => {
+            warn!("Failed to create new token during rotation: {}", e);
+            let response = AdminResponse {
+                success: false,
+                message: format!("Failed to rotate admin token: {}", e),
+                data: None,
+            };
+            Ok(with_status(
+                json(&response),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ))
+        }
     }
 }

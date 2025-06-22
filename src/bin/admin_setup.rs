@@ -6,6 +6,12 @@
 //!
 //! Usage:
 //! ```bash
+//! # Create default admin user for frontend login
+//! cargo run --bin admin-setup -- create-admin-user
+//!
+//! # Create admin user with custom credentials
+//! cargo run --bin admin-setup -- create-admin-user --email admin@mycompany.com --password mypassword
+//!
 //! # Generate a new admin token
 //! cargo run --bin admin-setup -- generate-token --service pierre_admin_service
 //!
@@ -21,6 +27,7 @@
 
 use anyhow::{anyhow, Result};
 use base64::Engine;
+use bcrypt::{hash, DEFAULT_COST};
 use clap::{Parser, Subcommand};
 use pierre_mcp_server::{
     admin::models::{CreateAdminTokenRequest, GeneratedAdminToken},
@@ -29,6 +36,7 @@ use pierre_mcp_server::{
 };
 use std::env;
 use tracing::{error, info, warn};
+use uuid::Uuid;
 
 #[derive(Parser)]
 #[command(
@@ -76,6 +84,25 @@ enum AdminCommand {
         /// Custom permissions (comma-separated)
         #[arg(long)]
         permissions: Option<String>,
+    },
+
+    /// Create or update admin user for frontend login
+    CreateAdminUser {
+        /// Admin email (default: admin@pierre.mcp)
+        #[arg(long, default_value = "admin@pierre.mcp")]
+        email: String,
+
+        /// Admin password (default: admin123)
+        #[arg(long, default_value = "admin123")]
+        password: String,
+
+        /// Admin display name
+        #[arg(long, default_value = "Pierre Admin")]
+        name: String,
+
+        /// Force update if user already exists
+        #[arg(long)]
+        force: bool,
     },
 
     /// List all admin tokens
@@ -171,6 +198,14 @@ async fn main() -> Result<()> {
                 permissions,
             )
             .await?;
+        }
+        AdminCommand::CreateAdminUser {
+            email,
+            password,
+            name,
+            force,
+        } => {
+            create_admin_user_command(&database, email, password, name, force).await?;
         }
         AdminCommand::ListTokens {
             include_inactive,
@@ -482,6 +517,99 @@ async fn token_stats_command(
             println!("Total Usage Count: {}", total_usage);
         }
     }
+
+    Ok(())
+}
+
+/// Create or update admin user for frontend login
+async fn create_admin_user_command(
+    database: &Database,
+    email: String,
+    password: String,
+    name: String,
+    force: bool,
+) -> Result<()> {
+    info!("👤 Creating admin user: {}", email);
+
+    // Check if user already exists
+    if let Ok(Some(existing_user)) = database.get_user_by_email(&email).await {
+        if !force {
+            error!("❌ User '{}' already exists!", email);
+            info!("💡 Use --force flag to update existing user");
+            info!("   Current user details:");
+            info!("   - Email: {}", existing_user.email);
+            info!("   - Name: {:?}", existing_user.display_name);
+            info!(
+                "   - Created: {}",
+                existing_user.created_at.format("%Y-%m-%d %H:%M UTC")
+            );
+            return Err(anyhow!("User already exists (use --force to update)"));
+        }
+
+        info!("🔄 Updating existing admin user...");
+
+        // Update existing user
+        let updated_user = pierre_mcp_server::models::User {
+            id: existing_user.id,
+            email: email.clone(),
+            display_name: Some(name.clone()),
+            password_hash: hash(&password, DEFAULT_COST)?,
+            tier: pierre_mcp_server::models::UserTier::Enterprise, // Admin gets enterprise tier
+            strava_token: existing_user.strava_token,
+            fitbit_token: existing_user.fitbit_token,
+            is_active: true,
+            created_at: existing_user.created_at,
+            last_active: chrono::Utc::now(),
+        };
+
+        database.create_user(&updated_user).await?;
+    } else {
+        info!("➕ Creating new admin user...");
+
+        // Create new user
+        let new_user = pierre_mcp_server::models::User {
+            id: Uuid::new_v4(),
+            email: email.clone(),
+            display_name: Some(name.clone()),
+            password_hash: hash(&password, DEFAULT_COST)?,
+            tier: pierre_mcp_server::models::UserTier::Enterprise, // Admin gets enterprise tier
+            strava_token: None,
+            fitbit_token: None,
+            is_active: true,
+            created_at: chrono::Utc::now(),
+            last_active: chrono::Utc::now(),
+        };
+
+        database.create_user(&new_user).await?;
+    }
+
+    println!("\n✅ Admin User Created Successfully!");
+    println!("{}", "=".repeat(50));
+    println!("👤 USER DETAILS:");
+    println!("   Email: {}", email);
+    println!("   Name: {}", name);
+    println!("   Tier: Enterprise (Full access)");
+    println!("   Status: Active");
+
+    println!("\n🔑 LOGIN CREDENTIALS:");
+    println!("{}", "=".repeat(50));
+    println!("   Email: {}", email);
+    println!("   Password: {}", password);
+
+    println!("\n🚨 IMPORTANT SECURITY NOTES:");
+    println!("• Change the default password in production!");
+    println!("• This user has full access to the admin interface");
+    println!("• Use strong passwords and enable 2FA if available");
+    println!("• Consider creating additional admin users with limited permissions");
+
+    println!("\n📖 NEXT STEPS:");
+    println!("1. Start the Pierre MCP Server:");
+    println!("   cargo run --bin pierre-mcp-server");
+    println!("2. Open the frontend interface (usually http://localhost:8080)");
+    println!("3. Login with the credentials above");
+    println!("4. Generate your first admin token for API key provisioning");
+
+    println!("\n✅ Admin user is ready to use!");
 
     Ok(())
 }

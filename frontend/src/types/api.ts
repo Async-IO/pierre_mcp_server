@@ -4,7 +4,7 @@ export interface ApiKey {
   description?: string;
   prefix: string;
   key_prefix: string; // Backend uses this field
-  tier: 'starter' | 'professional' | 'enterprise';
+  rate_limit_requests: number; // Requests per month (0 = unlimited)
   status: 'active' | 'inactive' | 'revoked';
   is_active: boolean; // Backend uses this field
   created_at: string;
@@ -23,7 +23,7 @@ export interface ApiKeysResponse {
 export interface CreateApiKeyRequest {
   name: string;
   description?: string;
-  tier: 'starter' | 'professional' | 'enterprise';
+  rate_limit_requests: number; // 0 = unlimited
   expires_in_days?: number;
 }
 
@@ -31,6 +31,68 @@ export interface CreateApiKeyResponse {
   api_key: ApiKey;
   secret_key: string; // Only returned once
 }
+
+// Admin Token Management Types
+export interface AdminToken {
+  id: string;
+  service_name: string;
+  service_description?: string;
+  permissions: AdminPermission[];
+  is_super_admin: boolean;
+  is_active: boolean;
+  created_at: string;
+  expires_at?: string;
+  last_used_at?: string;
+  usage_count: number;
+  token_prefix: string;
+}
+
+export interface AdminTokensResponse {
+  admin_tokens: AdminToken[];
+  total_count: number;
+}
+
+export interface CreateAdminTokenRequest {
+  service_name: string;
+  service_description?: string;
+  permissions: AdminPermission[];
+  is_super_admin?: boolean;
+  expires_in_days?: number;
+}
+
+export interface CreateAdminTokenResponse {
+  admin_token: AdminToken;
+  jwt_token: string; // Only returned once
+}
+
+export interface AdminTokenAudit {
+  id: string;
+  admin_token_id: string;
+  timestamp: string;
+  action: string;
+  target_resource?: string;
+  ip_address?: string;
+  success: boolean;
+  error_message?: string;
+}
+
+export interface AdminTokenUsageStats {
+  total_actions: number;
+  actions_last_24h: number;
+  actions_last_7d: number;
+  most_common_actions: Array<{
+    action: string;
+    count: number;
+  }>;
+}
+
+export type AdminPermission = 
+  | 'provision_keys'
+  | 'revoke_keys' 
+  | 'list_keys'
+  | 'manage_admin_tokens'
+  | 'view_audit_logs'
+  | 'super_admin';
 
 export interface TierUsage {
   tier: string;
@@ -218,4 +280,19 @@ export interface A2ADashboardOverview {
     request_count: number;
     percentage: number;
   }>;
+}
+
+export interface SetupStatusResponse {
+  needs_setup: boolean;
+  admin_user_exists: boolean;
+  message?: string;
+}
+
+export interface ProvisionedKey {
+  api_key_id: string;
+  user_email: string;
+  requested_tier: string;
+  key_status: 'active' | 'inactive' | 'revoked';
+  created_at: string;
+  expires_at?: string;
 }

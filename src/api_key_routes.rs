@@ -12,7 +12,9 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use crate::{
-    api_keys::{ApiKeyManager, ApiKeyTier, ApiKeyUsageStats, CreateApiKeyRequest},
+    api_keys::{
+        ApiKeyManager, ApiKeyTier, ApiKeyUsageStats, CreateApiKeyRequest, CreateApiKeyRequestSimple,
+    },
     auth::AuthManager,
     database_plugins::{factory::Database, DatabaseProvider},
 };
@@ -85,7 +87,43 @@ impl ApiKeyRoutes {
         Ok(user_id)
     }
 
-    /// Create a new API key
+    /// Create a new API key with simplified rate limit approach
+    pub async fn create_api_key_simple(
+        &self,
+        auth_header: Option<&str>,
+        request: CreateApiKeyRequestSimple,
+    ) -> Result<ApiKeyCreateResponse> {
+        let user_id = self.authenticate_user(auth_header).await?;
+
+        // Create the API key
+        let (api_key, full_key) = self
+            .api_key_manager
+            .create_api_key_simple(user_id, request)
+            .await?;
+
+        // Store in database
+        self.database.create_api_key(&api_key).await?;
+
+        let key_info = ApiKeyInfo {
+            id: api_key.id,
+            name: api_key.name,
+            description: api_key.description,
+            tier: api_key.tier,
+            key_prefix: api_key.key_prefix,
+            is_active: api_key.is_active,
+            last_used_at: api_key.last_used_at,
+            expires_at: api_key.expires_at,
+            created_at: api_key.created_at,
+        };
+
+        Ok(ApiKeyCreateResponse {
+            api_key: full_key,
+            key_info,
+            warning: "Store this API key securely. It will not be shown again.".to_string(),
+        })
+    }
+
+    /// Create a new API key (legacy method with tier)
     pub async fn create_api_key(
         &self,
         auth_header: Option<&str>,

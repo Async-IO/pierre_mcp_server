@@ -86,6 +86,13 @@ pub struct OAuthCallbackResponse {
     pub scopes: String,
 }
 
+#[derive(Debug, Serialize)]
+pub struct SetupStatusResponse {
+    pub needs_setup: bool,
+    pub admin_user_exists: bool,
+    pub message: Option<String>,
+}
+
 #[derive(Debug, Deserialize)]
 struct StravaTokenResponse {
     access_token: String,
