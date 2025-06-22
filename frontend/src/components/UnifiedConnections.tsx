@@ -240,13 +240,7 @@ export default function UnifiedConnections() {
     } else if (activeConnectionType === 'api-keys') {
       return (
         <div>
-          <div className="flex justify-between items-center mb-6">
-            <div>
-              <h2 className="text-2xl font-bold text-pierre-gray-900">API Keys</h2>
-              <p className="text-pierre-gray-600 mt-1">
-                Manage your API keys for programmatic access to Pierre Fitness API
-              </p>
-            </div>
+          <div className="flex items-start mb-6">
             <Button
               onClick={() => setActiveView('create')}
               className="flex items-center space-x-2"
@@ -263,13 +257,7 @@ export default function UnifiedConnections() {
     // OAuth Apps (A2A) content
     return (
       <div>
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h2 className="text-2xl font-bold text-pierre-gray-900">Connected Apps</h2>
-            <p className="text-pierre-gray-600 mt-1">
-              Manage OAuth apps for secure agent-to-agent communication
-            </p>
-          </div>
+        <div className="flex items-start mb-6">
           <Button
             onClick={() => setActiveView('create')}
             className="flex items-center space-x-2"
