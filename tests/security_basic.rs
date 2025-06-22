@@ -94,6 +94,7 @@ async fn test_api_key_user_isolation() -> Result<()> {
         description: Some("API key for user 1".to_string()),
         tier: ApiKeyTier::Professional,
         expires_in_days: Some(30),
+        rate_limit_requests: None,
     };
 
     let (user1_api_key, _user1_key_string) = api_key_manager
@@ -133,6 +134,7 @@ async fn test_basic_input_validation() -> Result<()> {
         description: Some("Test description".to_string()),
         tier: ApiKeyTier::Professional,
         expires_in_days: Some(30),
+        rate_limit_requests: None,
     };
 
     let result = api_key_manager
@@ -256,6 +258,7 @@ async fn test_api_key_uniqueness() -> Result<()> {
             description: Some("Uniqueness test".to_string()),
             tier: ApiKeyTier::Starter,
             expires_in_days: Some(30),
+            rate_limit_requests: None,
         };
 
         let (_, api_key_string) = api_key_manager

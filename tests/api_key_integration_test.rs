@@ -64,6 +64,7 @@ async fn test_end_to_end_api_key_workflow() {
         description: Some("End-to-end test API key".to_string()),
         tier: ApiKeyTier::Professional,
         expires_in_days: Some(30),
+        rate_limit_requests: None,
     };
 
     let (api_key, full_key) = api_key_manager
@@ -146,6 +147,7 @@ async fn test_api_key_rate_limiting() {
         description: None,
         tier: ApiKeyTier::Starter,
         expires_in_days: None,
+        rate_limit_requests: None,
     };
 
     let (mut api_key, full_key) = api_key_manager
@@ -212,6 +214,7 @@ async fn test_enterprise_tier_unlimited_usage() {
         description: None,
         tier: ApiKeyTier::Enterprise,
         expires_in_days: None,
+        rate_limit_requests: None,
     };
 
     let (api_key, full_key) = api_key_manager
@@ -271,6 +274,7 @@ async fn test_api_key_expiration() {
         description: None,
         tier: ApiKeyTier::Starter,
         expires_in_days: Some(1),
+        rate_limit_requests: None,
     };
 
     let (mut api_key, full_key) = api_key_manager
@@ -300,6 +304,7 @@ async fn test_deactivated_api_key() {
         description: None,
         tier: ApiKeyTier::Professional,
         expires_in_days: None,
+        rate_limit_requests: None,
     };
 
     let (api_key, full_key) = api_key_manager
@@ -368,6 +373,7 @@ async fn test_concurrent_api_key_usage() {
         description: None,
         tier: ApiKeyTier::Professional,
         expires_in_days: None,
+        rate_limit_requests: None,
     };
 
     let (api_key, full_key) = api_key_manager
@@ -445,6 +451,7 @@ async fn test_usage_analytics() {
         description: None,
         tier: ApiKeyTier::Professional,
         expires_in_days: None,
+        rate_limit_requests: None,
     };
 
     let (api_key, _full_key) = api_key_manager

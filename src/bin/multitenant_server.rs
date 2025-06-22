@@ -200,6 +200,12 @@ async fn run_production_server(
     info!("  GET  /admin/list-api-keys - List API keys (with filters)");
     info!("  GET  /admin/token-info - Get admin token information");
     info!("  GET  /admin/health - Admin API health check");
+    info!("  GET  /admin/setup-status - Check if admin user exists");
+    info!("  GET  /admin/tokens - List admin tokens");
+    info!("  POST /admin/tokens - Create admin token");
+    info!("  GET  /admin/tokens/{{id}} - Get admin token details");
+    info!("  POST /admin/tokens/{{id}}/revoke - Revoke admin token");
+    info!("  POST /admin/tokens/{{id}}/rotate - Rotate admin token");
 
     // Run HTTP server and MCP server concurrently
     let http_server = warp::serve(routes).run(([0, 0, 0, 0], config.http_port));

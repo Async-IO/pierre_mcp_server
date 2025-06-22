@@ -382,6 +382,45 @@ impl AuthManager {
             )
         })
     }
+
+    /// Check if initial setup is needed by verifying if admin user exists
+    pub async fn check_setup_status(
+        &self,
+        database: &Database,
+    ) -> Result<crate::routes::SetupStatusResponse> {
+        const DEFAULT_ADMIN_EMAIL: &str = "admin@pierre.mcp";
+
+        match database.get_user_by_email(DEFAULT_ADMIN_EMAIL).await {
+            Ok(Some(_user)) => {
+                // Admin user exists, setup is complete
+                Ok(crate::routes::SetupStatusResponse {
+                    needs_setup: false,
+                    admin_user_exists: true,
+                    message: None,
+                })
+            }
+            Ok(None) => {
+                // Admin user doesn't exist, setup is needed
+                Ok(crate::routes::SetupStatusResponse {
+                    needs_setup: true,
+                    admin_user_exists: false,
+                    message: Some("Run 'cargo run --bin admin-setup -- create-admin-user' to create default admin credentials".to_string()),
+                })
+            }
+            Err(e) => {
+                // Database error
+                tracing::error!("Error checking admin user existence: {}", e);
+                Ok(crate::routes::SetupStatusResponse {
+                    needs_setup: true,
+                    admin_user_exists: false,
+                    message: Some(
+                        "Unable to verify admin user status. Please check database connection."
+                            .to_string(),
+                    ),
+                })
+            }
+        }
+    }
 }
 
 /// Generate a random JWT secret

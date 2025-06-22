@@ -130,10 +130,25 @@ class ApiService {
   async createApiKey(data: {
     name: string;
     description?: string;
-    tier: 'starter' | 'professional' | 'enterprise';
+    rate_limit_requests: number; // 0 = unlimited
     expires_in_days?: number;
   }) {
     const response = await axios.post('/api/keys', data);
+    return response.data;
+  }
+
+  async createTrialKey(data: {
+    name: string;
+    description?: string;
+  }) {
+    // Create trial key with 1000 requests/month and 14-day expiry
+    const trialData = {
+      name: data.name,
+      description: data.description,
+      rate_limit_requests: 1000,
+      expires_in_days: 14,
+    };
+    const response = await axios.post('/api/keys', trialData);
     return response.data;
   }
 
@@ -206,13 +221,6 @@ class ApiService {
     return response.data;
   }
 
-  async createTrialKey(data: {
-    name: string;
-    description?: string;
-  }) {
-    const response = await axios.post('/api/keys/trial', data);
-    return response.data;
-  }
 
   // Token management
   getToken(): string | null {
@@ -406,6 +414,115 @@ class ApiService {
     if (filter?.tool && filter.tool !== 'all') params.append('tool', filter.tool);
     
     const response = await axios.get(`/a2a/dashboard/request-logs?${params}`);
+    return response.data;
+  }
+
+  // Setup status endpoint (no authentication required)
+  async getSetupStatus() {
+    const response = await axios.get('/admin/setup-status');
+    return response.data;
+  }
+
+  // Admin Token Management endpoints
+  async getAdminTokens(params?: {
+    include_inactive?: boolean;
+  }) {
+    const queryParams = new URLSearchParams();
+    if (params?.include_inactive !== undefined) {
+      queryParams.append('include_inactive', params.include_inactive.toString());
+    }
+    
+    const response = await axios.get(`/admin/tokens?${queryParams}`);
+    return response.data;
+  }
+
+  async createAdminToken(data: {
+    service_name: string;
+    service_description?: string;
+    permissions?: string[];
+    is_super_admin?: boolean;
+    expires_in_days?: number;
+  }) {
+    const response = await axios.post('/admin/tokens', data);
+    return response.data;
+  }
+
+  async getAdminTokenDetails(tokenId: string) {
+    const response = await axios.get(`/admin/tokens/${tokenId}`);
+    return response.data;
+  }
+
+  async revokeAdminToken(tokenId: string) {
+    const response = await axios.post(`/admin/tokens/${tokenId}/revoke`);
+    return response.data;
+  }
+
+  async rotateAdminToken(tokenId: string, data?: {
+    expires_in_days?: number;
+  }) {
+    const response = await axios.post(`/admin/tokens/${tokenId}/rotate`, data || {});
+    return response.data;
+  }
+
+  // Admin API Key Provisioning endpoints (for admins to provision API keys for users)
+  async provisionApiKey(data: {
+    user_email: string;
+    tier: string;
+    description?: string;
+    expires_in_days?: number;
+    rate_limit_requests?: number;
+    rate_limit_period?: string;
+  }) {
+    const response = await axios.post('/admin/provision-api-key', data);
+    return response.data;
+  }
+
+  async revokeApiKey(data: {
+    key_id?: string;
+    user_email?: string;
+  }) {
+    const response = await axios.post('/admin/revoke-api-key', data);
+    return response.data;
+  }
+
+  async listApiKeys(params?: {
+    user_email?: string;
+    active_only?: boolean;
+    limit?: number;
+    offset?: number;
+  }) {
+    const queryParams = new URLSearchParams();
+    if (params?.user_email) queryParams.append('user_email', params.user_email);
+    if (params?.active_only !== undefined) queryParams.append('active_only', params.active_only.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.offset) queryParams.append('offset', params.offset.toString());
+    
+    const response = await axios.get(`/admin/list-api-keys?${queryParams}`);
+    return response.data;
+  }
+
+  async getAdminTokenInfo() {
+    const response = await axios.get('/admin/token-info');
+    return response.data;
+  }
+
+  async getAdminHealth() {
+    const response = await axios.get('/admin/health');
+    return response.data;
+  }
+
+  async getAdminTokenAudit(tokenId: string) {
+    const response = await axios.get(`/admin/tokens/${tokenId}/audit`);
+    return response.data;
+  }
+
+  async getAdminTokenUsageStats(tokenId: string) {
+    const response = await axios.get(`/admin/tokens/${tokenId}/usage-stats`);
+    return response.data;
+  }
+
+  async getAdminTokenProvisionedKeys(tokenId: string) {
+    const response = await axios.get(`/admin/tokens/${tokenId}/provisioned-keys`);
     return response.data;
   }
 }

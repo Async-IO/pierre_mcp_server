@@ -160,6 +160,7 @@ async fn main() -> anyhow::Result<()> {
         description: Some("Created via admin API".to_string()),
         tier: ApiKeyTier::Starter,
         expires_in_days: Some(365),
+        rate_limit_requests: None,
     };
 
     let (api_key, api_key_string) = api_key_manager

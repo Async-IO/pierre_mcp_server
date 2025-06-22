@@ -53,6 +53,7 @@ async fn test_create_api_key_success() {
         description: Some("Test description".to_string()),
         tier: ApiKeyTier::Starter,
         expires_in_days: Some(30),
+        rate_limit_requests: None,
     };
 
     let auth_header = format!("Bearer {}", jwt_token);
@@ -79,6 +80,7 @@ async fn test_create_api_key_invalid_auth() {
         description: None,
         tier: ApiKeyTier::Professional,
         expires_in_days: None,
+        rate_limit_requests: None,
     };
 
     // Test with invalid auth header
@@ -93,6 +95,7 @@ async fn test_create_api_key_invalid_auth() {
         description: None,
         tier: ApiKeyTier::Professional,
         expires_in_days: None,
+        rate_limit_requests: None,
     };
 
     let result = api_key_routes.create_api_key(None, request).await;
@@ -109,6 +112,7 @@ async fn test_list_api_keys() {
         description: Some("First key".to_string()),
         tier: ApiKeyTier::Starter,
         expires_in_days: None,
+        rate_limit_requests: None,
     };
 
     let request2 = CreateApiKeyRequest {
@@ -116,6 +120,7 @@ async fn test_list_api_keys() {
         description: Some("Second key".to_string()),
         tier: ApiKeyTier::Professional,
         expires_in_days: Some(90),
+        rate_limit_requests: None,
     };
 
     let auth_header = format!("Bearer {}", jwt_token);
@@ -172,6 +177,7 @@ async fn test_deactivate_api_key() {
         description: None,
         tier: ApiKeyTier::Starter,
         expires_in_days: None,
+        rate_limit_requests: None,
     };
 
     let auth_header = format!("Bearer {}", jwt_token);
@@ -231,6 +237,7 @@ async fn test_get_api_key_usage_stats() {
         description: None,
         tier: ApiKeyTier::Professional,
         expires_in_days: None,
+        rate_limit_requests: None,
     };
 
     let auth_header = format!("Bearer {}", jwt_token);
@@ -296,6 +303,7 @@ async fn test_api_key_tiers() {
             description: Some(format!("Test {} tier", tier_name)),
             tier: tier.clone(),
             expires_in_days: None,
+            rate_limit_requests: None,
         };
 
         let response = api_key_routes
@@ -320,6 +328,7 @@ async fn test_api_key_expiration() {
         description: None,
         tier: ApiKeyTier::Starter,
         expires_in_days: Some(7),
+        rate_limit_requests: None,
     };
 
     let response = api_key_routes
@@ -365,6 +374,7 @@ async fn test_authentication_with_different_users() {
         description: None,
         tier: ApiKeyTier::Starter,
         expires_in_days: None,
+        rate_limit_requests: None,
     };
 
     api_key_routes1

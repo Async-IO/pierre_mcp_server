@@ -143,6 +143,24 @@ impl MultiTenantMcpServer {
         let dashboard_routes = DashboardRoutes::new((*database).clone(), (*auth_manager).clone());
         let a2a_routes = A2ARoutes::new(database.clone(), auth_manager.clone(), config.clone());
 
+        // Admin routes for token management and API key provisioning
+        // Load JWT secret for admin tokens (same as user JWT secret for now)
+        let jwt_secret = if config.auth.jwt_secret_path.exists() {
+            std::fs::read(&config.auth.jwt_secret_path)
+                .unwrap_or_else(|_| b"fallback_secret".to_vec())
+        } else {
+            b"fallback_secret".to_vec()
+        };
+        let jwt_secret_str =
+            String::from_utf8(jwt_secret).unwrap_or_else(|_| "fallback_secret".to_string());
+
+        let admin_context = crate::admin_routes::AdminApiContext::new(
+            database.as_ref().clone(),
+            &jwt_secret_str,
+            auth_manager.as_ref().clone(),
+        );
+        let admin_routes_filter = crate::admin_routes::admin_routes_with_rejection(admin_context);
+
         // CORS configuration
         let cors = warp::cors()
             .allow_any_origin()
@@ -301,9 +319,31 @@ impl MultiTenantMcpServer {
                 }
             });
 
-        // API Key endpoints - REMOVED: Self-service API key creation
-        // For enterprise deployment, only administrators can provision API keys
-        // via the admin endpoints at /admin/provision-api-key
+        // API Key endpoints - Self-service API key creation with simplified rate limits
+        let create_api_key = warp::path("api")
+            .and(warp::path("keys"))
+            .and(warp::post())
+            .and(warp::body::json())
+            .and(warp::header::optional::<String>("authorization"))
+            .and_then({
+                let api_key_routes = api_key_routes.clone();
+                move |request: crate::api_keys::CreateApiKeyRequestSimple,
+                      auth_header: Option<String>| {
+                    let api_key_routes = api_key_routes.clone();
+                    async move {
+                        match api_key_routes
+                            .create_api_key_simple(auth_header.as_deref(), request)
+                            .await
+                        {
+                            Ok(response) => Ok(warp::reply::json(&response)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
 
         let list_api_keys = warp::path("api")
             .and(warp::path("keys"))
@@ -793,7 +833,10 @@ impl MultiTenantMcpServer {
             .or(oauth_auth)
             .or(oauth_callback);
 
-        let api_key_routes = list_api_keys.or(deactivate_api_key).or(get_api_key_usage);
+        let api_key_routes = create_api_key
+            .or(list_api_keys)
+            .or(deactivate_api_key)
+            .or(get_api_key_usage);
 
         let dashboard_routes = dashboard_overview
             .or(dashboard_analytics)
@@ -816,6 +859,7 @@ impl MultiTenantMcpServer {
             .or(api_key_routes)
             .or(dashboard_routes)
             .or(a2a_routes)
+            .or(admin_routes_filter)
             .or(health)
             .with(cors.clone())
             .with(security_headers_filter);

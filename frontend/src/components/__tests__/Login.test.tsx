@@ -12,6 +12,7 @@ vi.mock('../../services/api', () => ({
     setToken: vi.fn(),
     clearToken: vi.fn(),
     setAuthToken: vi.fn(),
+    getSetupStatus: vi.fn().mockResolvedValue({ needs_setup: false, admin_exists: true }),
   }
 }))
 
@@ -28,14 +29,18 @@ describe('Login Component', () => {
     vi.clearAllMocks()
   })
 
-  it('should render login form', () => {
+  it('should render login form', async () => {
     renderLogin()
 
-    expect(screen.getByRole('heading', { name: /api key management/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /pierre mcp admin/i })).toBeInTheDocument()
     expect(screen.getByLabelText(/email address/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/password/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
-    expect(screen.getByText(/test@example\.com/)).toBeInTheDocument()
+    
+    // Wait for setup status check to complete
+    await waitFor(() => {
+      expect(screen.getByText(/admin setup complete/i)).toBeInTheDocument()
+    })
   })
 
   it('should allow user to type in email and password fields', async () => {

@@ -67,9 +67,16 @@ export default function ApiKeyList() {
                       <Badge variant={key.is_active ? 'success' : 'error'}>
                         {key.is_active ? 'Active' : 'Inactive'}
                       </Badge>
-                      <Badge variant={key.tier as 'starter' | 'professional' | 'enterprise' | 'trial'}>
-                        {key.tier}
-                      </Badge>
+                      {key.rate_limit_requests > 0 && (
+                        <Badge variant="info">
+                          {key.rate_limit_requests.toLocaleString()} req/month
+                        </Badge>
+                      )}
+                      {key.rate_limit_requests === 0 && (
+                        <Badge variant="enterprise">
+                          Unlimited
+                        </Badge>
+                      )}
                     </div>
                     
                     {key.description && (
