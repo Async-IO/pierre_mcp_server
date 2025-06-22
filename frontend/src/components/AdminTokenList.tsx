@@ -95,13 +95,7 @@ export default function AdminTokenList({ onCreateToken, onViewDetails }: AdminTo
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-semibold text-pierre-gray-900">Admin Tokens</h2>
-          <p className="text-sm text-pierre-gray-600 mt-1">
-            Manage JWT tokens for admin services and API key provisioning
-          </p>
-        </div>
+      <div className="flex items-start">
         <Button onClick={onCreateToken} className="btn-primary">
           Create Token
         </Button>
