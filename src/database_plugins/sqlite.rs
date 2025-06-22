@@ -332,16 +332,40 @@ impl DatabaseProvider for SqliteDatabase {
         client_id: &str,
         days: u32,
     ) -> Result<Vec<(DateTime<Utc>, u32, u32)>> {
-        // The underlying method returns Vec<A2AUsage>, but we need to transform it
-        // to match the expected signature. For now, return a stub implementation.
-        let _usage = self
+        // Get usage data from the underlying database
+        let usage_data = self
             .inner
             .get_a2a_client_usage_history(client_id, Some(days as i32))
             .await?;
 
-        // TODO: Transform A2AUsage into the expected format
-        // This is a simplified stub - in practice, you'd aggregate the usage data
-        Ok(vec![])
+        // Transform A2AUsage into aggregated format (timestamp, success_count, error_count)
+        let mut aggregated = std::collections::HashMap::new();
+
+        for usage in usage_data {
+            // Truncate timestamp to day for aggregation
+            let day = usage
+                .timestamp
+                .date_naive()
+                .and_hms_opt(0, 0, 0)
+                .map(|d| d.and_utc())
+                .unwrap_or(usage.timestamp);
+
+            let entry = aggregated.entry(day).or_insert((0u32, 0u32));
+            if usage.status_code < 400 {
+                entry.0 += 1; // success count
+            } else {
+                entry.1 += 1; // error count
+            }
+        }
+
+        // Convert to vector and sort by timestamp
+        let mut result: Vec<(DateTime<Utc>, u32, u32)> = aggregated
+            .into_iter()
+            .map(|(timestamp, (success, error))| (timestamp, success, error))
+            .collect();
+        result.sort_by_key(|&(timestamp, _, _)| timestamp);
+
+        Ok(result)
     }
 
     async fn get_top_tools_analysis(
@@ -350,11 +374,52 @@ impl DatabaseProvider for SqliteDatabase {
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
     ) -> Result<Vec<crate::dashboard_routes::ToolUsage>> {
-        // This method doesn't exist in the current database.rs implementation
-        // For now, return an empty result. This will need to be implemented
-        // by moving the logic from dashboard_routes.rs to database.rs
-        let _ = (user_id, start_time, end_time); // Silence unused warnings
-        Ok(vec![])
+        // Query API key usage for this user within the time range
+        let query = r#"
+            SELECT tool_name, COUNT(*) as usage_count,
+                   AVG(response_time_ms) as avg_response_time,
+                   SUM(CASE WHEN status_code < 400 THEN 1 ELSE 0 END) as success_count,
+                   SUM(CASE WHEN status_code >= 400 THEN 1 ELSE 0 END) as error_count
+            FROM api_key_usage aku
+            JOIN api_keys ak ON aku.api_key_id = ak.id
+            WHERE ak.user_id = ? AND aku.timestamp BETWEEN ? AND ?
+            GROUP BY tool_name
+            ORDER BY usage_count DESC
+            LIMIT 10
+        "#;
+
+        let rows = sqlx::query(query)
+            .bind(user_id)
+            .bind(start_time)
+            .bind(end_time)
+            .fetch_all(self.inner.pool())
+            .await?;
+
+        let mut tool_usage = Vec::new();
+        for row in rows {
+            use sqlx::Row;
+
+            let tool_name: String = row
+                .try_get("tool_name")
+                .unwrap_or_else(|_| "unknown".to_string());
+            let usage_count: i64 = row.try_get("usage_count").unwrap_or(0);
+            let avg_response_time: Option<f64> = row.try_get("avg_response_time").ok();
+            let success_count: i64 = row.try_get("success_count").unwrap_or(0);
+            let _error_count: i64 = row.try_get("error_count").unwrap_or(0);
+
+            tool_usage.push(crate::dashboard_routes::ToolUsage {
+                tool_name,
+                request_count: usage_count as u64,
+                success_rate: if usage_count > 0 {
+                    (success_count as f64) / (usage_count as f64)
+                } else {
+                    0.0
+                },
+                average_response_time: avg_response_time.unwrap_or(0.0),
+            });
+        }
+
+        Ok(tool_usage)
     }
 
     // ================================

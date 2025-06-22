@@ -102,6 +102,9 @@ pub mod database_plugins;
 /// Authentication and session management
 pub mod auth;
 
+/// Cryptographic utilities and key management
+pub mod crypto;
+
 /// HTTP routes for user registration and OAuth flows
 pub mod routes;
 

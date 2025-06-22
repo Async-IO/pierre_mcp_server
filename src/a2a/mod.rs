@@ -13,12 +13,14 @@ pub mod agent_card;
 pub mod auth;
 pub mod client;
 pub mod protocol;
+pub mod system_user;
 
 pub use agent_card::AgentCard;
 pub use auth::A2AClient;
 pub use auth::{A2AAuthenticator, A2AToken};
 pub use client::A2AClientManager;
 pub use protocol::{A2AMessage, A2ARequest, A2AResponse, A2AServer};
+pub use system_user::A2ASystemUserService;
 
 /// A2A protocol version supported by Pierre
 pub const A2A_VERSION: &str = "1.0";
