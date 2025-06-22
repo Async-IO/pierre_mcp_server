@@ -17,7 +17,6 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
   const [, setSubscriptions] = useState<string[]>([]);
 
   const disconnect = () => {
-    console.log('WebSocket Provider: Disconnecting');
     
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
@@ -35,22 +34,18 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
 
   const connect = () => {
     if (!token) {
-      console.log('WebSocket Provider: No token available');
       return;
     }
 
     if (isConnectingRef.current) {
-      console.log('WebSocket Provider: Already connecting');
       return;
     }
 
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      console.log('WebSocket Provider: Already connected');
       return;
     }
 
     if (wsRef.current?.readyState === WebSocket.CONNECTING) {
-      console.log('WebSocket Provider: Connection in progress');
       return;
     }
 
@@ -60,12 +55,10 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
       const wsHost = window.location.hostname === 'localhost' ? 'localhost:8081' : window.location.host;
       const wsUrl = `${wsProtocol}//${wsHost}/ws`;
       
-      console.log('WebSocket Provider: Connecting to', wsUrl);
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log('WebSocket Provider: Connected');
         isConnectingRef.current = false;
         setIsConnected(true);
         
@@ -96,7 +89,6 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
       };
 
       ws.onclose = (event) => {
-        console.log('WebSocket Provider: Disconnected, code:', event.code, 'reason:', event.reason);
         isConnectingRef.current = false;
         setIsConnected(false);
         
@@ -106,7 +98,6 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
         
         // Only reconnect for unexpected closures
         if (event.code !== 1000 && token) {
-          console.log('WebSocket Provider: Scheduling reconnect in 5 seconds');
           reconnectTimeoutRef.current = setTimeout(() => {
             if (token && !wsRef.current) {
               connect();

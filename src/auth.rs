@@ -180,6 +180,11 @@ impl AuthManager {
         }
     }
 
+    /// Get the JWT secret
+    pub fn jwt_secret(&self) -> &[u8] {
+        &self.jwt_secret
+    }
+
     /// Generate a JWT token for a user
     pub fn generate_token(&self, user: &User) -> Result<String> {
         let now = Utc::now();

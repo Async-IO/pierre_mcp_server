@@ -41,11 +41,15 @@ pub struct A2AClient {
 /// A2A Authenticator
 pub struct A2AAuthenticator {
     database: Arc<Database>,
+    jwt_secret: Vec<u8>,
 }
 
 impl A2AAuthenticator {
-    pub fn new(database: Arc<Database>) -> Self {
-        Self { database }
+    pub fn new(database: Arc<Database>, jwt_secret: Vec<u8>) -> Self {
+        Self {
+            database,
+            jwt_secret,
+        }
     }
 
     /// Authenticate an A2A request using API key
@@ -56,10 +60,7 @@ impl A2AAuthenticator {
         }
 
         // Fall back to regular API key authentication using MCP middleware
-        let auth_manager = crate::auth::AuthManager::new(
-            vec![0u8; 64], // Placeholder - should use proper secret in production
-            24,
-        );
+        let auth_manager = crate::auth::AuthManager::new(self.jwt_secret.clone(), 24);
         let middleware = crate::auth::McpAuthMiddleware::new(auth_manager, self.database.clone());
 
         middleware.authenticate_request(Some(api_key)).await
@@ -76,10 +77,7 @@ impl A2AAuthenticator {
         // but linked to A2A clients. For now, fall back to regular API key auth but add A2A-specific
         // rate limiting logic here.
 
-        let auth_manager = crate::auth::AuthManager::new(
-            vec![0u8; 64], // Placeholder - should use proper secret in production
-            24,
-        );
+        let auth_manager = crate::auth::AuthManager::new(self.jwt_secret.clone(), 24);
         let middleware = crate::auth::McpAuthMiddleware::new(auth_manager, self.database.clone());
 
         // First authenticate using regular API key system
@@ -273,7 +271,7 @@ mod tests {
     #[tokio::test]
     async fn test_a2a_authenticator_creation() {
         let database = create_test_database().await;
-        let _authenticator = A2AAuthenticator::new(database);
+        let _authenticator = A2AAuthenticator::new(database, vec![0u8; 64]);
 
         // Should create without errors
     }
@@ -281,7 +279,7 @@ mod tests {
     #[tokio::test]
     async fn test_create_token() {
         let database = create_test_database().await;
-        let authenticator = A2AAuthenticator::new(database);
+        let authenticator = A2AAuthenticator::new(database, vec![0u8; 64]);
 
         let token = authenticator.create_token(
             "test_client",
@@ -298,7 +296,7 @@ mod tests {
     #[tokio::test]
     async fn test_validate_token_expired() {
         let database = create_test_database().await;
-        let authenticator = A2AAuthenticator::new(database);
+        let authenticator = A2AAuthenticator::new(database, vec![0u8; 64]);
 
         let mut token = authenticator.create_token(
             "test_client",
@@ -318,7 +316,7 @@ mod tests {
         let database = tokio::runtime::Runtime::new()
             .unwrap()
             .block_on(create_test_database());
-        let authenticator = A2AAuthenticator::new(database);
+        let authenticator = A2AAuthenticator::new(database, vec![0u8; 64]);
 
         let token = authenticator.create_token(
             "test_client",
@@ -336,7 +334,7 @@ mod tests {
         let database = tokio::runtime::Runtime::new()
             .unwrap()
             .block_on(create_test_database());
-        let authenticator = A2AAuthenticator::new(database);
+        let authenticator = A2AAuthenticator::new(database, vec![0u8; 64]);
 
         let token = authenticator.create_token("test_client", "test_user", vec!["*".to_string()]);
 
@@ -349,7 +347,7 @@ mod tests {
         let database = tokio::runtime::Runtime::new()
             .unwrap()
             .block_on(create_test_database());
-        let authenticator = A2AAuthenticator::new(database);
+        let authenticator = A2AAuthenticator::new(database, vec![0u8; 64]);
 
         let client = A2AClient {
             id: "test_client".to_string(),
