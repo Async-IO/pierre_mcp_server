@@ -72,7 +72,10 @@ impl A2ARoutes {
         config: Arc<crate::config::environment::ServerConfig>,
     ) -> Self {
         let client_manager = Arc::new(A2AClientManager::new(database.clone()));
-        let authenticator = Arc::new(A2AAuthenticator::new(database.clone()));
+        let authenticator = Arc::new(A2AAuthenticator::new(
+            database.clone(),
+            auth_manager.jwt_secret().to_vec(),
+        ));
 
         // Create ActivityIntelligence for the tool executor
         let intelligence = Arc::new(ActivityIntelligence::new(

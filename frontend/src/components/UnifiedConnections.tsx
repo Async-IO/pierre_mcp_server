@@ -230,10 +230,9 @@ export default function UnifiedConnections() {
       return (
         <AdminTokenList
           onCreateToken={() => setActiveView('create')}
-          onViewDetails={(tokenId) => {
+          onViewDetails={() => {
             // Find the token by ID from the data we should have
-            // For now, just handle the ID
-            console.log('View details for token:', tokenId);
+            // TODO: Implement token details lookup by ID
             setActiveView('details');
           }}
         />

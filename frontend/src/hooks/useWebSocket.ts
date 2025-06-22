@@ -35,27 +35,23 @@ export function useWebSocket(): UseWebSocketReturn {
 
   const connect = useCallback(() => {
     if (!token) {
-      console.log('WebSocket: No token available, skipping connection');
       return;
     }
 
     // Debounce connection attempts (prevent rapid reconnects)
     const now = Date.now();
     if (now - lastConnectAttemptRef.current < 1000) {
-      console.log('WebSocket: Debouncing connection attempt');
       return;
     }
     lastConnectAttemptRef.current = now;
 
     // Don't connect if already connected
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      console.log('WebSocket: Already connected');
       return;
     }
 
     // Don't connect if already connecting
     if (wsRef.current?.readyState === WebSocket.CONNECTING) {
-      console.log('WebSocket: Already connecting');
       return;
     }
 
@@ -66,12 +62,10 @@ export function useWebSocket(): UseWebSocketReturn {
       const wsBaseUrl = import.meta.env.VITE_WS_BASE_URL;
       const wsUrl = wsBaseUrl || `${wsProtocol}//${window.location.hostname === 'localhost' ? 'localhost:8081' : window.location.host}/ws`;
       
-      console.log('WebSocket: Connecting to', wsUrl);
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log('WebSocket connected');
         setIsConnected(true);
         
         // Authenticate immediately after connection
@@ -101,7 +95,6 @@ export function useWebSocket(): UseWebSocketReturn {
       };
 
       ws.onclose = (event) => {
-        console.log('WebSocket disconnected, code:', event.code, 'reason:', event.reason);
         setIsConnected(false);
         
         // Only clear ref if this is the current connection
@@ -111,7 +104,6 @@ export function useWebSocket(): UseWebSocketReturn {
         
         // Only reconnect for unexpected closures (not normal close)
         if (event.code !== 1000 && token && wsRef.current === null) {
-          console.log('WebSocket: Scheduling reconnect in 5 seconds');
           reconnectTimeoutRef.current = setTimeout(connect, 5000);
         }
       };
@@ -146,8 +138,6 @@ export function useWebSocket(): UseWebSocketReturn {
   };
 
   const disconnect = useCallback(() => {
-    console.log('WebSocket: Disconnecting');
-    
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
