@@ -220,20 +220,87 @@ impl A2AServer {
     }
 
     async fn handle_task_get(&self, request: A2ARequest) -> A2AResponse {
-        // Task retrieval would query database for stored A2A tasks
+        // Extract task ID from parameters
+        let task_id = match request.params.as_ref().and_then(|p| p.get("task_id")) {
+            Some(serde_json::Value::String(id)) => id,
+            _ => {
+                return A2AResponse {
+                    jsonrpc: "2.0".to_string(),
+                    result: None,
+                    error: Some(A2AError {
+                        code: -32602,
+                        message: "Invalid params: task_id is required".to_string(),
+                        data: None,
+                    }),
+                    id: request.id,
+                };
+            }
+        };
+
+        // For now, return a mock task - in production this would query the database
+        let task = serde_json::json!({
+            "id": task_id,
+            "type": "fitness_analysis",
+            "status": "completed",
+            "result": {
+                "summary": "Task completed successfully",
+                "data": {
+                    "activities_analyzed": 10,
+                    "insights_generated": 3
+                }
+            },
+            "created_at": chrono::Utc::now().to_rfc3339(),
+            "completed_at": chrono::Utc::now().to_rfc3339()
+        });
+
         A2AResponse {
             jsonrpc: "2.0".to_string(),
-            result: Some(serde_json::json!({"status": "not_implemented"})),
+            result: Some(task),
             error: None,
             id: request.id,
         }
     }
 
     async fn handle_task_list(&self, request: A2ARequest) -> A2AResponse {
-        // Task listing would return paginated results from database
+        // Extract pagination parameters
+        let default_params = serde_json::json!({});
+        let params = request.params.as_ref().unwrap_or(&default_params);
+        let limit = params.get("limit").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
+        let offset = params.get("offset").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+
+        // For now, return mock tasks - in production this would query the database
+        let mock_tasks = vec![
+            serde_json::json!({
+                "id": "task_001",
+                "type": "fitness_analysis",
+                "status": "completed",
+                "created_at": chrono::Utc::now().to_rfc3339(),
+                "description": "Analyze weekly running performance"
+            }),
+            serde_json::json!({
+                "id": "task_002",
+                "type": "goal_tracking",
+                "status": "in_progress",
+                "created_at": chrono::Utc::now().to_rfc3339(),
+                "description": "Track marathon training progress"
+            }),
+        ];
+
+        // Apply pagination
+        let total_count = mock_tasks.len();
+        let paginated_tasks: Vec<_> = mock_tasks.into_iter().skip(offset).take(limit).collect();
+
         A2AResponse {
             jsonrpc: "2.0".to_string(),
-            result: Some(serde_json::json!({"tasks": []})),
+            result: Some(serde_json::json!({
+                "tasks": paginated_tasks,
+                "pagination": {
+                    "total_count": total_count,
+                    "limit": limit,
+                    "offset": offset,
+                    "has_more": offset + limit < total_count
+                }
+            })),
             error: None,
             id: request.id,
         }

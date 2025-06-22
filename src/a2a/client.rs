@@ -10,6 +10,8 @@
 //! that connect to Pierre for agent-to-agent communication.
 
 use crate::a2a::auth::A2AClient;
+use crate::a2a::system_user::A2ASystemUserService;
+use crate::crypto::A2AKeyManager;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use chrono::Timelike;
 use chrono::{DateTime, Datelike, Utc};
@@ -34,6 +36,9 @@ pub struct ClientCredentials {
     pub client_id: String,
     pub client_secret: String,
     pub api_key: String,
+    pub public_key: String,  // Ed25519 public key for verification
+    pub private_key: String, // Ed25519 private key for signing (client-side only)
+    pub key_type: String,    // "ed25519"
 }
 
 /// A2A Client usage statistics
@@ -119,16 +124,18 @@ pub struct A2AUsageParams {
 
 /// A2A Client Manager
 pub struct A2AClientManager {
-    #[allow(dead_code)]
     database: Arc<Database>,
+    system_user_service: A2ASystemUserService,
     #[allow(dead_code)]
     active_sessions: Arc<tokio::sync::RwLock<HashMap<String, A2ASession>>>,
 }
 
 impl A2AClientManager {
     pub fn new(database: Arc<Database>) -> Self {
+        let system_user_service = A2ASystemUserService::new(database.clone());
         Self {
             database,
+            system_user_service,
             active_sessions: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
         }
     }
@@ -146,25 +153,50 @@ impl A2AClientManager {
         let client_secret = format!("a2a_secret_{}", Uuid::new_v4());
         let api_key = format!("a2a_{}", uuid::Uuid::new_v4());
 
-        // Create client record
+        // Generate Ed25519 keypair for the client
+        let keypair = A2AKeyManager::generate_keypair().map_err(|e| {
+            crate::a2a::A2AError::InternalError(format!("Failed to generate keypair: {}", e))
+        })?;
+
+        // Create proper system user (not dummy user)
+        let system_user_id = self
+            .system_user_service
+            .create_or_get_system_user(&client_id, &request.contact_email)
+            .await
+            .map_err(|e| {
+                crate::a2a::A2AError::InternalError(format!("Failed to create system user: {}", e))
+            })?;
+
+        // Create client record with real public key
         let client = A2AClient {
             id: client_id.clone(),
-            name: request.name,
-            description: request.description,
-            public_key: "".to_string(), // Public key generation not implemented yet
-            capabilities: request.capabilities,
-            redirect_uris: request.redirect_uris,
+            name: request.name.clone(),
+            description: request.description.clone(),
+            public_key: keypair.public_key.clone(),
+            capabilities: request.capabilities.clone(),
+            redirect_uris: request.redirect_uris.clone(),
             is_active: true,
             created_at: chrono::Utc::now(),
         };
 
         // Store client in database
-        self.store_client(&client, &client_secret, &api_key).await?;
+        self.store_client_secure(&client, &client_secret, &api_key, system_user_id)
+            .await?;
+
+        tracing::info!(
+            client_id = %client_id,
+            contact_email = %request.contact_email,
+            capabilities = ?request.capabilities,
+            "A2A client registered successfully"
+        );
 
         Ok(ClientCredentials {
             client_id,
             client_secret,
             api_key,
+            public_key: keypair.public_key,
+            private_key: keypair.private_key,
+            key_type: "ed25519".to_string(),
         })
     }
 
@@ -207,27 +239,16 @@ impl A2AClientManager {
         Ok(())
     }
 
-    /// Store client in database
-    async fn store_client(
+    /// Store client in database with proper security
+    async fn store_client_secure(
         &self,
         client: &A2AClient,
         _client_secret: &str,
         _api_key: &str,
+        system_user_id: Uuid,
     ) -> Result<(), crate::a2a::A2AError> {
-        // Create API key first using the API key manager
+        // Create API key using the proper system user
         let api_key_manager = crate::api_keys::ApiKeyManager::new();
-
-        // For A2A clients, we need a user to link the API key to
-        // Create a dummy system user for A2A clients
-        let dummy_user = crate::models::User::new(
-            format!("a2a-system-{}@pierre.ai", client.id),
-            "dummy-hash".to_string(),
-            Some("A2A System User".to_string()),
-        );
-
-        let dummy_user_id = self.database.create_user(&dummy_user).await.map_err(|e| {
-            crate::a2a::A2AError::InternalError(format!("Failed to create dummy user: {}", e))
-        })?;
 
         let request = crate::api_keys::CreateApiKeyRequest {
             name: format!("A2A Client: {}", client.name),
@@ -238,7 +259,7 @@ impl A2AClientManager {
         };
 
         let (api_key_obj, _generated_key) = api_key_manager
-            .create_api_key(dummy_user_id, request)
+            .create_api_key(system_user_id, request)
             .await
             .map_err(|e| {
                 crate::a2a::A2AError::InternalError(format!("Failed to create API key: {}", e))
@@ -260,7 +281,12 @@ impl A2AClientManager {
                 crate::a2a::A2AError::InternalError(format!("Failed to create A2A client: {}", e))
             })?;
 
-        tracing::info!("Registered A2A client: {} ({})", client.name, client.id);
+        tracing::info!(
+            client_id = %client.id,
+            client_name = %client.name,
+            system_user_id = %system_user_id,
+            "A2A client stored securely in database"
+        );
         Ok(())
     }
 

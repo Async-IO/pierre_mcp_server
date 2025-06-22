@@ -673,24 +673,70 @@ impl A2ARoutes {
     /// Handle A2A client registration
     pub async fn register_client(
         request: crate::a2a::client::ClientRegistrationRequest,
+        database: std::sync::Arc<crate::database_plugins::factory::Database>,
     ) -> Result<impl warp::Reply, warp::Rejection> {
-        // A2A client registration is not yet fully implemented
-        // This would require proper OAuth2 client management in the database
-        tracing::warn!("A2A client registration attempted but not fully implemented");
+        tracing::info!(
+            client_name = %request.name,
+            capabilities = ?request.capabilities,
+            contact_email = %request.contact_email,
+            "A2A client registration request received"
+        );
 
-        // Return an error response indicating the feature is not yet available
-        let error_response = serde_json::json!({
-            "error": "not_implemented",
-            "error_description": "A2A client registration is not yet implemented. Please contact the system administrator.",
-            "contact": "For A2A integration, please reach out through the official channels.",
-            "requested_capabilities": request.capabilities,
-            "client_name": request.name
-        });
+        // Create A2A client manager
+        let client_manager = crate::a2a::A2AClientManager::new(database);
 
-        Ok(warp::reply::with_status(
-            warp::reply::json(&error_response),
-            warp::http::StatusCode::NOT_IMPLEMENTED,
-        ))
+        match client_manager.register_client(request).await {
+            Ok(credentials) => {
+                tracing::info!(
+                    client_id = %credentials.client_id,
+                    "A2A client registered successfully"
+                );
+
+                let response = serde_json::json!({
+                    "success": true,
+                    "message": "A2A client registered successfully",
+                    "data": {
+                        "client_id": credentials.client_id,
+                        "client_secret": credentials.client_secret,
+                        "api_key": credentials.api_key,
+                        "public_key": credentials.public_key,
+                        "private_key": credentials.private_key,
+                        "key_type": credentials.key_type,
+                        "next_steps": {
+                            "documentation": "https://docs.pierre.ai/a2a",
+                            "authentication": "Use the provided credentials for A2A protocol authentication",
+                            "endpoints": {
+                                "a2a_protocol": "/a2a/protocol",
+                                "agent_card": "/.well-known/agent.json"
+                            }
+                        }
+                    }
+                });
+
+                Ok(warp::reply::with_status(
+                    warp::reply::json(&response),
+                    warp::http::StatusCode::CREATED,
+                ))
+            }
+            Err(e) => {
+                tracing::error!(
+                    error = %e,
+                    "Failed to register A2A client"
+                );
+
+                let error_response = serde_json::json!({
+                    "success": false,
+                    "error": "registration_failed",
+                    "error_description": format!("Failed to register A2A client: {}", e),
+                    "details": e.to_string()
+                });
+
+                Ok(warp::reply::with_status(
+                    warp::reply::json(&error_response),
+                    warp::http::StatusCode::BAD_REQUEST,
+                ))
+            }
+        }
     }
 }
 

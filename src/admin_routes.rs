@@ -938,6 +938,7 @@ struct CreateAdminTokenRequest {
     service_description: Option<String>,
     is_super_admin: Option<bool>,
     expires_in_days: Option<u64>,
+    permissions: Option<Vec<String>>, // Custom permissions as strings
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -1016,7 +1017,29 @@ async fn handle_admin_tokens_create(
         }
     }
 
-    // TODO: Handle custom permissions from request.permissions
+    // Handle custom permissions from request.permissions
+    if let Some(permission_strings) = request.permissions {
+        // Parse permission strings into AdminPermission enum values
+        let mut parsed_permissions = Vec::new();
+        for perm_str in permission_strings {
+            match perm_str.parse::<AdminPermission>() {
+                Ok(permission) => parsed_permissions.push(permission),
+                Err(_) => {
+                    warn!("Invalid permission string: {}", perm_str);
+                    let response = AdminResponse {
+                        success: false,
+                        message: format!("Invalid permission: {}", perm_str),
+                        data: None,
+                    };
+                    return Ok(with_status(json(&response), StatusCode::BAD_REQUEST));
+                }
+            }
+        }
+
+        if !parsed_permissions.is_empty() {
+            token_request.permissions = Some(parsed_permissions);
+        }
+    }
 
     match context.database.create_admin_token(&token_request).await {
         Ok(generated_token) => {
