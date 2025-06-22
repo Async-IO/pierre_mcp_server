@@ -15,6 +15,9 @@ pub mod client;
 pub mod protocol;
 pub mod system_user;
 
+#[cfg(test)]
+pub mod test_utils;
+
 pub use agent_card::AgentCard;
 pub use auth::A2AClient;
 pub use auth::{A2AAuthenticator, A2AToken};
@@ -54,3 +57,13 @@ pub enum A2AError {
 }
 
 impl warp::reject::Reject for A2AError {}
+
+/// Helper function for mapping database errors to A2A errors
+pub fn map_db_error(context: &str) -> impl Fn(anyhow::Error) -> A2AError + '_ {
+    move |e| A2AError::InternalError(format!("{}: {}", context, e))
+}
+
+/// Helper function for mapping database errors to A2A errors with string context
+pub fn map_db_error_str(context: String) -> impl Fn(anyhow::Error) -> A2AError {
+    move |e| A2AError::InternalError(format!("{}: {}", context, e))
+}
