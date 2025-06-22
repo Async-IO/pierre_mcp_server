@@ -237,7 +237,7 @@ async fn generate_token_command(
     description: Option<String>,
     expires_days: u64,
     super_admin: bool,
-    _permissions: Option<String>, // TODO: Parse custom permissions
+    permissions: Option<String>,
 ) -> Result<()> {
     info!("🔑 Generating admin token for service: {}", service);
 
@@ -276,6 +276,46 @@ async fn generate_token_command(
         request.expires_in_days = None; // Never expires
     } else {
         request.expires_in_days = Some(expires_days);
+    }
+
+    // Parse custom permissions if provided
+    if let Some(permissions_str) = permissions {
+        if super_admin {
+            warn!("⚠️ Custom permissions ignored for super admin tokens (has all permissions)");
+        } else {
+            info!("📋 Parsing custom permissions: {}", permissions_str);
+            let mut parsed_permissions = Vec::new();
+
+            for perm_str in permissions_str.split(',') {
+                let trimmed = perm_str.trim();
+                match trimmed.parse::<pierre_mcp_server::admin::models::AdminPermission>() {
+                    Ok(permission) => {
+                        info!("  ✅ Added permission: {}", permission);
+                        parsed_permissions.push(permission);
+                    }
+                    Err(_) => {
+                        error!("❌ Invalid permission: '{}'", trimmed);
+                        info!("💡 Valid permissions are:");
+                        info!("   - provision_keys");
+                        info!("   - list_keys");
+                        info!("   - revoke_keys");
+                        info!("   - update_key_limits");
+                        info!("   - manage_admin_tokens");
+                        info!("   - view_audit_logs");
+                        info!("   - manage_users");
+                        return Err(anyhow!("Invalid permission: {}", trimmed));
+                    }
+                }
+            }
+
+            if !parsed_permissions.is_empty() {
+                request.permissions = Some(parsed_permissions);
+                info!(
+                    "✅ Applied {} custom permissions",
+                    request.permissions.as_ref().unwrap().len()
+                );
+            }
+        }
     }
 
     // Generate token

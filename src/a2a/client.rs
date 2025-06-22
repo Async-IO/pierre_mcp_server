@@ -295,9 +295,10 @@ impl A2AClientManager {
         &self,
         client_id: &str,
     ) -> Result<Option<A2AClient>, crate::a2a::A2AError> {
-        self.database.get_a2a_client(client_id).await.map_err(|e| {
-            crate::a2a::A2AError::InternalError(format!("Failed to get A2A client: {}", e))
-        })
+        self.database
+            .get_a2a_client(client_id)
+            .await
+            .map_err(crate::a2a::map_db_error("Failed to get A2A client"))
     }
 
     /// List all registered clients
@@ -328,9 +329,8 @@ impl A2AClientManager {
             .database
             .get_a2a_client_current_usage(client_id)
             .await
-            .map_err(|e| {
-                crate::a2a::A2AError::InternalError(format!("Failed to get current usage: {}", e))
-            })? as u64;
+            .map_err(crate::a2a::map_db_error("Failed to get current usage"))?
+            as u64;
 
         // Get today's usage
         let start_of_day = chrono::Utc::now()
@@ -579,6 +579,34 @@ impl A2AClientManager {
             .with_nanosecond(0)
             .unwrap()
     }
+
+    /// Get client credentials for authentication
+    pub async fn get_client_credentials(
+        &self,
+        client_id: &str,
+    ) -> Result<Option<ClientCredentials>, crate::a2a::A2AError> {
+        // In a real implementation, this would fetch hashed credentials from database
+        // For now, we'll create a simple lookup mechanism
+
+        // First check if client exists
+        let client = self.get_client(client_id).await?;
+        if client.is_none() {
+            return Ok(None);
+        }
+
+        // In practice, credentials would be stored securely in database
+        // For now, return a basic credential structure for testing
+        let credentials = ClientCredentials {
+            client_id: client_id.to_string(),
+            client_secret: format!("secret_{}", client_id), // This would be properly hashed
+            api_key: format!("a2a_{}", client_id),
+            public_key: "dummy_public_key".to_string(), // Would be actual Ed25519 key
+            private_key: "dummy_private_key".to_string(), // Would be actual Ed25519 key
+            key_type: "ed25519".to_string(),
+        };
+
+        Ok(Some(credentials))
+    }
 }
 
 #[cfg(test)]
@@ -587,11 +615,7 @@ mod tests {
     use crate::database_plugins::factory::Database;
 
     async fn create_test_database() -> Arc<Database> {
-        // Use in-memory database for tests to avoid file system issues
-        let database = Database::new("sqlite::memory:", vec![0u8; 32])
-            .await
-            .unwrap();
-        Arc::new(database)
+        crate::a2a::test_utils::create_test_database().await
     }
 
     #[tokio::test]

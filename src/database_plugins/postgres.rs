@@ -8,7 +8,7 @@ use crate::a2a::auth::A2AClient;
 use crate::a2a::client::A2ASession;
 use crate::a2a::protocol::{A2ATask, TaskStatus};
 use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
-use crate::database::{A2AUsage, A2AUsageStats};
+use crate::database::A2AUsage;
 use crate::models::{DecryptedToken, EncryptedToken, User, UserTier};
 use crate::rate_limiting::JwtUsage;
 use anyhow::{anyhow, Result};
@@ -1427,90 +1427,431 @@ impl DatabaseProvider for PostgresDatabase {
         }
     }
 
-    async fn get_a2a_client_by_name(&self, _name: &str) -> Result<Option<A2AClient>> {
-        Err(anyhow!("PostgreSQL A2A methods not yet fully implemented"))
+    async fn get_a2a_client_by_name(&self, name: &str) -> Result<Option<A2AClient>> {
+        let row = sqlx::query(
+            r#"
+            SELECT client_id, user_id, name, description, client_secret_hash, capabilities, 
+                   redirect_uris, contact_email, is_active, rate_limit_per_minute, 
+                   rate_limit_per_day, created_at, updated_at
+            FROM a2a_clients
+            WHERE name = $1
+            "#,
+        )
+        .bind(name)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            Ok(Some(A2AClient {
+                id: row.get("client_id"),
+                name: row.get("name"),
+                description: row.get("description"),
+                public_key: row.get("client_secret_hash"), // Map client_secret_hash to public_key
+                capabilities: row.get("capabilities"),
+                redirect_uris: row.get("redirect_uris"),
+                is_active: row.get("is_active"),
+                created_at: row.get("created_at"),
+            }))
+        } else {
+            Ok(None)
+        }
     }
 
-    async fn list_a2a_clients(&self, _user_id: &Uuid) -> Result<Vec<A2AClient>> {
-        Err(anyhow!("PostgreSQL A2A methods not yet fully implemented"))
+    async fn list_a2a_clients(&self, user_id: &Uuid) -> Result<Vec<A2AClient>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT client_id, user_id, name, description, client_secret_hash, capabilities, 
+                   redirect_uris, contact_email, is_active, rate_limit_per_minute, 
+                   rate_limit_per_day, created_at, updated_at
+            FROM a2a_clients
+            WHERE user_id = $1
+            ORDER BY created_at DESC
+            "#,
+        )
+        .bind(user_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut clients = Vec::new();
+        for row in rows {
+            clients.push(A2AClient {
+                id: row.get("client_id"),
+                name: row.get("name"),
+                description: row.get("description"),
+                public_key: row.get("client_secret_hash"), // Map client_secret_hash to public_key
+                capabilities: row.get("capabilities"),
+                redirect_uris: row.get("redirect_uris"),
+                is_active: row.get("is_active"),
+                created_at: row.get("created_at"),
+            });
+        }
+
+        Ok(clients)
     }
 
     async fn create_a2a_session(
         &self,
-        _client_id: &str,
-        _user_id: Option<&Uuid>,
-        _granted_scopes: &[String],
-        _expires_in_hours: i64,
+        client_id: &str,
+        user_id: Option<&Uuid>,
+        granted_scopes: &[String],
+        expires_in_hours: i64,
     ) -> Result<String> {
-        Err(anyhow!("PostgreSQL A2A methods not yet fully implemented"))
+        let session_id = uuid::Uuid::new_v4().to_string();
+        let expires_at = chrono::Utc::now() + chrono::Duration::hours(expires_in_hours);
+        let scopes_json = serde_json::to_string(granted_scopes)?;
+
+        sqlx::query(
+            r#"
+            INSERT INTO a2a_sessions (
+                session_id, client_id, user_id, granted_scopes, created_at, expires_at, last_activity
+            ) VALUES ($1, $2, $3, $4, $5, $6, $5)
+            "#,
+        )
+        .bind(&session_id)
+        .bind(client_id)
+        .bind(user_id)
+        .bind(&scopes_json)
+        .bind(chrono::Utc::now())
+        .bind(expires_at)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(session_id)
     }
 
-    async fn get_a2a_session(&self, _session_token: &str) -> Result<Option<A2ASession>> {
-        Err(anyhow!("PostgreSQL A2A methods not yet fully implemented"))
+    async fn get_a2a_session(&self, session_token: &str) -> Result<Option<A2ASession>> {
+        let row = sqlx::query(
+            r#"
+            SELECT session_token, client_id, user_id, granted_scopes, 
+                   expires_at, last_activity, created_at
+            FROM a2a_sessions
+            WHERE session_token = $1 AND expires_at > NOW()
+            "#,
+        )
+        .bind(session_token)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            use sqlx::Row;
+            let scopes_str: String = row.try_get("granted_scopes")?;
+            let scopes: Vec<String> = serde_json::from_str(&scopes_str).unwrap_or_else(|_| vec![]);
+
+            Ok(Some(A2ASession {
+                id: row.try_get("session_token")?,
+                client_id: row.try_get("client_id")?,
+                user_id: row.try_get("user_id")?,
+                granted_scopes: scopes,
+                expires_at: row.try_get("expires_at")?,
+                last_activity: row.try_get("last_activity")?,
+                created_at: row.try_get("created_at")?,
+                requests_count: 0, // Would need to be tracked separately
+            }))
+        } else {
+            Ok(None)
+        }
     }
 
-    async fn update_a2a_session_activity(&self, _session_token: &str) -> Result<()> {
-        Err(anyhow!("PostgreSQL A2A methods not yet fully implemented"))
+    async fn update_a2a_session_activity(&self, session_token: &str) -> Result<()> {
+        sqlx::query("UPDATE a2a_sessions SET last_activity = NOW() WHERE session_token = $1")
+            .bind(session_token)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
     }
 
     async fn create_a2a_task(
         &self,
-        _client_id: &str,
-        _session_id: Option<&str>,
-        _task_type: &str,
-        _input_data: &Value,
+        client_id: &str,
+        session_id: Option<&str>,
+        task_type: &str,
+        input_data: &Value,
     ) -> Result<String> {
-        Err(anyhow!("PostgreSQL A2A methods not yet fully implemented"))
+        use uuid::Uuid;
+
+        let task_id = format!("task_{}", Uuid::new_v4().simple());
+        let input_json = serde_json::to_string(input_data)?;
+
+        sqlx::query(
+            r#"
+            INSERT INTO a2a_tasks 
+            (task_id, client_id, session_id, task_type, input_data, status, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, NOW())
+            "#,
+        )
+        .bind(&task_id)
+        .bind(client_id)
+        .bind(session_id)
+        .bind(task_type)
+        .bind(&input_json)
+        .bind("pending")
+        .execute(&self.pool)
+        .await?;
+
+        Ok(task_id)
     }
 
-    async fn get_a2a_task(&self, _task_id: &str) -> Result<Option<A2ATask>> {
-        Err(anyhow!("PostgreSQL A2A methods not yet fully implemented"))
+    async fn get_a2a_task(&self, task_id: &str) -> Result<Option<A2ATask>> {
+        let row = sqlx::query(
+            r#"
+            SELECT task_id, client_id, session_id, task_type, input_data,
+                   status, result_data, error_message, created_at, updated_at
+            FROM a2a_tasks
+            WHERE task_id = $1
+            "#,
+        )
+        .bind(task_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            use sqlx::Row;
+            let input_str: String = row.try_get("input_data")?;
+            let _input_data: Value = serde_json::from_str(&input_str).unwrap_or(Value::Null);
+
+            let result_data =
+                if let Ok(result_str) = row.try_get::<Option<String>, _>("result_data") {
+                    result_str.and_then(|s| serde_json::from_str(&s).ok())
+                } else {
+                    None
+                };
+
+            let status_str: String = row.try_get("status")?;
+            let status = match status_str.as_str() {
+                "pending" => TaskStatus::Pending,
+                "running" => TaskStatus::Running,
+                "completed" => TaskStatus::Completed,
+                "failed" => TaskStatus::Failed,
+                "cancelled" => TaskStatus::Cancelled,
+                _ => TaskStatus::Pending,
+            };
+
+            Ok(Some(A2ATask {
+                id: row.try_get("task_id")?,
+                status,
+                created_at: row.try_get("created_at")?,
+                completed_at: row.try_get("updated_at")?,
+                result: result_data,
+                error: row.try_get("error_message")?,
+            }))
+        } else {
+            Ok(None)
+        }
     }
 
     async fn update_a2a_task_status(
         &self,
-        _task_id: &str,
-        _status: &TaskStatus,
-        _result: Option<&Value>,
-        _error: Option<&str>,
+        task_id: &str,
+        status: &TaskStatus,
+        result: Option<&Value>,
+        error: Option<&str>,
     ) -> Result<()> {
-        Err(anyhow!("PostgreSQL A2A methods not yet fully implemented"))
+        let status_str = match status {
+            TaskStatus::Pending => "pending",
+            TaskStatus::Running => "running",
+            TaskStatus::Completed => "completed",
+            TaskStatus::Failed => "failed",
+            TaskStatus::Cancelled => "cancelled",
+        };
+
+        let result_json = result.map(serde_json::to_string).transpose()?;
+
+        sqlx::query(
+            r#"
+            UPDATE a2a_tasks 
+            SET status = $1, result_data = $2, error_message = $3, updated_at = NOW()
+            WHERE task_id = $4
+            "#,
+        )
+        .bind(status_str)
+        .bind(result_json)
+        .bind(error)
+        .bind(task_id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
     }
 
-    async fn record_a2a_usage(&self, _usage: &A2AUsage) -> Result<()> {
-        Err(anyhow!("PostgreSQL A2A methods not yet fully implemented"))
+    async fn record_a2a_usage(&self, usage: &A2AUsage) -> Result<()> {
+        let _ = sqlx::query(
+            r#"
+            INSERT INTO a2a_usage 
+            (client_id, session_token, tool_name, status_code, 
+             response_time_ms, request_size_bytes, response_size_bytes, timestamp,
+             error_message, ip_address, user_agent, protocol_version)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            "#,
+        )
+        .bind(&usage.client_id)
+        .bind(&usage.session_token)
+        .bind(&usage.tool_name)
+        .bind(usage.status_code as i32)
+        .bind(usage.response_time_ms.map(|x| x as i32))
+        .bind(usage.request_size_bytes.map(|x| x as i32))
+        .bind(usage.response_size_bytes.map(|x| x as i32))
+        .bind(usage.timestamp)
+        .bind(&usage.error_message)
+        .bind(&usage.ip_address)
+        .bind(&usage.user_agent)
+        .bind(&usage.protocol_version)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
     }
 
-    async fn get_a2a_client_current_usage(&self, _client_id: &str) -> Result<u32> {
-        Err(anyhow!("PostgreSQL A2A methods not yet fully implemented"))
+    async fn get_a2a_client_current_usage(&self, client_id: &str) -> Result<u32> {
+        let row = sqlx::query(
+            r#"
+            SELECT COUNT(*) as usage_count
+            FROM a2a_usage
+            WHERE client_id = $1 AND timestamp >= NOW() - INTERVAL '1 hour'
+            "#,
+        )
+        .bind(client_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        let count: i64 = row.try_get("usage_count")?;
+        Ok(count as u32)
     }
 
     async fn get_a2a_usage_stats(
         &self,
-        _client_id: &str,
-        _start_date: DateTime<Utc>,
-        _end_date: DateTime<Utc>,
-    ) -> Result<A2AUsageStats> {
-        Err(anyhow!("PostgreSQL A2A methods not yet fully implemented"))
+        client_id: &str,
+        start_date: DateTime<Utc>,
+        end_date: DateTime<Utc>,
+    ) -> Result<crate::database::A2AUsageStats> {
+        let row = sqlx::query(
+            r#"
+            SELECT 
+                COUNT(*) as total_requests,
+                COUNT(CASE WHEN status_code < 400 THEN 1 END) as successful_requests,
+                COUNT(CASE WHEN status_code >= 400 THEN 1 END) as failed_requests,
+                AVG(response_time_ms) as avg_response_time,
+                SUM(request_size_bytes) as total_request_bytes,
+                SUM(response_size_bytes) as total_response_bytes
+            FROM a2a_usage
+            WHERE client_id = $1 AND timestamp BETWEEN $2 AND $3
+            "#,
+        )
+        .bind(client_id)
+        .bind(start_date)
+        .bind(end_date)
+        .fetch_one(&self.pool)
+        .await?;
+
+        use sqlx::Row;
+        let total_requests: i64 = row.try_get("total_requests")?;
+        let successful_requests: i64 = row.try_get("successful_requests")?;
+        let failed_requests: i64 = row.try_get("failed_requests")?;
+        let avg_response_time: Option<f64> = row.try_get("avg_response_time")?;
+        let _total_request_bytes: Option<i64> = row.try_get("total_request_bytes")?;
+        let _total_response_bytes: Option<i64> = row.try_get("total_response_bytes")?;
+
+        Ok(crate::database::A2AUsageStats {
+            client_id: client_id.to_string(),
+            total_requests: total_requests as u32,
+            successful_requests: successful_requests as u32,
+            failed_requests: failed_requests as u32,
+            total_response_time_ms: (avg_response_time.unwrap_or(0.0) * total_requests as f64)
+                as u64,
+            tool_usage: serde_json::json!({}), // TODO: Implement tool usage aggregation
+            capability_usage: serde_json::json!({}),
+            period_start: start_date,
+            period_end: end_date,
+        })
     }
 
     async fn get_a2a_client_usage_history(
         &self,
-        _client_id: &str,
-        _days: u32,
+        client_id: &str,
+        days: u32,
     ) -> Result<Vec<(DateTime<Utc>, u32, u32)>> {
-        Err(anyhow!("PostgreSQL A2A methods not yet fully implemented"))
+        let rows = sqlx::query(
+            r#"
+            SELECT 
+                DATE_TRUNC('day', timestamp) as day,
+                COUNT(CASE WHEN status_code < 400 THEN 1 END) as success_count,
+                COUNT(CASE WHEN status_code >= 400 THEN 1 END) as error_count
+            FROM a2a_usage
+            WHERE client_id = $1 
+              AND timestamp >= NOW() - INTERVAL '$2 days'
+            GROUP BY DATE_TRUNC('day', timestamp)
+            ORDER BY day
+            "#,
+        )
+        .bind(client_id)
+        .bind(days as i32)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut result = Vec::new();
+        for row in rows {
+            use sqlx::Row;
+            let day: DateTime<Utc> = row.try_get("day")?;
+            let success_count: i64 = row.try_get("success_count")?;
+            let error_count: i64 = row.try_get("error_count")?;
+
+            result.push((day, success_count as u32, error_count as u32));
+        }
+
+        Ok(result)
     }
 
     async fn get_top_tools_analysis(
         &self,
-        _user_id: Uuid,
-        _start_time: DateTime<Utc>,
-        _end_time: DateTime<Utc>,
+        user_id: Uuid,
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
     ) -> Result<Vec<crate::dashboard_routes::ToolUsage>> {
-        Err(anyhow!(
-            "PostgreSQL analytics methods not yet fully implemented"
-        ))
+        let rows = sqlx::query(
+            r#"
+            SELECT tool_name, COUNT(*) as usage_count,
+                   AVG(response_time_ms) as avg_response_time,
+                   COUNT(CASE WHEN status_code < 400 THEN 1 END) as success_count,
+                   COUNT(CASE WHEN status_code >= 400 THEN 1 END) as error_count
+            FROM api_key_usage aku
+            JOIN api_keys ak ON aku.api_key_id = ak.id
+            WHERE ak.user_id = $1 AND aku.timestamp BETWEEN $2 AND $3
+            GROUP BY tool_name
+            ORDER BY usage_count DESC
+            LIMIT 10
+            "#,
+        )
+        .bind(user_id)
+        .bind(start_time)
+        .bind(end_time)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut tool_usage = Vec::new();
+        for row in rows {
+            use sqlx::Row;
+
+            let tool_name: String = row
+                .try_get("tool_name")
+                .unwrap_or_else(|_| "unknown".to_string());
+            let usage_count: i64 = row.try_get("usage_count").unwrap_or(0);
+            let avg_response_time: Option<f64> = row.try_get("avg_response_time").ok();
+            let success_count: i64 = row.try_get("success_count").unwrap_or(0);
+            let _error_count: i64 = row.try_get("error_count").unwrap_or(0);
+
+            tool_usage.push(crate::dashboard_routes::ToolUsage {
+                tool_name,
+                request_count: usage_count as u64,
+                success_rate: if usage_count > 0 {
+                    (success_count as f64) / (usage_count as f64)
+                } else {
+                    0.0
+                },
+                average_response_time: avg_response_time.unwrap_or(0.0),
+            });
+        }
+
+        Ok(tool_usage)
     }
 
     // ================================
