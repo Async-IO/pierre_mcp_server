@@ -6,191 +6,174 @@ use anyhow::Result;
 use sqlx::Row;
 use uuid::Uuid;
 
+/// OAuth provider types
+#[derive(Debug, Clone, Copy)]
+pub enum OAuthProvider {
+    Strava,
+    Fitbit,
+}
+
+impl OAuthProvider {
+    /// Get the column prefix for this provider
+    fn column_prefix(&self) -> &'static str {
+        match self {
+            OAuthProvider::Strava => "strava",
+            OAuthProvider::Fitbit => "fitbit",
+        }
+    }
+}
+
 impl Database {
-    /// Update Strava OAuth token for a user
+    /// Generic function to update OAuth token for any provider
+    pub async fn update_oauth_token(
+        &self,
+        user_id: Uuid,
+        provider: OAuthProvider,
+        token: &DecryptedToken,
+    ) -> Result<()> {
+        let encrypted = EncryptedToken::new(
+            &token.access_token,
+            &token.refresh_token,
+            token.expires_at,
+            token.scope.clone(),
+            self.encryption_key(),
+        )?;
+
+        let prefix = provider.column_prefix();
+        let query = format!(
+            r#"
+            UPDATE users SET
+                {}_access_token = $2,
+                {}_refresh_token = $3,
+                {}_expires_at = $4,
+                {}_scope = $5,
+                {}_nonce = $6
+            WHERE id = $1
+            "#,
+            prefix, prefix, prefix, prefix, prefix
+        );
+
+        sqlx::query(&query)
+            .bind(user_id.to_string())
+            .bind(&encrypted.access_token)
+            .bind(&encrypted.refresh_token)
+            .bind(encrypted.expires_at.timestamp())
+            .bind(&encrypted.scope)
+            .bind(&encrypted.nonce)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Generic function to get OAuth token for any provider
+    pub async fn get_oauth_token(
+        &self,
+        user_id: Uuid,
+        provider: OAuthProvider,
+    ) -> Result<Option<DecryptedToken>> {
+        let prefix = provider.column_prefix();
+        let query = format!(
+            r#"
+            SELECT {}_access_token, {}_refresh_token, {}_expires_at, 
+                   {}_scope, {}_nonce
+            FROM users WHERE id = $1
+            "#,
+            prefix, prefix, prefix, prefix, prefix
+        );
+
+        let row = sqlx::query(&query)
+            .bind(user_id.to_string())
+            .fetch_optional(&self.pool)
+            .await?;
+
+        if let Some(row) = row {
+            let access_col = format!("{}_access_token", prefix);
+            let refresh_col = format!("{}_refresh_token", prefix);
+            let expires_col = format!("{}_expires_at", prefix);
+            let scope_col = format!("{}_scope", prefix);
+            let nonce_col = format!("{}_nonce", prefix);
+
+            if let (Some(access), Some(refresh), Some(expires_at)) = (
+                row.get::<Option<String>, _>(access_col.as_str()),
+                row.get::<Option<String>, _>(refresh_col.as_str()),
+                row.get::<Option<i64>, _>(expires_col.as_str()),
+            ) {
+                let scope: Option<String> = row.get(scope_col.as_str());
+                let nonce: Option<String> = row.get(nonce_col.as_str());
+
+                let encrypted = EncryptedToken {
+                    access_token: access,
+                    refresh_token: refresh,
+                    expires_at: chrono::DateTime::from_timestamp(expires_at, 0).unwrap_or_default(),
+                    scope: scope.unwrap_or_default(),
+                    nonce: nonce.unwrap_or_else(|| "legacy".to_string()),
+                };
+
+                let decrypted = encrypted.decrypt(self.encryption_key())?;
+                Ok(Some(decrypted))
+            } else {
+                Ok(None)
+            }
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Generic function to clear OAuth token for any provider
+    pub async fn clear_oauth_token(&self, user_id: Uuid, provider: OAuthProvider) -> Result<()> {
+        let prefix = provider.column_prefix();
+        let query = format!(
+            r#"
+            UPDATE users SET
+                {}_access_token = NULL,
+                {}_refresh_token = NULL,
+                {}_expires_at = NULL,
+                {}_scope = NULL,
+                {}_nonce = NULL
+            WHERE id = $1
+            "#,
+            prefix, prefix, prefix, prefix, prefix
+        );
+
+        sqlx::query(&query)
+            .bind(user_id.to_string())
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Update Strava OAuth token for a user (legacy wrapper)
     pub async fn update_strava_token(&self, user_id: Uuid, token: &DecryptedToken) -> Result<()> {
-        let encrypted = EncryptedToken::new(
-            &token.access_token,
-            &token.refresh_token,
-            token.expires_at,
-            token.scope.clone(),
-            self.encryption_key(),
-        )?;
-
-        sqlx::query(
-            r#"
-            UPDATE users SET
-                strava_access_token = $2,
-                strava_refresh_token = $3,
-                strava_expires_at = $4,
-                strava_scope = $5,
-                strava_nonce = $6
-            WHERE id = $1
-            "#,
-        )
-        .bind(user_id.to_string())
-        .bind(&encrypted.access_token)
-        .bind(&encrypted.refresh_token)
-        .bind(encrypted.expires_at.timestamp())
-        .bind(&encrypted.scope)
-        .bind(&encrypted.nonce)
-        .execute(&self.pool)
-        .await?;
-
-        Ok(())
+        self.update_oauth_token(user_id, OAuthProvider::Strava, token)
+            .await
     }
 
-    /// Get Strava OAuth token for a user
+    /// Get Strava OAuth token for a user (legacy wrapper)
     pub async fn get_strava_token(&self, user_id: Uuid) -> Result<Option<DecryptedToken>> {
-        let row = sqlx::query(
-            r#"
-            SELECT strava_access_token, strava_refresh_token, strava_expires_at, 
-                   strava_scope, strava_nonce
-            FROM users WHERE id = $1
-            "#,
-        )
-        .bind(user_id.to_string())
-        .fetch_optional(&self.pool)
-        .await?;
-
-        if let Some(row) = row {
-            if let (Some(access), Some(refresh), Some(expires_at)) = (
-                row.get::<Option<String>, _>("strava_access_token"),
-                row.get::<Option<String>, _>("strava_refresh_token"),
-                row.get::<Option<i64>, _>("strava_expires_at"),
-            ) {
-                let scope: Option<String> = row.get("strava_scope");
-                let nonce: Option<String> = row.get("strava_nonce");
-
-                let encrypted = EncryptedToken {
-                    access_token: access,
-                    refresh_token: refresh,
-                    expires_at: chrono::DateTime::from_timestamp(expires_at, 0).unwrap_or_default(),
-                    scope: scope.unwrap_or_default(),
-                    nonce: nonce.unwrap_or_else(|| "legacy".to_string()),
-                };
-
-                let decrypted = encrypted.decrypt(self.encryption_key())?;
-                Ok(Some(decrypted))
-            } else {
-                Ok(None)
-            }
-        } else {
-            Ok(None)
-        }
+        self.get_oauth_token(user_id, OAuthProvider::Strava).await
     }
 
-    /// Update Fitbit OAuth token for a user
-    pub async fn update_fitbit_token(&self, user_id: Uuid, token: &DecryptedToken) -> Result<()> {
-        let encrypted = EncryptedToken::new(
-            &token.access_token,
-            &token.refresh_token,
-            token.expires_at,
-            token.scope.clone(),
-            self.encryption_key(),
-        )?;
-
-        sqlx::query(
-            r#"
-            UPDATE users SET
-                fitbit_access_token = $2,
-                fitbit_refresh_token = $3,
-                fitbit_expires_at = $4,
-                fitbit_scope = $5,
-                fitbit_nonce = $6
-            WHERE id = $1
-            "#,
-        )
-        .bind(user_id.to_string())
-        .bind(&encrypted.access_token)
-        .bind(&encrypted.refresh_token)
-        .bind(encrypted.expires_at.timestamp())
-        .bind(&encrypted.scope)
-        .bind(&encrypted.nonce)
-        .execute(&self.pool)
-        .await?;
-
-        Ok(())
-    }
-
-    /// Get Fitbit OAuth token for a user
-    pub async fn get_fitbit_token(&self, user_id: Uuid) -> Result<Option<DecryptedToken>> {
-        let row = sqlx::query(
-            r#"
-            SELECT fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, 
-                   fitbit_scope, fitbit_nonce
-            FROM users WHERE id = $1
-            "#,
-        )
-        .bind(user_id.to_string())
-        .fetch_optional(&self.pool)
-        .await?;
-
-        if let Some(row) = row {
-            if let (Some(access), Some(refresh), Some(expires_at)) = (
-                row.get::<Option<String>, _>("fitbit_access_token"),
-                row.get::<Option<String>, _>("fitbit_refresh_token"),
-                row.get::<Option<i64>, _>("fitbit_expires_at"),
-            ) {
-                let scope: Option<String> = row.get("fitbit_scope");
-                let nonce: Option<String> = row.get("fitbit_nonce");
-
-                let encrypted = EncryptedToken {
-                    access_token: access,
-                    refresh_token: refresh,
-                    expires_at: chrono::DateTime::from_timestamp(expires_at, 0).unwrap_or_default(),
-                    scope: scope.unwrap_or_default(),
-                    nonce: nonce.unwrap_or_else(|| "legacy".to_string()),
-                };
-
-                let decrypted = encrypted.decrypt(self.encryption_key())?;
-                Ok(Some(decrypted))
-            } else {
-                Ok(None)
-            }
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// Clear Strava token for a user (logout/disconnect)
+    /// Clear Strava OAuth token for a user (legacy wrapper)
     pub async fn clear_strava_token(&self, user_id: Uuid) -> Result<()> {
-        sqlx::query(
-            r#"
-            UPDATE users SET
-                strava_access_token = NULL,
-                strava_refresh_token = NULL,
-                strava_expires_at = NULL,
-                strava_scope = NULL,
-                strava_nonce = NULL
-            WHERE id = $1
-            "#,
-        )
-        .bind(user_id.to_string())
-        .execute(&self.pool)
-        .await?;
-
-        Ok(())
+        self.clear_oauth_token(user_id, OAuthProvider::Strava).await
     }
 
-    /// Clear Fitbit token for a user (logout/disconnect)
-    pub async fn clear_fitbit_token(&self, user_id: Uuid) -> Result<()> {
-        sqlx::query(
-            r#"
-            UPDATE users SET
-                fitbit_access_token = NULL,
-                fitbit_refresh_token = NULL,
-                fitbit_expires_at = NULL,
-                fitbit_scope = NULL,
-                fitbit_nonce = NULL
-            WHERE id = $1
-            "#,
-        )
-        .bind(user_id.to_string())
-        .execute(&self.pool)
-        .await?;
+    /// Update Fitbit OAuth token for a user (legacy wrapper)
+    pub async fn update_fitbit_token(&self, user_id: Uuid, token: &DecryptedToken) -> Result<()> {
+        self.update_oauth_token(user_id, OAuthProvider::Fitbit, token)
+            .await
+    }
 
-        Ok(())
+    /// Get Fitbit OAuth token for a user (legacy wrapper)
+    pub async fn get_fitbit_token(&self, user_id: Uuid) -> Result<Option<DecryptedToken>> {
+        self.get_oauth_token(user_id, OAuthProvider::Fitbit).await
+    }
+
+    /// Clear Fitbit OAuth token for a user (legacy wrapper)
+    pub async fn clear_fitbit_token(&self, user_id: Uuid) -> Result<()> {
+        self.clear_oauth_token(user_id, OAuthProvider::Fitbit).await
     }
 }
 
