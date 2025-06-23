@@ -2,48 +2,25 @@
 //!
 //! Essential security tests for authentication, authorization, and data protection.
 
+mod common;
+
 use anyhow::Result;
-use chrono::Utc;
 use pierre_mcp_server::{
     api_keys::{ApiKeyManager, ApiKeyTier, CreateApiKeyRequest},
     auth::AuthManager,
-    database_plugins::{factory::Database, DatabaseProvider},
-    models::User,
+    database_plugins::DatabaseProvider,
 };
 use uuid::Uuid;
-
-async fn setup_test_database() -> Result<Database> {
-    let database_url = "sqlite::memory:";
-    let encryption_key = vec![0u8; 32];
-    let database = Database::new(database_url, encryption_key).await?;
-    database.migrate().await?;
-    Ok(database)
-}
-
-async fn create_test_user(database: &Database, email: &str) -> Result<Uuid> {
-    let user = User {
-        id: Uuid::new_v4(),
-        email: email.to_string(),
-        display_name: Some(format!("Test User ({})", email)),
-        password_hash: "test_hash".to_string(),
-        tier: pierre_mcp_server::models::UserTier::Professional,
-        strava_token: None,
-        fitbit_token: None,
-        is_active: true,
-        created_at: Utc::now(),
-        last_active: Utc::now(),
-    };
-    database.create_user(&user).await
-}
 
 /// Test JWT token security basics
 #[tokio::test]
 async fn test_jwt_token_security() -> Result<()> {
-    let database = setup_test_database().await?;
+    let database = common::create_test_database().await?;
     let auth_manager = AuthManager::new(vec![0u8; 64], 24);
 
     // Create test user
-    let user_id = create_test_user(&database, "jwt_test@example.com").await?;
+    let (user_id, _) =
+        common::create_test_user_with_email(&database, "jwt_test@example.com").await?;
     let user = database.get_user(user_id).await?.unwrap();
 
     // Generate valid JWT token
@@ -80,11 +57,13 @@ async fn test_jwt_token_security() -> Result<()> {
 /// Test API key isolation between users
 #[tokio::test]
 async fn test_api_key_user_isolation() -> Result<()> {
-    let database = setup_test_database().await?;
+    let database = common::create_test_database().await?;
 
     // Create two users
-    let user1_id = create_test_user(&database, "api_user1@example.com").await?;
-    let user2_id = create_test_user(&database, "api_user2@example.com").await?;
+    let (user1_id, _) =
+        common::create_test_user_with_email(&database, "api_user1@example.com").await?;
+    let (user2_id, _) =
+        common::create_test_user_with_email(&database, "api_user2@example.com").await?;
 
     let api_key_manager = ApiKeyManager::new();
 
@@ -121,11 +100,12 @@ async fn test_api_key_user_isolation() -> Result<()> {
 /// Test input validation
 #[tokio::test]
 async fn test_basic_input_validation() -> Result<()> {
-    let database = setup_test_database().await?;
+    let database = common::create_test_database().await?;
     let api_key_manager = ApiKeyManager::new();
 
     // Create test user
-    let user_id = create_test_user(&database, "validation_test@example.com").await?;
+    let (user_id, _) =
+        common::create_test_user_with_email(&database, "validation_test@example.com").await?;
 
     // Test very long API key name
     let long_name = "a".repeat(1000);
@@ -162,7 +142,7 @@ async fn test_basic_input_validation() -> Result<()> {
 /// Test error message security (no information disclosure)
 #[tokio::test]
 async fn test_error_message_security() -> Result<()> {
-    let database = setup_test_database().await?;
+    let database = common::create_test_database().await?;
     let auth_manager = AuthManager::new(vec![0u8; 64], 24);
 
     // Test non-existent user lookup
@@ -207,11 +187,12 @@ async fn test_error_message_security() -> Result<()> {
 /// Test token uniqueness
 #[tokio::test]
 async fn test_token_uniqueness() -> Result<()> {
-    let database = setup_test_database().await?;
+    let database = common::create_test_database().await?;
     let auth_manager = AuthManager::new(vec![0u8; 64], 24);
 
     // Create test user
-    let user_id = create_test_user(&database, "unique_test@example.com").await?;
+    let (user_id, _) =
+        common::create_test_user_with_email(&database, "unique_test@example.com").await?;
     let user = database.get_user(user_id).await?.unwrap();
 
     // Generate multiple tokens and verify uniqueness
@@ -243,11 +224,12 @@ async fn test_token_uniqueness() -> Result<()> {
 /// Test API key uniqueness  
 #[tokio::test]
 async fn test_api_key_uniqueness() -> Result<()> {
-    let database = setup_test_database().await?;
+    let database = common::create_test_database().await?;
     let api_key_manager = ApiKeyManager::new();
 
     // Create test user
-    let user_id = create_test_user(&database, "api_unique_test@example.com").await?;
+    let (user_id, _) =
+        common::create_test_user_with_email(&database, "api_unique_test@example.com").await?;
 
     // Generate multiple API keys and verify uniqueness
     let mut api_key_strings = std::collections::HashSet::new();

@@ -7,6 +7,8 @@
 //! - Database operations
 //! - Security features
 
+mod common;
+
 use anyhow::Result;
 use chrono::Utc;
 use pierre_mcp_server::admin::{
@@ -14,59 +16,8 @@ use pierre_mcp_server::admin::{
     jwt::AdminJwtManager,
     models::{AdminAction, AdminPermission, AdminPermissions, CreateAdminTokenRequest},
 };
-use pierre_mcp_server::api_keys::{ApiKey, ApiKeyTier};
-use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
-use pierre_mcp_server::models::User;
+use pierre_mcp_server::database_plugins::DatabaseProvider;
 use serial_test::serial;
-use uuid::Uuid;
-
-/// Test database setup helper
-async fn setup_test_database() -> Result<Database> {
-    let encryption_key = vec![0u8; 32]; // Test key
-    let db = Database::new("sqlite::memory:", encryption_key).await?;
-    Ok(db)
-}
-
-/// Test user creation helper
-async fn create_test_user(db: &Database) -> Result<(Uuid, User)> {
-    let user = User {
-        id: Uuid::new_v4(),
-        email: "test@example.com".to_string(),
-        display_name: Some("Test User".to_string()),
-        password_hash: "test_hash".to_string(),
-        tier: pierre_mcp_server::models::UserTier::Starter,
-        strava_token: None,
-        fitbit_token: None,
-        created_at: Utc::now(),
-        last_active: Utc::now(),
-        is_active: true,
-    };
-
-    let user_id = db.create_user(&user).await?;
-    Ok((user_id, user))
-}
-
-/// Test API key creation helper
-async fn create_test_api_key(db: &Database, user_id: Uuid) -> Result<ApiKey> {
-    let api_key = ApiKey {
-        id: format!("test_key_{}", Uuid::new_v4().simple()),
-        user_id,
-        name: "Test Key".to_string(),
-        key_prefix: "pk_test".to_string(),
-        key_hash: "test_hash".to_string(),
-        description: Some("Test API key".to_string()),
-        tier: ApiKeyTier::Starter,
-        rate_limit_requests: 100,
-        rate_limit_window_seconds: 3600,
-        is_active: true,
-        created_at: Utc::now(),
-        last_used_at: None,
-        expires_at: None,
-    };
-
-    db.create_api_key(&api_key).await?;
-    Ok(api_key)
-}
 
 #[tokio::test]
 #[serial]
@@ -142,7 +93,7 @@ async fn test_admin_permissions_system() -> Result<()> {
 #[tokio::test]
 #[serial]
 async fn test_admin_token_database_operations() -> Result<()> {
-    let db = setup_test_database().await?;
+    let db = common::create_test_database().await?;
 
     // Create admin token request
     let request = CreateAdminTokenRequest {
@@ -194,7 +145,7 @@ async fn test_admin_token_database_operations() -> Result<()> {
 #[tokio::test]
 #[serial]
 async fn test_admin_token_usage_tracking() -> Result<()> {
-    let db = setup_test_database().await?;
+    let db = common::create_test_database().await?;
 
     // Create admin token
     let request = CreateAdminTokenRequest {
@@ -260,7 +211,7 @@ async fn test_admin_token_usage_tracking() -> Result<()> {
 #[tokio::test]
 #[serial]
 async fn test_admin_provisioned_keys_tracking() -> Result<()> {
-    let db = setup_test_database().await?;
+    let db = common::create_test_database().await?;
 
     // Create admin token
     let request = CreateAdminTokenRequest {
@@ -274,8 +225,8 @@ async fn test_admin_provisioned_keys_tracking() -> Result<()> {
     let admin_token = db.create_admin_token(&request).await?;
 
     // Create user and API key
-    let (user_id, user) = create_test_user(&db).await?;
-    let api_key = create_test_api_key(&db, user_id).await?;
+    let (user_id, user) = common::create_test_user(&db).await?;
+    let api_key = common::create_and_store_test_api_key(&db, user_id, "Test Key").await?;
 
     // Record provisioned key
     db.record_admin_provisioned_key(
@@ -318,11 +269,11 @@ async fn test_admin_provisioned_keys_tracking() -> Result<()> {
 #[tokio::test]
 #[serial]
 async fn test_admin_auth_service_construction() -> Result<()> {
-    let db = setup_test_database().await?;
+    let db = common::create_test_database().await?;
     let jwt_secret = "test_secret_for_admin_auth_service_testing_purposes";
 
     // Test that AdminAuthService can be constructed successfully
-    let auth_service = AdminAuthService::new(db.clone(), jwt_secret);
+    let auth_service = AdminAuthService::new((*db).clone(), jwt_secret);
 
     // Test basic functionality - invalid token should fail
     let invalid_result = auth_service
@@ -413,7 +364,7 @@ async fn test_admin_permissions_serialization() -> Result<()> {
 #[tokio::test]
 #[serial]
 async fn test_admin_database_error_handling() -> Result<()> {
-    let db = setup_test_database().await?;
+    let db = common::create_test_database().await?;
 
     // Test getting non-existent admin token
     let non_existent = db.get_admin_token_by_id("non_existent_token").await?;
@@ -439,7 +390,7 @@ async fn test_admin_database_error_handling() -> Result<()> {
 #[tokio::test]
 #[serial]
 async fn test_admin_super_admin_privileges() -> Result<()> {
-    let db = setup_test_database().await?;
+    let db = common::create_test_database().await?;
 
     // Create super admin token
     let request = CreateAdminTokenRequest {

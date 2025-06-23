@@ -17,6 +17,7 @@ mod users;
 
 pub use a2a::*;
 pub use analytics::*;
+pub use tokens::OAuthProvider;
 
 use anyhow::Result;
 use sqlx::{Pool, Sqlite, SqlitePool};
