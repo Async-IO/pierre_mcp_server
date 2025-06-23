@@ -32,6 +32,9 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
 
+    - name: Install cargo-llvm-cov
+      uses: taiki-e/install-action@cargo-llvm-cov
+
     - name: Cache Cargo dependencies
       uses: actions/cache@v4
       with:
@@ -43,19 +46,20 @@ jobs:
           target/
         key: ${{ runner.os }}-cargo-sqlite-${{ hashFiles('**/Cargo.lock') }}
 
-    - name: Run database plugin tests (SQLite)
-      run: cargo test database_plugins_test --verbose
+    - name: Run all database tests with coverage (SQLite)
+      run: cargo llvm-cov --all-targets --all-features --lcov --output-path lcov-db-sqlite.info
       env:
         DATABASE_URL: "sqlite::memory:"
         ENCRYPTION_KEY: "dGVzdF9lbmNyeXB0aW9uX2tleV9mb3JfY2lfb25seV8zMg=="
         RUST_LOG: "info"
 
-    - name: Run integration tests (SQLite)
-      run: cargo test --test oauth_integration --test api_key_integration_test --verbose
-      env:
-        DATABASE_URL: "sqlite::memory:"
-        ENCRYPTION_KEY: "dGVzdF9lbmNyeXB0aW9uX2tleV9mb3JfY2lfb25seV8zMg=="
-        RUST_LOG: "debug"
+    - name: Upload SQLite database coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        files: lcov-db-sqlite.info
+        flags: database-sqlite
+        name: database-sqlite-coverage
+        fail_ci_if_error: true
 
   postgresql-tests:
     name: Database Tests (PostgreSQL)
@@ -83,6 +87,9 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
 
+    - name: Install cargo-llvm-cov
+      uses: taiki-e/install-action@cargo-llvm-cov
+
     - name: Cache Cargo dependencies
       uses: actions/cache@v4
       with:
@@ -104,16 +111,17 @@ jobs:
       run: |
         PGPASSWORD=test_password psql -h localhost -U pierre -d pierre_test -c "SELECT 'PostgreSQL connection successful';"
 
-    - name: Run database plugin tests (PostgreSQL)
-      run: cargo test --features postgresql database_plugins_test --verbose -- --test-threads=1
+    - name: Run all database tests with coverage (PostgreSQL)
+      run: cargo llvm-cov --all-targets --features postgresql --lcov --output-path lcov-db-postgres.info -- --test-threads=1
       env:
         DATABASE_URL: "postgresql://pierre:test_password@localhost:5432/pierre_test"
         ENCRYPTION_KEY: "dGVzdF9lbmNyeXB0aW9uX2tleV9mb3JfY2lfb25seV8zMg=="
         RUST_LOG: "info"
 
-    - name: Run integration tests (PostgreSQL)
-      run: cargo test --features postgresql --test oauth_integration --test api_key_integration_test --verbose -- --test-threads=1
-      env:
-        DATABASE_URL: "postgresql://pierre:test_password@localhost:5432/pierre_test"
-        ENCRYPTION_KEY: "dGVzdF9lbmNyeXB0aW9uX2tleV9mb3JfY2lfb25seV8zMg=="
-        RUST_LOG: "debug"
+    - name: Upload PostgreSQL database coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        files: lcov-db-postgres.info
+        flags: database-postgresql
+        name: database-postgresql-coverage
+        fail_ci_if_error: true

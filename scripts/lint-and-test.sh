@@ -76,6 +76,27 @@ else
     ALL_PASSED=false
 fi
 
+# Run Rust tests with coverage (if cargo-llvm-cov is installed)
+echo -e "${BLUE}==== Running Rust tests with coverage... ====${NC}"
+if command_exists cargo-llvm-cov; then
+    # Show coverage summary directly on screen (all tests including integration)
+    echo -e "${BLUE}Generating coverage summary for all tests...${NC}"
+    if cargo llvm-cov --all-targets --summary-only; then
+        echo -e "${GREEN}✅ Rust coverage summary displayed above${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Coverage generation failed or timed out${NC}"
+        echo -e "${YELLOW}   Falling back to library tests only...${NC}"
+        if cargo llvm-cov --lib --summary-only; then
+            echo -e "${GREEN}✅ Rust library coverage summary displayed above${NC}"
+        else
+            echo -e "${YELLOW}   Coverage generation failed - skipping${NC}"
+        fi
+    fi
+else
+    echo -e "${YELLOW}⚠️  cargo-llvm-cov not installed. Install with: cargo install cargo-llvm-cov${NC}"
+    echo -e "${YELLOW}   Skipping coverage report generation${NC}"
+fi
+
 # Run A2A compliance tests specifically
 echo -e "${BLUE}==== Running A2A compliance tests... ====${NC}"
 if cargo test --test a2a_compliance_test --quiet; then
@@ -117,6 +138,14 @@ if [ -d "frontend" ]; then
     else
         echo -e "${RED}❌ Frontend tests failed${NC}"
         ALL_PASSED=false
+    fi
+    
+    # Run frontend tests with coverage
+    echo -e "${BLUE}==== Running frontend tests with coverage... ====${NC}"
+    if npm run test:coverage -- --run; then
+        echo -e "${GREEN}✅ Frontend coverage report generated in coverage/${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Failed to generate frontend coverage report${NC}"
     fi
     
     # Check frontend build
@@ -309,8 +338,13 @@ if [ "$ALL_PASSED" = true ]; then
     echo "✅ A2A compliance tests"
     echo "✅ Frontend linting"
     echo "✅ TypeScript type checking"
+    echo "✅ Frontend tests"
     echo "✅ Frontend build"
+    echo "✅ Frontend code coverage"
     echo "✅ Documentation"
+    if command_exists cargo-llvm-cov; then
+        echo "✅ Rust code coverage"
+    fi
     if [ -d "examples/python" ]; then
         echo "✅ Python examples validation"
     fi

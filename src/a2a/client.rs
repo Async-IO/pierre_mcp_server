@@ -784,7 +784,7 @@ mod tests {
         let result = manager.record_detailed_usage(usage_params).await;
 
         if let Err(ref e) = result {
-            println!("Error recording detailed usage: {:?}", e);
+            tracing::error!("Error recording detailed usage: {:?}", e);
         }
         assert!(result.is_ok());
 

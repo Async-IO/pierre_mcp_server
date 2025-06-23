@@ -23,6 +23,9 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
       - name: Cache Rust dependencies
         uses: actions/cache@v4
         with:
@@ -40,11 +43,19 @@ jobs:
       - name: Lint with Clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
 
-      - name: Run backend tests (SQLite)
-        run: cargo test --verbose
+      - name: Run backend tests with coverage (SQLite)
+        run: cargo llvm-cov --all-targets --all-features --lcov --output-path lcov-sqlite.info
         env:
           DATABASE_URL: "sqlite::memory:"
           ENCRYPTION_KEY: "dGVzdF9lbmNyeXB0aW9uX2tleV9mb3JfY2lfb25seV8zMg=="
+
+      - name: Upload SQLite coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: lcov-sqlite.info
+          flags: backend-sqlite
+          name: backend-sqlite-coverage
+          fail_ci_if_error: true
 
   postgres-tests:
     name: Backend Tests (PostgreSQL)
@@ -71,6 +82,9 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Cache Rust dependencies
         uses: actions/cache@v4
@@ -101,12 +115,20 @@ jobs:
           ENCRYPTION_KEY: "dGVzdF9lbmNyeXB0aW9uX2tleV9mb3JfY2lfb25seV8zMg=="
           RUST_LOG: "info"
 
-      - name: Run all tests (PostgreSQL)
-        run: cargo test --features postgresql --verbose -- --test-threads=1
+      - name: Run all tests with coverage (PostgreSQL)
+        run: cargo llvm-cov --all-targets --features postgresql --lcov --output-path lcov-postgres.info -- --test-threads=1
         env:
           DATABASE_URL: "postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server"
           ENCRYPTION_KEY: "dGVzdF9lbmNyeXB0aW9uX2tleV9mb3JfY2lfb25seV8zMg=="
           RUST_LOG: "debug"
+
+      - name: Upload PostgreSQL coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: lcov-postgres.info
+          flags: backend-postgresql
+          name: backend-postgresql-coverage
+          fail_ci_if_error: true
 
   frontend-tests:
     name: Frontend Tests
@@ -136,8 +158,17 @@ jobs:
       - name: Type check frontend
         run: npx tsc --noEmit
 
-      - name: Run frontend tests
-        run: npm test
+      - name: Run frontend tests with coverage
+        run: npm run test:coverage
+
+      - name: Upload frontend coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          directory: ./coverage
+          flags: frontend
+          name: frontend-coverage
+          fail_ci_if_error: true
+          working-directory: frontend
 
       - name: Build frontend
         run: npm run build

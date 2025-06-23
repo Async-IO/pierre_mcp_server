@@ -88,12 +88,12 @@ enum AdminCommand {
 
     /// Create or update admin user for frontend login
     CreateAdminUser {
-        /// Admin email (default: admin@pierre.mcp)
-        #[arg(long, default_value = "admin@pierre.mcp")]
+        /// Admin email (required)
+        #[arg(long)]
         email: String,
 
-        /// Admin password (default: admin123)
-        #[arg(long, default_value = "admin123")]
+        /// Admin password (required)
+        #[arg(long)]
         password: String,
 
         /// Admin display name

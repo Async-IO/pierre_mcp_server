@@ -56,6 +56,7 @@ export default function CreateA2AClient({ onSuccess, onCancel }: CreateA2AClient
   const [redirectUri, setRedirectUri] = useState('');
   const [showCredentials, setShowCredentials] = useState(false);
   const [credentials, setCredentials] = useState<A2AClientCredentials | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
   
   const queryClient = useQueryClient();
 
@@ -71,8 +72,11 @@ export default function CreateA2AClient({ onSuccess, onCancel }: CreateA2AClient
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Clear previous validation error
+    setValidationError(null);
+    
     if (formData.capabilities.length === 0) {
-      alert('Please select at least one capability.');
+      setValidationError('Please select at least one capability.');
       return;
     }
 
@@ -394,6 +398,13 @@ export default function CreateA2AClient({ onSuccess, onCancel }: CreateA2AClient
                 </p>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Validation Error */}
+        {validationError && (
+          <div className="bg-pierre-red-50 border border-pierre-red-200 text-pierre-red-600 px-4 py-3 rounded">
+            {validationError}
           </div>
         )}
 

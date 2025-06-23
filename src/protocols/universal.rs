@@ -335,7 +335,10 @@ impl UniversalToolExecutor {
                                                     }).collect()
                                                 }
                                                 Err(e) => {
-                                                    eprintln!("Strava API call failed: {}", e);
+                                                    tracing::error!(
+                                                        "Strava API call failed: {}",
+                                                        e
+                                                    );
                                                     vec![serde_json::json!({
                                                         "error": format!("Strava API call failed: {}", e),
                                                         "is_real_data": false
@@ -344,7 +347,7 @@ impl UniversalToolExecutor {
                                             }
                                         }
                                         Err(e) => {
-                                            eprintln!("Strava authentication failed: {}", e);
+                                            tracing::error!("Strava authentication failed: {}", e);
                                             vec![serde_json::json!({
                                                 "error": format!("Strava authentication failed: {}", e),
                                                 "is_real_data": false
@@ -353,7 +356,7 @@ impl UniversalToolExecutor {
                                     }
                                 }
                                 Err(e) => {
-                                    eprintln!("Failed to create Strava provider: {}", e);
+                                    tracing::error!("Failed to create Strava provider: {}", e);
                                     vec![serde_json::json!({
                                         "error": format!("Failed to create Strava provider: {}", e),
                                         "is_real_data": false
@@ -369,7 +372,7 @@ impl UniversalToolExecutor {
                             })]
                         }
                         Err(e) => {
-                            eprintln!("OAuth error: {}", e);
+                            tracing::error!("OAuth error: {}", e);
                             vec![serde_json::json!({
                                 "error": format!("OAuth error: {}", e),
                                 "is_real_data": false,
