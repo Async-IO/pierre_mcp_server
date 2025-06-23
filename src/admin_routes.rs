@@ -450,7 +450,7 @@ async fn handle_provision_api_key(
         if let Some(ref period) = request.rate_limit_period {
             match convert_rate_limit_period(period) {
                 Ok(window_seconds) => {
-                    final_api_key.rate_limit_window = window_seconds;
+                    final_api_key.rate_limit_window_seconds = window_seconds;
                 }
                 Err(e) => {
                     return Ok(with_status(
@@ -638,7 +638,7 @@ async fn handle_list_api_keys(
                         "tier": format!("{:?}", key.tier).to_lowercase(),
                         "rate_limit": {
                             "requests": key.rate_limit_requests,
-                            "window": key.rate_limit_window
+                            "window": key.rate_limit_window_seconds
                         },
                         "is_active": key.is_active,
                         "created_at": key.created_at.to_rfc3339(),

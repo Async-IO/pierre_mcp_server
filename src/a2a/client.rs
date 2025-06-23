@@ -97,7 +97,7 @@ pub struct A2ARateLimitStatus {
 pub struct A2ASession {
     pub id: String,
     pub client_id: String,
-    pub user_id: Option<String>,
+    pub user_id: Option<uuid::Uuid>,
     pub granted_scopes: Vec<String>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub expires_at: chrono::DateTime<chrono::Utc>,
@@ -177,6 +177,10 @@ impl A2AClientManager {
             redirect_uris: request.redirect_uris.clone(),
             is_active: true,
             created_at: chrono::Utc::now(),
+            permissions: vec!["read_activities".to_string()], // Default permissions
+            rate_limit_requests: 1000,
+            rate_limit_window_seconds: 3600,
+            updated_at: chrono::Utc::now(),
         };
 
         // Store client in database

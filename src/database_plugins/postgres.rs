@@ -148,7 +148,7 @@ impl DatabaseProvider for PostgresDatabase {
                 tier TEXT NOT NULL CHECK (tier IN ('trial', 'starter', 'professional', 'enterprise')),
                 is_active BOOLEAN NOT NULL DEFAULT true,
                 rate_limit_requests INTEGER NOT NULL,
-                rate_limit_window INTEGER NOT NULL,
+                rate_limit_window_seconds INTEGER NOT NULL,
                 created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                 expires_at TIMESTAMPTZ,
                 last_used_at TIMESTAMPTZ,
@@ -166,10 +166,10 @@ impl DatabaseProvider for PostgresDatabase {
                 id SERIAL PRIMARY KEY,
                 api_key_id TEXT NOT NULL REFERENCES api_keys(id) ON DELETE CASCADE,
                 timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                tool_name TEXT NOT NULL,
+                endpoint TEXT NOT NULL,
                 response_time_ms INTEGER,
                 status_code SMALLINT NOT NULL,
-                error_message TEXT,
+                method TEXT,
                 request_size_bytes INTEGER,
                 response_size_bytes INTEGER,
                 ip_address INET,
@@ -245,10 +245,10 @@ impl DatabaseProvider for PostgresDatabase {
                 client_id TEXT NOT NULL REFERENCES a2a_clients(client_id) ON DELETE CASCADE,
                 session_token TEXT REFERENCES a2a_sessions(session_token) ON DELETE SET NULL,
                 timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                tool_name TEXT NOT NULL,
+                endpoint TEXT NOT NULL,
                 response_time_ms INTEGER,
                 status_code SMALLINT NOT NULL,
-                error_message TEXT,
+                method TEXT,
                 request_size_bytes INTEGER,
                 response_size_bytes INTEGER,
                 ip_address INET,
@@ -331,7 +331,7 @@ impl DatabaseProvider for PostgresDatabase {
                 user_agent TEXT,
                 request_size_bytes INTEGER,
                 success BOOLEAN NOT NULL,
-                error_message TEXT,
+                method TEXT,
                 response_time_ms INTEGER
             )
             "#,
@@ -384,6 +384,35 @@ impl DatabaseProvider for PostgresDatabase {
         .await?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_admin_provisioned_token ON admin_provisioned_keys(admin_token_id)")
+            .execute(&self.pool)
+            .await?;
+
+        // Create jwt_usage table for JWT token tracking
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS jwt_usage (
+                id SERIAL PRIMARY KEY,
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                endpoint TEXT NOT NULL,
+                response_time_ms INTEGER,
+                status_code INTEGER NOT NULL,
+                method TEXT,
+                request_size_bytes INTEGER,
+                response_size_bytes INTEGER,
+                ip_address INET,
+                user_agent TEXT
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_jwt_usage_user_id ON jwt_usage(user_id)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_jwt_usage_timestamp ON jwt_usage(timestamp)")
             .execute(&self.pool)
             .await?;
 
@@ -855,7 +884,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn create_api_key(&self, api_key: &ApiKey) -> Result<()> {
         sqlx::query(
             r#"
-            INSERT INTO api_keys (id, user_id, name, key_prefix, key_hash, description, tier, is_active, rate_limit_requests, rate_limit_window, expires_at)
+            INSERT INTO api_keys (id, user_id, name, key_prefix, key_hash, description, tier, is_active, rate_limit_requests, rate_limit_window_seconds, expires_at)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             "#,
         )
@@ -868,7 +897,7 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(format!("{:?}", api_key.tier).to_lowercase())
         .bind(api_key.is_active)
         .bind(api_key.rate_limit_requests as i32)
-        .bind(api_key.rate_limit_window as i32)
+        .bind(api_key.rate_limit_window_seconds as i32)
         .bind(api_key.expires_at)
         .execute(&self.pool)
         .await?;
@@ -880,7 +909,7 @@ impl DatabaseProvider for PostgresDatabase {
         let row = sqlx::query(
             r#"
             SELECT id, user_id, name, key_prefix, key_hash, description, tier, is_active, rate_limit_requests, 
-                   rate_limit_window, created_at, expires_at, last_used_at, updated_at
+                   rate_limit_window_seconds, created_at, expires_at, last_used_at, updated_at
             FROM api_keys 
             WHERE id LIKE $1 AND key_hash = $2 AND is_active = true
             "#,
@@ -907,11 +936,10 @@ impl DatabaseProvider for PostgresDatabase {
                 },
                 is_active: row.get("is_active"),
                 rate_limit_requests: row.get::<i32, _>("rate_limit_requests") as u32,
-                rate_limit_window: row.get::<i32, _>("rate_limit_window") as u32,
+                rate_limit_window_seconds: row.get::<i32, _>("rate_limit_window_seconds") as u32,
                 created_at: row.get("created_at"),
                 expires_at: row.get("expires_at"),
                 last_used_at: row.get("last_used_at"),
-                updated_at: row.get("updated_at"),
             }))
         } else {
             Ok(None)
@@ -925,7 +953,7 @@ impl DatabaseProvider for PostgresDatabase {
         let rows = sqlx::query(
             r#"
             SELECT id, user_id, name, key_prefix, key_hash, description, tier, is_active, rate_limit_requests, 
-                   rate_limit_window, created_at, expires_at, last_used_at, updated_at
+                   rate_limit_window_seconds, created_at, expires_at, last_used_at, updated_at
             FROM api_keys 
             WHERE user_id = $1
             ORDER BY created_at DESC
@@ -953,11 +981,10 @@ impl DatabaseProvider for PostgresDatabase {
                 },
                 is_active: row.get("is_active"),
                 rate_limit_requests: row.get::<i32, _>("rate_limit_requests") as u32,
-                rate_limit_window: row.get::<i32, _>("rate_limit_window") as u32,
+                rate_limit_window_seconds: row.get::<i32, _>("rate_limit_window_seconds") as u32,
                 created_at: row.get("created_at"),
                 expires_at: row.get("expires_at"),
                 last_used_at: row.get("last_used_at"),
-                updated_at: row.get("updated_at"),
             })
             .collect())
     }
@@ -997,7 +1024,7 @@ impl DatabaseProvider for PostgresDatabase {
         let row = sqlx::query(
             r#"
             SELECT id, user_id, name, description, key_prefix, key_hash, tier, 
-                   rate_limit_requests, rate_limit_window, is_active, 
+                   rate_limit_requests, rate_limit_window_seconds, is_active, 
                    created_at, last_used_at, expires_at, updated_at
             FROM api_keys
             WHERE id = $1
@@ -1028,12 +1055,12 @@ impl DatabaseProvider for PostgresDatabase {
                     key_hash: row.get("key_hash"),
                     tier,
                     rate_limit_requests: row.get::<i32, _>("rate_limit_requests") as u32,
-                    rate_limit_window: row.get::<i32, _>("rate_limit_window") as u32,
+                    rate_limit_window_seconds: row.get::<i32, _>("rate_limit_window_seconds")
+                        as u32,
                     is_active: row.get("is_active"),
                     created_at: row.get("created_at"),
                     last_used_at: row.get("last_used_at"),
                     expires_at: row.get("expires_at"),
-                    updated_at: row.get("updated_at"),
                 }))
             }
             None => Ok(None),
@@ -1047,7 +1074,7 @@ impl DatabaseProvider for PostgresDatabase {
         limit: Option<i32>,
         offset: Option<i32>,
     ) -> Result<Vec<ApiKey>> {
-        let mut query = "SELECT ak.id, ak.user_id, ak.name, ak.description, ak.key_prefix, ak.key_hash, ak.tier, ak.rate_limit_requests, ak.rate_limit_window, ak.is_active, ak.created_at, ak.last_used_at, ak.expires_at, ak.updated_at FROM api_keys ak".to_string();
+        let mut query = "SELECT ak.id, ak.user_id, ak.name, ak.description, ak.key_prefix, ak.key_hash, ak.tier, ak.rate_limit_requests, ak.rate_limit_window_seconds, ak.is_active, ak.created_at, ak.last_used_at, ak.expires_at, ak.updated_at FROM api_keys ak".to_string();
 
         let mut conditions = Vec::new();
         let mut param_count = 0;
@@ -1113,12 +1140,11 @@ impl DatabaseProvider for PostgresDatabase {
                 key_hash: row.get("key_hash"),
                 tier,
                 rate_limit_requests: row.get::<i32, _>("rate_limit_requests") as u32,
-                rate_limit_window: row.get::<i32, _>("rate_limit_window") as u32,
+                rate_limit_window_seconds: row.get::<i32, _>("rate_limit_window_seconds") as u32,
                 is_active: row.get("is_active"),
                 created_at: row.get("created_at"),
                 last_used_at: row.get("last_used_at"),
                 expires_at: row.get("expires_at"),
-                updated_at: row.get("updated_at"),
             });
         }
 
@@ -1143,7 +1169,7 @@ impl DatabaseProvider for PostgresDatabase {
         let rows = sqlx::query(
             r#"
             SELECT id, user_id, name, key_prefix, key_hash, description, tier, is_active, rate_limit_requests, 
-                   rate_limit_window, created_at, expires_at, last_used_at, updated_at
+                   rate_limit_window_seconds, created_at, expires_at, last_used_at, updated_at
             FROM api_keys 
             WHERE expires_at IS NOT NULL AND expires_at < CURRENT_TIMESTAMP
             ORDER BY expires_at ASC
@@ -1170,11 +1196,10 @@ impl DatabaseProvider for PostgresDatabase {
                 },
                 is_active: row.get("is_active"),
                 rate_limit_requests: row.get::<i32, _>("rate_limit_requests") as u32,
-                rate_limit_window: row.get::<i32, _>("rate_limit_window") as u32,
+                rate_limit_window_seconds: row.get::<i32, _>("rate_limit_window_seconds") as u32,
                 created_at: row.get("created_at"),
                 expires_at: row.get("expires_at"),
                 last_used_at: row.get("last_used_at"),
-                updated_at: row.get("updated_at"),
             })
             .collect())
     }
@@ -1182,8 +1207,8 @@ impl DatabaseProvider for PostgresDatabase {
     async fn record_api_key_usage(&self, usage: &ApiKeyUsage) -> Result<()> {
         sqlx::query(
             r#"
-            INSERT INTO api_key_usage (api_key_id, timestamp, tool_name, response_time_ms, status_code, 
-                                     error_message, request_size_bytes, response_size_bytes, ip_address, user_agent)
+            INSERT INTO api_key_usage (api_key_id, timestamp, endpoint, response_time_ms, status_code, 
+                                     method, request_size_bytes, response_size_bytes, ip_address, user_agent)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             "#,
         )
@@ -1192,7 +1217,7 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(&usage.tool_name)
         .bind(usage.response_time_ms.map(|x| x as i32))
         .bind(usage.status_code as i16)
-        .bind(&usage.error_message)
+        .bind(None::<String>)
         .bind(usage.request_size_bytes.map(|x| x as i32))
         .bind(usage.response_size_bytes.map(|x| x as i32))
         .bind(&usage.ip_address)
@@ -1230,7 +1255,7 @@ impl DatabaseProvider for PostgresDatabase {
                 COUNT(*) as total_requests,
                 COUNT(CASE WHEN status_code >= 200 AND status_code < 300 THEN 1 END) as successful_requests,
                 COUNT(CASE WHEN status_code >= 400 THEN 1 END) as failed_requests,
-                AVG(response_time_ms) as avg_response_time,
+                SUM(response_time_ms) as total_response_time,
                 SUM(request_size_bytes) as total_request_size,
                 SUM(response_size_bytes) as total_response_size
             FROM api_key_usage 
@@ -1251,8 +1276,8 @@ impl DatabaseProvider for PostgresDatabase {
             successful_requests: row.get::<i64, _>("successful_requests") as u32,
             failed_requests: row.get::<i64, _>("failed_requests") as u32,
             total_response_time_ms: row
-                .get::<Option<f64>, _>("avg_response_time")
-                .unwrap_or(0.0) as u64,
+                .get::<Option<i64>, _>("total_response_time")
+                .unwrap_or(0) as u64,
             tool_usage: serde_json::json!({}), // TODO: Implement tool usage aggregation
         })
     }
@@ -1261,18 +1286,18 @@ impl DatabaseProvider for PostgresDatabase {
         sqlx::query(
             r#"
             INSERT INTO jwt_usage (
-                user_id, timestamp, tool_name, response_time_ms, status_code,
-                error_message, request_size_bytes, response_size_bytes, 
+                user_id, timestamp, endpoint, response_time_ms, status_code,
+                method, request_size_bytes, response_size_bytes, 
                 ip_address, user_agent
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             "#,
         )
         .bind(usage.user_id)
         .bind(usage.timestamp)
-        .bind(&usage.tool_name)
+        .bind(&usage.endpoint)
         .bind(usage.response_time_ms.map(|t| t as i32))
         .bind(usage.status_code as i32)
-        .bind(&usage.error_message)
+        .bind(&usage.method)
         .bind(usage.request_size_bytes.map(|s| s as i32))
         .bind(usage.response_size_bytes.map(|s| s as i32))
         .bind(&usage.ip_address)
@@ -1308,8 +1333,8 @@ impl DatabaseProvider for PostgresDatabase {
     ) -> Result<Vec<crate::dashboard_routes::RequestLog>> {
         let mut query = String::from(
             r#"
-            SELECT api_key_id, timestamp, tool_name, response_time_ms, status_code, 
-                   error_message, request_size_bytes, response_size_bytes, ip_address, user_agent
+            SELECT api_key_id, timestamp, endpoint, response_time_ms, status_code, 
+                   method, request_size_bytes, response_size_bytes, ip_address, user_agent
             FROM api_key_usage 
             WHERE 1=1
             "#,
@@ -1343,7 +1368,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         if let Some(tool) = tool_filter {
             param_count += 1;
-            query.push_str(&format!(" AND tool_name ILIKE ${}", param_count));
+            query.push_str(&format!(" AND endpoint ILIKE ${}", param_count));
             params.push(Box::new(format!("%{}%", tool)));
         }
 
@@ -1421,6 +1446,10 @@ impl DatabaseProvider for PostgresDatabase {
                 redirect_uris: row.get("redirect_uris"),
                 is_active: row.get("is_active"),
                 created_at: row.get("created_at"),
+                permissions: vec!["read_activities".to_string()], // Default permission
+                rate_limit_requests: row.get::<i32, _>("rate_limit_per_minute") as u32,
+                rate_limit_window_seconds: 60, // 1 minute in seconds
+                updated_at: row.get("updated_at"),
             }))
         } else {
             Ok(None)
@@ -1451,6 +1480,10 @@ impl DatabaseProvider for PostgresDatabase {
                 redirect_uris: row.get("redirect_uris"),
                 is_active: row.get("is_active"),
                 created_at: row.get("created_at"),
+                permissions: vec!["read_activities".to_string()], // Default permission
+                rate_limit_requests: row.get::<i32, _>("rate_limit_per_minute") as u32,
+                rate_limit_window_seconds: 60, // 1 minute in seconds
+                updated_at: row.get("updated_at"),
             }))
         } else {
             Ok(None)
@@ -1483,6 +1516,10 @@ impl DatabaseProvider for PostgresDatabase {
                 redirect_uris: row.get("redirect_uris"),
                 is_active: row.get("is_active"),
                 created_at: row.get("created_at"),
+                permissions: vec!["read_activities".to_string()], // Default permission
+                rate_limit_requests: row.get::<i32, _>("rate_limit_per_minute") as u32,
+                rate_limit_window_seconds: 60, // 1 minute in seconds
+                updated_at: row.get("updated_at"),
             });
         }
 
@@ -1596,7 +1633,7 @@ impl DatabaseProvider for PostgresDatabase {
         let row = sqlx::query(
             r#"
             SELECT task_id, client_id, session_id, task_type, input_data,
-                   status, result_data, error_message, created_at, updated_at
+                   status, result_data, method, created_at, updated_at
             FROM a2a_tasks
             WHERE task_id = $1
             "#,
@@ -1632,8 +1669,14 @@ impl DatabaseProvider for PostgresDatabase {
                 status,
                 created_at: row.try_get("created_at")?,
                 completed_at: row.try_get("updated_at")?,
-                result: result_data,
-                error: row.try_get("error_message")?,
+                result: result_data.clone(),
+                error: row.try_get("method")?,
+                client_id: "unknown".to_string(), // TODO: Get from task data
+                task_type: row.try_get("task_type")?,
+                input_data: _input_data,
+                output_data: result_data,
+                error_message: row.try_get("method")?,
+                updated_at: row.try_get("updated_at")?,
             }))
         } else {
             Ok(None)
@@ -1660,7 +1703,7 @@ impl DatabaseProvider for PostgresDatabase {
         sqlx::query(
             r#"
             UPDATE a2a_tasks 
-            SET status = $1, result_data = $2, error_message = $3, updated_at = NOW()
+            SET status = $1, result_data = $2, method = $3, updated_at = NOW()
             WHERE task_id = $4
             "#,
         )
@@ -1678,9 +1721,9 @@ impl DatabaseProvider for PostgresDatabase {
         let _ = sqlx::query(
             r#"
             INSERT INTO a2a_usage 
-            (client_id, session_token, tool_name, status_code, 
+            (client_id, session_token, endpoint, status_code, 
              response_time_ms, request_size_bytes, response_size_bytes, timestamp,
-             error_message, ip_address, user_agent, protocol_version)
+             method, ip_address, user_agent, protocol_version)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             "#,
         )
@@ -1692,7 +1735,7 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(usage.request_size_bytes.map(|x| x as i32))
         .bind(usage.response_size_bytes.map(|x| x as i32))
         .bind(usage.timestamp)
-        .bind(&usage.error_message)
+        .bind(None::<String>)
         .bind(&usage.ip_address)
         .bind(&usage.user_agent)
         .bind(&usage.protocol_version)
@@ -1753,15 +1796,14 @@ impl DatabaseProvider for PostgresDatabase {
 
         Ok(crate::database::A2AUsageStats {
             client_id: client_id.to_string(),
+            period_start: start_date,
+            period_end: end_date,
             total_requests: total_requests as u32,
             successful_requests: successful_requests as u32,
             failed_requests: failed_requests as u32,
-            total_response_time_ms: (avg_response_time.unwrap_or(0.0) * total_requests as f64)
-                as u64,
-            tool_usage: serde_json::json!({}), // TODO: Implement tool usage aggregation
-            capability_usage: serde_json::json!({}),
-            period_start: start_date,
-            period_end: end_date,
+            avg_response_time_ms: avg_response_time.map(|t| t as u32),
+            total_request_bytes: _total_request_bytes.map(|b| b as u64),
+            total_response_bytes: _total_response_bytes.map(|b| b as u64),
         })
     }
 
@@ -1809,14 +1851,14 @@ impl DatabaseProvider for PostgresDatabase {
     ) -> Result<Vec<crate::dashboard_routes::ToolUsage>> {
         let rows = sqlx::query(
             r#"
-            SELECT tool_name, COUNT(*) as usage_count,
+            SELECT endpoint, COUNT(*) as usage_count,
                    AVG(response_time_ms) as avg_response_time,
                    COUNT(CASE WHEN status_code < 400 THEN 1 END) as success_count,
                    COUNT(CASE WHEN status_code >= 400 THEN 1 END) as error_count
             FROM api_key_usage aku
             JOIN api_keys ak ON aku.api_key_id = ak.id
             WHERE ak.user_id = $1 AND aku.timestamp BETWEEN $2 AND $3
-            GROUP BY tool_name
+            GROUP BY endpoint
             ORDER BY usage_count DESC
             LIMIT 10
             "#,
@@ -1831,8 +1873,8 @@ impl DatabaseProvider for PostgresDatabase {
         for row in rows {
             use sqlx::Row;
 
-            let tool_name: String = row
-                .try_get("tool_name")
+            let endpoint: String = row
+                .try_get("endpoint")
                 .unwrap_or_else(|_| "unknown".to_string());
             let usage_count: i64 = row.try_get("usage_count").unwrap_or(0);
             let avg_response_time: Option<f64> = row.try_get("avg_response_time").ok();
@@ -1840,7 +1882,7 @@ impl DatabaseProvider for PostgresDatabase {
             let _error_count: i64 = row.try_get("error_count").unwrap_or(0);
 
             tool_usage.push(crate::dashboard_routes::ToolUsage {
-                tool_name,
+                tool_name: endpoint,
                 request_count: usage_count as u64,
                 success_rate: if usage_count > 0 {
                     (success_count as f64) / (usage_count as f64)
@@ -2061,7 +2103,7 @@ impl DatabaseProvider for PostgresDatabase {
             INSERT INTO admin_token_usage (
                 admin_token_id, timestamp, action, target_resource,
                 ip_address, user_agent, request_size_bytes, success,
-                error_message, response_time_ms
+                method, response_time_ms
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         "#;
 
@@ -2074,7 +2116,7 @@ impl DatabaseProvider for PostgresDatabase {
             .bind(&usage.user_agent)
             .bind(usage.request_size_bytes.map(|x| x as i32))
             .bind(usage.success)
-            .bind(&usage.error_message)
+            .bind(None::<String>)
             .bind(usage.response_time_ms.map(|x| x as i32))
             .execute(&self.pool)
             .await?;
@@ -2091,7 +2133,7 @@ impl DatabaseProvider for PostgresDatabase {
         let query = r#"
             SELECT id, admin_token_id, timestamp, action, target_resource,
                    ip_address, user_agent, request_size_bytes, success,
-                   error_message, response_time_ms
+                   method, response_time_ms
             FROM admin_token_usage 
             WHERE admin_token_id = $1 AND timestamp BETWEEN $2 AND $3
             ORDER BY timestamp DESC
@@ -2289,7 +2331,7 @@ impl PostgresDatabase {
                 .try_get::<Option<i32>, _>("request_size_bytes")?
                 .map(|v| v as u32),
             success: row.try_get("success")?,
-            error_message: row.try_get("error_message")?,
+            error_message: None, // Add the missing field
             response_time_ms: row
                 .try_get::<Option<i32>, _>("response_time_ms")?
                 .map(|v| v as u32),
