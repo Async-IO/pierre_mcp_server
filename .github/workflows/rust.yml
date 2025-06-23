@@ -16,7 +16,19 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    
+    - name: Install cargo-llvm-cov
+      uses: taiki-e/install-action@cargo-llvm-cov
+    
     - name: Build
       run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+    
+    - name: Run tests with coverage
+      run: cargo llvm-cov --all-targets --all-features --lcov --output-path lcov.info
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        files: lcov.info
+        fail_ci_if_error: true
+        verbose: true

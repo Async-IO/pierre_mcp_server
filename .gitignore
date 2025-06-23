@@ -61,3 +61,7 @@ server.log
 # Test artifacts
 :memory:test_*
 multitenant_test*.log
+
+# Frontend build artifacts and coverage
+frontend/coverage/
+frontend/dist/
