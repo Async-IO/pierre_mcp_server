@@ -22,10 +22,10 @@ pub struct JwtUsage {
     pub id: Option<i64>,
     pub user_id: Uuid,
     pub timestamp: DateTime<Utc>,
-    pub tool_name: String,
-    pub response_time_ms: Option<u32>,
+    pub endpoint: String,
+    pub method: String,
     pub status_code: u16,
-    pub error_message: Option<String>,
+    pub response_time_ms: Option<u32>,
     pub request_size_bytes: Option<u32>,
     pub response_size_bytes: Option<u32>,
     pub ip_address: Option<String>,
@@ -235,12 +235,11 @@ mod tests {
             description: None,
             tier: ApiKeyTier::Enterprise,
             rate_limit_requests: u32::MAX,
-            rate_limit_window: 30 * 24 * 60 * 60,
+            rate_limit_window_seconds: 30 * 24 * 60 * 60,
             is_active: true,
             last_used_at: None,
             expires_at: None,
             created_at: Utc::now(),
-            updated_at: Utc::now(),
         };
 
         let info = calculator.calculate_api_key_rate_limit(&api_key, 1_000_000);
@@ -265,12 +264,11 @@ mod tests {
             description: None,
             tier: ApiKeyTier::Starter,
             rate_limit_requests: 10_000,
-            rate_limit_window: 30 * 24 * 60 * 60,
+            rate_limit_window_seconds: 30 * 24 * 60 * 60,
             is_active: true,
             last_used_at: None,
             expires_at: None,
             created_at: Utc::now(),
-            updated_at: Utc::now(),
         };
 
         // Under limit

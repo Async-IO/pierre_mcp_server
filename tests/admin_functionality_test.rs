@@ -57,10 +57,9 @@ async fn create_test_api_key(db: &Database, user_id: Uuid) -> Result<ApiKey> {
         description: Some("Test API key".to_string()),
         tier: ApiKeyTier::Starter,
         rate_limit_requests: 100,
-        rate_limit_window: 3600,
+        rate_limit_window_seconds: 3600,
         is_active: true,
         created_at: Utc::now(),
-        updated_at: Utc::now(),
         last_used_at: None,
         expires_at: None,
     };

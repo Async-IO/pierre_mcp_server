@@ -36,6 +36,27 @@ pub struct A2AClient {
     pub redirect_uris: Vec<String>,
     pub is_active: bool,
     pub created_at: chrono::DateTime<chrono::Utc>,
+    // Additional fields for database compatibility
+    #[serde(default = "default_permissions")]
+    pub permissions: Vec<String>,
+    #[serde(default = "default_rate_limit_requests")]
+    pub rate_limit_requests: u32,
+    #[serde(default = "default_rate_limit_window")]
+    pub rate_limit_window_seconds: u32,
+    #[serde(default = "chrono::Utc::now")]
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+fn default_permissions() -> Vec<String> {
+    vec!["read_activities".to_string()]
+}
+
+fn default_rate_limit_requests() -> u32 {
+    1000
+}
+
+fn default_rate_limit_window() -> u32 {
+    3600
 }
 
 /// A2A Authenticator
@@ -473,6 +494,10 @@ mod tests {
             redirect_uris: vec![],
             is_active: true,
             created_at: chrono::Utc::now(),
+            permissions: vec!["read_activities".to_string()],
+            rate_limit_requests: 1000,
+            rate_limit_window_seconds: 3600,
+            updated_at: chrono::Utc::now(),
         };
 
         assert!(authenticator.validate_capabilities(&client, "fitness-data-analysis"));
@@ -493,6 +518,10 @@ mod tests {
             redirect_uris: vec![],
             is_active: true,
             created_at: chrono::Utc::now(),
+            permissions: vec!["read_activities".to_string()],
+            rate_limit_requests: 1000,
+            rate_limit_window_seconds: 3600,
+            updated_at: chrono::Utc::now(),
         };
 
         assert!(!authenticator.validate_capabilities(&client, "any-capability"));
@@ -516,6 +545,10 @@ mod tests {
             ],
             is_active: true,
             created_at: chrono::Utc::now(),
+            permissions: vec!["read_activities".to_string()],
+            rate_limit_requests: 1000,
+            rate_limit_window_seconds: 3600,
+            updated_at: chrono::Utc::now(),
         };
 
         // Test serialization
@@ -606,6 +639,10 @@ mod tests {
             redirect_uris: vec![],
             is_active: true,
             created_at: chrono::Utc::now(),
+            permissions: vec!["read_activities".to_string()],
+            rate_limit_requests: 1000,
+            rate_limit_window_seconds: 3600,
+            updated_at: chrono::Utc::now(),
         };
 
         // Case sensitive matching
@@ -626,6 +663,10 @@ mod tests {
             redirect_uris: vec![],
             is_active: true,
             created_at: chrono::Utc::now(),
+            permissions: vec!["read_activities".to_string()],
+            rate_limit_requests: 1000,
+            rate_limit_window_seconds: 3600,
+            updated_at: chrono::Utc::now(),
         };
 
         // Active client should validate capabilities

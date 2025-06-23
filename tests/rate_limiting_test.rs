@@ -60,12 +60,11 @@ async fn test_starter_tier_rate_limiting() {
         description: None,
         tier: ApiKeyTier::Starter,
         rate_limit_requests: 5, // Very low limit for testing
-        rate_limit_window: 30 * 24 * 60 * 60,
+        rate_limit_window_seconds: 30 * 24 * 60 * 60,
         is_active: true,
         last_used_at: None,
         expires_at: None,
         created_at: Utc::now(),
-        updated_at: Utc::now(),
     };
 
     database.create_api_key(&api_key).await.unwrap();
@@ -124,12 +123,11 @@ async fn test_professional_tier_rate_limiting() {
         description: None,
         tier: ApiKeyTier::Professional,
         rate_limit_requests: 100_000,
-        rate_limit_window: 30 * 24 * 60 * 60,
+        rate_limit_window_seconds: 30 * 24 * 60 * 60,
         is_active: true,
         last_used_at: None,
         expires_at: None,
         created_at: Utc::now(),
-        updated_at: Utc::now(),
     };
 
     database.create_api_key(&api_key).await.unwrap();
@@ -191,12 +189,11 @@ async fn test_enterprise_tier_unlimited() {
         description: None,
         tier: ApiKeyTier::Enterprise,
         rate_limit_requests: u32::MAX,
-        rate_limit_window: 30 * 24 * 60 * 60,
+        rate_limit_window_seconds: 30 * 24 * 60 * 60,
         is_active: true,
         last_used_at: None,
         expires_at: None,
         created_at: Utc::now(),
-        updated_at: Utc::now(),
     };
 
     database.create_api_key(&api_key).await.unwrap();
@@ -268,12 +265,11 @@ async fn test_rate_limit_reset_timing() {
         description: None,
         tier: ApiKeyTier::Starter,
         rate_limit_requests: 10_000,
-        rate_limit_window: 30 * 24 * 60 * 60,
+        rate_limit_window_seconds: 30 * 24 * 60 * 60,
         is_active: true,
         last_used_at: None,
         expires_at: None,
         created_at: Utc::now(),
-        updated_at: Utc::now(),
     };
 
     database.create_api_key(&api_key).await.unwrap();
@@ -337,12 +333,11 @@ async fn test_monthly_usage_calculation() {
         description: None,
         tier: ApiKeyTier::Professional,
         rate_limit_requests: 100_000,
-        rate_limit_window: 30 * 24 * 60 * 60,
+        rate_limit_window_seconds: 30 * 24 * 60 * 60,
         is_active: true,
         last_used_at: None,
         expires_at: None,
         created_at: Utc::now(),
-        updated_at: Utc::now(),
     };
 
     database.create_api_key(&api_key).await.unwrap();
@@ -415,12 +410,11 @@ async fn test_rate_limit_edge_cases() {
         description: None,
         tier: ApiKeyTier::Starter,
         rate_limit_requests: 10,
-        rate_limit_window: 30 * 24 * 60 * 60,
+        rate_limit_window_seconds: 30 * 24 * 60 * 60,
         is_active: true,
         last_used_at: None,
         expires_at: None,
         created_at: Utc::now(),
-        updated_at: Utc::now(),
     };
 
     database.create_api_key(&api_key).await.unwrap();
@@ -477,12 +471,11 @@ async fn test_rate_limit_with_mixed_status_codes() {
         description: None,
         tier: ApiKeyTier::Professional,
         rate_limit_requests: 100_000,
-        rate_limit_window: 30 * 24 * 60 * 60,
+        rate_limit_window_seconds: 30 * 24 * 60 * 60,
         is_active: true,
         last_used_at: None,
         expires_at: None,
         created_at: Utc::now(),
-        updated_at: Utc::now(),
     };
 
     database.create_api_key(&api_key).await.unwrap();

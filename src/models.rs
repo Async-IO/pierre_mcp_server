@@ -59,6 +59,28 @@ impl UserTier {
             UserTier::Enterprise => "Enterprise",
         }
     }
+
+    /// Convert to string for database storage
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            UserTier::Starter => "starter",
+            UserTier::Professional => "professional",
+            UserTier::Enterprise => "enterprise",
+        }
+    }
+}
+
+impl std::str::FromStr for UserTier {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "starter" => Ok(UserTier::Starter),
+            "professional" => Ok(UserTier::Professional),
+            "enterprise" => Ok(UserTier::Enterprise),
+            _ => Err(anyhow::anyhow!("Invalid user tier: {}", s)),
+        }
+    }
 }
 
 /// Represents a single fitness activity from any provider

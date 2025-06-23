@@ -53,6 +53,30 @@ impl ApiKeyTier {
     pub fn is_trial(&self) -> bool {
         matches!(self, ApiKeyTier::Trial)
     }
+
+    /// Get string representation for database storage
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ApiKeyTier::Trial => "trial",
+            ApiKeyTier::Starter => "starter",
+            ApiKeyTier::Professional => "professional",
+            ApiKeyTier::Enterprise => "enterprise",
+        }
+    }
+}
+
+impl std::str::FromStr for ApiKeyTier {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "trial" => Ok(ApiKeyTier::Trial),
+            "starter" => Ok(ApiKeyTier::Starter),
+            "professional" => Ok(ApiKeyTier::Professional),
+            "enterprise" => Ok(ApiKeyTier::Enterprise),
+            _ => Err(anyhow::anyhow!("Invalid API key tier: {}", s)),
+        }
+    }
 }
 
 /// API Key model
@@ -66,12 +90,11 @@ pub struct ApiKey {
     pub description: Option<String>,
     pub tier: ApiKeyTier,
     pub rate_limit_requests: u32,
-    pub rate_limit_window: u32,
+    pub rate_limit_window_seconds: u32,
     pub is_active: bool,
     pub last_used_at: Option<DateTime<Utc>>,
     pub expires_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
 }
 
 /// API Key creation request with rate limit
@@ -276,12 +299,11 @@ impl ApiKeyManager {
             description: request.description,
             tier,
             rate_limit_requests,
-            rate_limit_window,
+            rate_limit_window_seconds: rate_limit_window,
             is_active: true,
             last_used_at: None,
             expires_at,
             created_at: Utc::now(),
-            updated_at: Utc::now(),
         };
 
         Ok((api_key, full_key))
@@ -329,12 +351,11 @@ impl ApiKeyManager {
             description: request.description,
             tier: request.tier,
             rate_limit_requests,
-            rate_limit_window,
+            rate_limit_window_seconds: rate_limit_window,
             is_active: true,
             last_used_at: None,
             expires_at,
             created_at: Utc::now(),
-            updated_at: Utc::now(),
         };
 
         Ok((api_key, full_key))
@@ -500,12 +521,11 @@ mod tests {
             description: None,
             tier: ApiKeyTier::Starter,
             rate_limit_requests: 10_000,
-            rate_limit_window: 30 * 24 * 60 * 60,
+            rate_limit_window_seconds: 30 * 24 * 60 * 60,
             is_active: true,
             last_used_at: None,
             expires_at: None,
             created_at: Utc::now(),
-            updated_at: Utc::now(),
         };
 
         let status = manager.calculate_rate_limit_status(&api_key, 5000);
@@ -530,12 +550,11 @@ mod tests {
             description: None,
             tier: ApiKeyTier::Enterprise,
             rate_limit_requests: u32::MAX,
-            rate_limit_window: 30 * 24 * 60 * 60,
+            rate_limit_window_seconds: 30 * 24 * 60 * 60,
             is_active: true,
             last_used_at: None,
             expires_at: None,
             created_at: Utc::now(),
-            updated_at: Utc::now(),
         };
 
         // Enterprise tier should never be rate limited
@@ -565,12 +584,11 @@ mod tests {
             description: None,
             tier: ApiKeyTier::Professional,
             rate_limit_requests: 100_000,
-            rate_limit_window: 30 * 24 * 60 * 60,
+            rate_limit_window_seconds: 30 * 24 * 60 * 60,
             is_active: true,
             last_used_at: None,
             expires_at: None,
             created_at: Utc::now(),
-            updated_at: Utc::now(),
         };
 
         // Under limit
@@ -606,12 +624,11 @@ mod tests {
             description: None,
             tier: ApiKeyTier::Starter,
             rate_limit_requests: 10_000,
-            rate_limit_window: 30 * 24 * 60 * 60,
+            rate_limit_window_seconds: 30 * 24 * 60 * 60,
             is_active: true,
             last_used_at: None,
             expires_at: None,
             created_at: Utc::now(),
-            updated_at: Utc::now(),
         };
 
         let status = manager.calculate_rate_limit_status(&api_key, 5000);
@@ -767,12 +784,11 @@ mod tests {
             description: None,
             tier: ApiKeyTier::Starter,
             rate_limit_requests: 10_000,
-            rate_limit_window: 30 * 24 * 60 * 60,
+            rate_limit_window_seconds: 30 * 24 * 60 * 60,
             is_active: true,
             last_used_at: None,
             expires_at: None,
             created_at: Utc::now(),
-            updated_at: Utc::now(),
         };
 
         assert!(manager.is_key_valid(&active_key).is_ok());

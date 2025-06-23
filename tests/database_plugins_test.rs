@@ -6,7 +6,10 @@ use uuid::Uuid;
 
 async fn create_test_database() -> Database {
     let encryption_key = (0..32).collect::<Vec<u8>>();
-    Database::new("sqlite::memory:", encryption_key)
+    // Use a unique database file path for each test to ensure isolation
+    let unique_id = uuid::Uuid::new_v4();
+    let database_url = format!("sqlite:/tmp/test_{}.db", unique_id);
+    Database::new(&database_url, encryption_key)
         .await
         .expect("Failed to create test database")
 }

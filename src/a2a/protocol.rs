@@ -80,6 +80,15 @@ pub struct A2ATask {
     pub result: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    // Additional fields for database compatibility
+    pub client_id: String,
+    pub task_type: String,
+    pub input_data: Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_data: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
 /// Task status enumeration
@@ -91,6 +100,18 @@ pub enum TaskStatus {
     Completed,
     Failed,
     Cancelled,
+}
+
+impl std::fmt::Display for TaskStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TaskStatus::Pending => write!(f, "pending"),
+            TaskStatus::Running => write!(f, "running"),
+            TaskStatus::Completed => write!(f, "completed"),
+            TaskStatus::Failed => write!(f, "failed"),
+            TaskStatus::Cancelled => write!(f, "cancelled"),
+        }
+    }
 }
 
 /// A2A Protocol Server implementation
@@ -225,6 +246,12 @@ impl A2AServer {
             completed_at: None,
             result: None,
             error: None,
+            client_id: "unknown".to_string(), // TODO: Extract from request
+            task_type: "generic".to_string(), // TODO: Extract from request
+            input_data: request.params.unwrap_or(serde_json::Value::Null),
+            output_data: None,
+            error_message: None,
+            updated_at: chrono::Utc::now(),
         };
 
         A2AResponse {
@@ -1045,6 +1072,12 @@ mod tests {
             completed_at: None,
             result: Some(serde_json::json!({"progress": 50})),
             error: None,
+            client_id: "test_client".to_string(),
+            task_type: "analysis".to_string(),
+            input_data: serde_json::json!({"test": "data"}),
+            output_data: Some(serde_json::json!({"progress": 50})),
+            error_message: None,
+            updated_at: chrono::Utc::now(),
         };
 
         let json = serde_json::to_string(&task).unwrap();

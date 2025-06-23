@@ -74,9 +74,13 @@ impl DatabaseProvider for SqliteDatabase {
         expires_at: DateTime<Utc>,
         scope: String,
     ) -> Result<()> {
-        self.inner
-            .update_strava_token(user_id, access_token, refresh_token, expires_at, scope)
-            .await
+        let token = DecryptedToken {
+            access_token: access_token.to_string(),
+            refresh_token: refresh_token.to_string(),
+            expires_at,
+            scope,
+        };
+        self.inner.update_strava_token(user_id, &token).await
     }
 
     async fn get_strava_token(&self, user_id: Uuid) -> Result<Option<DecryptedToken>> {
@@ -91,9 +95,13 @@ impl DatabaseProvider for SqliteDatabase {
         expires_at: DateTime<Utc>,
         scope: String,
     ) -> Result<()> {
-        self.inner
-            .update_fitbit_token(user_id, access_token, refresh_token, expires_at, scope)
-            .await
+        let token = DecryptedToken {
+            access_token: access_token.to_string(),
+            refresh_token: refresh_token.to_string(),
+            expires_at,
+            scope,
+        };
+        self.inner.update_fitbit_token(user_id, &token).await
     }
 
     async fn get_fitbit_token(&self, user_id: Uuid) -> Result<Option<DecryptedToken>> {
@@ -131,7 +139,9 @@ impl DatabaseProvider for SqliteDatabase {
     }
 
     async fn store_insight(&self, user_id: Uuid, insight_data: Value) -> Result<String> {
-        self.inner.store_insight(user_id, insight_data).await
+        self.inner
+            .store_insight(user_id, None, "general", insight_data)
+            .await
     }
 
     async fn get_user_insights(
@@ -142,7 +152,7 @@ impl DatabaseProvider for SqliteDatabase {
     ) -> Result<Vec<Value>> {
         let insights = self
             .inner
-            .get_user_insights(user_id, limit.map(|l| l as i32))
+            .get_user_insights(user_id, limit.unwrap_or(10) as i32)
             .await?;
 
         // Filter by insight_type if specified
@@ -182,13 +192,19 @@ impl DatabaseProvider for SqliteDatabase {
 
     async fn get_api_keys_filtered(
         &self,
-        user_email: Option<&str>,
+        _user_email: Option<&str>,
         active_only: bool,
         limit: Option<i32>,
         offset: Option<i32>,
     ) -> Result<Vec<ApiKey>> {
         self.inner
-            .get_api_keys_filtered(user_email, active_only, limit, offset)
+            .get_api_keys_filtered(
+                None,
+                None,
+                Some(active_only),
+                limit.unwrap_or(10),
+                offset.unwrap_or(0),
+            )
             .await
     }
 
@@ -229,15 +245,33 @@ impl DatabaseProvider for SqliteDatabase {
 
     async fn get_request_logs(
         &self,
-        api_key_id: Option<&str>,
+        _api_key_id: Option<&str>,
         start_time: Option<DateTime<Utc>>,
         end_time: Option<DateTime<Utc>>,
-        status_filter: Option<&str>,
-        tool_filter: Option<&str>,
+        _status_filter: Option<&str>,
+        _tool_filter: Option<&str>,
     ) -> Result<Vec<crate::dashboard_routes::RequestLog>> {
-        self.inner
-            .get_request_logs(api_key_id, start_time, end_time, status_filter, tool_filter)
-            .await
+        let analytics_logs = self
+            .inner
+            .get_request_logs(None, start_time, end_time, 10, 0)
+            .await?;
+
+        // Convert analytics::RequestLog to dashboard_routes::RequestLog
+        Ok(analytics_logs
+            .into_iter()
+            .map(|log| crate::dashboard_routes::RequestLog {
+                id: log.id.to_string(),
+                timestamp: log.timestamp,
+                api_key_id: log.api_key_id.unwrap_or_default(),
+                api_key_name: "Unknown".to_string(),
+                tool_name: "Unknown".to_string(),
+                status_code: log.status_code,
+                response_time_ms: log.response_time_ms,
+                error_message: log.error_message,
+                request_size_bytes: None,
+                response_size_bytes: None,
+            })
+            .collect())
     }
 
     async fn get_system_stats(&self) -> Result<(u64, u64)> {
@@ -332,40 +366,10 @@ impl DatabaseProvider for SqliteDatabase {
         client_id: &str,
         days: u32,
     ) -> Result<Vec<(DateTime<Utc>, u32, u32)>> {
-        // Get usage data from the underlying database
-        let usage_data = self
-            .inner
-            .get_a2a_client_usage_history(client_id, Some(days as i32))
-            .await?;
-
-        // Transform A2AUsage into aggregated format (timestamp, success_count, error_count)
-        let mut aggregated = std::collections::HashMap::new();
-
-        for usage in usage_data {
-            // Truncate timestamp to day for aggregation
-            let day = usage
-                .timestamp
-                .date_naive()
-                .and_hms_opt(0, 0, 0)
-                .map(|d| d.and_utc())
-                .unwrap_or(usage.timestamp);
-
-            let entry = aggregated.entry(day).or_insert((0u32, 0u32));
-            if usage.status_code < 400 {
-                entry.0 += 1; // success count
-            } else {
-                entry.1 += 1; // error count
-            }
-        }
-
-        // Convert to vector and sort by timestamp
-        let mut result: Vec<(DateTime<Utc>, u32, u32)> = aggregated
-            .into_iter()
-            .map(|(timestamp, (success, error))| (timestamp, success, error))
-            .collect();
-        result.sort_by_key(|&(timestamp, _, _)| timestamp);
-
-        Ok(result)
+        // The new database method already returns aggregated data
+        self.inner
+            .get_a2a_client_usage_history(client_id, days)
+            .await
     }
 
     async fn get_top_tools_analysis(
