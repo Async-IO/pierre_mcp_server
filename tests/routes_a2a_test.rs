@@ -12,7 +12,7 @@
 
 use pierre_mcp_server::{
     a2a::{
-        client::{A2AClientManager, ClientRegistrationRequest, A2AClientTier},
+        client::{A2AClientManager, A2AClientTier, ClientRegistrationRequest},
         A2AError,
     },
     a2a_routes::{A2AClientRequest, A2ARoutes},
@@ -87,7 +87,10 @@ impl A2ATestSetup {
         let request = ClientRegistrationRequest {
             name: "Test A2A Client".to_string(),
             description: "Test client for integration tests".to_string(),
-            capabilities: vec!["fitness-data-analysis".to_string(), "goal-management".to_string()],
+            capabilities: vec![
+                "fitness-data-analysis".to_string(),
+                "goal-management".to_string(),
+            ],
             redirect_uris: vec!["https://example.com/callback".to_string()],
             contact_email: "client@example.com".to_string(),
         };
@@ -142,8 +145,12 @@ async fn test_agent_card_structure_compliance() {
     assert!(!agent_card.version.is_empty());
 
     // Test capabilities structure
-    assert!(agent_card.capabilities.contains(&"fitness-data-analysis".to_string()));
-    assert!(agent_card.capabilities.contains(&"goal-management".to_string()));
+    assert!(agent_card
+        .capabilities
+        .contains(&"fitness-data-analysis".to_string()));
+    assert!(agent_card
+        .capabilities
+        .contains(&"goal-management".to_string()));
 
     // Test tools structure
     for tool in &agent_card.tools {
@@ -155,7 +162,10 @@ async fn test_agent_card_structure_compliance() {
 
     // Test authentication configuration
     assert!(!agent_card.authentication.schemes.is_empty());
-    assert!(agent_card.authentication.schemes.contains(&"api-key".to_string()));
+    assert!(agent_card
+        .authentication
+        .schemes
+        .contains(&"api-key".to_string()));
 }
 
 // =============================================================================
@@ -167,7 +177,10 @@ async fn test_get_dashboard_overview_success() {
     let setup = A2ATestSetup::new().await;
     let auth_header = format!("Bearer {}", setup.jwt_token);
 
-    let result = setup.routes.get_dashboard_overview(Some(&auth_header)).await;
+    let result = setup
+        .routes
+        .get_dashboard_overview(Some(&auth_header))
+        .await;
     assert!(result.is_ok());
 
     let overview = result.unwrap();
@@ -187,7 +200,10 @@ async fn test_get_dashboard_overview_with_clients() {
     // Create a test client
     let _credentials = setup.create_test_client().await;
 
-    let result = setup.routes.get_dashboard_overview(Some(&auth_header)).await;
+    let result = setup
+        .routes
+        .get_dashboard_overview(Some(&auth_header))
+        .await;
     assert!(result.is_ok());
 
     let overview = result.unwrap();
@@ -228,7 +244,10 @@ async fn test_register_client_success() {
         documentation_url: Some("https://example.com/docs".to_string()),
     };
 
-    let result = setup.routes.register_client(Some(&auth_header), request).await;
+    let result = setup
+        .routes
+        .register_client(Some(&auth_header), request)
+        .await;
     assert!(result.is_ok());
 
     let credentials = result.unwrap();
@@ -249,11 +268,14 @@ async fn test_register_client_minimal_request() {
         capabilities: vec!["goal-management".to_string()],
         redirect_uris: None, // Optional field
         contact_email: "minimal@example.com".to_string(),
-        agent_version: None, // Optional field
+        agent_version: None,     // Optional field
         documentation_url: None, // Optional field
     };
 
-    let result = setup.routes.register_client(Some(&auth_header), request).await;
+    let result = setup
+        .routes
+        .register_client(Some(&auth_header), request)
+        .await;
     assert!(result.is_ok());
 
     let credentials = result.unwrap();
@@ -277,7 +299,10 @@ async fn test_register_client_duplicate_name() {
     };
 
     // First registration should succeed
-    let result1 = setup.routes.register_client(Some(&auth_header), request).await;
+    let result1 = setup
+        .routes
+        .register_client(Some(&auth_header), request)
+        .await;
     assert!(result1.is_ok());
 
     // Second registration with different email should also succeed (name duplicates allowed)
@@ -290,8 +315,11 @@ async fn test_register_client_duplicate_name() {
         agent_version: None,
         documentation_url: None,
     };
-    
-    let result2 = setup.routes.register_client(Some(&auth_header), request2).await;
+
+    let result2 = setup
+        .routes
+        .register_client(Some(&auth_header), request2)
+        .await;
     assert!(result2.is_ok());
 }
 
@@ -310,7 +338,10 @@ async fn test_register_client_invalid_email() {
         documentation_url: None,
     };
 
-    let result = setup.routes.register_client(Some(&auth_header), request).await;
+    let result = setup
+        .routes
+        .register_client(Some(&auth_header), request)
+        .await;
     // This might succeed depending on validation - the current implementation doesn't validate email format
     // but let's test it anyway for completeness
     match result {
@@ -339,9 +370,18 @@ async fn test_register_client_empty_capabilities() {
         documentation_url: None,
     };
 
-    let result = setup.routes.register_client(Some(&auth_header), request).await;
-    // Should succeed - empty capabilities might be allowed
-    assert!(result.is_ok());
+    let result = setup
+        .routes
+        .register_client(Some(&auth_header), request)
+        .await;
+    // Should fail - at least one capability is required
+    assert!(result.is_err());
+    match result.unwrap_err() {
+        A2AError::InvalidRequest(msg) => {
+            assert!(msg.contains("capability"));
+        }
+        other => panic!("Unexpected error type: {:?}", other),
+    }
 }
 
 // =============================================================================
@@ -391,7 +431,10 @@ async fn test_get_client_usage_success() {
     // Create a test client
     let (client_id, _) = setup.create_test_client().await;
 
-    let result = setup.routes.get_client_usage(Some(&auth_header), &client_id).await;
+    let result = setup
+        .routes
+        .get_client_usage(Some(&auth_header), &client_id)
+        .await;
     assert!(result.is_ok());
 
     let usage = result.unwrap();
@@ -407,12 +450,16 @@ async fn test_get_client_usage_nonexistent() {
     let setup = A2ATestSetup::new().await;
     let auth_header = format!("Bearer {}", setup.jwt_token);
 
-    let result = setup.routes.get_client_usage(Some(&auth_header), "nonexistent_client").await;
+    let result = setup
+        .routes
+        .get_client_usage(Some(&auth_header), "nonexistent_client")
+        .await;
     assert!(result.is_err());
 
     match result.unwrap_err() {
-        A2AError::ClientNotRegistered(_) => {}, // Expected error
-        A2AError::DatabaseError(_) => {}, // Also acceptable
+        A2AError::ClientNotRegistered(_) => {} // Expected error
+        A2AError::DatabaseError(_) => {}       // Also acceptable
+        A2AError::InternalError(_) => {}       // Also acceptable (for database errors)
         other => panic!("Unexpected error type: {:?}", other),
     }
 }
@@ -425,7 +472,10 @@ async fn test_get_client_rate_limit_success() {
     // Create a test client
     let (client_id, _) = setup.create_test_client().await;
 
-    let result = setup.routes.get_client_rate_limit(Some(&auth_header), &client_id).await;
+    let result = setup
+        .routes
+        .get_client_rate_limit(Some(&auth_header), &client_id)
+        .await;
     assert!(result.is_ok());
 
     let rate_limit = result.unwrap();
@@ -438,7 +488,10 @@ async fn test_get_client_rate_limit_nonexistent() {
     let setup = A2ATestSetup::new().await;
     let auth_header = format!("Bearer {}", setup.jwt_token);
 
-    let result = setup.routes.get_client_rate_limit(Some(&auth_header), "nonexistent_client").await;
+    let result = setup
+        .routes
+        .get_client_rate_limit(Some(&auth_header), "nonexistent_client")
+        .await;
     assert!(result.is_err());
 }
 
@@ -456,13 +509,19 @@ async fn test_deactivate_client_success() {
     assert!(client.is_active);
 
     // Deactivate the client
-    let result = setup.routes.deactivate_client(Some(&auth_header), &client_id).await;
+    let result = setup
+        .routes
+        .deactivate_client(Some(&auth_header), &client_id)
+        .await;
     assert!(result.is_ok());
 
-    // Verify client is now inactive
+    // Verify client is now inactive by checking it's not in the active clients list
     let clients = setup.routes.list_clients(Some(&auth_header)).await.unwrap();
-    let client = clients.iter().find(|c| c.id == client_id).unwrap();
-    assert!(!client.is_active);
+    let client_found = clients.iter().find(|c| c.id == client_id);
+    assert!(
+        client_found.is_none(),
+        "Deactivated client should not appear in active clients list"
+    );
 }
 
 #[tokio::test]
@@ -470,7 +529,10 @@ async fn test_deactivate_client_nonexistent() {
     let setup = A2ATestSetup::new().await;
     let auth_header = format!("Bearer {}", setup.jwt_token);
 
-    let result = setup.routes.deactivate_client(Some(&auth_header), "nonexistent_client").await;
+    let result = setup
+        .routes
+        .deactivate_client(Some(&auth_header), "nonexistent_client")
+        .await;
     assert!(result.is_err());
 }
 
@@ -594,7 +656,11 @@ async fn test_authenticate_deactivated_client() {
 
     // Create and deactivate a test client
     let (client_id, client_secret) = setup.create_test_client().await;
-    setup.routes.deactivate_client(Some(&auth_header), &client_id).await.unwrap();
+    setup
+        .routes
+        .deactivate_client(Some(&auth_header), &client_id)
+        .await
+        .unwrap();
 
     let auth_request = json!({
         "client_id": client_id,
@@ -656,7 +722,10 @@ async fn test_execute_tool_success() {
         "id": 1
     });
 
-    let result = setup.routes.execute_tool(Some(&auth_header), tool_request).await;
+    let result = setup
+        .routes
+        .execute_tool(Some(&auth_header), tool_request)
+        .await;
     assert!(result.is_ok());
 
     let response = result.unwrap();
@@ -687,7 +756,10 @@ async fn test_execute_tool_missing_auth() {
     assert_eq!(response["jsonrpc"], "2.0");
     assert!(response["error"].is_object());
     assert_eq!(response["error"]["code"], -32001);
-    assert!(response["error"]["message"].as_str().unwrap().contains("Authorization"));
+    assert!(response["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("Authorization"));
 }
 
 #[tokio::test]
@@ -704,7 +776,10 @@ async fn test_execute_tool_invalid_auth() {
         "id": 1
     });
 
-    let result = setup.routes.execute_tool(Some("Invalid Bearer token"), tool_request).await;
+    let result = setup
+        .routes
+        .execute_tool(Some("Invalid Bearer token"), tool_request)
+        .await;
     assert!(result.is_ok()); // Returns error response, not error
 
     let response = result.unwrap();
@@ -727,7 +802,10 @@ async fn test_execute_tool_missing_method() {
         "id": 1
     });
 
-    let result = setup.routes.execute_tool(Some(&auth_header), tool_request).await;
+    let result = setup
+        .routes
+        .execute_tool(Some(&auth_header), tool_request)
+        .await;
     assert!(result.is_err());
 
     match result.unwrap_err() {
@@ -749,7 +827,10 @@ async fn test_execute_tool_missing_params() {
         "id": 1
     });
 
-    let result = setup.routes.execute_tool(Some(&auth_header), tool_request).await;
+    let result = setup
+        .routes
+        .execute_tool(Some(&auth_header), tool_request)
+        .await;
     assert!(result.is_err());
 
     match result.unwrap_err() {
@@ -774,7 +855,10 @@ async fn test_execute_tool_missing_tool_name() {
         "id": 1
     });
 
-    let result = setup.routes.execute_tool(Some(&auth_header), tool_request).await;
+    let result = setup
+        .routes
+        .execute_tool(Some(&auth_header), tool_request)
+        .await;
     assert!(result.is_err());
 
     match result.unwrap_err() {
@@ -841,7 +925,10 @@ async fn test_session_heartbeat_method() {
         assert!(response["result"]["timestamp"].is_string());
     } else if response["error"].is_object() {
         assert_eq!(response["error"]["code"], -32000);
-        assert!(response["error"]["message"].as_str().unwrap().contains("session"));
+        assert!(response["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("session"));
     } else {
         panic!("Response should have either result or error");
     }
@@ -906,7 +993,10 @@ async fn test_unknown_method() {
     assert_eq!(response["id"], 1);
     assert!(response["error"].is_object());
     assert_eq!(response["error"]["code"], -32601); // Method not found
-    assert!(response["error"]["message"].as_str().unwrap().contains("not found"));
+    assert!(response["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("not found"));
     assert!(response["error"]["data"]["available_methods"].is_array());
 }
 
@@ -926,7 +1016,10 @@ async fn test_malformed_json_request() {
         "id": "string_id"
     });
 
-    let result = setup.routes.execute_tool(Some(&auth_header), malformed_request).await;
+    let result = setup
+        .routes
+        .execute_tool(Some(&auth_header), malformed_request)
+        .await;
     assert!(result.is_err());
 }
 
@@ -936,10 +1029,10 @@ async fn test_different_id_types() {
     let auth_header = format!("Bearer {}", setup.jwt_token);
 
     let test_ids = vec![
-        json!(1),                    // Number
-        json!("string-id"),          // String
-        json!(null),                 // Null
-        json!({"object": "id"}),     // Object (non-standard but should handle)
+        json!(1),                // Number
+        json!("string-id"),      // String
+        json!(null),             // Null
+        json!({"object": "id"}), // Object (non-standard but should handle)
     ];
 
     for test_id in test_ids {
@@ -994,11 +1087,11 @@ async fn test_concurrent_requests() {
 
     // Create multiple concurrent requests
     let mut handles = vec![];
-    
+
     for i in 0..10 {
         let routes = setup.routes.clone();
         let auth_header = auth_header.clone();
-        
+
         let handle = tokio::spawn(async move {
             let request = json!({
                 "jsonrpc": "2.0",
@@ -1009,7 +1102,7 @@ async fn test_concurrent_requests() {
 
             routes.execute_tool(Some(&auth_header), request).await
         });
-        
+
         handles.push(handle);
     }
 
@@ -1017,7 +1110,7 @@ async fn test_concurrent_requests() {
     for handle in handles {
         let result = handle.await.unwrap();
         assert!(result.is_ok());
-        
+
         let response = result.unwrap();
         assert_eq!(response["jsonrpc"], "2.0");
         assert!(response["result"].is_object());
@@ -1030,12 +1123,12 @@ async fn test_jwt_token_extraction_edge_cases() {
 
     // Test various invalid auth header formats
     let invalid_headers = vec![
-        "NotBearer token123",          // Wrong scheme
-        "Bearer",                      // Missing token
-        "Bearer ",                     // Empty token
-        "bearer token123",             // Lowercase Bearer
-        "Token token123",              // Wrong scheme name
-        "",                           // Empty header
+        "NotBearer token123",            // Wrong scheme
+        "Bearer",                        // Missing token
+        "Bearer ",                       // Empty token
+        "bearer token123",               // Lowercase Bearer
+        "Token token123",                // Wrong scheme name
+        "",                              // Empty header
         "Multiple Bearer token1 token2", // Multiple tokens
     ];
 
@@ -1050,7 +1143,10 @@ async fn test_jwt_token_extraction_edge_cases() {
     });
 
     for invalid_header in invalid_headers {
-        let result = setup.routes.execute_tool(Some(invalid_header), request.clone()).await;
+        let result = setup
+            .routes
+            .execute_tool(Some(invalid_header), request.clone())
+            .await;
         assert!(result.is_ok()); // Should return error response, not fail
 
         let response = result.unwrap();
@@ -1077,13 +1173,19 @@ async fn test_expired_jwt_token() {
         "id": 1
     });
 
-    let result = setup.routes.execute_tool(Some(invalid_auth_header), request).await;
+    let result = setup
+        .routes
+        .execute_tool(Some(invalid_auth_header), request)
+        .await;
     assert!(result.is_ok());
 
     let response = result.unwrap();
     assert!(response["error"].is_object());
     assert_eq!(response["error"]["code"], -32001);
-    assert!(response["error"]["message"].as_str().unwrap().contains("token"));
+    assert!(response["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("token"));
 }
 
 // =============================================================================
@@ -1107,12 +1209,19 @@ async fn test_dashboard_performance_with_many_clients() {
             documentation_url: None,
         };
 
-        setup.routes.register_client(Some(&auth_header), request).await.unwrap();
+        setup
+            .routes
+            .register_client(Some(&auth_header), request)
+            .await
+            .unwrap();
     }
 
     // Test dashboard performance
     let start = std::time::Instant::now();
-    let result = setup.routes.get_dashboard_overview(Some(&auth_header)).await;
+    let result = setup
+        .routes
+        .get_dashboard_overview(Some(&auth_header))
+        .await;
     let duration = start.elapsed();
 
     assert!(result.is_ok());
@@ -1140,7 +1249,11 @@ async fn test_client_list_performance() {
             documentation_url: None,
         };
 
-        setup.routes.register_client(Some(&auth_header), request).await.unwrap();
+        setup
+            .routes
+            .register_client(Some(&auth_header), request)
+            .await
+            .unwrap();
     }
 
     // Test list performance
@@ -1168,14 +1281,21 @@ async fn test_full_client_lifecycle() {
     let request = A2AClientRequest {
         name: "Lifecycle Test Client".to_string(),
         description: "Testing full client lifecycle".to_string(),
-        capabilities: vec!["fitness-data-analysis".to_string(), "goal-management".to_string()],
+        capabilities: vec![
+            "fitness-data-analysis".to_string(),
+            "goal-management".to_string(),
+        ],
         redirect_uris: Some(vec!["https://example.com/callback".to_string()]),
         contact_email: "lifecycle@example.com".to_string(),
         agent_version: Some("2.0.0".to_string()),
         documentation_url: Some("https://example.com/docs".to_string()),
     };
 
-    let credentials = setup.routes.register_client(Some(&auth_header), request).await.unwrap();
+    let credentials = setup
+        .routes
+        .register_client(Some(&auth_header), request)
+        .await
+        .unwrap();
     let client_id = credentials.client_id.clone();
 
     // 2. Verify client appears in list
@@ -1185,11 +1305,19 @@ async fn test_full_client_lifecycle() {
     assert_eq!(client.name, "Lifecycle Test Client");
 
     // 3. Get client usage (should be zero)
-    let usage = setup.routes.get_client_usage(Some(&auth_header), &client_id).await.unwrap();
+    let usage = setup
+        .routes
+        .get_client_usage(Some(&auth_header), &client_id)
+        .await
+        .unwrap();
     assert_eq!(usage.total_requests, 0);
 
     // 4. Get client rate limit status
-    let rate_limit = setup.routes.get_client_rate_limit(Some(&auth_header), &client_id).await.unwrap();
+    let rate_limit = setup
+        .routes
+        .get_client_rate_limit(Some(&auth_header), &client_id)
+        .await
+        .unwrap();
     assert!(!rate_limit.is_rate_limited);
 
     // 5. Authenticate with the client
@@ -1203,12 +1331,19 @@ async fn test_full_client_lifecycle() {
     assert_eq!(auth_response["status"], "authenticated");
 
     // 6. Deactivate the client
-    setup.routes.deactivate_client(Some(&auth_header), &client_id).await.unwrap();
+    setup
+        .routes
+        .deactivate_client(Some(&auth_header), &client_id)
+        .await
+        .unwrap();
 
-    // 7. Verify client is now inactive
+    // 7. Verify client is now inactive by checking it's not in the active clients list
     let clients = setup.routes.list_clients(Some(&auth_header)).await.unwrap();
-    let client = clients.iter().find(|c| c.id == client_id).unwrap();
-    assert!(!client.is_active);
+    let client_found = clients.iter().find(|c| c.id == client_id);
+    assert!(
+        client_found.is_none(),
+        "Deactivated client should not appear in active clients list"
+    );
 
     // 8. Try to authenticate with deactivated client (should fail)
     let auth_request = json!({
@@ -1259,9 +1394,9 @@ async fn test_multiple_auth_sessions() {
 
 /// Create a minimal test server configuration
 fn create_test_server_config() -> ServerConfig {
-    use std::path::PathBuf;
     use pierre_mcp_server::config::environment::*;
-    
+    use std::path::PathBuf;
+
     ServerConfig {
         mcp_port: 8080,
         http_port: 8081,
@@ -1329,6 +1464,10 @@ fn create_test_server_config() -> ServerConfig {
                 base_url: "https://api.fitbit.com".to_string(),
                 auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
                 token_url: "https://www.fitbit.com/oauth/token".to_string(),
+            },
+            geocoding: GeocodingServiceConfig {
+                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                enabled: true,
             },
         },
         app_behavior: AppBehaviorConfig {

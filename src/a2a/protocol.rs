@@ -239,6 +239,21 @@ impl A2AServer {
 
     async fn handle_task_create(&self, request: A2ARequest) -> A2AResponse {
         let task_id = Uuid::new_v4().to_string();
+
+        // Extract client_id and task_type from request parameters
+        let params = request.params.as_ref().unwrap_or(&serde_json::Value::Null);
+        let client_id = params
+            .get("client_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string();
+        let task_type = params
+            .get("task_type")
+            .or_else(|| params.get("type"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("generic")
+            .to_string();
+
         let task = A2ATask {
             id: task_id.clone(),
             status: TaskStatus::Pending,
@@ -246,8 +261,8 @@ impl A2AServer {
             completed_at: None,
             result: None,
             error: None,
-            client_id: "unknown".to_string(), // TODO: Extract from request
-            task_type: "generic".to_string(), // TODO: Extract from request
+            client_id,
+            task_type,
             input_data: request.params.unwrap_or(serde_json::Value::Null),
             output_data: None,
             error_message: None,
@@ -496,6 +511,10 @@ impl A2AServer {
                                     api_key: std::env::var("OPENWEATHER_API_KEY").ok(),
                                     base_url: "https://api.openweathermap.org/data/2.5".to_string(),
                                     enabled: false,
+                                },
+                                geocoding: crate::config::environment::GeocodingServiceConfig {
+                                    base_url: "https://nominatim.openstreetmap.org".to_string(),
+                                    enabled: true,
                                 },
                                 strava_api: crate::config::environment::StravaApiConfig {
                                     base_url: "https://www.strava.com/api/v3".to_string(),

@@ -13,7 +13,7 @@
     "premium": true,
     "summit": true,
     "created_at": "2020-01-01T00:00:00Z",
-    "updated_at": "2025-06-23T10:10:36.100685",
+    "updated_at": "2025-06-25T09:21:34.814069",
     "badge_type_id": 1,
     "weight": 70.0,
     "profile_medium": "https://example.com/avatar.jpg",
@@ -23,623 +23,623 @@
   },
   "activities": [
     {
-      "id": 1000016,
-      "name": "Easy Swim",
-      "type": "Swim",
-      "distance": 1996.7,
-      "moving_time": 956,
-      "elapsed_time": 1044,
-      "start_date": "2024-08-04T10:10:36.100039",
+      "id": 1000000,
+      "name": "Long Run",
+      "type": "Run",
+      "distance": 5717.9,
+      "moving_time": 984,
+      "elapsed_time": 1021,
+      "start_date": "2024-08-18T09:21:34.813386",
       "start_latlng": [
-        37.7649,
-        -122.4294
+        37.8049,
+        -122.4094
       ],
       "end_latlng": [
-        37.75360307453392,
-        -122.4469260790988
+        37.82952969328346,
+        -122.37615916641491
       ],
-      "average_speed": 2.09,
-      "max_speed": 2.72,
-      "elevation_gain": 1.0,
+      "average_speed": 5.81,
+      "max_speed": 7.55,
+      "elevation_gain": 76.2,
       "kudos_count": 1,
-      "comment_count": 0,
+      "comment_count": 3,
       "athlete_count": 1,
-      "total_elevation_gain": 36.0,
-      "suffer_score": 96,
-      "average_heartrate": 166.5,
-      "max_heartrate": 190.5,
-      "calories": 1693.0
+      "total_elevation_gain": 3.6,
+      "suffer_score": 48,
+      "average_heartrate": 153.0,
+      "max_heartrate": 165.6,
+      "calories": 4672.7
     },
     {
       "id": 1000018,
-      "name": "Evening Jog",
+      "name": "Trail Run",
       "type": "Run",
-      "distance": 11171.5,
-      "moving_time": 2591,
-      "elapsed_time": 2630,
-      "start_date": "2024-08-04T10:10:36.100039",
+      "distance": 7810.6,
+      "moving_time": 1543,
+      "elapsed_time": 1703,
+      "start_date": "2024-08-13T09:21:34.813386",
       "start_latlng": [
         37.8049,
         -122.4094
       ],
       "end_latlng": [
-        37.77846709605562,
-        -122.3170892956483
+        37.79845123156618,
+        -122.36207555198084
       ],
-      "average_speed": 4.31,
-      "max_speed": 5.6,
-      "elevation_gain": 216.7,
-      "kudos_count": 6,
-      "comment_count": 3,
+      "average_speed": 5.06,
+      "max_speed": 6.58,
+      "elevation_gain": 41.4,
+      "kudos_count": 9,
+      "comment_count": 0,
       "athlete_count": 1,
-      "total_elevation_gain": 18.7,
-      "suffer_score": 49,
-      "average_heartrate": 161.0,
-      "max_heartrate": 181.2,
-      "calories": 9196.3
-    },
-    {
-      "id": 1000019,
-      "name": "Group Ride",
-      "type": "Ride",
-      "distance": 39656.0,
-      "moving_time": 2887,
-      "elapsed_time": 3114,
-      "start_date": "2024-07-30T10:10:36.100039",
-      "start_latlng": [
-        37.7749,
-        -122.4194
-      ],
-      "end_latlng": [
-        37.44998877951617,
-        -122.73354947750548
-      ],
-      "average_speed": 13.74,
-      "max_speed": 17.86,
-      "elevation_gain": 491.0,
-      "kudos_count": 7,
-      "comment_count": 2,
-      "athlete_count": 1,
-      "total_elevation_gain": 495.2,
-      "suffer_score": 38,
-      "average_heartrate": 157.3,
-      "max_heartrate": 183.9,
-      "calories": 32013.5
-    },
-    {
-      "id": 1000017,
-      "name": "Speed Work",
-      "type": "Run",
-      "distance": 10166.7,
-      "moving_time": 2013,
-      "elapsed_time": 2096,
-      "start_date": "2024-07-25T10:10:36.100039",
-      "start_latlng": [
-        37.7749,
-        -122.4194
-      ],
-      "end_latlng": [
-        37.73824454190486,
-        -122.43308971952712
-      ],
-      "average_speed": 5.05,
-      "max_speed": 6.57,
-      "elevation_gain": 67.5,
-      "kudos_count": 8,
-      "comment_count": 3,
-      "athlete_count": 1,
-      "total_elevation_gain": 47.4,
-      "suffer_score": 94,
-      "average_heartrate": 161.9,
-      "max_heartrate": 175.7,
-      "calories": 8334.7
-    },
-    {
-      "id": 1000000,
-      "name": "Open Water Swim",
-      "type": "Swim",
-      "distance": 2748.3,
-      "moving_time": 1251,
-      "elapsed_time": 1453,
-      "start_date": "2024-07-24T10:10:36.100039",
-      "start_latlng": [
-        37.8049,
-        -122.4094
-      ],
-      "end_latlng": [
-        37.79616686753914,
-        -122.38907657021434
-      ],
-      "average_speed": 2.2,
-      "max_speed": 2.86,
-      "elevation_gain": 44.4,
-      "kudos_count": 10,
-      "comment_count": 3,
-      "athlete_count": 1,
-      "total_elevation_gain": 10.9,
-      "suffer_score": 133,
-      "average_heartrate": 159.0,
-      "max_heartrate": 184.9,
-      "calories": 2323.7
-    },
-    {
-      "id": 1000004,
-      "name": "Easy Run",
-      "type": "Run",
-      "distance": 13646.0,
-      "moving_time": 2610,
-      "elapsed_time": 2856,
-      "start_date": "2024-07-23T10:10:36.100039",
-      "start_latlng": [
-        37.7849,
-        -122.4094
-      ],
-      "end_latlng": [
-        37.83230926792257,
-        -122.32216363082863
-      ],
-      "average_speed": 5.23,
-      "max_speed": 6.79,
-      "elevation_gain": 144.2,
-      "kudos_count": 7,
-      "comment_count": 1,
-      "athlete_count": 1,
-      "total_elevation_gain": 192.9,
-      "suffer_score": 24,
-      "average_heartrate": 146.4,
-      "max_heartrate": 157.6,
-      "calories": 11177.8
-    },
-    {
-      "id": 1000013,
-      "name": "Evening Jog",
-      "type": "Run",
-      "distance": 15954.9,
-      "moving_time": 2629,
-      "elapsed_time": 2703,
-      "start_date": "2024-07-23T10:10:36.100039",
-      "start_latlng": [
-        37.7749,
-        -122.4194
-      ],
-      "end_latlng": [
-        37.67171523125895,
-        -122.45208022207841
-      ],
-      "average_speed": 6.07,
-      "max_speed": 7.89,
-      "elevation_gain": 277.8,
-      "kudos_count": 2,
-      "comment_count": 2,
-      "athlete_count": 1,
-      "total_elevation_gain": 291.0,
-      "suffer_score": 27,
-      "average_heartrate": 155.2,
-      "max_heartrate": 165.4,
-      "calories": 13026.8
-    },
-    {
-      "id": 1000006,
-      "name": "Speed Work",
-      "type": "Run",
-      "distance": 14213.8,
-      "moving_time": 3683,
-      "elapsed_time": 3774,
-      "start_date": "2024-07-20T10:10:36.100039",
-      "start_latlng": [
-        37.7849,
-        -122.4094
-      ],
-      "end_latlng": [
-        37.664954403637964,
-        -122.31661157945031
-      ],
-      "average_speed": 3.86,
-      "max_speed": 5.02,
-      "elevation_gain": 257.6,
-      "kudos_count": 13,
-      "comment_count": 3,
-      "athlete_count": 1,
-      "total_elevation_gain": 280.3,
-      "suffer_score": 174,
-      "average_heartrate": 153.6,
-      "max_heartrate": 167.9,
-      "calories": 11739.3
+      "total_elevation_gain": 70.3,
+      "suffer_score": 46,
+      "average_heartrate": 149.2,
+      "max_heartrate": 177.0,
+      "calories": 6402.8
     },
     {
       "id": 1000005,
-      "name": "Easy Run",
-      "type": "Run",
-      "distance": 14683.9,
-      "moving_time": 2756,
-      "elapsed_time": 2949,
-      "start_date": "2024-07-14T10:10:36.100039",
+      "name": "Hills Ride",
+      "type": "Ride",
+      "distance": 63483.9,
+      "moving_time": 4586,
+      "elapsed_time": 4768,
+      "start_date": "2024-08-12T09:21:34.813386",
       "start_latlng": [
         37.7749,
         -122.4194
       ],
       "end_latlng": [
-        37.90305245312373,
-        -122.44236328527457
+        37.6791758299916,
+        -122.50382232644915
       ],
-      "average_speed": 5.33,
-      "max_speed": 6.93,
-      "elevation_gain": 136.0,
-      "kudos_count": 14,
-      "comment_count": 0,
+      "average_speed": 13.84,
+      "max_speed": 18.0,
+      "elevation_gain": 31.0,
+      "kudos_count": 6,
+      "comment_count": 2,
       "athlete_count": 1,
-      "total_elevation_gain": 258.5,
-      "suffer_score": 29,
-      "average_heartrate": 160.2,
-      "max_heartrate": 178.4,
-      "calories": 12022.7
+      "total_elevation_gain": 215.2,
+      "suffer_score": 47,
+      "average_heartrate": 157.5,
+      "max_heartrate": 184.4,
+      "calories": 51245.7
     },
     {
-      "id": 1000010,
-      "name": "Speed Work",
+      "id": 1000006,
+      "name": "Trail Run",
       "type": "Run",
-      "distance": 9442.0,
-      "moving_time": 2343,
-      "elapsed_time": 2572,
-      "start_date": "2024-07-14T10:10:36.100039",
+      "distance": 10012.7,
+      "moving_time": 1669,
+      "elapsed_time": 1928,
+      "start_date": "2024-08-08T09:21:34.813386",
       "start_latlng": [
-        37.7849,
-        -122.4094
+        37.7649,
+        -122.4294
       ],
       "end_latlng": [
-        37.744051369075336,
-        -122.3464112941943
+        37.853292818312,
+        -122.41393216702365
       ],
-      "average_speed": 4.03,
-      "max_speed": 5.24,
-      "elevation_gain": 165.4,
-      "kudos_count": 7,
-      "comment_count": 3,
+      "average_speed": 6.0,
+      "max_speed": 7.8,
+      "elevation_gain": 113.1,
+      "kudos_count": 9,
+      "comment_count": 0,
       "athlete_count": 1,
-      "total_elevation_gain": 106.5,
-      "suffer_score": 123,
-      "average_heartrate": 168.9,
-      "max_heartrate": 192.6,
-      "calories": 7787.9
+      "total_elevation_gain": 167.2,
+      "suffer_score": 87,
+      "average_heartrate": 167.2,
+      "max_heartrate": 187.6,
+      "calories": 8177.0
     },
     {
       "id": 1000011,
-      "name": "Easy Run",
+      "name": "Long Run",
       "type": "Run",
-      "distance": 12954.5,
-      "moving_time": 2964,
-      "elapsed_time": 3140,
-      "start_date": "2024-07-14T10:10:36.100039",
-      "start_latlng": [
-        37.7649,
-        -122.4294
-      ],
-      "end_latlng": [
-        37.72268761894509,
-        -122.39076659321394
-      ],
-      "average_speed": 4.37,
-      "max_speed": 5.68,
-      "elevation_gain": 1.6,
-      "kudos_count": 8,
-      "comment_count": 0,
-      "athlete_count": 1,
-      "total_elevation_gain": 37.2,
-      "suffer_score": 128,
-      "average_heartrate": 155.7,
-      "max_heartrate": 168.6,
-      "calories": 10660.0
-    },
-    {
-      "id": 1000001,
-      "name": "Morning Run",
-      "type": "Run",
-      "distance": 5209.3,
-      "moving_time": 1478,
-      "elapsed_time": 1754,
-      "start_date": "2024-07-13T10:10:36.100039",
-      "start_latlng": [
-        37.7749,
-        -122.4194
-      ],
-      "end_latlng": [
-        37.755907515821704,
-        -122.4107260620749
-      ],
-      "average_speed": 3.52,
-      "max_speed": 4.58,
-      "elevation_gain": 25.8,
-      "kudos_count": 3,
-      "comment_count": 0,
-      "athlete_count": 1,
-      "total_elevation_gain": 28.9,
-      "suffer_score": 70,
-      "average_heartrate": 146.6,
-      "max_heartrate": 168.6,
-      "calories": 4315.2
-    },
-    {
-      "id": 1000007,
-      "name": "Trail Run",
-      "type": "Run",
-      "distance": 17835.3,
-      "moving_time": 3028,
-      "elapsed_time": 3089,
-      "start_date": "2024-07-13T10:10:36.100039",
-      "start_latlng": [
-        37.7649,
-        -122.4294
-      ],
-      "end_latlng": [
-        37.86141447875078,
-        -122.4370528420579
-      ],
-      "average_speed": 5.89,
-      "max_speed": 7.66,
-      "elevation_gain": 271.8,
-      "kudos_count": 15,
-      "comment_count": 0,
-      "athlete_count": 1,
-      "total_elevation_gain": 0.2,
-      "suffer_score": 144,
-      "average_heartrate": 149.9,
-      "max_heartrate": 176.0,
-      "calories": 14571.0
-    },
-    {
-      "id": 1000009,
-      "name": "Morning Run",
-      "type": "Run",
-      "distance": 14694.2,
-      "moving_time": 3384,
-      "elapsed_time": 3508,
-      "start_date": "2024-07-12T10:10:36.100039",
+      "distance": 12717.6,
+      "moving_time": 2082,
+      "elapsed_time": 2137,
+      "start_date": "2024-08-03T09:21:34.813386",
       "start_latlng": [
         37.8049,
         -122.4094
       ],
       "end_latlng": [
-        37.85725079418497,
-        -122.35130967718099
+        37.89182164535708,
+        -122.3970527582787
       ],
-      "average_speed": 4.34,
-      "max_speed": 5.64,
-      "elevation_gain": 126.7,
-      "kudos_count": 11,
+      "average_speed": 6.11,
+      "max_speed": 7.94,
+      "elevation_gain": 96.8,
+      "kudos_count": 1,
       "comment_count": 1,
       "athlete_count": 1,
-      "total_elevation_gain": 94.5,
-      "suffer_score": 193,
-      "average_heartrate": 157.3,
-      "max_heartrate": 171.7,
-      "calories": 12093.8
+      "total_elevation_gain": 162.7,
+      "suffer_score": 104,
+      "average_heartrate": 145.7,
+      "max_heartrate": 157.3,
+      "calories": 10382.3
+    },
+    {
+      "id": 1000009,
+      "name": "Mountain Hike",
+      "type": "Hike",
+      "distance": 2230.5,
+      "moving_time": 1252,
+      "elapsed_time": 1413,
+      "start_date": "2024-07-30T09:21:34.813386",
+      "start_latlng": [
+        37.7849,
+        -122.4094
+      ],
+      "end_latlng": [
+        37.79442437320469,
+        -122.41992417460801
+      ],
+      "average_speed": 1.78,
+      "max_speed": 2.31,
+      "elevation_gain": 43.1,
+      "kudos_count": 6,
+      "comment_count": 3,
+      "athlete_count": 1,
+      "total_elevation_gain": 13.8,
+      "suffer_score": 121,
+      "average_heartrate": 165.6,
+      "max_heartrate": 176.7,
+      "calories": 1909.6
+    },
+    {
+      "id": 1000007,
+      "name": "Recovery Ride",
+      "type": "Ride",
+      "distance": 62876.5,
+      "moving_time": 5594,
+      "elapsed_time": 5651,
+      "start_date": "2024-07-29T09:21:34.813386",
+      "start_latlng": [
+        37.8049,
+        -122.4094
+      ],
+      "end_latlng": [
+        38.10399422090949,
+        -122.82856230318548
+      ],
+      "average_speed": 11.24,
+      "max_speed": 14.61,
+      "elevation_gain": 635.8,
+      "kudos_count": 7,
+      "comment_count": 1,
+      "athlete_count": 1,
+      "total_elevation_gain": 1039.4,
+      "suffer_score": 87,
+      "average_heartrate": 161.9,
+      "max_heartrate": 174.0,
+      "calories": 50860.6
     },
     {
       "id": 1000008,
-      "name": "Morning Run",
+      "name": "Easy Run",
       "type": "Run",
-      "distance": 6585.3,
-      "moving_time": 1085,
-      "elapsed_time": 1282,
-      "start_date": "2024-07-10T10:10:36.100039",
+      "distance": 5780.9,
+      "moving_time": 1208,
+      "elapsed_time": 1320,
+      "start_date": "2024-07-27T09:21:34.813386",
       "start_latlng": [
-        37.7749,
-        -122.4194
+        37.8049,
+        -122.4094
       ],
       "end_latlng": [
-        37.77586820284333,
-        -122.42435837111321
+        37.778922211809764,
+        -122.3643910693914
       ],
-      "average_speed": 6.07,
-      "max_speed": 7.89,
-      "elevation_gain": 20.1,
-      "kudos_count": 1,
-      "comment_count": 0,
+      "average_speed": 4.78,
+      "max_speed": 6.22,
+      "elevation_gain": 64.6,
+      "kudos_count": 14,
+      "comment_count": 1,
       "athlete_count": 1,
-      "total_elevation_gain": 118.3,
-      "suffer_score": 190,
-      "average_heartrate": 148.8,
-      "max_heartrate": 171.2,
-      "calories": 5376.7
+      "total_elevation_gain": 41.7,
+      "suffer_score": 79,
+      "average_heartrate": 160.7,
+      "max_heartrate": 190.1,
+      "calories": 4745.5
     },
     {
-      "id": 1000003,
-      "name": "Bike Ride",
-      "type": "Ride",
-      "distance": 30653.6,
-      "moving_time": 2019,
-      "elapsed_time": 2139,
-      "start_date": "2024-07-09T10:10:36.100039",
-      "start_latlng": [
-        37.7749,
-        -122.4194
-      ],
-      "end_latlng": [
-        37.550171608061085,
-        -122.1743292802491
-      ],
-      "average_speed": 15.18,
-      "max_speed": 19.73,
-      "elevation_gain": 571.4,
-      "kudos_count": 2,
-      "comment_count": 0,
-      "athlete_count": 1,
-      "total_elevation_gain": 551.6,
-      "suffer_score": 52,
-      "average_heartrate": 162.5,
-      "max_heartrate": 181.3,
-      "calories": 24724.8
-    },
-    {
-      "id": 1000015,
-      "name": "Evening Jog",
+      "id": 1000017,
+      "name": "Easy Run",
       "type": "Run",
-      "distance": 5337.1,
-      "moving_time": 1000,
-      "elapsed_time": 1194,
-      "start_date": "2024-07-08T10:10:36.100039",
+      "distance": 11520.6,
+      "moving_time": 2965,
+      "elapsed_time": 3131,
+      "start_date": "2024-07-22T09:21:34.813386",
       "start_latlng": [
         37.7649,
         -122.4294
       ],
       "end_latlng": [
-        37.80188491591272,
-        -122.41931154191171
+        37.84119705768407,
+        -122.52160051506131
       ],
-      "average_speed": 5.34,
-      "max_speed": 6.94,
-      "elevation_gain": 38.2,
-      "kudos_count": 8,
-      "comment_count": 0,
+      "average_speed": 3.89,
+      "max_speed": 5.05,
+      "elevation_gain": 172.3,
+      "kudos_count": 6,
+      "comment_count": 3,
       "athlete_count": 1,
-      "total_elevation_gain": 7.0,
-      "suffer_score": 107,
-      "average_heartrate": 146.9,
-      "max_heartrate": 173.2,
-      "calories": 4369.7
+      "total_elevation_gain": 198.8,
+      "suffer_score": 72,
+      "average_heartrate": 158.5,
+      "max_heartrate": 184.8,
+      "calories": 9512.9
     },
     {
-      "id": 1000012,
-      "name": "Easy Run",
+      "id": 1000019,
+      "name": "Morning Run",
       "type": "Run",
-      "distance": 8267.2,
-      "moving_time": 1358,
-      "elapsed_time": 1564,
-      "start_date": "2024-07-07T10:10:36.100039",
+      "distance": 6504.1,
+      "moving_time": 988,
+      "elapsed_time": 1140,
+      "start_date": "2024-07-21T09:21:34.813386",
+      "start_latlng": [
+        37.7849,
+        -122.4094
+      ],
+      "end_latlng": [
+        37.8208281907274,
+        -122.45464338553253
+      ],
+      "average_speed": 6.58,
+      "max_speed": 8.55,
+      "elevation_gain": 116.4,
+      "kudos_count": 14,
+      "comment_count": 3,
+      "athlete_count": 1,
+      "total_elevation_gain": 71.0,
+      "suffer_score": 42,
+      "average_heartrate": 151.7,
+      "max_heartrate": 180.5,
+      "calories": 5302.1
+    },
+    {
+      "id": 1000001,
+      "name": "Trail Run",
+      "type": "Run",
+      "distance": 6225.4,
+      "moving_time": 1274,
+      "elapsed_time": 1412,
+      "start_date": "2024-07-19T09:21:34.813386",
       "start_latlng": [
         37.7749,
         -122.4194
       ],
       "end_latlng": [
-        37.777084260311206,
-        -122.40934874497407
+        37.74619561780076,
+        -122.42628637008643
       ],
-      "average_speed": 6.08,
-      "max_speed": 7.91,
-      "elevation_gain": 120.9,
-      "kudos_count": 7,
+      "average_speed": 4.89,
+      "max_speed": 6.35,
+      "elevation_gain": 62.6,
+      "kudos_count": 11,
       "comment_count": 2,
       "athlete_count": 1,
-      "total_elevation_gain": 68.3,
-      "suffer_score": 58,
-      "average_heartrate": 166.2,
-      "max_heartrate": 189.4,
-      "calories": 6749.6
+      "total_elevation_gain": 8.0,
+      "suffer_score": 99,
+      "average_heartrate": 152.3,
+      "max_heartrate": 163.1,
+      "calories": 5107.7
+    },
+    {
+      "id": 1000004,
+      "name": "Trail Hike",
+      "type": "Hike",
+      "distance": 5952.4,
+      "moving_time": 2234,
+      "elapsed_time": 2449,
+      "start_date": "2024-07-19T09:21:34.813386",
+      "start_latlng": [
+        37.8049,
+        -122.4094
+      ],
+      "end_latlng": [
+        37.81390823975227,
+        -122.44177584118923
+      ],
+      "average_speed": 2.66,
+      "max_speed": 3.46,
+      "elevation_gain": 78.4,
+      "kudos_count": 5,
+      "comment_count": 0,
+      "athlete_count": 1,
+      "total_elevation_gain": 13.5,
+      "suffer_score": 106,
+      "average_heartrate": 168.2,
+      "max_heartrate": 184.3,
+      "calories": 4985.3
+    },
+    {
+      "id": 1000012,
+      "name": "Speed Work",
+      "type": "Run",
+      "distance": 9968.3,
+      "moving_time": 1632,
+      "elapsed_time": 1931,
+      "start_date": "2024-07-18T09:21:34.813386",
+      "start_latlng": [
+        37.8049,
+        -122.4094
+      ],
+      "end_latlng": [
+        37.879628298029715,
+        -122.44906613568209
+      ],
+      "average_speed": 6.1,
+      "max_speed": 7.94,
+      "elevation_gain": 38.2,
+      "kudos_count": 14,
+      "comment_count": 1,
+      "athlete_count": 1,
+      "total_elevation_gain": 69.8,
+      "suffer_score": 51,
+      "average_heartrate": 162.0,
+      "max_heartrate": 191.4,
+      "calories": 8137.8
+    },
+    {
+      "id": 1000013,
+      "name": "Pool Swim",
+      "type": "Swim",
+      "distance": 2977.7,
+      "moving_time": 1875,
+      "elapsed_time": 1950,
+      "start_date": "2024-07-18T09:21:34.813386",
+      "start_latlng": [
+        37.7749,
+        -122.4194
+      ],
+      "end_latlng": [
+        37.763439601330866,
+        -122.43250021674434
+      ],
+      "average_speed": 1.59,
+      "max_speed": 2.06,
+      "elevation_gain": 19.0,
+      "kudos_count": 10,
+      "comment_count": 1,
+      "athlete_count": 1,
+      "total_elevation_gain": 45.9,
+      "suffer_score": 77,
+      "average_heartrate": 153.5,
+      "max_heartrate": 182.3,
+      "calories": 2569.7
+    },
+    {
+      "id": 1000010,
+      "name": "Evening Jog",
+      "type": "Run",
+      "distance": 2998.3,
+      "moving_time": 517,
+      "elapsed_time": 658,
+      "start_date": "2024-07-17T09:21:34.813386",
+      "start_latlng": [
+        37.8049,
+        -122.4094
+      ],
+      "end_latlng": [
+        37.81811407534385,
+        -122.41296547053747
+      ],
+      "average_speed": 5.8,
+      "max_speed": 7.54,
+      "elevation_gain": 46.2,
+      "kudos_count": 8,
+      "comment_count": 2,
+      "athlete_count": 1,
+      "total_elevation_gain": 2.0,
+      "suffer_score": 98,
+      "average_heartrate": 162.0,
+      "max_heartrate": 175.4,
+      "calories": 2450.3
+    },
+    {
+      "id": 1000014,
+      "name": "Nature Walk",
+      "type": "Hike",
+      "distance": 3307.4,
+      "moving_time": 1701,
+      "elapsed_time": 1757,
+      "start_date": "2024-07-15T09:21:34.813386",
+      "start_latlng": [
+        37.8049,
+        -122.4094
+      ],
+      "end_latlng": [
+        37.79994541736015,
+        -122.38026944002499
+      ],
+      "average_speed": 1.94,
+      "max_speed": 2.53,
+      "elevation_gain": 41.5,
+      "kudos_count": 3,
+      "comment_count": 3,
+      "athlete_count": 1,
+      "total_elevation_gain": 13.0,
+      "suffer_score": 24,
+      "average_heartrate": 153.5,
+      "max_heartrate": 168.0,
+      "calories": 2816.0
     },
     {
       "id": 1000002,
       "name": "Cycling",
       "type": "Ride",
-      "distance": 65111.8,
-      "moving_time": 6373,
-      "elapsed_time": 6582,
-      "start_date": "2024-07-04T10:10:36.100039",
+      "distance": 72560.0,
+      "moving_time": 6308,
+      "elapsed_time": 6553,
+      "start_date": "2024-07-09T09:21:34.813386",
       "start_latlng": [
         37.7749,
         -122.4194
       ],
       "end_latlng": [
-        37.94962532708033,
-        -121.94268710045468
+        37.314334809450976,
+        -123.02468726666288
       ],
-      "average_speed": 10.22,
-      "max_speed": 13.28,
-      "elevation_gain": 804.7,
-      "kudos_count": 11,
-      "comment_count": 2,
+      "average_speed": 11.5,
+      "max_speed": 14.95,
+      "elevation_gain": 434.9,
+      "kudos_count": 14,
+      "comment_count": 3,
       "athlete_count": 1,
-      "total_elevation_gain": 732.3,
-      "suffer_score": 113,
-      "average_heartrate": 163.4,
-      "max_heartrate": 184.0,
-      "calories": 52726.8
+      "total_elevation_gain": 1319.8,
+      "suffer_score": 79,
+      "average_heartrate": 153.9,
+      "max_heartrate": 169.4,
+      "calories": 58678.8
     },
     {
-      "id": 1000014,
-      "name": "Easy Run",
-      "type": "Run",
-      "distance": 13076.6,
-      "moving_time": 3110,
-      "elapsed_time": 3363,
-      "start_date": "2024-07-03T10:10:36.100039",
+      "id": 1000015,
+      "name": "Morning Hike",
+      "type": "Hike",
+      "distance": 11551.0,
+      "moving_time": 4216,
+      "elapsed_time": 4277,
+      "start_date": "2024-07-05T09:21:34.813386",
       "start_latlng": [
-        37.7649,
-        -122.4294
+        37.7849,
+        -122.4094
       ],
       "end_latlng": [
-        37.677321477159566,
-        -122.38556732355234
+        37.775934868547324,
+        -122.35441363036787
       ],
-      "average_speed": 4.2,
-      "max_speed": 5.46,
-      "elevation_gain": 221.8,
+      "average_speed": 2.74,
+      "max_speed": 3.56,
+      "elevation_gain": 89.4,
+      "kudos_count": 10,
+      "comment_count": 3,
+      "athlete_count": 1,
+      "total_elevation_gain": 45.3,
+      "suffer_score": 124,
+      "average_heartrate": 146.0,
+      "max_heartrate": 159.8,
+      "calories": 9662.4
+    },
+    {
+      "id": 1000003,
+      "name": "Easy Swim",
+      "type": "Swim",
+      "distance": 1924.8,
+      "moving_time": 1134,
+      "elapsed_time": 1401,
+      "start_date": "2024-07-03T09:21:34.813386",
+      "start_latlng": [
+        37.7849,
+        -122.4094
+      ],
+      "end_latlng": [
+        37.78951265878493,
+        -122.40212581767123
+      ],
+      "average_speed": 1.7,
+      "max_speed": 2.21,
+      "elevation_gain": 12.1,
       "kudos_count": 13,
       "comment_count": 3,
       "athlete_count": 1,
-      "total_elevation_gain": 110.8,
-      "suffer_score": 193,
-      "average_heartrate": 166.1,
-      "max_heartrate": 185.6,
-      "calories": 10772.3
+      "total_elevation_gain": 28.4,
+      "suffer_score": 153,
+      "average_heartrate": 159.3,
+      "max_heartrate": 182.8,
+      "calories": 1653.2
+    },
+    {
+      "id": 1000016,
+      "name": "Evening Jog",
+      "type": "Run",
+      "distance": 8088.3,
+      "moving_time": 1722,
+      "elapsed_time": 1771,
+      "start_date": "2024-06-29T09:21:34.813386",
+      "start_latlng": [
+        37.7849,
+        -122.4094
+      ],
+      "end_latlng": [
+        37.84894520787948,
+        -122.44973500444574
+      ],
+      "average_speed": 4.7,
+      "max_speed": 6.1,
+      "elevation_gain": 159.8,
+      "kudos_count": 3,
+      "comment_count": 0,
+      "athlete_count": 1,
+      "total_elevation_gain": 71.2,
+      "suffer_score": 118,
+      "average_heartrate": 154.8,
+      "max_heartrate": 171.3,
+      "calories": 6642.8
     }
   ],
   "stats": {
-    "biggest_ride_distance": 93612.7,
-    "biggest_climb_elevation_gain": 1561.9,
+    "biggest_ride_distance": 87357.2,
+    "biggest_climb_elevation_gain": 1637.7,
     "recent_ride_totals": {
       "count": 4,
-      "distance": 239472.6,
-      "moving_time": 18787,
-      "elevation_gain": 3006.4
+      "distance": 161292.9,
+      "moving_time": 11073,
+      "elevation_gain": 900.5
     },
     "recent_run_totals": {
       "count": 4,
-      "distance": 36872.0,
-      "moving_time": 9428,
-      "elevation_gain": 422.4
+      "distance": 51615.3,
+      "moving_time": 11151,
+      "elevation_gain": 226.8
     },
     "recent_swim_totals": {
       "count": 4,
-      "distance": 6668.2,
-      "moving_time": 4274,
-      "elevation_gain": 43.4
+      "distance": 5890.1,
+      "moving_time": 3336,
+      "elevation_gain": 55.3
     },
     "ytd_ride_totals": {
-      "count": 53,
-      "distance": 2640197.9,
-      "moving_time": 230967,
-      "elevation_gain": 27667.5
+      "count": 54,
+      "distance": 2564465.4,
+      "moving_time": 211285,
+      "elevation_gain": 24154.6
     },
     "ytd_run_totals": {
-      "count": 122,
-      "distance": 1190704.0,
-      "moving_time": 254137,
-      "elevation_gain": 11057.3
+      "count": 114,
+      "distance": 1186442.7,
+      "moving_time": 242993,
+      "elevation_gain": 12059.5
     },
     "ytd_swim_totals": {
       "count": 16,
-      "distance": 28266.9,
-      "moving_time": 17705,
-      "elevation_gain": 224.3
+      "distance": 25765.9,
+      "moving_time": 14323,
+      "elevation_gain": 178.3
     },
     "all_ride_totals": {
-      "count": 53,
-      "distance": 2640197.9,
-      "moving_time": 230967,
-      "elevation_gain": 27667.5
+      "count": 54,
+      "distance": 2564465.4,
+      "moving_time": 211285,
+      "elevation_gain": 24154.6
     },
     "all_run_totals": {
-      "count": 122,
-      "distance": 1190704.0,
-      "moving_time": 254137,
-      "elevation_gain": 11057.3
+      "count": 114,
+      "distance": 1186442.7,
+      "moving_time": 242993,
+      "elevation_gain": 12059.5
     },
     "all_swim_totals": {
       "count": 16,
-      "distance": 28266.9,
-      "moving_time": 17705,
-      "elevation_gain": 224.3
+      "distance": 25765.9,
+      "moving_time": 14323,
+      "elevation_gain": 178.3
     }
   },
-  "generated_at": "2025-06-23T10:10:36.105313"
+  "generated_at": "2025-06-25T09:21:34.819092"
 }

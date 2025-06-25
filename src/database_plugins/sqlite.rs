@@ -278,8 +278,15 @@ impl DatabaseProvider for SqliteDatabase {
         self.inner.get_system_stats().await
     }
 
-    async fn create_a2a_client(&self, client: &A2AClient, api_key_id: &str) -> Result<String> {
-        self.inner.create_a2a_client(client, api_key_id).await
+    async fn create_a2a_client(
+        &self,
+        client: &A2AClient,
+        client_secret: &str,
+        api_key_id: &str,
+    ) -> Result<String> {
+        self.inner
+            .create_a2a_client(client, client_secret, api_key_id)
+            .await
     }
 
     async fn get_a2a_client(&self, client_id: &str) -> Result<Option<A2AClient>> {
@@ -292,6 +299,25 @@ impl DatabaseProvider for SqliteDatabase {
 
     async fn list_a2a_clients(&self, user_id: &Uuid) -> Result<Vec<A2AClient>> {
         self.inner.list_a2a_clients(user_id).await
+    }
+
+    async fn deactivate_a2a_client(&self, client_id: &str) -> Result<()> {
+        self.inner.deactivate_a2a_client(client_id).await
+    }
+
+    async fn get_a2a_client_credentials(
+        &self,
+        client_id: &str,
+    ) -> Result<Option<(String, String)>> {
+        self.inner.get_a2a_client_credentials(client_id).await
+    }
+
+    async fn invalidate_a2a_client_sessions(&self, client_id: &str) -> Result<()> {
+        self.inner.invalidate_a2a_client_sessions(client_id).await
+    }
+
+    async fn deactivate_client_api_keys(&self, client_id: &str) -> Result<()> {
+        self.inner.deactivate_client_api_keys(client_id).await
     }
 
     async fn create_a2a_session(

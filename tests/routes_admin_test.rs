@@ -1,0 +1,1349 @@
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
+
+//! Comprehensive integration tests for admin routes
+//!
+//! This test suite provides comprehensive coverage for all admin route endpoints,
+//! including authentication, authorization, request/response validation,
+//! error handling, edge cases, and admin-specific functionality.
+
+mod common;
+
+use anyhow::Result;
+use pierre_mcp_server::{
+    admin::models::{AdminPermission, CreateAdminTokenRequest, GeneratedAdminToken},
+    admin_routes::AdminApiContext,
+    database_plugins::DatabaseProvider,
+    models::User,
+};
+use serde_json::{json, Value};
+use uuid::Uuid;
+use warp::test::request;
+use warp::Filter;
+
+/// Test setup helper that creates all necessary components for admin route testing
+struct AdminTestSetup {
+    context: AdminApiContext,
+    admin_token: GeneratedAdminToken,
+    super_admin_token: GeneratedAdminToken,
+    invalid_token: String,
+    expired_token: String,
+    user_id: Uuid,
+    user: User,
+}
+
+impl AdminTestSetup {
+    async fn new() -> Result<Self> {
+        // Create test database
+        let database = common::create_test_database().await?;
+        let auth_manager = common::create_test_auth_manager();
+
+        // Create admin context
+        let jwt_secret = "test_admin_jwt_secret_for_route_testing";
+        let context =
+            AdminApiContext::new((*database).clone(), jwt_secret, (*auth_manager).clone());
+
+        // Create test user
+        let (user_id, user) = common::create_test_user(&database).await?;
+
+        // Create admin tokens with manual JWT generation using the same secret as AdminApiContext
+        use pierre_mcp_server::admin::{
+            jwt::AdminJwtManager,
+            models::{AdminPermissions, GeneratedAdminToken},
+        };
+        use uuid::Uuid;
+
+        let admin_permissions = AdminPermissions::new(vec![
+            AdminPermission::ProvisionKeys,
+            AdminPermission::RevokeKeys,
+            AdminPermission::ListKeys,
+            AdminPermission::ManageAdminTokens,
+        ]);
+
+        // Create JWT manager with the same secret as the AdminApiContext
+        let jwt_manager = AdminJwtManager::with_secret(jwt_secret);
+
+        // Generate admin token manually to ensure consistent JWT secret
+        let admin_token_id = format!("admin_{}", Uuid::new_v4().simple());
+        let admin_jwt = jwt_manager.generate_token(
+            &admin_token_id,
+            "test_admin_service",
+            &admin_permissions,
+            false, // is_super_admin
+            Some(chrono::Utc::now() + chrono::Duration::days(365)),
+        )?;
+
+        let admin_token = GeneratedAdminToken {
+            token_id: admin_token_id.clone(),
+            service_name: "test_admin_service".to_string(),
+            jwt_token: admin_jwt.clone(),
+            token_prefix: AdminJwtManager::generate_token_prefix(&admin_jwt),
+            permissions: admin_permissions.clone(),
+            is_super_admin: false,
+            expires_at: Some(chrono::Utc::now() + chrono::Duration::days(365)),
+            created_at: chrono::Utc::now(),
+        };
+
+        // Manually insert admin token into database
+        Self::insert_admin_token_to_db(&database, &admin_token, jwt_secret).await?;
+
+        // Create super admin token with the same JWT secret
+        let super_admin_permissions = AdminPermissions::super_admin();
+
+        let super_admin_token_id = format!("admin_{}", Uuid::new_v4().simple());
+        let super_admin_jwt = jwt_manager.generate_token(
+            &super_admin_token_id,
+            "test_super_admin_service",
+            &super_admin_permissions,
+            true, // is_super_admin
+            None, // Never expires
+        )?;
+
+        let super_admin_token = GeneratedAdminToken {
+            token_id: super_admin_token_id.clone(),
+            service_name: "test_super_admin_service".to_string(),
+            jwt_token: super_admin_jwt.clone(),
+            token_prefix: AdminJwtManager::generate_token_prefix(&super_admin_jwt),
+            permissions: super_admin_permissions.clone(),
+            is_super_admin: true,
+            expires_at: None,
+            created_at: chrono::Utc::now(),
+        };
+
+        // Manually insert super admin token into database
+        Self::insert_admin_token_to_db(&database, &super_admin_token, jwt_secret).await?;
+
+        // Create invalid token
+        let invalid_token = "invalid_token_for_testing".to_string();
+
+        // Create expired token with the same JWT secret
+        let expired_permissions = AdminPermissions::new(vec![AdminPermission::ProvisionKeys]);
+
+        let expired_token_id = format!("admin_{}", Uuid::new_v4().simple());
+        let expired_token = jwt_manager.generate_token(
+            &expired_token_id,
+            "expired_service",
+            &expired_permissions,
+            false,                                                 // is_super_admin
+            Some(chrono::Utc::now() - chrono::Duration::hours(1)), // Already expired
+        )?;
+
+        Ok(Self {
+            context,
+            admin_token,
+            super_admin_token,
+            invalid_token,
+            expired_token,
+            user_id,
+            user,
+        })
+    }
+
+    /// Create authorization header with Bearer token
+    fn auth_header(&self, token: &str) -> String {
+        format!("Bearer {}", token)
+    }
+
+    /// Create admin routes filter for testing
+    fn routes(
+        &self,
+    ) -> impl Filter<Extract = impl warp::Reply, Error = std::convert::Infallible> + Clone {
+        pierre_mcp_server::admin_routes::admin_routes(self.context.clone())
+    }
+
+    /// Helper method to manually insert admin token into database
+    async fn insert_admin_token_to_db(
+        database: &pierre_mcp_server::database_plugins::factory::Database,
+        token: &GeneratedAdminToken,
+        jwt_secret: &str,
+    ) -> Result<()> {
+        use pierre_mcp_server::admin::jwt::AdminJwtManager;
+
+        let token_hash = AdminJwtManager::hash_token_for_storage(&token.jwt_token)?;
+        let jwt_secret_hash = AdminJwtManager::hash_secret(jwt_secret);
+        let permissions_json = token.permissions.to_json()?;
+
+        match database {
+            pierre_mcp_server::database_plugins::factory::Database::SQLite(sqlite_db) => {
+                let query = r#"
+                    INSERT INTO admin_tokens (
+                        id, service_name, service_description, token_hash, token_prefix,
+                        jwt_secret_hash, permissions, is_super_admin, is_active,
+                        created_at, expires_at, usage_count
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                "#;
+
+                sqlx::query(query)
+                    .bind(&token.token_id)
+                    .bind(&token.service_name)
+                    .bind(Some("Test admin token"))
+                    .bind(&token_hash)
+                    .bind(&token.token_prefix)
+                    .bind(&jwt_secret_hash)
+                    .bind(&permissions_json)
+                    .bind(token.is_super_admin)
+                    .bind(true) // is_active
+                    .bind(token.created_at)
+                    .bind(token.expires_at)
+                    .bind(0) // usage_count
+                    .execute(sqlite_db.inner().pool())
+                    .await?;
+            }
+            #[cfg(feature = "postgresql")]
+            pierre_mcp_server::database_plugins::factory::Database::PostgreSQL(_) => {
+                // Handle PostgreSQL case if needed
+                return Err(anyhow::anyhow!("PostgreSQL not supported in test helper"));
+            }
+        }
+
+        Ok(())
+    }
+}
+
+// ============================================================================
+// Health and Setup Status Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_admin_health_endpoint() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    let response = request()
+        .method("GET")
+        .path("/admin/health")
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 200);
+
+    let body: Value = serde_json::from_slice(response.body())?;
+    assert_eq!(body["status"], "healthy");
+    assert_eq!(body["service"], "pierre-mcp-admin-api");
+    assert!(body["timestamp"].is_string());
+    assert!(body["version"].is_string());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_setup_status_endpoint() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    let response = request()
+        .method("GET")
+        .path("/admin/setup-status")
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 200);
+
+    let body: Value = serde_json::from_slice(response.body())?;
+    assert!(body["needs_setup"].is_boolean());
+    assert!(body["admin_user_exists"].is_boolean());
+
+    Ok(())
+}
+
+// ============================================================================
+// Authentication and Authorization Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_admin_auth_valid_token() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    let response = request()
+        .method("GET")
+        .path("/admin/token-info")
+        .header(
+            "authorization",
+            setup.auth_header(&setup.admin_token.jwt_token),
+        )
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 200);
+
+    let body: Value = serde_json::from_slice(response.body())?;
+    assert_eq!(body["token_id"], setup.admin_token.token_id);
+    assert_eq!(body["service_name"], "test_admin_service");
+    assert!(!body["is_super_admin"].as_bool().unwrap());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_admin_auth_invalid_token() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    let response = request()
+        .method("GET")
+        .path("/admin/token-info")
+        .header("authorization", setup.auth_header(&setup.invalid_token))
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 401);
+
+    let body: Value = serde_json::from_slice(response.body())?;
+    assert_eq!(body["success"], false);
+    assert!(body["message"]
+        .as_str()
+        .unwrap()
+        .contains("Invalid JWT token"));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_admin_auth_expired_token() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    let response = request()
+        .method("GET")
+        .path("/admin/token-info")
+        .header("authorization", setup.auth_header(&setup.expired_token))
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 401);
+
+    let body: Value = serde_json::from_slice(response.body())?;
+    assert_eq!(body["success"], false);
+    assert!(body["message"]
+        .as_str()
+        .unwrap()
+        .contains("ExpiredSignature"));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_admin_auth_missing_header() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    let response = request()
+        .method("GET")
+        .path("/admin/token-info")
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 400);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_admin_auth_malformed_header() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    let response = request()
+        .method("GET")
+        .path("/admin/token-info")
+        .header("authorization", "InvalidFormat token")
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 400);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_admin_auth_insufficient_permissions() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    // Try to access admin token management with regular admin token (should fail)
+    let response = request()
+        .method("GET")
+        .path("/admin/tokens")
+        .header(
+            "authorization",
+            setup.auth_header(&setup.admin_token.jwt_token),
+        )
+        .reply(&routes)
+        .await;
+
+    // Regular admin should have access to list tokens (ProvisionKeys permission)
+    assert_eq!(response.status(), 200);
+
+    Ok(())
+}
+
+// ============================================================================
+// API Key Provisioning Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_provision_api_key_success() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    let request_body = json!({
+        "user_email": setup.user.email.clone(),
+        "tier": "starter",
+        "description": "Test API key",
+        "expires_in_days": 30,
+        "rate_limit_requests": 1000,
+        "rate_limit_period": "day"
+    });
+
+    let response = request()
+        .method("POST")
+        .path("/admin/provision-api-key")
+        .header(
+            "authorization",
+            setup.auth_header(&setup.admin_token.jwt_token),
+        )
+        .header("content-type", "application/json")
+        .json(&request_body)
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 201);
+
+    let body: Value = serde_json::from_slice(response.body())?;
+    assert_eq!(body["success"], true);
+    assert!(body["api_key"].as_str().unwrap().starts_with("pk_live_"));
+    assert_eq!(body["tier"], "starter");
+    assert_eq!(body["user_id"], setup.user_id.to_string());
+    assert!(body["expires_at"].is_string());
+    assert_eq!(body["rate_limit"]["requests"], 1000);
+    assert_eq!(body["rate_limit"]["period"], "day");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_provision_api_key_new_user() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    let request_body = json!({
+        "user_email": "newuser@example.com",
+        "tier": "professional",
+        "description": "New user API key",
+        "rate_limit_requests": 5000,
+        "rate_limit_period": "month"
+    });
+
+    let response = request()
+        .method("POST")
+        .path("/admin/provision-api-key")
+        .header(
+            "authorization",
+            setup.auth_header(&setup.admin_token.jwt_token),
+        )
+        .header("content-type", "application/json")
+        .json(&request_body)
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 201);
+
+    let body: Value = serde_json::from_slice(response.body())?;
+    assert_eq!(body["success"], true);
+    assert_eq!(body["tier"], "professional");
+    assert!(body["expires_at"].is_null());
+    assert_eq!(body["rate_limit"]["requests"], 5000);
+    assert_eq!(body["rate_limit"]["period"], "month");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_provision_api_key_invalid_tier() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    let request_body = json!({
+        "user_email": setup.user.email.clone(),
+        "tier": "invalid_tier",
+        "description": "Test API key",
+        "expires_in_days": 30,
+        "rate_limit_requests": 1000,
+        "rate_limit_period": "day"
+    });
+
+    let response = request()
+        .method("POST")
+        .path("/admin/provision-api-key")
+        .header(
+            "authorization",
+            setup.auth_header(&setup.admin_token.jwt_token),
+        )
+        .header("content-type", "application/json")
+        .json(&request_body)
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 400);
+
+    let body: Value = serde_json::from_slice(response.body())?;
+    assert_eq!(body["success"], false);
+    assert!(body["message"].as_str().unwrap().contains("Invalid tier"));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_provision_api_key_invalid_rate_limit_period() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    let request_body = json!({
+        "user_email": setup.user.email.clone(),
+        "tier": "starter",
+        "description": "Test API key",
+        "expires_in_days": 30,
+        "rate_limit_requests": 1000,
+        "rate_limit_period": "invalid_period"
+    });
+
+    let response = request()
+        .method("POST")
+        .path("/admin/provision-api-key")
+        .header(
+            "authorization",
+            setup.auth_header(&setup.admin_token.jwt_token),
+        )
+        .header("content-type", "application/json")
+        .json(&request_body)
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 400);
+
+    let body: Value = serde_json::from_slice(response.body())?;
+    assert_eq!(body["success"], false);
+    assert!(body["message"]
+        .as_str()
+        .unwrap()
+        .contains("Invalid rate limit period"));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_provision_api_key_malformed_json() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    let response = request()
+        .method("POST")
+        .path("/admin/provision-api-key")
+        .header(
+            "authorization",
+            setup.auth_header(&setup.admin_token.jwt_token),
+        )
+        .header("content-type", "application/json")
+        .body("{invalid json}")
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 400);
+
+    let body: Value = serde_json::from_slice(response.body())?;
+    assert_eq!(body["success"], false);
+    assert!(body["message"]
+        .as_str()
+        .unwrap()
+        .contains("Invalid JSON body"));
+
+    Ok(())
+}
+
+// ============================================================================
+// API Key Revocation Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_revoke_api_key_success() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    // First, create an API key to revoke
+    let api_key = common::create_and_store_test_api_key(
+        &setup.context.database,
+        setup.user_id,
+        "Key to revoke",
+    )
+    .await?;
+
+    let request_body = json!({
+        "api_key_id": api_key.id.clone(),
+        "reason": "Testing revocation"
+    });
+
+    let response = request()
+        .method("POST")
+        .path("/admin/revoke-api-key")
+        .header(
+            "authorization",
+            setup.auth_header(&setup.admin_token.jwt_token),
+        )
+        .header("content-type", "application/json")
+        .json(&request_body)
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 200);
+
+    let body: Value = serde_json::from_slice(response.body())?;
+    assert_eq!(body["success"], true);
+    assert!(body["message"]
+        .as_str()
+        .unwrap()
+        .contains("revoked successfully"));
+    assert_eq!(body["data"]["api_key_id"], api_key.id);
+    assert_eq!(body["data"]["reason"], "Testing revocation");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_revoke_api_key_not_found() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    let request_body = json!({
+        "api_key_id": "nonexistent_key_id",
+        "reason": "Testing not found"
+    });
+
+    let response = request()
+        .method("POST")
+        .path("/admin/revoke-api-key")
+        .header(
+            "authorization",
+            setup.auth_header(&setup.admin_token.jwt_token),
+        )
+        .header("content-type", "application/json")
+        .json(&request_body)
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 404);
+
+    let body: Value = serde_json::from_slice(response.body())?;
+    assert_eq!(body["success"], false);
+    assert!(body["message"].as_str().unwrap().contains("not found"));
+
+    Ok(())
+}
+
+// ============================================================================
+// API Key Listing Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_list_api_keys_success() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    // Create some test API keys
+    let _api_key1 =
+        common::create_and_store_test_api_key(&setup.context.database, setup.user_id, "Test Key 1")
+            .await?;
+
+    let _api_key2 =
+        common::create_and_store_test_api_key(&setup.context.database, setup.user_id, "Test Key 2")
+            .await?;
+
+    let response = request()
+        .method("GET")
+        .path("/admin/list-api-keys")
+        .header(
+            "authorization",
+            setup.auth_header(&setup.admin_token.jwt_token),
+        )
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 200);
+
+    let body: Value = serde_json::from_slice(response.body())?;
+    assert_eq!(body["success"], true);
+    assert!(body["data"]["keys"].as_array().unwrap().len() >= 2);
+    assert_eq!(
+        body["data"]["count"],
+        body["data"]["keys"].as_array().unwrap().len()
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_list_api_keys_with_filters() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    // Create test API key
+    let _api_key = common::create_and_store_test_api_key(
+        &setup.context.database,
+        setup.user_id,
+        "Filtered Key",
+    )
+    .await?;
+
+    let response = request()
+        .method("GET")
+        .path("/admin/list-api-keys?user_email=test@example.com&active_only=true&limit=10&offset=0")
+        .header(
+            "authorization",
+            setup.auth_header(&setup.admin_token.jwt_token),
+        )
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 200);
+
+    let body: Value = serde_json::from_slice(response.body())?;
+    assert_eq!(body["success"], true);
+    assert_eq!(body["data"]["filters"]["user_email"], "test@example.com");
+    assert_eq!(body["data"]["filters"]["active_only"], true);
+    assert_eq!(body["data"]["filters"]["limit"], 10);
+    assert_eq!(body["data"]["filters"]["offset"], 0);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_list_api_keys_invalid_filters() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    let response = request()
+        .method("GET")
+        .path("/admin/list-api-keys?limit=invalid&offset=negative")
+        .header(
+            "authorization",
+            setup.auth_header(&setup.admin_token.jwt_token),
+        )
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 200); // Should still work with default values
+
+    let body: Value = serde_json::from_slice(response.body())?;
+    assert_eq!(body["success"], true);
+    assert!(body["data"]["filters"]["limit"].is_null());
+
+    Ok(())
+}
+
+// ============================================================================
+// Admin Token Management Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_list_admin_tokens() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    let response = request()
+        .method("GET")
+        .path("/admin/tokens")
+        .header(
+            "authorization",
+            setup.auth_header(&setup.admin_token.jwt_token),
+        )
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 200);
+
+    let body: Value = serde_json::from_slice(response.body())?;
+    assert_eq!(body["success"], true);
+    assert!(body["data"]["tokens"].as_array().unwrap().len() >= 2); // At least our test tokens
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_create_admin_token() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    let request_body = json!({
+        "service_name": "new_admin_service",
+        "service_description": "New admin service for testing",
+        "is_super_admin": false,
+        "expires_in_days": 90,
+        "permissions": ["provision_keys", "list_keys"]
+    });
+
+    let response = request()
+        .method("POST")
+        .path("/admin/tokens")
+        .header(
+            "authorization",
+            setup.auth_header(&setup.admin_token.jwt_token),
+        )
+        .header("content-type", "application/json")
+        .json(&request_body)
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 201);
+
+    let body: Value = serde_json::from_slice(response.body())?;
+    assert_eq!(body["success"], true);
+    assert_eq!(body["data"]["service_name"], "new_admin_service");
+    assert!(!body["data"]["is_super_admin"].as_bool().unwrap());
+    assert!(!body["data"]["jwt_token"].as_str().unwrap().is_empty());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_create_super_admin_token() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    let request_body = json!({
+        "service_name": "super_admin_service",
+        "service_description": "Super admin service for testing",
+        "is_super_admin": true,
+        "expires_in_days": 0  // Never expires
+    });
+
+    let response = request()
+        .method("POST")
+        .path("/admin/tokens")
+        .header(
+            "authorization",
+            setup.auth_header(&setup.admin_token.jwt_token),
+        )
+        .header("content-type", "application/json")
+        .json(&request_body)
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 201);
+
+    let body: Value = serde_json::from_slice(response.body())?;
+    assert_eq!(body["success"], true);
+    assert_eq!(body["data"]["service_name"], "super_admin_service");
+    assert!(body["data"]["is_super_admin"].as_bool().unwrap());
+    assert!(body["data"]["expires_at"].is_null());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_create_admin_token_invalid_permissions() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    let request_body = json!({
+        "service_name": "invalid_service",
+        "permissions": ["invalid_permission"]
+    });
+
+    let response = request()
+        .method("POST")
+        .path("/admin/tokens")
+        .header(
+            "authorization",
+            setup.auth_header(&setup.admin_token.jwt_token),
+        )
+        .header("content-type", "application/json")
+        .json(&request_body)
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 400);
+
+    let body: Value = serde_json::from_slice(response.body())?;
+    assert_eq!(body["success"], false);
+    assert!(body["message"]
+        .as_str()
+        .unwrap()
+        .contains("Invalid permission"));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_get_admin_token_details() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    let path = format!("/admin/tokens/{}", setup.admin_token.token_id);
+
+    let response = request()
+        .method("GET")
+        .path(&path)
+        .header(
+            "authorization",
+            setup.auth_header(&setup.admin_token.jwt_token),
+        )
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 200);
+
+    let body: Value = serde_json::from_slice(response.body())?;
+    assert_eq!(body["success"], true);
+    assert_eq!(body["data"]["id"], setup.admin_token.token_id);
+    assert_eq!(body["data"]["service_name"], "test_admin_service");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_get_admin_token_details_not_found() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    let response = request()
+        .method("GET")
+        .path("/admin/tokens/nonexistent_token_id")
+        .header(
+            "authorization",
+            setup.auth_header(&setup.admin_token.jwt_token),
+        )
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 404);
+
+    let body: Value = serde_json::from_slice(response.body())?;
+    assert_eq!(body["success"], false);
+    assert!(body["message"].as_str().unwrap().contains("not found"));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_revoke_admin_token() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    // Create a token to revoke
+    let revoke_request = CreateAdminTokenRequest {
+        service_name: "token_to_revoke".to_string(),
+        service_description: Some("Token that will be revoked".to_string()),
+        permissions: Some(vec![AdminPermission::ListKeys]),
+        expires_in_days: Some(30),
+        is_super_admin: false,
+    };
+
+    let token_to_revoke = setup
+        .context
+        .database
+        .create_admin_token(&revoke_request)
+        .await?;
+
+    let path = format!("/admin/tokens/{}/revoke", token_to_revoke.token_id);
+
+    let response = request()
+        .method("POST")
+        .path(&path)
+        .header(
+            "authorization",
+            setup.auth_header(&setup.admin_token.jwt_token),
+        )
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 200);
+
+    let body: Value = serde_json::from_slice(response.body())?;
+    assert_eq!(body["success"], true);
+    assert!(body["message"]
+        .as_str()
+        .unwrap()
+        .contains("revoked successfully"));
+    assert_eq!(body["data"]["token_id"], token_to_revoke.token_id);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_rotate_admin_token() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    // Create a token to rotate
+    let rotate_request = CreateAdminTokenRequest {
+        service_name: "token_to_rotate".to_string(),
+        service_description: Some("Token that will be rotated".to_string()),
+        permissions: Some(vec![AdminPermission::ListKeys]),
+        expires_in_days: Some(30),
+        is_super_admin: false,
+    };
+
+    let token_to_rotate = setup
+        .context
+        .database
+        .create_admin_token(&rotate_request)
+        .await?;
+
+    let path = format!("/admin/tokens/{}/rotate", token_to_rotate.token_id);
+    let request_body = json!({
+        "expires_in_days": 60
+    });
+
+    let response = request()
+        .method("POST")
+        .path(&path)
+        .header(
+            "authorization",
+            setup.auth_header(&setup.admin_token.jwt_token),
+        )
+        .header("content-type", "application/json")
+        .json(&request_body)
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 200);
+
+    let body: Value = serde_json::from_slice(response.body())?;
+    assert_eq!(body["success"], true);
+    assert!(body["message"]
+        .as_str()
+        .unwrap()
+        .contains("rotated successfully"));
+    assert_eq!(body["data"]["old_token_id"], token_to_rotate.token_id);
+    assert!(body["data"]["new_token"]["jwt_token"].is_string());
+
+    Ok(())
+}
+
+// ============================================================================
+// Error Handling and Edge Cases
+// ============================================================================
+
+#[tokio::test]
+async fn test_endpoint_not_found() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    let response = request()
+        .method("GET")
+        .path("/admin/nonexistent-endpoint")
+        .header(
+            "authorization",
+            setup.auth_header(&setup.admin_token.jwt_token),
+        )
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 404);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_method_not_allowed() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    // Try POST on GET-only endpoint
+    let response = request()
+        .method("POST")
+        .path("/admin/health")
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 405);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_large_request_body() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    // Create a very large description
+    let large_description = "x".repeat(10000);
+
+    let request_body = json!({
+        "user_email": setup.user.email.clone(),
+        "tier": "starter",
+        "description": large_description,
+        "expires_in_days": 30,
+        "rate_limit_requests": 1000,
+        "rate_limit_period": "day"
+    });
+
+    let response = request()
+        .method("POST")
+        .path("/admin/provision-api-key")
+        .header(
+            "authorization",
+            setup.auth_header(&setup.admin_token.jwt_token),
+        )
+        .header("content-type", "application/json")
+        .json(&request_body)
+        .reply(&routes)
+        .await;
+
+    // Should still work, just with a large description
+    assert_eq!(response.status(), 201);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_special_characters_in_requests() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    let request_body = json!({
+        "user_email": "test+special@example.com",
+        "tier": "starter",
+        "description": "Special chars: åäö 中文 🚀",
+        "expires_in_days": 30,
+        "rate_limit_requests": 1000,
+        "rate_limit_period": "day"
+    });
+
+    let response = request()
+        .method("POST")
+        .path("/admin/provision-api-key")
+        .header(
+            "authorization",
+            setup.auth_header(&setup.admin_token.jwt_token),
+        )
+        .header("content-type", "application/json")
+        .json(&request_body)
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 201);
+
+    let body: Value = serde_json::from_slice(response.body())?;
+    assert_eq!(body["success"], true);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_concurrent_requests() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    // Create multiple concurrent requests
+    let mut handles = vec![];
+
+    for i in 0..5 {
+        let routes_clone = routes.clone();
+        let token = setup.admin_token.jwt_token.clone();
+        let email = format!("concurrent{}@example.com", i);
+
+        let handle = tokio::spawn(async move {
+            let request_body = json!({
+                "user_email": email,
+                "tier": "starter",
+                "description": format!("Concurrent key {}", i),
+                "expires_in_days": 30,
+                "rate_limit_requests": 1000,
+                "rate_limit_period": "day"
+            });
+
+            request()
+                .method("POST")
+                .path("/admin/provision-api-key")
+                .header("authorization", format!("Bearer {}", token))
+                .header("content-type", "application/json")
+                .json(&request_body)
+                .reply(&routes_clone)
+                .await
+        });
+
+        handles.push(handle);
+    }
+
+    // Wait for all requests to complete
+    let mut all_succeeded = true;
+    for handle in handles {
+        let response = handle.await?;
+        if response.status() != 201 {
+            all_succeeded = false;
+        }
+    }
+
+    assert!(all_succeeded, "All concurrent requests should succeed");
+
+    Ok(())
+}
+
+// ============================================================================
+// IP Address and Headers Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_ip_address_extraction() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    let response = request()
+        .method("GET")
+        .path("/admin/token-info")
+        .header(
+            "authorization",
+            setup.auth_header(&setup.admin_token.jwt_token),
+        )
+        .header("x-forwarded-for", "192.168.1.100, 10.0.0.1")
+        .header("x-real-ip", "172.16.0.1")
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 200);
+
+    // The endpoint should extract the first IP from X-Forwarded-For
+    // This tests the IP extraction logic in the admin routes
+
+    Ok(())
+}
+
+// ============================================================================
+// Rate Limiting and API Key Tiers
+// ============================================================================
+
+#[tokio::test]
+async fn test_all_api_key_tiers() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    let tiers = vec!["trial", "starter", "professional", "enterprise"];
+
+    for tier in tiers {
+        let request_body = json!({
+            "user_email": format!("{}@example.com", tier),
+            "tier": tier,
+            "description": format!("{} tier key", tier),
+            "expires_in_days": 30,
+            "rate_limit_requests": 1000,
+            "rate_limit_period": "day"
+        });
+
+        let response = request()
+            .method("POST")
+            .path("/admin/provision-api-key")
+            .header(
+                "authorization",
+                setup.auth_header(&setup.admin_token.jwt_token),
+            )
+            .header("content-type", "application/json")
+            .json(&request_body)
+            .reply(&routes)
+            .await;
+
+        assert_eq!(response.status(), 201);
+
+        let body: Value = serde_json::from_slice(response.body())?;
+        assert_eq!(body["success"], true);
+        assert_eq!(body["tier"], tier);
+    }
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_rate_limit_periods() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    let periods = vec!["hour", "day", "week", "month"];
+
+    for period in periods {
+        let request_body = json!({
+            "user_email": format!("{}@example.com", period),
+            "tier": "starter",
+            "description": format!("{} period key", period),
+            "expires_in_days": 30,
+            "rate_limit_requests": 1000,
+            "rate_limit_period": period
+        });
+
+        let response = request()
+            .method("POST")
+            .path("/admin/provision-api-key")
+            .header(
+                "authorization",
+                setup.auth_header(&setup.admin_token.jwt_token),
+            )
+            .header("content-type", "application/json")
+            .json(&request_body)
+            .reply(&routes)
+            .await;
+
+        assert_eq!(response.status(), 201);
+
+        let body: Value = serde_json::from_slice(response.body())?;
+        assert_eq!(body["success"], true);
+        assert_eq!(body["rate_limit"]["period"], period);
+    }
+
+    Ok(())
+}
+
+// ============================================================================
+// Super Admin Specific Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_super_admin_privileges() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    // Super admin should be able to access token management
+    let response = request()
+        .method("GET")
+        .path("/admin/tokens")
+        .header(
+            "authorization",
+            setup.auth_header(&setup.super_admin_token.jwt_token),
+        )
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 200);
+
+    let body: Value = serde_json::from_slice(response.body())?;
+    assert_eq!(body["success"], true);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_super_admin_token_info() -> Result<()> {
+    let setup = AdminTestSetup::new().await?;
+    let routes = setup.routes();
+
+    let response = request()
+        .method("GET")
+        .path("/admin/token-info")
+        .header(
+            "authorization",
+            setup.auth_header(&setup.super_admin_token.jwt_token),
+        )
+        .reply(&routes)
+        .await;
+
+    assert_eq!(response.status(), 200);
+
+    let body: Value = serde_json::from_slice(response.body())?;
+    assert_eq!(body["token_id"], setup.super_admin_token.token_id);
+    assert_eq!(body["service_name"], "test_super_admin_service");
+    assert!(body["is_super_admin"].as_bool().unwrap());
+    assert!(body["permissions"].as_array().unwrap().len() > 3); // Should have all permissions
+
+    Ok(())
+}

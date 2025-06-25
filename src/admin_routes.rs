@@ -767,6 +767,10 @@ async fn handle_admin_rejection(err: Rejection) -> Result<impl Reply, std::conve
         .is_some()
     {
         (StatusCode::BAD_REQUEST, "Invalid JSON body")
+    } else if err.find::<warp::reject::MissingHeader>().is_some() {
+        (StatusCode::BAD_REQUEST, "Missing required header")
+    } else if err.find::<warp::reject::MethodNotAllowed>().is_some() {
+        (StatusCode::METHOD_NOT_ALLOWED, "Method not allowed")
     } else {
         (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error")
     };

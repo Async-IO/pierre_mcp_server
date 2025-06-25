@@ -1268,6 +1268,43 @@ impl DatabaseProvider for PostgresDatabase {
         .fetch_one(&self.pool)
         .await?;
 
+        // Get tool usage aggregation
+        let tool_usage_stats = sqlx::query(
+            r#"
+            SELECT tool_name, 
+                   COUNT(*) as tool_count,
+                   AVG(response_time_ms) as avg_response_time,
+                   COUNT(CASE WHEN status_code >= 200 AND status_code < 300 THEN 1 END) as success_count
+            FROM api_key_usage
+            WHERE api_key_id = $1 AND timestamp >= $2 AND timestamp <= $3
+            GROUP BY tool_name
+            ORDER BY tool_count DESC
+            "#,
+        )
+        .bind(api_key_id)
+        .bind(start_date)
+        .bind(end_date)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut tool_usage = serde_json::Map::new();
+        for tool_row in tool_usage_stats {
+            let tool_name: String = tool_row.get("tool_name");
+            let tool_count: i64 = tool_row.get("tool_count");
+            let avg_response_time: Option<f64> = tool_row.get("avg_response_time");
+            let success_count: i64 = tool_row.get("success_count");
+
+            tool_usage.insert(
+                tool_name,
+                serde_json::json!({
+                    "count": tool_count,
+                    "success_count": success_count,
+                    "avg_response_time_ms": avg_response_time.unwrap_or(0.0),
+                    "success_rate": if tool_count > 0 { success_count as f64 / tool_count as f64 } else { 0.0 }
+                }),
+            );
+        }
+
         Ok(ApiKeyUsageStats {
             api_key_id: api_key_id.to_string(),
             period_start: start_date,
@@ -1278,7 +1315,7 @@ impl DatabaseProvider for PostgresDatabase {
             total_response_time_ms: row
                 .get::<Option<i64>, _>("total_response_time")
                 .unwrap_or(0) as u64,
-            tool_usage: serde_json::json!({}), // TODO: Implement tool usage aggregation
+            tool_usage: serde_json::Value::Object(tool_usage),
         })
     }
 
@@ -1396,7 +1433,12 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     // A2A methods
-    async fn create_a2a_client(&self, client: &A2AClient, api_key_id: &str) -> Result<String> {
+    async fn create_a2a_client(
+        &self,
+        client: &A2AClient,
+        client_secret: &str,
+        api_key_id: &str,
+    ) -> Result<String> {
         sqlx::query(
             r#"
             INSERT INTO a2a_clients (client_id, user_id, name, description, client_secret_hash, 
@@ -1409,7 +1451,7 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(Uuid::new_v4()) // Generate a user_id since A2AClient doesn't have one
         .bind(&client.name)
         .bind(&client.description)
-        .bind(&client.public_key) // Use public_key as client_secret_hash
+        .bind(client_secret) // Use actual client_secret
         .bind(api_key_id) // Using api_key_id as api_key_hash
         .bind(&client.capabilities)
         .bind(&client.redirect_uris)
@@ -1524,6 +1566,65 @@ impl DatabaseProvider for PostgresDatabase {
         }
 
         Ok(clients)
+    }
+
+    async fn deactivate_a2a_client(&self, client_id: &str) -> Result<()> {
+        let query =
+            "UPDATE a2a_clients SET is_active = false, updated_at = NOW() WHERE client_id = $1";
+
+        let result = sqlx::query(query)
+            .bind(client_id)
+            .execute(&self.pool)
+            .await?;
+
+        if result.rows_affected() == 0 {
+            return Err(anyhow::anyhow!("A2A client not found: {}", client_id));
+        }
+
+        Ok(())
+    }
+
+    async fn get_a2a_client_credentials(
+        &self,
+        client_id: &str,
+    ) -> Result<Option<(String, String)>> {
+        let query = "SELECT client_id, client_secret_hash FROM a2a_clients WHERE client_id = $1 AND is_active = true";
+
+        let row = sqlx::query(query)
+            .bind(client_id)
+            .fetch_optional(&self.pool)
+            .await?;
+
+        if let Some(row) = row {
+            let id: String = row.get("client_id");
+            let secret: String = row.get("client_secret_hash");
+            Ok(Some((id, secret)))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn invalidate_a2a_client_sessions(&self, client_id: &str) -> Result<()> {
+        let query =
+            "UPDATE a2a_sessions SET expires_at = NOW() - INTERVAL '1 hour' WHERE client_id = $1";
+
+        sqlx::query(query)
+            .bind(client_id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    async fn deactivate_client_api_keys(&self, client_id: &str) -> Result<()> {
+        let query = "UPDATE api_keys SET is_active = false WHERE id IN (SELECT api_key_id FROM a2a_client_api_keys WHERE client_id = $1)";
+
+        sqlx::query(query)
+            .bind(client_id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
     }
 
     async fn create_a2a_session(
@@ -1671,7 +1772,9 @@ impl DatabaseProvider for PostgresDatabase {
                 completed_at: row.try_get("updated_at")?,
                 result: result_data.clone(),
                 error: row.try_get("method")?,
-                client_id: "unknown".to_string(), // TODO: Get from task data
+                client_id: row
+                    .try_get("client_id")
+                    .unwrap_or_else(|_| "unknown".to_string()),
                 task_type: row.try_get("task_type")?,
                 input_data: _input_data,
                 output_data: result_data,

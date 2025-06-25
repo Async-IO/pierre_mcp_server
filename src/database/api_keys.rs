@@ -353,6 +353,43 @@ impl Database {
         let _total_request_bytes: Option<i64> = stats.get(5);
         let _total_response_bytes: Option<i64> = stats.get(6);
 
+        // Get tool usage aggregation
+        let tool_usage_stats = sqlx::query(
+            r#"
+            SELECT tool_name, 
+                   COUNT(*) as tool_count,
+                   AVG(response_time_ms) as avg_response_time,
+                   COUNT(CASE WHEN status_code >= 200 AND status_code < 300 THEN 1 END) as success_count
+            FROM api_key_usage
+            WHERE api_key_id = $1 AND timestamp >= $2 AND timestamp <= $3
+            GROUP BY tool_name
+            ORDER BY tool_count DESC
+            "#,
+        )
+        .bind(api_key_id)
+        .bind(start_date)
+        .bind(end_date)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut tool_usage = serde_json::Map::new();
+        for row in tool_usage_stats {
+            let tool_name: String = row.get("tool_name");
+            let tool_count: i32 = row.get("tool_count");
+            let avg_response_time: Option<f64> = row.get("avg_response_time");
+            let success_count: i32 = row.get("success_count");
+
+            tool_usage.insert(
+                tool_name,
+                serde_json::json!({
+                    "count": tool_count,
+                    "success_count": success_count,
+                    "avg_response_time_ms": avg_response_time.unwrap_or(0.0),
+                    "success_rate": if tool_count > 0 { success_count as f64 / tool_count as f64 } else { 0.0 }
+                }),
+            );
+        }
+
         Ok(ApiKeyUsageStats {
             api_key_id: api_key_id.to_string(),
             period_start: start_date,
@@ -361,7 +398,7 @@ impl Database {
             successful_requests: successful_requests as u32,
             failed_requests: failed_requests as u32,
             total_response_time_ms: total_response_time.map(|t| t as u64).unwrap_or(0),
-            tool_usage: serde_json::json!({}), // TODO: Implement tool usage aggregation
+            tool_usage: serde_json::Value::Object(tool_usage),
         })
     }
 
