@@ -303,6 +303,8 @@ pub struct TlsConfig {
 pub struct ExternalServicesConfig {
     /// Weather service configuration
     pub weather: WeatherServiceConfig,
+    /// Geocoding service configuration
+    pub geocoding: GeocodingServiceConfig,
     /// Strava API configuration
     pub strava_api: StravaApiConfig,
     /// Fitbit API configuration  
@@ -316,6 +318,14 @@ pub struct WeatherServiceConfig {
     /// Weather service base URL
     pub base_url: String,
     /// Enable weather service
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GeocodingServiceConfig {
+    /// Geocoding service base URL
+    pub base_url: String,
+    /// Enable geocoding service
     pub enabled: bool,
 }
 
@@ -479,6 +489,15 @@ impl ServerConfig {
                     enabled: env_var_or("WEATHER_SERVICE_ENABLED", "true")?
                         .parse()
                         .context("Invalid WEATHER_SERVICE_ENABLED value")?,
+                },
+                geocoding: GeocodingServiceConfig {
+                    base_url: env_var_or(
+                        "GEOCODING_BASE_URL",
+                        "https://nominatim.openstreetmap.org",
+                    )?,
+                    enabled: env_var_or("GEOCODING_SERVICE_ENABLED", "true")?
+                        .parse()
+                        .context("Invalid GEOCODING_SERVICE_ENABLED value")?,
                 },
                 strava_api: StravaApiConfig {
                     base_url: env_var_or("STRAVA_API_BASE", "https://www.strava.com/api/v3")?,
@@ -835,6 +854,10 @@ mod tests {
                     api_key: None,
                     base_url: "https://api.openweathermap.org/data/2.5".to_string(),
                     enabled: false,
+                },
+                geocoding: GeocodingServiceConfig {
+                    base_url: "https://nominatim.openstreetmap.org".to_string(),
+                    enabled: true,
                 },
                 strava_api: StravaApiConfig {
                     base_url: "https://www.strava.com/api/v3".to_string(),

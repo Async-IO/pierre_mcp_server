@@ -247,7 +247,7 @@ impl A2AClientManager {
     async fn store_client_secure(
         &self,
         client: &A2AClient,
-        _client_secret: &str,
+        client_secret: &str,
         _api_key: &str,
         system_user_id: Uuid,
     ) -> Result<(), crate::a2a::A2AError> {
@@ -279,7 +279,7 @@ impl A2AClientManager {
 
         // Create A2A client entry linked to the API key
         self.database
-            .create_a2a_client(client, &api_key_obj.id)
+            .create_a2a_client(client, client_secret, &api_key_obj.id)
             .await
             .map_err(|e| {
                 crate::a2a::A2AError::InternalError(format!("Failed to create A2A client: {}", e))
@@ -305,20 +305,69 @@ impl A2AClientManager {
             .map_err(crate::a2a::map_db_error("Failed to get A2A client"))
     }
 
-    /// List all registered clients
+    /// List all registered clients for a specific user
+    pub async fn list_clients_for_user(
+        &self,
+        user_id: &uuid::Uuid,
+    ) -> Result<Vec<A2AClient>, crate::a2a::A2AError> {
+        self.database
+            .list_a2a_clients(user_id)
+            .await
+            .map_err(crate::a2a::map_db_error("Failed to list A2A clients"))
+    }
+
+    /// List all registered clients (system-wide - admin only)
+    pub async fn list_all_clients(&self) -> Result<Vec<A2AClient>, crate::a2a::A2AError> {
+        // For system-wide listing, we use nil UUID to get all clients
+        let system_user_id = uuid::Uuid::nil();
+        self.database
+            .list_a2a_clients(&system_user_id)
+            .await
+            .map_err(crate::a2a::map_db_error("Failed to list all A2A clients"))
+    }
+
+    /// Legacy method for backwards compatibility - lists all clients
     pub async fn list_clients(&self) -> Result<Vec<A2AClient>, crate::a2a::A2AError> {
-        // For now, return an empty list since we don't have a user context
-        // In production, this would list clients for a specific user
-        Ok(vec![])
+        self.list_all_clients().await
     }
 
     /// Deactivate a client
-    pub async fn deactivate_client(&self, _client_id: &str) -> Result<(), crate::a2a::A2AError> {
-        // Client deactivation would set is_active=false in database
-        // This would involve:
-        // 1. Setting is_active to false
-        // 2. Invalidating active sessions
-        // 3. Deactivating API keys
+    pub async fn deactivate_client(&self, client_id: &str) -> Result<(), crate::a2a::A2AError> {
+        // First verify the client exists
+        let _client = self
+            .get_client(client_id)
+            .await?
+            .ok_or_else(|| crate::a2a::A2AError::ClientNotRegistered(client_id.to_string()))?;
+
+        // Deactivate the client in the database
+        self.database
+            .deactivate_a2a_client(client_id)
+            .await
+            .map_err(crate::a2a::map_db_error("Failed to deactivate A2A client"))?;
+
+        // Invalidate all active sessions for this client
+        if let Err(e) = self
+            .database
+            .invalidate_a2a_client_sessions(client_id)
+            .await
+        {
+            tracing::error!(
+                "Failed to invalidate sessions for client {}: {}",
+                client_id,
+                e
+            );
+            // Continue with deactivation even if session invalidation fails
+        }
+
+        // Deactivate associated API keys - this is critical for security
+        if let Err(e) = self.database.deactivate_client_api_keys(client_id).await {
+            tracing::error!(
+                "Failed to deactivate API keys for client {}: {}",
+                client_id,
+                e
+            );
+            // Continue with deactivation even if API key deactivation fails
+        }
 
         Ok(())
     }
@@ -589,27 +638,34 @@ impl A2AClientManager {
         &self,
         client_id: &str,
     ) -> Result<Option<ClientCredentials>, crate::a2a::A2AError> {
-        // In a real implementation, this would fetch hashed credentials from database
-        // For now, we'll create a simple lookup mechanism
+        // Fetch credentials from database
+        let creds = self
+            .database
+            .get_a2a_client_credentials(client_id)
+            .await
+            .map_err(|e| crate::a2a::A2AError::InternalError(format!("Database error: {}", e)))?;
 
-        // First check if client exists
-        let client = self.get_client(client_id).await?;
-        if client.is_none() {
-            return Ok(None);
+        if let Some((id, secret)) = creds {
+            // Get the actual public key from the client record
+            let client = self.get_client(&id).await?;
+            let public_key = client.map(|c| c.public_key).unwrap_or_else(|| {
+                tracing::warn!("Could not retrieve public key for client {}", id);
+                String::new()
+            });
+
+            let credentials = ClientCredentials {
+                client_id: id,
+                client_secret: secret,
+                api_key: format!("a2a_{}", client_id),
+                public_key,
+                private_key: String::new(), // Never expose private keys
+                key_type: "ed25519".to_string(),
+            };
+
+            Ok(Some(credentials))
+        } else {
+            Ok(None)
         }
-
-        // In practice, credentials would be stored securely in database
-        // For now, return a basic credential structure for testing
-        let credentials = ClientCredentials {
-            client_id: client_id.to_string(),
-            client_secret: format!("secret_{}", client_id), // This would be properly hashed
-            api_key: format!("a2a_{}", client_id),
-            public_key: "dummy_public_key".to_string(), // Would be actual Ed25519 key
-            private_key: "dummy_private_key".to_string(), // Would be actual Ed25519 key
-            key_type: "ed25519".to_string(),
-        };
-
-        Ok(Some(credentials))
     }
 }
 

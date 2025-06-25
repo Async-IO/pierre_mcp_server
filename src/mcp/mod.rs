@@ -213,6 +213,10 @@ async fn create_tool_executor() -> Result<Arc<UniversalToolExecutor>> {
                         base_url: "https://api.openweathermap.org/data/2.5".to_string(),
                         enabled: false,
                     },
+                    geocoding: crate::config::environment::GeocodingServiceConfig {
+                        base_url: "https://nominatim.openstreetmap.org".to_string(),
+                        enabled: true,
+                    },
                     strava_api: crate::config::environment::StravaApiConfig {
                         base_url: "https://www.strava.com/api/v3".to_string(),
                         auth_url: "https://www.strava.com/oauth/authorize".to_string(),

@@ -75,7 +75,7 @@ impl AgentCard {
     /// Create a new Agent Card for Pierre
     pub fn new() -> Self {
         Self {
-            name: "Pierre Fitness Intelligence Agent".to_string(),
+            name: "Pierre Fitness AI".to_string(),
             description: "AI-powered fitness data analysis and insights platform providing comprehensive activity analysis, performance tracking, and intelligent recommendations for athletes and fitness enthusiasts.".to_string(),
             version: "1.0.0".to_string(),
             capabilities: vec![
@@ -331,7 +331,7 @@ mod tests {
     #[test]
     fn test_agent_card_creation() {
         let card = AgentCard::new();
-        assert_eq!(card.name, "Pierre Fitness Intelligence Agent");
+        assert_eq!(card.name, "Pierre Fitness AI");
         assert!(!card.capabilities.is_empty());
         assert!(!card.tools.is_empty());
     }
@@ -340,7 +340,7 @@ mod tests {
     fn test_agent_card_serialization() {
         let card = AgentCard::new();
         let json = card.to_json().unwrap();
-        assert!(json.contains("Pierre Fitness Intelligence Agent"));
+        assert!(json.contains("Pierre Fitness AI"));
         assert!(json.contains("get_activities"));
         assert!(json.contains("analyze_activity"));
     }

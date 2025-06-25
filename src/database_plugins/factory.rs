@@ -504,11 +504,22 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn create_a2a_client(&self, client: &A2AClient, api_key_id: &str) -> Result<String> {
+    async fn create_a2a_client(
+        &self,
+        client: &A2AClient,
+        client_secret: &str,
+        api_key_id: &str,
+    ) -> Result<String> {
         match self {
-            Database::SQLite(db) => db.create_a2a_client(client, api_key_id).await,
+            Database::SQLite(db) => {
+                db.create_a2a_client(client, client_secret, api_key_id)
+                    .await
+            }
             #[cfg(feature = "postgresql")]
-            Database::PostgreSQL(db) => db.create_a2a_client(client, api_key_id).await,
+            Database::PostgreSQL(db) => {
+                db.create_a2a_client(client, client_secret, api_key_id)
+                    .await
+            }
         }
     }
 
@@ -533,6 +544,41 @@ impl DatabaseProvider for Database {
             Database::SQLite(db) => db.list_a2a_clients(user_id).await,
             #[cfg(feature = "postgresql")]
             Database::PostgreSQL(db) => db.list_a2a_clients(user_id).await,
+        }
+    }
+
+    async fn deactivate_a2a_client(&self, client_id: &str) -> Result<()> {
+        match self {
+            Database::SQLite(db) => db.deactivate_a2a_client(client_id).await,
+            #[cfg(feature = "postgresql")]
+            Database::PostgreSQL(db) => db.deactivate_a2a_client(client_id).await,
+        }
+    }
+
+    async fn get_a2a_client_credentials(
+        &self,
+        client_id: &str,
+    ) -> Result<Option<(String, String)>> {
+        match self {
+            Database::SQLite(db) => db.get_a2a_client_credentials(client_id).await,
+            #[cfg(feature = "postgresql")]
+            Database::PostgreSQL(db) => db.get_a2a_client_credentials(client_id).await,
+        }
+    }
+
+    async fn invalidate_a2a_client_sessions(&self, client_id: &str) -> Result<()> {
+        match self {
+            Database::SQLite(db) => db.invalidate_a2a_client_sessions(client_id).await,
+            #[cfg(feature = "postgresql")]
+            Database::PostgreSQL(db) => db.invalidate_a2a_client_sessions(client_id).await,
+        }
+    }
+
+    async fn deactivate_client_api_keys(&self, client_id: &str) -> Result<()> {
+        match self {
+            Database::SQLite(db) => db.deactivate_client_api_keys(client_id).await,
+            #[cfg(feature = "postgresql")]
+            Database::PostgreSQL(db) => db.deactivate_client_api_keys(client_id).await,
         }
     }
 

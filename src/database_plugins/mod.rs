@@ -213,7 +213,12 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     // ================================
 
     /// Create a new A2A client
-    async fn create_a2a_client(&self, client: &A2AClient, api_key_id: &str) -> Result<String>;
+    async fn create_a2a_client(
+        &self,
+        client: &A2AClient,
+        client_secret: &str,
+        api_key_id: &str,
+    ) -> Result<String>;
 
     /// Get A2A client by ID
     async fn get_a2a_client(&self, client_id: &str) -> Result<Option<A2AClient>>;
@@ -223,6 +228,19 @@ pub trait DatabaseProvider: Send + Sync + Clone {
 
     /// List all A2A clients for a user
     async fn list_a2a_clients(&self, user_id: &Uuid) -> Result<Vec<A2AClient>>;
+
+    /// Deactivate an A2A client
+    async fn deactivate_a2a_client(&self, client_id: &str) -> Result<()>;
+
+    /// Get client credentials for authentication
+    async fn get_a2a_client_credentials(&self, client_id: &str)
+        -> Result<Option<(String, String)>>;
+
+    /// Invalidate all active sessions for a client
+    async fn invalidate_a2a_client_sessions(&self, client_id: &str) -> Result<()>;
+
+    /// Deactivate all API keys associated with a client
+    async fn deactivate_client_api_keys(&self, client_id: &str) -> Result<()>;
 
     /// Create a new A2A session
     async fn create_a2a_session(

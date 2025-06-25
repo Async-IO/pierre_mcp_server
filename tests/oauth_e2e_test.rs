@@ -92,6 +92,10 @@ async fn test_oauth_flow_through_mcp() {
                 auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
                 token_url: "https://api.fitbit.com/oauth2/token".to_string(),
             },
+            geocoding: pierre_mcp_server::config::environment::GeocodingServiceConfig {
+                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                enabled: true,
+            },
         },
         app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
             max_activities_fetch: 100,

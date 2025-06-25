@@ -348,15 +348,20 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
         let mut strength_count = 0;
 
         for activity in &recent_activities {
-            // Power data not available in current Activity model
-            if false {
-                // Skip power calculations
-                strength_count += 1;
-            } else if let Some(hr) = activity.average_heart_rate {
-                let _duration = activity.duration_seconds;
+            // Use heart rate as proxy for intensity since power data is not available
+            if let Some(hr) = activity.average_heart_rate {
+                let duration = activity.duration_seconds;
+
+                // High intensity workouts (HR > 160) contribute to strength endurance
                 if hr > 160 {
-                    // High intensity
-                    strength_score += hr as f64;
+                    // Weight by duration - longer high-intensity efforts indicate better strength endurance
+                    let duration_weight = (duration as f64 / 3600.0).min(2.0); // Cap at 2 hours
+                    strength_score += hr as f64 * duration_weight;
+                    strength_count += 1;
+                } else if hr > 140 {
+                    // Moderate intensity also contributes, but less
+                    let duration_weight = (duration as f64 / 3600.0).min(1.5);
+                    strength_score += (hr as f64 * 0.6) * duration_weight;
                     strength_count += 1;
                 }
             }

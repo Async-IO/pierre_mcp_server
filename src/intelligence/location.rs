@@ -61,10 +61,16 @@ pub struct LocationService {
     client: Client,
     cache: HashMap<String, CacheEntry>,
     cache_duration: Duration,
+    base_url: String,
+    enabled: bool,
 }
 
 impl LocationService {
     pub fn new() -> Self {
+        Self::with_config("https://nominatim.openstreetmap.org".to_string(), true)
+    }
+
+    pub fn with_config(base_url: String, enabled: bool) -> Self {
         Self {
             client: Client::builder()
                 .user_agent(
@@ -75,6 +81,8 @@ impl LocationService {
                 .expect("Failed to create HTTP client"),
             cache: HashMap::new(),
             cache_duration: Duration::from_secs(24 * 60 * 60), // 24 hours
+            base_url,
+            enabled,
         }
     }
 
@@ -83,6 +91,22 @@ impl LocationService {
         latitude: f64,
         longitude: f64,
     ) -> Result<LocationData> {
+        // Check if service is enabled
+        if !self.enabled {
+            return Ok(LocationData {
+                city: None,
+                country: None,
+                region: None,
+                trail_name: None,
+                amenity: None,
+                natural: None,
+                tourism: None,
+                leisure: None,
+                display_name: "Location service disabled".to_string(),
+                coordinates: (latitude, longitude),
+            });
+        }
+
         let cache_key = format!("{:.6},{:.6}", latitude, longitude);
 
         // Check cache first
@@ -100,10 +124,10 @@ impl LocationService {
             latitude, longitude
         );
 
-        // Make request to Nominatim API
+        // Make request to configured geocoding API
         let url = format!(
-            "https://nominatim.openstreetmap.org/reverse?format=json&lat={}&lon={}&zoom=14&addressdetails=1",
-            latitude, longitude
+            "{}/reverse?format=json&lat={}&lon={}&zoom=14&addressdetails=1",
+            self.base_url, latitude, longitude
         );
 
         let response = self

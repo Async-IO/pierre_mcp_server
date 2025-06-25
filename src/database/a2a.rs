@@ -56,6 +56,7 @@ impl Database {
                 name TEXT NOT NULL,
                 description TEXT,
                 public_key TEXT NOT NULL,
+                client_secret TEXT NOT NULL,
                 permissions TEXT NOT NULL,
                 rate_limit_requests INTEGER NOT NULL DEFAULT 1000,
                 rate_limit_window_seconds INTEGER NOT NULL DEFAULT 3600,
@@ -79,7 +80,8 @@ impl Database {
                 granted_scopes TEXT NOT NULL,
                 expires_at DATETIME NOT NULL,
                 last_activity DATETIME DEFAULT CURRENT_TIMESTAMP,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                requests_count INTEGER NOT NULL DEFAULT 0
             )
             "#,
         )
@@ -131,6 +133,20 @@ impl Database {
         .execute(&self.pool)
         .await?;
 
+        // Create a2a_client_api_keys junction table for API key associations
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS a2a_client_api_keys (
+                client_id TEXT NOT NULL REFERENCES a2a_clients(id) ON DELETE CASCADE,
+                api_key_id TEXT NOT NULL REFERENCES api_keys(id) ON DELETE CASCADE,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (client_id, api_key_id)
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
         // Create indexes
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_a2a_sessions_client_id ON a2a_sessions(client_id)",
@@ -164,20 +180,26 @@ impl Database {
     }
 
     /// Create a new A2A client
-    pub async fn create_a2a_client(&self, client: &A2AClient, api_key_id: &str) -> Result<String> {
+    pub async fn create_a2a_client(
+        &self,
+        client: &A2AClient,
+        client_secret: &str,
+        api_key_id: &str,
+    ) -> Result<String> {
         sqlx::query(
             r#"
             INSERT INTO a2a_clients (
-                id, name, description, public_key, permissions,
+                id, name, description, public_key, client_secret, permissions,
                 rate_limit_requests, rate_limit_window_seconds, is_active,
                 created_at, updated_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             "#,
         )
         .bind(&client.id)
         .bind(&client.name)
         .bind(&client.description)
         .bind(&client.public_key)
+        .bind(client_secret)
         .bind(serde_json::to_string(&client.permissions)?)
         .bind(client.rate_limit_requests as i32)
         .bind(client.rate_limit_window_seconds as i32)
@@ -187,9 +209,21 @@ impl Database {
         .execute(&self.pool)
         .await?;
 
-        // TODO: Associate with api_key_id if needed
+        // Associate A2A client with API key
+        sqlx::query(
+            r#"
+            INSERT INTO a2a_client_api_keys (client_id, api_key_id, created_at)
+            VALUES ($1, $2, $3)
+            "#,
+        )
+        .bind(&client.id)
+        .bind(api_key_id)
+        .bind(chrono::Utc::now())
+        .execute(&self.pool)
+        .await?;
+
         tracing::debug!(
-            "Created A2A client {} with API key {}",
+            "Created A2A client {} with API key {} association",
             client.id,
             api_key_id
         );
@@ -266,6 +300,71 @@ impl Database {
         Ok(clients)
     }
 
+    /// Deactivate an A2A client
+    pub async fn deactivate_a2a_client(&self, client_id: &str) -> Result<()> {
+        let query = "UPDATE a2a_clients SET is_active = 0, updated_at = ? WHERE id = ?";
+        let now = chrono::Utc::now();
+
+        let result = sqlx::query(query)
+            .bind(now)
+            .bind(client_id)
+            .execute(&self.pool)
+            .await?;
+
+        if result.rows_affected() == 0 {
+            return Err(anyhow::anyhow!("A2A client not found: {}", client_id));
+        }
+
+        Ok(())
+    }
+
+    /// Get client credentials for authentication
+    pub async fn get_a2a_client_credentials(
+        &self,
+        client_id: &str,
+    ) -> Result<Option<(String, String)>> {
+        let query = "SELECT id, client_secret FROM a2a_clients WHERE id = ? AND is_active = 1";
+
+        let row = sqlx::query(query)
+            .bind(client_id)
+            .fetch_optional(&self.pool)
+            .await?;
+
+        if let Some(row) = row {
+            let id: String = row.get("id");
+            let secret: String = row.get("client_secret");
+            Ok(Some((id, secret)))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Invalidate all active sessions for a client
+    pub async fn invalidate_a2a_client_sessions(&self, client_id: &str) -> Result<()> {
+        let query =
+            "UPDATE a2a_sessions SET expires_at = datetime('now', '-1 hour') WHERE client_id = ?";
+
+        sqlx::query(query)
+            .bind(client_id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Deactivate all API keys associated with a client
+    pub async fn deactivate_client_api_keys(&self, client_id: &str) -> Result<()> {
+        // Get API keys associated with the client through the a2a_clients table
+        let query = "UPDATE api_keys SET is_active = 0 WHERE id IN (SELECT api_key_id FROM a2a_client_api_keys WHERE client_id = ?)";
+
+        sqlx::query(query)
+            .bind(client_id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
     /// Get A2A client by name
     pub async fn get_a2a_client_by_name(&self, name: &str) -> Result<Option<A2AClient>> {
         let row = sqlx::query(
@@ -320,8 +419,8 @@ impl Database {
             r#"
             INSERT INTO a2a_sessions (
                 session_token, client_id, user_id, granted_scopes,
-                expires_at, last_activity, created_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+                expires_at, last_activity, created_at, requests_count
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             "#,
         )
         .bind(&session_token)
@@ -331,6 +430,7 @@ impl Database {
         .bind(expires_at)
         .bind(now)
         .bind(now)
+        .bind(0) // Initial requests count
         .execute(&self.pool)
         .await?;
 
@@ -342,7 +442,7 @@ impl Database {
         let row = sqlx::query(
             r#"
             SELECT session_token, client_id, user_id, granted_scopes, 
-                   expires_at, last_activity, created_at
+                   expires_at, last_activity, created_at, requests_count
             FROM a2a_sessions
             WHERE session_token = $1 AND expires_at > datetime('now')
             "#,
@@ -372,7 +472,7 @@ impl Database {
                 created_at: row.get("created_at"),
                 expires_at: row.get("expires_at"),
                 last_activity: row.get("last_activity"),
-                requests_count: 0, // TODO: Track actual request count
+                requests_count: row.get::<i32, _>("requests_count") as u64,
             }))
         } else {
             Ok(None)
@@ -384,7 +484,7 @@ impl Database {
         sqlx::query(
             r#"
             UPDATE a2a_sessions 
-            SET last_activity = datetime('now')
+            SET last_activity = datetime('now'), requests_count = requests_count + 1
             WHERE session_token = $1
             "#,
         )
@@ -671,6 +771,45 @@ mod tests {
 
     async fn create_test_client(db: &Database) -> A2AClient {
         let unique_id = Uuid::new_v4();
+
+        // First create a test user
+        let test_user_id = Uuid::new_v4();
+        let user = crate::models::User {
+            id: test_user_id,
+            email: format!("test_{}@example.com", unique_id),
+            display_name: Some(format!("Test User {}", unique_id)),
+            password_hash: "dummy_hash".to_string(),
+            tier: crate::models::UserTier::Professional,
+            strava_token: None,
+            fitbit_token: None,
+            is_active: true,
+            created_at: Utc::now(),
+            last_active: Utc::now(),
+        };
+        db.create_user(&user)
+            .await
+            .expect("Failed to create test user");
+
+        // Create a test API key for the user
+        let api_key = crate::api_keys::ApiKey {
+            id: format!("test_api_key_{}", unique_id),
+            user_id: test_user_id,
+            name: format!("Test API Key {}", unique_id),
+            description: Some("Test API key for A2A client".to_string()),
+            key_prefix: format!("pk_test_{}", &unique_id.to_string()[0..8]),
+            key_hash: "dummy_hash".to_string(),
+            tier: crate::api_keys::ApiKeyTier::Professional,
+            rate_limit_requests: 1000,
+            rate_limit_window_seconds: 3600,
+            is_active: true,
+            created_at: Utc::now(),
+            last_used_at: None,
+            expires_at: None,
+        };
+        db.create_api_key(&api_key)
+            .await
+            .expect("Failed to create test API key");
+
         let client = A2AClient {
             id: format!("test_client_{}", unique_id),
             name: format!("Test Client {}", unique_id),
@@ -686,7 +825,7 @@ mod tests {
             updated_at: Utc::now(),
         };
 
-        db.create_a2a_client(&client, "test_api_key")
+        db.create_a2a_client(&client, "test_secret", &api_key.id)
             .await
             .expect("Failed to create A2A client");
         client
