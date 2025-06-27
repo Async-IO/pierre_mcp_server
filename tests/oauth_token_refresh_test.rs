@@ -18,7 +18,97 @@ use pierre_mcp_server::models::User;
 use pierre_mcp_server::protocols::universal::{UniversalRequest, UniversalToolExecutor};
 use serde_json::json;
 use std::sync::Arc;
+
 use uuid::Uuid;
+
+/// Create a test ServerConfig with missing OAuth credentials for failure testing
+fn create_test_server_config_without_oauth(
+) -> std::sync::Arc<pierre_mcp_server::config::environment::ServerConfig> {
+    std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
+        mcp_port: 3000,
+        http_port: 4000,
+        log_level: pierre_mcp_server::config::environment::LogLevel::Info,
+        database: pierre_mcp_server::config::environment::DatabaseConfig {
+            url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
+            encryption_key_path: std::path::PathBuf::from("test.key"),
+            auto_migrate: true,
+            backup: pierre_mcp_server::config::environment::BackupConfig {
+                enabled: false,
+                interval_seconds: 3600,
+                retention_count: 7,
+                directory: std::path::PathBuf::from("test_backups"),
+            },
+        },
+        auth: pierre_mcp_server::config::environment::AuthConfig {
+            jwt_secret_path: std::path::PathBuf::from("test.secret"),
+            jwt_expiry_hours: 24,
+            enable_refresh_tokens: false,
+        },
+        oauth: pierre_mcp_server::config::environment::OAuthConfig {
+            strava: pierre_mcp_server::config::environment::OAuthProviderConfig {
+                client_id: None,     // Missing credentials
+                client_secret: None, // Missing credentials
+                redirect_uri: Some("http://localhost:3000/oauth/callback/strava".to_string()),
+                scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+                enabled: true,
+            },
+            fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig {
+                client_id: None,     // Missing credentials
+                client_secret: None, // Missing credentials
+                redirect_uri: Some("http://localhost:3000/oauth/callback/fitbit".to_string()),
+                scopes: vec!["activity".to_string(), "profile".to_string()],
+                enabled: true,
+            },
+        },
+        security: pierre_mcp_server::config::environment::SecurityConfig {
+            cors_origins: vec!["*".to_string()],
+            rate_limit: pierre_mcp_server::config::environment::RateLimitConfig {
+                enabled: false,
+                requests_per_window: 100,
+                window_seconds: 60,
+            },
+            tls: pierre_mcp_server::config::environment::TlsConfig {
+                enabled: false,
+                cert_path: None,
+                key_path: None,
+            },
+            headers: pierre_mcp_server::config::environment::SecurityHeadersConfig {
+                environment: pierre_mcp_server::config::environment::Environment::Development,
+            },
+        },
+        external_services: pierre_mcp_server::config::environment::ExternalServicesConfig {
+            weather: pierre_mcp_server::config::environment::WeatherServiceConfig {
+                api_key: None,
+                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                enabled: false,
+            },
+            strava_api: pierre_mcp_server::config::environment::StravaApiConfig {
+                base_url: "https://www.strava.com/api/v3".to_string(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
+                token_url: "https://www.strava.com/oauth/token".to_string(),
+            },
+            fitbit_api: pierre_mcp_server::config::environment::FitbitApiConfig {
+                base_url: "https://api.fitbit.com".to_string(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+            },
+            geocoding: pierre_mcp_server::config::environment::GeocodingServiceConfig {
+                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                enabled: true,
+            },
+        },
+        app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
+            max_activities_fetch: 100,
+            default_activities_limit: 20,
+            ci_mode: true,
+            protocol: pierre_mcp_server::config::environment::ProtocolConfig {
+                mcp_version: "2024-11-05".to_string(),
+                server_name: "pierre-mcp-server-test".to_string(),
+                server_version: env!("CARGO_PKG_VERSION").to_string(),
+            },
+        },
+    })
+}
 
 /// Create a test ServerConfig for OAuth token refresh tests
 fn create_test_server_config(
@@ -145,6 +235,47 @@ async fn create_test_executor() -> (Arc<UniversalToolExecutor>, Arc<Database>) {
         database.clone(),
         intelligence,
         create_test_server_config(),
+    ));
+
+    (executor, database)
+}
+
+/// Create a test UniversalToolExecutor without OAuth credentials for failure testing
+async fn create_test_executor_without_oauth() -> (Arc<UniversalToolExecutor>, Arc<Database>) {
+    let database = Arc::new(
+        Database::new("sqlite::memory:", generate_encryption_key().to_vec())
+            .await
+            .unwrap(),
+    );
+
+    let intelligence = Arc::new(ActivityIntelligence::new(
+        "Test Intelligence".to_string(),
+        vec![],
+        PerformanceMetrics {
+            relative_effort: Some(7.5),
+            zone_distribution: None,
+            personal_records: vec![],
+            efficiency_score: Some(85.0),
+            trend_indicators: TrendIndicators {
+                pace_trend: TrendDirection::Stable,
+                effort_trend: TrendDirection::Improving,
+                distance_trend: TrendDirection::Stable,
+                consistency_score: 88.0,
+            },
+        },
+        ContextualFactors {
+            weather: None,
+            location: None,
+            time_of_day: TimeOfDay::Morning,
+            days_since_last_activity: Some(1),
+            weekly_load: None,
+        },
+    ));
+
+    let executor = Arc::new(UniversalToolExecutor::new(
+        database.clone(),
+        intelligence,
+        create_test_server_config_without_oauth(),
     ));
 
     (executor, database)
@@ -419,22 +550,11 @@ async fn test_concurrent_token_operations() {
 }
 
 /// Test error handling when OAuth provider initialization fails
-/// DISABLED: This test has issues with environment variable interference from other tests
-/// The OAuth provider fails gracefully in real usage when environment variables are missing
+/// Fixed test isolation using configuration without OAuth credentials
 #[tokio::test]
-#[serial_test::serial]
-#[ignore = "Disabled due to test environment interference"]
 async fn test_oauth_provider_init_failure() {
-    // Store and clear environment variables to test failure case
-    let original_client_id = std::env::var("STRAVA_CLIENT_ID").ok();
-    let original_client_secret = std::env::var("STRAVA_CLIENT_SECRET").ok();
-
-    // Always clear the environment variables for this test
-    std::env::remove_var("STRAVA_CLIENT_ID");
-    std::env::remove_var("STRAVA_CLIENT_SECRET");
-
-    // Create executor
-    let (executor, database) = create_test_executor().await;
+    // Create executor with configuration that has missing OAuth credentials
+    let (executor, database) = create_test_executor_without_oauth().await;
 
     // Create user
     let user_id = Uuid::new_v4();
@@ -463,15 +583,7 @@ async fn test_oauth_provider_init_failure() {
     // Execute - should handle provider initialization failure gracefully
     let response = executor.execute_tool(request).await.unwrap();
 
-    // Restore environment variables before assertions
-    if let Some(client_id) = original_client_id {
-        std::env::set_var("STRAVA_CLIENT_ID", client_id);
-    }
-    if let Some(client_secret) = original_client_secret {
-        std::env::set_var("STRAVA_CLIENT_SECRET", client_secret);
-    }
-
-    // Should fail due to missing environment variables
+    // Should fail due to missing OAuth credentials
     assert!(
         !response.success,
         "Expected failure but got success: {:?}",
@@ -481,9 +593,10 @@ async fn test_oauth_provider_init_failure() {
     let error = response.error.as_ref().unwrap();
     assert!(
         error.contains("Failed to initialize Strava provider")
-            || error.contains("STRAVA_CLIENT_ID not set")
-            || error.contains("STRAVA_CLIENT_SECRET not set")
-            || error.contains("Missing required environment variables"),
+            || error.contains("Strava client_id not configured")
+            || error.contains("Strava client_secret not configured")
+            || error.contains("Missing required configuration")
+            || error.contains("ConfigurationError"),
         "Unexpected error message: {}",
         error
     );

@@ -59,7 +59,8 @@ jobs:
         files: lcov-db-sqlite.info
         flags: database-sqlite
         name: database-sqlite-coverage
-        fail_ci_if_error: true
+        token: ${{ secrets.CODECOV_TOKEN }}
+        fail_ci_if_error: false
 
   postgresql-tests:
     name: Database Tests (PostgreSQL)
@@ -124,4 +125,5 @@ jobs:
         files: lcov-db-postgres.info
         flags: database-postgresql
         name: database-postgresql-coverage
-        fail_ci_if_error: true
+        token: ${{ secrets.CODECOV_TOKEN }}
+        fail_ci_if_error: false

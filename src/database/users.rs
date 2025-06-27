@@ -71,14 +71,50 @@ impl Database {
             if existing_user.id != user.id {
                 return Err(anyhow!("Email already in use by another user"));
             }
-            // Update existing user
+            // Update existing user (including tokens)
+            let (strava_access, strava_refresh, strava_expires, strava_scope, strava_nonce) =
+                if let Some(ref token) = user.strava_token {
+                    (
+                        Some(&token.access_token),
+                        Some(&token.refresh_token),
+                        Some(token.expires_at.timestamp()),
+                        Some(&token.scope),
+                        Some(&token.nonce),
+                    )
+                } else {
+                    (None, None, None, None, None)
+                };
+
+            let (fitbit_access, fitbit_refresh, fitbit_expires, fitbit_scope, fitbit_nonce) =
+                if let Some(ref token) = user.fitbit_token {
+                    (
+                        Some(&token.access_token),
+                        Some(&token.refresh_token),
+                        Some(token.expires_at.timestamp()),
+                        Some(&token.scope),
+                        Some(&token.nonce),
+                    )
+                } else {
+                    (None, None, None, None, None)
+                };
+
             sqlx::query(
                 r#"
                 UPDATE users SET
                     display_name = $2,
                     password_hash = $3,
                     tier = $4,
-                    is_active = $5,
+                    strava_access_token = $5,
+                    strava_refresh_token = $6,
+                    strava_expires_at = $7,
+                    strava_scope = $8,
+                    strava_nonce = $9,
+                    fitbit_access_token = $10,
+                    fitbit_refresh_token = $11,
+                    fitbit_expires_at = $12,
+                    fitbit_scope = $13,
+                    fitbit_nonce = $14,
+                    is_active = $15,
                     last_active = CURRENT_TIMESTAMP
                 WHERE id = $1
                 "#,
@@ -87,17 +123,55 @@ impl Database {
             .bind(&user.display_name)
             .bind(&user.password_hash)
             .bind(user.tier.as_str())
+            .bind(strava_access)
+            .bind(strava_refresh)
+            .bind(strava_expires)
+            .bind(strava_scope)
+            .bind(strava_nonce)
+            .bind(fitbit_access)
+            .bind(fitbit_refresh)
+            .bind(fitbit_expires)
+            .bind(fitbit_scope)
+            .bind(fitbit_nonce)
             .bind(user.is_active)
             .execute(&self.pool)
             .await?;
         } else {
-            // Insert new user
+            // Insert new user (including tokens)
+            let (strava_access, strava_refresh, strava_expires, strava_scope, strava_nonce) =
+                if let Some(ref token) = user.strava_token {
+                    (
+                        Some(&token.access_token),
+                        Some(&token.refresh_token),
+                        Some(token.expires_at.timestamp()),
+                        Some(&token.scope),
+                        Some(&token.nonce),
+                    )
+                } else {
+                    (None, None, None, None, None)
+                };
+
+            let (fitbit_access, fitbit_refresh, fitbit_expires, fitbit_scope, fitbit_nonce) =
+                if let Some(ref token) = user.fitbit_token {
+                    (
+                        Some(&token.access_token),
+                        Some(&token.refresh_token),
+                        Some(token.expires_at.timestamp()),
+                        Some(&token.scope),
+                        Some(&token.nonce),
+                    )
+                } else {
+                    (None, None, None, None, None)
+                };
+
             sqlx::query(
                 r#"
                 INSERT INTO users (
-                    id, email, display_name, password_hash, tier, is_active,
-                    created_at, last_active
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                    id, email, display_name, password_hash, tier, 
+                    strava_access_token, strava_refresh_token, strava_expires_at, strava_scope, strava_nonce,
+                    fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope, fitbit_nonce,
+                    is_active, created_at, last_active
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
                 "#,
             )
             .bind(user.id.to_string())
@@ -105,6 +179,16 @@ impl Database {
             .bind(&user.display_name)
             .bind(&user.password_hash)
             .bind(user.tier.as_str())
+            .bind(strava_access)
+            .bind(strava_refresh)
+            .bind(strava_expires)
+            .bind(strava_scope)
+            .bind(strava_nonce)
+            .bind(fitbit_access)
+            .bind(fitbit_refresh)
+            .bind(fitbit_expires)
+            .bind(fitbit_scope)
+            .bind(fitbit_nonce)
             .bind(user.is_active)
             .bind(user.created_at)
             .bind(user.last_active)
