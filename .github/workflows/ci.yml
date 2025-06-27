@@ -55,7 +55,8 @@ jobs:
           files: lcov-sqlite.info
           flags: backend-sqlite
           name: backend-sqlite-coverage
-          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
 
   postgres-tests:
     name: Backend Tests (PostgreSQL)
@@ -128,7 +129,8 @@ jobs:
           files: lcov-postgres.info
           flags: backend-postgresql
           name: backend-postgresql-coverage
-          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
 
   frontend-tests:
     name: Frontend Tests
@@ -167,7 +169,8 @@ jobs:
           directory: ./coverage
           flags: frontend
           name: frontend-coverage
-          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
           working-directory: frontend
 
       - name: Build frontend
