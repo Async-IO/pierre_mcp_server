@@ -926,7 +926,7 @@ impl MultiTenantMcpServer {
 
     /// Handle MCP request with authentication
     #[allow(clippy::type_complexity)]
-    async fn handle_request(
+    pub async fn handle_request(
         request: McpRequest,
         database: &Arc<Database>,
         auth_manager: &Arc<AuthManager>,
@@ -1229,7 +1229,7 @@ impl MultiTenantMcpServer {
     }
 
     /// Get or create a user-specific provider instance
-    async fn get_user_provider(
+    pub async fn get_user_provider(
         user_id: Uuid,
         provider_name: &str,
         database: &Arc<Database>,
@@ -2371,7 +2371,7 @@ impl MultiTenantMcpServer {
     }
 
     /// Record API key usage for billing and analytics
-    async fn record_api_key_usage(
+    pub async fn record_api_key_usage(
         database: &Arc<Database>,
         api_key_id: &str,
         tool_name: &str,
@@ -2419,32 +2419,32 @@ impl MultiTenantMcpServer {
 
 /// MCP request with optional authentication token
 #[derive(Debug, Deserialize)]
-struct McpRequest {
+pub struct McpRequest {
     #[allow(dead_code)]
-    jsonrpc: String,
-    method: String,
-    params: Option<Value>,
-    id: Value,
+    pub jsonrpc: String,
+    pub method: String,
+    pub params: Option<Value>,
+    pub id: Value,
     /// Authorization header value (Bearer token)
     #[serde(rename = "auth")]
-    auth_token: Option<String>,
+    pub auth_token: Option<String>,
 }
 
 /// MCP response
 #[derive(Debug, Serialize)]
-struct McpResponse {
-    jsonrpc: String,
-    result: Option<Value>,
-    error: Option<McpError>,
-    id: Value,
+pub struct McpResponse {
+    pub jsonrpc: String,
+    pub result: Option<Value>,
+    pub error: Option<McpError>,
+    pub id: Value,
 }
 
 /// MCP error
 #[derive(Debug, Serialize)]
-struct McpError {
-    code: i32,
-    message: String,
-    data: Option<Value>,
+pub struct McpError {
+    pub code: i32,
+    pub message: String,
+    pub data: Option<Value>,
 }
 
 /// HTTP API error wrapper
