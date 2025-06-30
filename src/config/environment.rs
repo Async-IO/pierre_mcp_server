@@ -580,6 +580,15 @@ impl ServerConfig {
         Ok(())
     }
 
+    /// Initialize all configurations including intelligence config
+    pub fn init_all_configs(&self) -> Result<()> {
+        // Initialize intelligence configuration
+        let _intelligence_config = crate::config::intelligence_config::IntelligenceConfig::global();
+
+        info!("All configurations initialized successfully");
+        Ok(())
+    }
+
     /// Get a summary of the configuration for logging (without secrets)
     pub fn summary(&self) -> String {
         format!(

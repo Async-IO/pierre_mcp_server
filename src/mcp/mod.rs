@@ -15,7 +15,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::info;
 
-use crate::config::Config;
+use crate::config::fitness_config::FitnessConfig as Config;
 use crate::constants::{
     errors::*,
     json_fields::*,

@@ -8,6 +8,7 @@
 
 use super::WeatherConditions;
 use crate::config::fitness_config::WeatherApiConfig;
+use crate::config::intelligence_config::{IntelligenceConfig, WeatherAnalysisConfig};
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -17,7 +18,9 @@ use std::time::{Duration, SystemTime};
 /// Weather service for fetching historical weather data
 pub struct WeatherService {
     client: Client,
-    config: WeatherApiConfig,
+    api_config: WeatherApiConfig,
+    #[allow(dead_code)]
+    weather_config: WeatherAnalysisConfig,
     cache: HashMap<String, CachedWeatherData>,
     api_key: Option<String>,
 }
@@ -53,13 +56,15 @@ struct OpenWeatherCondition {
 
 impl WeatherService {
     /// Create a new weather service with configuration and API key
-    pub fn new(config: WeatherApiConfig, api_key: Option<String>) -> Self {
+    pub fn new(api_config: WeatherApiConfig, api_key: Option<String>) -> Self {
+        let intelligence_config = IntelligenceConfig::global();
         Self {
             client: Client::builder()
-                .timeout(Duration::from_secs(config.request_timeout_seconds))
+                .timeout(Duration::from_secs(api_config.request_timeout_seconds))
                 .build()
                 .unwrap_or_else(|_| Client::new()),
-            config,
+            api_config,
+            weather_config: intelligence_config.weather_analysis.clone(),
             cache: HashMap::new(),
             api_key,
         }
@@ -73,10 +78,34 @@ impl WeatherService {
         )
     }
 
+    /// Create weather service with custom weather analysis configuration
+    pub fn with_weather_config(
+        api_config: WeatherApiConfig,
+        weather_config: WeatherAnalysisConfig,
+        api_key: Option<String>,
+    ) -> Self {
+        Self {
+            client: Client::builder()
+                .timeout(Duration::from_secs(api_config.request_timeout_seconds))
+                .build()
+                .unwrap_or_else(|_| Client::new()),
+            api_config,
+            weather_config,
+            cache: HashMap::new(),
+            api_key,
+        }
+    }
+
     /// Get the current weather service configuration
     #[allow(dead_code)]
     pub fn get_config(&self) -> &WeatherApiConfig {
-        &self.config
+        &self.api_config
+    }
+
+    /// Get the weather analysis configuration
+    #[allow(dead_code)]
+    pub fn get_weather_config(&self) -> &WeatherAnalysisConfig {
+        &self.weather_config
     }
 
     /// Get weather conditions for a specific time and location
@@ -87,7 +116,7 @@ impl WeatherService {
         timestamp: DateTime<Utc>,
     ) -> Result<WeatherConditions, WeatherError> {
         // Check if weather API is enabled
-        if !self.config.enabled {
+        if !self.api_config.enabled {
             return Ok(self.generate_mock_weather());
         }
 
@@ -97,13 +126,13 @@ impl WeatherService {
             latitude,
             longitude,
             timestamp.timestamp() / 3600, // Hour-based caching
-            self.config.provider
+            self.api_config.provider
         );
 
         // Check cache first
         if let Some(cached) = self.cache.get(&cache_key) {
             if cached.cached_at.elapsed().unwrap_or(Duration::MAX)
-                < Duration::from_secs(self.config.cache_duration_hours * 3600)
+                < Duration::from_secs(self.api_config.cache_duration_hours * 3600)
             {
                 return Ok(cached.weather.clone());
             }
@@ -127,7 +156,7 @@ impl WeatherService {
             }
             Err(e) => {
                 // Fall back to mock data if configured
-                if self.config.fallback_to_mock {
+                if self.api_config.fallback_to_mock {
                     tracing::warn!("Weather API failed, falling back to mock data: {}", e);
                     Ok(self.generate_mock_weather())
                 } else {
@@ -144,14 +173,14 @@ impl WeatherService {
         longitude: f64,
         timestamp: DateTime<Utc>,
     ) -> Result<WeatherConditions, WeatherError> {
-        match self.config.provider.as_str() {
+        match self.api_config.provider.as_str() {
             "openweathermap" => {
                 self.fetch_from_openweather(latitude, longitude, timestamp)
                     .await
             }
             _ => Err(WeatherError::ApiError(format!(
                 "Unsupported weather provider: {}",
-                self.config.provider
+                self.api_config.provider
             ))),
         }
     }

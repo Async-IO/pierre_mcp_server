@@ -1,6 +1,9 @@
 //! Training recommendation engine for personalized insights
 
 use super::*;
+use crate::config::intelligence_config::{
+    IntelligenceConfig, IntelligenceStrategy, RecommendationEngineConfig,
+};
 use crate::models::Activity;
 use anyhow::Result;
 use chrono::Utc;
@@ -36,8 +39,14 @@ pub trait RecommendationEngineTrait {
     ) -> Result<Vec<TrainingRecommendation>>;
 }
 
-/// Advanced recommendation engine implementation
-pub struct AdvancedRecommendationEngine {
+/// Advanced recommendation engine implementation with configurable strategy
+pub struct AdvancedRecommendationEngine<
+    S: IntelligenceStrategy = crate::config::intelligence_config::DefaultStrategy,
+> {
+    #[allow(dead_code)]
+    strategy: S,
+    #[allow(dead_code)]
+    config: RecommendationEngineConfig,
     user_profile: Option<UserFitnessProfile>,
 }
 
@@ -48,16 +57,50 @@ impl Default for AdvancedRecommendationEngine {
 }
 
 impl AdvancedRecommendationEngine {
-    /// Create a new recommendation engine
+    /// Create a new recommendation engine with default strategy
     pub fn new() -> Self {
-        Self { user_profile: None }
+        let global_config = IntelligenceConfig::global();
+        Self {
+            strategy: crate::config::intelligence_config::DefaultStrategy,
+            config: global_config.recommendation_engine.clone(),
+            user_profile: None,
+        }
+    }
+}
+
+impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
+    /// Create a new recommendation engine with custom strategy
+    pub fn with_strategy(strategy: S) -> Self {
+        let global_config = IntelligenceConfig::global();
+        Self {
+            strategy,
+            config: global_config.recommendation_engine.clone(),
+            user_profile: None,
+        }
     }
 
-    /// Create engine with user profile
-    pub fn with_profile(profile: UserFitnessProfile) -> Self {
+    /// Create with custom configuration
+    pub fn with_config(strategy: S, config: RecommendationEngineConfig) -> Self {
         Self {
+            strategy,
+            config,
+            user_profile: None,
+        }
+    }
+
+    /// Create engine with user profile using default strategy
+    pub fn with_profile(profile: UserFitnessProfile) -> AdvancedRecommendationEngine {
+        let global_config = IntelligenceConfig::global();
+        AdvancedRecommendationEngine {
+            strategy: crate::config::intelligence_config::DefaultStrategy,
+            config: global_config.recommendation_engine.clone(),
             user_profile: Some(profile),
         }
+    }
+
+    /// Set user profile for this engine
+    pub fn set_profile(&mut self, profile: UserFitnessProfile) {
+        self.user_profile = Some(profile);
     }
 
     /// Analyze training patterns to identify areas for improvement
@@ -89,9 +132,14 @@ impl AdvancedRecommendationEngine {
             _total_duration += duration;
 
             if let Some(avg_hr) = activity.average_heart_rate {
-                if avg_hr > 160 {
+                // Use configurable heart rate thresholds
+                let hr_config = &self.config.thresholds;
+                let intensity_threshold = (hr_config.intensity_threshold * 180.0) as u32; // Approximate max HR
+                let recovery_threshold = (0.7 * 180.0) as u32; // 70% of max HR
+
+                if avg_hr > intensity_threshold {
                     high_intensity_count += 1;
-                } else if avg_hr < 130 {
+                } else if avg_hr < recovery_threshold {
                     _low_intensity_count += 1;
                 }
             }
@@ -105,14 +153,19 @@ impl AdvancedRecommendationEngine {
             0.0
         };
 
-        let consistency_score = if recent_activities.len() >= 12 {
-            // 3+ per week
+        // Use configurable frequency thresholds for consistency scoring
+        let high_freq = (self.config.thresholds.high_weekly_frequency * 4) as usize; // 4 weeks
+        let low_freq = (self.config.thresholds.low_weekly_frequency * 4) as usize;
+        let ideal_freq = ((self.config.thresholds.high_weekly_frequency
+            + self.config.thresholds.low_weekly_frequency)
+            / 2
+            * 4) as usize;
+
+        let consistency_score = if recent_activities.len() >= high_freq {
             1.0
-        } else if recent_activities.len() >= 8 {
-            // 2+ per week
+        } else if recent_activities.len() >= ideal_freq {
             0.75
-        } else if recent_activities.len() >= 4 {
-            // 1+ per week
+        } else if recent_activities.len() >= low_freq {
             0.5
         } else {
             0.25
@@ -728,7 +781,9 @@ mod tests {
             },
         };
 
-        let engine = AdvancedRecommendationEngine::with_profile(profile.clone());
+        let engine = AdvancedRecommendationEngine::<
+            crate::config::intelligence_config::DefaultStrategy,
+        >::with_profile(profile.clone());
 
         // Create sample activities with high intensity
         let mut activities = Vec::new();

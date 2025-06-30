@@ -38,6 +38,12 @@ pub use metrics::*;
 pub use performance_analyzer::*;
 pub use recommendation_engine::*;
 
+// Re-export configuration types for external use
+pub use crate::config::intelligence_config::{
+    AggressiveStrategy, ConfigError, ConservativeStrategy, DefaultStrategy, IntelligenceConfig,
+    IntelligenceStrategy,
+};
+
 /// Activity intelligence summary with insights and analysis
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActivityIntelligence {

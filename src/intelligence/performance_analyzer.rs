@@ -1,6 +1,9 @@
 //! Performance trend analysis and historical comparison engine
 
 use super::*;
+use crate::config::intelligence_config::{
+    IntelligenceConfig, IntelligenceStrategy, PerformanceAnalyzerConfig,
+};
 use crate::models::Activity;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
@@ -31,9 +34,14 @@ pub trait PerformanceAnalyzerTrait {
     async fn analyze_training_load(&self, activities: &[Activity]) -> Result<TrainingLoadAnalysis>;
 }
 
-/// Advanced performance analyzer implementation
-pub struct AdvancedPerformanceAnalyzer {
+/// Advanced performance analyzer implementation with configurable strategy
+pub struct AdvancedPerformanceAnalyzer<
+    S: IntelligenceStrategy = crate::config::intelligence_config::DefaultStrategy,
+> {
     #[allow(dead_code)]
+    strategy: S,
+    #[allow(dead_code)]
+    config: PerformanceAnalyzerConfig,
     user_profile: Option<UserFitnessProfile>,
 }
 
@@ -44,16 +52,50 @@ impl Default for AdvancedPerformanceAnalyzer {
 }
 
 impl AdvancedPerformanceAnalyzer {
-    /// Create a new performance analyzer
+    /// Create a new performance analyzer with default strategy
     pub fn new() -> Self {
-        Self { user_profile: None }
+        let global_config = IntelligenceConfig::global();
+        Self {
+            strategy: crate::config::intelligence_config::DefaultStrategy,
+            config: global_config.performance_analyzer.clone(),
+            user_profile: None,
+        }
+    }
+}
+
+impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
+    /// Create with custom strategy
+    pub fn with_strategy(strategy: S) -> Self {
+        let global_config = IntelligenceConfig::global();
+        Self {
+            strategy,
+            config: global_config.performance_analyzer.clone(),
+            user_profile: None,
+        }
     }
 
-    /// Create analyzer with user profile
-    pub fn with_profile(profile: UserFitnessProfile) -> Self {
+    /// Create with custom configuration
+    pub fn with_config(strategy: S, config: PerformanceAnalyzerConfig) -> Self {
         Self {
+            strategy,
+            config,
+            user_profile: None,
+        }
+    }
+
+    /// Create analyzer with user profile using default strategy
+    pub fn with_profile(profile: UserFitnessProfile) -> AdvancedPerformanceAnalyzer {
+        let global_config = IntelligenceConfig::global();
+        AdvancedPerformanceAnalyzer {
+            strategy: crate::config::intelligence_config::DefaultStrategy,
+            config: global_config.performance_analyzer.clone(),
             user_profile: Some(profile),
         }
+    }
+
+    /// Set user profile for this analyzer
+    pub fn set_profile(&mut self, profile: UserFitnessProfile) {
+        self.user_profile = Some(profile);
     }
 
     /// Calculate statistical trend strength
