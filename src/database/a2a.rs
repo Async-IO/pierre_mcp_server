@@ -269,12 +269,38 @@ impl Database {
         }
     }
 
-    /// List all A2A clients for a user (currently returns all active clients)
-    pub async fn list_a2a_clients(&self, _user_id: &Uuid) -> Result<Vec<A2AClient>> {
-        // TODO: Implement proper user-based filtering when user association is added
-        let query = "SELECT * FROM a2a_clients WHERE is_active = 1 ORDER BY created_at DESC";
+    /// List all A2A clients for a user (or all clients if user_id is nil)
+    pub async fn list_a2a_clients(&self, user_id: &Uuid) -> Result<Vec<A2AClient>> {
+        let rows = if user_id == &Uuid::nil() {
+            // Admin/system-wide query - list all active A2A clients
+            let query = r#"
+                SELECT c.id, c.name, c.description, c.public_key, c.permissions,
+                       c.rate_limit_requests, c.rate_limit_window_seconds, c.is_active,
+                       c.created_at, c.updated_at
+                FROM a2a_clients c 
+                WHERE c.is_active = 1
+                ORDER BY c.created_at DESC
+            "#;
 
-        let rows = sqlx::query(query).fetch_all(&self.pool).await?;
+            sqlx::query(query).fetch_all(&self.pool).await?
+        } else {
+            // User-specific query - filter by user_id through their associated API keys
+            let query = r#"
+                SELECT DISTINCT c.id, c.name, c.description, c.public_key, c.permissions,
+                       c.rate_limit_requests, c.rate_limit_window_seconds, c.is_active,
+                       c.created_at, c.updated_at
+                FROM a2a_clients c 
+                INNER JOIN a2a_client_api_keys cak ON c.id = cak.client_id
+                INNER JOIN api_keys k ON cak.api_key_id = k.id 
+                WHERE c.is_active = 1 AND k.user_id = ? AND k.is_active = 1
+                ORDER BY c.created_at DESC
+            "#;
+
+            sqlx::query(query)
+                .bind(user_id.to_string())
+                .fetch_all(&self.pool)
+                .await?
+        };
 
         let mut clients = Vec::new();
         for row in rows {
@@ -769,7 +795,7 @@ mod tests {
     use super::*;
     // Note: A2APermission should be defined - using String for now
 
-    async fn create_test_client(db: &Database) -> A2AClient {
+    async fn create_test_client(db: &Database) -> (A2AClient, Uuid) {
         let unique_id = Uuid::new_v4();
 
         // First create a test user
@@ -828,7 +854,7 @@ mod tests {
         db.create_a2a_client(&client, "test_secret", &api_key.id)
             .await
             .expect("Failed to create A2A client");
-        client
+        (client, test_user_id)
     }
 
     #[tokio::test]
@@ -837,7 +863,7 @@ mod tests {
             .await
             .expect("Failed to create test database");
 
-        let client = create_test_client(&db).await;
+        let (client, user_id) = create_test_client(&db).await;
 
         // Get client
         let retrieved = db
@@ -852,7 +878,7 @@ mod tests {
 
         // List clients - check that our client is in the list
         let clients = db
-            .list_a2a_clients(&Uuid::new_v4())
+            .list_a2a_clients(&user_id)
             .await
             .expect("Failed to list A2A clients");
 
@@ -871,7 +897,7 @@ mod tests {
             .await
             .expect("Failed to create test database");
 
-        let client = create_test_client(&db).await;
+        let (client, _user_id) = create_test_client(&db).await;
 
         // Create session (without user_id to avoid foreign key constraint)
         let session = A2ASession {
@@ -918,7 +944,7 @@ mod tests {
             .await
             .expect("Failed to create test database");
 
-        let client = create_test_client(&db).await;
+        let (client, _user_id) = create_test_client(&db).await;
 
         // Create task
         let task = A2ATask {
@@ -975,7 +1001,7 @@ mod tests {
             .await
             .expect("Failed to create test database");
 
-        let client = create_test_client(&db).await;
+        let (client, _user_id) = create_test_client(&db).await;
 
         // Record usage
         let usage = A2AUsage {

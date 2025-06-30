@@ -375,6 +375,92 @@ impl From<anyhow::Error> for AppError {
     }
 }
 
+/// Conversion from std::io::Error to AppError
+impl From<std::io::Error> for AppError {
+    fn from(error: std::io::Error) -> Self {
+        AppError::new(ErrorCode::InternalError, format!("IO error: {}", error))
+    }
+}
+
+/// Conversion from serde_json::Error to AppError
+impl From<serde_json::Error> for AppError {
+    fn from(error: serde_json::Error) -> Self {
+        AppError::new(ErrorCode::InvalidInput, format!("JSON error: {}", error))
+    }
+}
+
+/// Conversion from uuid::Error to AppError
+impl From<uuid::Error> for AppError {
+    fn from(error: uuid::Error) -> Self {
+        AppError::new(ErrorCode::InvalidInput, format!("UUID error: {}", error))
+    }
+}
+
+/// Conversion from chrono::ParseError to AppError  
+impl From<chrono::ParseError> for AppError {
+    fn from(error: chrono::ParseError) -> Self {
+        AppError::new(
+            ErrorCode::InvalidInput,
+            format!("Date parse error: {}", error),
+        )
+    }
+}
+
+/// Protocol error conversion helper
+impl From<crate::protocols::ProtocolError> for AppError {
+    fn from(error: crate::protocols::ProtocolError) -> Self {
+        match error {
+            crate::protocols::ProtocolError::UnsupportedProtocol(protocol) => {
+                AppError::invalid_input(format!("Unsupported protocol: {}", protocol))
+            }
+            crate::protocols::ProtocolError::ToolNotFound(tool) => {
+                AppError::not_found(format!("tool '{}'", tool))
+            }
+            crate::protocols::ProtocolError::InvalidParameters(message) => {
+                AppError::invalid_input(message)
+            }
+            crate::protocols::ProtocolError::ConfigurationError(message) => {
+                AppError::config(message)
+            }
+            crate::protocols::ProtocolError::ExecutionFailed(message) => {
+                AppError::internal(format!("Tool execution failed: {}", message))
+            }
+            crate::protocols::ProtocolError::ConversionFailed(message) => {
+                AppError::internal(format!("Protocol conversion failed: {}", message))
+            }
+        }
+    }
+}
+
+/// Database error conversion helper  
+/// Note: This is conditional on whether SQLx is actually used in the database plugins
+#[cfg(any(feature = "postgresql", feature = "sqlite"))]
+impl From<Box<dyn std::error::Error + Send + Sync>> for AppError {
+    fn from(error: Box<dyn std::error::Error + Send + Sync>) -> Self {
+        AppError::database(error.to_string())
+    }
+}
+
+/// Convert AppError to warp Reply for HTTP responses
+impl warp::Reply for AppError {
+    fn into_response(self) -> warp::reply::Response {
+        let status = warp::http::StatusCode::from_u16(self.code.http_status())
+            .unwrap_or(warp::http::StatusCode::INTERNAL_SERVER_ERROR);
+
+        let json = warp::reply::json(&serde_json::json!({
+            "error": {
+                "code": self.code,
+                "message": self.message,
+                "details": self.context.details,
+                "request_id": self.context.request_id,
+                "timestamp": chrono::Utc::now().to_rfc3339()
+            }
+        }));
+
+        warp::reply::with_status(json, status).into_response()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

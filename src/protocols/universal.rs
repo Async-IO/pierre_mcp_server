@@ -13,11 +13,13 @@
 
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 // Removed unused import
+use crate::intelligence::analyzer::ActivityAnalyzer;
 use crate::intelligence::goal_engine::GoalEngineTrait;
 use crate::intelligence::performance_analyzer::PerformanceAnalyzerTrait;
 use crate::intelligence::recommendation_engine::RecommendationEngineTrait;
 use crate::intelligence::ActivityIntelligence;
-use crate::providers::{create_provider, AuthData};
+use crate::models::Activity;
+use crate::providers::{create_provider, AuthData, FitnessProvider};
 // Removed unused import
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -63,6 +65,124 @@ pub struct UniversalToolExecutor {
 }
 
 impl UniversalToolExecutor {
+    /// Helper method for tools that are not yet implemented
+    /// Returns a proper error instead of panicking
+    fn not_implemented_handler(
+        _executor: &UniversalToolExecutor,
+        request: UniversalRequest,
+    ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
+        Err(crate::protocols::ProtocolError::ExecutionFailed(format!(
+            "Tool '{}' is not yet implemented",
+            request.tool_name
+        )))
+    }
+
+    /// Provide real activity intelligence analysis using the ActivityIntelligence engine
+    async fn get_real_activity_intelligence(
+        &self,
+        request: &UniversalRequest,
+    ) -> Result<serde_json::Value, String> {
+        let activity_id = request
+            .parameters
+            .get("activity_id")
+            .and_then(|v| v.as_str())
+            .ok_or("Missing activity_id parameter")?;
+
+        // Parse user_id
+        let user_id = uuid::Uuid::parse_str(&request.user_id)
+            .map_err(|e| format!("Invalid user ID: {}", e))?;
+
+        // First, try to get the activity from the database or providers
+        let activity_data = match self.get_activity_data(activity_id, user_id).await {
+            Ok(data) => data,
+            Err(e) => {
+                return Ok(serde_json::json!({
+                    "activity_id": activity_id,
+                    "analysis_type": "error",
+                    "timestamp": chrono::Utc::now().to_rfc3339(),
+                    "error": format!("Could not retrieve activity data: {}", e),
+                    "intelligence": {
+                        "summary": "Analysis failed - activity data not available",
+                        "insights": [],
+                        "recommendations": [
+                            "Ensure the activity exists and you have access to it",
+                            "Check that your fitness provider is connected",
+                            "Verify the activity_id is correct"
+                        ]
+                    }
+                }));
+            }
+        };
+
+        // Use the real ActivityAnalyzer for analysis
+        let analyzer = ActivityAnalyzer::new();
+        match analyzer.analyze_activity(&activity_data, None).await {
+            Ok(analysis) => Ok(serde_json::json!({
+                "activity_id": activity_id,
+                "analysis_type": "full_intelligence",
+                "timestamp": chrono::Utc::now().to_rfc3339(),
+                "intelligence": {
+                    "summary": analysis.summary,
+                    "insights": analysis.key_insights,
+                    "performance_metrics": analysis.performance_indicators,
+                    "contextual_factors": analysis.contextual_factors,
+                    "generated_at": analysis.generated_at
+                },
+                "metadata": {
+                    "analysis_engine": "ActivityAnalyzer",
+                    "analysis_timestamp": analysis.generated_at.to_rfc3339()
+                }
+            })),
+            Err(e) => Err(format!("Activity intelligence analysis failed: {}", e)),
+        }
+    }
+
+    /// Get activity data from providers or database
+    async fn get_activity_data(
+        &self,
+        activity_id: &str,
+        user_id: uuid::Uuid,
+    ) -> Result<Activity, String> {
+        // Try to get activity from Strava first
+        if let Ok(Some(strava_token)) = self.database.get_strava_token(user_id).await {
+            let mut strava_provider = crate::providers::strava::StravaProvider::new();
+
+            // Authenticate with stored token
+            let auth_data = AuthData::OAuth2 {
+                client_id: "strava_client".to_string(), // Would be from config in real implementation
+                client_secret: "".to_string(),
+                access_token: Some(strava_token.access_token),
+                refresh_token: Some(strava_token.refresh_token),
+            };
+
+            if strava_provider.authenticate(auth_data).await.is_ok() {
+                if let Ok(activity) = strava_provider.get_activity(activity_id).await {
+                    return Ok(activity);
+                }
+            }
+        }
+
+        // Try Fitbit if Strava failed
+        if let Ok(Some(fitbit_token)) = self.database.get_fitbit_token(user_id).await {
+            let mut fitbit_provider = crate::providers::fitbit::FitbitProvider::new();
+
+            // Authenticate with stored token
+            let auth_data = AuthData::OAuth2 {
+                client_id: "fitbit_client".to_string(), // Would be from config in real implementation
+                client_secret: "".to_string(),
+                access_token: Some(fitbit_token.access_token),
+                refresh_token: Some(fitbit_token.refresh_token),
+            };
+
+            if fitbit_provider.authenticate(auth_data).await.is_ok() {
+                if let Ok(activity) = fitbit_provider.get_activity(activity_id).await {
+                    return Ok(activity);
+                }
+            }
+        }
+
+        Err("Activity not found in any connected providers".to_string())
+    }
     pub fn new(
         database: Arc<Database>,
         intelligence: Arc<ActivityIntelligence>,
@@ -184,111 +304,111 @@ impl UniversalToolExecutor {
             UniversalTool {
                 name: "get_activities".to_string(),
                 description: "Get activities from fitness providers".to_string(),
-                handler: |_, _| unreachable!(),
+                handler: Self::not_implemented_handler,
             },
             UniversalTool {
                 name: "get_athlete".to_string(),
                 description: "Get athlete information".to_string(),
-                handler: |_, _| unreachable!(),
+                handler: Self::not_implemented_handler,
             },
             UniversalTool {
                 name: "get_stats".to_string(),
                 description: "Get athlete statistics".to_string(),
-                handler: |_, _| unreachable!(),
+                handler: Self::not_implemented_handler,
             },
             UniversalTool {
                 name: "analyze_activity".to_string(),
                 description: "Analyze an activity".to_string(),
-                handler: |_, _| unreachable!(),
+                handler: Self::not_implemented_handler,
             },
             UniversalTool {
                 name: "get_activity_intelligence".to_string(),
                 description: "Get AI intelligence for activity".to_string(),
-                handler: |_, _| unreachable!(),
+                handler: Self::not_implemented_handler,
             },
             UniversalTool {
                 name: "get_connection_status".to_string(),
                 description: "Check provider connection status".to_string(),
-                handler: |_, _| unreachable!(),
+                handler: Self::not_implemented_handler,
             },
             UniversalTool {
                 name: "connect_strava".to_string(),
                 description: "Generate authorization URL to connect user's Strava account"
                     .to_string(),
-                handler: |_, _| unreachable!(),
+                handler: Self::not_implemented_handler,
             },
             UniversalTool {
                 name: "connect_fitbit".to_string(),
                 description: "Generate authorization URL to connect user's Fitbit account"
                     .to_string(),
-                handler: |_, _| unreachable!(),
+                handler: Self::not_implemented_handler,
             },
             UniversalTool {
                 name: "disconnect_provider".to_string(),
                 description: "Disconnect and remove stored tokens for a specific fitness provider"
                     .to_string(),
-                handler: |_, _| unreachable!(),
+                handler: Self::not_implemented_handler,
             },
             UniversalTool {
                 name: "set_goal".to_string(),
                 description: "Set a fitness goal".to_string(),
-                handler: |_, _| unreachable!(),
+                handler: Self::not_implemented_handler,
             },
             UniversalTool {
                 name: "calculate_metrics".to_string(),
                 description: "Calculate advanced fitness metrics for an activity".to_string(),
-                handler: |_, _| unreachable!(),
+                handler: Self::not_implemented_handler,
             },
             UniversalTool {
                 name: "analyze_performance_trends".to_string(),
                 description: "Analyze performance trends over time".to_string(),
-                handler: |_, _| unreachable!(),
+                handler: Self::not_implemented_handler,
             },
             UniversalTool {
                 name: "compare_activities".to_string(),
                 description: "Compare an activity against similar activities or personal bests"
                     .to_string(),
-                handler: |_, _| unreachable!(),
+                handler: Self::not_implemented_handler,
             },
             UniversalTool {
                 name: "detect_patterns".to_string(),
                 description: "Detect patterns in training data".to_string(),
-                handler: |_, _| unreachable!(),
+                handler: Self::not_implemented_handler,
             },
             UniversalTool {
                 name: "track_progress".to_string(),
                 description: "Track progress toward a specific goal".to_string(),
-                handler: |_, _| unreachable!(),
+                handler: Self::not_implemented_handler,
             },
             UniversalTool {
                 name: "suggest_goals".to_string(),
                 description: "Generate AI-powered goal suggestions".to_string(),
-                handler: |_, _| unreachable!(),
+                handler: Self::not_implemented_handler,
             },
             UniversalTool {
                 name: "analyze_goal_feasibility".to_string(),
                 description: "Assess whether a goal is realistic and achievable".to_string(),
-                handler: |_, _| unreachable!(),
+                handler: Self::not_implemented_handler,
             },
             UniversalTool {
                 name: "generate_recommendations".to_string(),
                 description: "Generate personalized training recommendations".to_string(),
-                handler: |_, _| unreachable!(),
+                handler: Self::not_implemented_handler,
             },
             UniversalTool {
                 name: "calculate_fitness_score".to_string(),
                 description: "Calculate comprehensive fitness score".to_string(),
-                handler: |_, _| unreachable!(),
+                handler: Self::not_implemented_handler,
             },
             UniversalTool {
                 name: "predict_performance".to_string(),
                 description: "Predict future performance capabilities".to_string(),
-                handler: |_, _| unreachable!(),
+                handler: Self::not_implemented_handler,
             },
             UniversalTool {
                 name: "analyze_training_load".to_string(),
                 description: "Analyze training load balance and recovery needs".to_string(),
-                handler: |_, _| unreachable!(),
+                handler: Self::not_implemented_handler,
             },
         ]
     }
@@ -720,20 +840,43 @@ impl UniversalToolExecutor {
                 )
             })?;
 
-        // Activity intelligence analysis is not yet fully implemented
-        // This would require implementing database methods for activity retrieval
-        // and intelligence methods for analysis
-        Ok(UniversalResponse {
-            success: false,
-            result: None,
-            error: Some("Activity intelligence analysis is not yet fully implemented. Database methods for activity retrieval are required.".to_string()),
-            metadata: Some({
-                let mut map = std::collections::HashMap::new();
-                map.insert("analysis_timestamp".to_string(), serde_json::Value::String(chrono::Utc::now().to_rfc3339()));
-                map.insert("requested_activity_id".to_string(), serde_json::Value::String(activity_id.to_string()));
-                map
+        // Use the real ActivityIntelligence engine for proper analysis
+        match self.get_real_activity_intelligence(&request).await {
+            Ok(analysis) => Ok(UniversalResponse {
+                success: true,
+                result: Some(analysis),
+                error: None,
+                metadata: Some({
+                    let mut map = std::collections::HashMap::new();
+                    map.insert(
+                        "analysis_timestamp".to_string(),
+                        serde_json::Value::String(chrono::Utc::now().to_rfc3339()),
+                    );
+                    map.insert(
+                        "requested_activity_id".to_string(),
+                        serde_json::Value::String(activity_id.to_string()),
+                    );
+                    map
+                }),
             }),
-        })
+            Err(e) => Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(format!("Activity intelligence analysis failed: {}", e)),
+                metadata: Some({
+                    let mut map = std::collections::HashMap::new();
+                    map.insert(
+                        "analysis_timestamp".to_string(),
+                        serde_json::Value::String(chrono::Utc::now().to_rfc3339()),
+                    );
+                    map.insert(
+                        "requested_activity_id".to_string(),
+                        serde_json::Value::String(activity_id.to_string()),
+                    );
+                    map
+                }),
+            }),
+        }
     }
 
     /// Handle connection status check asynchronously
