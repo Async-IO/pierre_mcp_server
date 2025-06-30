@@ -1,6 +1,9 @@
 //! Goal tracking and progress monitoring engine
 
 use super::*;
+use crate::config::intelligence_config::{
+    GoalEngineConfig, IntelligenceConfig, IntelligenceStrategy,
+};
 use crate::models::Activity;
 use anyhow::Result;
 use chrono::{Duration, Utc};
@@ -30,9 +33,14 @@ pub trait GoalEngineTrait {
     async fn create_milestones(&self, goal: &Goal) -> Result<Vec<Milestone>>;
 }
 
-/// Advanced goal engine implementation
-pub struct AdvancedGoalEngine {
+/// Advanced goal engine implementation with configurable strategy
+pub struct AdvancedGoalEngine<
+    S: IntelligenceStrategy = crate::config::intelligence_config::DefaultStrategy,
+> {
     #[allow(dead_code)]
+    strategy: S,
+    #[allow(dead_code)]
+    config: GoalEngineConfig,
     user_profile: Option<UserFitnessProfile>,
 }
 
@@ -43,16 +51,51 @@ impl Default for AdvancedGoalEngine {
 }
 
 impl AdvancedGoalEngine {
-    /// Create a new goal engine
+    /// Create a new goal engine with default strategy
     pub fn new() -> Self {
-        Self { user_profile: None }
+        let global_config = IntelligenceConfig::global();
+        Self {
+            strategy: crate::config::intelligence_config::DefaultStrategy,
+            config: global_config.goal_engine.clone(),
+            user_profile: None,
+        }
+    }
+}
+
+impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
+    /// Create with custom strategy
+    pub fn with_strategy(strategy: S) -> Self {
+        let global_config = IntelligenceConfig::global();
+        Self {
+            strategy,
+            config: global_config.goal_engine.clone(),
+            user_profile: None,
+        }
+    }
+
+    /// Create with custom configuration
+    pub fn with_config(strategy: S, config: GoalEngineConfig) -> Self {
+        Self {
+            strategy,
+            config,
+            user_profile: None,
+        }
     }
 
     /// Create engine with user profile
-    pub fn with_profile(profile: UserFitnessProfile) -> Self {
-        Self {
+    /// Create goal engine with user profile using default strategy
+    pub fn with_profile(profile: UserFitnessProfile) -> AdvancedGoalEngine {
+        let global_config = IntelligenceConfig::global();
+        AdvancedGoalEngine {
+            strategy: crate::config::intelligence_config::DefaultStrategy,
+            config: global_config.goal_engine.clone(),
             user_profile: Some(profile),
         }
+    }
+
+    /// Set user profile for this engine
+    pub fn set_profile(&mut self, profile: UserFitnessProfile) {
+        self.user_profile = Some(profile);
     }
 
     /// Calculate goal difficulty based on user's current performance
@@ -672,7 +715,10 @@ mod tests {
             },
         };
 
-        let engine = AdvancedGoalEngine::with_profile(profile.clone());
+        let engine =
+            AdvancedGoalEngine::<crate::config::intelligence_config::DefaultStrategy>::with_profile(
+                profile.clone(),
+            );
 
         // Create sample activities
         let mut activities = Vec::new();

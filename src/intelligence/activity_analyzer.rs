@@ -1,6 +1,7 @@
 //! Activity analysis engine for detailed activity insights
 
 use super::*;
+use crate::config::intelligence_config::{ActivityAnalyzerConfig, IntelligenceConfig};
 use crate::models::{Activity, SportType};
 use anyhow::Result;
 use std::collections::HashMap;
@@ -27,6 +28,8 @@ pub trait ActivityAnalyzerTrait {
 
 /// Advanced activity analyzer implementation
 pub struct AdvancedActivityAnalyzer {
+    #[allow(dead_code)]
+    config: ActivityAnalyzerConfig,
     metrics_calculator: MetricsCalculator,
 }
 
@@ -39,7 +42,17 @@ impl Default for AdvancedActivityAnalyzer {
 impl AdvancedActivityAnalyzer {
     /// Create a new activity analyzer
     pub fn new() -> Self {
+        let global_config = IntelligenceConfig::global();
         Self {
+            config: global_config.activity_analyzer.clone(),
+            metrics_calculator: MetricsCalculator::new(),
+        }
+    }
+
+    /// Create with custom configuration
+    pub fn with_config(config: ActivityAnalyzerConfig) -> Self {
+        Self {
+            config,
             metrics_calculator: MetricsCalculator::new(),
         }
     }
@@ -52,7 +65,9 @@ impl AdvancedActivityAnalyzer {
         resting_hr: Option<f64>,
         weight_kg: Option<f64>,
     ) -> Self {
+        let global_config = IntelligenceConfig::global();
         Self {
+            config: global_config.activity_analyzer.clone(),
             metrics_calculator: MetricsCalculator::new()
                 .with_user_data(ftp, lthr, max_hr, resting_hr, weight_kg),
         }

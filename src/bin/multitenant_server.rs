@@ -72,7 +72,7 @@ async fn main() -> Result<()> {
         info!("Starting Pierre Fitness API - Single-Tenant Mode");
 
         // In single-tenant mode, use the original server with OAuth support
-        let config = pierre_mcp_server::config::Config::load(args.config)?;
+        let config = pierre_mcp_server::config::fitness_config::FitnessConfig::load(args.config)?;
         let server = pierre_mcp_server::mcp::McpServer::new(config);
 
         let mcp_port = args.mcp_port.unwrap_or_else(env_config::mcp_port);

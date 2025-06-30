@@ -11,6 +11,7 @@
 
 #![allow(clippy::single_match)]
 
+// Intelligence config will be used for future enhancements
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 // Removed unused import
 use crate::intelligence::analyzer::ActivityAnalyzer;

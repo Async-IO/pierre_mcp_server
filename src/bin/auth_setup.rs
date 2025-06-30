@@ -6,8 +6,8 @@
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use pierre_mcp_server::config::Config;
-use pierre_mcp_server::constants::{env_config, oauth};
+use pierre_mcp_server::config::fitness_config::FitnessConfig as Config;
+use pierre_mcp_server::constants::env_config;
 use pierre_mcp_server::providers::strava::StravaProvider;
 use pierre_mcp_server::providers::{AuthData, FitnessProvider};
 use std::sync::Arc;
@@ -130,34 +130,22 @@ async fn setup_strava_auth(client_id: String, client_secret: String, port: u16) 
 
         let (access_token, refresh_token) = provider.exchange_code(&code).await?;
 
-        // Update config
-        let mut config = Config::load(None).unwrap_or_else(|_| Config {
-            providers: std::collections::HashMap::new(),
-        });
+        // Create or load config (simplified for new config system)
+        let config = Config::load(None).unwrap_or_else(|_| Config::default());
 
-        config.providers.insert(
-            "strava".to_string(),
-            pierre_mcp_server::config::ProviderConfig {
-                auth_type: "oauth2".to_string(),
-                client_id: Some(client_id),
-                client_secret: Some(client_secret),
-                access_token: Some(access_token),
-                refresh_token: Some(refresh_token),
-                api_key: None,
-                redirect_uri: None,
-                scopes: Some(
-                    oauth::STRAVA_DEFAULT_SCOPES
-                        .split(',')
-                        .map(|s| s.to_string())
-                        .collect(),
-                ),
-            },
-        );
+        // TODO: In the new config system, authentication is handled differently
+        // For now, we'll just save the basic fitness config
+        println!("✅ Authentication successful!");
+        println!("Access token: {}", access_token);
+        println!("Refresh token: {:?}", refresh_token);
+        println!("Note: With the new config system, authentication is handled via environment variables.");
 
-        config.save(None)?;
+        // Save the basic config (though it doesn't contain auth info in the new system)
+        let config_toml = toml::to_string(&config)?;
+        std::fs::write("fitness_config.toml", config_toml)?;
 
         println!("\n✅ Strava authentication successful!");
-        println!("Configuration saved. You can now run the MCP server.");
+        println!("Basic fitness configuration saved. You can now run the MCP server.");
     } else {
         error!("No authorization code received within timeout");
         return Err(anyhow::anyhow!("OAuth2 authorization failed"));

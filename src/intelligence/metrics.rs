@@ -1,5 +1,6 @@
 //! Advanced fitness metrics calculation and analysis
 
+// Future: use crate::config::intelligence_config::{IntelligenceConfig};
 use crate::models::Activity;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};

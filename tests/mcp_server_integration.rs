@@ -10,34 +10,17 @@
 //! processes requests, and returns appropriate responses.
 
 use anyhow::Result;
-use pierre_mcp_server::config::{Config, ProviderConfig};
+use pierre_mcp_server::config::fitness_config::FitnessConfig as Config;
 use pierre_mcp_server::mcp::McpServer;
 use serde_json::{json, Value};
-use std::collections::HashMap;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 use tokio::time::{timeout, Duration};
 
 /// Helper to create a test configuration
 fn create_test_config() -> Config {
-    let mut providers = HashMap::new();
-
-    // Add a mock provider configuration
-    providers.insert(
-        "mock_provider".to_string(),
-        ProviderConfig {
-            auth_type: "api_key".to_string(),
-            client_id: None,
-            client_secret: None,
-            access_token: None,
-            refresh_token: None,
-            api_key: Some("test_api_key".to_string()),
-            redirect_uri: None,
-            scopes: None,
-        },
-    );
-
-    Config { providers }
+    // Create a basic FitnessConfig with default values
+    Config::default()
 }
 
 /// Helper to send a JSON-RPC request and receive response
