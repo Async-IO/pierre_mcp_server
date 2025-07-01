@@ -28,6 +28,7 @@ pub mod activity_analyzer;
 pub mod goal_engine;
 pub mod metrics;
 pub mod performance_analyzer;
+pub mod physiological_constants;
 pub mod recommendation_engine;
 
 pub use activity_analyzer::*;

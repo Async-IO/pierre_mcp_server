@@ -4,6 +4,10 @@ use super::*;
 use crate::config::intelligence_config::{
     IntelligenceConfig, IntelligenceStrategy, PerformanceAnalyzerConfig,
 };
+use crate::intelligence::physiological_constants::{
+    adaptations::*, duration::*, fitness_weights::*, heart_rate::*, statistics::*,
+    training_load::*,
+};
 use crate::models::Activity;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
@@ -152,7 +156,7 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
         // Trend direction insight
         let (message, severity) = match analysis.trend_direction {
             TrendDirection::Improving => {
-                if analysis.trend_strength > 0.7 {
+                if analysis.trend_strength > STRONG_TREND_THRESHOLD {
                     (
                         "Strong improvement trend detected - excellent progress!".to_string(),
                         InsightSeverity::Info,
@@ -165,7 +169,7 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
                 }
             }
             TrendDirection::Declining => {
-                if analysis.trend_strength > 0.7 {
+                if analysis.trend_strength > STRONG_TREND_THRESHOLD {
                     ("Significant decline in performance - consider recovery or training adjustments".to_string(), InsightSeverity::Warning)
                 } else {
                     (
@@ -295,7 +299,7 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
             .sum::<f64>()
             / (data_points.len() - data_points.len() / 2) as f64;
 
-        let trend_direction = if (second_half_avg - first_half_avg).abs() < first_half_avg * 0.05 {
+        let trend_direction = if (second_half_avg - first_half_avg).abs() < first_half_avg * STABILITY_THRESHOLD {
             TrendDirection::Stable
         } else if second_half_avg > first_half_avg {
             if metric == "pace" {
@@ -362,7 +366,7 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
         // Calculate weekly activity frequency
         let weeks = 6;
         let activities_per_week = recent_activities.len() as f64 / weeks as f64;
-        let consistency = (activities_per_week / 5.0).min(1.0) * 100.0; // Target: 5 activities/week
+        let consistency = (activities_per_week / TARGET_WEEKLY_ACTIVITIES).min(1.0) * 100.0;
 
         // Calculate aerobic fitness based on heart rate and duration
         let mut aerobic_score = 0.0;
@@ -371,9 +375,9 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
         for activity in &recent_activities {
             if let Some(hr) = activity.average_heart_rate {
                 let duration = activity.duration_seconds;
-                if hr > 120 && duration > 1800 {
-                    // Aerobic threshold
-                    aerobic_score += (hr as f64 - 120.0) * (duration as f64 / 3600.0);
+                if hr > RECOVERY_HR_THRESHOLD && duration > MIN_AEROBIC_DURATION {
+                    // Above aerobic threshold with sufficient duration
+                    aerobic_score += (hr as f64 - RECOVERY_HR_THRESHOLD as f64) * (duration as f64 / 3600.0);
                     aerobic_count += 1;
                 }
             }
@@ -394,13 +398,13 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
             if let Some(hr) = activity.average_heart_rate {
                 let duration = activity.duration_seconds;
 
-                // High intensity workouts (HR > 160) contribute to strength endurance
-                if hr > 160 {
+                // High intensity workouts contribute to strength endurance
+                if hr > HIGH_INTENSITY_HR_THRESHOLD {
                     // Weight by duration - longer high-intensity efforts indicate better strength endurance
                     let duration_weight = (duration as f64 / 3600.0).min(2.0); // Cap at 2 hours
                     strength_score += hr as f64 * duration_weight;
                     strength_count += 1;
-                } else if hr > 140 {
+                } else if hr > MODERATE_HR_THRESHOLD {
                     // Moderate intensity also contributes, but less
                     let duration_weight = (duration as f64 / 3600.0).min(1.5);
                     strength_score += (hr as f64 * 0.6) * duration_weight;
@@ -415,9 +419,9 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
             0.0
         };
 
-        // Overall score is weighted average
+        // Overall score is weighted average using fitness component weights
         let overall_score =
-            (aerobic_fitness * 0.4 + strength_endurance * 0.3 + consistency * 0.3).min(100.0);
+            (aerobic_fitness * AEROBIC_WEIGHT + strength_endurance * STRENGTH_WEIGHT + consistency * CONSISTENCY_WEIGHT).min(100.0);
 
         // Determine trend by comparing with older activities
         let trend = if overall_score > 70.0 {
@@ -467,14 +471,14 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
             0.0
         };
 
-        // Simple improvement factor based on training consistency
+        // Training adaptation factors based on volume
         let training_days = similar_activities.len() as f64;
         let improvement_factor = if training_days > 20.0 {
-            1.1 // 10% improvement
+            HIGH_VOLUME_IMPROVEMENT_FACTOR
         } else if training_days > 10.0 {
-            1.05 // 5% improvement
+            MODERATE_VOLUME_IMPROVEMENT_FACTOR
         } else {
-            1.0 // No improvement
+            LOW_VOLUME_IMPROVEMENT_FACTOR
         };
 
         let predicted_value = recent_performance * improvement_factor;
@@ -578,8 +582,8 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
             .map(|w| w.total_duration_hours)
             .unwrap_or(0.0);
 
-        let recovery_needed = last_week_load > avg_load * 1.3
-            || (last_week_load + previous_week_load) > avg_load * 2.2;
+        let recovery_needed = last_week_load > avg_load * RECOVERY_LOAD_MULTIPLIER
+            || (last_week_load + previous_week_load) > avg_load * TWO_WEEK_RECOVERY_THRESHOLD;
 
         Ok(TrainingLoadAnalysis {
             weekly_loads,
