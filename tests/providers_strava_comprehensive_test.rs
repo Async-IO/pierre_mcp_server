@@ -77,6 +77,10 @@ async fn test_strava_authenticate_no_tokens() -> Result<()> {
 
 #[tokio::test]
 async fn test_strava_get_auth_url() -> Result<()> {
+    // Set environment variables for test
+    std::env::set_var("STRAVA_CLIENT_ID", "test_client");
+    std::env::set_var("STRAVA_CLIENT_SECRET", "test_secret");
+
     let mut provider = StravaProvider::new();
     let auth_data = AuthData::OAuth2 {
         client_id: "test_client".to_string(),
@@ -99,12 +103,18 @@ async fn test_strava_get_auth_url() -> Result<()> {
 
 #[tokio::test]
 async fn test_strava_get_auth_url_no_client_id() -> Result<()> {
+    // Make sure no client credentials are set
+    std::env::remove_var("STRAVA_CLIENT_ID");
+    std::env::remove_var("STRAVA_CLIENT_SECRET");
+
     let provider = StravaProvider::new();
-    // Without authenticating first, client_id is not set
 
     let result = provider.get_auth_url("http://localhost:3000/callback", "test_state");
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Client ID"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("Client ID not configured"));
 
     Ok(())
 }
@@ -186,11 +196,18 @@ async fn test_strava_authenticate_api_key() -> Result<()> {
 
 #[tokio::test]
 async fn test_strava_exchange_code_no_client_id() -> Result<()> {
+    // Make sure no client credentials are set
+    std::env::remove_var("STRAVA_CLIENT_ID");
+    std::env::remove_var("STRAVA_CLIENT_SECRET");
+
     let mut provider = StravaProvider::new();
 
     let result = provider.exchange_code("test_code").await;
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Client ID"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("Client credentials not configured"));
 
     Ok(())
 }
@@ -268,6 +285,10 @@ async fn test_strava_refresh_token_flow() -> Result<()> {
 
 #[tokio::test]
 async fn test_strava_pkce_auth_url() -> Result<()> {
+    // Set environment variables for test
+    std::env::set_var("STRAVA_CLIENT_ID", "pkce_client");
+    std::env::set_var("STRAVA_CLIENT_SECRET", "pkce_secret");
+
     let mut provider = StravaProvider::new();
     let auth_data = AuthData::OAuth2 {
         client_id: "pkce_client".to_string(),

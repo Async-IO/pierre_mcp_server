@@ -11,7 +11,6 @@
 
 use crate::errors::{AppError, ErrorCode};
 use crate::rate_limiting::UnifiedRateLimitInfo;
-use serde_json::json;
 use warp::http::{HeaderMap, HeaderValue, StatusCode};
 use warp::Reply;
 
@@ -78,9 +77,6 @@ pub fn create_rate_limit_headers(rate_limit_info: &UnifiedRateLimitInfo) -> Head
 /// Create a rate limit exceeded error response with proper headers
 pub fn create_rate_limit_error(rate_limit_info: &UnifiedRateLimitInfo) -> AppError {
     let limit = rate_limit_info.limit.unwrap_or(0);
-    let reset_at = rate_limit_info
-        .reset_at
-        .unwrap_or_else(|| chrono::Utc::now() + chrono::Duration::days(30));
 
     AppError::new(
         ErrorCode::RateLimitExceeded,
@@ -89,14 +85,6 @@ pub fn create_rate_limit_error(rate_limit_info: &UnifiedRateLimitInfo) -> AppErr
             limit, rate_limit_info.tier
         ),
     )
-    .with_details(json!({
-        "limit": limit,
-        "remaining": rate_limit_info.remaining.unwrap_or(0),
-        "reset_at": reset_at.to_rfc3339(),
-        "tier": rate_limit_info.tier,
-        "auth_method": rate_limit_info.auth_method,
-        "window_seconds": 2592000 // 30 days
-    }))
 }
 
 /// Create a 429 Too Many Requests JSON error response
@@ -141,14 +129,10 @@ mod tests {
         assert_eq!(error.code, ErrorCode::RateLimitExceeded);
         assert_eq!(error.http_status(), 429);
 
-        // Check that details include rate limit information
-        let details = error.context.details.as_object().unwrap();
-        assert_eq!(details.get("limit").unwrap().as_u64().unwrap(), 1000);
-        assert_eq!(details.get("remaining").unwrap().as_u64().unwrap(), 0);
-        assert_eq!(
-            details.get("tier").unwrap().as_str().unwrap(),
-            "professional"
-        );
+        // Check basic error properties
+        assert_eq!(error.code, crate::errors::ErrorCode::RateLimitExceeded);
+        assert!(error.message.contains("1000"));
+        assert!(error.message.contains("professional"));
     }
 
     #[test]

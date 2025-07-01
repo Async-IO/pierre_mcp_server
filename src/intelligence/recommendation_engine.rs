@@ -4,6 +4,10 @@ use super::*;
 use crate::config::intelligence_config::{
     IntelligenceConfig, IntelligenceStrategy, RecommendationEngineConfig,
 };
+use crate::intelligence::physiological_constants::{
+    consistency::*, frequency_targets::*, hr_estimation::*, intensity_balance::*, nutrition::*,
+    time_periods::*, volume_thresholds::*,
+};
 use crate::models::Activity;
 use anyhow::Result;
 use chrono::Utc;
@@ -110,7 +114,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
             .filter(|a| {
                 let activity_utc = a.start_date;
                 let weeks_ago = (Utc::now() - activity_utc).num_weeks();
-                weeks_ago <= 4 // Last 4 weeks
+                weeks_ago <= TRAINING_PATTERN_ANALYSIS_WEEKS
             })
             .collect();
 
@@ -134,8 +138,8 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
             if let Some(avg_hr) = activity.average_heart_rate {
                 // Use configurable heart rate thresholds
                 let hr_config = &self.config.thresholds;
-                let intensity_threshold = (hr_config.intensity_threshold * 180.0) as u32; // Approximate max HR
-                let recovery_threshold = (0.7 * 180.0) as u32; // 70% of max HR
+                let intensity_threshold = (hr_config.intensity_threshold * ASSUMED_MAX_HR) as u32;
+                let recovery_threshold = (RECOVERY_HR_PERCENTAGE * ASSUMED_MAX_HR) as u32;
 
                 if avg_hr > intensity_threshold {
                     high_intensity_count += 1;
@@ -206,12 +210,12 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
             let curr_date = sorted_activities[i].start_date;
             let gap_days = (curr_date - prev_date).num_days();
 
-            if gap_days > 7 {
+            if gap_days > SHORT_TRAINING_GAP_DAYS {
                 gaps.push(TrainingGap {
                     gap_type: GapType::LongRest,
                     duration_days: gap_days,
                     description: format!("{} days without training", gap_days),
-                    severity: if gap_days > 14 {
+                    severity: if gap_days > LONG_TRAINING_GAP_DAYS {
                         InsightSeverity::Warning
                     } else {
                         InsightSeverity::Info
@@ -252,7 +256,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
     ) -> Vec<TrainingRecommendation> {
         let mut recommendations = Vec::new();
 
-        if analysis.intensity_balance > 0.6 {
+        if analysis.intensity_balance > HIGH_INTENSITY_UPPER_LIMIT {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Intensity,
                 title: "Add More Easy Training".to_string(),
@@ -266,7 +270,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
                     "Focus on conversational pace".to_string(),
                 ],
             });
-        } else if analysis.intensity_balance < 0.2 {
+        } else if analysis.intensity_balance < LOW_INTENSITY_LOWER_LIMIT {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Intensity,
                 title: "Increase Training Intensity".to_string(),
@@ -292,7 +296,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
     ) -> Vec<TrainingRecommendation> {
         let mut recommendations = Vec::new();
 
-        if analysis.weekly_load_hours < 3.0 {
+        if analysis.weekly_load_hours < MIN_WEEKLY_VOLUME_HOURS {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Volume,
                 title: "Gradually Increase Training Volume".to_string(),
@@ -306,7 +310,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
                     "Monitor for signs of overtraining".to_string(),
                 ],
             });
-        } else if analysis.weekly_load_hours > 15.0 {
+        } else if analysis.weekly_load_hours > HIGH_WEEKLY_VOLUME_HOURS {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Volume,
                 title: "Monitor Training Load".to_string(),
@@ -332,7 +336,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
     ) -> Vec<TrainingRecommendation> {
         let mut recommendations = Vec::new();
 
-        if analysis.consistency_score < 0.5 {
+        if analysis.consistency_score < CONSISTENCY_SCORE_THRESHOLD {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Strategy,
                 title: "Improve Training Consistency".to_string(),
@@ -352,7 +356,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
         for gap in &analysis.training_gaps {
             match gap.gap_type {
                 GapType::LongRest => {
-                    if gap.duration_days > 10 {
+                    if gap.duration_days > (SHORT_TRAINING_GAP_DAYS + 3) {
                         recommendations.push(TrainingRecommendation {
                             recommendation_type: RecommendationType::Strategy,
                             title: "Avoid Long Training Breaks".to_string(),
@@ -493,7 +497,7 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
             .filter(|a| {
                 let activity_utc = a.start_date;
                 let days_ago = (Utc::now() - activity_utc).num_days();
-                days_ago <= 7 // Last week
+                days_ago <= RECOVERY_ANALYSIS_DAYS
             })
             .collect();
 
@@ -503,11 +507,13 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
 
         let high_intensity_sessions = recent_activities
             .iter()
-            .filter(|a| a.average_heart_rate.unwrap_or(0) > 160)
+            .filter(|a| a.average_heart_rate.unwrap_or(0) > crate::intelligence::physiological_constants::heart_rate::HIGH_INTENSITY_HR_THRESHOLD)
             .count();
 
         // Check if recovery is needed
-        if total_duration > 18000 || high_intensity_sessions > 3 {
+        if total_duration > HIGH_WEEKLY_LOAD_SECONDS
+            || high_intensity_sessions > MAX_HIGH_INTENSITY_SESSIONS_PER_WEEK
+        {
             // >5 hours or >3 hard sessions
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Recovery,
@@ -528,7 +534,7 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
 
         // Check for consecutive training days
         let consecutive_days = self.count_consecutive_training_days(&owned_activities);
-        if consecutive_days > 5 {
+        if consecutive_days > MAX_CONSECUTIVE_TRAINING_DAYS {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Recovery,
                 title: "Take a Rest Day".to_string(),
@@ -555,10 +561,11 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
         let mut recommendations = Vec::new();
 
         let duration_hours = activity.duration_seconds as f64 / 3600.0;
-        let high_intensity = activity.average_heart_rate.unwrap_or(0) > 150;
+        let high_intensity =
+            activity.average_heart_rate.unwrap_or(0) > MODERATE_NUTRITION_HR_THRESHOLD;
 
         // Pre-activity nutrition
-        if duration_hours > 1.5 {
+        if duration_hours > PRE_EXERCISE_DURATION_THRESHOLD {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Nutrition,
                 title: "Pre-Exercise Fueling".to_string(),
@@ -576,7 +583,7 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
         }
 
         // During-activity nutrition
-        if duration_hours > 2.0 {
+        if duration_hours > DURING_EXERCISE_DURATION_THRESHOLD {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Nutrition,
                 title: "In-Exercise Fueling".to_string(),
@@ -594,7 +601,7 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
         }
 
         // Post-activity recovery
-        if duration_hours > 1.0 || high_intensity {
+        if duration_hours > POST_EXERCISE_DURATION_THRESHOLD || high_intensity {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Nutrition,
                 title: "Post-Exercise Recovery Nutrition".to_string(),
@@ -630,7 +637,7 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
         }
 
         // Running-specific equipment
-        if sport_counts.get("Run").unwrap_or(&0) > &5 {
+        if sport_counts.get("Run").unwrap_or(&0) > &(MAX_WEEKLY_FREQUENCY as usize) {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Equipment,
                 title: "Running Equipment Optimization".to_string(),
@@ -648,7 +655,7 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
         }
 
         // Cycling-specific equipment
-        if sport_counts.get("Ride").unwrap_or(&0) > &5 {
+        if sport_counts.get("Ride").unwrap_or(&0) > &(MAX_WEEKLY_FREQUENCY as usize) {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Equipment,
                 title: "Cycling Equipment Optimization".to_string(),
@@ -667,7 +674,7 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
 
         // General monitoring equipment
         let has_hr_data = activities.iter().any(|a| a.average_heart_rate.is_some());
-        if !has_hr_data && activities.len() > 5 {
+        if !has_hr_data && activities.len() > MAX_WEEKLY_FREQUENCY as usize {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Equipment,
                 title: "Heart Rate Monitoring".to_string(),

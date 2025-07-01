@@ -3,8 +3,8 @@
 use super::*;
 use crate::config::intelligence_config::{ActivityAnalyzerConfig, IntelligenceConfig};
 use crate::intelligence::physiological_constants::{
-    duration::*, efficiency::*, heart_rate::*, max_speeds::*, performance::*, power::*,
-    running::*, training_load::*,
+    duration::*, efficiency::*, heart_rate::*, max_speeds::*, performance::*, power::*, running::*,
+    training_load::*,
 };
 use crate::models::{Activity, SportType};
 use anyhow::Result;

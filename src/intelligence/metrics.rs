@@ -1,6 +1,7 @@
 //! Advanced fitness metrics calculation and analysis
 
 // Future: use crate::config::intelligence_config::{IntelligenceConfig};
+use crate::intelligence::physiological_constants::{metrics_constants::*, zone_percentages::*};
 use crate::models::Activity;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -103,7 +104,8 @@ impl MetricsCalculator {
             if let (Some(avg_hr), Some(avg_speed)) =
                 (activity.average_heart_rate, activity.average_speed)
             {
-                metrics.efficiency_factor = Some(avg_speed / avg_hr as f64 * 60.0);
+                metrics.efficiency_factor =
+                    Some(avg_speed / avg_hr as f64 * EFFICIENCY_TIME_MULTIPLIER);
                 // pace per HR
             }
         }
@@ -122,15 +124,20 @@ impl MetricsCalculator {
         let hr_ratio = (avg_hr as f64 - resting_hr) / hr_reserve;
         let duration_minutes = duration_seconds as f64 / 60.0;
 
-        // Simplified TRIMP calculation
-        Some(duration_minutes * hr_ratio * 0.64 * (std::f64::consts::E.powf(1.92 * hr_ratio)))
+        // Simplified TRIMP calculation using established constants
+        Some(
+            duration_minutes
+                * hr_ratio
+                * TRIMP_BASE_MULTIPLIER
+                * (std::f64::consts::E.powf(TRIMP_EXPONENTIAL_FACTOR * hr_ratio)),
+        )
     }
 
     /// Calculate Training Stress Score (TSS)
     #[allow(dead_code)]
     fn calculate_tss(&self, avg_power: f32, ftp: f64, duration_hours: f64) -> Option<f64> {
         let intensity_factor = avg_power as f64 / ftp;
-        Some((duration_hours * intensity_factor * intensity_factor * 100.0).round())
+        Some((duration_hours * intensity_factor * intensity_factor * TSS_BASE_MULTIPLIER).round())
     }
 
     /// Calculate power variability index
@@ -151,7 +158,7 @@ impl MetricsCalculator {
 
     /// Calculate pace decoupling for endurance activities
     pub fn calculate_decoupling(&self, hr_data: &[f32], pace_data: &[f32]) -> Option<f64> {
-        if hr_data.len() != pace_data.len() || hr_data.len() < 20 {
+        if hr_data.len() != pace_data.len() || hr_data.len() < MIN_DECOUPLING_DATA_POINTS {
             return None;
         }
 
@@ -202,23 +209,29 @@ impl ZoneAnalysis {
 
         let zone1 = hr_data
             .iter()
-            .filter(|&&hr| hr as f64 <= lthr * 0.80)
+            .filter(|&&hr| hr as f64 <= lthr * HR_ZONE1_UPPER_LIMIT)
             .count() as f64;
         let zone2 = hr_data
             .iter()
-            .filter(|&&hr| hr as f64 > lthr * 0.80 && hr as f64 <= lthr * 0.90)
+            .filter(|&&hr| {
+                hr as f64 > lthr * HR_ZONE1_UPPER_LIMIT && hr as f64 <= lthr * HR_ZONE2_UPPER_LIMIT
+            })
             .count() as f64;
         let zone3 = hr_data
             .iter()
-            .filter(|&&hr| hr as f64 > lthr * 0.90 && hr as f64 <= lthr * 1.00)
+            .filter(|&&hr| {
+                hr as f64 > lthr * HR_ZONE2_UPPER_LIMIT && hr as f64 <= lthr * HR_ZONE3_UPPER_LIMIT
+            })
             .count() as f64;
         let zone4 = hr_data
             .iter()
-            .filter(|&&hr| hr as f64 > lthr * 1.00 && hr as f64 <= lthr * 1.10)
+            .filter(|&&hr| {
+                hr as f64 > lthr * HR_ZONE3_UPPER_LIMIT && hr as f64 <= lthr * HR_ZONE4_UPPER_LIMIT
+            })
             .count() as f64;
         let zone5 = hr_data
             .iter()
-            .filter(|&&hr| hr as f64 > lthr * 1.10)
+            .filter(|&&hr| hr as f64 > lthr * HR_ZONE4_UPPER_LIMIT)
             .count() as f64;
 
         let mut time_in_zones = HashMap::new();
@@ -244,23 +257,32 @@ impl ZoneAnalysis {
 
         let zone1 = power_data
             .iter()
-            .filter(|&&p| p as f64 <= ftp * 0.55)
+            .filter(|&&p| p as f64 <= ftp * POWER_ZONE1_UPPER_LIMIT)
             .count() as f64;
         let zone2 = power_data
             .iter()
-            .filter(|&&p| p as f64 > ftp * 0.55 && p as f64 <= ftp * 0.75)
+            .filter(|&&p| {
+                p as f64 > ftp * POWER_ZONE1_UPPER_LIMIT
+                    && p as f64 <= ftp * POWER_ZONE2_UPPER_LIMIT
+            })
             .count() as f64;
         let zone3 = power_data
             .iter()
-            .filter(|&&p| p as f64 > ftp * 0.75 && p as f64 <= ftp * 0.90)
+            .filter(|&&p| {
+                p as f64 > ftp * POWER_ZONE2_UPPER_LIMIT
+                    && p as f64 <= ftp * POWER_ZONE3_UPPER_LIMIT
+            })
             .count() as f64;
         let zone4 = power_data
             .iter()
-            .filter(|&&p| p as f64 > ftp * 0.90 && p as f64 <= ftp * 1.05)
+            .filter(|&&p| {
+                p as f64 > ftp * POWER_ZONE3_UPPER_LIMIT
+                    && p as f64 <= ftp * POWER_ZONE4_UPPER_LIMIT
+            })
             .count() as f64;
         let zone5 = power_data
             .iter()
-            .filter(|&&p| p as f64 > ftp * 1.05)
+            .filter(|&&p| p as f64 > ftp * POWER_ZONE4_UPPER_LIMIT)
             .count() as f64;
 
         let mut time_in_zones = HashMap::new();

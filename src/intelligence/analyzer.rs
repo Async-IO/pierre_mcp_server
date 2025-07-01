@@ -170,27 +170,32 @@ impl ActivityAnalyzer {
             let distance_km = distance_m / 1000.0;
             if distance_km > 20.0 {
                 // Arbitrary threshold for demo
+                const PREVIOUS_BEST: f64 = 18.5;
                 records.push(PersonalRecord {
-                    record_type: "Longest Distance".to_string(),
+                    record_type: "Longest Distance".into(),
                     value: distance_km,
-                    unit: "km".to_string(),
-                    previous_best: Some(18.5), // Mock previous best
-                    improvement_percentage: Some(((distance_km - 18.5) / 18.5 * 100.0) as f32),
+                    unit: "km".into(),
+                    previous_best: Some(PREVIOUS_BEST),
+                    improvement_percentage: Some(
+                        ((distance_km - PREVIOUS_BEST) / PREVIOUS_BEST * 100.0) as f32,
+                    ),
                 });
             }
         }
 
         // Example: Speed PR detection
         if let Some(avg_speed) = activity.average_speed {
-            let pace_per_km = 1000.0 / avg_speed; // seconds per km
+            let pace_per_km = 1000.0 / avg_speed;
             if pace_per_km < 300.0 {
-                // Under 5 minutes per km
+                const PREVIOUS_BEST_PACE: f64 = 320.0;
                 records.push(PersonalRecord {
-                    record_type: "Fastest Average Pace".to_string(),
+                    record_type: "Fastest Average Pace".into(),
                     value: pace_per_km,
-                    unit: "seconds/km".to_string(),
-                    previous_best: Some(320.0),
-                    improvement_percentage: Some(((320.0 - pace_per_km) / 320.0 * 100.0) as f32),
+                    unit: "seconds/km".into(),
+                    previous_best: Some(PREVIOUS_BEST_PACE),
+                    improvement_percentage: Some(
+                        ((PREVIOUS_BEST_PACE - pace_per_km) / PREVIOUS_BEST_PACE * 100.0) as f32,
+                    ),
                 });
             }
         }
@@ -241,8 +246,8 @@ impl ActivityAnalyzer {
         let time_of_day = self.determine_time_of_day(&activity.start_date);
 
         ContextualFactors {
-            weather: context.as_ref().and_then(|c| c.weather.clone()),
-            location: context.as_ref().and_then(|c| c.location.clone()),
+            weather: context.as_ref().and_then(|c| c.weather.as_ref().cloned()),
+            location: context.as_ref().and_then(|c| c.location.as_ref().cloned()),
             time_of_day,
             days_since_last_activity: None, // Would calculate from historical data
             weekly_load: None,              // Would calculate from recent activities
@@ -299,19 +304,16 @@ impl ActivityAnalyzer {
         };
 
         // Add location context
-        let location_context = if let Some(location) = &context.location {
-            if let Some(trail_name) = &location.trail_name {
-                format!(" on {}", trail_name)
-            } else if let (Some(city), Some(region)) = (&location.city, &location.region) {
-                format!(" in {}, {}", city, region)
-            } else if let Some(city) = &location.city {
-                format!(" in {}", city)
-            } else {
-                "".to_string()
-            }
-        } else {
-            "".to_string()
-        };
+        let location_context = context.location.as_ref().map_or(String::new(), |location| {
+            location.trail_name.as_ref().map_or_else(
+                || match (&location.city, &location.region) {
+                    (Some(city), Some(region)) => format!(" in {}, {}", city, region),
+                    (Some(city), None) => format!(" in {}", city),
+                    _ => String::new(),
+                },
+                |trail_name| format!(" on {}", trail_name),
+            )
+        });
 
         // Effort categorization
         let effort_desc = if let Some(relative_effort) = performance.relative_effort {
@@ -342,9 +344,9 @@ impl ActivityAnalyzer {
 
         // Personal records context
         let pr_context = match performance.personal_records.len() {
-            0 => "",
-            1 => " with 1 new personal record",
-            n => &format!(" with {} new personal records", n),
+            0 => String::new(),
+            1 => " with 1 new personal record".to_string(),
+            n => format!(" with {} new personal records", n),
         };
 
         // Build the summary
@@ -379,10 +381,9 @@ impl ActivityAnalyzer {
     /// Helper to capitalize first letter of a string
     fn to_title_case(s: &str) -> String {
         let mut chars = s.chars();
-        match chars.next() {
-            None => String::new(),
-            Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-        }
+        chars.next().map_or(String::new(), |first| {
+            first.to_uppercase().chain(chars).collect()
+        })
     }
 }
 

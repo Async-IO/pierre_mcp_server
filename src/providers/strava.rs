@@ -14,13 +14,50 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use reqwest::Client;
 use serde::Deserialize;
+use std::sync::OnceLock;
 use tracing::{error, info};
+
+/// Configuration for Strava API integration
+#[derive(Debug, Clone)]
+pub struct StravaConfig {
+    /// OAuth client ID
+    pub client_id: String,
+    /// OAuth client secret  
+    pub client_secret: String,
+    /// API base URL
+    pub base_url: String,
+    /// Auth URL
+    pub auth_url: String,
+    /// Token URL
+    pub token_url: String,
+}
+
+impl Default for StravaConfig {
+    fn default() -> Self {
+        Self {
+            client_id: env_config::strava_client_id().unwrap_or_default(),
+            client_secret: env_config::strava_client_secret().unwrap_or_default(),
+            base_url: env_config::strava_api_base(),
+            auth_url: env_config::strava_auth_url(),
+            token_url: env_config::strava_token_url(),
+        }
+    }
+}
+
+/// Global Strava configuration singleton
+static STRAVA_CONFIG: OnceLock<StravaConfig> = OnceLock::new();
+
+impl StravaConfig {
+    /// Get the global Strava configuration
+    pub fn global() -> &'static Self {
+        STRAVA_CONFIG.get_or_init(StravaConfig::default)
+    }
+}
 
 pub struct StravaProvider {
     client: Client,
+    config: &'static StravaConfig,
     access_token: Option<String>,
-    client_id: Option<String>,
-    client_secret: Option<String>,
     refresh_token: Option<String>,
 }
 
@@ -34,29 +71,36 @@ impl StravaProvider {
     pub fn new() -> Self {
         Self {
             client: Client::new(),
+            config: StravaConfig::global(),
             access_token: None,
-            client_id: None,
-            client_secret: None,
+            refresh_token: None,
+        }
+    }
+
+    pub fn with_config(config: &'static StravaConfig) -> Self {
+        Self {
+            client: Client::new(),
+            config,
+            access_token: None,
             refresh_token: None,
         }
     }
 
     #[allow(dead_code)]
     pub fn get_auth_url(&self, redirect_uri: &str, state: &str) -> Result<String> {
-        let client_id = self
-            .client_id
-            .as_ref()
-            .context("Client ID not configured")?;
+        if self.config.client_id.is_empty() {
+            return Err(anyhow::anyhow!("Client ID not configured"));
+        }
 
-        let mut url = url::Url::parse(&env_config::strava_auth_url())?;
+        let mut url = url::Url::parse(&self.config.auth_url)?;
         url.query_pairs_mut()
-            .append_pair("client_id", client_id)
+            .append_pair("client_id", &self.config.client_id)
             .append_pair("redirect_uri", redirect_uri)
             .append_pair("response_type", "code")
             .append_pair("scope", "read,activity:read_all")
             .append_pair("state", state);
 
-        Ok(url.to_string())
+        Ok(url.into())
     }
 
     /// Get authorization URL with PKCE support for enhanced security
@@ -67,14 +111,13 @@ impl StravaProvider {
         state: &str,
         pkce: &PkceParams,
     ) -> Result<String> {
-        let client_id = self
-            .client_id
-            .as_ref()
-            .context("Client ID not configured")?;
+        if self.config.client_id.is_empty() {
+            return Err(anyhow::anyhow!("Client ID not configured"));
+        }
 
-        let mut url = url::Url::parse(&env_config::strava_auth_url())?;
+        let mut url = url::Url::parse(&self.config.auth_url)?;
         url.query_pairs_mut()
-            .append_pair("client_id", client_id)
+            .append_pair("client_id", &self.config.client_id)
             .append_pair("redirect_uri", redirect_uri)
             .append_pair("response_type", "code")
             .append_pair("scope", "read,activity:read_all")
@@ -82,29 +125,28 @@ impl StravaProvider {
             .append_pair("code_challenge", &pkce.code_challenge)
             .append_pair("code_challenge_method", &pkce.code_challenge_method);
 
-        Ok(url.to_string())
+        Ok(url.into())
     }
 
     #[allow(dead_code)]
     pub async fn exchange_code(&mut self, code: &str) -> Result<(String, String)> {
-        let client_id = self.client_id.as_ref().context("Client ID not set")?;
-        let client_secret = self
-            .client_secret
-            .as_ref()
-            .context("Client secret not set")?;
+        if self.config.client_id.is_empty() || self.config.client_secret.is_empty() {
+            return Err(anyhow::anyhow!("Client credentials not configured"));
+        }
 
         let (token, athlete) = crate::oauth2_client::strava::exchange_strava_code(
             &self.client,
-            client_id,
-            client_secret,
+            &self.config.client_id,
+            &self.config.client_secret,
             code,
         )
         .await?;
 
+        // Store tokens without unnecessary cloning
         self.access_token = Some(token.access_token.clone());
         self.refresh_token = token.refresh_token.clone();
 
-        if let Some(athlete) = athlete {
+        if let Some(ref athlete) = athlete {
             info!(
                 "Authenticated as Strava athlete: {} ({})",
                 athlete.id,
@@ -112,8 +154,13 @@ impl StravaProvider {
             );
         }
 
-        // Return tokens for storage
-        Ok((token.access_token, token.refresh_token.unwrap_or_default()))
+        // Return tokens - handle missing refresh token properly
+        let refresh_token = token.refresh_token.unwrap_or_else(|| {
+            tracing::warn!("No refresh token provided by Strava");
+            String::new()
+        });
+
+        Ok((token.access_token, refresh_token))
     }
 
     /// Exchange authorization code with PKCE support for enhanced security
@@ -123,16 +170,14 @@ impl StravaProvider {
         code: &str,
         pkce: &PkceParams,
     ) -> Result<(String, String)> {
-        let client_id = self.client_id.as_ref().context("Client ID not set")?;
-        let client_secret = self
-            .client_secret
-            .as_ref()
-            .context("Client secret not set")?;
+        if self.config.client_id.is_empty() || self.config.client_secret.is_empty() {
+            return Err(anyhow::anyhow!("Client credentials not configured"));
+        }
 
         let (token, athlete) = crate::oauth2_client::strava::exchange_strava_code_with_pkce(
             &self.client,
-            client_id,
-            client_secret,
+            &self.config.client_id,
+            &self.config.client_secret,
             code,
             pkce,
         )
@@ -141,7 +186,7 @@ impl StravaProvider {
         self.access_token = Some(token.access_token.clone());
         self.refresh_token = token.refresh_token.clone();
 
-        if let Some(athlete) = athlete {
+        if let Some(ref athlete) = athlete {
             info!(
                 "Authenticated as Strava athlete with PKCE: {} ({})",
                 athlete.id,
@@ -149,8 +194,13 @@ impl StravaProvider {
             );
         }
 
-        // Return tokens for storage
-        Ok((token.access_token, token.refresh_token.unwrap_or_default()))
+        // Return tokens - handle missing refresh token properly
+        let refresh_token = token.refresh_token.unwrap_or_else(|| {
+            tracing::warn!("No refresh token provided by Strava");
+            String::new()
+        });
+
+        Ok((token.access_token, refresh_token))
     }
 
     #[allow(dead_code)]
@@ -160,16 +210,14 @@ impl StravaProvider {
             .as_ref()
             .context("No refresh token available")?;
 
-        let client_id = self.client_id.as_ref().context("Client ID not set")?;
-        let client_secret = self
-            .client_secret
-            .as_ref()
-            .context("Client secret not set")?;
+        if self.config.client_id.is_empty() || self.config.client_secret.is_empty() {
+            return Err(anyhow::anyhow!("Client credentials not configured"));
+        }
 
         let new_token = crate::oauth2_client::strava::refresh_strava_token(
             &self.client,
-            client_id,
-            client_secret,
+            &self.config.client_id,
+            &self.config.client_secret,
             refresh_token,
         )
         .await?;
@@ -179,11 +227,13 @@ impl StravaProvider {
 
         info!("Token refreshed successfully");
 
-        // Return tokens for storage
-        Ok((
-            new_token.access_token,
-            new_token.refresh_token.unwrap_or_default(),
-        ))
+        // Return tokens - handle missing refresh token properly
+        let refresh_token = new_token.refresh_token.unwrap_or_else(|| {
+            tracing::warn!("No refresh token provided by Strava");
+            String::new()
+        });
+
+        Ok((new_token.access_token, refresh_token))
     }
 }
 
@@ -192,13 +242,11 @@ impl FitnessProvider for StravaProvider {
     async fn authenticate(&mut self, auth_data: AuthData) -> Result<()> {
         match auth_data {
             AuthData::OAuth2 {
-                client_id,
-                client_secret,
                 access_token,
                 refresh_token,
+                ..
             } => {
-                self.client_id = Some(client_id);
-                self.client_secret = Some(client_secret);
+                // Only store the tokens - client credentials come from config
                 self.access_token = access_token;
                 self.refresh_token = refresh_token;
                 Ok(())
@@ -212,7 +260,7 @@ impl FitnessProvider for StravaProvider {
 
         let response: StravaAthlete = self
             .client
-            .get(format!("{}/athlete", env_config::strava_api_base()))
+            .get(format!("{}/athlete", &self.config.base_url))
             .bearer_auth(token)
             .send()
             .await?
@@ -221,11 +269,14 @@ impl FitnessProvider for StravaProvider {
 
         Ok(Athlete {
             id: response.id.to_string(),
-            username: response.username.unwrap_or_default(),
+            username: response.username.unwrap_or_else(|| {
+                tracing::debug!("No username provided by Strava for athlete {}", response.id);
+                String::new()
+            }),
             firstname: response.firstname,
             lastname: response.lastname,
             profile_picture: response.profile,
-            provider: "strava".to_string(),
+            provider: "strava".into(),
         })
     }
 
@@ -236,15 +287,16 @@ impl FitnessProvider for StravaProvider {
     ) -> Result<Vec<Activity>> {
         let token = self.access_token.as_ref().context("Not authenticated")?;
 
-        let mut query = vec![];
-        if let Some(limit) = limit {
-            query.push(("per_page", limit.to_string()));
-        }
-        if let Some(offset) = offset {
-            query.push(("page", (offset / limit.unwrap_or(30) + 1).to_string()));
-        }
+        // Build query parameters without unnecessary allocations
+        let per_page = limit.unwrap_or(30);
+        let page = offset.map(|o| o / per_page + 1).unwrap_or(1);
 
-        let url = format!("{}/athlete/activities", env_config::strava_api_base());
+        let query = [
+            ("per_page", per_page.to_string()),
+            ("page", page.to_string()),
+        ];
+
+        let url = format!("{}/athlete/activities", &self.config.base_url);
         info!("Fetching activities from: {} with query: {:?}", url, query);
 
         let response = self
@@ -260,10 +312,10 @@ impl FitnessProvider for StravaProvider {
         info!("Strava API response status: {}", status);
 
         if !status.is_success() {
-            let error_text = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Unable to read error response".to_string());
+            let error_text = response.text().await.unwrap_or_else(|e| {
+                tracing::warn!("Failed to read error response body: {}", e);
+                "Unable to read error response".into()
+            });
             error!("Strava API error response: {} - {}", status, error_text);
 
             // Check if it's an authentication error and we have a refresh token
@@ -477,7 +529,7 @@ impl From<StravaActivity> for Activity {
             region: None,
             country: None,
             trail_name: None,
-            provider: "strava".to_string(),
+            provider: "strava".into(),
         }
     }
 }
