@@ -38,13 +38,11 @@ impl PkceParams {
     #[allow(dead_code)]
     pub fn generate() -> Self {
         // Generate a cryptographically secure random code verifier (43-128 characters)
+        const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
         let mut rng = rand::thread_rng();
-        let code_verifier = (0..128)
-            .map(|_| {
-                let chars = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
-                chars[rng.gen_range(0..chars.len())] as char
-            })
-            .collect::<String>();
+        let code_verifier: String = (0..128)
+            .map(|_| CHARS[rng.gen_range(0..CHARS.len())] as char)
+            .collect();
 
         // Create S256 code challenge
         let mut hasher = Sha256::new();
@@ -55,7 +53,7 @@ impl PkceParams {
         Self {
             code_verifier,
             code_challenge,
-            code_challenge_method: "S256".to_string(),
+            code_challenge_method: "S256".into(),
         }
     }
 }
@@ -73,20 +71,14 @@ pub struct OAuth2Token {
 impl OAuth2Token {
     #[allow(dead_code)]
     pub fn is_expired(&self) -> bool {
-        if let Some(expires_at) = self.expires_at {
-            expires_at <= Utc::now()
-        } else {
-            false
-        }
+        self.expires_at
+            .is_some_and(|expires_at| expires_at <= Utc::now())
     }
 
     #[allow(dead_code)]
     pub fn will_expire_soon(&self) -> bool {
-        if let Some(expires_at) = self.expires_at {
-            expires_at <= Utc::now() + Duration::minutes(5)
-        } else {
-            false
-        }
+        self.expires_at
+            .is_some_and(|expires_at| expires_at <= Utc::now() + Duration::minutes(5))
     }
 }
 
@@ -149,11 +141,11 @@ impl OAuth2Client {
     #[allow(dead_code)]
     pub async fn exchange_code(&self, code: &str) -> Result<OAuth2Token> {
         let params = [
-            ("client_id", &self.config.client_id),
-            ("client_secret", &self.config.client_secret),
-            ("code", &code.to_string()),
-            ("grant_type", &"authorization_code".to_string()),
-            ("redirect_uri", &self.config.redirect_uri),
+            ("client_id", self.config.client_id.as_str()),
+            ("client_secret", self.config.client_secret.as_str()),
+            ("code", code),
+            ("grant_type", "authorization_code"),
+            ("redirect_uri", self.config.redirect_uri.as_str()),
         ];
 
         let response: TokenResponse = self
@@ -202,10 +194,10 @@ impl OAuth2Client {
     #[allow(dead_code)]
     pub async fn refresh_token(&self, refresh_token: &str) -> Result<OAuth2Token> {
         let params = [
-            ("client_id", &self.config.client_id),
-            ("client_secret", &self.config.client_secret),
-            ("refresh_token", &refresh_token.to_string()),
-            ("grant_type", &"refresh_token".to_string()),
+            ("client_id", self.config.client_id.as_str()),
+            ("client_secret", self.config.client_secret.as_str()),
+            ("refresh_token", refresh_token),
+            ("grant_type", "refresh_token"),
         ];
 
         let response: TokenResponse = self

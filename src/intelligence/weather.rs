@@ -9,6 +9,7 @@
 use super::WeatherConditions;
 use crate::config::fitness_config::WeatherApiConfig;
 use crate::config::intelligence_config::{IntelligenceConfig, WeatherAnalysisConfig};
+use crate::intelligence::physiological_constants::weather_thresholds::*;
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -324,22 +325,22 @@ impl WeatherService {
         let mut impact_factors = Vec::new();
         let mut overall_difficulty = 0.0;
 
-        // Temperature impact
+        // Temperature impact using physiological constants
         match weather.temperature_celsius {
-            t if t < -5.0 => {
+            t if t < EXTREME_COLD_CELSIUS => {
                 impact_factors
                     .push("Extremely cold conditions increase energy expenditure".to_string());
                 overall_difficulty += 3.0;
             }
-            t if t < 0.0 => {
+            t if t < COLD_THRESHOLD_CELSIUS => {
                 impact_factors.push("Cold conditions may affect performance".to_string());
                 overall_difficulty += 2.0;
             }
-            t if t > 30.0 => {
+            t if t > EXTREME_HOT_THRESHOLD_CELSIUS => {
                 impact_factors.push("Hot conditions increase heat stress".to_string());
                 overall_difficulty += 2.5;
             }
-            t if t > 25.0 => {
+            t if t > HOT_THRESHOLD_CELSIUS => {
                 impact_factors.push("Warm conditions may increase perceived effort".to_string());
                 overall_difficulty += 1.0;
             }
@@ -348,15 +349,15 @@ impl WeatherService {
             }
         }
 
-        // Wind impact
+        // Wind impact using established thresholds
         if let Some(wind_speed) = weather.wind_speed_kmh {
             match wind_speed {
-                w if w > 30.0 => {
+                w if w > STRONG_WIND_THRESHOLD => {
                     impact_factors
                         .push("Strong winds significantly impact performance".to_string());
                     overall_difficulty += 2.0;
                 }
-                w if w > 15.0 => {
+                w if w > MODERATE_WIND_THRESHOLD => {
                     impact_factors.push("Moderate winds may affect pace".to_string());
                     overall_difficulty += 1.0;
                 }
@@ -374,9 +375,11 @@ impl WeatherService {
             overall_difficulty += 2.5;
         }
 
-        // Humidity impact
+        // Humidity impact using physiological thresholds
         if let Some(humidity) = weather.humidity_percentage {
-            if humidity > 80.0 && weather.temperature_celsius > 20.0 {
+            if humidity > HIGH_HUMIDITY_THRESHOLD
+                && weather.temperature_celsius > HUMIDITY_IMPACT_TEMP_THRESHOLD
+            {
                 impact_factors.push("High humidity makes cooling less efficient".to_string());
                 overall_difficulty += 1.0;
             }

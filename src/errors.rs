@@ -13,192 +13,184 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use thiserror::Error;
-use uuid::Uuid;
 use warp::reject::Reject;
 
 /// Standard error codes used throughout the application
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorCode {
-    // Authentication & Authorization (1000-1999)
-    #[serde(rename = "AUTH_REQUIRED")]
-    AuthRequired = 1000,
-    #[serde(rename = "AUTH_INVALID")]
-    AuthInvalid = 1001,
-    #[serde(rename = "AUTH_EXPIRED")]
-    AuthExpired = 1002,
-    #[serde(rename = "AUTH_MALFORMED")]
-    AuthMalformed = 1003,
-    #[serde(rename = "PERMISSION_DENIED")]
-    PermissionDenied = 1004,
+    // Authentication & Authorization
+    AuthRequired,
+    AuthInvalid,
+    AuthExpired,
+    AuthMalformed,
+    PermissionDenied,
 
-    // Rate Limiting (2000-2999)
-    #[serde(rename = "RATE_LIMIT_EXCEEDED")]
-    RateLimitExceeded = 2000,
-    #[serde(rename = "QUOTA_EXCEEDED")]
-    QuotaExceeded = 2001,
+    // Rate Limiting
+    RateLimitExceeded,
+    QuotaExceeded,
 
-    // Validation (3000-3999)
-    #[serde(rename = "INVALID_INPUT")]
-    InvalidInput = 3000,
-    #[serde(rename = "MISSING_REQUIRED_FIELD")]
-    MissingRequiredField = 3001,
-    #[serde(rename = "INVALID_FORMAT")]
-    InvalidFormat = 3002,
-    #[serde(rename = "VALUE_OUT_OF_RANGE")]
-    ValueOutOfRange = 3003,
+    // Validation
+    InvalidInput,
+    MissingRequiredField,
+    InvalidFormat,
+    ValueOutOfRange,
 
-    // Resource Management (4000-4999)
-    #[serde(rename = "RESOURCE_NOT_FOUND")]
-    ResourceNotFound = 4000,
-    #[serde(rename = "RESOURCE_ALREADY_EXISTS")]
-    ResourceAlreadyExists = 4001,
-    #[serde(rename = "RESOURCE_LOCKED")]
-    ResourceLocked = 4002,
-    #[serde(rename = "RESOURCE_UNAVAILABLE")]
-    ResourceUnavailable = 4003,
+    // Resource Management
+    ResourceNotFound,
+    ResourceAlreadyExists,
+    ResourceLocked,
+    ResourceUnavailable,
 
-    // External Services (5000-5999)
-    #[serde(rename = "EXTERNAL_SERVICE_ERROR")]
-    ExternalServiceError = 5000,
-    #[serde(rename = "EXTERNAL_SERVICE_UNAVAILABLE")]
-    ExternalServiceUnavailable = 5001,
-    #[serde(rename = "EXTERNAL_AUTH_FAILED")]
-    ExternalAuthFailed = 5002,
-    #[serde(rename = "EXTERNAL_RATE_LIMITED")]
-    ExternalRateLimited = 5003,
+    // External Services
+    ExternalServiceError,
+    ExternalServiceUnavailable,
+    ExternalAuthFailed,
+    ExternalRateLimited,
 
-    // Configuration (6000-6999)
-    #[serde(rename = "CONFIG_ERROR")]
-    ConfigError = 6000,
-    #[serde(rename = "CONFIG_MISSING")]
-    ConfigMissing = 6001,
-    #[serde(rename = "CONFIG_INVALID")]
-    ConfigInvalid = 6002,
+    // Configuration
+    ConfigError,
+    ConfigMissing,
+    ConfigInvalid,
 
-    // Internal Errors (9000-9999)
-    #[serde(rename = "INTERNAL_ERROR")]
-    InternalError = 9000,
-    #[serde(rename = "DATABASE_ERROR")]
-    DatabaseError = 9001,
-    #[serde(rename = "STORAGE_ERROR")]
-    StorageError = 9002,
-    #[serde(rename = "SERIALIZATION_ERROR")]
-    SerializationError = 9003,
+    // Internal Errors
+    InternalError,
+    DatabaseError,
+    StorageError,
+    SerializationError,
 }
 
 impl ErrorCode {
     /// Get the HTTP status code for this error
-    pub fn http_status(&self) -> u16 {
+    pub const fn http_status(self) -> u16 {
         match self {
             // 400 Bad Request
-            ErrorCode::InvalidInput
-            | ErrorCode::MissingRequiredField
-            | ErrorCode::InvalidFormat
-            | ErrorCode::ValueOutOfRange => 400,
+            Self::InvalidInput
+            | Self::MissingRequiredField
+            | Self::InvalidFormat
+            | Self::ValueOutOfRange => 400,
 
             // 401 Unauthorized
-            ErrorCode::AuthRequired | ErrorCode::AuthInvalid => 401,
+            Self::AuthRequired | Self::AuthInvalid => 401,
 
             // 403 Forbidden
-            ErrorCode::AuthExpired | ErrorCode::AuthMalformed | ErrorCode::PermissionDenied => 403,
+            Self::AuthExpired | Self::AuthMalformed | Self::PermissionDenied => 403,
 
             // 404 Not Found
-            ErrorCode::ResourceNotFound => 404,
+            Self::ResourceNotFound => 404,
 
             // 409 Conflict
-            ErrorCode::ResourceAlreadyExists | ErrorCode::ResourceLocked => 409,
+            Self::ResourceAlreadyExists | Self::ResourceLocked => 409,
 
             // 429 Too Many Requests
-            ErrorCode::RateLimitExceeded | ErrorCode::QuotaExceeded => 429,
+            Self::RateLimitExceeded | Self::QuotaExceeded => 429,
 
             // 502 Bad Gateway
-            ErrorCode::ExternalServiceError | ErrorCode::ExternalServiceUnavailable => 502,
+            Self::ExternalServiceError | Self::ExternalServiceUnavailable => 502,
 
             // 503 Service Unavailable
-            ErrorCode::ResourceUnavailable
-            | ErrorCode::ExternalAuthFailed
-            | ErrorCode::ExternalRateLimited => 503,
+            Self::ResourceUnavailable | Self::ExternalAuthFailed | Self::ExternalRateLimited => 503,
 
             // 500 Internal Server Error
-            ErrorCode::InternalError
-            | ErrorCode::DatabaseError
-            | ErrorCode::StorageError
-            | ErrorCode::SerializationError
-            | ErrorCode::ConfigError
-            | ErrorCode::ConfigMissing
-            | ErrorCode::ConfigInvalid => 500,
+            Self::InternalError
+            | Self::DatabaseError
+            | Self::StorageError
+            | Self::SerializationError
+            | Self::ConfigError
+            | Self::ConfigMissing
+            | Self::ConfigInvalid => 500,
         }
     }
 
     /// Get a user-friendly description of this error
-    pub fn description(&self) -> &'static str {
+    pub const fn description(self) -> &'static str {
         match self {
-            ErrorCode::AuthRequired => "Authentication is required to access this resource",
-            ErrorCode::AuthInvalid => "The provided authentication credentials are invalid",
-            ErrorCode::AuthExpired => "The authentication token has expired",
-            ErrorCode::AuthMalformed => "The authentication token is malformed or corrupted",
-            ErrorCode::PermissionDenied => "You do not have permission to perform this action",
-            ErrorCode::RateLimitExceeded => "Rate limit exceeded. Please slow down your requests",
-            ErrorCode::QuotaExceeded => "Usage quota exceeded for your current plan",
-            ErrorCode::InvalidInput => "The provided input is invalid",
-            ErrorCode::MissingRequiredField => "A required field is missing from the request",
-            ErrorCode::InvalidFormat => "The data format is invalid",
-            ErrorCode::ValueOutOfRange => "The provided value is outside the acceptable range",
-            ErrorCode::ResourceNotFound => "The requested resource was not found",
-            ErrorCode::ResourceAlreadyExists => "A resource with this identifier already exists",
-            ErrorCode::ResourceLocked => "The resource is currently locked and cannot be modified",
-            ErrorCode::ResourceUnavailable => "The resource is temporarily unavailable",
-            ErrorCode::ExternalServiceError => "An external service encountered an error",
-            ErrorCode::ExternalServiceUnavailable => "An external service is currently unavailable",
-            ErrorCode::ExternalAuthFailed => "Authentication with external service failed",
-            ErrorCode::ExternalRateLimited => "External service rate limit exceeded",
-            ErrorCode::ConfigError => "Configuration error encountered",
-            ErrorCode::ConfigMissing => "Required configuration is missing",
-            ErrorCode::ConfigInvalid => "Configuration is invalid",
-            ErrorCode::InternalError => "An internal server error occurred",
-            ErrorCode::DatabaseError => "Database operation failed",
-            ErrorCode::StorageError => "Storage operation failed",
-            ErrorCode::SerializationError => "Data serialization/deserialization failed",
+            Self::AuthRequired => "Authentication is required to access this resource",
+            Self::AuthInvalid => "The provided authentication credentials are invalid",
+            Self::AuthExpired => "The authentication token has expired",
+            Self::AuthMalformed => "The authentication token is malformed or corrupted",
+            Self::PermissionDenied => "You do not have permission to perform this action",
+            Self::RateLimitExceeded => "Rate limit exceeded. Please slow down your requests",
+            Self::QuotaExceeded => "Usage quota exceeded for your current plan",
+            Self::InvalidInput => "The provided input is invalid",
+            Self::MissingRequiredField => "A required field is missing from the request",
+            Self::InvalidFormat => "The data format is invalid",
+            Self::ValueOutOfRange => "The provided value is outside the acceptable range",
+            Self::ResourceNotFound => "The requested resource was not found",
+            Self::ResourceAlreadyExists => "A resource with this identifier already exists",
+            Self::ResourceLocked => "The resource is currently locked and cannot be modified",
+            Self::ResourceUnavailable => "The resource is temporarily unavailable",
+            Self::ExternalServiceError => "An external service encountered an error",
+            Self::ExternalServiceUnavailable => "An external service is currently unavailable",
+            Self::ExternalAuthFailed => "Authentication with external service failed",
+            Self::ExternalRateLimited => "External service rate limit exceeded",
+            Self::ConfigError => "Configuration error encountered",
+            Self::ConfigMissing => "Required configuration is missing",
+            Self::ConfigInvalid => "Configuration is invalid",
+            Self::InternalError => "An internal server error occurred",
+            Self::DatabaseError => "Database operation failed",
+            Self::StorageError => "Storage operation failed",
+            Self::SerializationError => "Data serialization/deserialization failed",
         }
     }
 }
 
-/// Additional context that can be attached to errors
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ErrorContext {
-    /// Request ID for tracing
-    pub request_id: Option<String>,
-    /// User ID if available
-    pub user_id: Option<Uuid>,
-    /// Resource ID if applicable
-    pub resource_id: Option<String>,
-    /// Additional key-value context
-    pub details: serde_json::Value,
+// Simple serialization - just use the debug representation
+impl Serialize for ErrorCode {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&format!("{:?}", self))
+    }
 }
 
-impl Default for ErrorContext {
-    fn default() -> Self {
-        Self {
-            request_id: None,
-            user_id: None,
-            resource_id: None,
-            details: serde_json::Value::Object(serde_json::Map::new()),
+impl<'de> Deserialize<'de> for ErrorCode {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        match s.as_str() {
+            "AuthRequired" => Ok(Self::AuthRequired),
+            "AuthInvalid" => Ok(Self::AuthInvalid),
+            "AuthExpired" => Ok(Self::AuthExpired),
+            "AuthMalformed" => Ok(Self::AuthMalformed),
+            "PermissionDenied" => Ok(Self::PermissionDenied),
+            "RateLimitExceeded" => Ok(Self::RateLimitExceeded),
+            "QuotaExceeded" => Ok(Self::QuotaExceeded),
+            "InvalidInput" => Ok(Self::InvalidInput),
+            "MissingRequiredField" => Ok(Self::MissingRequiredField),
+            "InvalidFormat" => Ok(Self::InvalidFormat),
+            "ValueOutOfRange" => Ok(Self::ValueOutOfRange),
+            "ResourceNotFound" => Ok(Self::ResourceNotFound),
+            "ResourceAlreadyExists" => Ok(Self::ResourceAlreadyExists),
+            "ResourceLocked" => Ok(Self::ResourceLocked),
+            "ResourceUnavailable" => Ok(Self::ResourceUnavailable),
+            "ExternalServiceError" => Ok(Self::ExternalServiceError),
+            "ExternalServiceUnavailable" => Ok(Self::ExternalServiceUnavailable),
+            "ExternalAuthFailed" => Ok(Self::ExternalAuthFailed),
+            "ExternalRateLimited" => Ok(Self::ExternalRateLimited),
+            "ConfigError" => Ok(Self::ConfigError),
+            "ConfigMissing" => Ok(Self::ConfigMissing),
+            "ConfigInvalid" => Ok(Self::ConfigInvalid),
+            "InternalError" => Ok(Self::InternalError),
+            "DatabaseError" => Ok(Self::DatabaseError),
+            "StorageError" => Ok(Self::StorageError),
+            "SerializationError" => Ok(Self::SerializationError),
+            _ => Err(serde::de::Error::unknown_variant(&s, &[])),
         }
     }
 }
 
-/// Unified error type for the application
+/// Simplified error type for the application
 #[derive(Debug, Error)]
 pub struct AppError {
     /// Error code
     pub code: ErrorCode,
     /// Human-readable error message
     pub message: String,
-    /// Additional context
-    pub context: ErrorContext,
-    /// Source error for error chaining
-    #[source]
-    pub source: Option<Box<dyn std::error::Error + Send + Sync>>,
+    /// Optional request ID for tracing
+    pub request_id: Option<String>,
 }
 
 impl AppError {
@@ -207,44 +199,13 @@ impl AppError {
         Self {
             code,
             message: message.into(),
-            context: ErrorContext::default(),
-            source: None,
+            request_id: None,
         }
     }
 
-    /// Create an AppError with additional context
-    pub fn with_context(mut self, context: ErrorContext) -> Self {
-        self.context = context;
-        self
-    }
-
-    /// Add a request ID to the error context
+    /// Add a request ID to the error
     pub fn with_request_id(mut self, request_id: impl Into<String>) -> Self {
-        self.context.request_id = Some(request_id.into());
-        self
-    }
-
-    /// Add a user ID to the error context
-    pub fn with_user_id(mut self, user_id: Uuid) -> Self {
-        self.context.user_id = Some(user_id);
-        self
-    }
-
-    /// Add a resource ID to the error context
-    pub fn with_resource_id(mut self, resource_id: impl Into<String>) -> Self {
-        self.context.resource_id = Some(resource_id.into());
-        self
-    }
-
-    /// Add details to the error context
-    pub fn with_details(mut self, details: serde_json::Value) -> Self {
-        self.context.details = details;
-        self
-    }
-
-    /// Add a source error for error chaining
-    pub fn with_source(mut self, source: impl std::error::Error + Send + Sync + 'static) -> Self {
-        self.source = Some(Box::new(source));
+        self.request_id = Some(request_id.into());
         self
     }
 
@@ -266,31 +227,23 @@ impl Reject for AppError {}
 /// Result type alias for convenience
 pub type AppResult<T> = Result<T, AppError>;
 
-/// HTTP error response format
-#[derive(Debug, Serialize, Deserialize)]
+/// Simplified HTTP error response format
+#[derive(Debug, Serialize)]
 pub struct ErrorResponse {
-    pub error: ErrorResponseDetails,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ErrorResponseDetails {
     pub code: ErrorCode,
     pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<String>,
-    #[serde(skip_serializing_if = "serde_json::Value::is_null")]
-    pub details: serde_json::Value,
+    pub timestamp: String,
 }
 
 impl From<AppError> for ErrorResponse {
     fn from(error: AppError) -> Self {
         Self {
-            error: ErrorResponseDetails {
-                code: error.code,
-                message: error.message,
-                request_id: error.context.request_id,
-                details: error.context.details,
-            },
+            code: error.code,
+            message: error.message,
+            request_id: error.request_id,
+            timestamp: chrono::Utc::now().to_rfc3339(),
         }
     }
 }
@@ -313,15 +266,11 @@ impl AppError {
     }
 
     /// Rate limit exceeded
-    pub fn rate_limit_exceeded(limit: u32, reset_at: chrono::DateTime<chrono::Utc>) -> Self {
+    pub fn rate_limit_exceeded(limit: u32) -> Self {
         Self::new(
             ErrorCode::RateLimitExceeded,
             format!("Rate limit of {} requests exceeded", limit),
         )
-        .with_details(serde_json::json!({
-            "limit": limit,
-            "reset_at": reset_at.to_rfc3339()
-        }))
     }
 
     /// Resource not found
@@ -364,14 +313,7 @@ impl AppError {
 /// Conversion from anyhow::Error to AppError
 impl From<anyhow::Error> for AppError {
     fn from(error: anyhow::Error) -> Self {
-        // Extract the root cause if available for better error chaining
-        match error.source() {
-            Some(source) => AppError::new(ErrorCode::InternalError, error.to_string())
-                .with_details(serde_json::json!({
-                    "source": source.to_string()
-                })),
-            None => AppError::new(ErrorCode::InternalError, error.to_string()),
-        }
+        AppError::new(ErrorCode::InternalError, error.to_string())
     }
 }
 
@@ -447,15 +389,8 @@ impl warp::Reply for AppError {
         let status = warp::http::StatusCode::from_u16(self.code.http_status())
             .unwrap_or(warp::http::StatusCode::INTERNAL_SERVER_ERROR);
 
-        let json = warp::reply::json(&serde_json::json!({
-            "error": {
-                "code": self.code,
-                "message": self.message,
-                "details": self.context.details,
-                "request_id": self.context.request_id,
-                "timestamp": chrono::Utc::now().to_rfc3339()
-            }
-        }));
+        let response = ErrorResponse::from(self);
+        let json = warp::reply::json(&response);
 
         warp::reply::with_status(json, status).into_response()
     }
@@ -475,22 +410,18 @@ mod tests {
 
     #[test]
     fn test_app_error_creation() {
-        let error = AppError::auth_required()
-            .with_request_id("req-123")
-            .with_user_id(Uuid::new_v4());
+        let error = AppError::auth_required().with_request_id("req-123");
 
         assert_eq!(error.code, ErrorCode::AuthRequired);
-        assert!(error.context.request_id.is_some());
-        assert!(error.context.user_id.is_some());
+        assert!(error.request_id.is_some());
     }
 
     #[test]
     fn test_error_response_serialization() {
-        let error = AppError::rate_limit_exceeded(1000, chrono::Utc::now());
+        let error = AppError::rate_limit_exceeded(1000);
         let response = ErrorResponse::from(error);
 
         let json = serde_json::to_string(&response).unwrap();
-        assert!(json.contains("RATE_LIMIT_EXCEEDED"));
-        assert!(json.contains("limit"));
+        assert!(json.contains("RateLimitExceeded"));
     }
 }

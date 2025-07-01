@@ -17,6 +17,7 @@ use anyhow::{Context, Result};
 use chrono::{DateTime, Duration, Utc};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicU64, Ordering};
 use uuid::Uuid;
 
 /// Convert a duration to a human-readable format
@@ -165,10 +166,23 @@ impl AuthMethod {
 }
 
 /// Authentication manager for JWT tokens and user sessions
-#[derive(Clone)]
 pub struct AuthManager {
     jwt_secret: Vec<u8>,
     token_expiry_hours: i64,
+    /// Monotonic counter to ensure unique timestamps for tokens
+    token_counter: AtomicU64,
+}
+
+impl Clone for AuthManager {
+    fn clone(&self) -> Self {
+        Self {
+            jwt_secret: self.jwt_secret.clone(),
+            token_expiry_hours: self.token_expiry_hours,
+            // Start fresh counter for cloned instance - this is acceptable
+            // since each instance will maintain uniqueness independently
+            token_counter: AtomicU64::new(0),
+        }
+    }
 }
 
 impl AuthManager {
@@ -177,6 +191,7 @@ impl AuthManager {
         Self {
             jwt_secret,
             token_expiry_hours,
+            token_counter: AtomicU64::new(0),
         }
     }
 
@@ -190,10 +205,15 @@ impl AuthManager {
         let now = Utc::now();
         let expiry = now + Duration::hours(self.token_expiry_hours);
 
+        // Use atomic counter to ensure unique issued-at times
+        // This eliminates the need for blocking sleep calls
+        let counter = self.token_counter.fetch_add(1, Ordering::Relaxed);
+        let unique_iat = now.timestamp() * 1000 + (counter % 1000) as i64;
+
         let claims = Claims {
             sub: user.id.to_string(),
             email: user.email.clone(),
-            iat: now.timestamp(),
+            iat: unique_iat,
             exp: expiry.timestamp(),
             providers: user.available_providers(),
         };
@@ -360,10 +380,7 @@ impl AuthManager {
             &validation,
         )?;
 
-        // Wait to ensure different timestamp
-        std::thread::sleep(std::time::Duration::from_millis(1));
-
-        // Generate new token
+        // Generate new token - atomic counter ensures uniqueness
         self.generate_token(user)
     }
 

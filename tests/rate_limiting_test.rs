@@ -166,7 +166,7 @@ async fn test_professional_tier_rate_limiting() {
         .get_api_key_current_usage(&api_key.id)
         .await
         .unwrap();
-    let rate_limit_status = api_key_manager.calculate_rate_limit_status(&api_key, current_usage);
+    let rate_limit_status = api_key_manager.rate_limit_status(&api_key, current_usage);
     assert!(!rate_limit_status.is_rate_limited);
     assert_eq!(rate_limit_status.remaining, Some(99_000));
 }
@@ -235,7 +235,7 @@ async fn test_enterprise_tier_unlimited() {
         .unwrap();
     assert_eq!(current_usage, 10_000);
 
-    let rate_limit_status = api_key_manager.calculate_rate_limit_status(&api_key, current_usage);
+    let rate_limit_status = api_key_manager.rate_limit_status(&api_key, current_usage);
     assert!(!rate_limit_status.is_rate_limited);
     assert_eq!(rate_limit_status.limit, None);
     assert_eq!(rate_limit_status.remaining, None);
@@ -275,7 +275,7 @@ async fn test_rate_limit_reset_timing() {
     database.create_api_key(&api_key).await.unwrap();
 
     // Calculate rate limit status
-    let rate_limit_status = api_key_manager.calculate_rate_limit_status(&api_key, 5000);
+    let rate_limit_status = api_key_manager.rate_limit_status(&api_key, 5000);
 
     // Verify reset time is set correctly
     let reset_at = rate_limit_status.reset_at.unwrap();
@@ -445,7 +445,7 @@ async fn test_rate_limit_edge_cases() {
         .unwrap();
     assert_eq!(current_usage, 10);
 
-    let rate_limit_status = api_key_manager.calculate_rate_limit_status(&api_key, current_usage);
+    let rate_limit_status = api_key_manager.rate_limit_status(&api_key, current_usage);
     assert!(rate_limit_status.is_rate_limited);
     assert_eq!(rate_limit_status.remaining, Some(0));
 
@@ -510,7 +510,7 @@ async fn test_rate_limit_with_mixed_status_codes() {
         .unwrap();
     assert_eq!(current_usage, 8);
 
-    let rate_limit_status = api_key_manager.calculate_rate_limit_status(&api_key, current_usage);
+    let rate_limit_status = api_key_manager.rate_limit_status(&api_key, current_usage);
     assert!(!rate_limit_status.is_rate_limited);
     assert_eq!(rate_limit_status.remaining, Some(99_992));
 

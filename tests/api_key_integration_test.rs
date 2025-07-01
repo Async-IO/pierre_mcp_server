@@ -117,7 +117,7 @@ async fn test_end_to_end_api_key_workflow() {
     assert_eq!(current_usage, 1);
 
     // Step 6: Check updated rate limit
-    let updated_rate_limit = api_key_manager.calculate_rate_limit_status(&api_key, current_usage);
+    let updated_rate_limit = api_key_manager.rate_limit_status(&api_key, current_usage);
     assert!(!updated_rate_limit.is_rate_limited);
     assert_eq!(updated_rate_limit.remaining, Some(99_999));
 
@@ -191,7 +191,7 @@ async fn test_api_key_rate_limiting() {
         .unwrap();
     assert_eq!(current_usage, 2);
 
-    let rate_limit_status = api_key_manager.calculate_rate_limit_status(&api_key, current_usage);
+    let rate_limit_status = api_key_manager.rate_limit_status(&api_key, current_usage);
     assert!(rate_limit_status.is_rate_limited);
     assert_eq!(rate_limit_status.remaining, Some(0));
 
@@ -249,7 +249,7 @@ async fn test_enterprise_tier_unlimited_usage() {
     assert_eq!(current_usage, 1000);
 
     // Enterprise tier should never be rate limited
-    let rate_limit_status = api_key_manager.calculate_rate_limit_status(&api_key, current_usage);
+    let rate_limit_status = api_key_manager.rate_limit_status(&api_key, current_usage);
     assert!(!rate_limit_status.is_rate_limited);
     assert_eq!(rate_limit_status.limit, None);
     assert_eq!(rate_limit_status.remaining, None);

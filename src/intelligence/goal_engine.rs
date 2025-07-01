@@ -4,6 +4,10 @@ use super::*;
 use crate::config::intelligence_config::{
     GoalEngineConfig, IntelligenceConfig, IntelligenceStrategy,
 };
+use crate::intelligence::physiological_constants::{
+    consistency::*, frequency_targets::*, goal_difficulty::*, goal_progress::*, milestones::*,
+    time_periods::*,
+};
 use crate::models::Activity;
 use anyhow::Result;
 use chrono::{Duration, Utc};
@@ -124,7 +128,7 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
                     .iter()
                     .filter(|a| {
                         if let Some(d) = a.distance_meters {
-                            (d - distance).abs() < distance * 0.2 // Within 20%
+                            (d - distance).abs() < distance * GOAL_DISTANCE_TOLERANCE
                         } else {
                             false
                         }
@@ -162,7 +166,7 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
                     .filter(|a| {
                         let activity_utc = a.start_date;
                         let weeks_ago = (Utc::now() - activity_utc).num_weeks();
-                        weeks_ago <= weeks
+                        weeks_ago <= TRAINING_PATTERN_ANALYSIS_WEEKS
                     })
                     .count();
                 (recent_count as f64) / (weeks as f64)
@@ -174,11 +178,11 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
 
         let improvement_ratio = goal.target_value / current_performance;
 
-        if improvement_ratio < 1.1 {
+        if improvement_ratio < EASY_GOAL_RATIO {
             GoalDifficulty::Easy
-        } else if improvement_ratio < 1.3 {
+        } else if improvement_ratio < MODERATE_GOAL_RATIO {
             GoalDifficulty::Moderate
-        } else if improvement_ratio < 1.5 {
+        } else if improvement_ratio < CHALLENGING_GOAL_RATIO {
             GoalDifficulty::Challenging
         } else {
             GoalDifficulty::Ambitious
@@ -198,7 +202,7 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
         let days_total = (goal.target_date - goal.created_at).num_days() as f64;
         let time_progress = days_elapsed / days_total;
 
-        if progress.progress_percentage > time_progress * 100.0 + 10.0 {
+        if progress.progress_percentage > time_progress * 100.0 + PROGRESS_TOLERANCE_PERCENTAGE {
             insights.push(AdvancedInsight {
                 insight_type: "ahead_of_schedule".to_string(),
                 message: "You're ahead of schedule! Excellent progress.".to_string(),
@@ -206,7 +210,9 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
                 severity: InsightSeverity::Info,
                 metadata: HashMap::new(),
             });
-        } else if progress.progress_percentage < time_progress * 100.0 - 10.0 {
+        } else if progress.progress_percentage
+            < time_progress * 100.0 - PROGRESS_TOLERANCE_PERCENTAGE
+        {
             insights.push(AdvancedInsight {
                 insight_type: "behind_schedule".to_string(),
                 message: "Progress is behind schedule - consider adjusting training plan."
@@ -225,7 +231,7 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
             .count();
         let total_milestones = progress.milestones_achieved.len();
 
-        if achieved_milestones > total_milestones / 2 {
+        if achieved_milestones as f64 > total_milestones as f64 * MILESTONE_ACHIEVEMENT_THRESHOLD {
             insights.push(AdvancedInsight {
                 insight_type: "milestone_progress".to_string(),
                 message: format!(
@@ -257,7 +263,7 @@ impl GoalEngineTrait for AdvancedGoalEngine {
             .filter(|a| {
                 let activity_utc = a.start_date;
                 let weeks_ago = (Utc::now() - activity_utc).num_weeks();
-                weeks_ago <= 8 // Last 8 weeks
+                weeks_ago <= GOAL_ANALYSIS_WEEKS
             })
             .collect();
 
@@ -284,7 +290,7 @@ impl GoalEngineTrait for AdvancedGoalEngine {
 
         // Generate suggestions for each sport
         for (sport, stats) in sport_stats {
-            if stats.activity_count < 3 {
+            if stats.activity_count < MIN_ACTIVITY_COUNT_FOR_ANALYSIS {
                 continue; // Need more data
             }
 
@@ -297,7 +303,7 @@ impl GoalEngineTrait for AdvancedGoalEngine {
 
             // Distance goal suggestions
             if avg_distance > 0.0 {
-                let target_distance = stats.max_distance * 1.2; // 20% increase
+                let target_distance = stats.max_distance * TARGET_INCREASE_MULTIPLIER;
                 suggestions.push(GoalSuggestion {
                     goal_type: GoalType::Distance {
                         sport: sport.clone(),
@@ -313,7 +319,7 @@ impl GoalEngineTrait for AdvancedGoalEngine {
 
             // Performance goal suggestions
             if avg_speed > 0.0 {
-                let target_improvement = 5.0; // 5% improvement
+                let target_improvement = TARGET_PERFORMANCE_IMPROVEMENT;
                 suggestions.push(GoalSuggestion {
                     goal_type: GoalType::Performance {
                         metric: "speed".to_string(),
@@ -331,9 +337,9 @@ impl GoalEngineTrait for AdvancedGoalEngine {
             }
 
             // Frequency goal suggestions
-            let current_frequency = stats.activity_count as f64 / 8.0; // Per week over 8 weeks
-            if current_frequency < 5.0 {
-                let target_frequency = (current_frequency + 1.0).min(5.0) as i32;
+            let current_frequency = stats.activity_count as f64 / GOAL_ANALYSIS_WEEKS as f64;
+            if current_frequency < MAX_WEEKLY_FREQUENCY {
+                let target_frequency = (current_frequency + 1.0).min(MAX_WEEKLY_FREQUENCY) as i32;
                 suggestions.push(GoalSuggestion {
                     goal_type: GoalType::Frequency {
                         sport: sport.clone(),
@@ -430,7 +436,7 @@ impl GoalEngineTrait for AdvancedGoalEngine {
                     .iter()
                     .filter(|a| {
                         if let Some(d) = a.distance_meters {
-                            (d - distance).abs() < distance * 0.05 // Within 5%
+                            (d - distance).abs() < distance * GOAL_DISTANCE_PRECISION
                         } else {
                             false
                         }
@@ -495,7 +501,7 @@ impl GoalEngineTrait for AdvancedGoalEngine {
         } else {
             0.0
         };
-        let on_track = progress_percentage >= expected_progress - 10.0; // 10% tolerance
+        let on_track = progress_percentage >= expected_progress - PROGRESS_TOLERANCE_PERCENTAGE;
 
         let progress_report = ProgressReport {
             goal_id: goal.id.clone(),
@@ -536,29 +542,29 @@ impl GoalEngineTrait for AdvancedGoalEngine {
         let days_total = (goal.target_date - goal.created_at).num_days() as f64;
         let time_progress = days_elapsed / days_total;
 
-        // Only suggest adjustments if we're past 25% of the timeline
-        if time_progress < 0.25 {
+        // Only suggest adjustments if we're past threshold of the timeline
+        if time_progress < GOAL_ADJUSTMENT_THRESHOLD {
             return Ok(None);
         }
 
         let progress_ratio = progress.progress_percentage / (time_progress * 100.0);
 
-        let adjustment = if progress_ratio > 1.3 {
+        let adjustment = if progress_ratio > AHEAD_OF_SCHEDULE_THRESHOLD {
             // Significantly ahead - suggest more ambitious goal
             Some(GoalAdjustment {
                 adjustment_type: AdjustmentType::IncreaseTarget,
-                new_target_value: goal.target_value * 1.2,
+                new_target_value: goal.target_value * TARGET_INCREASE_MULTIPLIER,
                 rationale: "You're making excellent progress! Consider a more ambitious target."
                     .to_string(),
                 confidence: Confidence::Medium,
             })
-        } else if progress_ratio < 0.7 {
+        } else if progress_ratio < BEHIND_SCHEDULE_THRESHOLD {
             // Significantly behind - suggest more realistic goal or extended timeline
-            if days_total - days_elapsed > 30.0 {
+            if days_total - days_elapsed > GOAL_DAYS_REMAINING_THRESHOLD {
                 // Enough time left - reduce target
                 Some(GoalAdjustment {
                     adjustment_type: AdjustmentType::DecreaseTarget,
-                    new_target_value: goal.target_value * 0.8,
+                    new_target_value: goal.target_value * TARGET_DECREASE_MULTIPLIER,
                     rationale:
                         "Consider adjusting to a more achievable target based on current progress."
                             .to_string(),
@@ -584,14 +590,9 @@ impl GoalEngineTrait for AdvancedGoalEngine {
     async fn create_milestones(&self, goal: &Goal) -> Result<Vec<Milestone>> {
         let mut milestones = Vec::new();
 
-        // Create 4 milestones at 25%, 50%, 75%, and 100%
-        let percentages = [25.0, 50.0, 75.0, 100.0];
-        let names = [
-            "First Quarter",
-            "Halfway Point",
-            "Three Quarters",
-            "Goal Complete",
-        ];
+        // Create milestones using predefined percentages and names
+        let percentages = MILESTONE_PERCENTAGES;
+        let names = MILESTONE_NAMES;
 
         for (i, &percentage) in percentages.iter().enumerate() {
             milestones.push(Milestone {

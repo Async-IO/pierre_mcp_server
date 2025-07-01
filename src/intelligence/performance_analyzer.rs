@@ -5,8 +5,8 @@ use crate::config::intelligence_config::{
     IntelligenceConfig, IntelligenceStrategy, PerformanceAnalyzerConfig,
 };
 use crate::intelligence::physiological_constants::{
-    adaptations::*, duration::*, fitness_weights::*, heart_rate::*, statistics::*,
-    training_load::*,
+    adaptations::*, duration::*, fitness_score_thresholds::*, fitness_weights::*, heart_rate::*,
+    performance::*, statistics::*, training_load::*,
 };
 use crate::models::Activity;
 use anyhow::Result;
@@ -299,30 +299,33 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
             .sum::<f64>()
             / (data_points.len() - data_points.len() / 2) as f64;
 
-        let trend_direction = if (second_half_avg - first_half_avg).abs() < first_half_avg * STABILITY_THRESHOLD {
-            TrendDirection::Stable
-        } else if second_half_avg > first_half_avg {
-            if metric == "pace" {
+        let trend_direction =
+            if (second_half_avg - first_half_avg).abs() < first_half_avg * STABILITY_THRESHOLD {
+                TrendDirection::Stable
+            } else if second_half_avg > first_half_avg {
+                if metric == "pace" {
+                    // For pace, lower is better
+                    TrendDirection::Declining
+                } else {
+                    TrendDirection::Improving
+                }
+            } else if metric == "pace" {
                 // For pace, lower is better
-                TrendDirection::Declining
-            } else {
                 TrendDirection::Improving
-            }
-        } else if metric == "pace" {
-            // For pace, lower is better
-            TrendDirection::Improving
-        } else {
-            TrendDirection::Declining
-        };
+            } else {
+                TrendDirection::Declining
+            };
 
         // Calculate trend strength
         let trend_strength = self.calculate_trend_strength(&data_points);
 
         // Calculate statistical significance (simplified)
-        let statistical_significance = if data_points.len() > 10 && trend_strength > 0.5 {
+        let statistical_significance = if data_points.len() > MIN_STATISTICAL_SIGNIFICANCE_POINTS
+            && trend_strength > STATISTICAL_SIGNIFICANCE_THRESHOLD
+        {
             trend_strength
         } else {
-            trend_strength * 0.7
+            trend_strength * SMALL_DATASET_REDUCTION_FACTOR
         };
 
         let analysis = TrendAnalysis {
@@ -377,7 +380,8 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
                 let duration = activity.duration_seconds;
                 if hr > RECOVERY_HR_THRESHOLD && duration > MIN_AEROBIC_DURATION {
                     // Above aerobic threshold with sufficient duration
-                    aerobic_score += (hr as f64 - RECOVERY_HR_THRESHOLD as f64) * (duration as f64 / 3600.0);
+                    aerobic_score +=
+                        (hr as f64 - RECOVERY_HR_THRESHOLD as f64) * (duration as f64 / 3600.0);
                     aerobic_count += 1;
                 }
             }
@@ -414,19 +418,21 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
         }
 
         let strength_endurance = if strength_count > 0 {
-            (strength_score / strength_count as f64 / 5.0).min(100.0)
+            (strength_score / strength_count as f64 / STRENGTH_ENDURANCE_DIVISOR).min(100.0)
         } else {
             0.0
         };
 
         // Overall score is weighted average using fitness component weights
-        let overall_score =
-            (aerobic_fitness * AEROBIC_WEIGHT + strength_endurance * STRENGTH_WEIGHT + consistency * CONSISTENCY_WEIGHT).min(100.0);
+        let overall_score = (aerobic_fitness * AEROBIC_WEIGHT
+            + strength_endurance * STRENGTH_WEIGHT
+            + consistency * CONSISTENCY_WEIGHT)
+            .min(100.0);
 
         // Determine trend by comparing with older activities
-        let trend = if overall_score > 70.0 {
+        let trend = if overall_score > FITNESS_IMPROVING_THRESHOLD {
             TrendDirection::Improving
-        } else if overall_score > 40.0 {
+        } else if overall_score > FITNESS_STABLE_THRESHOLD {
             TrendDirection::Stable
         } else {
             TrendDirection::Declining

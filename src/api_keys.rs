@@ -168,22 +168,36 @@ pub struct RateLimitStatus {
     pub reset_at: Option<DateTime<Utc>>,
 }
 
+/// Generated API key data
+#[derive(Debug)]
+pub struct ApiKeyData {
+    pub full_key: String,
+    pub key_prefix: String,
+    pub key_hash: String,
+}
+
 /// API Key Manager
 #[derive(Clone)]
 pub struct ApiKeyManager {
-    key_prefix: String,
+    key_prefix: &'static str,
+}
+
+impl Default for ApiKeyManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ApiKeyManager {
     /// Create a new API key manager
     pub fn new() -> Self {
         Self {
-            key_prefix: "pk_live_".to_string(), // Production keys
+            key_prefix: "pk_live_", // Production keys
         }
     }
 
     /// Generate a new API key with optional trial prefix
-    pub fn generate_api_key(&self, is_trial: bool) -> (String, String, String) {
+    pub fn generate_api_key(&self, is_trial: bool) -> ApiKeyData {
         // Generate 32 random bytes for the key
         let random_bytes: String = thread_rng()
             .sample_iter(&Alphanumeric)
@@ -195,24 +209,33 @@ impl ApiKeyManager {
         let prefix = if is_trial {
             "pk_trial_"
         } else {
-            &self.key_prefix
+            self.key_prefix
         };
         let full_key = format!("{}{}", prefix, random_bytes);
 
         // Create key prefix for identification (first 12 chars)
-        let key_prefix = full_key.chars().take(12).collect::<String>();
+        // More efficient: use string slicing instead of collecting chars
+        let key_prefix = if full_key.len() >= 12 {
+            full_key[..12].to_string()
+        } else {
+            full_key.clone()
+        };
 
         // Hash the full key for storage
         let mut hasher = Sha256::new();
         hasher.update(full_key.as_bytes());
         let key_hash = format!("{:x}", hasher.finalize());
 
-        (full_key, key_prefix, key_hash)
+        ApiKeyData {
+            full_key,
+            key_prefix,
+            key_hash,
+        }
     }
 
     /// Validate an API key format
     pub fn validate_key_format(&self, api_key: &str) -> Result<()> {
-        if !api_key.starts_with(&self.key_prefix) && !api_key.starts_with("pk_trial_") {
+        if !api_key.starts_with(self.key_prefix) && !api_key.starts_with("pk_trial_") {
             anyhow::bail!("Invalid API key format");
         }
 
@@ -266,7 +289,10 @@ impl ApiKeyManager {
         let is_trial = tier.is_trial();
 
         // Generate the key components
-        let (full_key, key_prefix, key_hash) = self.generate_api_key(is_trial);
+        let api_key_data = self.generate_api_key(is_trial);
+        let full_key = api_key_data.full_key;
+        let key_prefix = api_key_data.key_prefix;
+        let key_hash = api_key_data.key_hash;
 
         // Calculate expiration
         let expires_at = if is_trial {
@@ -319,7 +345,10 @@ impl ApiKeyManager {
         let is_trial = request.tier.is_trial();
 
         // Generate the key components
-        let (full_key, key_prefix, key_hash) = self.generate_api_key(is_trial);
+        let api_key_data = self.generate_api_key(is_trial);
+        let full_key = api_key_data.full_key;
+        let key_prefix = api_key_data.key_prefix;
+        let key_hash = api_key_data.key_hash;
 
         // Calculate expiration
         // For trial keys, use default trial days if not specified
@@ -394,12 +423,8 @@ impl ApiKeyManager {
         Ok(())
     }
 
-    /// Calculate rate limit status
-    pub fn calculate_rate_limit_status(
-        &self,
-        api_key: &ApiKey,
-        current_usage: u32,
-    ) -> RateLimitStatus {
+    /// Get rate limit status for an API key
+    pub fn rate_limit_status(&self, api_key: &ApiKey, current_usage: u32) -> RateLimitStatus {
         match api_key.tier {
             ApiKeyTier::Enterprise => RateLimitStatus {
                 is_rate_limited: false,
@@ -445,12 +470,6 @@ impl ApiKeyManager {
     }
 }
 
-impl Default for ApiKeyManager {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -460,14 +479,24 @@ mod tests {
         let manager = ApiKeyManager::new();
 
         // Test regular key generation
-        let (full_key, prefix, hash) = manager.generate_api_key(false);
+        let api_key_data = manager.generate_api_key(false);
+        let (full_key, prefix, hash) = (
+            api_key_data.full_key,
+            api_key_data.key_prefix,
+            api_key_data.key_hash,
+        );
         assert!(full_key.starts_with("pk_live_"));
         assert_eq!(full_key.len(), 40);
         assert_eq!(prefix.len(), 12);
         assert_eq!(hash.len(), 64); // SHA-256 hex
 
         // Test trial key generation
-        let (trial_key, trial_prefix, trial_hash) = manager.generate_api_key(true);
+        let trial_data = manager.generate_api_key(true);
+        let (trial_key, trial_prefix, trial_hash) = (
+            trial_data.full_key,
+            trial_data.key_prefix,
+            trial_data.key_hash,
+        );
         assert!(trial_key.starts_with("pk_trial_"));
         assert_eq!(trial_key.len(), 41);
         assert_eq!(trial_prefix.len(), 12);
@@ -528,11 +557,11 @@ mod tests {
             created_at: Utc::now(),
         };
 
-        let status = manager.calculate_rate_limit_status(&api_key, 5000);
+        let status = manager.rate_limit_status(&api_key, 5000);
         assert!(!status.is_rate_limited);
         assert_eq!(status.remaining, Some(5000));
 
-        let status = manager.calculate_rate_limit_status(&api_key, 10_000);
+        let status = manager.rate_limit_status(&api_key, 10_000);
         assert!(status.is_rate_limited);
         assert_eq!(status.remaining, Some(0));
     }
@@ -558,13 +587,13 @@ mod tests {
         };
 
         // Enterprise tier should never be rate limited
-        let status = manager.calculate_rate_limit_status(&enterprise_key, 0);
+        let status = manager.rate_limit_status(&enterprise_key, 0);
         assert!(!status.is_rate_limited);
         assert_eq!(status.limit, None);
         assert_eq!(status.remaining, None);
         assert_eq!(status.reset_at, None);
 
-        let status = manager.calculate_rate_limit_status(&enterprise_key, 1_000_000);
+        let status = manager.rate_limit_status(&enterprise_key, 1_000_000);
         assert!(!status.is_rate_limited);
         assert_eq!(status.limit, None);
         assert_eq!(status.remaining, None);
@@ -592,20 +621,20 @@ mod tests {
         };
 
         // Under limit
-        let status = manager.calculate_rate_limit_status(&professional_key, 50_000);
+        let status = manager.rate_limit_status(&professional_key, 50_000);
         assert!(!status.is_rate_limited);
         assert_eq!(status.limit, Some(100_000));
         assert_eq!(status.remaining, Some(50_000));
         assert!(status.reset_at.is_some());
 
         // At limit
-        let status = manager.calculate_rate_limit_status(&professional_key, 100_000);
+        let status = manager.rate_limit_status(&professional_key, 100_000);
         assert!(status.is_rate_limited);
         assert_eq!(status.limit, Some(100_000));
         assert_eq!(status.remaining, Some(0));
 
         // Over limit
-        let status = manager.calculate_rate_limit_status(&professional_key, 150_000);
+        let status = manager.rate_limit_status(&professional_key, 150_000);
         assert!(status.is_rate_limited);
         assert_eq!(status.limit, Some(100_000));
         assert_eq!(status.remaining, Some(0)); // Should be 0, not negative
@@ -631,7 +660,7 @@ mod tests {
             created_at: Utc::now(),
         };
 
-        let status = manager.calculate_rate_limit_status(&api_key, 5000);
+        let status = manager.rate_limit_status(&api_key, 5000);
 
         // Reset time should be beginning of next month
         if let Some(reset_at) = status.reset_at {
@@ -839,7 +868,12 @@ mod tests {
         let mut keys = Vec::new();
         for i in 0..10 {
             let is_trial = i % 2 == 0; // Alternate between trial and regular keys
-            let (full_key, prefix, hash) = manager.generate_api_key(is_trial);
+            let api_key_data = manager.generate_api_key(is_trial);
+            let (full_key, prefix, hash) = (
+                api_key_data.full_key,
+                api_key_data.key_prefix,
+                api_key_data.key_hash,
+            );
             keys.push((full_key, prefix, hash));
         }
 

@@ -66,7 +66,7 @@ impl ToolEngine {
             tool_name: tool_name.to_string(),
             parameters: params,
             protocol: "mcp".to_string(),
-            user_id: user_context.map(|ctx| ctx.user_id).unwrap_or_else(|| Uuid::new_v4()),
+            user_id: user_context.map_or_else(Uuid::new_v4, |ctx| ctx.user_id),
         };
 
         // Execute using the existing universal executor
@@ -74,7 +74,7 @@ impl ToolEngine {
             Ok(response) => Ok(response.result),
             Err(e) => {
                 // Convert protocol errors to app errors for consistent handling
-                Err(AppError::tool_execution_failed(tool_name, e.to_string()))
+                Err(AppError::internal(format!("Tool '{}' execution failed: {}", tool_name, e)))
             }
         }
     }
@@ -99,44 +99,44 @@ impl ToolEngine {
     }
 
     /// Get list of available tools
-    pub fn list_available_tools(&self) -> Vec<String> {
-        vec![
+    pub fn list_available_tools(&self) -> &'static [&'static str] {
+        &[
             // Data Access Tools
-            "get_activities".to_string(),
-            "get_athlete".to_string(),
-            "get_stats".to_string(),
+            "get_activities",
+            "get_athlete",
+            "get_stats",
             
             // Intelligence Tools
-            "get_activity_intelligence".to_string(),
-            "analyze_activity".to_string(),
-            "calculate_metrics".to_string(),
+            "get_activity_intelligence",
+            "analyze_activity",
+            "calculate_metrics",
             
             // Analytics Tools
-            "analyze_performance_trends".to_string(),
-            "compare_activities".to_string(),
-            "detect_patterns".to_string(),
+            "analyze_performance_trends",
+            "compare_activities",
+            "detect_patterns",
             
             // Goal Tools
-            "create_goal".to_string(),
-            "get_goals".to_string(),
-            "suggest_goals".to_string(),
+            "create_goal",
+            "get_goals",
+            "suggest_goals",
             
             // Weather Tools
-            "get_weather_for_activity".to_string(),
+            "get_weather_for_activity",
             
             // Provider Tools
-            "connect_provider".to_string(),
-            "disconnect_provider".to_string(),
-            "get_connection_status".to_string(),
+            "connect_provider",
+            "disconnect_provider",
+            "get_connection_status",
             
             // Prediction Tools
-            "predict_performance".to_string(),
-            "generate_recommendations".to_string(),
+            "predict_performance",
+            "generate_recommendations",
         ]
     }
 
     /// Get tool description for MCP schema
-    pub fn get_tool_description(&self, tool_name: &str) -> Option<&'static str> {
+    pub const fn get_tool_description(tool_name: &str) -> Option<&'static str> {
         match tool_name {
             "get_activities" => Some("Fetch fitness activities with pagination support"),
             "get_athlete" => Some("Get complete athlete profile information"),
@@ -220,15 +220,15 @@ impl ToolEngine {
     /// Get all available tools with their schemas (for MCP capabilities)
     pub fn get_all_tool_schemas(&self) -> Vec<crate::mcp::schema::ToolSchema> {
         self.list_available_tools()
-            .into_iter()
-            .filter_map(|tool_name| {
-                let description = self.get_tool_description(&tool_name)?.to_string();
-                let input_schema = self.get_tool_schema(&tool_name).unwrap_or_else(|| {
+            .iter()
+            .filter_map(|&tool_name| {
+                let description = Self::get_tool_description(tool_name)?.to_string();
+                let input_schema = self.get_tool_schema(tool_name).unwrap_or_else(|| {
                     serde_json::json!({"type": "object", "properties": {}})
                 });
                 
                 Some(crate::mcp::schema::ToolSchema {
-                    name: tool_name,
+                    name: tool_name.to_string(),
                     description,
                     input_schema: crate::mcp::schema::JsonSchema {
                         schema_type: "object".to_string(),
@@ -254,7 +254,7 @@ impl ToolEngine {
         // This can be extended with more granular permissions based on tiers
         match user_context.tier.as_str() {
             "trial" | "starter" | "professional" | "enterprise" => Ok(true),
-            _ => Err(AppError::unauthorized(format!("Invalid user tier: {}", user_context.tier))),
+            _ => Err(AppError::auth_invalid(format!("Invalid user tier: {}", user_context.tier))),
         }
     }
 }
