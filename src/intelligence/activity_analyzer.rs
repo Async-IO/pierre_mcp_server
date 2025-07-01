@@ -2,6 +2,10 @@
 
 use super::*;
 use crate::config::intelligence_config::{ActivityAnalyzerConfig, IntelligenceConfig};
+use crate::intelligence::physiological_constants::{
+    duration::*, efficiency::*, heart_rate::*, max_speeds::*, performance::*, power::*,
+    running::*, training_load::*,
+};
 use crate::models::{Activity, SportType};
 use anyhow::Result;
 use std::collections::HashMap;
@@ -82,12 +86,12 @@ impl AdvancedActivityAnalyzer {
             score += 1.0;
         }
 
-        // Adjust based on effort level
+        // Adjust based on effort level using physiological thresholds
         if let Some(avg_hr) = activity.average_heart_rate {
-            if avg_hr > 140 {
+            if avg_hr > MODERATE_HR_THRESHOLD {
                 score += 1.0;
             }
-            if avg_hr > 160 {
+            if avg_hr > HIGH_INTENSITY_HR_THRESHOLD {
                 score += 0.5;
             }
         }
@@ -100,14 +104,12 @@ impl AdvancedActivityAnalyzer {
             score += 0.5;
         }
 
-        // Adjust based on duration
+        // Adjust based on duration using established thresholds
         let duration = activity.duration_seconds;
-        if duration > 1800 {
-            // 30+ minutes
+        if duration > MIN_AEROBIC_DURATION {
             score += 0.5;
         }
-        if duration > 3600 {
-            // 60+ minutes
+        if duration > ENDURANCE_DURATION_THRESHOLD {
             score += 0.5;
         }
 
@@ -127,12 +129,12 @@ impl AdvancedActivityAnalyzer {
             if let Some(max_hr) = activity.max_heart_rate {
                 let hr_reserve_used = (avg_hr as f32 / max_hr as f32) * 100.0;
 
-                let (message, confidence) = if hr_reserve_used > 85.0 {
+                let (message, confidence) = if hr_reserve_used > ANAEROBIC_THRESHOLD_PERCENTAGE {
                     (
                         "High intensity effort - excellent cardiovascular challenge".to_string(),
                         Confidence::High,
                     )
-                } else if hr_reserve_used > 70.0 {
+                } else if hr_reserve_used > AEROBIC_THRESHOLD_PERCENTAGE {
                     (
                         "Moderate to high intensity - good aerobic stimulus".to_string(),
                         Confidence::Medium,
@@ -160,19 +162,19 @@ impl AdvancedActivityAnalyzer {
             }
         }
 
-        // Power insights
+        // Power insights using established performance categories
         if let Some(power_to_weight) = metrics.power_to_weight_ratio {
-            let (message, severity) = if power_to_weight > 4.0 {
+            let (message, severity) = if power_to_weight > ELITE_POWER_TO_WEIGHT {
                 (
                     "Excellent power-to-weight ratio - elite level performance".to_string(),
                     InsightSeverity::Info,
                 )
-            } else if power_to_weight > 3.0 {
+            } else if power_to_weight > COMPETITIVE_POWER_TO_WEIGHT {
                 (
                     "Good power-to-weight ratio - competitive level".to_string(),
                     InsightSeverity::Info,
                 )
-            } else if power_to_weight > 2.0 {
+            } else if power_to_weight > RECREATIONAL_POWER_TO_WEIGHT {
                 (
                     "Moderate power-to-weight ratio - room for improvement".to_string(),
                     InsightSeverity::Warning,
@@ -199,11 +201,11 @@ impl AdvancedActivityAnalyzer {
             });
         }
 
-        // Efficiency insights
+        // Efficiency insights using research-based thresholds
         if let Some(efficiency) = metrics.aerobic_efficiency {
-            let message = if efficiency > 0.1 {
+            let message = if efficiency > EXCELLENT_AEROBIC_EFFICIENCY {
                 "Excellent aerobic efficiency - well-conditioned cardiovascular system".to_string()
-            } else if efficiency > 0.08 {
+            } else if efficiency > GOOD_AEROBIC_EFFICIENCY {
                 "Good aerobic efficiency - steady cardiovascular fitness".to_string()
             } else {
                 "Consider base training to improve aerobic efficiency".to_string()
@@ -235,38 +237,36 @@ impl AdvancedActivityAnalyzer {
     ) -> Vec<String> {
         let mut recommendations = Vec::new();
 
-        // Duration-based recommendations
+        // Duration-based recommendations using physiological thresholds
         let duration = activity.duration_seconds;
-        if duration < 1800 {
-            // Less than 30 minutes
+        if duration < MIN_AEROBIC_DURATION {
             recommendations.push(
                 "Consider extending workout duration for better aerobic benefits".to_string(),
             );
-        } else if duration > 7200 {
-            // More than 2 hours
+        } else if duration > LONG_WORKOUT_DURATION {
             recommendations
                 .push("Great endurance work! Ensure proper recovery and nutrition".to_string());
         }
 
-        // Heart rate based recommendations
+        // Heart rate based recommendations using established zones
         if let Some(avg_hr) = activity.average_heart_rate {
-            if avg_hr < 120 {
+            if avg_hr < RECOVERY_HR_THRESHOLD {
                 recommendations.push(
                     "Consider increasing intensity for better cardiovascular stimulus".to_string(),
                 );
-            } else if avg_hr > 180 {
+            } else if avg_hr > VERY_HIGH_INTENSITY_HR_THRESHOLD {
                 recommendations
                     .push("High intensity session - ensure adequate recovery time".to_string());
             }
         }
 
-        // Power-based recommendations
+        // Training stress recommendations using established thresholds
         if let Some(tss) = metrics.training_stress_score {
-            if tss > 150.0 {
+            if tss > HIGH_TSS_THRESHOLD {
                 recommendations.push(
                     "High training stress - plan recovery days to avoid overtraining".to_string(),
                 );
-            } else if tss < 50.0 {
+            } else if tss < LOW_TSS_THRESHOLD {
                 recommendations
                     .push("Light training load - good for recovery or base building".to_string());
             }
@@ -276,8 +276,7 @@ impl AdvancedActivityAnalyzer {
         match activity.sport_type {
             SportType::Run => {
                 if let Some(pace) = activity.average_speed {
-                    if pace > 4.0 {
-                        // ~4 m/s = 6:40 min/mile
+                    if pace > FAST_PACE_THRESHOLD {
                         recommendations
                             .push("Excellent pace! Focus on maintaining form at speed".to_string());
                     }
@@ -333,9 +332,9 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
     async fn detect_anomalies(&self, activity: &Activity) -> Result<Vec<Anomaly>> {
         let mut anomalies = Vec::new();
 
-        // Check for unrealistic heart rate values
+        // Check for unrealistic heart rate values using physiological limits
         if let Some(max_hr) = activity.max_heart_rate {
-            if max_hr > 220 {
+            if max_hr > MAX_REALISTIC_HEART_RATE {
                 anomalies.push(Anomaly {
                     anomaly_type: "unrealistic_heart_rate".to_string(),
                     description: "Maximum heart rate seems unusually high".to_string(),
@@ -351,13 +350,13 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
         // Power data not available in current Activity model
         // Skip power anomaly detection
 
-        // Check for unrealistic speed values
+        // Check for unrealistic speed values using sport-specific limits
         if let Some(max_speed) = activity.max_speed {
             let expected_max_speed = match activity.sport_type {
-                SportType::Run => 12.0,  // ~43 km/h
-                SportType::Ride => 25.0, // ~90 km/h
-                SportType::Swim => 3.0,  // ~11 km/h
-                _ => 30.0,
+                SportType::Run => MAX_RUNNING_SPEED,
+                SportType::Ride => MAX_CYCLING_SPEED,
+                SportType::Swim => MAX_SWIMMING_SPEED,
+                _ => DEFAULT_MAX_SPEED,
             };
 
             if max_speed > expected_max_speed {
@@ -400,11 +399,11 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
         let duration = activity.duration_seconds;
         load += duration as f64 / 60.0; // Minutes as base
 
-        // Multiply by intensity factor
+        // Multiply by intensity factor using heart rate zones
         if let Some(avg_hr) = activity.average_heart_rate {
-            let intensity_multiplier = if avg_hr > 160 {
+            let intensity_multiplier = if avg_hr > HIGH_INTENSITY_HR_THRESHOLD {
                 2.0
-            } else if avg_hr > 140 {
+            } else if avg_hr > MODERATE_HR_THRESHOLD {
                 1.5
             } else {
                 1.0
@@ -447,7 +446,7 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
                 let improvement =
                     ((current_speed as f32 - avg_historical_speed) / avg_historical_speed) * 100.0;
 
-                if improvement > 5.0 {
+                if improvement > PACE_IMPROVEMENT_THRESHOLD as f32 {
                     let mut metadata = HashMap::new();
                     metadata.insert(
                         "improvement_percentage".to_string(),
@@ -472,7 +471,7 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
                         severity: InsightSeverity::Info,
                         metadata,
                     });
-                } else if improvement < -5.0 {
+                } else if improvement < -(PACE_IMPROVEMENT_THRESHOLD as f32) {
                     let mut metadata = HashMap::new();
                     metadata.insert(
                         "decline_percentage".to_string(),
@@ -516,7 +515,7 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
                 let efficiency_change =
                     ((current_efficiency - avg_efficiency as f64) / avg_efficiency as f64) * 100.0;
 
-                if efficiency_change > 3.0 {
+                if efficiency_change > HR_EFFICIENCY_IMPROVEMENT_THRESHOLD {
                     let mut metadata = HashMap::new();
                     metadata.insert(
                         "efficiency_improvement".to_string(),
