@@ -1,3 +1,5 @@
+// ABOUTME: Fitness data provider integrations for external platforms and devices
+// ABOUTME: Unifies access to Strava, Fitbit, and other fitness platforms with consistent APIs
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -23,15 +25,12 @@ pub trait FitnessProvider: Send + Sync {
         offset: Option<usize>,
     ) -> Result<Vec<Activity>>;
 
-    #[allow(dead_code)]
     async fn get_activity(&self, id: &str) -> Result<Activity>;
 
     async fn get_stats(&self) -> Result<Stats>;
 
-    #[allow(dead_code)]
     async fn get_personal_records(&self) -> Result<Vec<PersonalRecord>>;
 
-    #[allow(dead_code)]
     fn provider_name(&self) -> &'static str;
 }
 
@@ -43,7 +42,6 @@ pub enum AuthData {
         access_token: Option<String>,
         refresh_token: Option<String>,
     },
-    #[allow(dead_code)]
     ApiKey(String),
 }
 

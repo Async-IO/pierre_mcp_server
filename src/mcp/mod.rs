@@ -1,3 +1,5 @@
+// ABOUTME: Model Context Protocol (MCP) implementation for AI assistant integration
+// ABOUTME: Provides MCP server functionality for Claude, ChatGPT, and other AI assistants
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -251,7 +253,6 @@ async fn create_tool_executor() -> Result<Arc<UniversalToolExecutor>> {
 
 #[derive(Debug, Deserialize)]
 struct McpRequest {
-    #[allow(dead_code)]
     jsonrpc: String,
     method: String,
     params: Option<Value>,
@@ -279,6 +280,24 @@ async fn handle_request(
     _config: &Config,
     tool_executor: Option<&Arc<UniversalToolExecutor>>,
 ) -> McpResponse {
+    // Validate JSON-RPC version
+    if request.jsonrpc != crate::constants::protocol::JSONRPC_VERSION {
+        return McpResponse {
+            jsonrpc: crate::constants::protocol::JSONRPC_VERSION.into(),
+            result: None,
+            error: Some(McpError {
+                code: -32600,
+                message: format!(
+                    "Invalid JSON-RPC version: expected '{}', got '{}'",
+                    crate::constants::protocol::JSONRPC_VERSION,
+                    request.jsonrpc
+                ),
+                data: None,
+            }),
+            id: request.id,
+        };
+    }
+
     match request.method.as_str() {
         "initialize" => {
             // Parse client capabilities from params if provided

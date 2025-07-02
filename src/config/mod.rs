@@ -1,3 +1,5 @@
+// ABOUTME: Configuration management module for centralized server settings and parameters
+// ABOUTME: Handles environment configs, fitness parameters, intelligence settings, and runtime options
 //! Configuration module for Pierre MCP Server
 //!
 //! This module provides centralized configuration management for all components

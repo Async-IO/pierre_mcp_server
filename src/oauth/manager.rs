@@ -29,7 +29,6 @@ pub struct OAuthManager {
 struct StateData {
     user_id: Uuid,
     provider: String,
-    #[allow(dead_code)]
     created_at: chrono::DateTime<chrono::Utc>,
     expires_at: chrono::DateTime<chrono::Utc>,
 }

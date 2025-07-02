@@ -1,3 +1,5 @@
+// ABOUTME: HTTP REST API route handlers for user-facing endpoints and web interfaces
+// ABOUTME: Provides authentication, user management, and basic API endpoints for web clients
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -98,13 +100,10 @@ struct StravaTokenResponse {
     access_token: String,
     refresh_token: String,
     expires_at: i64,
-    #[allow(dead_code)]
     expires_in: i64,
-    #[allow(dead_code)]
     token_type: String,
     #[serde(default)]
     scope: Option<String>,
-    #[allow(dead_code)]
     #[serde(default)]
     athlete: serde_json::Value,
 }
@@ -114,10 +113,8 @@ struct FitbitTokenResponse {
     access_token: String,
     refresh_token: String,
     expires_in: i64,
-    #[allow(dead_code)]
     token_type: String,
     scope: String,
-    #[allow(dead_code)]
     user_id: String,
 }
 
@@ -277,7 +274,6 @@ impl AuthRoutes {
 /// OAuth flow routes for connecting fitness providers
 #[derive(Clone)]
 pub struct OAuthRoutes {
-    #[allow(dead_code)]
     database: Database,
 }
 

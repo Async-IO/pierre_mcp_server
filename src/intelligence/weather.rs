@@ -1,3 +1,5 @@
+// ABOUTME: Weather data integration and environmental impact analysis for fitness activities
+// ABOUTME: Provides weather context, environmental adjustments, and performance correlations
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -22,7 +24,6 @@ use std::time::{Duration, SystemTime};
 pub struct WeatherService {
     client: Client,
     api_config: WeatherApiConfig,
-    #[allow(dead_code)]
     weather_config: WeatherAnalysisConfig,
     cache: HashMap<String, CachedWeatherData>,
     api_key: Option<String>,
@@ -53,7 +54,6 @@ struct OpenWeatherHourlyData {
 #[derive(Debug, Deserialize)]
 struct OpenWeatherCondition {
     main: String,
-    #[allow(dead_code)]
     description: String,
 }
 
@@ -100,13 +100,11 @@ impl WeatherService {
     }
 
     /// Get the current weather service configuration
-    #[allow(dead_code)]
     pub fn get_config(&self) -> &WeatherApiConfig {
         &self.api_config
     }
 
     /// Get the weather analysis configuration
-    #[allow(dead_code)]
     pub fn get_weather_config(&self) -> &WeatherAnalysisConfig {
         &self.weather_config
     }
@@ -235,9 +233,14 @@ impl WeatherService {
             .min_by_key(|data| (data.dt - target_timestamp).abs())
             .ok_or_else(|| WeatherError::DataUnavailable)?;
 
-        // Convert to our format
+        // Convert to our format - use both main and description for detailed conditions
         let conditions = if let Some(weather) = closest_data.weather.first() {
-            weather.main.clone()
+            // Combine main weather type with detailed description
+            if weather.description.to_lowercase() != weather.main.to_lowercase() {
+                format!("{} - {}", weather.main, weather.description)
+            } else {
+                weather.main.clone()
+            }
         } else {
             "clear".to_string()
         };
@@ -324,7 +327,6 @@ impl WeatherService {
     }
 
     /// Analyze weather impact on performance
-    #[allow(dead_code)]
     pub fn analyze_weather_impact(&self, weather: &WeatherConditions) -> WeatherImpact {
         let mut impact_factors = Vec::new();
         let mut overall_difficulty = 0.0;
@@ -432,15 +434,12 @@ pub enum WeatherDifficulty {
 #[derive(Debug, thiserror::Error)]
 pub enum WeatherError {
     #[error("Weather API request failed: {0}")]
-    #[allow(dead_code)]
     ApiError(String),
 
     #[error("Invalid coordinates: lat={lat}, lon={lon}")]
-    #[allow(dead_code)]
     InvalidCoordinates { lat: f64, lon: f64 },
 
     #[error("Weather data unavailable for requested time")]
-    #[allow(dead_code)]
     DataUnavailable,
 
     #[error("Network error: {0}")]

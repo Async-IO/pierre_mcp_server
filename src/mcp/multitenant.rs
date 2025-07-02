@@ -12,6 +12,7 @@
 use crate::a2a_routes::A2ARoutes;
 use crate::api_key_routes::ApiKeyRoutes;
 use crate::auth::{AuthManager, AuthResult, McpAuthMiddleware};
+use crate::configuration_routes::ConfigurationRoutes;
 use crate::constants::{errors::*, json_fields::*, protocol, protocol::*, tools::*};
 use crate::dashboard_routes::DashboardRoutes;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
@@ -140,6 +141,8 @@ impl MultiTenantMcpServer {
         let api_key_routes = ApiKeyRoutes::new((*database).clone(), (*auth_manager).clone());
         let dashboard_routes = DashboardRoutes::new((*database).clone(), (*auth_manager).clone());
         let a2a_routes = A2ARoutes::new(database.clone(), auth_manager.clone(), config.clone());
+        let configuration_routes =
+            ConfigurationRoutes::new((*database).clone(), (*auth_manager).clone());
 
         // Admin routes for token management and API key provisioning
         // Load JWT secret for admin tokens (same as user JWT secret for now)
@@ -824,6 +827,154 @@ impl MultiTenantMcpServer {
             header_map
         });
 
+        // Configuration Management endpoints
+        let config_catalog = warp::path("api")
+            .and(warp::path("configuration"))
+            .and(warp::path("catalog"))
+            .and(warp::get())
+            .and(warp::header::optional::<String>("authorization"))
+            .and_then({
+                let configuration_routes = configuration_routes.clone();
+                move |auth_header: Option<String>| {
+                    let configuration_routes = configuration_routes.clone();
+                    async move {
+                        match configuration_routes
+                            .get_configuration_catalog(auth_header.as_deref())
+                            .await
+                        {
+                            Ok(response) => Ok(warp::reply::json(&response)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
+
+        let config_profiles = warp::path("api")
+            .and(warp::path("configuration"))
+            .and(warp::path("profiles"))
+            .and(warp::get())
+            .and(warp::header::optional::<String>("authorization"))
+            .and_then({
+                let configuration_routes = configuration_routes.clone();
+                move |auth_header: Option<String>| {
+                    let configuration_routes = configuration_routes.clone();
+                    async move {
+                        match configuration_routes
+                            .get_configuration_profiles(auth_header.as_deref())
+                            .await
+                        {
+                            Ok(response) => Ok(warp::reply::json(&response)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
+
+        let config_user_get = warp::path("api")
+            .and(warp::path("configuration"))
+            .and(warp::path("user"))
+            .and(warp::get())
+            .and(warp::header::optional::<String>("authorization"))
+            .and_then({
+                let configuration_routes = configuration_routes.clone();
+                move |auth_header: Option<String>| {
+                    let configuration_routes = configuration_routes.clone();
+                    async move {
+                        match configuration_routes
+                            .get_user_configuration(auth_header.as_deref())
+                            .await
+                        {
+                            Ok(response) => Ok(warp::reply::json(&response)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
+
+        let config_user_update = warp::path("api")
+            .and(warp::path("configuration"))
+            .and(warp::path("user"))
+            .and(warp::put())
+            .and(warp::header::optional::<String>("authorization"))
+            .and(warp::body::json())
+            .and_then({
+                let configuration_routes = configuration_routes.clone();
+                move |auth_header: Option<String>, request: crate::configuration_routes::UpdateConfigurationRequest| {
+                    let configuration_routes = configuration_routes.clone();
+                    async move {
+                        match configuration_routes
+                            .update_user_configuration(auth_header.as_deref(), request)
+                            .await
+                        {
+                            Ok(response) => Ok(warp::reply::json(&response)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
+
+        let config_zones = warp::path("api")
+            .and(warp::path("configuration"))
+            .and(warp::path("zones"))
+            .and(warp::post())
+            .and(warp::header::optional::<String>("authorization"))
+            .and(warp::body::json())
+            .and_then({
+                let configuration_routes = configuration_routes.clone();
+                move |auth_header: Option<String>, request: crate::configuration_routes::PersonalizedZonesRequest| {
+                    let configuration_routes = configuration_routes.clone();
+                    async move {
+                        match configuration_routes
+                            .calculate_personalized_zones(auth_header.as_deref(), request)
+                            .await
+                        {
+                            Ok(response) => Ok(warp::reply::json(&response)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
+
+        let config_validate = warp::path("api")
+            .and(warp::path("configuration"))
+            .and(warp::path("validate"))
+            .and(warp::post())
+            .and(warp::header::optional::<String>("authorization"))
+            .and(warp::body::json())
+            .and_then({
+                let configuration_routes = configuration_routes.clone();
+                move |auth_header: Option<String>, request: crate::configuration_routes::ValidateConfigurationRequest| {
+                    let configuration_routes = configuration_routes.clone();
+                    async move {
+                        match configuration_routes
+                            .validate_configuration(auth_header.as_deref(), request)
+                            .await
+                        {
+                            Ok(response) => Ok(warp::reply::json(&response)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
+                                Err(warp::reject::custom(ApiError(error)))
+                            }
+                        }
+                    }
+                }
+            });
+
         // Group routes to avoid recursion limit issues
         let auth_routes = register
             .or(login)
@@ -852,11 +1003,19 @@ impl MultiTenantMcpServer {
             .or(a2a_auth)
             .or(a2a_execute);
 
+        let configuration_routes = config_catalog
+            .or(config_profiles)
+            .or(config_user_get)
+            .or(config_user_update)
+            .or(config_zones)
+            .or(config_validate);
+
         // HTTP routes with security headers (exclude WebSocket)
         let http_routes = auth_routes
             .or(api_key_routes)
             .or(dashboard_routes)
             .or(a2a_routes)
+            .or(configuration_routes)
             .or(admin_routes_filter)
             .or(health)
             .with(cors.clone())
@@ -2393,7 +2552,6 @@ impl MultiTenantMcpServer {
 /// MCP request with optional authentication token
 #[derive(Debug, Deserialize)]
 pub struct McpRequest {
-    #[allow(dead_code)]
     pub jsonrpc: String,
     pub method: String,
     pub params: Option<Value>,

@@ -1,3 +1,5 @@
+// ABOUTME: HTTP route handlers for A2A protocol endpoints and client management
+// ABOUTME: Implements REST API endpoints for A2A authentication, tool execution, and client administration
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your

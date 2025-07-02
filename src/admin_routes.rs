@@ -1,3 +1,5 @@
+// ABOUTME: HTTP route handlers for admin API endpoints and administrative operations
+// ABOUTME: Provides REST endpoints for API key provisioning, user management, and admin functions
 //! Admin API Routes
 //!
 //! This module provides REST API endpoints for admin services to manage API keys

@@ -1,3 +1,5 @@
+// ABOUTME: Core tool execution engine for processing fitness and analysis operations
+// ABOUTME: Handles tool routing, execution, error handling, and response formatting for all protocols
 //! Unified tool execution engine
 //!
 //! This engine provides a single implementation for tool execution that can be

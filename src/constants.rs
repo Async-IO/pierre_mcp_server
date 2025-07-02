@@ -1,3 +1,5 @@
+// ABOUTME: System-wide constants and configuration values for Pierre API
+// ABOUTME: Contains protocol constants, error codes, and system configuration defaults
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your

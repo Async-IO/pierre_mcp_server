@@ -1,3 +1,5 @@
+// ABOUTME: PostgreSQL database implementation for cloud and production deployments
+// ABOUTME: Provides enterprise-grade database support with connection pooling and scalability
 //! PostgreSQL database implementation
 //!
 //! This module provides PostgreSQL support for cloud deployments,

@@ -1,3 +1,5 @@
+// ABOUTME: Fitness insights generation system providing personalized training recommendations
+// ABOUTME: Analyzes patterns, trends, and performance data to generate actionable fitness insights
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -355,6 +357,8 @@ mod tests {
             average_heart_rate: Some(150),
             max_heart_rate: Some(180),
             calories: Some(300),
+            steps: Some(20000),
+            heart_rate_zones: None,
             start_latitude: Some(45.5017), // Montreal
             start_longitude: Some(-73.5673),
             city: None,
@@ -476,7 +480,7 @@ mod tests {
             city: Some("Montreal".to_string()),
             region: Some("Quebec".to_string()),
             country: Some("Canada".to_string()),
-            trail_name: None,
+            trail_name: Some("Mount Royal Trail".to_string()),
             terrain_type: Some("mountain".to_string()),
             display_name: "Montreal, Quebec, Canada".to_string(),
         };

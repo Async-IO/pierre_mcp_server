@@ -1,3 +1,5 @@
+// ABOUTME: Fitness-specific configuration for training zones, thresholds, and sport parameters
+// ABOUTME: Manages physiological settings, training zones, and sport-specific configurations
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -77,7 +79,6 @@ pub struct WeatherApiConfig {
 
 impl FitnessConfig {
     /// Load fitness configuration from file or use defaults
-    #[allow(dead_code)]
     pub fn load(path: Option<String>) -> Result<Self> {
         // Try explicit path first
         if let Some(config_path) = path {
@@ -99,7 +100,6 @@ impl FitnessConfig {
     }
 
     /// Load configuration from a specific file
-    #[allow(dead_code)]
     pub fn load_from_file(path: &str) -> Result<Self> {
         let content = fs::read_to_string(path)
             .with_context(|| format!("Failed to read fitness config file: {}", path))?;
@@ -116,7 +116,6 @@ impl FitnessConfig {
     }
 
     /// Get all configured sport type mappings
-    #[allow(dead_code)]
     pub fn get_sport_mappings(&self) -> &HashMap<String, String> {
         &self.sport_types
     }

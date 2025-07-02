@@ -94,7 +94,6 @@ impl StravaProvider {
         }
     }
 
-    #[allow(dead_code)]
     pub fn get_auth_url(&self, redirect_uri: &str, state: &str) -> Result<String> {
         if self.config.client_id.is_empty() {
             return Err(anyhow::anyhow!("Client ID not configured"));
@@ -112,7 +111,6 @@ impl StravaProvider {
     }
 
     /// Get authorization URL with PKCE support for enhanced security
-    #[allow(dead_code)]
     pub fn get_auth_url_with_pkce(
         &self,
         redirect_uri: &str,
@@ -136,7 +134,6 @@ impl StravaProvider {
         Ok(url.into())
     }
 
-    #[allow(dead_code)]
     pub async fn exchange_code(&mut self, code: &str) -> Result<(String, String)> {
         if self.config.client_id.is_empty() || self.config.client_secret.is_empty() {
             return Err(anyhow::anyhow!("Client credentials not configured"));
@@ -172,7 +169,6 @@ impl StravaProvider {
     }
 
     /// Exchange authorization code with PKCE support for enhanced security
-    #[allow(dead_code)]
     pub async fn exchange_code_with_pkce(
         &mut self,
         code: &str,
@@ -211,7 +207,6 @@ impl StravaProvider {
         Ok((token.access_token, refresh_token))
     }
 
-    #[allow(dead_code)]
     pub async fn refresh_access_token(&mut self) -> Result<(String, String)> {
         let refresh_token = self
             .refresh_token
@@ -381,7 +376,6 @@ impl FitnessProvider for StravaProvider {
         Ok(activities.into_iter().map(|a| a.into()).collect())
     }
 
-    #[allow(dead_code)]
     async fn get_activity(&self, id: &str) -> Result<Activity> {
         let token = self.access_token.as_ref().context("Not authenticated")?;
 
@@ -423,12 +417,10 @@ impl FitnessProvider for StravaProvider {
         })
     }
 
-    #[allow(dead_code)]
     async fn get_personal_records(&self) -> Result<Vec<PersonalRecord>> {
         Ok(vec![])
     }
 
-    #[allow(dead_code)]
     fn provider_name(&self) -> &'static str {
         "Strava"
     }
@@ -531,6 +523,8 @@ impl From<StravaActivity> for Activity {
             average_speed: strava.average_speed,
             max_speed: strava.max_speed,
             calories: None,
+            steps: None,            // Strava doesn't provide step data
+            heart_rate_zones: None, // Strava doesn't provide zone breakdown data
             start_latitude,
             start_longitude,
             city: None,

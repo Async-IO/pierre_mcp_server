@@ -1,3 +1,5 @@
+// ABOUTME: Data models and types for admin authentication and authorization system
+// ABOUTME: Defines admin permissions, token structures, and validation types for admin operations
 //! Admin Token Models
 //!
 //! Strong Rust types for the admin authentication system

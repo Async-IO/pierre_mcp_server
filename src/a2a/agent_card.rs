@@ -1,3 +1,5 @@
+// ABOUTME: A2A agent capability discovery and advertisement system
+// ABOUTME: Provides agent card with capabilities, endpoints, and protocol information for A2A discovery
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your

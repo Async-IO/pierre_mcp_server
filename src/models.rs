@@ -1,3 +1,5 @@
+// ABOUTME: Core data models and types for the Pierre fitness API
+// ABOUTME: Defines Activity, User, SportType and other fundamental data structures
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -28,6 +30,19 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+/// Heart rate zone data for an activity
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HeartRateZone {
+    /// Zone name (e.g., "Zone 1", "Fat Burn", "Cardio")
+    pub name: String,
+    /// Minimum heart rate for this zone in BPM
+    pub min_hr: u32,
+    /// Maximum heart rate for this zone in BPM
+    pub max_hr: u32,
+    /// Minutes spent in this zone during the activity
+    pub minutes: u32,
+}
 
 /// User tier for rate limiting - same as API key tiers for consistency
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -142,6 +157,10 @@ pub struct Activity {
     pub max_speed: Option<f64>,
     /// Estimated calories burned during the activity
     pub calories: Option<u32>,
+    /// Total steps taken during the activity (for walking/running activities)
+    pub steps: Option<u32>,
+    /// Heart rate zone data if available from the provider
+    pub heart_rate_zones: Option<Vec<HeartRateZone>>,
     /// Starting latitude coordinate (if available)
     pub start_latitude: Option<f64>,
     /// Starting longitude coordinate (if available)
@@ -173,6 +192,8 @@ impl Default for Activity {
             average_speed: Some(2.78), // ~10 km/h
             max_speed: Some(4.0),
             calories: Some(350),
+            steps: None,
+            heart_rate_zones: None,
             start_latitude: None,
             start_longitude: None,
             city: None,
@@ -863,6 +884,8 @@ mod tests {
             average_speed: Some(2.78), // ~10 km/h
             max_speed: Some(4.17),     // ~15 km/h
             calories: Some(300),
+            steps: Some(7500),
+            heart_rate_zones: None,
             start_latitude: Some(45.5017), // Montreal
             start_longitude: Some(-73.5673),
             city: Some("Montreal".to_string()),
@@ -1043,6 +1066,8 @@ mod tests {
             average_speed: None,
             max_speed: None,
             calories: None,
+            steps: None,
+            heart_rate_zones: None,
             start_latitude: Some(45.5017), // Montreal
             start_longitude: Some(-73.5673),
             city: None,

@@ -1,3 +1,5 @@
+// ABOUTME: Intelligence module configuration for AI-powered fitness analysis and recommendations
+// ABOUTME: Configures analysis algorithms, recommendation engines, and intelligence processing parameters
 //! Intelligence Configuration Module
 //!
 //! Provides type-safe, compile-time validated configuration for all intelligence modules

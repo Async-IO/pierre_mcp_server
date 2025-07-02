@@ -1,3 +1,5 @@
+// ABOUTME: Core A2A protocol message handling and JSON-RPC implementation
+// ABOUTME: Processes A2A protocol requests, tool execution, and task management for agent communication
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your

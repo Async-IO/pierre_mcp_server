@@ -1,3 +1,5 @@
+// ABOUTME: WebSocket implementation for real-time communication and live data streaming
+// ABOUTME: Handles WebSocket connections, message routing, and real-time fitness data updates
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -51,11 +53,9 @@ pub enum WebSocketMessage {
 
 #[derive(Clone)]
 pub struct WebSocketManager {
-    #[allow(dead_code)] // Will be used for future broadcast features
     database: Database,
     auth_middleware: McpAuthMiddleware,
     clients: Arc<RwLock<HashMap<Uuid, ClientConnection>>>,
-    #[allow(dead_code)] // Will be used for future broadcast features
     broadcast_tx: broadcast::Sender<WebSocketMessage>,
 }
 

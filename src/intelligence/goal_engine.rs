@@ -1,3 +1,5 @@
+// ABOUTME: Goal tracking and progress monitoring engine for fitness objectives
+// ABOUTME: Tracks training goals, milestones, progress metrics, and provides achievement insights
 //! Goal tracking and progress monitoring engine
 
 use super::*;
@@ -41,9 +43,7 @@ pub trait GoalEngineTrait {
 pub struct AdvancedGoalEngine<
     S: IntelligenceStrategy = crate::config::intelligence_config::DefaultStrategy,
 > {
-    #[allow(dead_code)]
     strategy: S,
-    #[allow(dead_code)]
     config: GoalEngineConfig,
     user_profile: Option<UserFitnessProfile>,
 }
@@ -103,7 +103,6 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
     }
 
     /// Calculate goal difficulty based on user's current performance
-    #[allow(dead_code)]
     fn calculate_goal_difficulty(&self, goal: &Goal, activities: &[Activity]) -> GoalDifficulty {
         let similar_activities: Vec<_> = activities
             .iter()
@@ -303,17 +302,57 @@ impl GoalEngineTrait for AdvancedGoalEngine {
 
             // Distance goal suggestions
             if avg_distance > 0.0 {
-                let target_distance = stats.max_distance * TARGET_INCREASE_MULTIPLIER;
-                suggestions.push(GoalSuggestion {
+                // Use config multiplier and strategy thresholds
+                let base_multiplier = self
+                    .config
+                    .feasibility
+                    .conservative_multiplier
+                    .max(TARGET_INCREASE_MULTIPLIER);
+
+                // Apply strategy-based adjustments
+                let weekly_distance = stats.total_distance / GOAL_ANALYSIS_WEEKS as f64;
+                let strategy_multiplier = if self
+                    .strategy
+                    .should_recommend_volume_increase(weekly_distance / 1000.0)
+                {
+                    base_multiplier * 1.2 // More aggressive for low-volume athletes
+                } else {
+                    base_multiplier
+                };
+
+                let target_distance = stats.max_distance * strategy_multiplier;
+
+                let distance_goal = Goal {
+                    id: format!("dist_{}_{}", sport, Utc::now().timestamp()),
+                    user_id: "system".to_string(), // Will be set by caller
+                    title: format!("Increase {} Distance", sport),
+                    description: format!(
+                        "Target distance of {:.1} km for {}",
+                        target_distance / 1000.0,
+                        sport
+                    ),
                     goal_type: GoalType::Distance {
                         sport: sport.clone(),
                         timeframe: TimeFrame::Month,
                     },
+                    target_value: target_distance,
+                    target_date: Utc::now() + chrono::Duration::days(30),
+                    current_value: 0.0,
+                    created_at: Utc::now(),
+                    updated_at: Utc::now(),
+                    status: GoalStatus::Active,
+                };
+
+                // Calculate actual difficulty using strategy and user data
+                let difficulty = self.calculate_goal_difficulty(&distance_goal, activities);
+
+                suggestions.push(GoalSuggestion {
+                    goal_type: distance_goal.goal_type,
                     suggested_target: target_distance,
                     rationale: format!("Based on your recent {} activities, you could challenge yourself with a longer distance", sport),
-                    difficulty: GoalDifficulty::Moderate,
+                    difficulty,
                     estimated_timeline_days: 30,
-                    success_probability: 0.75,
+                    success_probability: self.config.feasibility.min_success_probability,
                 });
             }
 
