@@ -46,6 +46,7 @@ a2a_*.json
 *demo*.json
 enterprise_strava_dataset.json
 collection_metadata.json
+examples/mock_strava_data.json
 
 # OS
 .DS_Store
