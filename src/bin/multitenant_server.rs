@@ -14,7 +14,7 @@ use clap::Parser;
 use pierre_mcp_server::{
     auth::{generate_jwt_secret, AuthManager},
     config::environment::ServerConfig,
-    constants::env_config,
+    constants::{env_config, network_config::*},
     database::generate_encryption_key,
     database_plugins::factory::Database,
     health::HealthChecker,
@@ -78,7 +78,7 @@ async fn main() -> Result<()> {
         let mcp_port = args.mcp_port.unwrap_or_else(env_config::mcp_port);
         let http_port = args
             .http_port
-            .unwrap_or_else(|| env_config::mcp_port() + 1000);
+            .unwrap_or_else(|| env_config::mcp_port() + HTTP_PORT_OFFSET);
 
         info!(
             "🚀 Single-tenant MCP server starting on port {} (MCP) and {} (HTTP)",

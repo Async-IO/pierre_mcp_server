@@ -7,7 +7,8 @@
 //! Insight generation and management for athlete intelligence
 
 use crate::intelligence::physiological_constants::{
-    activity_scoring::*, fitness_score_thresholds::*,
+    activity_scoring::*, business_thresholds::*, fitness_score_thresholds::*,
+    performance_calculation::MAX_EFFORT_SCORE,
 };
 use crate::models::Activity;
 use serde::{Deserialize, Serialize};
@@ -127,7 +128,7 @@ impl InsightGenerator {
         // Example: Distance PR detection
         if let Some(distance_m) = activity.distance_meters {
             let distance_km = distance_m / 1000.0;
-            if distance_km > 10.0 {
+            if distance_km > ACHIEVEMENT_DISTANCE_THRESHOLD_KM {
                 // Arbitrary threshold for demo
                 insights.push(Insight {
                     insight_type: InsightType::Achievement,
@@ -236,7 +237,7 @@ impl InsightGenerator {
             effort_score += (elevation / 100.0) as f32 * STANDARD_BONUS as f32; // +0.5 per 100m
         }
 
-        effort_score.min(10.0)
+        effort_score.min(MAX_EFFORT_SCORE)
     }
 
     /// Generate location and terrain insights

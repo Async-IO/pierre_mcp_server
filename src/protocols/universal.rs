@@ -18,8 +18,8 @@ use crate::intelligence::analyzer::ActivityAnalyzer;
 use crate::intelligence::goal_engine::GoalEngineTrait;
 use crate::intelligence::performance_analyzer::PerformanceAnalyzerTrait;
 use crate::intelligence::physiological_constants::{
-    api_limits::*, demo_data::*, efficiency_defaults::*, fitness_score_thresholds::*,
-    goal_feasibility::*, hr_estimation::*,
+    api_limits::*, business_thresholds::*, demo_data::*, efficiency_defaults::*,
+    fitness_score_thresholds::*, goal_feasibility::*, hr_estimation::*, unit_conversions::*,
 };
 use crate::intelligence::recommendation_engine::RecommendationEngineTrait;
 use crate::intelligence::ActivityIntelligence;
@@ -70,14 +70,15 @@ pub struct UniversalToolExecutor {
 }
 
 impl UniversalToolExecutor {
-    /// Helper method for tools that are not yet implemented
-    /// Returns a proper error instead of panicking
-    fn not_implemented_handler(
+    /// Handler for tools that are implemented asynchronously
+    /// This is used as a placeholder for list_tools() since actual execution
+    /// goes through execute_tool() which routes to async handlers
+    fn async_implemented_handler(
         _executor: &UniversalToolExecutor,
         request: UniversalRequest,
     ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
         Err(crate::protocols::ProtocolError::ExecutionFailed(format!(
-            "Tool '{}' is not yet implemented",
+            "Tool '{}' is implemented asynchronously - use execute_tool() instead",
             request.tool_name
         )))
     }
@@ -309,111 +310,111 @@ impl UniversalToolExecutor {
             UniversalTool {
                 name: "get_activities".to_string(),
                 description: "Get activities from fitness providers".to_string(),
-                handler: Self::not_implemented_handler,
+                handler: Self::async_implemented_handler,
             },
             UniversalTool {
                 name: "get_athlete".to_string(),
                 description: "Get athlete information".to_string(),
-                handler: Self::not_implemented_handler,
+                handler: Self::async_implemented_handler,
             },
             UniversalTool {
                 name: "get_stats".to_string(),
                 description: "Get athlete statistics".to_string(),
-                handler: Self::not_implemented_handler,
+                handler: Self::async_implemented_handler,
             },
             UniversalTool {
                 name: "analyze_activity".to_string(),
                 description: "Analyze an activity".to_string(),
-                handler: Self::not_implemented_handler,
+                handler: Self::async_implemented_handler,
             },
             UniversalTool {
                 name: "get_activity_intelligence".to_string(),
                 description: "Get AI intelligence for activity".to_string(),
-                handler: Self::not_implemented_handler,
+                handler: Self::async_implemented_handler,
             },
             UniversalTool {
                 name: "get_connection_status".to_string(),
                 description: "Check provider connection status".to_string(),
-                handler: Self::not_implemented_handler,
+                handler: Self::async_implemented_handler,
             },
             UniversalTool {
                 name: "connect_strava".to_string(),
                 description: "Generate authorization URL to connect user's Strava account"
                     .to_string(),
-                handler: Self::not_implemented_handler,
+                handler: Self::async_implemented_handler,
             },
             UniversalTool {
                 name: "connect_fitbit".to_string(),
                 description: "Generate authorization URL to connect user's Fitbit account"
                     .to_string(),
-                handler: Self::not_implemented_handler,
+                handler: Self::async_implemented_handler,
             },
             UniversalTool {
                 name: "disconnect_provider".to_string(),
                 description: "Disconnect and remove stored tokens for a specific fitness provider"
                     .to_string(),
-                handler: Self::not_implemented_handler,
+                handler: Self::async_implemented_handler,
             },
             UniversalTool {
                 name: "set_goal".to_string(),
                 description: "Set a fitness goal".to_string(),
-                handler: Self::not_implemented_handler,
+                handler: Self::async_implemented_handler,
             },
             UniversalTool {
                 name: "calculate_metrics".to_string(),
                 description: "Calculate advanced fitness metrics for an activity".to_string(),
-                handler: Self::not_implemented_handler,
+                handler: Self::async_implemented_handler,
             },
             UniversalTool {
                 name: "analyze_performance_trends".to_string(),
                 description: "Analyze performance trends over time".to_string(),
-                handler: Self::not_implemented_handler,
+                handler: Self::async_implemented_handler,
             },
             UniversalTool {
                 name: "compare_activities".to_string(),
                 description: "Compare an activity against similar activities or personal bests"
                     .to_string(),
-                handler: Self::not_implemented_handler,
+                handler: Self::async_implemented_handler,
             },
             UniversalTool {
                 name: "detect_patterns".to_string(),
                 description: "Detect patterns in training data".to_string(),
-                handler: Self::not_implemented_handler,
+                handler: Self::async_implemented_handler,
             },
             UniversalTool {
                 name: "track_progress".to_string(),
                 description: "Track progress toward a specific goal".to_string(),
-                handler: Self::not_implemented_handler,
+                handler: Self::async_implemented_handler,
             },
             UniversalTool {
                 name: "suggest_goals".to_string(),
                 description: "Generate AI-powered goal suggestions".to_string(),
-                handler: Self::not_implemented_handler,
+                handler: Self::async_implemented_handler,
             },
             UniversalTool {
                 name: "analyze_goal_feasibility".to_string(),
                 description: "Assess whether a goal is realistic and achievable".to_string(),
-                handler: Self::not_implemented_handler,
+                handler: Self::async_implemented_handler,
             },
             UniversalTool {
                 name: "generate_recommendations".to_string(),
                 description: "Generate personalized training recommendations".to_string(),
-                handler: Self::not_implemented_handler,
+                handler: Self::async_implemented_handler,
             },
             UniversalTool {
                 name: "calculate_fitness_score".to_string(),
                 description: "Calculate comprehensive fitness score".to_string(),
-                handler: Self::not_implemented_handler,
+                handler: Self::async_implemented_handler,
             },
             UniversalTool {
                 name: "predict_performance".to_string(),
                 description: "Predict future performance capabilities".to_string(),
-                handler: Self::not_implemented_handler,
+                handler: Self::async_implemented_handler,
             },
             UniversalTool {
                 name: "analyze_training_load".to_string(),
                 description: "Analyze training load balance and recovery needs".to_string(),
-                handler: Self::not_implemented_handler,
+                handler: Self::async_implemented_handler,
             },
         ]
     }
@@ -700,10 +701,10 @@ impl UniversalToolExecutor {
 
                 // Generate basic analysis
                 let efficiency_score = if let Some(distance) = activity.distance_meters {
-                    if activity.duration_seconds > 0 && distance > 0.0 {
+                    if activity.duration_seconds > 0 && distance > MIN_VALID_DISTANCE as f64 {
                         // Simple efficiency calculation: distance/time ratio normalized
                         let speed_ms = distance / activity.duration_seconds as f64;
-                        (speed_ms * 100.0).clamp(0.0, 100.0)
+                        (speed_ms * MAX_SCORE as f64).clamp(MIN_SCORE as f64, MAX_SCORE as f64)
                     } else {
                         DEFAULT_EFFICIENCY_SCORE
                     }
@@ -713,8 +714,8 @@ impl UniversalToolExecutor {
 
                 let relative_effort = activity
                     .average_heart_rate
-                    .map(|hr| (hr as f64 / ASSUMED_MAX_HR) * 10.0)
-                    .unwrap_or(5.0);
+                    .map(|hr| (hr as f64 / ASSUMED_MAX_HR) * EFFORT_SCORE_MULTIPLIER as f64)
+                    .unwrap_or(DEFAULT_HR_EFFORT_SCORE as f64);
 
                 let result = serde_json::json!({
                     "activity_id": activity_id,
@@ -1227,7 +1228,7 @@ impl UniversalToolExecutor {
         };
 
         let speed = if duration > 0 {
-            (distance / duration as f64) * 3.6
+            (distance / duration as f64) * MS_TO_KMH_FACTOR
         } else {
             0.0
         };
@@ -2089,10 +2090,13 @@ impl UniversalToolExecutor {
             * 7.0; // Activities per week
 
         // Calculate composite fitness score (0-100)
-        let distance_score = (total_distance / 100.0).min(1.0) * 30.0; // Max 30 points
-        let frequency_score = (activity_frequency / 4.0).min(1.0) * 30.0; // Max 30 points
+        let distance_score =
+            (total_distance / DISTANCE_SCORE_DIVISOR as f64).min(1.0) * MAX_DISTANCE_SCORE as f64; // Max distance points
+        let frequency_score = (activity_frequency / DURATION_SCORE_FACTOR as f64).min(1.0)
+            * MAX_DISTANCE_SCORE as f64; // Max frequency points
         let pace_score = if avg_pace > 0.0 {
-            ((10.0 / avg_pace) * 10.0).min(40.0) // Max 40 points, better pace = higher score
+            ((PACE_SCORING_BASE / avg_pace) * PACE_SCORING_MULTIPLIER).min(MAX_PACE_SCORE)
+        // Pace scoring with constants
         } else {
             0.0
         };
@@ -2251,11 +2255,14 @@ impl UniversalToolExecutor {
         let predicted_time_minutes = avg_pace * (distance / 1000.0);
 
         // Add fatigue factor for longer distances
-        let fatigue_factor = 1.0 + ((distance / 1000.0) / 42.195).powf(0.06);
+        let fatigue_factor =
+            1.0 + ((distance / 1000.0) / MARATHON_DISTANCE_KM).powf(FATIGUE_EXPONENT);
         let adjusted_time = predicted_time_minutes * fatigue_factor;
 
         // Calculate confidence based on data availability
-        let confidence = (relevant_activities.len() as f64 / 20.0).min(0.95) * 100.0;
+        let confidence = (relevant_activities.len() as f64 / CONFIDENCE_BASE_DIVISOR)
+            .min(MAX_CONFIDENCE_RATIO)
+            * MAX_SCORE as f64;
 
         Ok(UniversalResponse {
             success: true,
@@ -2284,7 +2291,7 @@ impl UniversalToolExecutor {
                 },
                 "training_recommendations": if confidence < 50.0 {
                     vec!["More training data needed for accurate prediction"]
-                } else if adjusted_time / (distance / 1000.0) > 7.0 {
+                } else if adjusted_time / (distance / 1000.0) > SLOW_PACE_THRESHOLD_MIN_PER_KM {
                     vec!["Consider increasing training volume", "Focus on pace improvement"]
                 } else {
                     vec!["Maintain current training", "Consider interval training for speed"]

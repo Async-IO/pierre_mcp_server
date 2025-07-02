@@ -468,3 +468,62 @@ pub mod messages {
     pub const INSUFFICIENT_DATA: &str = "Insufficient data for analysis";
     pub const ANALYSIS_COMPLETE: &str = "Analysis completed successfully";
 }
+
+/// System configuration constants for rates, limits and thresholds
+pub mod system_config {
+    /// API tier rate limits (requests per month)
+    pub const TRIAL_MONTHLY_LIMIT: u32 = 1_000;
+    pub const STARTER_MONTHLY_LIMIT: u32 = 10_000;
+    pub const PROFESSIONAL_MONTHLY_LIMIT: u32 = 100_000;
+
+    /// Trial period duration (days)
+    pub const TRIAL_PERIOD_DAYS: u32 = 14;
+
+    /// Rate limiting window duration (seconds)
+    /// 30 days converted to seconds for rate limit calculations
+    pub const RATE_LIMIT_WINDOW_SECONDS: u32 = 30 * 24 * 60 * 60;
+}
+
+/// Time conversion constants for various durations
+pub mod time_constants {
+    /// Basic time unit conversions (seconds)
+    pub const SECONDS_PER_HOUR: u32 = 3600;
+    pub const SECONDS_PER_DAY: u32 = 86400;
+    pub const SECONDS_PER_WEEK: u32 = 604_800;
+    pub const SECONDS_PER_MONTH: u32 = 2_592_000;
+
+    /// Hour conversion as floating point for calculations
+    pub const SECONDS_PER_HOUR_F64: f64 = 3600.0;
+
+    /// Cache duration constants
+    pub const LOCATION_CACHE_DURATION_SECS: u64 = 24 * 60 * 60; // 24 hours
+    pub const WEATHER_CACHE_HOUR_BUCKET: u64 = 3600; // 1 hour for cache bucketing
+
+    /// A2A token expiry (24 hours in seconds)
+    pub const DEFAULT_A2A_TOKEN_EXPIRY_SECONDS: u64 = 86400;
+}
+
+/// Network and protocol configuration
+pub mod network_config {
+    /// Port offset for HTTP server in multitenant mode
+    pub const HTTP_PORT_OFFSET: u16 = 1000;
+
+    /// Default test port for development
+    pub const DEFAULT_TEST_PORT: u16 = 3000;
+
+    /// Default MCP protocol version string
+    pub const DEFAULT_MCP_VERSION: &str = "2024-11-05";
+}
+
+/// Demo and test data constants
+pub mod demo_data {
+    /// Demo user profile constants
+    pub const DEMO_USER_AGE: u32 = 30;
+    pub const DEMO_PREFERRED_DURATION_MINUTES: u32 = 60;
+
+    /// Demo efficiency score for examples and testing
+    pub const DEMO_EFFICIENCY_SCORE: f64 = 85.0;
+
+    /// Demo consistency score for examples and testing
+    pub const DEMO_CONSISTENCY_SCORE: f64 = 88.0;
+}

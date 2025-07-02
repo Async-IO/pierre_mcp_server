@@ -8,16 +8,19 @@
 //!
 //! HTTP endpoints for A2A (Agent-to-Agent) protocol management
 
-use crate::a2a::{
-    agent_card::AgentCard,
-    auth::A2AAuthenticator,
-    client::{A2AClientManager, ClientRegistrationRequest},
-    A2AError,
-};
 use crate::auth::AuthManager;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::intelligence::ActivityIntelligence;
 use crate::protocols::universal::{UniversalRequest, UniversalToolExecutor};
+use crate::{
+    a2a::{
+        agent_card::AgentCard,
+        auth::A2AAuthenticator,
+        client::{A2AClientManager, ClientRegistrationRequest},
+        A2AError,
+    },
+    constants::demo_data::*,
+};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -106,12 +109,12 @@ impl A2ARoutes {
                 relative_effort: Some(7.5),
                 zone_distribution: None,
                 personal_records: vec![],
-                efficiency_score: Some(85.0),
+                efficiency_score: Some(DEMO_EFFICIENCY_SCORE as f32),
                 trend_indicators: crate::intelligence::TrendIndicators {
                     pace_trend: crate::intelligence::TrendDirection::Stable,
                     effort_trend: crate::intelligence::TrendDirection::Improving,
                     distance_trend: crate::intelligence::TrendDirection::Stable,
-                    consistency_score: 88.0,
+                    consistency_score: DEMO_CONSISTENCY_SCORE as f32,
                 },
             },
             crate::intelligence::ContextualFactors {
