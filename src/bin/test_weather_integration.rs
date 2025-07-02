@@ -23,6 +23,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         average_speed: Some(2.78), // ~10 km/h
         max_speed: Some(4.17),
         calories: Some(500),
+        steps: None,
+        heart_rate_zones: None,
         start_latitude: Some(45.5017), // Montreal
         start_longitude: Some(-73.5673),
         city: None,

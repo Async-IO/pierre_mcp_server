@@ -2523,12 +2523,14 @@ impl UniversalToolExecutor {
 
         Ok(UniversalResponse {
             success: true,
-            result: Some(serde_json::to_value(&catalog).map_err(|e| {
-                crate::protocols::ProtocolError::ExecutionFailed(format!(
-                    "Failed to serialize catalog: {}",
-                    e
-                ))
-            })?),
+            result: Some(serde_json::json!({
+                "catalog": catalog,
+                "metadata": {
+                    "timestamp": chrono::Utc::now(),
+                    "processing_time_ms": None::<u64>,
+                    "api_version": "1.0.0"
+                }
+            })),
             error: None,
             metadata: Some({
                 let mut map = std::collections::HashMap::new();
@@ -2597,8 +2599,13 @@ impl UniversalToolExecutor {
         Ok(UniversalResponse {
             success: true,
             result: Some(serde_json::json!({
-                "available_profiles": profiles_info,
-                "total_count": profiles_info.len()
+                "profiles": profiles_info,
+                "total_count": profiles_info.len(),
+                "metadata": {
+                    "timestamp": chrono::Utc::now(),
+                    "processing_time_ms": None::<u64>,
+                    "api_version": "1.0.0"
+                }
             })),
             error: None,
             metadata: Some({
@@ -2635,7 +2642,12 @@ impl UniversalToolExecutor {
                     "session_overrides": config.get_session_overrides(),
                     "last_modified": chrono::Utc::now(),
                 },
-                "available_parameters": CatalogBuilder::build().total_parameters
+                "available_parameters": CatalogBuilder::build().total_parameters,
+                "metadata": {
+                    "timestamp": chrono::Utc::now(),
+                    "processing_time_ms": None::<u64>,
+                    "api_version": "1.0.0"
+                }
             })),
             error: None,
             metadata: Some({
@@ -2749,7 +2761,12 @@ impl UniversalToolExecutor {
                     "applied_overrides": config.get_session_overrides().len(),
                     "last_modified": chrono::Utc::now(),
                 },
-                "changes_applied": parameter_count + if profile_name.is_some() { 1 } else { 0 }
+                "changes_applied": parameter_count + if profile_name.is_some() { 1 } else { 0 },
+                "metadata": {
+                    "timestamp": chrono::Utc::now(),
+                    "processing_time_ms": None::<u64>,
+                    "api_version": "1.0.0"
+                }
             })),
             error: None,
             metadata: Some({
@@ -2842,6 +2859,11 @@ impl UniversalToolExecutor {
                     "method": "Karvonen method with VO2 max adjustments",
                     "pace_formula": "Jack Daniels VDOT",
                     "power_estimation": "VO2 max derived FTP",
+                },
+                "metadata": {
+                    "timestamp": chrono::Utc::now(),
+                    "processing_time_ms": None::<u64>,
+                    "api_version": "1.0.0"
                 }
             })),
             error: None,
@@ -2917,6 +2939,11 @@ impl UniversalToolExecutor {
                         "physiological_limits": "All parameters within safe ranges",
                         "relationship_constraints": "Parameter relationships validated",
                         "scientific_bounds": "Values conform to sports science literature"
+                    },
+                    "metadata": {
+                        "timestamp": chrono::Utc::now(),
+                        "processing_time_ms": None::<u64>,
+                        "api_version": "1.0.0"
                     }
                 })),
                 error: None,
@@ -2935,21 +2962,23 @@ impl UniversalToolExecutor {
             })
         } else {
             Ok(UniversalResponse {
-                success: false,
+                success: true, // Tool executed successfully, but validation failed
                 result: Some(serde_json::json!({
                     "validation_passed": false,
-                    "parameters_submitted": params_map.len(),
-                    "validation_errors": validation_result.errors,
-                    "validation_warnings": validation_result.warnings,
-                    "safety_violations": {
-                        "description": "One or more parameters failed safety validation",
-                        "recommendation": "Review parameter values against scientific limits"
+                    "parameters_validated": params_map.len(),
+                    "validation_details": validation_result.errors,
+                    "safety_checks": {
+                        "physiological_limits": "Some parameters outside safe ranges",
+                        "relationship_constraints": "Parameter relationship violations detected",
+                        "scientific_bounds": "Values do not conform to scientific limits"
+                    },
+                    "metadata": {
+                        "timestamp": chrono::Utc::now(),
+                        "processing_time_ms": None::<u64>,
+                        "api_version": "1.0.0"
                     }
                 })),
-                error: Some(format!(
-                    "Configuration validation failed: {:?}",
-                    validation_result.errors
-                )),
+                error: None, // No execution error, just validation failed
                 metadata: Some({
                     let mut map = std::collections::HashMap::new();
                     map.insert(
@@ -2957,8 +2986,8 @@ impl UniversalToolExecutor {
                         serde_json::Value::String(chrono::Utc::now().to_rfc3339()),
                     );
                     map.insert(
-                        "validation_failed".to_string(),
-                        serde_json::Value::Bool(true),
+                        "parameters_count".to_string(),
+                        serde_json::Value::Number(serde_json::Number::from(params_map.len())),
                     );
                     map
                 }),

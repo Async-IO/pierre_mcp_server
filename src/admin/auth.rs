@@ -1,3 +1,5 @@
+// ABOUTME: Admin authentication and authorization system for privileged operations
+// ABOUTME: Validates admin JWT tokens, enforces permissions, and tracks admin token usage
 //! Admin Authentication and Authorization
 //!
 //! This module provides authentication and authorization functionality for admin services.

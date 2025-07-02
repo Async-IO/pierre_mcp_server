@@ -1,3 +1,5 @@
+// ABOUTME: Location and geographic intelligence for activity analysis and environmental context
+// ABOUTME: Provides geocoding, elevation data, route analysis, and location-based insights
 use anyhow::{anyhow, Result};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -219,7 +221,6 @@ impl LocationService {
         }
     }
 
-    #[allow(dead_code)]
     pub fn get_cache_stats(&self) -> (usize, usize) {
         let total_entries = self.cache.len();
         let expired_entries = self
@@ -233,7 +234,6 @@ impl LocationService {
         (total_entries, expired_entries)
     }
 
-    #[allow(dead_code)]
     pub fn clear_expired_cache(&mut self) {
         let now = SystemTime::now();
         self.cache.retain(|_, entry| {

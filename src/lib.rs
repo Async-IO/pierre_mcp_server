@@ -1,3 +1,5 @@
+// ABOUTME: Main library entry point for Pierre fitness API platform
+// ABOUTME: Provides MCP, A2A, and REST API protocols for fitness data analysis
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -89,6 +91,9 @@ pub mod intelligence;
 
 /// Configuration management and runtime parameter system
 pub mod configuration;
+
+/// HTTP routes for configuration management
+pub mod configuration_routes;
 
 /// A2A (Agent-to-Agent) protocol implementation
 pub mod a2a;

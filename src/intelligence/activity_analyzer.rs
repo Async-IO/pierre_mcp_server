@@ -1,3 +1,5 @@
+// ABOUTME: Detailed activity analysis engine for comprehensive workout breakdowns
+// ABOUTME: Analyzes individual activities for pace, power, heart rate patterns and training insights
 //! Activity analysis engine for detailed activity insights
 
 use super::*;
@@ -32,7 +34,6 @@ pub trait ActivityAnalyzerTrait {
 
 /// Advanced activity analyzer implementation
 pub struct AdvancedActivityAnalyzer {
-    #[allow(dead_code)]
     config: ActivityAnalyzerConfig,
     metrics_calculator: MetricsCalculator,
 }
@@ -81,37 +82,54 @@ impl AdvancedActivityAnalyzer {
     fn calculate_overall_score(&self, activity: &Activity, metrics: &AdvancedMetrics) -> f64 {
         let mut score: f64 = BASE_ACTIVITY_SCORE; // Base score
 
-        // Adjust based on completion
+        // Use config weights for scoring components
+        let scoring_config = &self.config.scoring;
+
+        // Efficiency component - based on completion and metrics quality
+        let mut efficiency_score = 0.0;
         if activity.distance_meters.unwrap_or(0.0) > 0.0 {
-            score += COMPLETION_BONUS;
+            efficiency_score += COMPLETION_BONUS;
         }
-
-        // Adjust based on effort level using physiological thresholds
-        if let Some(avg_hr) = activity.average_heart_rate {
-            if avg_hr > MODERATE_HR_THRESHOLD {
-                score += HR_ZONE_BONUS;
-            }
-            if avg_hr > HIGH_INTENSITY_HR_THRESHOLD {
-                score += INTENSITY_BONUS;
-            }
-        }
-
-        // Adjust based on metrics quality
         if metrics.trimp.is_some() {
-            score += STANDARD_BONUS;
+            efficiency_score += STANDARD_BONUS;
         }
         if metrics.power_to_weight_ratio.is_some() {
-            score += STANDARD_BONUS;
+            efficiency_score += STANDARD_BONUS;
         }
+        score += efficiency_score * scoring_config.efficiency_weight;
 
-        // Adjust based on duration using established thresholds
+        // Intensity component - based on effort level using physiological thresholds
+        let mut intensity_score = 0.0;
+        if let Some(avg_hr) = activity.average_heart_rate {
+            if avg_hr > MODERATE_HR_THRESHOLD {
+                intensity_score += HR_ZONE_BONUS;
+            }
+            if avg_hr > HIGH_INTENSITY_HR_THRESHOLD {
+                intensity_score += INTENSITY_BONUS;
+            }
+        }
+        score += intensity_score * scoring_config.intensity_weight;
+
+        // Duration component - based on duration thresholds
+        let mut duration_score = 0.0;
         let duration = activity.duration_seconds;
         if duration > MIN_AEROBIC_DURATION {
-            score += DURATION_BONUS;
+            duration_score += DURATION_BONUS;
         }
         if duration > ENDURANCE_DURATION_THRESHOLD {
-            score += DURATION_BONUS;
+            duration_score += DURATION_BONUS;
         }
+        score += duration_score * scoring_config.duration_weight;
+
+        // Consistency component - based on data completeness and quality
+        let mut consistency_score = 0.0;
+        if activity.average_heart_rate.is_some() && activity.max_heart_rate.is_some() {
+            consistency_score += STANDARD_BONUS;
+        }
+        if activity.average_speed.is_some() && activity.max_speed.is_some() {
+            consistency_score += STANDARD_BONUS;
+        }
+        score += consistency_score * scoring_config.consistency_weight;
 
         score.clamp(0.0, 10.0)
     }

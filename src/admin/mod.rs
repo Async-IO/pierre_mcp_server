@@ -1,3 +1,5 @@
+// ABOUTME: Admin token system module organization and exports
+// ABOUTME: Provides secure admin authentication for API key provisioning and user management
 //! Admin Token System
 //!
 //! This module provides secure admin authentication for API key provisioning.

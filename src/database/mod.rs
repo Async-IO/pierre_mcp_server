@@ -1,3 +1,5 @@
+// ABOUTME: Core database operations module with encrypted storage and query management
+// ABOUTME: Provides unified database interface, migrations, and encrypted data persistence
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your

@@ -1,3 +1,5 @@
+// ABOUTME: Training recommendation engine for personalized fitness guidance and coaching
+// ABOUTME: Generates custom workout plans, recovery suggestions, and training adaptations
 //! Training recommendation engine for personalized insights
 
 use super::*;
@@ -47,9 +49,7 @@ pub trait RecommendationEngineTrait {
 pub struct AdvancedRecommendationEngine<
     S: IntelligenceStrategy = crate::config::intelligence_config::DefaultStrategy,
 > {
-    #[allow(dead_code)]
     strategy: S,
-    #[allow(dead_code)]
     config: RecommendationEngineConfig,
     user_profile: Option<UserFitnessProfile>,
 }
@@ -249,6 +249,93 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
         gaps
     }
 
+    /// Generate strategy-based recommendations using the strategy field
+    fn generate_strategy_based_recommendations(
+        &self,
+        analysis: &TrainingPatternAnalysis,
+    ) -> Vec<TrainingRecommendation> {
+        let mut recommendations = Vec::new();
+        
+        // Use strategy to determine if volume increase is recommended
+        let current_volume_km = analysis.weekly_load_hours * 10.0; // Rough conversion to km per week
+        if self.strategy.should_recommend_volume_increase(current_volume_km) {
+            recommendations.push(TrainingRecommendation {
+                recommendation_type: RecommendationType::Volume,
+                title: "Strategy-Based Volume Increase".to_string(),
+                description: "Your current strategy suggests increasing training volume based on your profile.".to_string(),
+                priority: RecommendationPriority::Medium,
+                confidence: Confidence::High,
+                rationale: "Strategic volume increases are tailored to your current fitness level and goals.".to_string(),
+                actionable_steps: vec![
+                    "Follow your strategy's volume progression guidelines".to_string(),
+                    "Increase volume gradually as recommended by your training approach".to_string(),
+                    "Monitor adaptation and adjust based on response".to_string(),
+                ],
+            });
+        }
+        
+        // Use strategy frequency thresholds
+        let weekly_activities = (analysis.weekly_load_hours / 1.0).ceil() as i32; // Estimate activities per week
+        if self.strategy.should_recommend_recovery(weekly_activities) {
+            recommendations.push(TrainingRecommendation {
+                recommendation_type: RecommendationType::Recovery,
+                title: "Strategy-Based Recovery Focus".to_string(),
+                description: "Your training strategy recommends focusing on recovery based on current frequency.".to_string(),
+                priority: RecommendationPriority::High,
+                confidence: Confidence::High,
+                rationale: "Strategic recovery prevents overtraining and optimizes long-term performance gains.".to_string(),
+                actionable_steps: vec![
+                    "Reduce training frequency as per your strategy guidelines".to_string(),
+                    "Include more recovery-focused activities".to_string(),
+                    "Prioritize sleep and stress management".to_string(),
+                ],
+            });
+        }
+        
+        recommendations
+    }
+    
+    /// Generate sport diversity recommendations using sport_diversity and primary_sport fields
+    fn generate_sport_diversity_recommendations(
+        &self,
+        analysis: &TrainingPatternAnalysis,
+    ) -> Vec<TrainingRecommendation> {
+        let mut recommendations = Vec::new();
+        
+        // Check sport diversity - if low, recommend cross-training
+        if analysis.sport_diversity <= 1 {
+            recommendations.push(TrainingRecommendation {
+                recommendation_type: RecommendationType::Strategy,
+                title: "Increase Sport Diversity".to_string(),
+                description: format!("You're primarily focused on {}. Consider adding cross-training activities.", analysis.primary_sport),
+                priority: RecommendationPriority::Medium,
+                confidence: Confidence::Medium,
+                rationale: "Sport diversity helps prevent overuse injuries and provides balanced fitness development.".to_string(),
+                actionable_steps: vec![
+                    "Add one complementary sport to your routine".to_string(),
+                    "Try swimming, cycling, or running as cross-training".to_string(),
+                    "Use different sports for active recovery days".to_string(),
+                ],
+            });
+        } else if analysis.sport_diversity >= 4 {
+            recommendations.push(TrainingRecommendation {
+                recommendation_type: RecommendationType::Strategy,
+                title: "Focus Training Specificity".to_string(),
+                description: format!("You're training in {} different sports. Consider focusing more on your primary sport: {}.", analysis.sport_diversity, analysis.primary_sport),
+                priority: RecommendationPriority::Low,
+                confidence: Confidence::Medium,
+                rationale: "While cross-training is beneficial, too much diversity may limit specific performance gains.".to_string(),
+                actionable_steps: vec![
+                    format!("Increase focus on {} training sessions", analysis.primary_sport),
+                    "Maintain 1-2 complementary sports for variety".to_string(),
+                    "Ensure primary sport gets 60-70% of training time".to_string(),
+                ],
+            });
+        }
+        
+        recommendations
+    }
+
     /// Generate intensity-based recommendations
     fn generate_intensity_recommendations(
         &self,
@@ -357,11 +444,18 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
             match gap.gap_type {
                 GapType::LongRest => {
                     if gap.duration_days > (SHORT_TRAINING_GAP_DAYS + 3) {
+                        // Use severity field to determine recommendation priority
+                        let priority = match gap.severity {
+                            InsightSeverity::Warning => RecommendationPriority::High,
+                            InsightSeverity::Info => RecommendationPriority::Medium,
+                            _ => RecommendationPriority::Low,
+                        };
+                        
                         recommendations.push(TrainingRecommendation {
                             recommendation_type: RecommendationType::Strategy,
                             title: "Avoid Long Training Breaks".to_string(),
                             description: format!("Recent {} gap detected. Try to maintain more consistent activity.", gap.description),
-                            priority: RecommendationPriority::Medium,
+                            priority,
                             confidence: Confidence::Medium,
                             rationale: "Training breaks longer than a week can lead to fitness losses and increased injury risk when resuming.".to_string(),
                             actionable_steps: vec![
@@ -373,11 +467,18 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
                     }
                 }
                 GapType::MissingSport => {
+                    // Use severity field to determine recommendation priority
+                    let priority = match gap.severity {
+                        InsightSeverity::Warning => RecommendationPriority::Medium,
+                        InsightSeverity::Info => RecommendationPriority::Low,
+                        _ => RecommendationPriority::Low,
+                    };
+                    
                     recommendations.push(TrainingRecommendation {
                         recommendation_type: RecommendationType::Strategy,
                         title: "Include Cross-Training".to_string(),
                         description: gap.description.clone(),
-                        priority: RecommendationPriority::Low,
+                        priority,
                         confidence: Confidence::Medium,
                         rationale: "Cross-training helps prevent overuse injuries and maintains overall fitness.".to_string(),
                         actionable_steps: vec![
@@ -410,6 +511,12 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
         recommendations.extend(self.generate_intensity_recommendations(&analysis));
         recommendations.extend(self.generate_volume_recommendations(&analysis));
         recommendations.extend(self.generate_consistency_recommendations(&analysis));
+        
+        // Add strategy-specific recommendations using the strategy field
+        recommendations.extend(self.generate_strategy_based_recommendations(&analysis));
+        
+        // Add sport diversity recommendations using sport_diversity and primary_sport fields
+        recommendations.extend(self.generate_sport_diversity_recommendations(&analysis));
 
         // Fitness level specific recommendations
         match user_profile.fitness_level {
@@ -730,11 +837,9 @@ impl AdvancedRecommendationEngine {
 #[derive(Debug)]
 struct TrainingPatternAnalysis {
     weekly_load_hours: f64,
-    #[allow(dead_code)]
     sport_diversity: usize,
     intensity_balance: f64,
     consistency_score: f64,
-    #[allow(dead_code)]
     primary_sport: String,
     training_gaps: Vec<TrainingGap>,
 }
@@ -745,7 +850,6 @@ struct TrainingGap {
     gap_type: GapType,
     duration_days: i64,
     description: String,
-    #[allow(dead_code)]
     severity: InsightSeverity,
 }
 

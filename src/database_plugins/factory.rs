@@ -1,3 +1,5 @@
+// ABOUTME: Database factory and provider abstraction for multi-database support
+// ABOUTME: Provides unified interface for SQLite and PostgreSQL with runtime database selection
 //! Database factory for creating database providers
 //!
 //! This module provides automatic database type detection and creation

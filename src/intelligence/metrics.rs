@@ -1,3 +1,5 @@
+// ABOUTME: Advanced fitness metrics calculation and performance analysis algorithms
+// ABOUTME: Computes training load, power metrics, heart rate zones, and physiological indicators
 //! Advanced fitness metrics calculation and analysis
 
 // Future: use crate::config::intelligence_config::{IntelligenceConfig};
@@ -89,8 +91,19 @@ impl MetricsCalculator {
             metrics.trimp = self.calculate_trimp(avg_hr as f32, duration);
         }
 
-        // Power data not available in current Activity model
-        // Skip power-based metrics calculation
+        // Calculate TSS if we have FTP data (can estimate power from HR or use heart rate-based TSS)
+        if let (Some(avg_hr), Some(ftp)) = (activity.average_heart_rate, self.ftp) {
+            let duration_hours = activity.duration_seconds as f64 / 3600.0;
+
+            // Estimate power from heart rate using a simple relationship
+            // This is an approximation - actual power meters would be more accurate
+            if let Some(max_hr) = self.max_hr {
+                let hr_percentage = avg_hr as f64 / max_hr;
+                let estimated_power = ftp * hr_percentage; // Rough estimation
+                metrics.training_stress_score =
+                    self.calculate_tss(estimated_power as f32, ftp, duration_hours);
+            }
+        }
 
         // Calculate aerobic efficiency if both HR and pace/power data available
         if let (Some(avg_hr), Some(avg_speed)) =
@@ -134,7 +147,6 @@ impl MetricsCalculator {
     }
 
     /// Calculate Training Stress Score (TSS)
-    #[allow(dead_code)]
     fn calculate_tss(&self, avg_power: f32, ftp: f64, duration_hours: f64) -> Option<f64> {
         let intensity_factor = avg_power as f64 / ftp;
         Some((duration_hours * intensity_factor * intensity_factor * TSS_BASE_MULTIPLIER).round())

@@ -13,7 +13,6 @@ use sha2::{Digest, Sha256};
 use url::Url;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(dead_code)]
 pub struct OAuth2Config {
     pub client_id: String,
     pub client_secret: String,
@@ -26,7 +25,6 @@ pub struct OAuth2Config {
 
 /// PKCE (Proof Key for Code Exchange) parameters for enhanced OAuth2 security
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct PkceParams {
     pub code_verifier: String,
     pub code_challenge: String,
@@ -35,7 +33,6 @@ pub struct PkceParams {
 
 impl PkceParams {
     /// Generate PKCE parameters with S256 challenge method
-    #[allow(dead_code)]
     pub fn generate() -> Self {
         // Generate a cryptographically secure random code verifier (43-128 characters)
         const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
@@ -59,7 +56,6 @@ impl PkceParams {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(dead_code)]
 pub struct OAuth2Token {
     pub access_token: String,
     pub token_type: String,
@@ -69,27 +65,23 @@ pub struct OAuth2Token {
 }
 
 impl OAuth2Token {
-    #[allow(dead_code)]
     pub fn is_expired(&self) -> bool {
         self.expires_at
             .is_some_and(|expires_at| expires_at <= Utc::now())
     }
 
-    #[allow(dead_code)]
     pub fn will_expire_soon(&self) -> bool {
         self.expires_at
             .is_some_and(|expires_at| expires_at <= Utc::now() + Duration::minutes(5))
     }
 }
 
-#[allow(dead_code)]
 pub struct OAuth2Client {
     config: OAuth2Config,
     client: reqwest::Client,
 }
 
 impl OAuth2Client {
-    #[allow(dead_code)]
     pub fn new(config: OAuth2Config) -> Self {
         Self {
             config,
@@ -97,7 +89,6 @@ impl OAuth2Client {
         }
     }
 
-    #[allow(dead_code)]
     pub fn get_authorization_url(&self, state: &str) -> Result<String> {
         let mut url = Url::parse(&self.config.auth_url).context("Invalid auth URL")?;
 
@@ -112,7 +103,6 @@ impl OAuth2Client {
     }
 
     /// Get authorization URL with PKCE support
-    #[allow(dead_code)]
     pub fn get_authorization_url_with_pkce(
         &self,
         state: &str,
@@ -138,7 +128,6 @@ impl OAuth2Client {
         Ok(url.to_string())
     }
 
-    #[allow(dead_code)]
     pub async fn exchange_code(&self, code: &str) -> Result<OAuth2Token> {
         let params = [
             ("client_id", self.config.client_id.as_str()),
@@ -161,7 +150,6 @@ impl OAuth2Client {
     }
 
     /// Exchange authorization code with PKCE support
-    #[allow(dead_code)]
     pub async fn exchange_code_with_pkce(
         &self,
         code: &str,
@@ -191,7 +179,6 @@ impl OAuth2Client {
         Ok(self.token_from_response(response))
     }
 
-    #[allow(dead_code)]
     pub async fn refresh_token(&self, refresh_token: &str) -> Result<OAuth2Token> {
         let params = [
             ("client_id", self.config.client_id.as_str()),
@@ -212,7 +199,6 @@ impl OAuth2Client {
         Ok(self.token_from_response(response))
     }
 
-    #[allow(dead_code)]
     fn token_from_response(&self, response: TokenResponse) -> OAuth2Token {
         let expires_at = response
             .expires_in
@@ -229,7 +215,6 @@ impl OAuth2Client {
 }
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 struct TokenResponse {
     access_token: String,
     token_type: String,
@@ -243,7 +228,6 @@ pub mod strava {
     use super::*;
 
     #[derive(Debug, Deserialize)]
-    #[allow(dead_code)]
     pub struct StravaTokenResponse {
         pub token_type: String,
         pub expires_at: i64,
@@ -254,7 +238,6 @@ pub mod strava {
     }
 
     #[derive(Debug, Deserialize)]
-    #[allow(dead_code)]
     pub struct StravaAthleteSummary {
         pub id: i64,
         pub username: Option<String>,
@@ -297,7 +280,6 @@ pub mod strava {
     }
 
     /// Exchange Strava authorization code with PKCE support
-    #[allow(dead_code)]
     pub async fn exchange_strava_code_with_pkce(
         client: &reqwest::Client,
         client_id: &str,
@@ -372,7 +354,6 @@ pub mod fitbit {
     use super::*;
 
     #[derive(Debug, Deserialize)]
-    #[allow(dead_code)]
     pub struct FitbitTokenResponse {
         pub access_token: String,
         pub expires_in: i64,
@@ -383,13 +364,11 @@ pub mod fitbit {
     }
 
     #[derive(Debug, Deserialize)]
-    #[allow(dead_code)]
     pub struct FitbitUserInfo {
         pub user_id: String,
     }
 
     /// Exchange Fitbit authorization code for tokens
-    #[allow(dead_code)]
     pub async fn exchange_fitbit_code(
         client: &reqwest::Client,
         client_id: &str,
@@ -429,7 +408,6 @@ pub mod fitbit {
     }
 
     /// Exchange Fitbit authorization code with PKCE support
-    #[allow(dead_code)]
     pub async fn exchange_fitbit_code_with_pkce(
         client: &reqwest::Client,
         client_id: &str,
@@ -471,7 +449,6 @@ pub mod fitbit {
     }
 
     /// Refresh Fitbit access token
-    #[allow(dead_code)]
     pub async fn refresh_fitbit_token(
         client: &reqwest::Client,
         client_id: &str,

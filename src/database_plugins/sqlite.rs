@@ -1,3 +1,5 @@
+// ABOUTME: SQLite database implementation for local development and single-user deployments
+// ABOUTME: Provides embedded database support with encryption and file-based storage
 //! SQLite database implementation
 //!
 //! This module wraps the existing SQLite database functionality

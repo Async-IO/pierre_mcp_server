@@ -251,6 +251,13 @@ fn create_fitness_tools() -> Vec<ToolSchema> {
         create_calculate_fitness_score_tool(),
         create_predict_performance_tool(),
         create_analyze_training_load_tool(),
+        // Configuration Management Tools
+        create_get_configuration_catalog_tool(),
+        create_get_configuration_profiles_tool(),
+        create_get_user_configuration_tool(),
+        create_update_user_configuration_tool(),
+        create_calculate_personalized_zones_tool(),
+        create_validate_configuration_tool(),
     ]
 }
 
@@ -982,6 +989,163 @@ fn create_analyze_training_load_tool() -> ToolSchema {
         },
     }
 }
+
+/// Create the get_configuration_catalog tool schema
+fn create_get_configuration_catalog_tool() -> ToolSchema {
+    ToolSchema {
+        name: "get_configuration_catalog".to_string(),
+        description: "Get the complete configuration catalog with all available parameters and their metadata".to_string(),
+        input_schema: JsonSchema {
+            schema_type: "object".to_string(),
+            properties: Some(HashMap::new()),
+            required: Some(vec![]),
+        },
+    }
+}
+
+/// Create the get_configuration_profiles tool schema
+fn create_get_configuration_profiles_tool() -> ToolSchema {
+    ToolSchema {
+        name: "get_configuration_profiles".to_string(),
+        description: "Get available configuration profiles (Research, Elite, Recreational, Beginner, Medical, etc.)".to_string(),
+        input_schema: JsonSchema {
+            schema_type: "object".to_string(),
+            properties: Some(HashMap::new()),
+            required: Some(vec![]),
+        },
+    }
+}
+
+/// Create the get_user_configuration tool schema
+fn create_get_user_configuration_tool() -> ToolSchema {
+    ToolSchema {
+        name: "get_user_configuration".to_string(),
+        description:
+            "Get current user's configuration including active profile and parameter overrides"
+                .to_string(),
+        input_schema: JsonSchema {
+            schema_type: "object".to_string(),
+            properties: Some(HashMap::new()),
+            required: Some(vec![]),
+        },
+    }
+}
+
+/// Create the update_user_configuration tool schema
+fn create_update_user_configuration_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "profile".to_string(),
+        PropertySchema {
+            property_type: "string".to_string(),
+            description: Some("Configuration profile to apply (optional)".to_string()),
+        },
+    );
+
+    properties.insert(
+        "parameters".to_string(),
+        PropertySchema {
+            property_type: "object".to_string(),
+            description: Some("Parameter overrides to apply (optional)".to_string()),
+        },
+    );
+
+    ToolSchema {
+        name: "update_user_configuration".to_string(),
+        description: "Update user's configuration by applying a profile and/or parameter overrides"
+            .to_string(),
+        input_schema: JsonSchema {
+            schema_type: "object".to_string(),
+            properties: Some(properties),
+            required: Some(vec![]),
+        },
+    }
+}
+
+/// Create the calculate_personalized_zones tool schema
+fn create_calculate_personalized_zones_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "vo2_max".to_string(),
+        PropertySchema {
+            property_type: "number".to_string(),
+            description: Some("VO2 max in ml/kg/min".to_string()),
+        },
+    );
+
+    properties.insert(
+        "resting_hr".to_string(),
+        PropertySchema {
+            property_type: "number".to_string(),
+            description: Some("Resting heart rate in bpm (optional, defaults to 60)".to_string()),
+        },
+    );
+
+    properties.insert(
+        "max_hr".to_string(),
+        PropertySchema {
+            property_type: "number".to_string(),
+            description: Some("Maximum heart rate in bpm (optional, defaults to 190)".to_string()),
+        },
+    );
+
+    properties.insert(
+        "lactate_threshold".to_string(),
+        PropertySchema {
+            property_type: "number".to_string(),
+            description: Some(
+                "Lactate threshold as percentage of VO2 max (optional, defaults to 0.85)"
+                    .to_string(),
+            ),
+        },
+    );
+
+    properties.insert(
+        "sport_efficiency".to_string(),
+        PropertySchema {
+            property_type: "number".to_string(),
+            description: Some("Sport efficiency factor (optional, defaults to 1.0)".to_string()),
+        },
+    );
+
+    ToolSchema {
+        name: "calculate_personalized_zones".to_string(),
+        description: "Calculate personalized training zones (heart rate, pace, power) based on VO2 max and physiological parameters".to_string(),
+        input_schema: JsonSchema {
+            schema_type: "object".to_string(),
+            properties: Some(properties),
+            required: Some(vec!["vo2_max".to_string()]),
+        },
+    }
+}
+
+/// Create the validate_configuration tool schema
+fn create_validate_configuration_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "parameters".to_string(),
+        PropertySchema {
+            property_type: "object".to_string(),
+            description: Some("Configuration parameters to validate".to_string()),
+        },
+    );
+
+    ToolSchema {
+        name: "validate_configuration".to_string(),
+        description:
+            "Validate configuration parameters for physiological limits and scientific bounds"
+                .to_string(),
+        input_schema: JsonSchema {
+            schema_type: "object".to_string(),
+            properties: Some(properties),
+            required: Some(vec!["parameters".to_string()]),
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

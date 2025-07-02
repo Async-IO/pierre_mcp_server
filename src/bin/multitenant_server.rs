@@ -548,11 +548,8 @@ async fn handle_oauth_callback(
 /// Custom error type for OAuth callbacks
 #[derive(Debug)]
 enum OAuthCallbackError {
-    #[allow(dead_code)]
     MissingParameter(String),
-    #[allow(dead_code)]
     UnsupportedProvider(String),
-    #[allow(dead_code)]
     ServerError(String),
 }
 

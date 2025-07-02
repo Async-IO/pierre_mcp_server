@@ -1,3 +1,5 @@
+// ABOUTME: Fitness data analysis engine providing comprehensive workout and performance analytics
+// ABOUTME: Calculates training zones, efficiency metrics, power analysis, and personalized insights
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -414,15 +416,12 @@ impl Default for ActivityAnalyzer {
 #[derive(Debug, thiserror::Error)]
 pub enum AnalysisError {
     #[error("Insufficient activity data for analysis")]
-    #[allow(dead_code)]
     InsufficientData,
 
     #[error("Invalid activity data: {0}")]
-    #[allow(dead_code)]
     InvalidData(String),
 
     #[error("Analysis computation failed: {0}")]
-    #[allow(dead_code)]
     ComputationError(String),
 }
 
@@ -447,6 +446,8 @@ mod tests {
             average_heart_rate: Some(155),
             max_heart_rate: Some(180),
             calories: Some(500),
+            steps: Some(12000),
+            heart_rate_zones: None,
             start_latitude: Some(45.5017), // Montreal
             start_longitude: Some(-73.5673),
             city: None,

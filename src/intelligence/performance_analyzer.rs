@@ -1,3 +1,5 @@
+// ABOUTME: Performance trend analysis and historical comparison engine for fitness progression
+// ABOUTME: Tracks fitness improvements, identifies performance patterns, and provides trend analysis
 //! Performance trend analysis and historical comparison engine
 
 use super::*;
@@ -42,9 +44,7 @@ pub trait PerformanceAnalyzerTrait {
 pub struct AdvancedPerformanceAnalyzer<
     S: IntelligenceStrategy = crate::config::intelligence_config::DefaultStrategy,
 > {
-    #[allow(dead_code)]
     strategy: S,
-    #[allow(dead_code)]
     config: PerformanceAnalyzerConfig,
     user_profile: Option<UserFitnessProfile>,
 }
@@ -153,10 +153,11 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
     fn generate_trend_insights(&self, analysis: &TrendAnalysis) -> Vec<AdvancedInsight> {
         let mut insights = Vec::new();
 
-        // Trend direction insight
+        // Trend direction insight using config thresholds and strategy
+        let strong_trend_threshold = self.config.trend_analysis.trend_strength_threshold * 2.0; // Strong trend is 2x threshold
         let (message, severity) = match analysis.trend_direction {
             TrendDirection::Improving => {
-                if analysis.trend_strength > STRONG_TREND_THRESHOLD {
+                if analysis.trend_strength > strong_trend_threshold {
                     (
                         "Strong improvement trend detected - excellent progress!".to_string(),
                         InsightSeverity::Info,
@@ -169,7 +170,7 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
                 }
             }
             TrendDirection::Declining => {
-                if analysis.trend_strength > STRONG_TREND_THRESHOLD {
+                if analysis.trend_strength > strong_trend_threshold {
                     ("Significant decline in performance - consider recovery or training adjustments".to_string(), InsightSeverity::Warning)
                 } else {
                     (
@@ -197,19 +198,25 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
         insights.push(AdvancedInsight {
             insight_type: "performance_trend".to_string(),
             message,
-            confidence: if analysis.statistical_significance > 0.8 {
-                Confidence::High
-            } else if analysis.statistical_significance > 0.6 {
-                Confidence::Medium
-            } else {
-                Confidence::Low
+            confidence: {
+                let confidence_level = self.config.statistical.confidence_level;
+                let high_threshold = confidence_level * 0.9; // 90% of confidence level
+                let medium_threshold = confidence_level * 0.7; // 70% of confidence level
+
+                if analysis.statistical_significance > high_threshold {
+                    Confidence::High
+                } else if analysis.statistical_significance > medium_threshold {
+                    Confidence::Medium
+                } else {
+                    Confidence::Low
+                }
             },
             severity,
             metadata,
         });
 
-        // Data quality insight
-        if analysis.data_points.len() < 5 {
+        // Data quality insight using config min data points
+        if analysis.data_points.len() < self.config.trend_analysis.min_data_points {
             insights.push(AdvancedInsight {
                 insight_type: "data_quality".to_string(),
                 message: "Limited data points - trends may not be reliable".to_string(),
@@ -217,6 +224,20 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
                 severity: InsightSeverity::Warning,
                 metadata: HashMap::new(),
             });
+        }
+        
+        // Strategy-based insights using the strategy field
+        if analysis.trend_direction == TrendDirection::Improving {
+            let strategy_thresholds = self.strategy.performance_thresholds();
+            if analysis.trend_strength > strategy_thresholds.significant_improvement {
+                insights.push(AdvancedInsight {
+                    insight_type: "strategy_validation".to_string(),
+                    message: "Your training strategy is producing excellent results".to_string(),
+                    confidence: Confidence::High,
+                    severity: InsightSeverity::Info,
+                    metadata: HashMap::new(),
+                });
+            }
         }
 
         insights
@@ -597,17 +618,32 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
             load_balance_score,
             recovery_needed,
             recommendations: if recovery_needed {
-                vec![
+                let mut recs = vec![
                     "Consider reducing training volume this week".to_string(),
                     "Focus on recovery activities".to_string(),
                     "Ensure adequate sleep and nutrition".to_string(),
-                ]
+                ];
+                
+                // Add strategy-based recovery recommendations using the strategy field
+                if self.strategy.should_recommend_recovery(weekly_loads.len() as i32) {
+                    recs.push("Your training strategy recommends prioritizing recovery at this load level".to_string());
+                }
+                
+                recs
             } else {
-                vec![
+                let mut recs = vec![
                     "Training load is well balanced".to_string(),
                     "Continue current training pattern".to_string(),
                     "Consider gradual load increases".to_string(),
-                ]
+                ];
+                
+                // Use strategy to determine if volume increase is appropriate
+                let current_avg_km = avg_load * 10.0; // Rough conversion to km
+                if self.strategy.should_recommend_volume_increase(current_avg_km) {
+                    recs.push("Your strategy suggests this is a good time to increase training volume".to_string());
+                }
+                
+                recs
             },
             insights: vec![], // Add specific insights based on analysis
         })

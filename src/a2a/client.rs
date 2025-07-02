@@ -1,3 +1,5 @@
+// ABOUTME: A2A client registration, management, and lifecycle operations
+// ABOUTME: Manages client credentials, usage statistics, and rate limiting for A2A agents
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -126,7 +128,6 @@ pub struct A2AUsageParams {
 pub struct A2AClientManager {
     database: Arc<Database>,
     system_user_service: A2ASystemUserService,
-    #[allow(dead_code)]
     active_sessions: Arc<tokio::sync::RwLock<HashMap<String, A2ASession>>>,
 }
 

@@ -1,3 +1,5 @@
+// ABOUTME: Physiological constants and scientific thresholds for fitness calculations
+// ABOUTME: Contains sport science-based constants for heart rate zones, power calculations, and performance metrics
 //! Physiological constants based on sports science research
 //!
 //! This module contains scientifically-established constants used throughout

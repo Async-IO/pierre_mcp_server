@@ -17,7 +17,7 @@
 //! - [OAuth2 Authorization](https://dev.fitbit.com/build/reference/web-api/developer-guide/authorization/)
 
 use super::{AuthData, FitnessProvider};
-use crate::models::{Activity, Athlete, PersonalRecord, SportType, Stats};
+use crate::models::{Activity, Athlete, HeartRateZone, PersonalRecord, SportType, Stats};
 use crate::oauth2_client::PkceParams;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -67,7 +67,6 @@ impl FitbitProvider {
     /// - `activity` - Access to activities and exercise logs
     /// - `profile` - Access to profile information
     /// - `sleep` - Access to sleep data (for future enhancement)
-    #[allow(dead_code)]
     pub fn get_auth_url(&self, redirect_uri: &str, state: &str) -> Result<String> {
         let client_id = self
             .client_id
@@ -91,7 +90,6 @@ impl FitbitProvider {
     /// * `redirect_uri` - The redirect URI registered with your Fitbit app
     /// * `state` - A unique state parameter for CSRF protection
     /// * `pkce` - PKCE parameters for enhanced security
-    #[allow(dead_code)]
     pub fn get_auth_url_with_pkce(
         &self,
         redirect_uri: &str,
@@ -121,7 +119,6 @@ impl FitbitProvider {
     /// # Arguments
     /// * `code` - Authorization code received from Fitbit
     /// * `redirect_uri` - The same redirect URI used in authorization
-    #[allow(dead_code)]
     pub async fn exchange_code(
         &mut self,
         code: &str,
@@ -157,7 +154,6 @@ impl FitbitProvider {
     /// * `code` - Authorization code received from Fitbit
     /// * `redirect_uri` - The same redirect URI used in authorization
     /// * `pkce` - PKCE parameters used in authorization
-    #[allow(dead_code)]
     pub async fn exchange_code_with_pkce(
         &mut self,
         code: &str,
@@ -190,7 +186,6 @@ impl FitbitProvider {
     }
 
     /// Refresh access token using refresh token
-    #[allow(dead_code)]
     pub async fn refresh_access_token(&mut self) -> Result<(String, String)> {
         let refresh_token = self
             .refresh_token
@@ -321,7 +316,6 @@ impl FitnessProvider for FitbitProvider {
         Ok(result)
     }
 
-    #[allow(dead_code)]
     async fn get_activity(&self, id: &str) -> Result<Activity> {
         let token = self.access_token.as_ref().context("Not authenticated")?;
 
@@ -359,14 +353,12 @@ impl FitnessProvider for FitbitProvider {
         })
     }
 
-    #[allow(dead_code)]
     async fn get_personal_records(&self) -> Result<Vec<PersonalRecord>> {
         // Fitbit doesn't have a direct personal records API
         // This would need to be calculated from activity history
         Ok(vec![])
     }
 
-    #[allow(dead_code)]
     fn provider_name(&self) -> &'static str {
         "Fitbit"
     }
@@ -402,41 +394,22 @@ struct FitbitActivity {
     activity_id: u64,
     activity_name: String,
     activity_type_id: u32,
-    #[allow(dead_code)] // Future use for detailed activity level analysis
-    activity_level: Option<Vec<FitbitActivityLevel>>,
     start_time: String,
     duration: u64,         // milliseconds
     distance: Option<f64>, // km
-    #[allow(dead_code)] // Future use for unit conversion
-    distance_unit: Option<String>,
-    #[allow(dead_code)] // Future use for step counting
     steps: Option<u32>,
     calories: Option<u32>,
     elevation_gain: Option<f64>, // meters
     average_heart_rate: Option<u32>,
-    #[allow(dead_code)] // Future use for heart rate zone analysis
     heart_rate_zones: Option<Vec<FitbitHeartRateZone>>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct FitbitActivityLevel {
-    #[allow(dead_code)] // Future use for activity level analysis
-    minutes: u32,
-    #[allow(dead_code)] // Future use for activity level analysis
-    name: String, // "sedentary", "lightly", "fairly", "very"
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct FitbitHeartRateZone {
-    #[allow(dead_code)] // Future use for heart rate zone analysis
     name: String,
-    #[allow(dead_code)] // Future use for heart rate zone analysis
     min: u32,
-    #[allow(dead_code)] // Future use for heart rate zone analysis
     max: u32,
-    #[allow(dead_code)] // Future use for heart rate zone analysis
     minutes: u32,
 }
 
@@ -459,8 +432,6 @@ struct FitbitLifetime {
 struct FitbitLifetimeTotal {
     distance: f64, // km
     floors: f64,
-    #[allow(dead_code)] // Future use for step-based analysis
-    steps: u64,
 }
 
 impl From<FitbitActivity> for Activity {
@@ -502,6 +473,18 @@ impl From<FitbitActivity> for Activity {
             }),
             max_speed: None, // Not available in Fitbit API
             calories: fitbit.calories,
+            steps: fitbit.steps,
+            heart_rate_zones: fitbit.heart_rate_zones.map(|zones| {
+                zones
+                    .into_iter()
+                    .map(|zone| HeartRateZone {
+                        name: zone.name,
+                        min_hr: zone.min,
+                        max_hr: zone.max,
+                        minutes: zone.minutes,
+                    })
+                    .collect()
+            }),
             start_latitude: None, // Fitbit API doesn't provide GPS coordinates
             start_longitude: None,
             city: None,
