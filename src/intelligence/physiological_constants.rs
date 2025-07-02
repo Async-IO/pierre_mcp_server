@@ -880,7 +880,26 @@ pub mod zone_distributions {
         /// Effort ratings below this are considered moderate to hard intensity
         pub const HARD_INTENSITY_EFFORT_THRESHOLD: f32 = 7.0;
 
+        /// Zone threshold for tempo classification (percentage)
+        /// Activities with more than this percentage in Zone 3 are considered tempo-focused
+        pub const TEMPO_ZONE_THRESHOLD: f32 = 30.0;
+
+        /// Zone threshold for threshold classification (percentage)
+        /// Activities with more than this percentage in Zone 4 are considered threshold-focused
+        pub const THRESHOLD_ZONE_THRESHOLD: f32 = 30.0;
+
         /// Demo consistency score for testing and examples
         pub const DEMO_CONSISTENCY_SCORE: f32 = 85.0;
+    }
+
+    /// Efficiency calculation multipliers and factors
+    pub mod efficiency_calculation {
+        /// Heart rate efficiency multiplier for efficiency score calculation
+        /// Used to scale heart rate efficiency contribution to overall efficiency
+        pub const HR_EFFICIENCY_MULTIPLIER: f32 = 10.0;
+
+        /// Consistency multiplier for efficiency score calculation
+        /// Used to scale consistency factor contribution to overall efficiency
+        pub const CONSISTENCY_MULTIPLIER: f32 = 20.0;
     }
 }

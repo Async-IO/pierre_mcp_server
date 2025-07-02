@@ -16,7 +16,7 @@ use crate::intelligence::physiological_constants::{
     efficiency_defaults::*,
     performance_calculation::*,
     personal_records::*,
-    zone_distributions::{zone_analysis_thresholds::*, *},
+    zone_distributions::{efficiency_calculation::*, zone_analysis_thresholds::*, *},
 };
 use crate::models::{Activity, SportType};
 use chrono::{DateTime, Local, Timelike, Utc};
@@ -230,14 +230,14 @@ impl ActivityAnalyzer {
         {
             let pace_per_km = PACE_PER_KM_FACTOR / avg_speed as f32;
             let hr_efficiency = HR_EFFICIENCY_FACTOR / (avg_hr as f32 * pace_per_km);
-            efficiency += hr_efficiency * 10.0;
+            efficiency += hr_efficiency * HR_EFFICIENCY_MULTIPLIER;
         }
 
         // Consistency factor (mock calculation)
         if activity.average_speed.is_some() && activity.max_speed.is_some() {
             let speed_variance = activity.max_speed.unwrap() - activity.average_speed.unwrap();
             let consistency = 1.0 - (speed_variance / activity.max_speed.unwrap()).min(1.0) as f32;
-            efficiency += consistency * 20.0;
+            efficiency += consistency * CONSISTENCY_MULTIPLIER;
         }
 
         efficiency.clamp(0.0, 100.0)
@@ -348,9 +348,9 @@ impl ActivityAnalyzer {
         let zone_desc = if let Some(zones) = &performance.zone_distribution {
             if zones.zone2_endurance > SIGNIFICANT_ENDURANCE_ZONE_THRESHOLD {
                 "endurance zones"
-            } else if zones.zone4_threshold > 30.0 {
+            } else if zones.zone4_threshold > THRESHOLD_ZONE_THRESHOLD {
                 "threshold zones"
-            } else if zones.zone3_tempo > 30.0 {
+            } else if zones.zone3_tempo > TEMPO_ZONE_THRESHOLD {
                 "tempo zones"
             } else {
                 "mixed training zones"
