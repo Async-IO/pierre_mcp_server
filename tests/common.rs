@@ -13,11 +13,34 @@ use pierre_mcp_server::{
     database_plugins::{factory::Database, DatabaseProvider},
     models::{User, UserTier},
 };
-use std::sync::Arc;
+use std::sync::{Arc, Once};
 use uuid::Uuid;
+
+static INIT_LOGGER: Once = Once::new();
+
+/// Initialize quiet logging for tests (call once per test process)
+pub fn init_test_logging() {
+    INIT_LOGGER.call_once(|| {
+        // Check for TEST_LOG environment variable to control test logging level
+        let log_level = match std::env::var("TEST_LOG").as_deref() {
+            Ok("TRACE") => tracing::Level::TRACE,
+            Ok("DEBUG") => tracing::Level::DEBUG,
+            Ok("INFO") => tracing::Level::INFO,
+            Ok("WARN") => tracing::Level::WARN,
+            Ok("ERROR") => tracing::Level::ERROR,
+            _ => tracing::Level::WARN, // Default to WARN for quiet tests
+        };
+
+        tracing_subscriber::fmt()
+            .with_max_level(log_level)
+            .with_test_writer()
+            .init();
+    });
+}
 
 /// Standard test database setup
 pub async fn create_test_database() -> Result<Arc<Database>> {
+    init_test_logging();
     let database_url = "sqlite::memory:";
     let encryption_key = generate_encryption_key().to_vec();
     let database = Arc::new(Database::new(database_url, encryption_key).await?);
@@ -26,6 +49,7 @@ pub async fn create_test_database() -> Result<Arc<Database>> {
 
 /// Standard test database setup with custom encryption key
 pub async fn create_test_database_with_key(encryption_key: Vec<u8>) -> Result<Arc<Database>> {
+    init_test_logging();
     let database_url = "sqlite::memory:";
     let database = Arc::new(Database::new(database_url, encryption_key).await?);
     Ok(database)
