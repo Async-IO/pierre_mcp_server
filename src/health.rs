@@ -319,7 +319,11 @@ impl HealthChecker {
 
         // Check Strava API
         total_apis += 1;
-        if let Ok(response) = client.get("https://www.strava.com/api/v3").send().await {
+        if let Ok(response) = client
+            .get(crate::constants::env_config::strava_api_base())
+            .send()
+            .await
+        {
             if response.status().is_success() || response.status().as_u16() == 401 {
                 // 401 is expected without auth
                 healthy_apis += 1;

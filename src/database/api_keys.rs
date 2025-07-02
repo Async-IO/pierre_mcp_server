@@ -526,7 +526,7 @@ mod tests {
             response_time_ms: Some(50),
             request_size_bytes: Some(256),
             response_size_bytes: Some(1024),
-            ip_address: Some("127.0.0.1".to_string()),
+            ip_address: Some(crate::constants::demo_data::TEST_IP_ADDRESS.to_string()),
             user_agent: Some("TestAgent/1.0".to_string()),
             error_message: None,
         };

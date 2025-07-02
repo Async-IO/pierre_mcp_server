@@ -109,6 +109,26 @@ pub mod env_config {
         })
     }
 
+    /// Get Fitbit client ID from environment
+    pub fn fitbit_client_id() -> Option<String> {
+        env::var("FITBIT_CLIENT_ID").ok()
+    }
+
+    /// Get Fitbit client secret from environment
+    pub fn fitbit_client_secret() -> Option<String> {
+        env::var("FITBIT_CLIENT_SECRET").ok()
+    }
+
+    /// Get Fitbit redirect URI from environment or default
+    pub fn fitbit_redirect_uri() -> String {
+        env::var("FITBIT_REDIRECT_URI").unwrap_or_else(|_| {
+            format!(
+                "http://localhost:{}/oauth/callback/fitbit",
+                crate::constants::ports::DEFAULT_HTTP_PORT
+            )
+        })
+    }
+
     /// Get OpenWeather API key from environment
     pub fn openweather_api_key() -> Option<String> {
         env::var("OPENWEATHER_API_KEY").ok()
@@ -142,6 +162,30 @@ pub mod env_config {
             .unwrap_or_else(|_| "100".to_string())
             .parse()
             .unwrap_or(100)
+    }
+
+    /// Get Fitbit auth URL from environment or default
+    pub fn fitbit_auth_url() -> String {
+        env::var("FITBIT_AUTH_URL")
+            .unwrap_or_else(|_| "https://www.fitbit.com/oauth2/authorize".to_string())
+    }
+
+    /// Get Fitbit token URL from environment or default
+    pub fn fitbit_token_url() -> String {
+        env::var("FITBIT_TOKEN_URL")
+            .unwrap_or_else(|_| "https://api.fitbit.com/oauth2/token".to_string())
+    }
+
+    /// Get Strava deauthorize URL from environment or default
+    pub fn strava_deauthorize_url() -> String {
+        env::var("STRAVA_DEAUTHORIZE_URL")
+            .unwrap_or_else(|_| "https://www.strava.com/oauth/deauthorize".to_string())
+    }
+
+    /// Get Fitbit revoke URL from environment or default
+    pub fn fitbit_revoke_url() -> String {
+        env::var("FITBIT_REVOKE_URL")
+            .unwrap_or_else(|_| "https://api.fitbit.com/oauth2/revoke".to_string())
     }
 
     /// Get default activities limit from environment or default
@@ -528,4 +572,7 @@ pub mod demo_data {
 
     /// Demo consistency score for examples and testing
     pub const DEMO_CONSISTENCY_SCORE: f64 = 88.0;
+
+    /// Test IP address for demos and tests
+    pub const TEST_IP_ADDRESS: &str = "127.0.0.1";
 }

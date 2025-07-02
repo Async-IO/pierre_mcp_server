@@ -560,14 +560,7 @@ impl OAuthRoutes {
             .or_else(|_| std::env::var("fitbit_client_secret"))
             .unwrap_or_else(|_| "YOUR_FITBIT_CLIENT_SECRET".to_string());
 
-        let redirect_uri = std::env::var("FITBIT_REDIRECT_URI")
-            .or_else(|_| std::env::var("fitbit_redirect_uri"))
-            .unwrap_or_else(|_| {
-                format!(
-                    "http://localhost:{}/oauth/callback/fitbit",
-                    crate::constants::ports::DEFAULT_HTTP_PORT
-                )
-            });
+        let redirect_uri = crate::constants::env_config::fitbit_redirect_uri();
 
         let params = [
             ("client_id", client_id.as_str()),

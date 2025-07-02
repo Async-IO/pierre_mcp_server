@@ -1069,7 +1069,7 @@ mod tests {
             response_time_ms: Some(100),
             status_code: 200,
             error_message: None,
-            ip_address: Some("127.0.0.1".to_string()),
+            ip_address: Some(crate::constants::demo_data::TEST_IP_ADDRESS.to_string()),
             user_agent: Some("test-agent".to_string()),
             protocol_version: "1.0".to_string(),
             client_capabilities: vec!["analysis".to_string()],
