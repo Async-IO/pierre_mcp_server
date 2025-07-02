@@ -146,19 +146,34 @@ async fn test_strava_provider_legacy_constructor_missing_env() -> Result<()> {
 #[tokio::test]
 #[allow(deprecated)]
 async fn test_strava_provider_legacy_constructor_success() -> Result<()> {
-    // Set environment variables
+    // Save original values if they exist
+    let original_client_id = std::env::var("STRAVA_CLIENT_ID").ok();
+    let original_client_secret = std::env::var("STRAVA_CLIENT_SECRET").ok();
+    let original_redirect_uri = std::env::var("STRAVA_REDIRECT_URI").ok();
+
+    // Set environment variables for this test
     std::env::set_var("STRAVA_CLIENT_ID", "test_env_client_id");
     std::env::set_var("STRAVA_CLIENT_SECRET", "test_env_client_secret");
     std::env::set_var("STRAVA_REDIRECT_URI", "http://test.example.com/callback");
 
-    let provider = StravaOAuthProvider::new()?;
+    let result = StravaOAuthProvider::new();
 
+    // Restore original environment variables or remove if they didn't exist
+    match original_client_id {
+        Some(val) => std::env::set_var("STRAVA_CLIENT_ID", val),
+        None => std::env::remove_var("STRAVA_CLIENT_ID"),
+    }
+    match original_client_secret {
+        Some(val) => std::env::set_var("STRAVA_CLIENT_SECRET", val),
+        None => std::env::remove_var("STRAVA_CLIENT_SECRET"),
+    }
+    match original_redirect_uri {
+        Some(val) => std::env::set_var("STRAVA_REDIRECT_URI", val),
+        None => std::env::remove_var("STRAVA_REDIRECT_URI"),
+    }
+
+    let provider = result?;
     assert_eq!(provider.name(), "strava");
-
-    // Clean up
-    std::env::remove_var("STRAVA_CLIENT_ID");
-    std::env::remove_var("STRAVA_CLIENT_SECRET");
-    std::env::remove_var("STRAVA_REDIRECT_URI");
 
     Ok(())
 }
@@ -330,7 +345,12 @@ async fn test_fitbit_provider_legacy_constructor_missing_env() -> Result<()> {
 #[tokio::test]
 #[allow(deprecated)]
 async fn test_fitbit_provider_legacy_constructor_success() -> Result<()> {
-    // Set environment variables
+    // Save original values if they exist
+    let original_client_id = std::env::var("FITBIT_CLIENT_ID").ok();
+    let original_client_secret = std::env::var("FITBIT_CLIENT_SECRET").ok();
+    let original_redirect_uri = std::env::var("FITBIT_REDIRECT_URI").ok();
+
+    // Set environment variables for this test
     std::env::set_var("FITBIT_CLIENT_ID", "test_fitbit_env_client_id");
     std::env::set_var("FITBIT_CLIENT_SECRET", "test_fitbit_env_client_secret");
     std::env::set_var(
@@ -338,14 +358,24 @@ async fn test_fitbit_provider_legacy_constructor_success() -> Result<()> {
         "http://test.example.com/fitbit/callback",
     );
 
-    let provider = FitbitOAuthProvider::new()?;
+    let result = FitbitOAuthProvider::new();
 
+    // Restore original environment variables or remove if they didn't exist
+    match original_client_id {
+        Some(val) => std::env::set_var("FITBIT_CLIENT_ID", val),
+        None => std::env::remove_var("FITBIT_CLIENT_ID"),
+    }
+    match original_client_secret {
+        Some(val) => std::env::set_var("FITBIT_CLIENT_SECRET", val),
+        None => std::env::remove_var("FITBIT_CLIENT_SECRET"),
+    }
+    match original_redirect_uri {
+        Some(val) => std::env::set_var("FITBIT_REDIRECT_URI", val),
+        None => std::env::remove_var("FITBIT_REDIRECT_URI"),
+    }
+
+    let provider = result?;
     assert_eq!(provider.name(), "fitbit");
-
-    // Clean up
-    std::env::remove_var("FITBIT_CLIENT_ID");
-    std::env::remove_var("FITBIT_CLIENT_SECRET");
-    std::env::remove_var("FITBIT_REDIRECT_URI");
 
     Ok(())
 }
