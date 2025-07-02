@@ -127,10 +127,17 @@ impl ProviderManager {
             None => ConnectionStatus::Disconnected,
         };
 
+        // Get last sync timestamp
+        let last_sync = self
+            .database
+            .get_provider_last_sync(user_id, &provider_type.to_string())
+            .await
+            .unwrap_or(None);
+
         Ok(ProviderInfo {
             provider_type,
             status,
-            last_sync: None, // TODO: Track sync timestamps
+            last_sync,
             data_available: matches!(status, ConnectionStatus::Connected { .. }),
         })
     }
@@ -278,6 +285,20 @@ impl ProviderManager {
             "disconnected": providers.len() - connected_count - expired_count,
             "providers": providers,
         }))
+    }
+
+    /// Update sync timestamp for a provider after successful data fetch
+    pub async fn update_sync_timestamp(
+        &self,
+        user_id: Uuid,
+        provider_type: ProviderType,
+    ) -> Result<(), AppError> {
+        let sync_time = chrono::Utc::now();
+        self.database
+            .update_provider_last_sync(user_id, &provider_type.to_string(), sync_time)
+            .await
+            .map_err(|e| AppError::internal_error(format!("Failed to update sync timestamp: {}", e)))?;
+        Ok(())
     }
 }
 

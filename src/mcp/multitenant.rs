@@ -12,12 +12,10 @@
 use crate::a2a_routes::A2ARoutes;
 use crate::api_key_routes::ApiKeyRoutes;
 use crate::auth::{AuthManager, AuthResult, McpAuthMiddleware};
-use crate::config::FitnessConfig;
 use crate::constants::{errors::*, json_fields::*, protocol, protocol::*, tools::*};
 use crate::dashboard_routes::DashboardRoutes;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::intelligence::insights::ActivityContext;
-use crate::intelligence::weather::WeatherService;
 use crate::intelligence::ActivityAnalyzer;
 use crate::mcp::schema::InitializeResponse;
 use crate::models::AuthRequest;
@@ -1731,7 +1729,7 @@ impl MultiTenantMcpServer {
             },
             GET_ACTIVITY_INTELLIGENCE => {
                 let activity_id = args[ACTIVITY_ID].as_str().unwrap_or("");
-                let include_weather = args["include_weather"].as_bool().unwrap_or(true);
+                let _include_weather = args["include_weather"].as_bool().unwrap_or(true);
                 let include_location = args["include_location"].as_bool().unwrap_or(true);
 
                 // Get activities from provider
@@ -1741,30 +1739,8 @@ impl MultiTenantMcpServer {
                             // Create activity analyzer
                             let analyzer = ActivityAnalyzer::new();
 
-                            // Create activity context with weather and location data if requested
-                            let context = if include_weather || include_location {
-                                // Load weather configuration
-                                let fitness_config = FitnessConfig::load(None).unwrap_or_default();
-
-                                // Get weather data if requested
-                                let weather = if include_weather {
-                                    let weather_config =
-                                        fitness_config.weather_api.unwrap_or_default();
-                                    let mut weather_service =
-                                        WeatherService::new(weather_config, None);
-
-                                    weather_service
-                                        .get_weather_for_activity(
-                                            activity.start_latitude,
-                                            activity.start_longitude,
-                                            activity.start_date,
-                                        )
-                                        .await
-                                        .unwrap_or(None)
-                                } else {
-                                    None
-                                };
-
+                            // Create activity context with location data if requested
+                            let context = if include_location {
                                 // Get location data if requested
                                 let location = if include_location
                                     && activity.start_latitude.is_some()
@@ -1800,11 +1776,8 @@ impl MultiTenantMcpServer {
                                 };
 
                                 Some(ActivityContext {
-                                    weather,
                                     location,
                                     recent_activities: None,
-                                    athlete_goals: None,
-                                    historical_data: None,
                                 })
                             } else {
                                 None
