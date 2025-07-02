@@ -166,13 +166,15 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
             * 4) as usize;
 
         let consistency_score = if recent_activities.len() >= high_freq {
-            1.0
+            self.config.thresholds.consistency_threshold
         } else if recent_activities.len() >= ideal_freq {
-            0.75
+            self.config.thresholds.consistency_threshold * self.config.weights.frequency_weight
+                / self.config.weights.distance_weight
         } else if recent_activities.len() >= low_freq {
-            0.5
+            self.config.thresholds.pace_improvement_threshold
+                * (self.config.weights.frequency_weight + self.config.weights.consistency_weight)
         } else {
-            0.25
+            self.config.thresholds.pace_improvement_threshold
         };
 
         TrainingPatternAnalysis {
@@ -255,10 +257,15 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
         analysis: &TrainingPatternAnalysis,
     ) -> Vec<TrainingRecommendation> {
         let mut recommendations = Vec::new();
-        
+
         // Use strategy to determine if volume increase is recommended
-        let current_volume_km = analysis.weekly_load_hours * 10.0; // Rough conversion to km per week
-        if self.strategy.should_recommend_volume_increase(current_volume_km) {
+        // Use config thresholds for conversion factor
+        let conversion_factor = self.config.thresholds.volume_increase_threshold * 100.0; // Use volume_increase_threshold as conversion basis
+        let current_volume_km = analysis.weekly_load_hours * conversion_factor;
+        if self
+            .strategy
+            .should_recommend_volume_increase(current_volume_km)
+        {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Volume,
                 title: "Strategy-Based Volume Increase".to_string(),
@@ -273,9 +280,11 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
                 ],
             });
         }
-        
+
         // Use strategy frequency thresholds
-        let weekly_activities = (analysis.weekly_load_hours / 1.0).ceil() as i32; // Estimate activities per week
+        // Estimate weekly activities based on intensity threshold
+        let weekly_activities =
+            (analysis.weekly_load_hours / self.config.thresholds.intensity_threshold).ceil() as i32;
         if self.strategy.should_recommend_recovery(weekly_activities) {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Recovery,
@@ -291,17 +300,17 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
                 ],
             });
         }
-        
+
         recommendations
     }
-    
+
     /// Generate sport diversity recommendations using sport_diversity and primary_sport fields
     fn generate_sport_diversity_recommendations(
         &self,
         analysis: &TrainingPatternAnalysis,
     ) -> Vec<TrainingRecommendation> {
         let mut recommendations = Vec::new();
-        
+
         // Check sport diversity - if low, recommend cross-training
         if analysis.sport_diversity <= 1 {
             recommendations.push(TrainingRecommendation {
@@ -332,7 +341,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
                 ],
             });
         }
-        
+
         recommendations
     }
 
@@ -450,7 +459,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
                             InsightSeverity::Info => RecommendationPriority::Medium,
                             _ => RecommendationPriority::Low,
                         };
-                        
+
                         recommendations.push(TrainingRecommendation {
                             recommendation_type: RecommendationType::Strategy,
                             title: "Avoid Long Training Breaks".to_string(),
@@ -473,7 +482,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
                         InsightSeverity::Info => RecommendationPriority::Low,
                         _ => RecommendationPriority::Low,
                     };
-                    
+
                     recommendations.push(TrainingRecommendation {
                         recommendation_type: RecommendationType::Strategy,
                         title: "Include Cross-Training".to_string(),
@@ -511,10 +520,10 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
         recommendations.extend(self.generate_intensity_recommendations(&analysis));
         recommendations.extend(self.generate_volume_recommendations(&analysis));
         recommendations.extend(self.generate_consistency_recommendations(&analysis));
-        
+
         // Add strategy-specific recommendations using the strategy field
         recommendations.extend(self.generate_strategy_based_recommendations(&analysis));
-        
+
         // Add sport diversity recommendations using sport_diversity and primary_sport fields
         recommendations.extend(self.generate_sport_diversity_recommendations(&analysis));
 
