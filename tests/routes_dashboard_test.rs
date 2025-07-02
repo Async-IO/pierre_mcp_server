@@ -957,14 +957,19 @@ async fn test_dashboard_data_consistency() -> Result<()> {
     // Number of API keys should be consistent
     assert_eq!(overview.total_api_keys, rate_limits.len() as u32);
 
-    // Get request stats for comparison
-    let stats = setup
-        .dashboard_routes
-        .get_request_stats(Some(&setup.auth_header()), None, Some("30d"))
-        .await?;
+    // Get request stats for current month comparison
+    // Note: We cannot directly compare "this month" with "30d" as they are different time periods
+    // "this month" = from 1st of current month to now
+    // "30d" = from 30 days ago to now
+    // Instead, we verify that the overview data is internally consistent
 
-    // Monthly requests should be consistent
-    assert_eq!(overview.total_requests_this_month, stats.total_requests);
+    // Verify tier usage adds up to total monthly requests
+    let tier_total: u64 = overview
+        .current_month_usage_by_tier
+        .iter()
+        .map(|tier| tier.total_requests)
+        .sum();
+    assert_eq!(overview.total_requests_this_month, tier_total);
 
     Ok(())
 }
