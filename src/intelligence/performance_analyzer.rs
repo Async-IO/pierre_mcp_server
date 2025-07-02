@@ -5,8 +5,8 @@ use crate::config::intelligence_config::{
     IntelligenceConfig, IntelligenceStrategy, PerformanceAnalyzerConfig,
 };
 use crate::intelligence::physiological_constants::{
-    adaptations::*, duration::*, fitness_score_thresholds::*, fitness_weights::*, heart_rate::*,
-    performance::*, statistics::*, training_load::*,
+    adaptations::*, duration::*, fitness_weights::*, heart_rate::*, performance::*, statistics::*,
+    training_load::*,
 };
 use crate::models::Activity;
 use anyhow::Result;

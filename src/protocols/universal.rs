@@ -17,6 +17,10 @@ use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::intelligence::analyzer::ActivityAnalyzer;
 use crate::intelligence::goal_engine::GoalEngineTrait;
 use crate::intelligence::performance_analyzer::PerformanceAnalyzerTrait;
+use crate::intelligence::physiological_constants::{
+    api_limits::*, demo_data::*, efficiency_defaults::*, fitness_score_thresholds::*,
+    goal_feasibility::*, hr_estimation::*,
+};
 use crate::intelligence::recommendation_engine::RecommendationEngineTrait;
 use crate::intelligence::ActivityIntelligence;
 use crate::models::Activity;
@@ -669,7 +673,10 @@ impl UniversalToolExecutor {
                             match provider.authenticate(auth_data).await {
                                 Ok(()) => {
                                     // Get all activities and find the specific one
-                                    match provider.get_activities(Some(100), None).await {
+                                    match provider
+                                        .get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None)
+                                        .await
+                                    {
                                         Ok(activities) => {
                                             activities.into_iter().find(|a| a.id == activity_id)
                                         }
@@ -698,15 +705,15 @@ impl UniversalToolExecutor {
                         let speed_ms = distance / activity.duration_seconds as f64;
                         (speed_ms * 100.0).clamp(0.0, 100.0)
                     } else {
-                        50.0
+                        DEFAULT_EFFICIENCY_SCORE
                     }
                 } else {
-                    50.0
+                    DEFAULT_EFFICIENCY_SCORE
                 };
 
                 let relative_effort = activity
                     .average_heart_rate
-                    .map(|hr| (hr as f64 / 180.0) * 10.0)
+                    .map(|hr| (hr as f64 / ASSUMED_MAX_HR) * 10.0)
                     .unwrap_or(5.0);
 
                 let result = serde_json::json!({
@@ -1226,13 +1233,13 @@ impl UniversalToolExecutor {
         };
 
         let intensity_score = heart_rate
-            .map(|hr| (hr as f64 / 180.0) * 100.0)
-            .unwrap_or(50.0);
+            .map(|hr| (hr as f64 / ASSUMED_MAX_HR) * 100.0)
+            .unwrap_or(DEFAULT_EFFICIENCY_SCORE);
 
         let efficiency_score = if distance > 0.0 && elevation_gain > 0.0 {
             (distance / elevation_gain).min(100.0)
         } else {
-            75.0
+            DEFAULT_EFFICIENCY_WITH_DISTANCE
         };
 
         Ok(UniversalResponse {
@@ -1310,8 +1317,9 @@ impl UniversalToolExecutor {
                     };
 
                     if let Ok(()) = provider.authenticate(auth_data).await {
-                        if let Ok(provider_activities) =
-                            provider.get_activities(Some(200), None).await
+                        if let Ok(provider_activities) = provider
+                            .get_activities(Some(LARGE_ACTIVITY_LIMIT), None)
+                            .await
                         {
                             activities = provider_activities;
                         }
@@ -1424,7 +1432,10 @@ impl UniversalToolExecutor {
 
                     if let Ok(()) = provider.authenticate(auth_data).await {
                         // Get activities
-                        if let Ok(activities) = provider.get_activities(Some(100), None).await {
+                        if let Ok(activities) = provider
+                            .get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None)
+                            .await
+                        {
                             activity1 = activities.iter().find(|a| a.id == activity_id1).cloned();
                             activity2 = activities.iter().find(|a| a.id == activity_id2).cloned();
                         }
@@ -1511,8 +1522,9 @@ impl UniversalToolExecutor {
                     };
 
                     if let Ok(()) = provider.authenticate(auth_data).await {
-                        if let Ok(provider_activities) =
-                            provider.get_activities(Some(300), None).await
+                        if let Ok(provider_activities) = provider
+                            .get_activities(Some(MAX_ACTIVITY_LIMIT), None)
+                            .await
                         {
                             activities = provider_activities;
                         }
@@ -1609,8 +1621,9 @@ impl UniversalToolExecutor {
                     };
 
                     if let Ok(()) = provider.authenticate(auth_data).await {
-                        if let Ok(provider_activities) =
-                            provider.get_activities(Some(100), None).await
+                        if let Ok(provider_activities) = provider
+                            .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
+                            .await
                         {
                             activities = provider_activities;
                         }
@@ -1630,7 +1643,7 @@ impl UniversalToolExecutor {
         let total_duration: u64 = activities.iter().map(|a| a.duration_seconds).sum();
 
         // Mock goal data (in a real implementation, this would be fetched from database)
-        let goal_target = 1000.0; // 1000 km
+        let goal_target = DEMO_GOAL_DISTANCE; // 1000 km
         let progress_percentage = (total_distance / goal_target) * 100.0;
 
         Ok(UniversalResponse {
@@ -1640,7 +1653,7 @@ impl UniversalToolExecutor {
                 "current_value": total_distance,
                 "target_value": goal_target,
                 "progress_percentage": progress_percentage,
-                "on_track": progress_percentage >= 50.0, // Simple heuristic
+                "on_track": progress_percentage >= SIMPLE_PROGRESS_THRESHOLD, // Simple heuristic
                 "days_remaining": 90, // Mock value
                 "projected_completion": if progress_percentage > 0.0 {
                     Some((goal_target / total_distance) * 90.0)
@@ -1681,8 +1694,9 @@ impl UniversalToolExecutor {
                     };
 
                     if let Ok(()) = provider.authenticate(auth_data).await {
-                        if let Ok(provider_activities) =
-                            provider.get_activities(Some(50), None).await
+                        if let Ok(provider_activities) = provider
+                            .get_activities(Some(SMALL_ACTIVITY_LIMIT), None)
+                            .await
                         {
                             activities = provider_activities;
                         }
@@ -1817,8 +1831,9 @@ impl UniversalToolExecutor {
                     };
 
                     if let Ok(()) = provider.authenticate(auth_data).await {
-                        if let Ok(provider_activities) =
-                            provider.get_activities(Some(100), None).await
+                        if let Ok(provider_activities) = provider
+                            .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
+                            .await
                         {
                             activities = provider_activities;
                         }
@@ -1866,8 +1881,12 @@ impl UniversalToolExecutor {
         };
 
         // Mock goal feasibility analysis since the method doesn't exist
-        let feasibility_score = if target_value > 0.0 { 75.0 } else { 0.0 };
-        let feasible = feasibility_score > 50.0;
+        let feasibility_score = if target_value > 0.0 {
+            HIGH_FEASIBILITY_THRESHOLD
+        } else {
+            0.0
+        };
+        let feasible = feasibility_score > MODERATE_FEASIBILITY_THRESHOLD;
 
         Ok(UniversalResponse {
             success: true,
@@ -1914,8 +1933,9 @@ impl UniversalToolExecutor {
                     };
 
                     if let Ok(()) = provider.authenticate(auth_data).await {
-                        if let Ok(provider_activities) =
-                            provider.get_activities(Some(100), None).await
+                        if let Ok(provider_activities) = provider
+                            .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
+                            .await
                         {
                             activities = provider_activities;
                         }
@@ -2026,8 +2046,9 @@ impl UniversalToolExecutor {
                     };
 
                     if let Ok(()) = provider.authenticate(auth_data).await {
-                        if let Ok(provider_activities) =
-                            provider.get_activities(Some(50), None).await
+                        if let Ok(provider_activities) = provider
+                            .get_activities(Some(SMALL_ACTIVITY_LIMIT), None)
+                            .await
                         {
                             activities = provider_activities;
                         }
@@ -2095,10 +2116,10 @@ impl UniversalToolExecutor {
                     "total_activities": activities.len()
                 },
                 "fitness_level": match fitness_score {
-                    score if score >= 80.0 => "Excellent",
-                    score if score >= 60.0 => "Good",
-                    score if score >= 40.0 => "Moderate",
-                    score if score >= 20.0 => "Beginner",
+                    score if score >= EXCELLENT_FITNESS_THRESHOLD => "Excellent",
+                    score if score >= GOOD_FITNESS_THRESHOLD => "Good",
+                    score if score >= MODERATE_FITNESS_THRESHOLD => "Moderate",
+                    score if score >= BEGINNER_FITNESS_THRESHOLD => "Beginner",
                     _ => "Just Starting"
                 },
                 "percentile": (fitness_score).min(99.0), // Simplified percentile
@@ -2168,8 +2189,9 @@ impl UniversalToolExecutor {
                     };
 
                     if let Ok(()) = provider.authenticate(auth_data).await {
-                        if let Ok(provider_activities) =
-                            provider.get_activities(Some(100), None).await
+                        if let Ok(provider_activities) = provider
+                            .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
+                            .await
                         {
                             activities = provider_activities;
                         }
@@ -2296,8 +2318,9 @@ impl UniversalToolExecutor {
                     };
 
                     if let Ok(()) = provider.authenticate(auth_data).await {
-                        if let Ok(provider_activities) =
-                            provider.get_activities(Some(100), None).await
+                        if let Ok(provider_activities) = provider
+                            .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
+                            .await
                         {
                             activities = provider_activities;
                         }

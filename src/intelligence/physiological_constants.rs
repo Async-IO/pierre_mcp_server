@@ -8,7 +8,7 @@
 ///
 /// References:
 /// - American College of Sports Medicine (ACSM) Guidelines for Exercise Testing and Prescription, 11th Edition
-/// - https://www.acsm.org/education-resources/books/guidelines-exercise-testing-prescription
+/// - <https://www.acsm.org/education-resources/books/guidelines-exercise-testing-prescription>
 pub mod heart_rate {
     /// Anaerobic threshold as percentage of heart rate reserve
     /// Above this threshold, the body relies primarily on anaerobic metabolism
@@ -29,12 +29,12 @@ pub mod heart_rate {
 
     /// Moderate intensity heart rate threshold
     /// Reference: ACSM position stand on exercise intensity (2011)
-    /// https://journals.lww.com/acsm-msse/Fulltext/2011/07000/Quantity_and_Quality_of_Exercise_for_Developing.26.aspx
+    /// <https://journals.lww.com/acsm-msse/Fulltext/2011/07000/Quantity_and_Quality_of_Exercise_for_Developing.26.aspx>
     pub const MODERATE_HR_THRESHOLD: u32 = 140;
 
     /// High intensity heart rate threshold
     /// Reference: Seiler, S. (2010). What is best practice for training intensity distribution?
-    /// https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2914523/
+    /// <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2914523/>
     pub const HIGH_INTENSITY_HR_THRESHOLD: u32 = 160;
 
     /// Very high intensity heart rate threshold
@@ -44,7 +44,7 @@ pub mod heart_rate {
     /// Maximum realistic heart rate (safety limit)
     /// Based on Fox formula upper bound with safety margin
     /// Reference: Tanaka, H., Monahan, K.D., & Seals, D.R. (2001). Age-predicted maximal heart rate revisited
-    /// https://pubmed.ncbi.nlm.nih.gov/11153730/
+    /// <https://pubmed.ncbi.nlm.nih.gov/11153730/>
     pub const MAX_REALISTIC_HEART_RATE: u32 = 220;
 }
 
@@ -52,7 +52,7 @@ pub mod heart_rate {
 ///
 /// References:
 /// - Coggan, A. & Allen, H. (2010). Training and Racing with a Power Meter
-/// - https://www.trainingpeaks.com/learn/articles/power-profiling/
+/// - <https://www.trainingpeaks.com/learn/articles/power-profiling/>
 pub mod power {
     /// Elite level power-to-weight ratio (W/kg)
     /// Professional/elite cyclists typically exceed this threshold
@@ -71,12 +71,12 @@ pub mod power {
 ///
 /// References:
 /// - Halson, S.L. (2014). Monitoring training load to understand fatigue in athletes
-/// - https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4213373/
+/// - <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4213373/>
 pub mod training_load {
     /// Weekly training load increase that triggers recovery need
     /// Based on acute:chronic workload ratio research
     /// Reference: Gabbett, T.J. (2016). The training-injury prevention paradox
-    /// https://bjsm.bmj.com/content/50/5/273
+    /// <https://bjsm.bmj.com/content/50/5/273>
     pub const RECOVERY_LOAD_MULTIPLIER: f64 = 1.3;
 
     /// Two-week combined load threshold for recovery
@@ -93,7 +93,7 @@ pub mod training_load {
 ///
 /// References:
 /// - ACSM Position Stand on Exercise Duration (2018)
-/// - https://www.acsm.org/education-resources/trending-topics-resources/physical-activity-guidelines
+/// - <https://www.acsm.org/education-resources/trending-topics-resources/physical-activity-guidelines>
 pub mod duration {
     /// Minimum duration for aerobic benefits (seconds)
     /// Reference: ACSM Guidelines recommend minimum 30 minutes
@@ -112,7 +112,7 @@ pub mod duration {
 ///
 /// References:
 /// - Hopkins, W.G. (2004). How to interpret changes in an athletic performance test
-/// - https://www.sportsci.org/jour/04/wghtests.htm
+/// - <https://www.sportsci.org/jour/04/wghtests.htm>
 pub mod performance {
     /// Meaningful pace improvement threshold (percentage)
     /// Based on smallest worthwhile change in endurance performance
@@ -173,7 +173,7 @@ pub mod fitness_weights {
 /// Training adaptation factors
 ///
 /// Reference: Busso, T. (2003). Variable dose-response relationship
-/// https://pubmed.ncbi.nlm.nih.gov/12627304/
+/// <https://pubmed.ncbi.nlm.nih.gov/12627304/>
 pub mod adaptations {
     /// Performance improvement factor for high training volume (>20 sessions)
     pub const HIGH_VOLUME_IMPROVEMENT_FACTOR: f64 = 1.1; // 10% improvement
@@ -200,7 +200,7 @@ pub mod statistics {
 /// Aerobic efficiency thresholds
 ///
 /// Reference: Lucia, A., Hoyos, J., & Chicharro, J.L. (2001). Physiological response to professional road cycling
-/// https://pubmed.ncbi.nlm.nih.gov/11474337/
+/// <https://pubmed.ncbi.nlm.nih.gov/11474337/>
 pub mod efficiency {
     /// Excellent aerobic efficiency threshold (speed/HR ratio)
     pub const EXCELLENT_AEROBIC_EFFICIENCY: f64 = 0.1;
@@ -487,4 +487,152 @@ pub mod fitness_score_thresholds {
 
     /// Fitness calculation divisor for strength endurance
     pub const STRENGTH_ENDURANCE_DIVISOR: f64 = 5.0;
+
+    /// Fitness score classification thresholds
+    /// Reference: General fitness assessment standards
+    ///
+    /// Excellent fitness level threshold (80%+)
+    pub const EXCELLENT_FITNESS_THRESHOLD: f64 = 80.0;
+
+    /// Good fitness level threshold (60%+)
+    pub const GOOD_FITNESS_THRESHOLD: f64 = 60.0;
+
+    /// Moderate fitness level threshold (40%+)
+    pub const MODERATE_FITNESS_THRESHOLD: f64 = 40.0;
+
+    /// Beginner fitness level threshold (20%+)
+    pub const BEGINNER_FITNESS_THRESHOLD: f64 = 20.0;
+
+    /// Performance classification thresholds
+    ///
+    /// Excellent performance threshold (90%+)
+    pub const EXCELLENT_PERFORMANCE_THRESHOLD: f64 = 0.90;
+
+    /// Good performance threshold (70%+)
+    pub const GOOD_PERFORMANCE_THRESHOLD: f64 = 0.70;
+
+    /// Moderate performance threshold (40%+)
+    pub const MODERATE_PERFORMANCE_THRESHOLD: f64 = 0.40;
+}
+
+/// Efficiency calculation defaults and factors
+///
+/// Reference: Exercise physiology efficiency metrics
+pub mod efficiency_defaults {
+    /// Default efficiency score when no data available
+    pub const DEFAULT_EFFICIENCY_SCORE: f64 = 50.0;
+
+    /// Default efficiency when distance available but no elevation
+    pub const DEFAULT_EFFICIENCY_WITH_DISTANCE: f64 = 75.0;
+
+    /// Base efficiency score for activity scoring
+    pub const BASE_EFFICIENCY_SCORE: f32 = 50.0;
+
+    /// Pace per kilometer conversion factor
+    pub const PACE_PER_KM_FACTOR: f32 = 1000.0;
+
+    /// Heart rate efficiency calculation factor
+    pub const HR_EFFICIENCY_FACTOR: f32 = 1000.0;
+}
+
+/// Activity scoring system constants
+///
+/// Reference: Activity assessment and scoring methodology
+pub mod activity_scoring {
+    /// Base score for completing an activity
+    pub const BASE_ACTIVITY_SCORE: f64 = 5.0;
+
+    /// Completion bonus points
+    pub const COMPLETION_BONUS: f64 = 1.0;
+
+    /// Standard bonus increment
+    pub const STANDARD_BONUS: f64 = 0.5;
+
+    /// Heart rate zone bonus
+    pub const HR_ZONE_BONUS: f64 = 1.0;
+
+    /// Duration bonus increment
+    pub const DURATION_BONUS: f64 = 0.5;
+
+    /// Distance achievement bonus
+    pub const DISTANCE_BONUS: f64 = 1.0;
+
+    /// Intensity bonus increment
+    pub const INTENSITY_BONUS: f64 = 0.5;
+}
+
+/// Weather impact factors for training difficulty
+///
+/// Reference: Environmental physiology and exercise performance
+pub mod weather_impact_factors {
+    /// Extreme cold difficulty modifier
+    pub const EXTREME_COLD_DIFFICULTY: f64 = 3.0;
+
+    /// Cold temperature difficulty modifier
+    pub const COLD_DIFFICULTY: f64 = 2.0;
+
+    /// Strong wind difficulty modifier
+    pub const STRONG_WIND_DIFFICULTY: f64 = 2.0;
+
+    /// Extreme heat difficulty modifier
+    pub const EXTREME_HOT_DIFFICULTY: f64 = 2.5;
+
+    /// Warm temperature difficulty modifier
+    pub const WARM_DIFFICULTY: f64 = 1.0;
+
+    /// Moderate wind difficulty modifier
+    pub const MODERATE_WIND_DIFFICULTY: f64 = 1.0;
+
+    /// Rain difficulty modifier
+    pub const RAIN_DIFFICULTY: f64 = 1.5;
+
+    /// Snow difficulty modifier
+    pub const SNOW_DIFFICULTY: f64 = 2.5;
+
+    /// High humidity difficulty modifier
+    pub const HIGH_HUMIDITY_DIFFICULTY: f64 = 1.5;
+}
+
+/// API limits and fetch constraints
+///
+/// Reference: System performance and resource management
+pub mod api_limits {
+    /// Default activity fetch limit for analysis
+    pub const DEFAULT_ACTIVITY_LIMIT: usize = 100;
+
+    /// Small activity fetch limit for quick analysis
+    pub const SMALL_ACTIVITY_LIMIT: usize = 50;
+
+    /// Large activity fetch limit for comprehensive analysis
+    pub const LARGE_ACTIVITY_LIMIT: usize = 200;
+
+    /// Maximum activity fetch limit
+    pub const MAX_ACTIVITY_LIMIT: usize = 300;
+
+    /// Activities for goal analysis
+    pub const GOAL_ANALYSIS_ACTIVITY_LIMIT: usize = 100;
+}
+
+/// Demo and mock data constants for development
+pub mod demo_data {
+    /// Previous best time for demo purposes (minutes)
+    pub const DEMO_PREVIOUS_BEST_TIME: f64 = 18.5;
+
+    /// Previous best pace for demo purposes (seconds per km)
+    pub const DEMO_PREVIOUS_BEST_PACE: f64 = 320.0;
+
+    /// Demo goal distance for examples (km)
+    pub const DEMO_GOAL_DISTANCE: f64 = 1000.0;
+}
+
+/// Goal progress and feasibility thresholds
+pub mod goal_feasibility {
+    /// Simple heuristic threshold for goal progress (50%)
+    pub const SIMPLE_PROGRESS_THRESHOLD: f64 = 50.0;
+
+    /// High feasibility threshold (75%)
+    pub const HIGH_FEASIBILITY_THRESHOLD: f64 = 75.0;
+
+    /// Moderate feasibility threshold (50%)
+    pub const MODERATE_FEASIBILITY_THRESHOLD: f64 = 50.0;
 }

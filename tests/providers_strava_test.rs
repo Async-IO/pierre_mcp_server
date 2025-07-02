@@ -4,11 +4,40 @@
 //! covering authentication, API calls, error handling, and data conversion.
 
 use anyhow::Result;
-use pierre_mcp_server::providers::{strava::StravaProvider, AuthData, FitnessProvider};
+use pierre_mcp_server::providers::{
+    strava::{StravaConfig, StravaProvider},
+    AuthData, FitnessProvider,
+};
 
 /// Create a test Strava provider
 fn create_test_provider() -> StravaProvider {
     StravaProvider::new()
+}
+
+/// Create a test Strava provider with valid config for auth URL tests
+fn create_test_provider_with_config() -> StravaProvider {
+    let test_config = StravaConfig {
+        client_id: "test_client_id".to_string(),
+        client_secret: "test_client_secret".to_string(),
+        base_url: "https://www.strava.com/api/v3".to_string(),
+        auth_url: "https://www.strava.com/oauth/authorize".to_string(),
+        token_url: "https://www.strava.com/oauth/token".to_string(),
+    };
+    let static_config: &'static StravaConfig = Box::leak(Box::new(test_config));
+    StravaProvider::with_config(static_config)
+}
+
+/// Create a test Strava provider with empty client credentials for error testing
+fn create_test_provider_no_credentials() -> StravaProvider {
+    let empty_config = StravaConfig {
+        client_id: String::new(),
+        client_secret: String::new(),
+        base_url: "https://www.strava.com/api/v3".to_string(),
+        auth_url: "https://www.strava.com/oauth/authorize".to_string(),
+        token_url: "https://www.strava.com/oauth/token".to_string(),
+    };
+    let static_config: &'static StravaConfig = Box::leak(Box::new(empty_config));
+    StravaProvider::with_config(static_config)
 }
 
 /// Create test OAuth2 authentication data
@@ -125,7 +154,7 @@ async fn test_get_stats_not_authenticated() -> Result<()> {
 
 #[tokio::test]
 async fn test_auth_url_generation_no_client_id() -> Result<()> {
-    let provider = create_test_provider();
+    let provider = create_test_provider_no_credentials();
 
     let result = provider.get_auth_url("http://localhost:3000/callback", "test_state");
     assert!(result.is_err());
@@ -139,7 +168,7 @@ async fn test_auth_url_generation_no_client_id() -> Result<()> {
 
 #[tokio::test]
 async fn test_auth_url_generation_with_client_id() -> Result<()> {
-    let mut provider = create_test_provider();
+    let mut provider = create_test_provider_with_config();
 
     // Set client_id for URL generation
     provider
@@ -169,7 +198,7 @@ async fn test_auth_url_generation_with_client_id() -> Result<()> {
 
 #[tokio::test]
 async fn test_pkce_auth_url_generation() -> Result<()> {
-    let mut provider = create_test_provider();
+    let mut provider = create_test_provider_with_config();
 
     // Set client_id for URL generation
     provider
@@ -294,7 +323,7 @@ async fn test_empty_authentication_fields() -> Result<()> {
 
 #[tokio::test]
 async fn test_url_generation_edge_cases() -> Result<()> {
-    let mut provider = create_test_provider();
+    let mut provider = create_test_provider_with_config();
 
     provider
         .authenticate(AuthData::OAuth2 {

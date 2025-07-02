@@ -3,8 +3,8 @@
 use super::*;
 use crate::config::intelligence_config::{ActivityAnalyzerConfig, IntelligenceConfig};
 use crate::intelligence::physiological_constants::{
-    duration::*, efficiency::*, heart_rate::*, max_speeds::*, performance::*, power::*, running::*,
-    training_load::*,
+    activity_scoring::*, duration::*, efficiency::*, heart_rate::*, max_speeds::*, performance::*,
+    power::*, running::*, training_load::*,
 };
 use crate::models::{Activity, SportType};
 use anyhow::Result;
@@ -79,38 +79,38 @@ impl AdvancedActivityAnalyzer {
 
     /// Generate overall activity score (0-10)
     fn calculate_overall_score(&self, activity: &Activity, metrics: &AdvancedMetrics) -> f64 {
-        let mut score: f64 = 5.0; // Base score
+        let mut score: f64 = BASE_ACTIVITY_SCORE; // Base score
 
         // Adjust based on completion
         if activity.distance_meters.unwrap_or(0.0) > 0.0 {
-            score += 1.0;
+            score += COMPLETION_BONUS;
         }
 
         // Adjust based on effort level using physiological thresholds
         if let Some(avg_hr) = activity.average_heart_rate {
             if avg_hr > MODERATE_HR_THRESHOLD {
-                score += 1.0;
+                score += HR_ZONE_BONUS;
             }
             if avg_hr > HIGH_INTENSITY_HR_THRESHOLD {
-                score += 0.5;
+                score += INTENSITY_BONUS;
             }
         }
 
         // Adjust based on metrics quality
         if metrics.trimp.is_some() {
-            score += 0.5;
+            score += STANDARD_BONUS;
         }
         if metrics.power_to_weight_ratio.is_some() {
-            score += 0.5;
+            score += STANDARD_BONUS;
         }
 
         // Adjust based on duration using established thresholds
         let duration = activity.duration_seconds;
         if duration > MIN_AEROBIC_DURATION {
-            score += 0.5;
+            score += DURATION_BONUS;
         }
         if duration > ENDURANCE_DURATION_THRESHOLD {
-            score += 0.5;
+            score += DURATION_BONUS;
         }
 
         score.clamp(0.0, 10.0)

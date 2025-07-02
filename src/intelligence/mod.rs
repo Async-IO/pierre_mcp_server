@@ -17,6 +17,7 @@
 //! - Advanced metrics calculation
 
 use chrono::{DateTime, Utc};
+use physiological_constants::fitness_score_thresholds::*;
 use serde::{Deserialize, Serialize};
 
 pub mod analyzer;
@@ -263,11 +264,11 @@ impl Confidence {
 
     /// Create confidence from a 0-1 score
     pub fn from_score(score: f64) -> Self {
-        if score >= 0.90 {
+        if score >= EXCELLENT_PERFORMANCE_THRESHOLD {
             Self::VeryHigh
-        } else if score >= 0.70 {
+        } else if score >= GOOD_PERFORMANCE_THRESHOLD {
             Self::High
-        } else if score >= 0.40 {
+        } else if score >= MODERATE_PERFORMANCE_THRESHOLD {
             Self::Medium
         } else {
             Self::Low
