@@ -15,7 +15,13 @@ info:
     - **Real-time Data**: Live activity synchronization
     
     ## Authentication
-    All requests require JWT authentication via Bearer token in the `auth` field of MCP requests.
+    Multiple authentication methods supported:
+    - **JWT Tokens**: Bearer tokens for user authentication (24h expiration)
+    - **API Keys**: Production keys for B2B integrations (prefix: `pk_live_` or `pk_trial_`)
+    - **A2A Authentication**: Client credentials for agent-to-agent communication
+    
+    JWT tokens include user ID, email, permissions, and expiration claims.
+    See the [Authentication Guide](/docs/AUTHENTICATION.md) for complete details.
     
     ## Getting Started
     Connect to the MCP server via WebSocket and authenticate with JWT tokens to access all 21 fitness tools.
@@ -28,8 +34,12 @@ info:
     url: https://www.apache.org/licenses/LICENSE-2.0.html
 
 servers:
+  - url: http://localhost:8081
+    description: Local Development (HTTP API)
   - url: ws://localhost:8080
     description: Local Development (MCP over WebSocket)
+  - url: https://api.pierre-fitness.com
+    description: Production API
 
 paths:
   /mcp:
@@ -144,6 +154,257 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/McpError'
+
+  # A2A Protocol Endpoints
+  /a2a/agent-card:
+    get:
+      summary: Get A2A Agent Card
+      description: Retrieve agent capability information for A2A protocol discovery
+      tags:
+        - A2A Protocol
+      responses:
+        '200':
+          description: Agent card retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentCard'
+
+  /a2a/auth:
+    post:
+      summary: A2A Authentication
+      description: Authenticate A2A client and receive session token
+      tags:
+        - A2A Protocol
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [client_id, client_secret]
+              properties:
+                client_id:
+                  type: string
+                  description: A2A client identifier
+                  example: "client_123"
+                client_secret:
+                  type: string
+                  description: A2A client secret
+                  example: "secret_456"
+                scopes:
+                  type: array
+                  items:
+                    type: string
+                  description: Requested scopes
+                  example: ["read", "write"]
+                  default: ["read"]
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "authenticated"
+                  session_token:
+                    type: string
+                    description: Bearer token for A2A requests
+                    example: "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+                  expires_in:
+                    type: integer
+                    description: Token expiration in seconds
+                    example: 86400
+                  token_type:
+                    type: string
+                    example: "Bearer"
+                  scope:
+                    type: string
+                    description: Granted scopes
+                    example: "read write"
+        '401':
+          description: Authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/A2AError'
+
+  /a2a/execute:
+    post:
+      summary: Execute A2A Tool
+      description: Execute tools via A2A JSON-RPC protocol
+      tags:
+        - A2A Protocol
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/A2ARequest'
+            examples:
+              get_activities:
+                summary: Get activities via A2A
+                value:
+                  jsonrpc: "2.0"
+                  method: "tools.execute"
+                  id: 1
+                  params:
+                    tool_name: "get_activities"
+                    parameters:
+                      provider: "strava"
+                      limit: 10
+              fitness_score:
+                summary: Calculate fitness score via A2A
+                value:
+                  jsonrpc: "2.0"
+                  method: "tools.execute"
+                  id: 2
+                  params:
+                    tool_name: "calculate_fitness_score"
+                    parameters:
+                      timeframe: "month"
+      responses:
+        '200':
+          description: Tool executed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/A2AResponse'
+              examples:
+                success_response:
+                  summary: Successful tool execution
+                  value:
+                    jsonrpc: "2.0"
+                    id: 1
+                    result:
+                      activities:
+                        - id: "123456789"
+                          name: "Morning Run"
+                          sport_type: "Run"
+                          distance_meters: 5000
+                error_response:
+                  summary: Tool execution error
+                  value:
+                    jsonrpc: "2.0"
+                    id: 1
+                    error:
+                      code: -32000
+                      message: "Tool execution failed: Invalid provider"
+                      data: null
+
+  /a2a/dashboard/overview:
+    get:
+      summary: Get A2A Dashboard Overview
+      description: Retrieve A2A system dashboard metrics and statistics
+      tags:
+        - A2A Management
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Dashboard overview retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/A2ADashboardOverview'
+
+  /a2a/clients:
+    post:
+      summary: Register A2A Client
+      description: Register a new A2A client for agent-to-agent communication
+      tags:
+        - A2A Management
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/A2AClientRequest'
+      responses:
+        '200':
+          description: Client registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/A2AClientCredentials'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/A2AError'
+
+    get:
+      summary: List A2A Clients
+      description: Retrieve list of registered A2A clients
+      tags:
+        - A2A Management
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Clients retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/A2AClient'
+
+  /a2a/clients/{client_id}/usage:
+    get:
+      summary: Get A2A Client Usage Statistics
+      description: Retrieve usage statistics for specific A2A client
+      tags:
+        - A2A Management
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: client_id
+          in: path
+          required: true
+          description: A2A client identifier
+          schema:
+            type: string
+            example: "client_123"
+      responses:
+        '200':
+          description: Usage statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/A2AClientUsage'
+
+  /a2a/clients/{client_id}/rate-limit:
+    get:
+      summary: Get A2A Client Rate Limit Status
+      description: Check current rate limit status for A2A client
+      tags:
+        - A2A Management
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: client_id
+          in: path
+          required: true
+          description: A2A client identifier
+          schema:
+            type: string
+            example: "client_123"
+      responses:
+        '200':
+          description: Rate limit status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/A2ARateLimitStatus'
 
   /tools/get_activities:
     post:
@@ -720,6 +981,348 @@ components:
             - "Your fitness score is 75 out of 100"
             - "Regular training frequency is your strength"
 
+    # A2A Protocol Schemas
+    AgentCard:
+      type: object
+      description: A2A agent capability information
+      properties:
+        agent_id:
+          type: string
+          description: Unique agent identifier
+          example: "pierre-fitness-ai"
+        name:
+          type: string
+          description: Agent display name
+          example: "Pierre Fitness AI"
+        version:
+          type: string
+          description: Agent version
+          example: "1.0.0"
+        description:
+          type: string
+          description: Agent description
+          example: "AI-powered fitness data analysis and insights platform"
+        capabilities:
+          type: array
+          items:
+            type: string
+          description: Available capabilities
+          example: ["fitness-data-analysis", "goal-management", "activity-insights"]
+        protocols:
+          type: array
+          items:
+            type: string
+          description: Supported protocols
+          example: ["A2A", "MCP"]
+        endpoints:
+          type: object
+          description: Available endpoints
+          properties:
+            auth:
+              type: string
+              example: "/a2a/auth"
+            execute:
+              type: string
+              example: "/a2a/execute"
+
+    A2ARequest:
+      type: object
+      description: A2A JSON-RPC request
+      required: [jsonrpc, method, id]
+      properties:
+        jsonrpc:
+          type: string
+          description: JSON-RPC version
+          example: "2.0"
+        method:
+          type: string
+          description: A2A method name
+          enum: ["tools.execute", "client.info", "session.heartbeat", "capabilities.list"]
+          example: "tools.execute"
+        id:
+          oneOf:
+            - type: string
+            - type: number
+          description: Request identifier
+          example: 1
+        params:
+          type: object
+          description: Method parameters
+          properties:
+            tool_name:
+              type: string
+              description: Tool name to execute
+              example: "get_activities"
+            parameters:
+              type: object
+              description: Tool parameters
+              example:
+                provider: "strava"
+                limit: 10
+
+    A2AResponse:
+      type: object
+      description: A2A JSON-RPC response
+      required: [jsonrpc, id]
+      properties:
+        jsonrpc:
+          type: string
+          example: "2.0"
+        id:
+          oneOf:
+            - type: string
+            - type: number
+          example: 1
+        result:
+          type: object
+          description: Success response data
+        error:
+          $ref: '#/components/schemas/A2AErrorObject'
+
+    A2AError:
+      type: object
+      description: A2A error response
+      required: [jsonrpc, id, error]
+      properties:
+        jsonrpc:
+          type: string
+          example: "2.0"
+        id:
+          oneOf:
+            - type: string
+            - type: number
+        error:
+          $ref: '#/components/schemas/A2AErrorObject'
+
+    A2AErrorObject:
+      type: object
+      description: A2A error details
+      required: [code, message]
+      properties:
+        code:
+          type: integer
+          description: Error code
+          example: -32000
+        message:
+          type: string
+          description: Error message
+          example: "Tool execution failed"
+        data:
+          type: object
+          description: Additional error data
+
+    A2AClientRequest:
+      type: object
+      description: A2A client registration request
+      required: [name, description, capabilities, contact_email]
+      properties:
+        name:
+          type: string
+          description: Client name
+          example: "My Fitness Bot"
+        description:
+          type: string
+          description: Client description
+          example: "AI fitness assistant that analyzes workout data"
+        capabilities:
+          type: array
+          items:
+            type: string
+          description: Required capabilities
+          example: ["fitness-data-analysis", "goal-management"]
+        redirect_uris:
+          type: array
+          items:
+            type: string
+            format: uri
+          description: Authorized redirect URIs
+          example: ["https://myapp.com/callback"]
+        contact_email:
+          type: string
+          format: email
+          description: Contact email for client
+          example: "developer@myapp.com"
+        agent_version:
+          type: string
+          description: Agent version
+          example: "1.0.0"
+        documentation_url:
+          type: string
+          format: uri
+          description: Documentation URL
+          example: "https://myapp.com/docs"
+
+    A2AClientCredentials:
+      type: object
+      description: A2A client credentials
+      properties:
+        client_id:
+          type: string
+          description: Client identifier
+          example: "client_123"
+        client_secret:
+          type: string
+          description: Client secret
+          example: "secret_456"
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: "2024-01-15T10:30:00Z"
+
+    A2AClient:
+      type: object
+      description: A2A client information
+      properties:
+        client_id:
+          type: string
+          description: Client identifier
+          example: "client_123"
+        name:
+          type: string
+          description: Client name
+          example: "My Fitness Bot"
+        description:
+          type: string
+          description: Client description
+          example: "AI fitness assistant"
+        capabilities:
+          type: array
+          items:
+            type: string
+          description: Client capabilities
+          example: ["fitness-data-analysis"]
+        is_active:
+          type: boolean
+          description: Whether client is active
+          example: true
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: "2024-01-15T10:30:00Z"
+        contact_email:
+          type: string
+          format: email
+          description: Contact email
+          example: "developer@myapp.com"
+
+    A2AClientUsage:
+      type: object
+      description: A2A client usage statistics
+      properties:
+        client_id:
+          type: string
+          description: Client identifier
+          example: "client_123"
+        requests_today:
+          type: integer
+          description: Requests made today
+          example: 142
+        requests_this_month:
+          type: integer
+          description: Requests made this month
+          example: 3842
+        total_requests:
+          type: integer
+          description: Total requests made
+          example: 15732
+        most_used_tool:
+          type: string
+          description: Most frequently used tool
+          example: "get_activities"
+        last_request_at:
+          type: string
+          format: date-time
+          description: Last request timestamp
+          example: "2024-01-15T14:23:00Z"
+
+    A2ARateLimitStatus:
+      type: object
+      description: A2A client rate limit status
+      properties:
+        client_id:
+          type: string
+          description: Client identifier
+          example: "client_123"
+        requests_remaining:
+          type: integer
+          description: Requests remaining in current period
+          example: 858
+        requests_limit:
+          type: integer
+          description: Total requests allowed per period
+          example: 1000
+        reset_time:
+          type: string
+          format: date-time
+          description: When the rate limit resets
+          example: "2024-01-16T00:00:00Z"
+        burst_remaining:
+          type: integer
+          description: Burst requests remaining
+          example: 48
+        burst_limit:
+          type: integer
+          description: Burst limit
+          example: 50
+
+    A2ADashboardOverview:
+      type: object
+      description: A2A system dashboard overview
+      properties:
+        total_clients:
+          type: integer
+          description: Total registered clients
+          example: 15
+        active_clients:
+          type: integer
+          description: Currently active clients
+          example: 12
+        total_sessions:
+          type: integer
+          description: Total active sessions
+          example: 8
+        active_sessions:
+          type: integer
+          description: Currently active sessions
+          example: 5
+        requests_today:
+          type: integer
+          description: Requests processed today
+          example: 1423
+        requests_this_month:
+          type: integer
+          description: Requests processed this month
+          example: 45821
+        most_used_capability:
+          type: string
+          description: Most used capability
+          example: "fitness-data-analysis"
+        error_rate:
+          type: number
+          format: float
+          description: Error rate percentage
+          example: 2.3
+        usage_by_tier:
+          type: array
+          items:
+            type: object
+            properties:
+              tier:
+                type: string
+                example: "basic"
+              client_count:
+                type: integer
+                example: 8
+              request_count:
+                type: integer
+                example: 15420
+              percentage:
+                type: number
+                format: float
+                example: 68.5
+
   securitySchemes:
     BearerAuth:
       type: http
@@ -727,7 +1330,32 @@ components:
       bearerFormat: JWT
       description: |
         JWT token obtained through authentication flow.
-        Include in MCP request `auth` field as "Bearer {token}".
+        
+        **For MCP requests**: Include in request `auth` field as "Bearer {token}"
+        **For HTTP requests**: Include in Authorization header as "Bearer {token}"
+        
+        JWT tokens contain:
+        - `sub`: User ID
+        - `email`: User email
+        - `exp`: Expiration (24 hours)
+        - `permissions`: User permissions array
+        
+        Example: `Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...`
+        
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: |
+        API key for production integrations.
+        
+        **Key formats**:
+        - Trial keys: `pk_trial_...` (1K requests/month, 14 days)
+        - Production keys: `pk_live_...` (tiered limits)
+        
+        Include in X-API-Key header.
+        
+        Example: `X-API-Key: pk_live_1234567890abcdef`
 
 security:
   - BearerAuth: []
@@ -735,6 +1363,10 @@ security:
 tags:
   - name: MCP Protocol
     description: Core MCP JSON-RPC protocol endpoint
+  - name: A2A Protocol
+    description: Agent-to-Agent communication protocol endpoints
+  - name: A2A Management
+    description: A2A client management and administration
   - name: Core Tools
     description: Essential fitness data access tools (8 tools)
   - name: Analytics
