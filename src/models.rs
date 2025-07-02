@@ -549,6 +549,80 @@ pub struct User {
     pub is_active: bool,
 }
 
+/// User physiological profile for personalized analysis
+///
+/// Contains physiological data used for calculating personalized heart rate zones,
+/// pace zones, and other performance thresholds based on individual fitness metrics.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserPhysiologicalProfile {
+    /// User ID this profile belongs to
+    pub user_id: Uuid,
+    /// VO2 max in ml/kg/min (if measured or estimated)
+    pub vo2_max: Option<f64>,
+    /// Resting heart rate in bpm
+    pub resting_hr: Option<u16>,
+    /// Maximum heart rate in bpm
+    pub max_hr: Option<u16>,
+    /// Lactate threshold as percentage of VO2 max (0.65-0.95)
+    pub lactate_threshold_percentage: Option<f64>,
+    /// Age in years
+    pub age: Option<u16>,
+    /// Weight in kg
+    pub weight: Option<f64>,
+    /// Overall fitness level
+    pub fitness_level: crate::configuration::profiles::FitnessLevel,
+    /// Primary sport for specialized calculations
+    pub primary_sport: SportType,
+    /// Years of training experience
+    pub training_experience_years: Option<u8>,
+}
+
+impl UserPhysiologicalProfile {
+    /// Create a new physiological profile
+    pub fn new(user_id: Uuid, primary_sport: SportType) -> Self {
+        Self {
+            user_id,
+            vo2_max: None,
+            resting_hr: None,
+            max_hr: None,
+            lactate_threshold_percentage: None,
+            age: None,
+            weight: None,
+            fitness_level: crate::configuration::profiles::FitnessLevel::Recreational,
+            primary_sport,
+            training_experience_years: None,
+        }
+    }
+
+    /// Estimate max heart rate from age if not provided
+    pub fn estimated_max_hr(&self) -> Option<u16> {
+        self.max_hr.or_else(|| {
+            self.age.map(|age| {
+                // Use Tanaka formula: 208 - (0.7 × age)
+                (208.0 - (0.7 * age as f64)) as u16
+            })
+        })
+    }
+
+    /// Check if profile has sufficient data for VO2 max calculations
+    pub fn has_vo2_max_data(&self) -> bool {
+        self.vo2_max.is_some()
+            && self.resting_hr.is_some()
+            && (self.max_hr.is_some() || self.age.is_some())
+    }
+
+    /// Get fitness level from VO2 max if available
+    pub fn fitness_level_from_vo2_max(&self) -> crate::configuration::profiles::FitnessLevel {
+        if let Some(vo2_max) = self.vo2_max {
+            crate::configuration::profiles::FitnessLevel::from_vo2_max(
+                vo2_max, self.age, None, // Gender not stored in this profile
+            )
+        } else {
+            self.fitness_level
+        }
+    }
+}
+
 /// Encrypted OAuth token storage
 ///
 /// Tokens are encrypted at rest using AES-256-GCM encryption.

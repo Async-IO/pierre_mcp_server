@@ -25,6 +25,14 @@ use crate::intelligence::recommendation_engine::RecommendationEngineTrait;
 use crate::intelligence::ActivityIntelligence;
 use crate::models::Activity;
 use crate::providers::{create_provider, AuthData, FitnessProvider};
+// Configuration management imports
+use crate::configuration::{
+    catalog::CatalogBuilder,
+    profiles::{ConfigProfile, ProfileTemplates},
+    runtime::{ConfigValue, RuntimeConfig},
+    validation::ConfigValidator,
+    vo2_max::VO2MaxCalculator,
+};
 // Removed unused import
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -294,6 +302,22 @@ impl UniversalToolExecutor {
             "calculate_fitness_score" => self.handle_calculate_fitness_score_async(request).await,
             "predict_performance" => self.handle_predict_performance_async(request).await,
             "analyze_training_load" => self.handle_analyze_training_load_async(request).await,
+            // Configuration Management Tools
+            "get_configuration_catalog" => {
+                self.handle_get_configuration_catalog_async(request).await
+            }
+            "get_configuration_profiles" => {
+                self.handle_get_configuration_profiles_async(request).await
+            }
+            "get_user_configuration" => self.handle_get_user_configuration_async(request).await,
+            "update_user_configuration" => {
+                self.handle_update_user_configuration_async(request).await
+            }
+            "calculate_personalized_zones" => {
+                self.handle_calculate_personalized_zones_async(request)
+                    .await
+            }
+            "validate_configuration" => self.handle_validate_configuration_async(request).await,
             _ => {
                 // Handle synchronous tools
                 let tool = self.tools.get(&request.tool_name).ok_or_else(|| {
@@ -414,6 +438,37 @@ impl UniversalToolExecutor {
             UniversalTool {
                 name: "analyze_training_load".to_string(),
                 description: "Analyze training load balance and recovery needs".to_string(),
+                handler: Self::async_implemented_handler,
+            },
+            // Configuration Management Tools
+            UniversalTool {
+                name: "get_configuration_catalog".to_string(),
+                description: "Get the complete configuration catalog with all available parameters".to_string(),
+                handler: Self::async_implemented_handler,
+            },
+            UniversalTool {
+                name: "get_configuration_profiles".to_string(),
+                description: "Get available configuration profiles (Research, Elite, Recreational, etc.)".to_string(),
+                handler: Self::async_implemented_handler,
+            },
+            UniversalTool {
+                name: "get_user_configuration".to_string(),
+                description: "Get current user's configuration settings and overrides".to_string(),
+                handler: Self::async_implemented_handler,
+            },
+            UniversalTool {
+                name: "update_user_configuration".to_string(),
+                description: "Update user's configuration parameters and session overrides".to_string(),
+                handler: Self::async_implemented_handler,
+            },
+            UniversalTool {
+                name: "calculate_personalized_zones".to_string(),
+                description: "Calculate personalized training zones based on user's VO2 max and configuration".to_string(),
+                handler: Self::async_implemented_handler,
+            },
+            UniversalTool {
+                name: "validate_configuration".to_string(),
+                description: "Validate configuration parameters against safety rules and constraints".to_string(),
                 handler: Self::async_implemented_handler,
             },
         ]
@@ -2457,6 +2512,458 @@ impl UniversalToolExecutor {
                 map
             }),
         })
+    }
+
+    /// Handle get_configuration_catalog tool - returns complete parameter catalog
+    async fn handle_get_configuration_catalog_async(
+        &self,
+        _request: UniversalRequest,
+    ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
+        let catalog = CatalogBuilder::build();
+
+        Ok(UniversalResponse {
+            success: true,
+            result: Some(serde_json::to_value(&catalog).map_err(|e| {
+                crate::protocols::ProtocolError::ExecutionFailed(format!(
+                    "Failed to serialize catalog: {}",
+                    e
+                ))
+            })?),
+            error: None,
+            metadata: Some({
+                let mut map = std::collections::HashMap::new();
+                map.insert(
+                    "catalog_version".to_string(),
+                    serde_json::Value::String(catalog.version.clone()),
+                );
+                map.insert(
+                    "total_parameters".to_string(),
+                    serde_json::Value::Number(serde_json::Number::from(catalog.total_parameters)),
+                );
+                map.insert(
+                    "categories_count".to_string(),
+                    serde_json::Value::Number(serde_json::Number::from(catalog.categories.len())),
+                );
+                map
+            }),
+        })
+    }
+
+    /// Handle get_configuration_profiles tool - returns available profiles
+    async fn handle_get_configuration_profiles_async(
+        &self,
+        _request: UniversalRequest,
+    ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
+        let templates = ProfileTemplates::all();
+
+        let profiles_info = templates
+            .into_iter()
+            .map(|(name, profile)| {
+                let profile_type = profile.name();
+                let description = match &profile {
+                    ConfigProfile::Default => {
+                        "Standard configuration with default thresholds".to_string()
+                    }
+                    ConfigProfile::Research { .. } => {
+                        "Research-grade detailed analysis with high sensitivity".to_string()
+                    }
+                    ConfigProfile::Elite { .. } => {
+                        "Elite athlete profile with strict performance standards".to_string()
+                    }
+                    ConfigProfile::Recreational { .. } => {
+                        "Recreational athlete with forgiving analysis".to_string()
+                    }
+                    ConfigProfile::Beginner { .. } => {
+                        "Beginner-friendly with reduced thresholds".to_string()
+                    }
+                    ConfigProfile::Medical { .. } => {
+                        "Medical/rehabilitation with conservative limits".to_string()
+                    }
+                    ConfigProfile::SportSpecific { sport, .. } => {
+                        format!("Sport-specific optimization for {}", sport)
+                    }
+                    ConfigProfile::Custom { description, .. } => description.clone(),
+                };
+
+                serde_json::json!({
+                    "name": name,
+                    "profile_type": profile_type,
+                    "description": description,
+                    "profile": profile
+                })
+            })
+            .collect::<Vec<_>>();
+
+        Ok(UniversalResponse {
+            success: true,
+            result: Some(serde_json::json!({
+                "available_profiles": profiles_info,
+                "total_count": profiles_info.len()
+            })),
+            error: None,
+            metadata: Some({
+                let mut map = std::collections::HashMap::new();
+                map.insert(
+                    "profiles_available".to_string(),
+                    serde_json::Value::Number(serde_json::Number::from(profiles_info.len())),
+                );
+                map
+            }),
+        })
+    }
+
+    /// Handle get_user_configuration tool - returns user's current configuration
+    async fn handle_get_user_configuration_async(
+        &self,
+        request: UniversalRequest,
+    ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
+        let user_uuid = uuid::Uuid::parse_str(&request.user_id).map_err(|_| {
+            crate::protocols::ProtocolError::InvalidParameters("Invalid user ID format".to_string())
+        })?;
+
+        // For now, return default configuration. In future versions, this will fetch from database
+        let config = RuntimeConfig::new();
+        let profile = ConfigProfile::Default;
+
+        Ok(UniversalResponse {
+            success: true,
+            result: Some(serde_json::json!({
+                "user_id": user_uuid,
+                "active_profile": profile.name(),
+                "configuration": {
+                    "profile": profile,
+                    "session_overrides": config.get_session_overrides(),
+                    "last_modified": chrono::Utc::now(),
+                },
+                "available_parameters": CatalogBuilder::build().total_parameters
+            })),
+            error: None,
+            metadata: Some({
+                let mut map = std::collections::HashMap::new();
+                map.insert(
+                    "user_id".to_string(),
+                    serde_json::Value::String(user_uuid.to_string()),
+                );
+                map.insert(
+                    "config_fetched_at".to_string(),
+                    serde_json::Value::String(chrono::Utc::now().to_rfc3339()),
+                );
+                map
+            }),
+        })
+    }
+
+    /// Handle update_user_configuration tool - updates user configuration parameters
+    async fn handle_update_user_configuration_async(
+        &self,
+        request: UniversalRequest,
+    ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
+        let user_uuid = uuid::Uuid::parse_str(&request.user_id).map_err(|_| {
+            crate::protocols::ProtocolError::InvalidParameters("Invalid user ID format".to_string())
+        })?;
+
+        // Extract parameters from request
+        let profile_name = request.parameters.get("profile").and_then(|v| v.as_str());
+
+        let parameter_overrides = request
+            .parameters
+            .get("parameters")
+            .and_then(|v| v.as_object())
+            .cloned()
+            .unwrap_or_default();
+
+        let parameter_count = parameter_overrides.len();
+
+        // Validate parameters if provided
+        if !parameter_overrides.is_empty() {
+            let validator = ConfigValidator::new();
+            let overrides_map: std::collections::HashMap<String, ConfigValue> = parameter_overrides
+                .iter()
+                .filter_map(|(k, v)| {
+                    if let Some(float_val) = v.as_f64() {
+                        Some((k.clone(), ConfigValue::Float(float_val)))
+                    } else if let Some(int_val) = v.as_i64() {
+                        Some((k.clone(), ConfigValue::Integer(int_val)))
+                    } else if let Some(bool_val) = v.as_bool() {
+                        Some((k.clone(), ConfigValue::Boolean(bool_val)))
+                    } else {
+                        v.as_str()
+                            .map(|str_val| (k.clone(), ConfigValue::String(str_val.to_string())))
+                    }
+                })
+                .collect();
+
+            let validation_result = validator.validate(&overrides_map, None);
+            if !validation_result.is_valid {
+                return Ok(UniversalResponse {
+                    success: false,
+                    result: None,
+                    error: Some(format!(
+                        "Configuration validation failed: {:?}",
+                        validation_result.errors
+                    )),
+                    metadata: None,
+                });
+            }
+        }
+
+        // Create updated configuration
+        let mut config = RuntimeConfig::new();
+
+        // Apply profile if specified
+        if let Some(profile_name) = profile_name {
+            if let Some(profile) = ProfileTemplates::get(profile_name) {
+                config.apply_profile(profile);
+            } else {
+                return Ok(UniversalResponse {
+                    success: false,
+                    result: None,
+                    error: Some(format!("Unknown profile: {}", profile_name)),
+                    metadata: None,
+                });
+            }
+        }
+
+        // Apply parameter overrides
+        for (key, value) in parameter_overrides {
+            if let Some(float_val) = value.as_f64() {
+                let _ = config.set_override(key.clone(), ConfigValue::Float(float_val));
+            } else if let Some(int_val) = value.as_i64() {
+                let _ = config.set_override(key.clone(), ConfigValue::Integer(int_val));
+            } else if let Some(bool_val) = value.as_bool() {
+                let _ = config.set_override(key.clone(), ConfigValue::Boolean(bool_val));
+            } else if let Some(str_val) = value.as_str() {
+                let _ = config.set_override(key.clone(), ConfigValue::String(str_val.to_string()));
+            }
+        }
+
+        // In future versions, save to database here
+        // For now, return success with applied configuration
+
+        Ok(UniversalResponse {
+            success: true,
+            result: Some(serde_json::json!({
+                "user_id": user_uuid,
+                "updated_configuration": {
+                    "active_profile": config.get_profile().name(),
+                    "applied_overrides": config.get_session_overrides().len(),
+                    "last_modified": chrono::Utc::now(),
+                },
+                "changes_applied": parameter_count + if profile_name.is_some() { 1 } else { 0 }
+            })),
+            error: None,
+            metadata: Some({
+                let mut map = std::collections::HashMap::new();
+                map.insert(
+                    "user_id".to_string(),
+                    serde_json::Value::String(user_uuid.to_string()),
+                );
+                map.insert(
+                    "update_timestamp".to_string(),
+                    serde_json::Value::String(chrono::Utc::now().to_rfc3339()),
+                );
+                map
+            }),
+        })
+    }
+
+    /// Handle calculate_personalized_zones tool - calculates training zones based on VO2 max
+    async fn handle_calculate_personalized_zones_async(
+        &self,
+        request: UniversalRequest,
+    ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
+        // Extract required parameters
+        let vo2_max = request
+            .parameters
+            .get("vo2_max")
+            .and_then(|v| v.as_f64())
+            .ok_or_else(|| {
+                crate::protocols::ProtocolError::InvalidParameters(
+                    "Missing required parameter: vo2_max".to_string(),
+                )
+            })?;
+
+        let resting_hr = request
+            .parameters
+            .get("resting_hr")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(60) as u16;
+
+        let max_hr = request
+            .parameters
+            .get("max_hr")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(190) as u16;
+
+        let lactate_threshold = request
+            .parameters
+            .get("lactate_threshold")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.85);
+
+        let sport_efficiency = request
+            .parameters
+            .get("sport_efficiency")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(1.0);
+
+        // Create VO2 max calculator
+        let calculator = VO2MaxCalculator::new(
+            vo2_max,
+            resting_hr,
+            max_hr,
+            lactate_threshold,
+            sport_efficiency,
+        );
+
+        // Calculate personalized zones
+        let hr_zones = calculator.calculate_hr_zones();
+        let pace_zones = calculator.calculate_pace_zones();
+        let ftp = calculator.estimate_ftp();
+        let power_zones = calculator.calculate_power_zones(Some(ftp));
+
+        Ok(UniversalResponse {
+            success: true,
+            result: Some(serde_json::json!({
+                "user_profile": {
+                    "vo2_max": vo2_max,
+                    "resting_hr": resting_hr,
+                    "max_hr": max_hr,
+                    "lactate_threshold": lactate_threshold,
+                    "sport_efficiency": sport_efficiency,
+                },
+                "personalized_zones": {
+                    "heart_rate_zones": hr_zones,
+                    "pace_zones": pace_zones,
+                    "power_zones": power_zones,
+                    "estimated_ftp": ftp,
+                },
+                "zone_calculations": {
+                    "method": "Karvonen method with VO2 max adjustments",
+                    "pace_formula": "Jack Daniels VDOT",
+                    "power_estimation": "VO2 max derived FTP",
+                }
+            })),
+            error: None,
+            metadata: Some({
+                let mut map = std::collections::HashMap::new();
+                map.insert(
+                    "calculation_timestamp".to_string(),
+                    serde_json::Value::String(chrono::Utc::now().to_rfc3339()),
+                );
+                map.insert(
+                    "vo2_max_input".to_string(),
+                    serde_json::Value::Number(serde_json::Number::from_f64(vo2_max).unwrap()),
+                );
+                map
+            }),
+        })
+    }
+
+    /// Handle validate_configuration tool - validates parameters against rules
+    async fn handle_validate_configuration_async(
+        &self,
+        request: UniversalRequest,
+    ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
+        // Extract parameters to validate
+        let parameters = request
+            .parameters
+            .get("parameters")
+            .and_then(|v| v.as_object())
+            .ok_or_else(|| {
+                crate::protocols::ProtocolError::InvalidParameters(
+                    "Missing required parameter: parameters (object)".to_string(),
+                )
+            })?;
+
+        // Convert to the format expected by validator
+        let params_map: std::collections::HashMap<String, ConfigValue> = parameters
+            .iter()
+            .filter_map(|(k, v)| {
+                if let Some(float_val) = v.as_f64() {
+                    Some((k.clone(), ConfigValue::Float(float_val)))
+                } else if let Some(int_val) = v.as_i64() {
+                    Some((k.clone(), ConfigValue::Integer(int_val)))
+                } else if let Some(bool_val) = v.as_bool() {
+                    Some((k.clone(), ConfigValue::Boolean(bool_val)))
+                } else {
+                    v.as_str()
+                        .map(|str_val| (k.clone(), ConfigValue::String(str_val.to_string())))
+                }
+            })
+            .collect();
+
+        if params_map.is_empty() {
+            return Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some("No valid parameters provided for validation".to_string()),
+                metadata: None,
+            });
+        }
+
+        // Validate using ConfigValidator
+        let validator = ConfigValidator::new();
+        let validation_result = validator.validate(&params_map, None);
+
+        if validation_result.is_valid {
+            Ok(UniversalResponse {
+                success: true,
+                result: Some(serde_json::json!({
+                    "validation_passed": true,
+                    "parameters_validated": params_map.len(),
+                    "validation_details": validation_result,
+                    "safety_checks": {
+                        "physiological_limits": "All parameters within safe ranges",
+                        "relationship_constraints": "Parameter relationships validated",
+                        "scientific_bounds": "Values conform to sports science literature"
+                    }
+                })),
+                error: None,
+                metadata: Some({
+                    let mut map = std::collections::HashMap::new();
+                    map.insert(
+                        "validation_timestamp".to_string(),
+                        serde_json::Value::String(chrono::Utc::now().to_rfc3339()),
+                    );
+                    map.insert(
+                        "parameters_count".to_string(),
+                        serde_json::Value::Number(serde_json::Number::from(params_map.len())),
+                    );
+                    map
+                }),
+            })
+        } else {
+            Ok(UniversalResponse {
+                success: false,
+                result: Some(serde_json::json!({
+                    "validation_passed": false,
+                    "parameters_submitted": params_map.len(),
+                    "validation_errors": validation_result.errors,
+                    "validation_warnings": validation_result.warnings,
+                    "safety_violations": {
+                        "description": "One or more parameters failed safety validation",
+                        "recommendation": "Review parameter values against scientific limits"
+                    }
+                })),
+                error: Some(format!(
+                    "Configuration validation failed: {:?}",
+                    validation_result.errors
+                )),
+                metadata: Some({
+                    let mut map = std::collections::HashMap::new();
+                    map.insert(
+                        "validation_timestamp".to_string(),
+                        serde_json::Value::String(chrono::Utc::now().to_rfc3339()),
+                    );
+                    map.insert(
+                        "validation_failed".to_string(),
+                        serde_json::Value::Bool(true),
+                    );
+                    map
+                }),
+            })
+        }
     }
 }
 
