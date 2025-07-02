@@ -23,11 +23,13 @@ impl Database {
                 strava_expires_at INTEGER,
                 strava_scope TEXT,
                 strava_nonce TEXT,
+                strava_last_sync DATETIME,
                 fitbit_access_token TEXT,
                 fitbit_refresh_token TEXT,
                 fitbit_expires_at INTEGER,
                 fitbit_scope TEXT,
                 fitbit_nonce TEXT,
+                fitbit_last_sync DATETIME,
                 is_active BOOLEAN NOT NULL DEFAULT 1,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 last_active DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -372,6 +374,50 @@ impl Database {
         } else {
             Ok(None)
         }
+    }
+
+    /// Get last sync timestamp for a provider
+    pub async fn get_provider_last_sync(
+        &self,
+        user_id: Uuid,
+        provider: &str,
+    ) -> Result<Option<chrono::DateTime<chrono::Utc>>> {
+        let column = match provider {
+            "strava" => "strava_last_sync",
+            "fitbit" => "fitbit_last_sync",
+            _ => return Err(anyhow!("Unsupported provider: {}", provider)),
+        };
+
+        let query = format!("SELECT {} FROM users WHERE id = $1", column);
+        let last_sync: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar(&query)
+            .bind(user_id.to_string())
+            .fetch_optional(&self.pool)
+            .await?;
+
+        Ok(last_sync)
+    }
+
+    /// Update last sync timestamp for a provider
+    pub async fn update_provider_last_sync(
+        &self,
+        user_id: Uuid,
+        provider: &str,
+        sync_time: chrono::DateTime<chrono::Utc>,
+    ) -> Result<()> {
+        let column = match provider {
+            "strava" => "strava_last_sync",
+            "fitbit" => "fitbit_last_sync",
+            _ => return Err(anyhow!("Unsupported provider: {}", provider)),
+        };
+
+        let query = format!("UPDATE users SET {} = $1 WHERE id = $2", column);
+        sqlx::query(&query)
+            .bind(sync_time)
+            .bind(user_id.to_string())
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
     }
 }
 

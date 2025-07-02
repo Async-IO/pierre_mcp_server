@@ -130,17 +130,21 @@ async fn setup_strava_auth(client_id: String, client_secret: String, port: u16) 
 
         let (access_token, refresh_token) = provider.exchange_code(&code).await?;
 
-        // Create or load config (simplified for new config system)
-        let config = Config::load(None).unwrap_or_else(|_| Config::default());
-
-        // TODO: In the new config system, authentication is handled differently
-        // For now, we'll just save the basic fitness config
+        // In the new config system, authentication is handled via environment variables
+        // Store credentials securely in environment or recommend .env file usage
         println!("✅ Authentication successful!");
         println!("Access token: {}", access_token);
-        println!("Refresh token: {:?}", refresh_token);
-        println!("Note: With the new config system, authentication is handled via environment variables.");
+        println!("Refresh token: {}", refresh_token);
 
-        // Save the basic config (though it doesn't contain auth info in the new system)
+        // Provide instructions for environment variable setup
+        println!("\n📝 To complete setup, add these environment variables:");
+        println!("STRAVA_CLIENT_ID=your_client_id");
+        println!("STRAVA_CLIENT_SECRET=your_client_secret");
+        println!("STRAVA_ACCESS_TOKEN={}", access_token);
+        println!("STRAVA_REFRESH_TOKEN={}", refresh_token);
+
+        // Create or load basic config for non-auth settings
+        let config = Config::load(None).unwrap_or_else(|_| Config::default());
         let config_toml = toml::to_string(&config)?;
         std::fs::write("fitness_config.toml", config_toml)?;
 

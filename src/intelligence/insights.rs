@@ -7,7 +7,7 @@
 //! Insight generation and management for athlete intelligence
 
 use crate::intelligence::physiological_constants::{
-    activity_scoring::*, fitness_score_thresholds::*, weather_thresholds::*,
+    activity_scoring::*, fitness_score_thresholds::*,
 };
 use crate::models::Activity;
 use serde::{Deserialize, Serialize};
@@ -41,12 +41,6 @@ pub enum InsightType {
     /// Effort and recovery insights
     EffortAnalysis,
 
-    /// Weather impact analysis
-    WeatherImpact,
-
-    /// Trend and progression
-    TrendAnalysis,
-
     /// Recovery and fatigue
     RecoveryInsight,
 
@@ -71,10 +65,6 @@ pub struct InsightGenerator {
 pub struct InsightConfig {
     pub min_confidence_threshold: f32,
     pub max_insights_per_activity: usize,
-    #[allow(dead_code)]
-    pub enable_weather_analysis: bool,
-    #[allow(dead_code)]
-    pub enable_trend_analysis: bool,
 }
 
 impl Default for InsightConfig {
@@ -82,8 +72,6 @@ impl Default for InsightConfig {
         Self {
             min_confidence_threshold: GOOD_FITNESS_THRESHOLD as f32,
             max_insights_per_activity: 5,
-            enable_weather_analysis: true,
-            enable_trend_analysis: true,
         }
     }
 }
@@ -103,7 +91,6 @@ impl InsightGenerator {
     }
 
     /// Create a new insight generator with custom config
-    #[allow(dead_code)]
     pub fn with_config(config: InsightConfig) -> Self {
         Self { config }
     }
@@ -122,9 +109,7 @@ impl InsightGenerator {
         insights.extend(self.generate_effort_insights(activity));
 
         if let Some(ctx) = context {
-            insights.extend(self.generate_weather_insights(activity, ctx));
             insights.extend(self.generate_location_insights(activity, ctx));
-            insights.extend(self.generate_trend_insights(activity, ctx));
         }
 
         // Filter by confidence and limit count
@@ -227,69 +212,6 @@ impl InsightGenerator {
                 "effort_category": effort_description.0
             })),
         });
-
-        insights
-    }
-
-    /// Generate weather-related insights
-    fn generate_weather_insights(
-        &self,
-        _activity: &Activity,
-        context: &ActivityContext,
-    ) -> Vec<Insight> {
-        let mut insights = Vec::new();
-
-        if let Some(weather) = &context.weather {
-            // Example weather impact analysis
-            if weather.temperature_celsius < COLD_THRESHOLD_CELSIUS {
-                insights.push(Insight {
-                    insight_type: InsightType::WeatherImpact,
-                    message: format!("Cold weather conditions ({:.1}°C) likely made this workout more challenging. Great job adapting to the conditions!",
-                                   weather.temperature_celsius),
-                    confidence: 75.0,
-                    data: Some(serde_json::json!({
-                        "temperature": weather.temperature_celsius,
-                        "impact": "challenging_conditions"
-                    })),
-                });
-            } else if weather.conditions.contains("rain") {
-                insights.push(Insight {
-                    insight_type: InsightType::WeatherImpact,
-                    message: "Training in rainy conditions shows excellent dedication and mental toughness!".to_string(),
-                    confidence: 85.0,
-                    data: Some(serde_json::json!({
-                        "conditions": weather.conditions,
-                        "impact": "mental_toughness"
-                    })),
-                });
-            }
-        }
-
-        insights
-    }
-
-    /// Generate trend analysis insights
-    fn generate_trend_insights(
-        &self,
-        _activity: &Activity,
-        context: &ActivityContext,
-    ) -> Vec<Insight> {
-        let mut insights = Vec::new();
-
-        // Example trend analysis (would normally use historical data)
-        if let Some(recent_activities) = &context.recent_activities {
-            if recent_activities.len() >= 3 {
-                insights.push(Insight {
-                    insight_type: InsightType::TrendAnalysis,
-                    message: "Your consistency has been excellent this week with multiple quality sessions!".to_string(),
-                    confidence: 80.0,
-                    data: Some(serde_json::json!({
-                        "recent_activity_count": recent_activities.len(),
-                        "trend": "consistent_training"
-                    })),
-                });
-            }
-        }
 
         insights
     }
@@ -406,33 +328,8 @@ impl InsightGenerator {
 /// Context information for generating insights
 #[derive(Debug, Clone)]
 pub struct ActivityContext {
-    pub weather: Option<super::WeatherConditions>,
     pub location: Option<super::LocationContext>,
     pub recent_activities: Option<Vec<Activity>>,
-    #[allow(dead_code)]
-    pub athlete_goals: Option<Vec<String>>,
-    #[allow(dead_code)]
-    pub historical_data: Option<HistoricalData>,
-}
-
-/// Historical performance data for trend analysis
-#[derive(Debug, Clone)]
-pub struct HistoricalData {
-    #[allow(dead_code)]
-    pub personal_records: Vec<super::PersonalRecord>,
-    #[allow(dead_code)]
-    pub average_performance: PerformanceBaseline,
-}
-
-/// Baseline performance metrics
-#[derive(Debug, Clone)]
-pub struct PerformanceBaseline {
-    #[allow(dead_code)]
-    pub average_pace_per_km: Option<f32>,
-    #[allow(dead_code)]
-    pub average_heartrate: Option<f32>,
-    #[allow(dead_code)]
-    pub typical_distance: Option<f32>,
 }
 
 #[cfg(test)]
@@ -539,11 +436,8 @@ mod tests {
         };
 
         let context = ActivityContext {
-            weather: None,
             location: Some(location_context),
             recent_activities: None,
-            athlete_goals: None,
-            historical_data: None,
         };
 
         let insights = generator.generate_location_insights(&activity, &context);
@@ -587,11 +481,8 @@ mod tests {
         };
 
         let context = ActivityContext {
-            weather: None,
             location: Some(location_context),
             recent_activities: None,
-            athlete_goals: None,
-            historical_data: None,
         };
 
         let insights = generator.generate_location_insights(&activity, &context);
@@ -614,11 +505,8 @@ mod tests {
         let activity = create_test_activity();
 
         let context = ActivityContext {
-            weather: None,
             location: None,
             recent_activities: None,
-            athlete_goals: None,
-            historical_data: None,
         };
 
         let insights = generator.generate_location_insights(&activity, &context);
@@ -654,11 +542,8 @@ mod tests {
         };
 
         let context = ActivityContext {
-            weather: None,
             location: Some(location_context.clone()),
             recent_activities: None,
-            athlete_goals: None,
-            historical_data: None,
         };
 
         assert!(context.location.is_some());

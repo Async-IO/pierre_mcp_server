@@ -247,7 +247,7 @@ impl ActivityAnalyzer {
         let time_of_day = self.determine_time_of_day(&activity.start_date);
 
         ContextualFactors {
-            weather: context.as_ref().and_then(|c| c.weather.as_ref().cloned()),
+            weather: None, // Weather analysis was removed
             location: context.as_ref().and_then(|c| c.location.as_ref().cloned()),
             time_of_day,
             days_since_last_activity: None, // Would calculate from historical data
