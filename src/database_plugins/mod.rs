@@ -257,6 +257,9 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// Update A2A session activity timestamp
     async fn update_a2a_session_activity(&self, session_token: &str) -> Result<()>;
 
+    /// Get active sessions for a specific client
+    async fn get_active_a2a_sessions(&self, client_id: &str) -> Result<Vec<A2ASession>>;
+
     /// Create a new A2A task
     async fn create_a2a_task(
         &self,

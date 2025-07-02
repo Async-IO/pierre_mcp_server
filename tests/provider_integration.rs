@@ -217,6 +217,8 @@ async fn test_activity_model_conversion() -> Result<()> {
         max_heart_rate: Some(175),
         average_speed: Some(2.78),
         max_speed: Some(4.17),
+        steps: Some(8000),
+        heart_rate_zones: None,
         calories: Some(300),
         start_latitude: Some(45.5017), // Montreal
         start_longitude: Some(-73.5673),

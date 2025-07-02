@@ -253,6 +253,12 @@ impl WebSocketManager {
 
     /// Broadcast message to all subscribers of a topic
     async fn broadcast_to_all(&self, message: &WebSocketMessage, topic: &str) {
+        // Use broadcast channel for efficient message distribution
+        if let Err(e) = self.broadcast_tx.send(message.clone()) {
+            tracing::warn!("Failed to send broadcast message: {}", e);
+        }
+
+        // Also send directly to subscribed clients for immediate delivery
         let clients = self.clients.read().await;
         for (_, client) in clients.iter() {
             if client.subscriptions.contains(&topic.to_string()) {

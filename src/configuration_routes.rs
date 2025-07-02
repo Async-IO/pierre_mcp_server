@@ -20,6 +20,7 @@ use crate::configuration::{
     vo2_max::VO2MaxCalculator,
 };
 use crate::database_plugins::factory::Database;
+use crate::database_plugins::DatabaseProvider;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -361,7 +362,12 @@ impl ConfigurationRoutes {
         let processing_start = std::time::Instant::now();
         let user_id = self.authenticate_user(auth_header).await?;
 
-        // For now, return default configuration. In future versions, this will fetch from database
+        // Log database access attempt for future implementation
+        if let Err(e) = self.database.get_user(user_id).await {
+            tracing::debug!("Database user lookup failed: {}", e);
+        }
+
+        // For now, return default configuration
         let config = RuntimeConfig::new();
         let profile = ConfigProfile::Default;
 
@@ -422,13 +428,16 @@ impl ConfigurationRoutes {
         let mut config = RuntimeConfig::new();
 
         // Apply profile if specified
-        if let Some(profile_name) = &request.profile {
+        let profile = if let Some(profile_name) = &request.profile {
             if let Some(profile) = ProfileTemplates::get(profile_name) {
-                config.apply_profile(profile);
+                config.apply_profile(profile.clone());
+                profile
             } else {
                 return Err(anyhow::anyhow!("Unknown profile: {}", profile_name));
             }
-        }
+        } else {
+            ConfigProfile::Default
+        };
 
         // Apply parameter overrides
         for (key, value) in parameter_overrides {
@@ -443,13 +452,17 @@ impl ConfigurationRoutes {
             }
         }
 
-        // In future versions, save to database here
+        // Log database save attempt for future implementation
+        if let Err(e) = self.database.get_user(user_id).await {
+            tracing::debug!("Database user lookup failed during save: {}", e);
+        }
+
         // For now, return success with applied configuration
 
         Ok(UpdateConfigurationResponse {
             user_id,
             updated_configuration: UpdatedConfigurationDetails {
-                active_profile: config.get_profile().name(),
+                active_profile: profile.name(),
                 applied_overrides: config.get_session_overrides().len(),
                 last_modified: chrono::Utc::now(),
             },

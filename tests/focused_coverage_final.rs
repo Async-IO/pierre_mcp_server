@@ -422,7 +422,9 @@ async fn test_activity_model_comprehensive() -> Result<()> {
             average_heart_rate: Some(150),
             max_heart_rate: Some(180),
             average_speed: Some(2.78), // 10 km/h in m/s
-            max_speed: Some(5.0),      // 18 km/h in m/s
+            steps: Some(15000),
+            heart_rate_zones: None,
+            max_speed: Some(5.0), // 18 km/h in m/s
             calories: Some(500),
             start_latitude: Some(40.7128),
             start_longitude: Some(-74.0060),

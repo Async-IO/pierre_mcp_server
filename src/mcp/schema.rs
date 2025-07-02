@@ -1171,7 +1171,7 @@ mod tests {
 
         // Check that tools are available via tools/list
         let available_tools = get_tools();
-        assert_eq!(available_tools.len(), 21);
+        assert_eq!(available_tools.len(), 27); // Updated count: 21 original + 6 configuration tools
 
         let tool_names: Vec<&str> = available_tools.iter().map(|t| t.name.as_str()).collect();
 

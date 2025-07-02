@@ -223,7 +223,17 @@ impl OAuthManager {
 
         let state_data = storage.remove(state).ok_or(OAuthError::InvalidState)?;
 
-        if state_data.expires_at < chrono::Utc::now() {
+        let now = chrono::Utc::now();
+
+        // Check if state has expired
+        if state_data.expires_at < now {
+            return Err(OAuthError::InvalidState);
+        }
+
+        // Validate state age using created_at field
+        let state_age = now - state_data.created_at;
+        if state_age > chrono::Duration::minutes(15) {
+            tracing::warn!("OAuth state is older than 15 minutes, rejecting for security");
             return Err(OAuthError::InvalidState);
         }
 

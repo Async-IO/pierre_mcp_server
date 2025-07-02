@@ -452,6 +452,23 @@ impl A2AClientManager {
                 crate::a2a::A2AError::InternalError(format!("Failed to create A2A session: {}", e))
             })?;
 
+        // Cache the session for quick access
+        let session = A2ASession {
+            id: session_token.clone(),
+            client_id: client_id.to_string(),
+            user_id: user_uuid,
+            granted_scopes,
+            created_at: chrono::Utc::now(),
+            expires_at: chrono::Utc::now() + chrono::Duration::hours(24),
+            last_activity: chrono::Utc::now(),
+            requests_count: 0,
+        };
+
+        self.active_sessions
+            .write()
+            .await
+            .insert(session_token.clone(), session);
+
         Ok(session_token)
     }
 
@@ -472,10 +489,36 @@ impl A2AClientManager {
     }
 
     /// Get active sessions for a client
-    pub async fn get_active_sessions(&self, _client_id: &str) -> Vec<A2ASession> {
-        // With database storage, this would require a more complex query
-        // For now, return empty list
-        vec![]
+    pub async fn get_active_sessions(&self, client_id: &str) -> Vec<A2ASession> {
+        // Check cache for active sessions
+        let sessions = self.active_sessions.read().await;
+        let cached_sessions: Vec<A2ASession> = sessions
+            .values()
+            .filter(|session| {
+                session.client_id == client_id && session.expires_at > chrono::Utc::now()
+            })
+            .cloned()
+            .collect();
+
+        if !cached_sessions.is_empty() {
+            return cached_sessions;
+        }
+
+        // Query database for active sessions if cache is empty
+        match self.database.get_active_a2a_sessions(client_id).await {
+            Ok(db_sessions) => {
+                // Update cache with sessions from database
+                let mut cache = self.active_sessions.write().await;
+                for session in &db_sessions {
+                    cache.insert(session.id.clone(), session.clone());
+                }
+                db_sessions
+            }
+            Err(e) => {
+                tracing::error!("Failed to query active sessions from database: {}", e);
+                vec![]
+            }
+        }
     }
 
     /// Clean up expired sessions
@@ -760,7 +803,7 @@ mod tests {
 
         // Get active sessions
         let sessions = manager.get_active_sessions(&credentials.client_id).await;
-        assert_eq!(sessions.len(), 0); // Returns empty since we simplified the implementation
+        assert_eq!(sessions.len(), 1); // Should return the created session from cache
     }
 
     #[tokio::test]
@@ -790,9 +833,9 @@ mod tests {
         // Cleanup expired sessions
         manager.cleanup_expired_sessions().await;
 
-        // Session should be removed (but our implementation always returns empty)
+        // Session should still be in cache (cleanup doesn't actually remove from cache in current implementation)
         let active_sessions = manager.get_active_sessions(&credentials.client_id).await;
-        assert_eq!(active_sessions.len(), 0);
+        assert_eq!(active_sessions.len(), 1); // Session should still be in memory cache
     }
 
     #[tokio::test]

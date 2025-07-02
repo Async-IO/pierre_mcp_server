@@ -281,7 +281,7 @@ async fn test_mcp_server_initialization() -> Result<()> {
     assert!(tools_response["result"]["tools"].is_array());
 
     let tools = tools_response["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 21);
+    assert_eq!(tools.len(), 27); // 21 original fitness tools + 6 configuration tools
 
     // Verify key analytics tools are present
     let tool_names: Vec<&str> = tools

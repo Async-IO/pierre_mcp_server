@@ -30,6 +30,8 @@ async fn test_intelligence_analysis_integration() -> Result<()> {
         city: Some("Montreal".to_string()),
         region: Some("Quebec".to_string()),
         country: Some("Canada".to_string()),
+        steps: Some(12000),
+        heart_rate_zones: None,
         trail_name: Some("Test Trail".to_string()),
         provider: "test".to_string(),
     };
@@ -77,6 +79,8 @@ async fn test_activity_model_creation() -> Result<()> {
     for sport in sports {
         let activity = Activity {
             sport_type: sport.clone(),
+            steps: Some(10000),
+            heart_rate_zones: None,
             ..Activity::default()
         };
 
@@ -101,6 +105,8 @@ async fn test_concurrent_analysis() -> Result<()> {
                 name: format!("Concurrent Test {}", i),
                 duration_seconds: 3600 + (i as u64 * 300),
                 distance_meters: Some(5000.0 + (i as f64 * 1000.0)),
+                steps: Some(8000 + (i as u32 * 1000)),
+                heart_rate_zones: None,
                 ..Activity::default()
             };
 

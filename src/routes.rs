@@ -16,7 +16,7 @@ use crate::{
 use anyhow::Result;
 use base64::{engine::general_purpose, Engine};
 use serde::{Deserialize, Serialize};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -406,10 +406,29 @@ impl OAuthRoutes {
             "strava" => {
                 let token_response = self.exchange_strava_code(code).await?;
 
-                // Store encrypted tokens in database
-                let expires_at =
+                // Validate token type
+                if token_response.token_type.to_lowercase() != "bearer" {
+                    warn!(
+                        "Unexpected Strava token type: {}",
+                        token_response.token_type
+                    );
+                }
+
+                // Log athlete information for debugging (without sensitive data)
+                if !token_response.athlete.is_null() {
+                    info!("Strava athlete data received for user: {}", user_id);
+                }
+
+                // Store encrypted tokens in database - use expires_in as fallback for expires_at
+                let expires_at = if token_response.expires_at > 0 {
                     chrono::DateTime::<chrono::Utc>::from_timestamp(token_response.expires_at, 0)
-                        .unwrap_or_else(|| chrono::Utc::now() + chrono::Duration::hours(6));
+                        .unwrap_or_else(|| {
+                            chrono::Utc::now()
+                                + chrono::Duration::seconds(token_response.expires_in)
+                        })
+                } else {
+                    chrono::Utc::now() + chrono::Duration::seconds(token_response.expires_in)
+                };
 
                 self.database
                     .update_strava_token(
@@ -437,6 +456,20 @@ impl OAuthRoutes {
             }
             "fitbit" => {
                 let token_response = self.exchange_fitbit_code(code).await?;
+
+                // Validate token type
+                if token_response.token_type.to_lowercase() != "bearer" {
+                    warn!(
+                        "Unexpected Fitbit token type: {}",
+                        token_response.token_type
+                    );
+                }
+
+                // Log user_id for tracking
+                info!(
+                    "Fitbit token received for user_id: {}",
+                    token_response.user_id
+                );
 
                 // Store encrypted tokens in database
                 let expires_at =

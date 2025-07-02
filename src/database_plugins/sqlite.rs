@@ -342,6 +342,10 @@ impl DatabaseProvider for SqliteDatabase {
         self.inner.update_a2a_session_activity(session_token).await
     }
 
+    async fn get_active_a2a_sessions(&self, client_id: &str) -> Result<Vec<A2ASession>> {
+        self.inner.get_active_a2a_sessions(client_id).await
+    }
+
     async fn create_a2a_task(
         &self,
         client_id: &str,
