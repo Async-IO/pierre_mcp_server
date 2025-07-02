@@ -50,12 +50,11 @@ impl StravaOAuthProvider {
             })?
             .clone();
 
-        let redirect_uri = config.redirect_uri.as_ref().cloned().unwrap_or_else(|| {
-            format!(
-                "http://localhost:{}/oauth/callback/strava",
-                crate::constants::ports::DEFAULT_HTTP_PORT
-            )
-        });
+        let redirect_uri = config
+            .redirect_uri
+            .as_ref()
+            .cloned()
+            .unwrap_or_else(crate::constants::env_config::strava_redirect_uri);
 
         Ok(Self {
             client_id,
@@ -74,12 +73,7 @@ impl StravaOAuthProvider {
             OAuthError::ConfigurationError("STRAVA_CLIENT_SECRET not set".to_string())
         })?;
 
-        let redirect_uri = std::env::var("STRAVA_REDIRECT_URI").unwrap_or_else(|_| {
-            format!(
-                "http://localhost:{}/oauth/callback/strava",
-                crate::constants::ports::DEFAULT_HTTP_PORT
-            )
-        });
+        let redirect_uri = crate::constants::env_config::strava_redirect_uri();
 
         Ok(Self {
             client_id,
@@ -207,7 +201,7 @@ impl OAuthProvider for StravaOAuthProvider {
         let client = reqwest::Client::new();
 
         let response = client
-            .post("https://www.strava.com/oauth/deauthorize")
+            .post(crate::constants::env_config::strava_deauthorize_url())
             .form(&[("access_token", access_token)])
             .send()
             .await
@@ -266,12 +260,11 @@ impl FitbitOAuthProvider {
             })?
             .clone();
 
-        let redirect_uri = config.redirect_uri.as_ref().cloned().unwrap_or_else(|| {
-            format!(
-                "http://localhost:{}/oauth/callback/fitbit",
-                crate::constants::ports::DEFAULT_HTTP_PORT
-            )
-        });
+        let redirect_uri = config
+            .redirect_uri
+            .as_ref()
+            .cloned()
+            .unwrap_or_else(crate::constants::env_config::fitbit_redirect_uri);
 
         Ok(Self {
             client_id,
@@ -290,12 +283,7 @@ impl FitbitOAuthProvider {
             OAuthError::ConfigurationError("FITBIT_CLIENT_SECRET not set".to_string())
         })?;
 
-        let redirect_uri = std::env::var("FITBIT_REDIRECT_URI").unwrap_or_else(|_| {
-            format!(
-                "http://localhost:{}/oauth/callback/fitbit",
-                crate::constants::ports::DEFAULT_HTTP_PORT
-            )
-        });
+        let redirect_uri = crate::constants::env_config::fitbit_redirect_uri();
 
         Ok(Self {
             client_id,
@@ -319,7 +307,8 @@ impl OAuthProvider for FitbitOAuthProvider {
         let scope = "activity heartrate location nutrition profile settings sleep social weight";
 
         let auth_url = format!(
-            "https://www.fitbit.com/oauth2/authorize?client_id={}&redirect_uri={}&response_type=code&scope={}&state={}",
+            "{}?client_id={}&redirect_uri={}&response_type=code&scope={}&state={}",
+            crate::constants::env_config::fitbit_auth_url(),
             urlencoding::encode(&self.client_id),
             urlencoding::encode(&self.redirect_uri),
             urlencoding::encode(scope),
@@ -349,7 +338,7 @@ impl OAuthProvider for FitbitOAuthProvider {
             general_purpose::STANDARD.encode(format!("{}:{}", self.client_id, self.client_secret));
 
         let response = client
-            .post("https://api.fitbit.com/oauth2/token")
+            .post(crate::constants::env_config::fitbit_token_url())
             .header("Authorization", format!("Basic {}", auth_header))
             .form(&params)
             .send()
@@ -387,7 +376,7 @@ impl OAuthProvider for FitbitOAuthProvider {
             general_purpose::STANDARD.encode(format!("{}:{}", self.client_id, self.client_secret));
 
         let response = client
-            .post("https://api.fitbit.com/oauth2/token")
+            .post(crate::constants::env_config::fitbit_token_url())
             .header("Authorization", format!("Basic {}", auth_header))
             .form(&params)
             .send()
@@ -420,7 +409,7 @@ impl OAuthProvider for FitbitOAuthProvider {
             general_purpose::STANDARD.encode(format!("{}:{}", self.client_id, self.client_secret));
 
         let response = client
-            .post("https://api.fitbit.com/oauth2/revoke")
+            .post(crate::constants::env_config::fitbit_revoke_url())
             .header("Authorization", format!("Basic {}", auth_header))
             .form(&[("token", access_token)])
             .send()

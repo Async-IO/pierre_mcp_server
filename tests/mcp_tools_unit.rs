@@ -13,8 +13,8 @@ fn test_mcp_tool_schemas() {
     // Test that all analytics tools are properly defined
     let tools = get_tools();
 
-    // Should have all 21 tools
-    assert_eq!(tools.len(), 21);
+    // Should have all 27 tools (21 original fitness + 6 configuration)
+    assert_eq!(tools.len(), 27);
 
     // Check key analytics tools are present
     let tool_names: Vec<&str> = tools.iter().map(|t| t.name.as_str()).collect();
