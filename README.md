@@ -95,13 +95,13 @@ curl -X POST https://your-pierre-server.com/a2a/execute \
 
 | Guide | Description | Key Topics |
 |-------|-------------|------------|
-| **[Setup & Installation](docs/SETUP.md)** | Get started quickly | Local setup, OAuth config, Docker deployment, binaries |
-| **[Configuration](docs/CONFIGURATION.md)** | Complete configuration guide | Environment variables, config files, security |
+| **[📚 Documentation Index](docs/README.md)** | **Complete doc guide** | **All documentation organized by use case** |
+| **[Setup & Installation](docs/SETUP.md)** | Get started quickly | Local setup, OAuth config, Docker deployment |
+| **[Authentication Guide](docs/AUTHENTICATION.md)** | **Auth methods** | **JWT, API keys, A2A protocol flows** |
+| **[OpenAPI Specification](docs/openapi.yaml)** | **Complete API reference** | **Interactive spec with examples** |
+| **[Error Handling](docs/ERROR_HANDLING.md)** | **Troubleshooting** | **Error codes and solutions** |
 | **[MCP Tools Reference](docs/TOOLS.md)** | All 21 fitness tools | Data access, intelligence, goals, analytics |
-| **[Weather Integration](docs/WEATHER.md)** | Weather-enhanced analysis | OpenWeatherMap setup, mock data, intelligence |
-| **[API Reference](docs/API_REFERENCE.md)** | Enterprise features | API keys, rate limiting, security, monitoring, error handling |
-| **[Business Provisioning](docs/PROVISIONING.md)** | B2B deployment guide | API key provisioning, multi-tenant setup, admin workflows |
-| **[Testing & Development](docs/TESTING.md)** | Development workflow | Test suites, debugging, CI/CD, quality assurance |
+| **[Business Provisioning](docs/PROVISIONING.md)** | B2B deployment guide | API key provisioning, multi-tenant setup |
 | **[Deployment Guide](docs/DEPLOYMENT.md)** | Production deployment | Docker, Kubernetes, cloud platforms |
 | **[Architecture Guide](docs/ARCHITECTURE.md)** | Technical deep-dive | System design, extensibility, contribution areas |
 
