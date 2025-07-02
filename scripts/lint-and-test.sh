@@ -203,7 +203,7 @@ fi
 # Check for security vulnerabilities (if cargo-audit is installed)
 echo -e "${BLUE}==== Checking for security vulnerabilities... ====${NC}"
 if command_exists cargo-audit; then
-    if cargo audit --ignore RUSTSEC-2023-0071 --quiet 2>/dev/null; then
+    if RUST_LOG=off cargo audit --ignore RUSTSEC-2023-0071 --quiet >/dev/null 2>&1; then
         echo -e "${GREEN}[OK] No security vulnerabilities found${NC}"
     else
         echo -e "${YELLOW}[WARN]  Security vulnerabilities detected${NC}"
