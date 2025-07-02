@@ -2,9 +2,29 @@
 """
 A2A API Client Example
 Scalable fitness data access via Agent-to-Agent protocol
+
+Prerequisites:
+1. Register an A2A client to get client_id and client_secret:
+   curl -X POST http://localhost:8081/a2a/clients \
+     -H "Content-Type: application/json" \
+     -H "Authorization: Bearer <admin_jwt_token>" \
+     -d '{
+       "name": "My Fitness Bot",
+       "description": "AI fitness assistant",
+       "capabilities": ["fitness-data-analysis", "goal-management"],
+       "contact_email": "developer@myapp.com"
+     }'
+
+2. Use the returned client_id and client_secret in this example
+
+Environment Variables:
+- PIERRE_A2A_CLIENT_ID: Your A2A client ID
+- PIERRE_A2A_CLIENT_SECRET: Your A2A client secret
+- PIERRE_API_BASE: API base URL (default: http://localhost:8081)
 """
 
 import json
+import os
 import requests
 import time
 from datetime import datetime
@@ -13,9 +33,12 @@ from typing import List, Dict, Optional
 class A2AClient:
     """A2A API client for business integration"""
     
-    def __init__(self, base_url: str = 'http://localhost:8081', api_key: Optional[str] = None):
+    def __init__(self, base_url: str = 'http://localhost:8081', client_id: Optional[str] = None, 
+                 client_secret: Optional[str] = None):
         self.base_url = base_url.rstrip('/')
-        self.api_key = api_key
+        self.client_id = client_id
+        self.client_secret = client_secret
+        self.session_token = None
         self.session = requests.Session()
         
         # Set default headers
@@ -23,54 +46,54 @@ class A2AClient:
             'Content-Type': 'application/json',
             'User-Agent': 'Pierre-A2A-Client/1.0'
         })
-        
-        if self.api_key:
-            self.session.headers['Authorization'] = f'Bearer {self.api_key}'
     
-    def authenticate_with_jwt(self, email: str, password: str) -> bool:
-        """Authenticate and get JWT token (for demo purposes)"""
+    def authenticate(self, scopes: List[str] = None) -> bool:
+        """Authenticate with A2A client credentials"""
+        if not self.client_id or not self.client_secret:
+            print("❌ Client ID and secret required for A2A authentication")
+            return False
+            
+        if scopes is None:
+            scopes = ["read"]
+            
         try:
-            response = self.session.post(f'{self.base_url}/auth/login', json={
-                'email': email,
-                'password': password
+            response = self.session.post(f'{self.base_url}/a2a/auth', json={
+                'client_id': self.client_id,
+                'client_secret': self.client_secret,
+                'scopes': scopes
             })
             
             if response.status_code == 200:
                 data = response.json()
-                jwt_token = data.get('jwt_token')
-                if jwt_token:
-                    self.session.headers['Authorization'] = f'Bearer {jwt_token}'
-                    print("✅ JWT authentication successful")
+                self.session_token = data.get('session_token')
+                if self.session_token:
+                    self.session.headers['Authorization'] = f'Bearer {self.session_token}'
+                    print(f"✅ A2A authentication successful, expires in {data.get('expires_in')}s")
                     return True
             
-            print(f"❌ Authentication failed: {response.status_code}")
+            print(f"❌ A2A authentication failed: {response.status_code}")
+            if response.status_code == 401:
+                print("Check your client_id and client_secret")
             return False
             
         except Exception as e:
-            print(f"❌ Authentication error: {e}")
+            print(f"❌ A2A authentication error: {e}")
             return False
     
-    def create_api_key(self, name: str, description: str = "", tier: str = "trial") -> Optional[str]:
-        """Create a new API key via A2A endpoint"""
+    def get_agent_card(self) -> Dict:
+        """Get A2A agent capability information"""
         try:
-            response = self.session.post(f'{self.base_url}/api/keys', json={
-                'name': name,
-                'description': description,
-                'tier': tier
-            })
+            response = self.session.get(f'{self.base_url}/a2a/agent-card')
             
             if response.status_code == 200:
-                data = response.json()
-                api_key = data.get('api_key')
-                print(f"✅ Created API key: {data.get('key_info', {}).get('key_prefix', 'Unknown')}")
-                return api_key
+                return response.json()
             else:
-                print(f"❌ API key creation failed: {response.status_code}")
-                return None
+                print(f"❌ Failed to get agent card: {response.status_code}")
+                return {}
                 
         except Exception as e:
-            print(f"❌ API key creation error: {e}")
-            return None
+            print(f"❌ Agent card error: {e}")
+            return {}
     
     def execute_tool(self, tool_name: str, parameters: Dict, timeout: int = 30) -> Dict:
         """Execute fitness tool via A2A protocol"""
@@ -193,18 +216,27 @@ def main():
     print("🚀 A2A API Client Example")
     print("=" * 40)
     
-    # Initialize client
+    # Example 1: Get agent capabilities (no auth required)
     client = A2AClient()
+    agent_card = client.get_agent_card()
+    if agent_card:
+        print(f"🤖 Agent: {agent_card.get('name', 'Pierre Fitness AI')}")
+        print(f"📋 Capabilities: {', '.join(agent_card.get('capabilities', []))}")
+        print()
     
-    # Authenticate (for demo - in production use API keys)
-    if not client.authenticate_with_jwt('test@example.com', 'password123'):
-        print("❌ Authentication failed")
+    # Example 2: Initialize client with A2A credentials
+    # Get credentials from environment variables or use demo values
+    client_id = os.getenv('PIERRE_A2A_CLIENT_ID', 'demo_client_123')
+    client_secret = os.getenv('PIERRE_A2A_CLIENT_SECRET', 'demo_secret_456')
+    base_url = os.getenv('PIERRE_API_BASE', 'http://localhost:8081')
+    
+    client = A2AClient(base_url=base_url, client_id=client_id, client_secret=client_secret)
+    
+    # Authenticate with A2A protocol
+    if not client.authenticate(scopes=["read", "write"]):
+        print("❌ A2A authentication failed")
+        print("💡 Make sure you have registered an A2A client first")
         return
-    
-    # Optional: Create API key for production use
-    api_key = client.create_api_key('A2A Demo Key', 'Example A2A integration')
-    if api_key:
-        print(f"🔑 API Key created (use this for production): {api_key[:12]}...")
     
     # Get activities
     activities = client.get_activities(limit=50)
