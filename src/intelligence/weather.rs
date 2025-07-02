@@ -10,7 +10,7 @@ use super::WeatherConditions;
 use crate::config::fitness_config::WeatherApiConfig;
 use crate::config::intelligence_config::{IntelligenceConfig, WeatherAnalysisConfig};
 use crate::intelligence::physiological_constants::{
-    weather_impact_factors::*, weather_thresholds::*,
+    unit_conversions::*, weather_impact_factors::*, weather_thresholds::*,
 };
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use reqwest::Client;
@@ -245,7 +245,9 @@ impl WeatherService {
         Ok(WeatherConditions {
             temperature_celsius: closest_data.temp as f32,
             humidity_percentage: closest_data.humidity.map(|h| h as f32),
-            wind_speed_kmh: closest_data.wind_speed.map(|ws| (ws * 3.6) as f32), // Convert m/s to km/h
+            wind_speed_kmh: closest_data
+                .wind_speed
+                .map(|ws| (ws * MS_TO_KMH_FACTOR) as f32), // Convert m/s to km/h
             conditions,
         })
     }

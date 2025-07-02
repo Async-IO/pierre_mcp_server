@@ -11,7 +11,13 @@ use super::{
     ActivityIntelligence, ContextualFactors, PerformanceMetrics, PersonalRecord, TimeOfDay,
     TrendDirection, TrendIndicators, ZoneDistribution,
 };
-use crate::intelligence::physiological_constants::{demo_data::*, efficiency_defaults::*};
+use crate::intelligence::physiological_constants::{
+    demo_data::*,
+    efficiency_defaults::*,
+    performance_calculation::*,
+    personal_records::*,
+    zone_distributions::{zone_analysis_thresholds::*, *},
+};
 use crate::models::{Activity, SportType};
 use chrono::{DateTime, Local, Timelike, Utc};
 
@@ -82,31 +88,41 @@ impl ActivityAnalyzer {
 
         // Base effort from duration
         let duration = activity.duration_seconds;
-        effort += (duration as f32 / 3600.0) * 1.5; // +1.5 per hour
+        effort += (duration as f32 / 3600.0) * EFFORT_HOUR_FACTOR; // Duration-based effort
 
         // Heart rate intensity
         if let (Some(avg_hr), Some(max_hr)) = (activity.average_heart_rate, activity.max_heart_rate)
         {
             let hr_intensity = (avg_hr as f32) / (max_hr as f32);
-            effort += hr_intensity * 4.0;
+            effort += hr_intensity * HR_INTENSITY_EFFORT_FACTOR;
         }
 
         // Distance factor
         if let Some(distance_m) = activity.distance_meters {
             let distance_km = distance_m / 1000.0;
             match activity.sport_type {
-                SportType::Run => effort += (distance_km / 10.0) as f32 * 0.8, // +0.8 per 10km
-                SportType::Ride => effort += (distance_km / 50.0) as f32 * 0.6, // +0.6 per 50km
-                _ => effort += (distance_km / 20.0) as f32 * 0.5,
+                SportType::Run => {
+                    effort +=
+                        (distance_km / RUN_DISTANCE_DIVISOR as f64) as f32 * RUN_EFFORT_MULTIPLIER
+                }
+                SportType::Ride => {
+                    effort +=
+                        (distance_km / BIKE_DISTANCE_DIVISOR as f64) as f32 * BIKE_EFFORT_MULTIPLIER
+                }
+                _ => {
+                    effort +=
+                        (distance_km / SWIM_DISTANCE_DIVISOR as f64) as f32 * SWIM_EFFORT_MULTIPLIER
+                }
             }
         }
 
         // Elevation factor
         if let Some(elevation) = activity.elevation_gain {
-            effort += (elevation / 100.0) as f32 * 0.3;
+            effort +=
+                (elevation / ELEVATION_EFFORT_DIVISOR as f64) as f32 * ELEVATION_EFFORT_FACTOR;
         }
 
-        effort.clamp(1.0, 10.0)
+        effort.clamp(MIN_EFFORT_SCORE, MAX_EFFORT_SCORE)
     }
 
     /// Calculate heart rate zone distribution
@@ -114,45 +130,45 @@ impl ActivityAnalyzer {
         // This is a simplified version - real implementation would need detailed HR data
         if let (Some(avg_hr), Some(max_hr)) = (activity.average_heart_rate, activity.max_heart_rate)
         {
-            let hr_reserve = max_hr - 60; // Assuming 60 bpm resting HR
-            let intensity = ((avg_hr - 60) as f32) / (hr_reserve as f32);
+            let hr_reserve = max_hr - ASSUMED_RESTING_HR; // Using configured resting HR
+            let intensity = ((avg_hr - ASSUMED_RESTING_HR) as f32) / (hr_reserve as f32);
 
-            // Estimated distribution based on average intensity
+            // Estimated distribution based on average intensity using defined thresholds
             let zones = match intensity {
-                x if x < 0.5 => ZoneDistribution {
-                    zone1_recovery: 80.0,
-                    zone2_endurance: 20.0,
-                    zone3_tempo: 0.0,
-                    zone4_threshold: 0.0,
-                    zone5_vo2max: 0.0,
+                x if x < intensity_thresholds::LOW_TO_MODERATE_LOW => ZoneDistribution {
+                    zone1_recovery: low_intensity::ZONE1_RECOVERY,
+                    zone2_endurance: low_intensity::ZONE2_ENDURANCE,
+                    zone3_tempo: low_intensity::ZONE3_TEMPO,
+                    zone4_threshold: low_intensity::ZONE4_THRESHOLD,
+                    zone5_vo2max: low_intensity::ZONE5_VO2MAX,
                 },
-                x if x < 0.6 => ZoneDistribution {
-                    zone1_recovery: 20.0,
-                    zone2_endurance: 70.0,
-                    zone3_tempo: 10.0,
-                    zone4_threshold: 0.0,
-                    zone5_vo2max: 0.0,
+                x if x < intensity_thresholds::MODERATE_LOW_TO_MODERATE => ZoneDistribution {
+                    zone1_recovery: moderate_low_intensity::ZONE1_RECOVERY,
+                    zone2_endurance: moderate_low_intensity::ZONE2_ENDURANCE,
+                    zone3_tempo: moderate_low_intensity::ZONE3_TEMPO,
+                    zone4_threshold: moderate_low_intensity::ZONE4_THRESHOLD,
+                    zone5_vo2max: moderate_low_intensity::ZONE5_VO2MAX,
                 },
-                x if x < 0.7 => ZoneDistribution {
-                    zone1_recovery: 10.0,
-                    zone2_endurance: 40.0,
-                    zone3_tempo: 45.0,
-                    zone4_threshold: 5.0,
-                    zone5_vo2max: 0.0,
+                x if x < intensity_thresholds::MODERATE_TO_HIGH => ZoneDistribution {
+                    zone1_recovery: moderate_intensity::ZONE1_RECOVERY,
+                    zone2_endurance: moderate_intensity::ZONE2_ENDURANCE,
+                    zone3_tempo: moderate_intensity::ZONE3_TEMPO,
+                    zone4_threshold: moderate_intensity::ZONE4_THRESHOLD,
+                    zone5_vo2max: moderate_intensity::ZONE5_VO2MAX,
                 },
-                x if x < 0.85 => ZoneDistribution {
-                    zone1_recovery: 5.0,
-                    zone2_endurance: 20.0,
-                    zone3_tempo: 30.0,
-                    zone4_threshold: 40.0,
-                    zone5_vo2max: 5.0,
+                x if x < intensity_thresholds::HIGH_TO_VERY_HIGH => ZoneDistribution {
+                    zone1_recovery: high_intensity::ZONE1_RECOVERY,
+                    zone2_endurance: high_intensity::ZONE2_ENDURANCE,
+                    zone3_tempo: high_intensity::ZONE3_TEMPO,
+                    zone4_threshold: high_intensity::ZONE4_THRESHOLD,
+                    zone5_vo2max: high_intensity::ZONE5_VO2MAX,
                 },
                 _ => ZoneDistribution {
-                    zone1_recovery: 0.0,
-                    zone2_endurance: 10.0,
-                    zone3_tempo: 20.0,
-                    zone4_threshold: 40.0,
-                    zone5_vo2max: 30.0,
+                    zone1_recovery: very_high_intensity::ZONE1_RECOVERY,
+                    zone2_endurance: very_high_intensity::ZONE2_ENDURANCE,
+                    zone3_tempo: very_high_intensity::ZONE3_TEMPO,
+                    zone4_threshold: very_high_intensity::ZONE4_THRESHOLD,
+                    zone5_vo2max: very_high_intensity::ZONE5_VO2MAX,
                 },
             };
 
@@ -169,7 +185,7 @@ impl ActivityAnalyzer {
         // Example: Distance PR detection (would normally compare with historical data)
         if let Some(distance_m) = activity.distance_meters {
             let distance_km = distance_m / 1000.0;
-            if distance_km > 20.0 {
+            if distance_km > DISTANCE_PR_THRESHOLD_KM {
                 // Arbitrary threshold for demo
                 const PREVIOUS_BEST: f64 = DEMO_PREVIOUS_BEST_TIME;
                 records.push(PersonalRecord {
@@ -187,7 +203,7 @@ impl ActivityAnalyzer {
         // Example: Speed PR detection
         if let Some(avg_speed) = activity.average_speed {
             let pace_per_km = PACE_PER_KM_FACTOR as f64 / avg_speed;
-            if pace_per_km < 300.0 {
+            if pace_per_km < PACE_PR_THRESHOLD_SECONDS {
                 const PREVIOUS_BEST_PACE: f64 = DEMO_PREVIOUS_BEST_PACE;
                 records.push(PersonalRecord {
                     record_type: "Fastest Average Pace".into(),
@@ -234,7 +250,7 @@ impl ActivityAnalyzer {
             pace_trend: TrendDirection::Improving,
             effort_trend: TrendDirection::Stable,
             distance_trend: TrendDirection::Stable,
-            consistency_score: 85.0,
+            consistency_score: DEMO_CONSISTENCY_SCORE,
         }
     }
 
@@ -321,7 +337,7 @@ impl ActivityAnalyzer {
             match relative_effort {
                 r if r < 3.0 => "light intensity",
                 r if r < 5.0 => "moderate intensity",
-                r if r < 7.0 => "hard intensity",
+                r if r < HARD_INTENSITY_EFFORT_THRESHOLD => "hard intensity",
                 _ => "very high intensity",
             }
         } else {
@@ -330,7 +346,7 @@ impl ActivityAnalyzer {
 
         // Zone analysis
         let zone_desc = if let Some(zones) = &performance.zone_distribution {
-            if zones.zone2_endurance > 50.0 {
+            if zones.zone2_endurance > SIGNIFICANT_ENDURANCE_ZONE_THRESHOLD {
                 "endurance zones"
             } else if zones.zone4_threshold > 30.0 {
                 "threshold zones"

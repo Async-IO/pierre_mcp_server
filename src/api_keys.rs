@@ -9,6 +9,7 @@
 //! Provides B2B API key generation, validation, and usage tracking
 //! for the Pierre MCP Fitness API platform.
 
+use crate::constants::system_config::*;
 use anyhow::Result;
 use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
 use rand::distributions::Alphanumeric;
@@ -30,21 +31,21 @@ pub enum ApiKeyTier {
 impl ApiKeyTier {
     pub fn monthly_limit(&self) -> Option<u32> {
         match self {
-            ApiKeyTier::Trial => Some(1_000),
-            ApiKeyTier::Starter => Some(10_000),
-            ApiKeyTier::Professional => Some(100_000),
+            ApiKeyTier::Trial => Some(TRIAL_MONTHLY_LIMIT),
+            ApiKeyTier::Starter => Some(STARTER_MONTHLY_LIMIT),
+            ApiKeyTier::Professional => Some(PROFESSIONAL_MONTHLY_LIMIT),
             ApiKeyTier::Enterprise => None, // Unlimited
         }
     }
 
     pub fn rate_limit_window(&self) -> u32 {
-        30 * 24 * 60 * 60 // 30 days in seconds
+        RATE_LIMIT_WINDOW_SECONDS // 30 days in seconds
     }
 
     /// Default expiration in days for trial keys
     pub fn default_trial_days(&self) -> Option<i64> {
         match self {
-            ApiKeyTier::Trial => Some(14), // 14 days trial period
+            ApiKeyTier::Trial => Some(TRIAL_PERIOD_DAYS as i64), // Trial period
             _ => None,
         }
     }

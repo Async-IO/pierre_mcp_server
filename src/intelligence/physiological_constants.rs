@@ -636,3 +636,251 @@ pub mod goal_feasibility {
     /// Moderate feasibility threshold (50%)
     pub const MODERATE_FEASIBILITY_THRESHOLD: f64 = 50.0;
 }
+
+/// Performance calculation factors for effort and intensity analysis
+pub mod performance_calculation {
+    /// Hour conversion factor for duration-based effort calculation
+    /// Used to normalize activity duration to hourly basis for scoring
+    pub const EFFORT_HOUR_FACTOR: f32 = 1.5;
+
+    /// Heart rate intensity multiplier for effort calculation
+    /// Higher values increase the impact of HR intensity on effort scores
+    pub const HR_INTENSITY_EFFORT_FACTOR: f32 = 4.0;
+
+    /// Distance divisor for running activities in effort calculation
+    /// Lower values make distance contribute more to effort score
+    pub const RUN_DISTANCE_DIVISOR: f32 = 10.0;
+
+    /// Effort multiplier for running activities
+    /// Adjusts the relative effort contribution for running vs other sports
+    pub const RUN_EFFORT_MULTIPLIER: f32 = 0.8;
+
+    /// Distance divisor for cycling activities in effort calculation
+    /// Accounts for cycling being generally less effort per km than running
+    pub const BIKE_DISTANCE_DIVISOR: f32 = 50.0;
+
+    /// Effort multiplier for cycling activities
+    /// Adjusts the relative effort contribution for cycling
+    pub const BIKE_EFFORT_MULTIPLIER: f32 = 0.6;
+
+    /// Distance divisor for swimming activities in effort calculation
+    /// Swimming typically covers less distance but requires high effort
+    pub const SWIM_DISTANCE_DIVISOR: f32 = 20.0;
+
+    /// Effort multiplier for swimming activities
+    /// Adjusts the relative effort contribution for swimming
+    pub const SWIM_EFFORT_MULTIPLIER: f32 = 0.5;
+
+    /// Elevation gain divisor for effort calculation (meters)
+    /// Used to convert elevation gain to effort contribution
+    pub const ELEVATION_EFFORT_DIVISOR: f32 = 100.0;
+
+    /// Elevation gain multiplier for effort calculation
+    /// Adjusts how much elevation gain contributes to overall effort
+    pub const ELEVATION_EFFORT_FACTOR: f32 = 0.3;
+
+    /// Minimum effort score boundary
+    /// Prevents effort scores from going below this value
+    pub const MIN_EFFORT_SCORE: f32 = 1.0;
+
+    /// Maximum effort score boundary
+    /// Caps effort scores at this maximum value
+    pub const MAX_EFFORT_SCORE: f32 = 10.0;
+
+    /// Assumed resting heart rate for calculations when not available
+    /// Used as fallback when user's resting HR is unknown
+    pub const ASSUMED_RESTING_HR: u32 = 60;
+}
+
+/// Personal record detection thresholds
+pub mod personal_records {
+    /// Distance threshold for considering a distance PR (kilometers)
+    /// Activities must be at least this distance to qualify for distance PRs
+    pub const DISTANCE_PR_THRESHOLD_KM: f64 = 20.0;
+
+    /// Pace improvement threshold for considering a pace PR (seconds)
+    /// Pace must improve by at least this amount to qualify as a PR
+    pub const PACE_PR_THRESHOLD_SECONDS: f64 = 300.0;
+}
+
+/// Business logic thresholds for fitness analysis
+pub mod business_thresholds {
+    /// Official marathon distance in kilometers
+    /// Used for marathon-specific analysis and predictions
+    pub const MARATHON_DISTANCE_KM: f64 = 42.195;
+
+    /// Pace threshold for categorizing as "slow" (minutes per kilometer)
+    /// Paces slower than this are considered recreational/recovery
+    pub const SLOW_PACE_THRESHOLD_MIN_PER_KM: f64 = 7.0;
+
+    /// Fatigue exponent for endurance calculations
+    /// Used in exponential fatigue models for long-distance events
+    pub const FATIGUE_EXPONENT: f64 = 0.06;
+
+    /// Default heart rate effort score when HR data is unavailable
+    /// Fallback scoring value for activities without heart rate data
+    pub const DEFAULT_HR_EFFORT_SCORE: f32 = 5.0;
+
+    /// Distance score normalization divisor
+    /// Used to normalize distance into scoring range
+    pub const DISTANCE_SCORE_DIVISOR: f32 = 100.0;
+
+    /// Maximum distance contribution to fitness score
+    /// Caps the distance component of fitness scoring
+    pub const MAX_DISTANCE_SCORE: f32 = 30.0;
+
+    /// Duration score multiplication factor
+    /// Adjusts how much activity duration contributes to scores
+    pub const DURATION_SCORE_FACTOR: f32 = 4.0;
+
+    /// Minimum valid distance for analysis (kilometers)
+    /// Activities below this distance may be excluded from analysis
+    pub const MIN_VALID_DISTANCE: f32 = 0.0;
+
+    /// Maximum score value (percentage)
+    /// Upper bound for all percentage-based scores
+    pub const MAX_SCORE: f32 = 100.0;
+
+    /// Minimum score value (percentage)
+    /// Lower bound for all percentage-based scores
+    pub const MIN_SCORE: f32 = 0.0;
+
+    /// Effort score multiplier for heart rate calculations
+    /// Used to scale heart rate intensity into effort scoring range
+    pub const EFFORT_SCORE_MULTIPLIER: f32 = 10.0;
+
+    /// Pace scoring base divisor for fitness calculations
+    /// Used in pace-based fitness score calculations
+    pub const PACE_SCORING_BASE: f64 = 10.0;
+
+    /// Pace scoring multiplier for fitness calculations
+    /// Applied after pace division for final scoring
+    pub const PACE_SCORING_MULTIPLIER: f64 = 10.0;
+
+    /// Maximum pace score contribution to fitness calculations
+    /// Caps the pace component of fitness scoring
+    pub const MAX_PACE_SCORE: f64 = 40.0;
+
+    /// Confidence calculation base divisor
+    /// Used to calculate confidence from data availability
+    pub const CONFIDENCE_BASE_DIVISOR: f64 = 20.0;
+
+    /// Maximum confidence percentage before percentage conversion
+    /// Applied before converting to 0-100 percentage
+    pub const MAX_CONFIDENCE_RATIO: f64 = 0.95;
+
+    /// Distance threshold for achievement insights (kilometers)
+    /// Activities above this distance generate achievement insights
+    pub const ACHIEVEMENT_DISTANCE_THRESHOLD_KM: f64 = 10.0;
+}
+
+/// Unit conversion constants for various measurements
+pub mod unit_conversions {
+    /// Conversion factor from meters per second to kilometers per hour
+    /// Standard physics conversion: m/s * 3.6 = km/h
+    pub const MS_TO_KMH_FACTOR: f64 = 3.6;
+
+    /// Conversion factor from meters per second to kilometers per hour (f32)
+    /// For calculations requiring f32 precision
+    pub const MS_TO_KMH_FACTOR_F32: f32 = 3.6;
+}
+
+/// Heart rate zone distribution defaults for different intensity levels
+/// These percentages represent typical time spent in each zone based on average HR intensity
+pub mod zone_distributions {
+    /// Low intensity training (< 50% HR reserve) - primarily recovery
+    pub mod low_intensity {
+        /// Percentage time in Zone 1 (Recovery) for low intensity activities
+        pub const ZONE1_RECOVERY: f32 = 80.0;
+        /// Percentage time in Zone 2 (Endurance) for low intensity activities
+        pub const ZONE2_ENDURANCE: f32 = 20.0;
+        /// Percentage time in Zone 3 (Tempo) for low intensity activities
+        pub const ZONE3_TEMPO: f32 = 0.0;
+        /// Percentage time in Zone 4 (Threshold) for low intensity activities
+        pub const ZONE4_THRESHOLD: f32 = 0.0;
+        /// Percentage time in Zone 5 (VO2 Max) for low intensity activities
+        pub const ZONE5_VO2MAX: f32 = 0.0;
+    }
+
+    /// Moderate low intensity training (50-60% HR reserve) - aerobic base building
+    pub mod moderate_low_intensity {
+        /// Percentage time in Zone 1 (Recovery) for moderate low intensity
+        pub const ZONE1_RECOVERY: f32 = 20.0;
+        /// Percentage time in Zone 2 (Endurance) for moderate low intensity
+        pub const ZONE2_ENDURANCE: f32 = 70.0;
+        /// Percentage time in Zone 3 (Tempo) for moderate low intensity
+        pub const ZONE3_TEMPO: f32 = 10.0;
+        /// Percentage time in Zone 4 (Threshold) for moderate low intensity
+        pub const ZONE4_THRESHOLD: f32 = 0.0;
+        /// Percentage time in Zone 5 (VO2 Max) for moderate low intensity
+        pub const ZONE5_VO2MAX: f32 = 0.0;
+    }
+
+    /// Moderate intensity training (60-70% HR reserve) - tempo work
+    pub mod moderate_intensity {
+        /// Percentage time in Zone 1 (Recovery) for moderate intensity
+        pub const ZONE1_RECOVERY: f32 = 10.0;
+        /// Percentage time in Zone 2 (Endurance) for moderate intensity
+        pub const ZONE2_ENDURANCE: f32 = 40.0;
+        /// Percentage time in Zone 3 (Tempo) for moderate intensity
+        pub const ZONE3_TEMPO: f32 = 45.0;
+        /// Percentage time in Zone 4 (Threshold) for moderate intensity
+        pub const ZONE4_THRESHOLD: f32 = 5.0;
+        /// Percentage time in Zone 5 (VO2 Max) for moderate intensity
+        pub const ZONE5_VO2MAX: f32 = 0.0;
+    }
+
+    /// High intensity training (70-85% HR reserve) - threshold work
+    pub mod high_intensity {
+        /// Percentage time in Zone 1 (Recovery) for high intensity
+        pub const ZONE1_RECOVERY: f32 = 5.0;
+        /// Percentage time in Zone 2 (Endurance) for high intensity
+        pub const ZONE2_ENDURANCE: f32 = 20.0;
+        /// Percentage time in Zone 3 (Tempo) for high intensity
+        pub const ZONE3_TEMPO: f32 = 30.0;
+        /// Percentage time in Zone 4 (Threshold) for high intensity
+        pub const ZONE4_THRESHOLD: f32 = 40.0;
+        /// Percentage time in Zone 5 (VO2 Max) for high intensity
+        pub const ZONE5_VO2MAX: f32 = 5.0;
+    }
+
+    /// Very high intensity training (>85% HR reserve) - VO2 max work
+    pub mod very_high_intensity {
+        /// Percentage time in Zone 1 (Recovery) for very high intensity
+        pub const ZONE1_RECOVERY: f32 = 0.0;
+        /// Percentage time in Zone 2 (Endurance) for very high intensity
+        pub const ZONE2_ENDURANCE: f32 = 10.0;
+        /// Percentage time in Zone 3 (Tempo) for very high intensity
+        pub const ZONE3_TEMPO: f32 = 20.0;
+        /// Percentage time in Zone 4 (Threshold) for very high intensity
+        pub const ZONE4_THRESHOLD: f32 = 40.0;
+        /// Percentage time in Zone 5 (VO2 Max) for very high intensity
+        pub const ZONE5_VO2MAX: f32 = 30.0;
+    }
+
+    /// HR intensity thresholds for zone distribution selection
+    pub mod intensity_thresholds {
+        /// Threshold between low and moderate-low intensity (HR reserve percentage)
+        pub const LOW_TO_MODERATE_LOW: f32 = 0.5;
+        /// Threshold between moderate-low and moderate intensity (HR reserve percentage)  
+        pub const MODERATE_LOW_TO_MODERATE: f32 = 0.6;
+        /// Threshold between moderate and high intensity (HR reserve percentage)
+        pub const MODERATE_TO_HIGH: f32 = 0.7;
+        /// Threshold between high and very high intensity (HR reserve percentage)
+        pub const HIGH_TO_VERY_HIGH: f32 = 0.85;
+    }
+
+    /// Zone analysis thresholds for determining training effectiveness
+    pub mod zone_analysis_thresholds {
+        /// Threshold for significant endurance zone time (percentage)
+        /// Activities with more than this percentage in Zone 2 are considered endurance-focused
+        pub const SIGNIFICANT_ENDURANCE_ZONE_THRESHOLD: f32 = 50.0;
+
+        /// Effort rating threshold for "hard intensity" classification (1-10 scale)
+        /// Effort ratings below this are considered moderate to hard intensity
+        pub const HARD_INTENSITY_EFFORT_THRESHOLD: f32 = 7.0;
+
+        /// Demo consistency score for testing and examples
+        pub const DEMO_CONSISTENCY_SCORE: f32 = 85.0;
+    }
+}
