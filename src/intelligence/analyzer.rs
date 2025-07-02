@@ -11,6 +11,7 @@ use super::{
     ActivityIntelligence, ContextualFactors, PerformanceMetrics, PersonalRecord, TimeOfDay,
     TrendDirection, TrendIndicators, ZoneDistribution,
 };
+use crate::intelligence::physiological_constants::{demo_data::*, efficiency_defaults::*};
 use crate::models::{Activity, SportType};
 use chrono::{DateTime, Local, Timelike, Utc};
 
@@ -170,7 +171,7 @@ impl ActivityAnalyzer {
             let distance_km = distance_m / 1000.0;
             if distance_km > 20.0 {
                 // Arbitrary threshold for demo
-                const PREVIOUS_BEST: f64 = 18.5;
+                const PREVIOUS_BEST: f64 = DEMO_PREVIOUS_BEST_TIME;
                 records.push(PersonalRecord {
                     record_type: "Longest Distance".into(),
                     value: distance_km,
@@ -185,9 +186,9 @@ impl ActivityAnalyzer {
 
         // Example: Speed PR detection
         if let Some(avg_speed) = activity.average_speed {
-            let pace_per_km = 1000.0 / avg_speed;
+            let pace_per_km = PACE_PER_KM_FACTOR as f64 / avg_speed;
             if pace_per_km < 300.0 {
-                const PREVIOUS_BEST_PACE: f64 = 320.0;
+                const PREVIOUS_BEST_PACE: f64 = DEMO_PREVIOUS_BEST_PACE;
                 records.push(PersonalRecord {
                     record_type: "Fastest Average Pace".into(),
                     value: pace_per_km,
@@ -205,14 +206,14 @@ impl ActivityAnalyzer {
 
     /// Calculate efficiency score
     fn calculate_efficiency_score(&self, activity: &Activity) -> f32 {
-        let mut efficiency: f32 = 50.0; // Base score
+        let mut efficiency: f32 = BASE_EFFICIENCY_SCORE; // Base score
 
         // Heart rate efficiency
         if let (Some(avg_hr), Some(avg_speed)) =
             (activity.average_heart_rate, activity.average_speed)
         {
-            let pace_per_km = 1000.0 / avg_speed as f32;
-            let hr_efficiency = 1000.0 / (avg_hr as f32 * pace_per_km);
+            let pace_per_km = PACE_PER_KM_FACTOR / avg_speed as f32;
+            let hr_efficiency = HR_EFFICIENCY_FACTOR / (avg_hr as f32 * pace_per_km);
             efficiency += hr_efficiency * 10.0;
         }
 

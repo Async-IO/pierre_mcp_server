@@ -9,7 +9,9 @@
 use super::WeatherConditions;
 use crate::config::fitness_config::WeatherApiConfig;
 use crate::config::intelligence_config::{IntelligenceConfig, WeatherAnalysisConfig};
-use crate::intelligence::physiological_constants::weather_thresholds::*;
+use crate::intelligence::physiological_constants::{
+    weather_impact_factors::*, weather_thresholds::*,
+};
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -330,19 +332,19 @@ impl WeatherService {
             t if t < EXTREME_COLD_CELSIUS => {
                 impact_factors
                     .push("Extremely cold conditions increase energy expenditure".to_string());
-                overall_difficulty += 3.0;
+                overall_difficulty += EXTREME_COLD_DIFFICULTY;
             }
             t if t < COLD_THRESHOLD_CELSIUS => {
                 impact_factors.push("Cold conditions may affect performance".to_string());
-                overall_difficulty += 2.0;
+                overall_difficulty += COLD_DIFFICULTY;
             }
             t if t > EXTREME_HOT_THRESHOLD_CELSIUS => {
                 impact_factors.push("Hot conditions increase heat stress".to_string());
-                overall_difficulty += 2.5;
+                overall_difficulty += EXTREME_HOT_DIFFICULTY;
             }
             t if t > HOT_THRESHOLD_CELSIUS => {
                 impact_factors.push("Warm conditions may increase perceived effort".to_string());
-                overall_difficulty += 1.0;
+                overall_difficulty += WARM_DIFFICULTY;
             }
             _ => {
                 impact_factors.push("Ideal temperature conditions".to_string());
@@ -355,11 +357,11 @@ impl WeatherService {
                 w if w > STRONG_WIND_THRESHOLD => {
                     impact_factors
                         .push("Strong winds significantly impact performance".to_string());
-                    overall_difficulty += 2.0;
+                    overall_difficulty += STRONG_WIND_DIFFICULTY;
                 }
                 w if w > MODERATE_WIND_THRESHOLD => {
                     impact_factors.push("Moderate winds may affect pace".to_string());
-                    overall_difficulty += 1.0;
+                    overall_difficulty += MODERATE_WIND_DIFFICULTY;
                 }
                 _ => {}
             }
@@ -369,10 +371,10 @@ impl WeatherService {
         if weather.conditions.contains("rain") {
             impact_factors
                 .push("Wet conditions require extra caution and mental focus".to_string());
-            overall_difficulty += 1.5;
+            overall_difficulty += RAIN_DIFFICULTY;
         } else if weather.conditions.contains("snow") {
             impact_factors.push("Snow conditions significantly increase difficulty".to_string());
-            overall_difficulty += 2.5;
+            overall_difficulty += SNOW_DIFFICULTY;
         }
 
         // Humidity impact using physiological thresholds
@@ -381,7 +383,7 @@ impl WeatherService {
                 && weather.temperature_celsius > HUMIDITY_IMPACT_TEMP_THRESHOLD
             {
                 impact_factors.push("High humidity makes cooling less efficient".to_string());
-                overall_difficulty += 1.0;
+                overall_difficulty += HIGH_HUMIDITY_DIFFICULTY;
             }
         }
 
@@ -395,7 +397,7 @@ impl WeatherService {
         WeatherImpact {
             difficulty_level,
             impact_factors,
-            performance_adjustment: -overall_difficulty * 2.0, // Negative adjustment for difficulty
+            performance_adjustment: (-overall_difficulty * 2.0) as f32, // Negative adjustment for difficulty
         }
     }
 }

@@ -5,7 +5,10 @@
 use anyhow::Result;
 use pierre_mcp_server::{
     models::SportType,
-    providers::{strava::StravaProvider, AuthData, FitnessProvider},
+    providers::{
+        strava::{StravaConfig, StravaProvider},
+        AuthData, FitnessProvider,
+    },
 };
 mod common;
 
@@ -77,18 +80,18 @@ async fn test_strava_authenticate_no_tokens() -> Result<()> {
 
 #[tokio::test]
 async fn test_strava_get_auth_url() -> Result<()> {
-    // Set environment variables for test
-    std::env::set_var("STRAVA_CLIENT_ID", "test_client");
-    std::env::set_var("STRAVA_CLIENT_SECRET", "test_secret");
-
-    let mut provider = StravaProvider::new();
-    let auth_data = AuthData::OAuth2 {
+    // Create a custom config for this test to avoid global state conflicts
+    let test_config = StravaConfig {
         client_id: "test_client".to_string(),
         client_secret: "test_secret".to_string(),
-        access_token: None,
-        refresh_token: None,
+        base_url: "https://www.strava.com/api/v3".to_string(),
+        auth_url: "https://www.strava.com/oauth/authorize".to_string(),
+        token_url: "https://www.strava.com/oauth/token".to_string(),
     };
-    provider.authenticate(auth_data).await?;
+
+    // Use Box::leak to create a static reference for with_config
+    let static_config: &'static StravaConfig = Box::leak(Box::new(test_config));
+    let provider = StravaProvider::with_config(static_config);
 
     let result = provider.get_auth_url("http://localhost:3000/callback", "test_state");
     assert!(result.is_ok());
@@ -103,11 +106,18 @@ async fn test_strava_get_auth_url() -> Result<()> {
 
 #[tokio::test]
 async fn test_strava_get_auth_url_no_client_id() -> Result<()> {
-    // Make sure no client credentials are set
-    std::env::remove_var("STRAVA_CLIENT_ID");
-    std::env::remove_var("STRAVA_CLIENT_SECRET");
+    // Create a custom config with empty client_id to test error handling
+    let empty_config = StravaConfig {
+        client_id: String::new(),
+        client_secret: String::new(),
+        base_url: "https://www.strava.com/api/v3".to_string(),
+        auth_url: "https://www.strava.com/oauth/authorize".to_string(),
+        token_url: "https://www.strava.com/oauth/token".to_string(),
+    };
 
-    let provider = StravaProvider::new();
+    // We need to use Box::leak to create a static reference for with_config
+    let static_config: &'static StravaConfig = Box::leak(Box::new(empty_config));
+    let provider = StravaProvider::with_config(static_config);
 
     let result = provider.get_auth_url("http://localhost:3000/callback", "test_state");
     assert!(result.is_err());
@@ -196,11 +206,17 @@ async fn test_strava_authenticate_api_key() -> Result<()> {
 
 #[tokio::test]
 async fn test_strava_exchange_code_no_client_id() -> Result<()> {
-    // Make sure no client credentials are set
-    std::env::remove_var("STRAVA_CLIENT_ID");
-    std::env::remove_var("STRAVA_CLIENT_SECRET");
+    // Create a config with empty client credentials to test error handling
+    let empty_config = StravaConfig {
+        client_id: String::new(),
+        client_secret: String::new(),
+        base_url: "https://www.strava.com/api/v3".to_string(),
+        auth_url: "https://www.strava.com/oauth/authorize".to_string(),
+        token_url: "https://www.strava.com/oauth/token".to_string(),
+    };
 
-    let mut provider = StravaProvider::new();
+    let static_config: &'static StravaConfig = Box::leak(Box::new(empty_config));
+    let mut provider = StravaProvider::with_config(static_config);
 
     let result = provider.exchange_code("test_code").await;
     assert!(result.is_err());
@@ -214,7 +230,18 @@ async fn test_strava_exchange_code_no_client_id() -> Result<()> {
 
 #[tokio::test]
 async fn test_strava_exchange_code_no_client_secret() -> Result<()> {
-    let mut provider = StravaProvider::new();
+    // Create a config with empty client secret to test error handling
+    let config_empty_secret = StravaConfig {
+        client_id: "test_client".to_string(),
+        client_secret: String::new(), // Empty secret
+        base_url: "https://www.strava.com/api/v3".to_string(),
+        auth_url: "https://www.strava.com/oauth/authorize".to_string(),
+        token_url: "https://www.strava.com/oauth/token".to_string(),
+    };
+
+    let static_config: &'static StravaConfig = Box::leak(Box::new(config_empty_secret));
+    let mut provider = StravaProvider::with_config(static_config);
+
     let auth_data = AuthData::OAuth2 {
         client_id: "client".to_string(),
         client_secret: "".to_string(), // Empty secret
@@ -285,18 +312,18 @@ async fn test_strava_refresh_token_flow() -> Result<()> {
 
 #[tokio::test]
 async fn test_strava_pkce_auth_url() -> Result<()> {
-    // Set environment variables for test
-    std::env::set_var("STRAVA_CLIENT_ID", "pkce_client");
-    std::env::set_var("STRAVA_CLIENT_SECRET", "pkce_secret");
-
-    let mut provider = StravaProvider::new();
-    let auth_data = AuthData::OAuth2 {
+    // Create a custom config for this test to avoid global state conflicts
+    let test_config = StravaConfig {
         client_id: "pkce_client".to_string(),
         client_secret: "pkce_secret".to_string(),
-        access_token: None,
-        refresh_token: None,
+        base_url: "https://www.strava.com/api/v3".to_string(),
+        auth_url: "https://www.strava.com/oauth/authorize".to_string(),
+        token_url: "https://www.strava.com/oauth/token".to_string(),
     };
-    provider.authenticate(auth_data).await?;
+
+    // Use Box::leak to create a static reference for with_config
+    let static_config: &'static StravaConfig = Box::leak(Box::new(test_config));
+    let provider = StravaProvider::with_config(static_config);
 
     use pierre_mcp_server::oauth2_client::PkceParams;
     let pkce = PkceParams {

@@ -6,6 +6,9 @@
 
 //! Insight generation and management for athlete intelligence
 
+use crate::intelligence::physiological_constants::{
+    activity_scoring::*, fitness_score_thresholds::*, weather_thresholds::*,
+};
 use crate::models::Activity;
 use serde::{Deserialize, Serialize};
 
@@ -77,7 +80,7 @@ pub struct InsightConfig {
 impl Default for InsightConfig {
     fn default() -> Self {
         Self {
-            min_confidence_threshold: 70.0,
+            min_confidence_threshold: GOOD_FITNESS_THRESHOLD as f32,
             max_insights_per_activity: 5,
             enable_weather_analysis: true,
             enable_trend_analysis: true,
@@ -202,9 +205,9 @@ impl InsightGenerator {
         let effort_score = self.calculate_relative_effort(activity);
 
         let effort_description = match effort_score {
-            x if x < 3.0 => ("light", "perfect for recovery"),
-            x if x < 5.0 => ("moderate", "good training stimulus"),
-            x if x < 7.0 => ("hard", "excellent workout intensity"),
+            x if x < (BASE_ACTIVITY_SCORE * 0.6) as f32 => ("light", "perfect for recovery"),
+            x if x < BASE_ACTIVITY_SCORE as f32 => ("moderate", "good training stimulus"),
+            x if x < (BASE_ACTIVITY_SCORE * 1.4) as f32 => ("hard", "excellent workout intensity"),
             x if x < 9.0 => ("very hard", "high training load"),
             _ => ("maximum", "peak effort achieved"),
         };
@@ -238,7 +241,7 @@ impl InsightGenerator {
 
         if let Some(weather) = &context.weather {
             // Example weather impact analysis
-            if weather.temperature_celsius < 5.0 {
+            if weather.temperature_celsius < COLD_THRESHOLD_CELSIUS {
                 insights.push(Insight {
                     insight_type: InsightType::WeatherImpact,
                     message: format!("Cold weather conditions ({:.1}°C) likely made this workout more challenging. Great job adapting to the conditions!",
@@ -293,22 +296,22 @@ impl InsightGenerator {
 
     /// Calculate relative effort score (1-10 scale)
     fn calculate_relative_effort(&self, activity: &Activity) -> f32 {
-        let mut effort_score = 1.0;
+        let mut effort_score = COMPLETION_BONUS as f32;
 
         // Factor in duration
         let duration = activity.duration_seconds;
-        effort_score += (duration as f32 / 3600.0) * 2.0; // +2 per hour
+        effort_score += (duration as f32 / 3600.0) * (COMPLETION_BONUS as f32 * 2.0); // +2 per hour
 
         // Factor in heart rate intensity
         if let (Some(avg_hr), Some(max_hr)) = (activity.average_heart_rate, activity.max_heart_rate)
         {
             let hr_intensity = (avg_hr as f32) / (max_hr as f32);
-            effort_score += hr_intensity * 5.0;
+            effort_score += hr_intensity * BASE_ACTIVITY_SCORE as f32;
         }
 
         // Factor in elevation gain
         if let Some(elevation) = activity.elevation_gain {
-            effort_score += (elevation / 100.0) as f32 * 0.5; // +0.5 per 100m
+            effort_score += (elevation / 100.0) as f32 * STANDARD_BONUS as f32; // +0.5 per 100m
         }
 
         effort_score.min(10.0)
@@ -466,7 +469,10 @@ mod tests {
     #[test]
     fn test_insight_generator_creation() {
         let generator = InsightGenerator::new();
-        assert_eq!(generator.config.min_confidence_threshold, 70.0);
+        assert_eq!(
+            generator.config.min_confidence_threshold,
+            GOOD_FITNESS_THRESHOLD as f32
+        );
         assert_eq!(generator.config.max_insights_per_activity, 5);
     }
 
@@ -508,7 +514,7 @@ mod tests {
         let activity = create_test_activity();
 
         let effort = generator.calculate_relative_effort(&activity);
-        assert!((1.0..=10.0).contains(&effort));
+        assert!((COMPLETION_BONUS as f32..=10.0).contains(&effort));
     }
 
     #[test]
