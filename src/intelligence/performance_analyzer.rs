@@ -154,7 +154,10 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
         let mut insights = Vec::new();
 
         // Trend direction insight using config thresholds and strategy
-        let strong_trend_threshold = self.config.trend_analysis.trend_strength_threshold * 2.0; // Strong trend is 2x threshold
+        // Use outlier_threshold from statistical config as multiplier for strong trend detection
+        let strong_trend_multiplier = self.config.statistical.outlier_threshold;
+        let strong_trend_threshold =
+            self.config.trend_analysis.trend_strength_threshold * strong_trend_multiplier;
         let (message, severity) = match analysis.trend_direction {
             TrendDirection::Improving => {
                 if analysis.trend_strength > strong_trend_threshold {
@@ -200,8 +203,12 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
             message,
             confidence: {
                 let confidence_level = self.config.statistical.confidence_level;
-                let high_threshold = confidence_level * 0.9; // 90% of confidence level
-                let medium_threshold = confidence_level * 0.7; // 70% of confidence level
+                // Use improvement/decline thresholds for confidence calculation
+                let improvement_threshold = self.config.trend_analysis.improvement_threshold;
+                let decline_threshold = self.config.trend_analysis.decline_threshold.abs();
+
+                let high_threshold = confidence_level * (confidence_level - improvement_threshold);
+                let medium_threshold = confidence_level * (confidence_level - decline_threshold);
 
                 if analysis.statistical_significance > high_threshold {
                     Confidence::High
@@ -225,7 +232,7 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
                 metadata: HashMap::new(),
             });
         }
-        
+
         // Strategy-based insights using the strategy field
         if analysis.trend_direction == TrendDirection::Improving {
             let strategy_thresholds = self.strategy.performance_thresholds();
@@ -390,7 +397,9 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
         // Calculate weekly activity frequency
         let weeks = 6;
         let activities_per_week = recent_activities.len() as f64 / weeks as f64;
-        let consistency = (activities_per_week / TARGET_WEEKLY_ACTIVITIES).min(1.0) * 100.0;
+        let consistency = (activities_per_week / TARGET_WEEKLY_ACTIVITIES)
+            .min(self.config.statistical.confidence_level)
+            * (self.config.statistical.confidence_level * 100.0);
 
         // Calculate aerobic fitness based on heart rate and duration
         let mut aerobic_score = 0.0;
@@ -502,7 +511,7 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
         let training_days = similar_activities.len() as f64;
         let improvement_factor = if training_days > 20.0 {
             HIGH_VOLUME_IMPROVEMENT_FACTOR
-        } else if training_days > 10.0 {
+        } else if training_days > (self.config.trend_analysis.min_data_points * 2) as f64 {
             MODERATE_VOLUME_IMPROVEMENT_FACTOR
         } else {
             LOW_VOLUME_IMPROVEMENT_FACTOR
@@ -512,7 +521,7 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
 
         let confidence = if training_days > 20.0 {
             Confidence::High
-        } else if training_days > 10.0 {
+        } else if training_days > (self.config.trend_analysis.min_data_points * 2) as f64 {
             Confidence::Medium
         } else {
             Confidence::Low
@@ -623,12 +632,12 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
                     "Focus on recovery activities".to_string(),
                     "Ensure adequate sleep and nutrition".to_string(),
                 ];
-                
+
                 // Add strategy-based recovery recommendations using the strategy field
-                if self.strategy.should_recommend_recovery(weekly_loads.len() as i32) {
+                if self.strategy.should_recommend_recovery(weeks as i32) {
                     recs.push("Your training strategy recommends prioritizing recovery at this load level".to_string());
                 }
-                
+
                 recs
             } else {
                 let mut recs = vec![
@@ -636,13 +645,24 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
                     "Continue current training pattern".to_string(),
                     "Consider gradual load increases".to_string(),
                 ];
-                
+
                 // Use strategy to determine if volume increase is appropriate
-                let current_avg_km = avg_load * 10.0; // Rough conversion to km
-                if self.strategy.should_recommend_volume_increase(current_avg_km) {
-                    recs.push("Your strategy suggests this is a good time to increase training volume".to_string());
+                // Use smoothing factor as conversion multiplier
+                let base_multiplier = self.config.statistical.confidence_level
+                    / self.config.statistical.smoothing_factor;
+                let conversion_multiplier =
+                    self.config.statistical.smoothing_factor * base_multiplier;
+                let current_avg_km = avg_load * conversion_multiplier;
+                if self
+                    .strategy
+                    .should_recommend_volume_increase(current_avg_km)
+                {
+                    recs.push(
+                        "Your strategy suggests this is a good time to increase training volume"
+                            .to_string(),
+                    );
                 }
-                
+
                 recs
             },
             insights: vec![], // Add specific insights based on analysis
