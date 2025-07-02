@@ -521,6 +521,50 @@ impl Database {
         Ok(())
     }
 
+    /// Get active sessions for a specific client
+    pub async fn get_active_a2a_sessions(&self, client_id: &str) -> Result<Vec<A2ASession>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT session_token, client_id, user_id, granted_scopes, 
+                   expires_at, last_activity, created_at, requests_count
+            FROM a2a_sessions
+            WHERE client_id = $1 AND expires_at > datetime('now')
+            ORDER BY last_activity DESC
+            "#,
+        )
+        .bind(client_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut sessions = Vec::new();
+        for row in rows {
+            let user_id_str: Option<String> = row.get("user_id");
+            let user_id = user_id_str
+                .as_ref()
+                .map(|s| Uuid::parse_str(s))
+                .transpose()?;
+
+            let granted_scopes_str: String = row.get("granted_scopes");
+            let granted_scopes = granted_scopes_str
+                .split(',')
+                .map(|s| s.to_string())
+                .collect();
+
+            sessions.push(A2ASession {
+                id: row.get("session_token"),
+                client_id: row.get("client_id"),
+                user_id,
+                granted_scopes,
+                created_at: row.get("created_at"),
+                expires_at: row.get("expires_at"),
+                last_activity: row.get("last_activity"),
+                requests_count: row.get::<i32, _>("requests_count") as u64,
+            });
+        }
+
+        Ok(sessions)
+    }
+
     /// Create a new A2A task
     pub async fn create_a2a_task(
         &self,
@@ -936,6 +980,16 @@ mod tests {
         db.update_a2a_session_activity(&session_token)
             .await
             .expect("Failed to update session activity");
+
+        // Test getting active sessions for client
+        let active_sessions = db
+            .get_active_a2a_sessions(&client.id)
+            .await
+            .expect("Failed to get active sessions");
+
+        assert_eq!(active_sessions.len(), 1);
+        assert_eq!(active_sessions[0].id, session_token);
+        assert_eq!(active_sessions[0].client_id, client.id);
     }
 
     #[tokio::test]

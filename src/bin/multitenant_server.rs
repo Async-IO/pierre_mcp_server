@@ -553,6 +553,22 @@ enum OAuthCallbackError {
     ServerError(String),
 }
 
+impl std::fmt::Display for OAuthCallbackError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OAuthCallbackError::MissingParameter(param) => {
+                write!(f, "Missing required parameter: {}", param)
+            }
+            OAuthCallbackError::UnsupportedProvider(provider) => {
+                write!(f, "Unsupported OAuth provider: {}", provider)
+            }
+            OAuthCallbackError::ServerError(error) => {
+                write!(f, "OAuth server error: {}", error)
+            }
+        }
+    }
+}
+
 impl warp::reject::Reject for OAuthCallbackError {}
 
 /// Load encryption key from file or generate a new one

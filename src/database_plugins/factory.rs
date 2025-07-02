@@ -620,6 +620,14 @@ impl DatabaseProvider for Database {
         }
     }
 
+    async fn get_active_a2a_sessions(&self, client_id: &str) -> Result<Vec<A2ASession>> {
+        match self {
+            Database::SQLite(db) => db.get_active_a2a_sessions(client_id).await,
+            #[cfg(feature = "postgresql")]
+            Database::PostgreSQL(db) => db.get_active_a2a_sessions(client_id).await,
+        }
+    }
+
     async fn create_a2a_task(
         &self,
         client_id: &str,

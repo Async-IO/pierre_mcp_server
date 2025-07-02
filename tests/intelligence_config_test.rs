@@ -372,6 +372,8 @@ mod integration_tests {
             elevation_gain: Some(100.0),
             average_heart_rate: Some(150),
             max_heart_rate: Some(170),
+            steps: Some(12000),
+            heart_rate_zones: None,
             average_speed: Some(2.78), // m/s for 10km/h
             max_speed: Some(3.33),     // m/s
             calories: Some(500),
