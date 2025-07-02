@@ -87,6 +87,9 @@ pub mod mcp;
 /// Athlete Intelligence for activity analysis and insights
 pub mod intelligence;
 
+/// Configuration management and runtime parameter system
+pub mod configuration;
+
 /// A2A (Agent-to-Agent) protocol implementation
 pub mod a2a;
 
