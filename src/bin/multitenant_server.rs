@@ -1,3 +1,5 @@
+// ABOUTME: Multi-tenant server implementation for serving multiple users with isolated data access
+// ABOUTME: Production-ready server with authentication, user isolation, and tenant management capabilities
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -177,7 +179,7 @@ async fn run_production_server(
     // Load admin JWT secret for admin API authentication
     let admin_jwt_secret = load_or_generate_admin_jwt_secret(&config.auth.jwt_secret_path)?;
     let admin_jwt_secret_str = String::from_utf8(admin_jwt_secret.to_vec())
-        .unwrap_or_else(|_| "fallback_admin_secret".to_string());
+        .unwrap_or_else(|_| "fallback_admin_secret".into());
 
     // Setup HTTP routes with health checks and admin API
     let health_routes = pierre_mcp_server::health::middleware::routes(health_checker);
@@ -306,17 +308,16 @@ async fn handle_oauth_callback(
     use pierre_mcp_server::oauth::manager::OAuthManager;
 
     // Extract code and state from query parameters
-    let code = query.get("code").ok_or_else(|| {
-        warp::reject::custom(OAuthCallbackError::MissingParameter("code".to_string()))
-    })?;
+    let code = query
+        .get("code")
+        .ok_or_else(|| warp::reject::custom(OAuthCallbackError::MissingParameter("code".into())))?;
 
     let state = query.get("state").ok_or_else(|| {
-        warp::reject::custom(OAuthCallbackError::MissingParameter("state".to_string()))
+        warp::reject::custom(OAuthCallbackError::MissingParameter("state".into()))
     })?;
 
     // Initialize database with default configuration for single-tenant
-    let database_url =
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| "data/pierre.db".to_string());
+    let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "data/pierre.db".into());
 
     let encryption_key = if let Ok(key_path) = std::env::var("ENCRYPTION_KEY_PATH") {
         std::fs::read(&key_path).map_err(|e| {
@@ -381,12 +382,12 @@ async fn handle_oauth_callback(
             // For single-tenant mode, read from environment variables
             let client_id = std::env::var("STRAVA_CLIENT_ID").map_err(|_| {
                 warp::reject::custom(OAuthCallbackError::ServerError(
-                    "STRAVA_CLIENT_ID not set".to_string(),
+                    "STRAVA_CLIENT_ID not set".into(),
                 ))
             })?;
             let client_secret = std::env::var("STRAVA_CLIENT_SECRET").map_err(|_| {
                 warp::reject::custom(OAuthCallbackError::ServerError(
-                    "STRAVA_CLIENT_SECRET not set".to_string(),
+                    "STRAVA_CLIENT_SECRET not set".into(),
                 ))
             })?;
             let redirect_uri = std::env::var("STRAVA_REDIRECT_URI").ok();
@@ -395,7 +396,7 @@ async fn handle_oauth_callback(
                 client_id: Some(client_id),
                 client_secret: Some(client_secret),
                 redirect_uri,
-                scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+                scopes: vec!["read".into(), "activity:read_all".into()],
                 enabled: true,
             };
 
@@ -414,12 +415,12 @@ async fn handle_oauth_callback(
             // For single-tenant mode, read from environment variables
             let client_id = std::env::var("FITBIT_CLIENT_ID").map_err(|_| {
                 warp::reject::custom(OAuthCallbackError::ServerError(
-                    "FITBIT_CLIENT_ID not set".to_string(),
+                    "FITBIT_CLIENT_ID not set".into(),
                 ))
             })?;
             let client_secret = std::env::var("FITBIT_CLIENT_SECRET").map_err(|_| {
                 warp::reject::custom(OAuthCallbackError::ServerError(
-                    "FITBIT_CLIENT_SECRET not set".to_string(),
+                    "FITBIT_CLIENT_SECRET not set".into(),
                 ))
             })?;
             let redirect_uri = std::env::var("FITBIT_REDIRECT_URI").ok();
@@ -429,15 +430,15 @@ async fn handle_oauth_callback(
                 client_secret: Some(client_secret),
                 redirect_uri,
                 scopes: vec![
-                    "activity".to_string(),
-                    "heartrate".to_string(),
-                    "location".to_string(),
-                    "nutrition".to_string(),
-                    "profile".to_string(),
-                    "settings".to_string(),
-                    "sleep".to_string(),
-                    "social".to_string(),
-                    "weight".to_string(),
+                    "activity".into(),
+                    "heartrate".into(),
+                    "location".into(),
+                    "nutrition".into(),
+                    "profile".into(),
+                    "settings".into(),
+                    "sleep".into(),
+                    "social".into(),
+                    "weight".into(),
                 ],
                 enabled: true,
             };

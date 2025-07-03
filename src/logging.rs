@@ -54,14 +54,14 @@ pub enum LogFormat {
 impl Default for LoggingConfig {
     fn default() -> Self {
         Self {
-            level: "info".to_string(),
+            level: "info".into(),
             format: LogFormat::Pretty,
             include_location: false,
             include_thread: false,
             include_spans: false,
-            service_name: "pierre-mcp-server".to_string(),
+            service_name: "pierre-mcp-server".into(),
             service_version: env!("CARGO_PKG_VERSION").to_string(),
-            environment: "development".to_string(),
+            environment: "development".into(),
         }
     }
 }
@@ -69,7 +69,7 @@ impl Default for LoggingConfig {
 impl LoggingConfig {
     /// Create logging configuration from environment variables
     pub fn from_env() -> Self {
-        let level = env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
+        let level = env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
 
         let format = match env::var("LOG_FORMAT").as_deref() {
             Ok("json") => LogFormat::Json,
@@ -79,7 +79,7 @@ impl LoggingConfig {
 
         let environment = env::var("ENVIRONMENT")
             .or_else(|_| env::var("NODE_ENV"))
-            .unwrap_or_else(|_| "development".to_string());
+            .unwrap_or_else(|_| "development".into());
 
         // In production, use more detailed logging
         let is_production = environment == "production";
@@ -90,8 +90,7 @@ impl LoggingConfig {
             include_location: is_production || env::var("LOG_INCLUDE_LOCATION").is_ok(),
             include_thread: is_production || env::var("LOG_INCLUDE_THREAD").is_ok(),
             include_spans: is_production || env::var("LOG_INCLUDE_SPANS").is_ok(),
-            service_name: env::var("SERVICE_NAME")
-                .unwrap_or_else(|_| "pierre-mcp-server".to_string()),
+            service_name: env::var("SERVICE_NAME").unwrap_or_else(|_| "pierre-mcp-server".into()),
             service_version: env::var("SERVICE_VERSION")
                 .unwrap_or_else(|_| env!("CARGO_PKG_VERSION").to_string()),
             environment,

@@ -137,7 +137,7 @@ impl VO2MaxCalculator {
         let hr_reserve = (self.max_hr - self.resting_hr) as f64;
 
         // Zone percentages based on VO2 max level
-        let (z1_low, z1_high, z2_low, z2_high, z3_low, z3_high, z4_low, z4_high, z5_low, _z5_high) =
+        let (z1_low, z1_high, z2_low, z2_high, z3_low, z3_high, z4_low, z4_high, z5_low, z5_high) =
             if self.vo2_max >= 60.0 {
                 // Elite athlete zones (tighter ranges)
                 (0.50, 0.58, 0.58, 0.68, 0.68, 0.78, 0.78, 0.88, 0.88, 0.95)
@@ -166,7 +166,8 @@ impl VO2MaxCalculator {
             zone4_upper: self.resting_hr + (hr_reserve * z4_high) as u16,
 
             zone5_lower: self.resting_hr + (hr_reserve * z5_low) as u16,
-            zone5_upper: self.max_hr,
+            zone5_upper: (self.resting_hr as f64 + hr_reserve * z5_high).min(self.max_hr as f64)
+                as u16,
 
             // Zone 6 for advanced athletes only (configurable threshold)
             zone6_lower: if self.vo2_max >= get_config_value("hr_zones.elite_zone6_threshold", 50.0)
@@ -272,16 +273,16 @@ impl VO2MaxCalculator {
 
     /// Calculate personalized power zones for cycling
     pub fn calculate_power_zones(&self, ftp: Option<f64>) -> PersonalizedPowerZones {
-        let _ftp = ftp.unwrap_or_else(|| self.estimate_ftp());
+        let ftp_value = ftp.unwrap_or_else(|| self.estimate_ftp());
 
         PersonalizedPowerZones {
-            zone1_range: (0.0, 0.55),      // Active Recovery
-            zone2_range: (0.56, 0.75),     // Endurance
-            zone3_range: (0.76, 0.90),     // Tempo
-            zone4_range: (0.91, 1.05),     // Threshold
-            zone5_range: (1.06, 1.20),     // VO2 Max
-            zone6_range: (1.21, 1.50),     // Anaerobic
-            zone7_range: (1.51, f64::MAX), // Neuromuscular
+            zone1_range: (0.0 * ftp_value, 0.55 * ftp_value), // Active Recovery
+            zone2_range: (0.56 * ftp_value, 0.75 * ftp_value), // Endurance
+            zone3_range: (0.76 * ftp_value, 0.90 * ftp_value), // Tempo
+            zone4_range: (0.91 * ftp_value, 1.05 * ftp_value), // Threshold
+            zone5_range: (1.06 * ftp_value, 1.20 * ftp_value), // VO2 Max
+            zone6_range: (1.21 * ftp_value, 1.50 * ftp_value), // Anaerobic
+            zone7_range: (1.51 * ftp_value, f64::MAX),        // Neuromuscular
         }
     }
 

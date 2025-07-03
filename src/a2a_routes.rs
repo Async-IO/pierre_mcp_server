@@ -105,7 +105,7 @@ impl A2ARoutes {
     /// Create standard A2A ActivityIntelligence instance
     fn create_a2a_intelligence() -> Arc<ActivityIntelligence> {
         Arc::new(ActivityIntelligence::new(
-            "A2A Intelligence".to_string(),
+            "A2A Intelligence".into(),
             vec![],
             crate::intelligence::PerformanceMetrics {
                 relative_effort: Some(7.5),
@@ -187,7 +187,7 @@ impl A2ARoutes {
         // For now, create a basic tier structure since tier field doesn't exist yet
         let usage_tiers = if active_clients > 0 {
             vec![A2ATierUsage {
-                tier: "basic".to_string(),
+                tier: "basic".into(),
                 client_count: active_clients,
                 request_count: 0, // No usage tracking yet
                 percentage: 100.0,
@@ -274,12 +274,12 @@ impl A2ARoutes {
         let client_id = request
             .get("client_id")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| A2AError::InvalidRequest("Missing client_id".to_string()))?;
+            .ok_or_else(|| A2AError::InvalidRequest("Missing client_id".into()))?;
 
         let client_secret = request
             .get("client_secret")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| A2AError::InvalidRequest("Missing client_secret".to_string()))?;
+            .ok_or_else(|| A2AError::InvalidRequest("Missing client_secret".into()))?;
 
         let scopes = request
             .get("scopes")
@@ -290,18 +290,18 @@ impl A2ARoutes {
                     .map(|s| s.to_string())
                     .collect::<Vec<String>>()
             })
-            .unwrap_or_else(|| vec!["read".to_string()]);
+            .unwrap_or_else(|| vec!["read".into()]);
 
         // Verify client exists and credentials are valid
         let client = self
             .client_manager
             .get_client(client_id)
             .await?
-            .ok_or_else(|| A2AError::AuthenticationFailed("Invalid client_id".to_string()))?;
+            .ok_or_else(|| A2AError::AuthenticationFailed("Invalid client_id".into()))?;
 
         if !client.is_active {
             return Err(A2AError::AuthenticationFailed(
-                "Client is deactivated".to_string(),
+                "Client is deactivated".into(),
             ));
         }
 
@@ -311,11 +311,11 @@ impl A2ARoutes {
             .client_manager
             .get_client_credentials(client_id)
             .await?
-            .ok_or_else(|| A2AError::AuthenticationFailed("Invalid credentials".to_string()))?;
+            .ok_or_else(|| A2AError::AuthenticationFailed("Invalid credentials".into()))?;
 
         if credentials.client_secret != client_secret {
             return Err(A2AError::AuthenticationFailed(
-                "Invalid client_secret".to_string(),
+                "Invalid client_secret".into(),
             ));
         }
 
@@ -345,11 +345,11 @@ impl A2ARoutes {
         let method = request
             .get("method")
             .and_then(|m| m.as_str())
-            .ok_or_else(|| A2AError::InvalidRequest("Missing method field".to_string()))?;
+            .ok_or_else(|| A2AError::InvalidRequest("Missing method field".into()))?;
 
         let params = request
             .get("params")
-            .ok_or_else(|| A2AError::InvalidRequest("Missing params field".to_string()))?;
+            .ok_or_else(|| A2AError::InvalidRequest("Missing params field".into()))?;
 
         let id = request.get("id").cloned().unwrap_or(serde_json::json!(1));
 
@@ -358,9 +358,7 @@ impl A2ARoutes {
             let tool_name = params
                 .get("tool_name")
                 .and_then(|t| t.as_str())
-                .ok_or_else(|| {
-                    A2AError::InvalidRequest("Missing tool_name in params".to_string())
-                })?;
+                .ok_or_else(|| A2AError::InvalidRequest("Missing tool_name in params".into()))?;
 
             let parameters = params
                 .get("parameters")
@@ -395,7 +393,7 @@ impl A2ARoutes {
                 tool_name: tool_name.to_string(),
                 parameters,
                 user_id,
-                protocol: "a2a".to_string(),
+                protocol: "a2a".into(),
             };
 
             // Execute the tool

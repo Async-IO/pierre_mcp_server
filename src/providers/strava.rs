@@ -525,6 +525,32 @@ impl From<StravaActivity> for Activity {
             calories: None,
             steps: None,            // Strava doesn't provide step data
             heart_rate_zones: None, // Strava doesn't provide zone breakdown data
+
+            // Advanced metrics - all None for basic Strava data
+            average_power: None,
+            max_power: None,
+            normalized_power: None,
+            power_zones: None,
+            ftp: None,
+            average_cadence: None,
+            max_cadence: None,
+            hrv_score: None,
+            recovery_heart_rate: None,
+            temperature: None,
+            humidity: None,
+            average_altitude: None,
+            wind_speed: None,
+            ground_contact_time: None,
+            vertical_oscillation: None,
+            stride_length: None,
+            running_power: None,
+            breathing_rate: None,
+            spo2: None,
+            training_stress_score: None,
+            intensity_factor: None,
+            suffer_score: None,
+            time_series_data: None,
+
             start_latitude,
             start_longitude,
             city: None,

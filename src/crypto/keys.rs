@@ -55,7 +55,7 @@ impl A2AKeyManager {
     pub fn create_public_key_info(keypair: &A2AKeypair) -> A2APublicKey {
         A2APublicKey {
             public_key: keypair.public_key.clone(),
-            key_type: "ed25519".to_string(),
+            key_type: "ed25519".into(),
             created_at: chrono::Utc::now(),
         }
     }

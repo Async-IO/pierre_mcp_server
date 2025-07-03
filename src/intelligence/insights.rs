@@ -274,7 +274,7 @@ impl InsightGenerator {
                     let location_desc = if let Some(city) = &location.city {
                         format!(" in {}", city)
                     } else {
-                        "".to_string()
+                        "".into()
                     };
 
                     insights.push(Insight {
@@ -344,8 +344,8 @@ mod tests {
 
     fn create_test_activity() -> Activity {
         Activity {
-            id: "test123".to_string(),
-            name: "Test Run".to_string(),
+            id: "test123".into(),
+            name: "Test Run".into(),
             sport_type: SportType::Run,
             start_date: Utc::now(),
             duration_seconds: 1800,         // 30 minutes
@@ -353,12 +353,38 @@ mod tests {
             elevation_gain: Some(50.0),
             average_speed: Some(2.78), // 10 km/h
             max_speed: Some(4.17),     // 15 km/h
-            provider: "test".to_string(),
+            provider: "test".into(),
             average_heart_rate: Some(150),
             max_heart_rate: Some(180),
             calories: Some(300),
             steps: Some(20000),
             heart_rate_zones: None,
+
+            // Advanced metrics (all None for test)
+            average_power: None,
+            max_power: None,
+            normalized_power: None,
+            power_zones: None,
+            ftp: None,
+            average_cadence: None,
+            max_cadence: None,
+            hrv_score: None,
+            recovery_heart_rate: None,
+            temperature: None,
+            humidity: None,
+            average_altitude: None,
+            wind_speed: None,
+            ground_contact_time: None,
+            vertical_oscillation: None,
+            stride_length: None,
+            running_power: None,
+            breathing_rate: None,
+            spo2: None,
+            training_stress_score: None,
+            intensity_factor: None,
+            suffer_score: None,
+            time_series_data: None,
+
             start_latitude: Some(45.5017), // Montreal
             start_longitude: Some(-73.5673),
             city: None,
@@ -432,12 +458,12 @@ mod tests {
         let activity = create_test_activity();
 
         let location_context = LocationContext {
-            city: Some("Saint-Hippolyte".to_string()),
-            region: Some("Québec".to_string()),
-            country: Some("Canada".to_string()),
-            trail_name: Some("Trail de la Montagne".to_string()),
-            terrain_type: Some("forest".to_string()),
-            display_name: "Trail de la Montagne, Saint-Hippolyte, Québec, Canada".to_string(),
+            city: Some("Saint-Hippolyte".into()),
+            region: Some("Québec".into()),
+            country: Some("Canada".into()),
+            trail_name: Some("Trail de la Montagne".into()),
+            terrain_type: Some("forest".into()),
+            display_name: "Trail de la Montagne, Saint-Hippolyte, Québec, Canada".into(),
         };
 
         let context = ActivityContext {
@@ -477,12 +503,12 @@ mod tests {
         activity.elevation_gain = Some(600.0); // Significant elevation
 
         let location_context = LocationContext {
-            city: Some("Montreal".to_string()),
-            region: Some("Quebec".to_string()),
-            country: Some("Canada".to_string()),
-            trail_name: Some("Mount Royal Trail".to_string()),
-            terrain_type: Some("mountain".to_string()),
-            display_name: "Montreal, Quebec, Canada".to_string(),
+            city: Some("Montreal".into()),
+            region: Some("Quebec".into()),
+            country: Some("Canada".into()),
+            trail_name: Some("Mount Royal Trail".into()),
+            terrain_type: Some("mountain".into()),
+            display_name: "Montreal, Quebec, Canada".into(),
         };
 
         let context = ActivityContext {
@@ -538,12 +564,12 @@ mod tests {
     #[test]
     fn test_activity_context_with_location() {
         let location_context = LocationContext {
-            city: Some("Test City".to_string()),
-            region: Some("Test Region".to_string()),
-            country: Some("Test Country".to_string()),
-            trail_name: Some("Test Trail".to_string()),
-            terrain_type: Some("forest".to_string()),
-            display_name: "Test Location".to_string(),
+            city: Some("Test City".into()),
+            region: Some("Test Region".into()),
+            country: Some("Test Country".into()),
+            trail_name: Some("Test Trail".into()),
+            terrain_type: Some("forest".into()),
+            display_name: "Test Location".into(),
         };
 
         let context = ActivityContext {
@@ -553,8 +579,8 @@ mod tests {
 
         assert!(context.location.is_some());
         let location = context.location.unwrap();
-        assert_eq!(location.city, Some("Test City".to_string()));
-        assert_eq!(location.trail_name, Some("Test Trail".to_string()));
+        assert_eq!(location.city, Some("Test City".into()));
+        assert_eq!(location.trail_name, Some("Test Trail".into()));
         assert_eq!(location.display_name, "Test Location");
     }
 }

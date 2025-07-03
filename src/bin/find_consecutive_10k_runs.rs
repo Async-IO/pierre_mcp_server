@@ -1,3 +1,5 @@
+// ABOUTME: Data analysis utility for finding consecutive 10K running activities in fitness dataset
+// ABOUTME: Pattern recognition tool to identify sustained high-distance training periods and streaks
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your

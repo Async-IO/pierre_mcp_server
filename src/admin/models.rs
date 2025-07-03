@@ -180,7 +180,7 @@ impl CreateAdminTokenRequest {
     pub fn super_admin(service_name: String) -> Self {
         Self {
             service_name,
-            service_description: Some("Super Admin Token".to_string()),
+            service_description: Some("Super Admin Token".into()),
             permissions: None,     // Will use super admin permissions
             expires_in_days: None, // Never expires
             is_super_admin: true,

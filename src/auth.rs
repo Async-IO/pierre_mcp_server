@@ -271,7 +271,7 @@ impl AuthManager {
                     claims.sub,
                     DateTime::from_timestamp(claims.iat, 0)
                         .map(|d| d.to_rfc3339())
-                        .unwrap_or_else(|| "unknown".to_string()),
+                        .unwrap_or_else(|| "unknown".into()),
                     expired_at.to_rfc3339(),
                     current_time.to_rfc3339()
                 );
@@ -304,13 +304,13 @@ impl AuthManager {
                     ErrorKind::InvalidSignature => {
                         tracing::warn!("JWT token signature verification failed");
                         Err(JwtValidationError::TokenInvalid {
-                            reason: "Token signature verification failed".to_string(),
+                            reason: "Token signature verification failed".into(),
                         })
                     }
                     ErrorKind::InvalidToken => {
                         tracing::warn!("JWT token format is invalid: {:?}", e);
                         Err(JwtValidationError::TokenMalformed {
-                            details: "Token format is invalid".to_string(),
+                            details: "Token format is invalid".into(),
                         })
                     }
                     ErrorKind::Base64(base64_err) => Err(JwtValidationError::TokenMalformed {
@@ -357,7 +357,7 @@ impl AuthManager {
                 Err(_) => AuthResponse {
                     authenticated: false,
                     user_id: None,
-                    error: Some("Invalid user ID in token".to_string()),
+                    error: Some("Invalid user ID in token".into()),
                     available_providers: vec![],
                 },
             },
@@ -376,7 +376,7 @@ impl AuthManager {
         let mut validation = Validation::new(Algorithm::HS256);
         validation.validate_exp = false; // Allow expired tokens for refresh
 
-        let _token_data = decode::<Claims>(
+        decode::<Claims>(
             old_token,
             &DecodingKey::from_secret(&self.jwt_secret),
             &validation,
@@ -428,7 +428,7 @@ impl AuthManager {
                 Ok(crate::routes::SetupStatusResponse {
                     needs_setup: true,
                     admin_user_exists: false,
-                    message: Some("Run 'cargo run --bin admin-setup -- create-admin-user' to create default admin credentials".to_string()),
+                    message: Some("Run 'cargo run --bin admin-setup -- create-admin-user' to create default admin credentials".into()),
                 })
             }
             Err(e) => {
@@ -644,9 +644,9 @@ mod tests {
 
     fn create_test_user() -> User {
         User::new(
-            "test@example.com".to_string(),
-            "hashed_password_123".to_string(),
-            Some("Test User".to_string()),
+            "test@example.com".into(),
+            "hashed_password_123".into(),
+            Some("Test User".into()),
         )
     }
 
@@ -701,7 +701,7 @@ mod tests {
     fn test_authenticate_invalid_token() {
         let auth_manager = create_auth_manager();
         let auth_request = AuthRequest {
-            token: "invalid.jwt.token".to_string(),
+            token: "invalid.jwt.token".into(),
         };
 
         let response = auth_manager.authenticate(auth_request);

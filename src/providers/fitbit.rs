@@ -285,7 +285,7 @@ impl FitnessProvider for FitbitProvider {
             firstname: response.user.first_name,
             lastname: response.user.last_name,
             profile_picture: response.user.avatar,
-            provider: "fitbit".to_string(),
+            provider: "fitbit".into(),
         })
     }
 
@@ -485,13 +485,39 @@ impl From<FitbitActivity> for Activity {
                     })
                     .collect()
             }),
+
+            // Advanced metrics - all None for basic Fitbit data
+            average_power: None,
+            max_power: None,
+            normalized_power: None,
+            power_zones: None,
+            ftp: None,
+            average_cadence: None,
+            max_cadence: None,
+            hrv_score: None,
+            recovery_heart_rate: None,
+            temperature: None,
+            humidity: None,
+            average_altitude: None,
+            wind_speed: None,
+            ground_contact_time: None,
+            vertical_oscillation: None,
+            stride_length: None,
+            running_power: None,
+            breathing_rate: None,
+            spo2: None,
+            training_stress_score: None,
+            intensity_factor: None,
+            suffer_score: None,
+            time_series_data: None,
+
             start_latitude: None, // Fitbit API doesn't provide GPS coordinates
             start_longitude: None,
             city: None,
             region: None,
             country: None,
             trail_name: None,
-            provider: "fitbit".to_string(),
+            provider: "fitbit".into(),
         }
     }
 }

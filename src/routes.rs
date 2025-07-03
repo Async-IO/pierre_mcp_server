@@ -169,7 +169,7 @@ impl AuthRoutes {
 
         Ok(RegisterResponse {
             user_id: user_id.to_string(),
-            message: "User registered successfully".to_string(),
+            message: "User registered successfully".into(),
         })
     }
 
@@ -296,7 +296,7 @@ impl OAuthRoutes {
             "strava" => {
                 let client_id = std::env::var("STRAVA_CLIENT_ID")
                     .or_else(|_| std::env::var("strava_client_id"))
-                    .unwrap_or_else(|_| "YOUR_STRAVA_CLIENT_ID".to_string());
+                    .unwrap_or_else(|_| "YOUR_STRAVA_CLIENT_ID".into());
 
                 let redirect_uri = std::env::var("STRAVA_REDIRECT_URI")
                     .or_else(|_| std::env::var("strava_redirect_uri"))
@@ -320,14 +320,14 @@ impl OAuthRoutes {
                 Ok(OAuthAuthorizationResponse {
                     authorization_url: auth_url,
                     state: state.clone(),
-                    instructions: "Visit the URL above to authorize access to your Strava account. You'll be redirected back after authorization.".to_string(),
+                    instructions: "Visit the URL above to authorize access to your Strava account. You'll be redirected back after authorization.".into(),
                     expires_in_minutes: 10,
                 })
             }
             "fitbit" => {
                 let client_id = std::env::var("FITBIT_CLIENT_ID")
                     .or_else(|_| std::env::var("fitbit_client_id"))
-                    .unwrap_or_else(|_| "YOUR_FITBIT_CLIENT_ID".to_string());
+                    .unwrap_or_else(|_| "YOUR_FITBIT_CLIENT_ID".into());
 
                 let redirect_uri = std::env::var("FITBIT_REDIRECT_URI")
                     .or_else(|_| std::env::var("fitbit_redirect_uri"))
@@ -351,7 +351,7 @@ impl OAuthRoutes {
                 Ok(OAuthAuthorizationResponse {
                     authorization_url: auth_url,
                     state: state.clone(),
-                    instructions: "Visit the URL above to authorize access to your Fitbit account. You'll be redirected back after authorization.".to_string(),
+                    instructions: "Visit the URL above to authorize access to your Fitbit account. You'll be redirected back after authorization.".into(),
                     expires_in_minutes: 10,
                 })
             }
@@ -367,10 +367,11 @@ impl OAuthRoutes {
         state: &str,
     ) -> Result<()> {
         // Store state with expiration (10 minutes)
-        let _expires_at = chrono::Utc::now() + chrono::Duration::minutes(10);
+        let expires_at = chrono::Utc::now() + chrono::Duration::minutes(10);
 
         // In a production system, you'd store this in a cache/database
         // For now, we'll store it in memory or use a simple approach
+        tracing::debug!("OAuth state expires at: {}", expires_at);
         info!(
             "Storing OAuth state for user {} provider {}: {}",
             user_id, provider, state
@@ -439,7 +440,7 @@ impl OAuthRoutes {
                         token_response
                             .scope
                             .clone()
-                            .unwrap_or_else(|| "read,activity:read_all".to_string()),
+                            .unwrap_or_else(|| "read,activity:read_all".into()),
                     )
                     .await?;
 
@@ -447,11 +448,11 @@ impl OAuthRoutes {
 
                 Ok(OAuthCallbackResponse {
                     user_id: user_id.to_string(),
-                    provider: "strava".to_string(),
+                    provider: "strava".into(),
                     expires_at: expires_at.to_rfc3339(),
                     scopes: token_response
                         .scope
-                        .unwrap_or_else(|| "read,activity:read_all".to_string()),
+                        .unwrap_or_else(|| "read,activity:read_all".into()),
                 })
             }
             "fitbit" => {
@@ -489,7 +490,7 @@ impl OAuthRoutes {
 
                 Ok(OAuthCallbackResponse {
                     user_id: user_id.to_string(),
-                    provider: "fitbit".to_string(),
+                    provider: "fitbit".into(),
                     expires_at: expires_at.to_rfc3339(),
                     scopes: token_response.scope,
                 })
@@ -502,11 +503,11 @@ impl OAuthRoutes {
     async fn exchange_strava_code(&self, code: &str) -> Result<StravaTokenResponse> {
         let client_id = std::env::var("STRAVA_CLIENT_ID")
             .or_else(|_| std::env::var("strava_client_id"))
-            .unwrap_or_else(|_| "163846".to_string()); // Default for testing
+            .unwrap_or_else(|_| "163846".into()); // Default for testing
 
         let client_secret = std::env::var("STRAVA_CLIENT_SECRET")
             .or_else(|_| std::env::var("strava_client_secret"))
-            .unwrap_or_else(|_| "1dfc45ad0a1f6983b835e4495aa9473d111d03bc".to_string()); // Default for testing
+            .unwrap_or_else(|_| "1dfc45ad0a1f6983b835e4495aa9473d111d03bc".into()); // Default for testing
 
         let params = [
             ("client_id", client_id.as_str()),
@@ -554,11 +555,11 @@ impl OAuthRoutes {
     async fn exchange_fitbit_code(&self, code: &str) -> Result<FitbitTokenResponse> {
         let client_id = std::env::var("FITBIT_CLIENT_ID")
             .or_else(|_| std::env::var("fitbit_client_id"))
-            .unwrap_or_else(|_| "YOUR_FITBIT_CLIENT_ID".to_string());
+            .unwrap_or_else(|_| "YOUR_FITBIT_CLIENT_ID".into());
 
         let client_secret = std::env::var("FITBIT_CLIENT_SECRET")
             .or_else(|_| std::env::var("fitbit_client_secret"))
-            .unwrap_or_else(|_| "YOUR_FITBIT_CLIENT_SECRET".to_string());
+            .unwrap_or_else(|_| "YOUR_FITBIT_CLIENT_SECRET".into());
 
         let redirect_uri = crate::constants::env_config::fitbit_redirect_uri();
 
@@ -602,14 +603,14 @@ impl OAuthRoutes {
         // Check Strava connection
         if let Ok(Some(strava_token)) = self.database.get_strava_token(user_id).await {
             statuses.push(ConnectionStatus {
-                provider: "strava".to_string(),
+                provider: "strava".into(),
                 connected: true,
                 expires_at: Some(strava_token.expires_at.to_rfc3339()),
                 scopes: Some(strava_token.scope),
             });
         } else {
             statuses.push(ConnectionStatus {
-                provider: "strava".to_string(),
+                provider: "strava".into(),
                 connected: false,
                 expires_at: None,
                 scopes: None,
@@ -619,14 +620,14 @@ impl OAuthRoutes {
         // Check Fitbit connection
         if let Ok(Some(fitbit_token)) = self.database.get_fitbit_token(user_id).await {
             statuses.push(ConnectionStatus {
-                provider: "fitbit".to_string(),
+                provider: "fitbit".into(),
                 connected: true,
                 expires_at: Some(fitbit_token.expires_at.to_rfc3339()),
                 scopes: Some(fitbit_token.scope),
             });
         } else {
             statuses.push(ConnectionStatus {
-                provider: "fitbit".to_string(),
+                provider: "fitbit".into(),
                 connected: false,
                 expires_at: None,
                 scopes: None,
@@ -676,7 +677,7 @@ impl A2ARoutes {
                 "application/json",
             )),
             Err(_) => Err(warp::reject::custom(crate::a2a::A2AError::InternalError(
-                "Failed to serialize agent card".to_string(),
+                "Failed to serialize agent card".into(),
             ))),
         }
     }
@@ -817,9 +818,9 @@ mod tests {
         let routes = AuthRoutes::new(database, auth_manager);
 
         let request = RegisterRequest {
-            email: "test@example.com".to_string(),
-            password: "password123".to_string(),
-            display_name: Some("Test User".to_string()),
+            email: "test@example.com".into(),
+            password: "password123".into(),
+            display_name: Some("Test User".into()),
         };
 
         let response = routes.register(request).await.unwrap();
@@ -838,9 +839,9 @@ mod tests {
         let routes = AuthRoutes::new(database, auth_manager);
 
         let request = RegisterRequest {
-            email: "test@example.com".to_string(),
-            password: "password123".to_string(),
-            display_name: Some("Test User".to_string()),
+            email: "test@example.com".into(),
+            password: "password123".into(),
+            display_name: Some("Test User".into()),
         };
 
         // First registration should succeed

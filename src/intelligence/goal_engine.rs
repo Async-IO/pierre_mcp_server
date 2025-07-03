@@ -203,8 +203,8 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
 
         if progress.progress_percentage > time_progress * 100.0 + PROGRESS_TOLERANCE_PERCENTAGE {
             insights.push(AdvancedInsight {
-                insight_type: "ahead_of_schedule".to_string(),
-                message: "You're ahead of schedule! Excellent progress.".to_string(),
+                insight_type: "ahead_of_schedule".into(),
+                message: "You're ahead of schedule! Excellent progress.".into(),
                 confidence: Confidence::High,
                 severity: InsightSeverity::Info,
                 metadata: HashMap::new(),
@@ -213,7 +213,7 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
             < time_progress * 100.0 - PROGRESS_TOLERANCE_PERCENTAGE
         {
             insights.push(AdvancedInsight {
-                insight_type: "behind_schedule".to_string(),
+                insight_type: "behind_schedule".into(),
                 message: "Progress is behind schedule - consider adjusting training plan."
                     .to_string(),
                 confidence: Confidence::High,
@@ -232,7 +232,7 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
 
         if achieved_milestones as f64 > total_milestones as f64 * MILESTONE_ACHIEVEMENT_THRESHOLD {
             insights.push(AdvancedInsight {
-                insight_type: "milestone_progress".to_string(),
+                insight_type: "milestone_progress".into(),
                 message: format!(
                     "Great milestone progress: {}/{} completed",
                     achieved_milestones, total_milestones
@@ -324,7 +324,7 @@ impl GoalEngineTrait for AdvancedGoalEngine {
 
                 let distance_goal = Goal {
                     id: format!("dist_{}_{}", sport, Utc::now().timestamp()),
-                    user_id: "system".to_string(), // Will be set by caller
+                    user_id: "system".into(), // Will be set by caller
                     title: format!("Increase {} Distance", sport),
                     description: format!(
                         "Target distance of {:.1} km for {}",
@@ -361,7 +361,7 @@ impl GoalEngineTrait for AdvancedGoalEngine {
                 let target_improvement = TARGET_PERFORMANCE_IMPROVEMENT;
                 suggestions.push(GoalSuggestion {
                     goal_type: GoalType::Performance {
-                        metric: "speed".to_string(),
+                        metric: "speed".into(),
                         improvement_percent: target_improvement,
                     },
                     suggested_target: avg_speed * (1.0 + target_improvement / 100.0),
@@ -398,11 +398,11 @@ impl GoalEngineTrait for AdvancedGoalEngine {
             FitnessLevel::Beginner => {
                 suggestions.push(GoalSuggestion {
                     goal_type: GoalType::Custom {
-                        metric: "consistency".to_string(),
-                        unit: "weeks".to_string(),
+                        metric: "consistency".into(),
+                        unit: "weeks".into(),
                     },
                     suggested_target: 4.0,
-                    rationale: "Build a consistent exercise habit".to_string(),
+                    rationale: "Build a consistent exercise habit".into(),
                     difficulty: GoalDifficulty::Easy,
                     estimated_timeline_days: 28,
                     success_probability: 0.85,
@@ -411,11 +411,11 @@ impl GoalEngineTrait for AdvancedGoalEngine {
             FitnessLevel::Advanced | FitnessLevel::Elite => {
                 suggestions.push(GoalSuggestion {
                     goal_type: GoalType::Custom {
-                        metric: "training_zones".to_string(),
-                        unit: "percentage".to_string(),
+                        metric: "training_zones".into(),
+                        unit: "percentage".into(),
                     },
                     suggested_target: 80.0,
-                    rationale: "Optimize training zone distribution".to_string(),
+                    rationale: "Optimize training zone distribution".into(),
                     difficulty: GoalDifficulty::Challenging,
                     estimated_timeline_days: 84,
                     success_probability: 0.60,
@@ -558,14 +558,14 @@ impl GoalEngineTrait for AdvancedGoalEngine {
         // Generate recommendations
         final_report.recommendations = if on_track {
             vec![
-                "Maintain current training consistency".to_string(),
-                "Continue following your current plan".to_string(),
+                "Maintain current training consistency".into(),
+                "Continue following your current plan".into(),
             ]
         } else {
             vec![
-                "Consider increasing training frequency".to_string(),
-                "Focus on goal-specific activities".to_string(),
-                "Review and adjust your training plan".to_string(),
+                "Consider increasing training frequency".into(),
+                "Focus on goal-specific activities".into(),
+                "Review and adjust your training plan".into(),
             ]
         };
 
@@ -716,8 +716,8 @@ impl GoalType {
             GoalType::Distance { sport, .. } => sport.clone(),
             GoalType::Time { sport, .. } => sport.clone(),
             GoalType::Frequency { sport, .. } => sport.clone(),
-            GoalType::Performance { .. } => "Any".to_string(),
-            GoalType::Custom { .. } => "Any".to_string(),
+            GoalType::Performance { .. } => "Any".into(),
+            GoalType::Custom { .. } => "Any".into(),
         }
     }
 }
@@ -731,25 +731,21 @@ mod tests {
     #[tokio::test]
     async fn test_goal_suggestions() {
         let profile = UserFitnessProfile {
-            user_id: "test_user".to_string(),
+            user_id: "test_user".into(),
             age: Some(30),
-            gender: Some("M".to_string()),
+            gender: Some("M".into()),
             weight: Some(70.0),
             height: Some(175.0),
             fitness_level: FitnessLevel::Intermediate,
-            primary_sports: vec!["Run".to_string()],
+            primary_sports: vec!["Run".into()],
             training_history_months: 12,
             preferences: UserPreferences {
-                preferred_units: "metric".to_string(),
-                training_focus: vec!["endurance".to_string()],
+                preferred_units: "metric".into(),
+                training_focus: vec!["endurance".into()],
                 injury_history: vec![],
                 time_availability: TimeAvailability {
                     hours_per_week: 5.0,
-                    preferred_days: vec![
-                        "Monday".to_string(),
-                        "Wednesday".to_string(),
-                        "Friday".to_string(),
-                    ],
+                    preferred_days: vec!["Monday".into(), "Wednesday".into(), "Friday".into()],
                     preferred_duration_minutes: Some(60),
                 },
             },
@@ -784,11 +780,11 @@ mod tests {
     async fn test_progress_tracking() {
         let goal = Goal {
             id: Uuid::new_v4().to_string(),
-            user_id: "test_user".to_string(),
-            title: "Run 100km this month".to_string(),
-            description: "Monthly distance goal".to_string(),
+            user_id: "test_user".into(),
+            title: "Run 100km this month".into(),
+            description: "Monthly distance goal".into(),
             goal_type: GoalType::Distance {
-                sport: "Run".to_string(),
+                sport: "Run".into(),
                 timeframe: TimeFrame::Month,
             },
             target_value: 100_000.0, // 100km in meters

@@ -38,7 +38,7 @@ impl StravaOAuthProvider {
             .client_id
             .as_ref()
             .ok_or_else(|| {
-                OAuthError::ConfigurationError("Strava client_id not configured".to_string())
+                OAuthError::ConfigurationError("Strava client_id not configured".into())
             })?
             .clone();
 
@@ -46,7 +46,7 @@ impl StravaOAuthProvider {
             .client_secret
             .as_ref()
             .ok_or_else(|| {
-                OAuthError::ConfigurationError("Strava client_secret not configured".to_string())
+                OAuthError::ConfigurationError("Strava client_secret not configured".into())
             })?
             .clone();
 
@@ -67,11 +67,10 @@ impl StravaOAuthProvider {
     #[deprecated(note = "Use from_config() instead for centralized configuration")]
     pub fn new() -> Result<Self, OAuthError> {
         let client_id = std::env::var("STRAVA_CLIENT_ID")
-            .map_err(|_| OAuthError::ConfigurationError("STRAVA_CLIENT_ID not set".to_string()))?;
+            .map_err(|_| OAuthError::ConfigurationError("STRAVA_CLIENT_ID not set".into()))?;
 
-        let client_secret = std::env::var("STRAVA_CLIENT_SECRET").map_err(|_| {
-            OAuthError::ConfigurationError("STRAVA_CLIENT_SECRET not set".to_string())
-        })?;
+        let client_secret = std::env::var("STRAVA_CLIENT_SECRET")
+            .map_err(|_| OAuthError::ConfigurationError("STRAVA_CLIENT_SECRET not set".into()))?;
 
         let redirect_uri = crate::constants::env_config::strava_redirect_uri();
 
@@ -109,8 +108,8 @@ impl OAuthProvider for StravaOAuthProvider {
         Ok(AuthorizationResponse {
             authorization_url: auth_url,
             state,
-            provider: "strava".to_string(),
-            instructions: "Visit the authorization URL to connect your Strava account. Complete the OAuth flow through your web browser.".to_string(),
+            provider: "strava".into(),
+            instructions: "Visit the authorization URL to connect your Strava account. Complete the OAuth flow through your web browser.".into(),
             expires_in_minutes: 10,
         })
     }
@@ -151,8 +150,8 @@ impl OAuthProvider for StravaOAuthProvider {
             expires_at,
             scopes: token_response
                 .scope
-                .unwrap_or_else(|| "read,activity:read_all".to_string()),
-            provider: "strava".to_string(),
+                .unwrap_or_else(|| "read,activity:read_all".into()),
+            provider: "strava".into(),
         })
     }
 
@@ -192,8 +191,8 @@ impl OAuthProvider for StravaOAuthProvider {
             expires_at,
             scopes: token_response
                 .scope
-                .unwrap_or_else(|| "read,activity:read_all".to_string()),
-            provider: "strava".to_string(),
+                .unwrap_or_else(|| "read,activity:read_all".into()),
+            provider: "strava".into(),
         })
     }
 
@@ -209,7 +208,7 @@ impl OAuthProvider for StravaOAuthProvider {
 
         if !response.status().is_success() {
             return Err(OAuthError::TokenRefreshFailed(
-                "Failed to revoke token".to_string(),
+                "Failed to revoke token".into(),
             ));
         }
 
@@ -248,7 +247,7 @@ impl FitbitOAuthProvider {
             .client_id
             .as_ref()
             .ok_or_else(|| {
-                OAuthError::ConfigurationError("Fitbit client_id not configured".to_string())
+                OAuthError::ConfigurationError("Fitbit client_id not configured".into())
             })?
             .clone();
 
@@ -256,7 +255,7 @@ impl FitbitOAuthProvider {
             .client_secret
             .as_ref()
             .ok_or_else(|| {
-                OAuthError::ConfigurationError("Fitbit client_secret not configured".to_string())
+                OAuthError::ConfigurationError("Fitbit client_secret not configured".into())
             })?
             .clone();
 
@@ -277,11 +276,10 @@ impl FitbitOAuthProvider {
     #[deprecated(note = "Use from_config() instead for centralized configuration")]
     pub fn new() -> Result<Self, OAuthError> {
         let client_id = std::env::var("FITBIT_CLIENT_ID")
-            .map_err(|_| OAuthError::ConfigurationError("FITBIT_CLIENT_ID not set".to_string()))?;
+            .map_err(|_| OAuthError::ConfigurationError("FITBIT_CLIENT_ID not set".into()))?;
 
-        let client_secret = std::env::var("FITBIT_CLIENT_SECRET").map_err(|_| {
-            OAuthError::ConfigurationError("FITBIT_CLIENT_SECRET not set".to_string())
-        })?;
+        let client_secret = std::env::var("FITBIT_CLIENT_SECRET")
+            .map_err(|_| OAuthError::ConfigurationError("FITBIT_CLIENT_SECRET not set".into()))?;
 
         let redirect_uri = crate::constants::env_config::fitbit_redirect_uri();
 
@@ -318,8 +316,8 @@ impl OAuthProvider for FitbitOAuthProvider {
         Ok(AuthorizationResponse {
             authorization_url: auth_url,
             state,
-            provider: "fitbit".to_string(),
-            instructions: "Visit the authorization URL to connect your Fitbit account. Complete the OAuth flow through your web browser.".to_string(),
+            provider: "fitbit".into(),
+            instructions: "Visit the authorization URL to connect your Fitbit account. Complete the OAuth flow through your web browser.".into(),
             expires_in_minutes: 10,
         })
     }
@@ -360,7 +358,7 @@ impl OAuthProvider for FitbitOAuthProvider {
             refresh_token: token_response.refresh_token,
             expires_at,
             scopes: token_response.scope,
-            provider: "fitbit".to_string(),
+            provider: "fitbit".into(),
         })
     }
 
@@ -398,7 +396,7 @@ impl OAuthProvider for FitbitOAuthProvider {
             refresh_token: token_response.refresh_token,
             expires_at,
             scopes: token_response.scope,
-            provider: "fitbit".to_string(),
+            provider: "fitbit".into(),
         })
     }
 
@@ -418,7 +416,7 @@ impl OAuthProvider for FitbitOAuthProvider {
 
         if !response.status().is_success() {
             return Err(OAuthError::TokenRefreshFailed(
-                "Failed to revoke token".to_string(),
+                "Failed to revoke token".into(),
             ));
         }
 

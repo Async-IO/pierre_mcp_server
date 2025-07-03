@@ -107,7 +107,7 @@ impl Database {
                     refresh_token: refresh,
                     expires_at: chrono::DateTime::from_timestamp(expires_at, 0).unwrap_or_default(),
                     scope: scope.unwrap_or_default(),
-                    nonce: nonce.unwrap_or_else(|| "legacy".to_string()),
+                    nonce: nonce.unwrap_or_else(|| "legacy".into()),
                 };
 
                 let decrypted = encrypted.decrypt(self.encryption_key())?;
@@ -193,7 +193,7 @@ mod tests {
             id: Uuid::new_v4(),
             email: format!("strava_{}@example.com", Uuid::new_v4()),
             display_name: None,
-            password_hash: "hashed".to_string(),
+            password_hash: "hashed".into(),
             tier: UserTier::Starter,
             strava_token: None,
             fitbit_token: None,
@@ -209,10 +209,10 @@ mod tests {
         let expires_at_truncated =
             chrono::DateTime::from_timestamp(expires_at.timestamp(), 0).unwrap();
         let token = DecryptedToken {
-            access_token: "test_access_token".to_string(),
-            refresh_token: "test_refresh_token".to_string(),
+            access_token: "test_access_token".into(),
+            refresh_token: "test_refresh_token".into(),
             expires_at: expires_at_truncated,
-            scope: "read,activity:read_all".to_string(),
+            scope: "read,activity:read_all".into(),
         };
 
         // Store token
@@ -257,7 +257,7 @@ mod tests {
             id: user_id,
             email: format!("fitbit_{}@example.com", user_id),
             display_name: None,
-            password_hash: "hashed".to_string(),
+            password_hash: "hashed".into(),
             tier: UserTier::Professional,
             strava_token: None,
             fitbit_token: None,
@@ -273,10 +273,10 @@ mod tests {
         let expires_at_truncated =
             chrono::DateTime::from_timestamp(expires_at.timestamp(), 0).unwrap();
         let token = DecryptedToken {
-            access_token: "fitbit_access_token".to_string(),
-            refresh_token: "fitbit_refresh_token".to_string(),
+            access_token: "fitbit_access_token".into(),
+            refresh_token: "fitbit_refresh_token".into(),
             expires_at: expires_at_truncated,
-            scope: "activity heartrate location".to_string(),
+            scope: "activity heartrate location".into(),
         };
 
         // Store token

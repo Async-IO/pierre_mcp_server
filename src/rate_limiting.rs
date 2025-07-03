@@ -73,8 +73,8 @@ impl UnifiedRateLimitCalculator {
                 limit: None,
                 remaining: None,
                 reset_at: None,
-                tier: "enterprise".to_string(),
-                auth_method: "api_key".to_string(),
+                tier: "enterprise".into(),
+                auth_method: "api_key".into(),
             },
             _ => {
                 let limit = api_key.rate_limit_requests;
@@ -87,7 +87,7 @@ impl UnifiedRateLimitCalculator {
                     remaining: Some(remaining),
                     reset_at: Some(self.calculate_monthly_reset()),
                     tier: format!("{:?}", api_key.tier).to_lowercase(),
-                    auth_method: "api_key".to_string(),
+                    auth_method: "api_key".into(),
                 }
             }
         }
@@ -105,8 +105,8 @@ impl UnifiedRateLimitCalculator {
                 limit: None,
                 remaining: None,
                 reset_at: None,
-                tier: "enterprise".to_string(),
-                auth_method: "jwt_token".to_string(),
+                tier: "enterprise".into(),
+                auth_method: "jwt_token".into(),
             },
             _ => {
                 let limit = user.tier.monthly_limit().unwrap_or(u32::MAX);
@@ -119,7 +119,7 @@ impl UnifiedRateLimitCalculator {
                     remaining: Some(remaining),
                     reset_at: Some(self.calculate_monthly_reset()),
                     tier: format!("{:?}", user.tier).to_lowercase(),
-                    auth_method: "jwt_token".to_string(),
+                    auth_method: "jwt_token".into(),
                 }
             }
         }
@@ -137,8 +137,8 @@ impl UnifiedRateLimitCalculator {
                 limit: None,
                 remaining: None,
                 reset_at: None,
-                tier: "enterprise".to_string(),
-                auth_method: "jwt_token".to_string(),
+                tier: "enterprise".into(),
+                auth_method: "jwt_token".into(),
             },
             _ => {
                 let limit = tier.monthly_limit().unwrap_or(u32::MAX);
@@ -151,7 +151,7 @@ impl UnifiedRateLimitCalculator {
                     remaining: Some(remaining),
                     reset_at: Some(self.calculate_monthly_reset()),
                     tier: format!("{:?}", tier).to_lowercase(),
-                    auth_method: "jwt_token".to_string(),
+                    auth_method: "jwt_token".into(),
                 }
             }
         }
@@ -229,11 +229,11 @@ mod tests {
         let calculator = UnifiedRateLimitCalculator::new();
 
         let api_key = ApiKey {
-            id: "test".to_string(),
+            id: "test".into(),
             user_id: Uuid::new_v4(),
-            name: "Test Key".to_string(),
-            key_prefix: "pk_live_test".to_string(),
-            key_hash: "hash".to_string(),
+            name: "Test Key".into(),
+            key_prefix: "pk_live_test".into(),
+            key_hash: "hash".into(),
             description: None,
             tier: ApiKeyTier::Enterprise,
             rate_limit_requests: u32::MAX,
@@ -258,11 +258,11 @@ mod tests {
         let calculator = UnifiedRateLimitCalculator::new();
 
         let api_key = ApiKey {
-            id: "test".to_string(),
+            id: "test".into(),
             user_id: Uuid::new_v4(),
-            name: "Test Key".to_string(),
-            key_prefix: "pk_live_test".to_string(),
-            key_hash: "hash".to_string(),
+            name: "Test Key".into(),
+            key_prefix: "pk_live_test".into(),
+            key_hash: "hash".into(),
             description: None,
             tier: ApiKeyTier::Starter,
             rate_limit_requests: 10_000,
@@ -297,9 +297,9 @@ mod tests {
 
         let user = User {
             id: Uuid::new_v4(),
-            email: "test@example.com".to_string(),
-            display_name: Some("Test User".to_string()),
-            password_hash: "hash".to_string(),
+            email: "test@example.com".into(),
+            display_name: Some("Test User".into()),
+            password_hash: "hash".into(),
             tier: UserTier::Professional,
             strava_token: None,
             fitbit_token: None,
@@ -377,8 +377,8 @@ mod tests {
             limit: Some(10_000),
             remaining: Some(5_000),
             reset_at: Some(Utc::now()),
-            tier: "starter".to_string(),
-            auth_method: "api_key".to_string(),
+            tier: "starter".into(),
+            auth_method: "api_key".into(),
         };
 
         let legacy = UnifiedRateLimitCalculator::to_legacy_rate_limit_status(&info);

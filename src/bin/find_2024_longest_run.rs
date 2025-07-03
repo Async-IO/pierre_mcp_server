@@ -1,3 +1,5 @@
+// ABOUTME: Data analysis utility for finding the longest running activity in 2024 dataset
+// ABOUTME: Fitness data mining tool to identify peak distance achievements from activity records
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your

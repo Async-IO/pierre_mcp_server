@@ -50,7 +50,7 @@ pub struct A2AClient {
 }
 
 fn default_permissions() -> Vec<String> {
-    vec!["read_activities".to_string()]
+    vec!["read_activities".into()]
 }
 
 fn default_rate_limit_requests() -> u32 {
@@ -125,7 +125,7 @@ impl A2AAuthenticator {
                         rate_limit_status
                             .reset_at
                             .map(|dt| dt.to_rfc3339())
-                            .unwrap_or("unknown".to_string())
+                            .unwrap_or("unknown".into())
                     ));
                 }
 
@@ -205,15 +205,15 @@ impl A2AAuthenticator {
             user_id: uuid::Uuid::new_v4(), // A2A clients don't have regular user IDs
             auth_method: AuthMethod::ApiKey {
                 key_id: format!("oauth2_a2a_{}", client_id),
-                tier: "A2A-OAuth2".to_string(),
+                tier: "A2A-OAuth2".into(),
             },
             rate_limit: crate::rate_limiting::UnifiedRateLimitInfo {
                 is_rate_limited: false,
                 limit: Some(1000),     // Default A2A OAuth2 limit
                 remaining: Some(1000), // Start with full limit
                 reset_at: Some(chrono::Utc::now() + chrono::Duration::hours(1)),
-                tier: "A2A-OAuth2".to_string(),
-                auth_method: "oauth2".to_string(),
+                tier: "A2A-OAuth2".into(),
+                auth_method: "oauth2".into(),
             },
         })
     }
@@ -228,7 +228,7 @@ impl A2AAuthenticator {
             description: client.description,
             capabilities: client.capabilities,
             redirect_uris: client.redirect_uris,
-            contact_email: "contact@example.com".to_string(), // Default contact email
+            contact_email: "contact@example.com".into(), // Default contact email
         };
 
         let credentials = client_manager.register_client(request).await?;
@@ -277,8 +277,8 @@ impl A2AAuthenticator {
 
     /// Check if client has required scope
     pub fn check_scope(&self, token: &A2AToken, required_scope: &str) -> bool {
-        token.scopes.contains(&required_scope.to_string())
-            || token.scopes.contains(&"*".to_string()) // Wildcard scope
+        token.scopes.contains(&required_scope.to_string()) || token.scopes.contains(&"*".into())
+        // Wildcard scope
     }
 }
 
@@ -305,14 +305,14 @@ pub fn with_a2a_auth(
                         } else {
                             Err(warp::reject::custom(
                                 crate::a2a::A2AError::AuthenticationFailed(
-                                    "Invalid authorization header format".to_string(),
+                                    "Invalid authorization header format".into(),
                                 ),
                             ))
                         }
                     }
                     None => Err(warp::reject::custom(
                         crate::a2a::A2AError::AuthenticationFailed(
-                            "No authorization header provided".to_string(),
+                            "No authorization header provided".into(),
                         ),
                     )),
                 }
@@ -340,7 +340,13 @@ mod tests {
     #[tokio::test]
     async fn test_a2a_authenticator_creation() {
         let database = create_test_database().await;
-        let _authenticator = A2AAuthenticator::new(database, vec![0u8; 64]);
+        let authenticator = A2AAuthenticator::new(database, vec![0u8; 64]);
+
+        // Verify authenticator is properly initialized
+        assert!(
+            authenticator.jwt_secret.len() == 64,
+            "JWT secret should be 64 bytes"
+        );
 
         // Should create without errors
     }
@@ -350,15 +356,12 @@ mod tests {
         let database = create_test_database().await;
         let authenticator = A2AAuthenticator::new(database, vec![0u8; 64]);
 
-        let token = authenticator.create_token(
-            "test_client",
-            "test_user",
-            vec!["fitness:read".to_string()],
-        );
+        let token =
+            authenticator.create_token("test_client", "test_user", vec!["fitness:read".into()]);
 
         assert_eq!(token.client_id, "test_client");
         assert_eq!(token.user_id, "test_user");
-        assert!(token.scopes.contains(&"fitness:read".to_string()));
+        assert!(token.scopes.contains(&"fitness:read".into()));
         assert!(token.expires_at > chrono::Utc::now());
     }
 
@@ -368,9 +371,9 @@ mod tests {
         let authenticator = A2AAuthenticator::new(database, vec![0u8; 64]);
 
         let scopes = vec![
-            "fitness:read".to_string(),
-            "fitness:write".to_string(),
-            "analytics:read".to_string(),
+            "fitness:read".into(),
+            "fitness:write".into(),
+            "analytics:read".into(),
         ];
         let token = authenticator.create_token("test_client", "test_user", scopes.clone());
 
@@ -385,11 +388,8 @@ mod tests {
         let database = create_test_database().await;
         let authenticator = A2AAuthenticator::new(database, vec![0u8; 64]);
 
-        let token = authenticator.create_token(
-            "test_client",
-            "test_user",
-            vec!["fitness:read".to_string()],
-        );
+        let token =
+            authenticator.create_token("test_client", "test_user", vec!["fitness:read".into()]);
 
         let is_valid = authenticator.validate_token(&token).await.unwrap();
         assert!(is_valid);
@@ -400,11 +400,8 @@ mod tests {
         let database = create_test_database().await;
         let authenticator = A2AAuthenticator::new(database, vec![0u8; 64]);
 
-        let mut token = authenticator.create_token(
-            "test_client",
-            "test_user",
-            vec!["fitness:read".to_string()],
-        );
+        let mut token =
+            authenticator.create_token("test_client", "test_user", vec!["fitness:read".into()]);
 
         // Set token as expired
         token.expires_at = chrono::Utc::now() - chrono::Duration::hours(1);
@@ -450,7 +447,7 @@ mod tests {
         let token = authenticator.create_token(
             "test_client",
             "test_user",
-            vec!["fitness:read".to_string(), "analytics:read".to_string()],
+            vec!["fitness:read".into(), "analytics:read".into()],
         );
 
         assert!(authenticator.check_scope(&token, "fitness:read"));
@@ -462,7 +459,7 @@ mod tests {
     fn test_check_wildcard_scope() {
         let (_database, authenticator) = create_test_authenticator();
 
-        let token = authenticator.create_token("test_client", "test_user", vec!["*".to_string()]);
+        let token = authenticator.create_token("test_client", "test_user", vec!["*".into()]);
 
         assert!(authenticator.check_scope(&token, "fitness:read"));
         assert!(authenticator.check_scope(&token, "fitness:write"));
@@ -485,18 +482,15 @@ mod tests {
         let (_database, authenticator) = create_test_authenticator();
 
         let client = A2AClient {
-            id: "test_client".to_string(),
-            name: "Test Client".to_string(),
-            description: "Test client for A2A".to_string(),
-            public_key: "test_key".to_string(),
-            capabilities: vec![
-                "fitness-data-analysis".to_string(),
-                "goal-management".to_string(),
-            ],
+            id: "test_client".into(),
+            name: "Test Client".into(),
+            description: "Test client for A2A".into(),
+            public_key: "test_key".into(),
+            capabilities: vec!["fitness-data-analysis".into(), "goal-management".into()],
             redirect_uris: vec![],
             is_active: true,
             created_at: chrono::Utc::now(),
-            permissions: vec!["read_activities".to_string()],
+            permissions: vec!["read_activities".into()],
             rate_limit_requests: 1000,
             rate_limit_window_seconds: 3600,
             updated_at: chrono::Utc::now(),
@@ -512,15 +506,15 @@ mod tests {
         let (_database, authenticator) = create_test_authenticator();
 
         let client = A2AClient {
-            id: "test_client".to_string(),
-            name: "Test Client".to_string(),
-            description: "Test client for A2A".to_string(),
-            public_key: "test_key".to_string(),
+            id: "test_client".into(),
+            name: "Test Client".into(),
+            description: "Test client for A2A".into(),
+            public_key: "test_key".into(),
             capabilities: vec![],
             redirect_uris: vec![],
             is_active: true,
             created_at: chrono::Utc::now(),
-            permissions: vec!["read_activities".to_string()],
+            permissions: vec!["read_activities".into()],
             rate_limit_requests: 1000,
             rate_limit_window_seconds: 3600,
             updated_at: chrono::Utc::now(),
@@ -532,22 +526,22 @@ mod tests {
     #[test]
     fn test_a2a_client_serialization() {
         let client = A2AClient {
-            id: "test_client_123".to_string(),
-            name: "Test Analytics Client".to_string(),
-            description: "Client for fitness data analysis".to_string(),
-            public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5...".to_string(),
+            id: "test_client_123".into(),
+            name: "Test Analytics Client".into(),
+            description: "Client for fitness data analysis".into(),
+            public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5...".into(),
             capabilities: vec![
-                "fitness-data-analysis".to_string(),
-                "goal-management".to_string(),
-                "data-export".to_string(),
+                "fitness-data-analysis".into(),
+                "goal-management".into(),
+                "data-export".into(),
             ],
             redirect_uris: vec![
-                "https://example.com/callback".to_string(),
-                "http://localhost:3000/auth/callback".to_string(),
+                "https://example.com/callback".into(),
+                "http://localhost:3000/auth/callback".into(),
             ],
             is_active: true,
             created_at: chrono::Utc::now(),
-            permissions: vec!["read_activities".to_string()],
+            permissions: vec!["read_activities".into()],
             rate_limit_requests: 1000,
             rate_limit_window_seconds: 3600,
             updated_at: chrono::Utc::now(),
@@ -570,9 +564,9 @@ mod tests {
     #[test]
     fn test_a2a_token_serialization() {
         let token = A2AToken {
-            client_id: "test_client".to_string(),
-            user_id: "user_123".to_string(),
-            scopes: vec!["fitness:read".to_string(), "analytics:read".to_string()],
+            client_id: "test_client".into(),
+            user_id: "user_123".into(),
+            scopes: vec!["fitness:read".into(), "analytics:read".into()],
             expires_at: chrono::Utc::now() + chrono::Duration::hours(24),
             created_at: chrono::Utc::now(),
         };
@@ -596,11 +590,8 @@ mod tests {
         let authenticator = A2AAuthenticator::new(database, vec![0u8; 64]);
 
         // Test token that expires in 1 second
-        let mut token = authenticator.create_token(
-            "test_client",
-            "test_user",
-            vec!["fitness:read".to_string()],
-        );
+        let mut token =
+            authenticator.create_token("test_client", "test_user", vec!["fitness:read".into()]);
         token.expires_at = chrono::Utc::now() + chrono::Duration::seconds(1);
 
         let is_valid = authenticator.validate_token(&token).await.unwrap();
@@ -620,7 +611,7 @@ mod tests {
         let token = authenticator.create_token(
             "test_client",
             "test_user",
-            vec!["fitness:READ".to_string()], // Uppercase
+            vec!["fitness:READ".into()], // Uppercase
         );
 
         // Case sensitive matching
@@ -633,15 +624,15 @@ mod tests {
         let (_database, authenticator) = create_test_authenticator();
 
         let client = A2AClient {
-            id: "test_client".to_string(),
-            name: "Test Client".to_string(),
-            description: "Test client for A2A".to_string(),
-            public_key: "test_key".to_string(),
-            capabilities: vec!["Fitness-Data-Analysis".to_string()], // Mixed case
+            id: "test_client".into(),
+            name: "Test Client".into(),
+            description: "Test client for A2A".into(),
+            public_key: "test_key".into(),
+            capabilities: vec!["Fitness-Data-Analysis".into()], // Mixed case
             redirect_uris: vec![],
             is_active: true,
             created_at: chrono::Utc::now(),
-            permissions: vec!["read_activities".to_string()],
+            permissions: vec!["read_activities".into()],
             rate_limit_requests: 1000,
             rate_limit_window_seconds: 3600,
             updated_at: chrono::Utc::now(),
@@ -657,15 +648,15 @@ mod tests {
         let (_database, authenticator) = create_test_authenticator();
 
         let mut client = A2AClient {
-            id: "test_client".to_string(),
-            name: "Test Client".to_string(),
-            description: "Test client for A2A".to_string(),
-            public_key: "test_key".to_string(),
-            capabilities: vec!["fitness-data-analysis".to_string()],
+            id: "test_client".into(),
+            name: "Test Client".into(),
+            description: "Test client for A2A".into(),
+            public_key: "test_key".into(),
+            capabilities: vec!["fitness-data-analysis".into()],
             redirect_uris: vec![],
             is_active: true,
             created_at: chrono::Utc::now(),
-            permissions: vec!["read_activities".to_string()],
+            permissions: vec!["read_activities".into()],
             rate_limit_requests: 1000,
             rate_limit_window_seconds: 3600,
             updated_at: chrono::Utc::now(),

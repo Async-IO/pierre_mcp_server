@@ -40,7 +40,7 @@ impl ProtocolConverter {
                     .and_then(|t| t.as_str())
                     .ok_or_else(|| {
                         crate::protocols::ProtocolError::InvalidParameters(
-                            "Tool name not found in A2A request".to_string(),
+                            "Tool name not found in A2A request".into(),
                         )
                     })?
                     .to_string()
@@ -65,7 +65,7 @@ impl ProtocolConverter {
             tool_name,
             parameters,
             user_id: user_id.to_string(),
-            protocol: "a2a".to_string(),
+            protocol: "a2a".into(),
         })
     }
 
@@ -73,18 +73,18 @@ impl ProtocolConverter {
     pub fn universal_to_a2a(response: UniversalResponse, request_id: Option<Value>) -> A2AResponse {
         if response.success {
             A2AResponse {
-                jsonrpc: "2.0".to_string(),
+                jsonrpc: "2.0".into(),
                 result: response.result,
                 error: None,
                 id: request_id,
             }
         } else {
             A2AResponse {
-                jsonrpc: "2.0".to_string(),
+                jsonrpc: "2.0".into(),
                 result: None,
                 error: Some(crate::a2a::protocol::A2AError {
                     code: -32603,
-                    message: response.error.unwrap_or("Internal error".to_string()),
+                    message: response.error.unwrap_or("Internal error".into()),
                     data: None,
                 }),
                 id: request_id,
@@ -100,7 +100,7 @@ impl ProtocolConverter {
                 .arguments
                 .unwrap_or(Value::Object(serde_json::Map::new())),
             user_id: user_id.to_string(),
-            protocol: "mcp".to_string(),
+            protocol: "mcp".into(),
         }
     }
 
@@ -109,7 +109,7 @@ impl ProtocolConverter {
         if response.success {
             let result_text =
                 serde_json::to_string_pretty(&response.result.as_ref().unwrap_or(&Value::Null))
-                    .unwrap_or("{}".to_string());
+                    .unwrap_or("{}".into());
 
             ToolResponse {
                 content: vec![crate::mcp::schema::Content::Text { text: result_text }],
@@ -121,7 +121,7 @@ impl ProtocolConverter {
                 content: vec![crate::mcp::schema::Content::Text {
                     text: format!(
                         "Error: {}",
-                        response.error.unwrap_or("Unknown error".to_string())
+                        response.error.unwrap_or("Unknown error".into())
                     ),
                 }],
                 is_error: true,
@@ -136,7 +136,7 @@ impl ProtocolConverter {
     ) -> Result<ProtocolType, crate::protocols::ProtocolError> {
         // Try to parse as JSON first
         let json: Value = serde_json::from_str(request_data).map_err(|_| {
-            crate::protocols::ProtocolError::ConversionFailed("Invalid JSON".to_string())
+            crate::protocols::ProtocolError::ConversionFailed("Invalid JSON".into())
         })?;
 
         // Check for A2A indicators
@@ -158,7 +158,7 @@ impl ProtocolConverter {
         }
 
         Err(crate::protocols::ProtocolError::UnsupportedProtocol(
-            "Unknown protocol format".to_string(),
+            "Unknown protocol format".into(),
         ))
     }
 
@@ -198,8 +198,8 @@ mod tests {
     #[test]
     fn test_a2a_to_universal_conversion() {
         let a2a_request = A2ARequest {
-            jsonrpc: "2.0".to_string(),
-            method: "a2a/tools/call".to_string(),
+            jsonrpc: "2.0".into(),
+            method: "a2a/tools/call".into(),
             params: Some(serde_json::json!({
                 "tool": "get_activities",
                 "arguments": {
@@ -242,7 +242,7 @@ mod tests {
         let universal_response = UniversalResponse {
             success: false,
             result: None,
-            error: Some("Tool not found".to_string()),
+            error: Some("Tool not found".into()),
             metadata: None,
         };
 
@@ -258,7 +258,7 @@ mod tests {
     #[test]
     fn test_mcp_to_universal_conversion() {
         let mcp_call = ToolCall {
-            name: "get_activities".to_string(),
+            name: "get_activities".into(),
             arguments: Some(serde_json::json!({"limit": 5})),
         };
 
@@ -305,7 +305,7 @@ mod tests {
         let universal_response = UniversalResponse {
             success: false,
             result: None,
-            error: Some("Invalid parameters".to_string()),
+            error: Some("Invalid parameters".into()),
             metadata: None,
         };
 

@@ -67,7 +67,7 @@ impl ToolEngine {
         let universal_request = crate::protocols::universal::UniversalRequest {
             tool_name: tool_name.to_string(),
             parameters: params,
-            protocol: "mcp".to_string(),
+            protocol: "mcp".into(),
             user_id: user_context.map_or_else(Uuid::new_v4, |ctx| ctx.user_id),
         };
 
@@ -233,7 +233,7 @@ impl ToolEngine {
                     name: tool_name.to_string(),
                     description,
                     input_schema: crate::mcp::schema::JsonSchema {
-                        schema_type: "object".to_string(),
+                        schema_type: "object".into(),
                         properties: input_schema.get("properties").cloned().map(|props| {
                             serde_json::from_value(props).unwrap_or_default()
                         }),

@@ -162,44 +162,44 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
             TrendDirection::Improving => {
                 if analysis.trend_strength > strong_trend_threshold {
                     (
-                        "Strong improvement trend detected - excellent progress!".to_string(),
+                        "Strong improvement trend detected - excellent progress!".into(),
                         InsightSeverity::Info,
                     )
                 } else {
                     (
-                        "Gradual improvement trend - keep up the consistent work".to_string(),
+                        "Gradual improvement trend - keep up the consistent work".into(),
                         InsightSeverity::Info,
                     )
                 }
             }
             TrendDirection::Declining => {
                 if analysis.trend_strength > strong_trend_threshold {
-                    ("Significant decline in performance - consider recovery or training adjustments".to_string(), InsightSeverity::Warning)
+                    ("Significant decline in performance - consider recovery or training adjustments".into(), InsightSeverity::Warning)
                 } else {
                     (
-                        "Slight performance decline - may need attention".to_string(),
+                        "Slight performance decline - may need attention".into(),
                         InsightSeverity::Warning,
                     )
                 }
             }
             TrendDirection::Stable => (
-                "Performance is stable - consider progressive overload for improvement".to_string(),
+                "Performance is stable - consider progressive overload for improvement".into(),
                 InsightSeverity::Info,
             ),
         };
 
         let mut metadata = HashMap::new();
         metadata.insert(
-            "trend_strength".to_string(),
+            "trend_strength".into(),
             serde_json::Value::from(analysis.trend_strength),
         );
         metadata.insert(
-            "statistical_significance".to_string(),
+            "statistical_significance".into(),
             serde_json::Value::from(analysis.statistical_significance),
         );
 
         insights.push(AdvancedInsight {
-            insight_type: "performance_trend".to_string(),
+            insight_type: "performance_trend".into(),
             message,
             confidence: {
                 let confidence_level = self.config.statistical.confidence_level;
@@ -225,8 +225,8 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
         // Data quality insight using config min data points
         if analysis.data_points.len() < self.config.trend_analysis.min_data_points {
             insights.push(AdvancedInsight {
-                insight_type: "data_quality".to_string(),
-                message: "Limited data points - trends may not be reliable".to_string(),
+                insight_type: "data_quality".into(),
+                message: "Limited data points - trends may not be reliable".into(),
                 confidence: Confidence::Medium,
                 severity: InsightSeverity::Warning,
                 metadata: HashMap::new(),
@@ -238,8 +238,8 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
             let strategy_thresholds = self.strategy.performance_thresholds();
             if analysis.trend_strength > strategy_thresholds.significant_improvement {
                 insights.push(AdvancedInsight {
-                    insight_type: "strategy_validation".to_string(),
-                    message: "Your training strategy is producing excellent results".to_string(),
+                    insight_type: "strategy_validation".into(),
+                    message: "Your training strategy is producing excellent results".into(),
                     confidence: Confidence::High,
                     severity: InsightSeverity::Info,
                     metadata: HashMap::new(),
@@ -532,14 +532,14 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
             predicted_value,
             confidence,
             factors: vec![
-                "Recent training consistency".to_string(),
-                "Historical performance trends".to_string(),
-                "Current fitness level".to_string(),
+                "Recent training consistency".into(),
+                "Historical performance trends".into(),
+                "Current fitness level".into(),
             ],
             recommendations: vec![
-                "Maintain consistent training schedule".to_string(),
-                "Focus on progressive overload".to_string(),
-                "Include recovery sessions".to_string(),
+                "Maintain consistent training schedule".into(),
+                "Focus on progressive overload".into(),
+                "Include recovery sessions".into(),
             ],
             estimated_achievement_date: target.target_date,
         })
@@ -628,22 +628,22 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
             recovery_needed,
             recommendations: if recovery_needed {
                 let mut recs = vec![
-                    "Consider reducing training volume this week".to_string(),
-                    "Focus on recovery activities".to_string(),
-                    "Ensure adequate sleep and nutrition".to_string(),
+                    "Consider reducing training volume this week".into(),
+                    "Focus on recovery activities".into(),
+                    "Ensure adequate sleep and nutrition".into(),
                 ];
 
                 // Add strategy-based recovery recommendations using the strategy field
                 if self.strategy.should_recommend_recovery(weeks as i32) {
-                    recs.push("Your training strategy recommends prioritizing recovery at this load level".to_string());
+                    recs.push("Your training strategy recommends prioritizing recovery at this load level".into());
                 }
 
                 recs
             } else {
                 let mut recs = vec![
-                    "Training load is well balanced".to_string(),
-                    "Continue current training pattern".to_string(),
-                    "Consider gradual load increases".to_string(),
+                    "Training load is well balanced".into(),
+                    "Continue current training pattern".into(),
+                    "Consider gradual load increases".into(),
                 ];
 
                 // Use strategy to determine if volume increase is appropriate

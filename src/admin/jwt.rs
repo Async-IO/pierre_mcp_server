@@ -77,9 +77,9 @@ impl AdminJwtManager {
 
         let claims = AdminTokenClaims {
             // Standard JWT claims
-            iss: "pierre-mcp-server".to_string(),
+            iss: "pierre-mcp-server".into(),
             sub: token_id.to_string(),
-            aud: "admin-api".to_string(),
+            aud: "admin-api".into(),
             exp: exp.timestamp() as u64,
             iat: now.timestamp() as u64,
             nbf: now.timestamp() as u64,
@@ -89,7 +89,7 @@ impl AdminJwtManager {
             service_name: service_name.to_string(),
             permissions: permissions.to_vec(),
             is_super_admin,
-            token_type: "admin".to_string(),
+            token_type: "admin".into(),
         };
 
         let header = Header::new(self.algorithm);
@@ -212,7 +212,7 @@ impl TokenGenerationConfig {
     pub fn super_admin(service_name: String) -> Self {
         Self {
             service_name,
-            service_description: Some("Super Admin Token".to_string()),
+            service_description: Some("Super Admin Token".into()),
             permissions: Some(AdminPermissions::super_admin()),
             expires_in_days: None, // Never expires
             is_super_admin: true,

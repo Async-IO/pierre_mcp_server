@@ -1,3 +1,5 @@
+// ABOUTME: GPS data validation utility for verifying location accuracy in longest running activities
+// ABOUTME: Diagnostic tool for checking GPS track quality and geographic data integrity
 use anyhow::Result;
 use serde_json::{json, Value};
 use std::io::{BufRead, BufReader, Write};
@@ -33,8 +35,20 @@ async fn main() -> Result<()> {
 
     let mut line = String::new();
     reader.read_line(&mut line)?;
-    let _init_response: Value = serde_json::from_str(&line)?;
+    let init_response: Value = serde_json::from_str(&line)?;
     println!("✅ MCP connection initialized");
+
+    // Validate initialization response
+    if let Some(result) = init_response.get("result") {
+        if let Some(server_info) = result.get("serverInfo") {
+            if let Some(name) = server_info.get("name") {
+                println!("   Server: {}", name);
+            }
+            if let Some(version) = server_info.get("version") {
+                println!("   Version: {}", version);
+            }
+        }
+    }
 
     // Get activities to find the longest 2025 run
     println!("\n📊 Retrieving activities...");

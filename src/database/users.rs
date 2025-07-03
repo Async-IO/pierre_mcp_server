@@ -274,7 +274,7 @@ impl Database {
                 refresh_token: refresh,
                 expires_at: chrono::DateTime::from_timestamp(expires_at, 0).unwrap_or_default(),
                 scope: scope.unwrap_or_default(),
-                nonce: nonce.unwrap_or_else(|| "legacy".to_string()),
+                nonce: nonce.unwrap_or_else(|| "legacy".into()),
             })
         } else {
             None
@@ -294,7 +294,7 @@ impl Database {
                 refresh_token: refresh,
                 expires_at: chrono::DateTime::from_timestamp(expires_at, 0).unwrap_or_default(),
                 scope: scope.unwrap_or_default(),
-                nonce: nonce.unwrap_or_else(|| "legacy".to_string()),
+                nonce: nonce.unwrap_or_else(|| "legacy".into()),
             })
         } else {
             None
@@ -376,6 +376,55 @@ impl Database {
         }
     }
 
+    /// Get user fitness profile with proper typing
+    pub async fn get_user_fitness_profile(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Option<crate::intelligence::UserFitnessProfile>> {
+        if let Some(profile_data) = self.get_user_profile(user_id).await? {
+            // Try to deserialize as UserFitnessProfile
+            match serde_json::from_value(profile_data) {
+                Ok(fitness_profile) => Ok(Some(fitness_profile)),
+                Err(_) => {
+                    // If profile data doesn't match UserFitnessProfile structure,
+                    // create a default profile with user_id
+                    Ok(Some(crate::intelligence::UserFitnessProfile {
+                        user_id: user_id.to_string(),
+                        age: None,
+                        gender: None,
+                        weight: None,
+                        height: None,
+                        fitness_level: crate::intelligence::FitnessLevel::Beginner,
+                        primary_sports: vec![],
+                        training_history_months: 0,
+                        preferences: crate::intelligence::UserPreferences {
+                            preferred_units: "metric".into(),
+                            training_focus: vec![],
+                            injury_history: vec![],
+                            time_availability: crate::intelligence::TimeAvailability {
+                                hours_per_week: 3.0,
+                                preferred_days: vec![],
+                                preferred_duration_minutes: Some(30),
+                            },
+                        },
+                    }))
+                }
+            }
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Update user fitness profile
+    pub async fn update_user_fitness_profile(
+        &self,
+        user_id: Uuid,
+        profile: &crate::intelligence::UserFitnessProfile,
+    ) -> Result<()> {
+        let profile_data = serde_json::to_value(profile)?;
+        self.upsert_user_profile(user_id, profile_data).await
+    }
+
     /// Get last sync timestamp for a provider
     pub async fn get_provider_last_sync(
         &self,
@@ -435,8 +484,8 @@ mod tests {
         let user = User {
             id: Uuid::new_v4(),
             email: format!("test_{}@example.com", Uuid::new_v4()),
-            display_name: Some("Test User".to_string()),
-            password_hash: "hashed_password".to_string(),
+            display_name: Some("Test User".into()),
+            password_hash: "hashed_password".into(),
             tier: UserTier::Starter,
             strava_token: None,
             fitbit_token: None,
@@ -479,7 +528,7 @@ mod tests {
             id: user_id,
             email: format!("active_{}@example.com", user_id),
             display_name: None,
-            password_hash: "hashed".to_string(),
+            password_hash: "hashed".into(),
             tier: UserTier::Starter,
             strava_token: None,
             fitbit_token: None,

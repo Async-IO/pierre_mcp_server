@@ -1,4 +1,5 @@
-// Diagnose weather API issues and test different endpoints
+// ABOUTME: Weather API diagnostic utility for troubleshooting external weather service integration
+// ABOUTME: Network connectivity and API configuration testing tool for weather services
 use chrono::{Duration, Utc};
 use reqwest::Client;
 use serde_json::Value;
@@ -63,10 +64,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Err(e) => println!("❌ JSON Parse Error: {}", e),
                 }
             } else {
-                let error_text = response
-                    .text()
-                    .await
-                    .unwrap_or_else(|_| "Unknown".to_string());
+                let error_text = response.text().await.unwrap_or_else(|_| "Unknown".into());
                 println!("❌ API Error: {}", error_text);
             }
         }
@@ -110,10 +108,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             } else {
                 let status = response.status();
-                let error_text = response
-                    .text()
-                    .await
-                    .unwrap_or_else(|_| "Unknown".to_string());
+                let error_text = response.text().await.unwrap_or_else(|_| "Unknown".into());
                 println!("❌ Historical API Error: {}", error_text);
 
                 // Parse common error codes

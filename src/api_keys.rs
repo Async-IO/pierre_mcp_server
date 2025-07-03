@@ -545,11 +545,11 @@ mod tests {
         let manager = ApiKeyManager::new();
 
         let api_key = ApiKey {
-            id: "test".to_string(),
+            id: "test".into(),
             user_id: Uuid::new_v4(),
-            name: "Test Key".to_string(),
-            key_prefix: "pk_live_test".to_string(),
-            key_hash: "hash".to_string(),
+            name: "Test Key".into(),
+            key_prefix: "pk_live_test".into(),
+            key_hash: "hash".into(),
             description: None,
             tier: ApiKeyTier::Starter,
             rate_limit_requests: 10_000,
@@ -574,11 +574,11 @@ mod tests {
         let manager = ApiKeyManager::new();
 
         let enterprise_key = ApiKey {
-            id: "enterprise".to_string(),
+            id: "enterprise".into(),
             user_id: Uuid::new_v4(),
-            name: "Enterprise Key".to_string(),
-            key_prefix: "pk_live_ent".to_string(),
-            key_hash: "hash".to_string(),
+            name: "Enterprise Key".into(),
+            key_prefix: "pk_live_ent".into(),
+            key_hash: "hash".into(),
             description: None,
             tier: ApiKeyTier::Enterprise,
             rate_limit_requests: u32::MAX,
@@ -608,11 +608,11 @@ mod tests {
         let manager = ApiKeyManager::new();
 
         let professional_key = ApiKey {
-            id: "professional".to_string(),
+            id: "professional".into(),
             user_id: Uuid::new_v4(),
-            name: "Professional Key".to_string(),
-            key_prefix: "pk_live_pro".to_string(),
-            key_hash: "hash".to_string(),
+            name: "Professional Key".into(),
+            key_prefix: "pk_live_pro".into(),
+            key_hash: "hash".into(),
             description: None,
             tier: ApiKeyTier::Professional,
             rate_limit_requests: 100_000,
@@ -648,11 +648,11 @@ mod tests {
         let manager = ApiKeyManager::new();
 
         let api_key = ApiKey {
-            id: "reset_test".to_string(),
+            id: "reset_test".into(),
             user_id: Uuid::new_v4(),
-            name: "Reset Test Key".to_string(),
-            key_prefix: "pk_live_reset".to_string(),
-            key_hash: "hash".to_string(),
+            name: "Reset Test Key".into(),
+            key_prefix: "pk_live_reset".into(),
+            key_hash: "hash".into(),
             description: None,
             tier: ApiKeyTier::Starter,
             rate_limit_requests: 10_000,
@@ -747,8 +747,8 @@ mod tests {
         let user_id = Uuid::new_v4();
 
         let request = CreateApiKeyRequest {
-            name: "Expiring Key".to_string(),
-            description: Some("Test key with expiration".to_string()),
+            name: "Expiring Key".into(),
+            description: Some("Test key with expiration".into()),
             tier: ApiKeyTier::Professional,
             rate_limit_requests: None,
             expires_in_days: Some(30),
@@ -787,7 +787,7 @@ mod tests {
         let user_id = Uuid::new_v4();
 
         let request = CreateApiKeyRequest {
-            name: "Permanent Key".to_string(),
+            name: "Permanent Key".into(),
             description: None,
             tier: ApiKeyTier::Starter,
             rate_limit_requests: None,
@@ -808,11 +808,11 @@ mod tests {
 
         // Test active key
         let active_key = ApiKey {
-            id: "active".to_string(),
+            id: "active".into(),
             user_id: Uuid::new_v4(),
-            name: "Active Key".to_string(),
-            key_prefix: "pk_live_active".to_string(),
-            key_hash: "hash".to_string(),
+            name: "Active Key".into(),
+            key_prefix: "pk_live_active".into(),
+            key_hash: "hash".into(),
             description: None,
             tier: ApiKeyTier::Starter,
             rate_limit_requests: 10_000,
@@ -913,8 +913,8 @@ mod tests {
         let (api_key, full_key) = manager
             .create_trial_key(
                 user_id,
-                "Test Trial Key".to_string(),
-                Some("Testing trial functionality".to_string()),
+                "Test Trial Key".into(),
+                Some("Testing trial functionality".into()),
             )
             .await
             .unwrap();
@@ -942,7 +942,7 @@ mod tests {
         let user_id = Uuid::new_v4();
 
         let request = CreateApiKeyRequest {
-            name: "Custom Trial".to_string(),
+            name: "Custom Trial".into(),
             description: None,
             tier: ApiKeyTier::Trial,
             rate_limit_requests: None,

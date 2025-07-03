@@ -97,8 +97,7 @@ impl McpServer {
 /// Create a tool executor for MCP server with proper configuration
 async fn create_tool_executor() -> Result<Arc<UniversalToolExecutor>> {
     // Use environment variables for database configuration in production
-    let database_url =
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| "data/pierre.db".to_string());
+    let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "data/pierre.db".into());
 
     // Load or generate encryption key
     let encryption_key = if let Ok(key_path) = std::env::var("ENCRYPTION_KEY_PATH") {
@@ -130,7 +129,7 @@ async fn create_tool_executor() -> Result<Arc<UniversalToolExecutor>> {
     );
 
     let intelligence = Arc::new(ActivityIntelligence::new(
-        "Basic MCP Intelligence".to_string(),
+        "Basic MCP Intelligence".into(),
         vec![],
         PerformanceMetrics {
             relative_effort: Some(7.5),
@@ -182,19 +181,19 @@ async fn create_tool_executor() -> Result<Arc<UniversalToolExecutor>> {
                         client_id: std::env::var("STRAVA_CLIENT_ID").ok(),
                         client_secret: std::env::var("STRAVA_CLIENT_SECRET").ok(),
                         redirect_uri: std::env::var("STRAVA_REDIRECT_URI").ok(),
-                        scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+                        scopes: vec!["read".into(), "activity:read_all".into()],
                         enabled: true,
                     },
                     fitbit: crate::config::environment::OAuthProviderConfig {
                         client_id: std::env::var("FITBIT_CLIENT_ID").ok(),
                         client_secret: std::env::var("FITBIT_CLIENT_SECRET").ok(),
                         redirect_uri: std::env::var("FITBIT_REDIRECT_URI").ok(),
-                        scopes: vec!["activity".to_string(), "profile".to_string()],
+                        scopes: vec!["activity".into(), "profile".into()],
                         enabled: true,
                     },
                 },
                 security: crate::config::environment::SecurityConfig {
-                    cors_origins: vec!["*".to_string()],
+                    cors_origins: vec!["*".into()],
                     rate_limit: crate::config::environment::RateLimitConfig {
                         enabled: false,
                         requests_per_window: 100,
@@ -212,22 +211,22 @@ async fn create_tool_executor() -> Result<Arc<UniversalToolExecutor>> {
                 external_services: crate::config::environment::ExternalServicesConfig {
                     weather: crate::config::environment::WeatherServiceConfig {
                         api_key: std::env::var("OPENWEATHER_API_KEY").ok(),
-                        base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                        base_url: "https://api.openweathermap.org/data/2.5".into(),
                         enabled: false,
                     },
                     geocoding: crate::config::environment::GeocodingServiceConfig {
-                        base_url: "https://nominatim.openstreetmap.org".to_string(),
+                        base_url: "https://nominatim.openstreetmap.org".into(),
                         enabled: true,
                     },
                     strava_api: crate::config::environment::StravaApiConfig {
-                        base_url: "https://www.strava.com/api/v3".to_string(),
-                        auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                        token_url: "https://www.strava.com/oauth/token".to_string(),
+                        base_url: "https://www.strava.com/api/v3".into(),
+                        auth_url: "https://www.strava.com/oauth/authorize".into(),
+                        token_url: "https://www.strava.com/oauth/token".into(),
                     },
                     fitbit_api: crate::config::environment::FitbitApiConfig {
-                        base_url: "https://api.fitbit.com".to_string(),
-                        auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                        token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+                        base_url: "https://api.fitbit.com".into(),
+                        auth_url: "https://www.fitbit.com/oauth2/authorize".into(),
+                        token_url: "https://api.fitbit.com/oauth2/token".into(),
                     },
                 },
                 app_behavior: crate::config::environment::AppBehaviorConfig {
@@ -235,8 +234,8 @@ async fn create_tool_executor() -> Result<Arc<UniversalToolExecutor>> {
                     default_activities_limit: 20,
                     ci_mode: false,
                     protocol: crate::config::environment::ProtocolConfig {
-                        mcp_version: "2024-11-05".to_string(),
-                        server_name: "pierre-mcp-server".to_string(),
+                        mcp_version: "2024-11-05".into(),
+                        server_name: "pierre-mcp-server".into(),
                         server_version: env!("CARGO_PKG_VERSION").to_string(),
                     },
                 },
@@ -301,10 +300,23 @@ async fn handle_request(
     match request.method.as_str() {
         "initialize" => {
             // Parse client capabilities from params if provided
-            let _client_capabilities = request
+            let client_capabilities = request
                 .params
                 .as_ref()
                 .and_then(|p| serde_json::from_value::<schema::InitializeRequest>(p.clone()).ok());
+
+            // Log client capabilities for debugging
+            if let Some(init_request) = &client_capabilities {
+                tracing::debug!(
+                    "Client initialized with capabilities: protocol={:?}",
+                    init_request.protocol_version
+                );
+                tracing::debug!(
+                    "Client info: name={}, version={}",
+                    init_request.client_info.name,
+                    init_request.client_info.version
+                );
+            }
 
             let init_response = InitializeResponse::new(
                 protocol::mcp_protocol_version(),
@@ -349,7 +361,7 @@ async fn handle_request(
                     result: None,
                     error: Some(McpError {
                         code: ERROR_INTERNAL_ERROR,
-                        message: "Tool executor not available".to_string(),
+                        message: "Tool executor not available".into(),
                         data: None,
                     }),
                     id: request.id,
@@ -361,7 +373,7 @@ async fn handle_request(
             result: None,
             error: Some(McpError {
                 code: ERROR_METHOD_NOT_FOUND,
-                message: "Method not found".to_string(),
+                message: "Method not found".into(),
                 data: None,
             }),
             id: request.id,
@@ -383,7 +395,7 @@ async fn handle_tool_call_unified(
         user_id,
         tool_name: tool_name.to_string(),
         parameters: args.clone(),
-        protocol: "mcp".to_string(),
+        protocol: "mcp".into(),
     };
 
     // Execute tool using Universal Tool Executor
@@ -396,7 +408,7 @@ async fn handle_tool_call_unified(
                         .result
                         .as_ref()
                         .map(|v| serde_json::to_string_pretty(v).unwrap_or_else(|_| v.to_string()))
-                        .unwrap_or_else(|| "No result".to_string()),
+                        .unwrap_or_else(|| "No result".into()),
                 }],
                 is_error: !universal_response.success,
                 structured_content: universal_response.result,

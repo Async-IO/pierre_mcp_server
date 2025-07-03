@@ -377,6 +377,46 @@ mod integration_tests {
             average_speed: Some(2.78), // m/s for 10km/h
             max_speed: Some(3.33),     // m/s
             calories: Some(500),
+
+            // Advanced power metrics
+            average_power: None,
+            max_power: None,
+            normalized_power: None,
+            power_zones: None,
+            ftp: None,
+
+            // Cadence metrics
+            average_cadence: None,
+            max_cadence: None,
+
+            // Advanced heart rate metrics
+            hrv_score: None,
+            recovery_heart_rate: None,
+
+            // Environmental conditions
+            temperature: None,
+            humidity: None,
+            average_altitude: None,
+            wind_speed: None,
+
+            // Biomechanical metrics
+            ground_contact_time: None,
+            vertical_oscillation: None,
+            stride_length: None,
+            running_power: None,
+
+            // Respiratory metrics
+            breathing_rate: None,
+            spo2: None,
+
+            // Training load metrics
+            training_stress_score: None,
+            intensity_factor: None,
+            suffer_score: None,
+
+            // Time series data
+            time_series_data: None,
+
             start_latitude: Some(37.7749),
             start_longitude: Some(-122.4194),
             city: Some("San Francisco".to_string()),

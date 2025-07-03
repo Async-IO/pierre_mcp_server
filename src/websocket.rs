@@ -121,19 +121,19 @@ impl WebSocketManager {
                                 Ok(auth_result) => {
                                     authenticated_user = Some(auth_result.user_id);
                                     let success_msg = WebSocketMessage::Success {
-                                        message: "Authentication successful".to_string(),
+                                        message: "Authentication successful".into(),
                                     };
-                                    let _ = tx.send(Message::text(
-                                        serde_json::to_string(&success_msg).unwrap(),
-                                    ));
+                                    if let Ok(json) = serde_json::to_string(&success_msg) {
+                                        let _ = tx.send(Message::text(json));
+                                    }
                                 }
                                 Err(e) => {
                                     let error_msg = WebSocketMessage::Error {
                                         message: format!("Authentication failed: {}", e),
                                     };
-                                    let _ = tx.send(Message::text(
-                                        serde_json::to_string(&error_msg).unwrap(),
-                                    ));
+                                    if let Ok(json) = serde_json::to_string(&error_msg) {
+                                        let _ = tx.send(Message::text(json));
+                                    }
                                 }
                             }
                         }
@@ -146,24 +146,25 @@ impl WebSocketManager {
                                         subscriptions.len()
                                     ),
                                 };
-                                let _ = tx.send(Message::text(
-                                    serde_json::to_string(&success_msg).unwrap(),
-                                ));
+                                if let Ok(json) = serde_json::to_string(&success_msg) {
+                                    let _ = tx.send(Message::text(json));
+                                }
                             } else {
                                 let error_msg = WebSocketMessage::Error {
-                                    message: "Authentication required".to_string(),
+                                    message: "Authentication required".into(),
                                 };
-                                let _ = tx.send(Message::text(
-                                    serde_json::to_string(&error_msg).unwrap(),
-                                ));
+                                if let Ok(json) = serde_json::to_string(&error_msg) {
+                                    let _ = tx.send(Message::text(json));
+                                }
                             }
                         }
                         Err(e) => {
                             let error_msg = WebSocketMessage::Error {
                                 message: format!("Invalid message format: {}", e),
                             };
-                            let _ =
-                                tx.send(Message::text(serde_json::to_string(&error_msg).unwrap()));
+                            if let Ok(json) = serde_json::to_string(&error_msg) {
+                                let _ = tx.send(Message::text(json));
+                            }
                         }
                         _ => {}
                     }
@@ -245,8 +246,9 @@ impl WebSocketManager {
         let clients = self.clients.read().await;
         for (_, client) in clients.iter() {
             if client.user_id == *user_id && client.subscriptions.contains(&topic.to_string()) {
-                let msg_text = serde_json::to_string(message).unwrap();
-                let _ = client.tx.send(Message::text(msg_text));
+                if let Ok(msg_text) = serde_json::to_string(message) {
+                    let _ = client.tx.send(Message::text(msg_text));
+                }
             }
         }
     }
@@ -262,8 +264,9 @@ impl WebSocketManager {
         let clients = self.clients.read().await;
         for (_, client) in clients.iter() {
             if client.subscriptions.contains(&topic.to_string()) {
-                let msg_text = serde_json::to_string(message).unwrap();
-                let _ = client.tx.send(Message::text(msg_text));
+                if let Ok(msg_text) = serde_json::to_string(message) {
+                    let _ = client.tx.send(Message::text(msg_text));
+                }
             }
         }
     }

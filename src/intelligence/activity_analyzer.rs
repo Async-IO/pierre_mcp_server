@@ -149,29 +149,29 @@ impl AdvancedActivityAnalyzer {
 
                 let (message, confidence) = if hr_reserve_used > ANAEROBIC_THRESHOLD_PERCENTAGE {
                     (
-                        "High intensity effort - excellent cardiovascular challenge".to_string(),
+                        "High intensity effort - excellent cardiovascular challenge".into(),
                         Confidence::High,
                     )
                 } else if hr_reserve_used > AEROBIC_THRESHOLD_PERCENTAGE {
                     (
-                        "Moderate to high intensity - good aerobic stimulus".to_string(),
+                        "Moderate to high intensity - good aerobic stimulus".into(),
                         Confidence::Medium,
                     )
                 } else {
                     (
-                        "Low to moderate intensity - great for base building".to_string(),
+                        "Low to moderate intensity - great for base building".into(),
                         Confidence::Medium,
                     )
                 };
 
                 let mut metadata = HashMap::new();
                 metadata.insert(
-                    "hr_reserve_percentage".to_string(),
+                    "hr_reserve_percentage".into(),
                     serde_json::Value::from(hr_reserve_used),
                 );
 
                 insights.push(AdvancedInsight {
-                    insight_type: "heart_rate_analysis".to_string(),
+                    insight_type: "heart_rate_analysis".into(),
                     message,
                     confidence,
                     severity: InsightSeverity::Info,
@@ -184,34 +184,34 @@ impl AdvancedActivityAnalyzer {
         if let Some(power_to_weight) = metrics.power_to_weight_ratio {
             let (message, severity) = if power_to_weight > ELITE_POWER_TO_WEIGHT {
                 (
-                    "Excellent power-to-weight ratio - elite level performance".to_string(),
+                    "Excellent power-to-weight ratio - elite level performance".into(),
                     InsightSeverity::Info,
                 )
             } else if power_to_weight > COMPETITIVE_POWER_TO_WEIGHT {
                 (
-                    "Good power-to-weight ratio - competitive level".to_string(),
+                    "Good power-to-weight ratio - competitive level".into(),
                     InsightSeverity::Info,
                 )
             } else if power_to_weight > RECREATIONAL_POWER_TO_WEIGHT {
                 (
-                    "Moderate power-to-weight ratio - room for improvement".to_string(),
+                    "Moderate power-to-weight ratio - room for improvement".into(),
                     InsightSeverity::Warning,
                 )
             } else {
                 (
-                    "Consider power training to improve performance".to_string(),
+                    "Consider power training to improve performance".into(),
                     InsightSeverity::Warning,
                 )
             };
 
             let mut metadata = HashMap::new();
             metadata.insert(
-                "power_to_weight_ratio".to_string(),
+                "power_to_weight_ratio".into(),
                 serde_json::Value::from(power_to_weight),
             );
 
             insights.push(AdvancedInsight {
-                insight_type: "power_analysis".to_string(),
+                insight_type: "power_analysis".into(),
                 message,
                 confidence: Confidence::High,
                 severity,
@@ -222,21 +222,21 @@ impl AdvancedActivityAnalyzer {
         // Efficiency insights using research-based thresholds
         if let Some(efficiency) = metrics.aerobic_efficiency {
             let message = if efficiency > EXCELLENT_AEROBIC_EFFICIENCY {
-                "Excellent aerobic efficiency - well-conditioned cardiovascular system".to_string()
+                "Excellent aerobic efficiency - well-conditioned cardiovascular system".into()
             } else if efficiency > GOOD_AEROBIC_EFFICIENCY {
-                "Good aerobic efficiency - steady cardiovascular fitness".to_string()
+                "Good aerobic efficiency - steady cardiovascular fitness".into()
             } else {
-                "Consider base training to improve aerobic efficiency".to_string()
+                "Consider base training to improve aerobic efficiency".into()
             };
 
             let mut metadata = HashMap::new();
             metadata.insert(
-                "aerobic_efficiency".to_string(),
+                "aerobic_efficiency".into(),
                 serde_json::Value::from(efficiency),
             );
 
             insights.push(AdvancedInsight {
-                insight_type: "efficiency_analysis".to_string(),
+                insight_type: "efficiency_analysis".into(),
                 message,
                 confidence: Confidence::Medium,
                 severity: InsightSeverity::Info,
@@ -258,35 +258,33 @@ impl AdvancedActivityAnalyzer {
         // Duration-based recommendations using physiological thresholds
         let duration = activity.duration_seconds;
         if duration < MIN_AEROBIC_DURATION {
-            recommendations.push(
-                "Consider extending workout duration for better aerobic benefits".to_string(),
-            );
+            recommendations
+                .push("Consider extending workout duration for better aerobic benefits".into());
         } else if duration > LONG_WORKOUT_DURATION {
             recommendations
-                .push("Great endurance work! Ensure proper recovery and nutrition".to_string());
+                .push("Great endurance work! Ensure proper recovery and nutrition".into());
         }
 
         // Heart rate based recommendations using established zones
         if let Some(avg_hr) = activity.average_heart_rate {
             if avg_hr < RECOVERY_HR_THRESHOLD {
                 recommendations.push(
-                    "Consider increasing intensity for better cardiovascular stimulus".to_string(),
+                    "Consider increasing intensity for better cardiovascular stimulus".into(),
                 );
             } else if avg_hr > VERY_HIGH_INTENSITY_HR_THRESHOLD {
                 recommendations
-                    .push("High intensity session - ensure adequate recovery time".to_string());
+                    .push("High intensity session - ensure adequate recovery time".into());
             }
         }
 
         // Training stress recommendations using established thresholds
         if let Some(tss) = metrics.training_stress_score {
             if tss > HIGH_TSS_THRESHOLD {
-                recommendations.push(
-                    "High training stress - plan recovery days to avoid overtraining".to_string(),
-                );
+                recommendations
+                    .push("High training stress - plan recovery days to avoid overtraining".into());
             } else if tss < LOW_TSS_THRESHOLD {
                 recommendations
-                    .push("Light training load - good for recovery or base building".to_string());
+                    .push("Light training load - good for recovery or base building".into());
             }
         }
 
@@ -296,21 +294,18 @@ impl AdvancedActivityAnalyzer {
                 if let Some(pace) = activity.average_speed {
                     if pace > FAST_PACE_THRESHOLD {
                         recommendations
-                            .push("Excellent pace! Focus on maintaining form at speed".to_string());
+                            .push("Excellent pace! Focus on maintaining form at speed".into());
                     }
                 }
-                recommendations.push(
-                    "Consider incorporating strength training for injury prevention".to_string(),
-                );
+                recommendations
+                    .push("Consider incorporating strength training for injury prevention".into());
             }
             SportType::Ride => {
                 // Power data not available in current Activity model
-                recommendations
-                    .push("Remember bike maintenance for optimal performance".to_string());
+                recommendations.push("Remember bike maintenance for optimal performance".into());
             }
             SportType::Swim => {
-                recommendations
-                    .push("Focus on stroke technique and breathing efficiency".to_string());
+                recommendations.push("Focus on stroke technique and breathing efficiency".into());
             }
             _ => {}
         }
@@ -354,11 +349,11 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
         if let Some(max_hr) = activity.max_heart_rate {
             if max_hr > MAX_REALISTIC_HEART_RATE {
                 anomalies.push(Anomaly {
-                    anomaly_type: "unrealistic_heart_rate".to_string(),
-                    description: "Maximum heart rate seems unusually high".to_string(),
+                    anomaly_type: "unrealistic_heart_rate".into(),
+                    description: "Maximum heart rate seems unusually high".into(),
                     severity: InsightSeverity::Warning,
                     confidence: Confidence::High,
-                    affected_metric: "max_heartrate".to_string(),
+                    affected_metric: "max_heartrate".into(),
                     expected_value: Some(200.0),
                     actual_value: Some(max_hr as f64),
                 });
@@ -379,14 +374,14 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
 
             if max_speed > expected_max_speed {
                 anomalies.push(Anomaly {
-                    anomaly_type: "unrealistic_speed".to_string(),
+                    anomaly_type: "unrealistic_speed".into(),
                     description: format!(
                         "Maximum speed seems unusually high for {:?}",
                         activity.sport_type
                     ),
                     severity: InsightSeverity::Warning,
                     confidence: Confidence::Medium,
-                    affected_metric: "max_speed".to_string(),
+                    affected_metric: "max_speed".into(),
                     expected_value: Some(expected_max_speed),
                     actual_value: Some(max_speed),
                 });
@@ -396,11 +391,11 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
         // Check for missing expected data
         if activity.average_heart_rate.is_none() && activity.sport_type != SportType::Swim {
             anomalies.push(Anomaly {
-                anomaly_type: "missing_heart_rate".to_string(),
-                description: "Heart rate data missing - consider using HR monitor".to_string(),
+                anomaly_type: "missing_heart_rate".into(),
+                description: "Heart rate data missing - consider using HR monitor".into(),
                 severity: InsightSeverity::Info,
                 confidence: Confidence::Medium,
-                affected_metric: "average_heartrate".to_string(),
+                affected_metric: "average_heartrate".into(),
                 expected_value: None,
                 actual_value: None,
             });
@@ -467,20 +462,20 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
                 if improvement > PACE_IMPROVEMENT_THRESHOLD as f32 {
                     let mut metadata = HashMap::new();
                     metadata.insert(
-                        "improvement_percentage".to_string(),
+                        "improvement_percentage".into(),
                         serde_json::Value::from(improvement),
                     );
                     metadata.insert(
-                        "current_speed".to_string(),
+                        "current_speed".into(),
                         serde_json::Value::from(current_speed),
                     );
                     metadata.insert(
-                        "historical_average".to_string(),
+                        "historical_average".into(),
                         serde_json::Value::from(avg_historical_speed),
                     );
 
                     insights.push(AdvancedInsight {
-                        insight_type: "pace_improvement".to_string(),
+                        insight_type: "pace_improvement".into(),
                         message: format!(
                             "Pace improved by {:.1}% compared to recent activities",
                             improvement
@@ -492,12 +487,12 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
                 } else if improvement < -(PACE_IMPROVEMENT_THRESHOLD as f32) {
                     let mut metadata = HashMap::new();
                     metadata.insert(
-                        "decline_percentage".to_string(),
+                        "decline_percentage".into(),
                         serde_json::Value::from(-improvement),
                     );
 
                     insights.push(AdvancedInsight {
-                        insight_type: "pace_decline".to_string(),
+                        insight_type: "pace_decline".into(),
                         message: format!(
                             "Pace was {:.1}% slower than recent average",
                             -improvement
@@ -536,13 +531,13 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
                 if efficiency_change > HR_EFFICIENCY_IMPROVEMENT_THRESHOLD {
                     let mut metadata = HashMap::new();
                     metadata.insert(
-                        "efficiency_improvement".to_string(),
+                        "efficiency_improvement".into(),
                         serde_json::Value::from(efficiency_change),
                     );
 
                     insights.push(AdvancedInsight {
-                        insight_type: "efficiency_improvement".to_string(),
-                        message: "Heart rate efficiency improved - getting fitter!".to_string(),
+                        insight_type: "efficiency_improvement".into(),
+                        message: "Heart rate efficiency improved - getting fitter!".into(),
                         confidence: Confidence::Medium,
                         severity: InsightSeverity::Info,
                         metadata,

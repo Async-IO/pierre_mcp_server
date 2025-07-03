@@ -73,7 +73,6 @@ pub struct WeatherApiConfig {
     pub enabled: bool,
     pub cache_duration_hours: u64,
     pub request_timeout_seconds: u64,
-    pub fallback_to_mock: bool,
     pub rate_limit_requests_per_minute: u64,
 }
 
@@ -126,66 +125,57 @@ impl Default for FitnessConfig {
         let mut sport_types = HashMap::new();
 
         // Standard activities
-        sport_types.insert("Run".to_string(), "run".to_string());
-        sport_types.insert("Ride".to_string(), "bike_ride".to_string());
-        sport_types.insert("Swim".to_string(), "swim".to_string());
-        sport_types.insert("Walk".to_string(), "walk".to_string());
-        sport_types.insert("Hike".to_string(), "hike".to_string());
+        sport_types.insert("Run".into(), "run".into());
+        sport_types.insert("Ride".into(), "bike_ride".into());
+        sport_types.insert("Swim".into(), "swim".into());
+        sport_types.insert("Walk".into(), "walk".into());
+        sport_types.insert("Hike".into(), "hike".into());
 
         // Virtual/Indoor activities
-        sport_types.insert("VirtualRide".to_string(), "virtual_ride".to_string());
-        sport_types.insert("VirtualRun".to_string(), "virtual_run".to_string());
-        sport_types.insert("Workout".to_string(), "workout".to_string());
-        sport_types.insert("Yoga".to_string(), "yoga".to_string());
+        sport_types.insert("VirtualRide".into(), "virtual_ride".into());
+        sport_types.insert("VirtualRun".into(), "virtual_run".into());
+        sport_types.insert("Workout".into(), "workout".into());
+        sport_types.insert("Yoga".into(), "yoga".into());
 
         // E-bike and specialty cycling
-        sport_types.insert("EBikeRide".to_string(), "ebike_ride".to_string());
-        sport_types.insert("MountainBikeRide".to_string(), "mountain_bike".to_string());
-        sport_types.insert("GravelRide".to_string(), "gravel_ride".to_string());
+        sport_types.insert("EBikeRide".into(), "ebike_ride".into());
+        sport_types.insert("MountainBikeRide".into(), "mountain_bike".into());
+        sport_types.insert("GravelRide".into(), "gravel_ride".into());
 
         // Winter sports
-        sport_types.insert(
-            "CrossCountrySkiing".to_string(),
-            "cross_country_skiing".to_string(),
-        );
-        sport_types.insert("AlpineSkiing".to_string(), "alpine_skiing".to_string());
-        sport_types.insert("Snowboarding".to_string(), "snowboarding".to_string());
-        sport_types.insert("Snowshoe".to_string(), "snowshoe".to_string());
-        sport_types.insert("IceSkate".to_string(), "ice_skating".to_string());
-        sport_types.insert(
-            "BackcountrySki".to_string(),
-            "backcountry_skiing".to_string(),
-        );
+        sport_types.insert("CrossCountrySkiing".into(), "cross_country_skiing".into());
+        sport_types.insert("AlpineSkiing".into(), "alpine_skiing".into());
+        sport_types.insert("Snowboarding".into(), "snowboarding".into());
+        sport_types.insert("Snowshoe".into(), "snowshoe".into());
+        sport_types.insert("IceSkate".into(), "ice_skating".into());
+        sport_types.insert("BackcountrySki".into(), "backcountry_skiing".into());
 
         // Water sports
-        sport_types.insert("Kayaking".to_string(), "kayaking".to_string());
-        sport_types.insert("Canoeing".to_string(), "canoeing".to_string());
-        sport_types.insert("Rowing".to_string(), "rowing".to_string());
-        sport_types.insert("StandUpPaddling".to_string(), "paddleboarding".to_string());
-        sport_types.insert("Surfing".to_string(), "surfing".to_string());
-        sport_types.insert("Kitesurf".to_string(), "kitesurfing".to_string());
+        sport_types.insert("Kayaking".into(), "kayaking".into());
+        sport_types.insert("Canoeing".into(), "canoeing".into());
+        sport_types.insert("Rowing".into(), "rowing".into());
+        sport_types.insert("StandUpPaddling".into(), "paddleboarding".into());
+        sport_types.insert("Surfing".into(), "surfing".into());
+        sport_types.insert("Kitesurf".into(), "kitesurfing".into());
 
         // Strength and fitness
-        sport_types.insert(
-            "WeightTraining".to_string(),
-            "strength_training".to_string(),
-        );
-        sport_types.insert("Crossfit".to_string(), "crossfit".to_string());
-        sport_types.insert("Pilates".to_string(), "pilates".to_string());
+        sport_types.insert("WeightTraining".into(), "strength_training".into());
+        sport_types.insert("Crossfit".into(), "crossfit".into());
+        sport_types.insert("Pilates".into(), "pilates".into());
 
         // Climbing and adventure
-        sport_types.insert("RockClimbing".to_string(), "rock_climbing".to_string());
-        sport_types.insert("TrailRunning".to_string(), "trail_running".to_string());
+        sport_types.insert("RockClimbing".into(), "rock_climbing".into());
+        sport_types.insert("TrailRunning".into(), "trail_running".into());
 
         // Team and racquet sports
-        sport_types.insert("Soccer".to_string(), "soccer".to_string());
-        sport_types.insert("Basketball".to_string(), "basketball".to_string());
-        sport_types.insert("Tennis".to_string(), "tennis".to_string());
-        sport_types.insert("Golf".to_string(), "golf".to_string());
+        sport_types.insert("Soccer".into(), "soccer".into());
+        sport_types.insert("Basketball".into(), "basketball".into());
+        sport_types.insert("Tennis".into(), "tennis".into());
+        sport_types.insert("Golf".into(), "golf".into());
 
         // Alternative transport
-        sport_types.insert("Skateboard".to_string(), "skateboarding".to_string());
-        sport_types.insert("InlineSkate".to_string(), "inline_skating".to_string());
+        sport_types.insert("Skateboard".into(), "skateboarding".into());
+        sport_types.insert("InlineSkate".into(), "inline_skating".into());
 
         Self {
             sport_types,
@@ -220,17 +210,17 @@ impl Default for WeatherMapping {
     fn default() -> Self {
         Self {
             rain_keywords: vec![
-                "rain".to_string(),
-                "shower".to_string(),
-                "storm".to_string(),
-                "thunderstorm".to_string(),
-                "drizzle".to_string(),
+                "rain".into(),
+                "shower".into(),
+                "storm".into(),
+                "thunderstorm".into(),
+                "drizzle".into(),
             ],
             snow_keywords: vec![
-                "snow".to_string(),
-                "blizzard".to_string(),
-                "sleet".to_string(),
-                "flurry".to_string(),
+                "snow".into(),
+                "blizzard".into(),
+                "sleet".into(),
+                "flurry".into(),
             ],
             wind_threshold: 15.0,
         }
@@ -242,14 +232,14 @@ impl Default for PersonalRecordConfig {
         Self {
             pace_improvement_threshold: 5.0,
             distance_pr_types: vec![
-                "longest_run".to_string(),
-                "longest_ride".to_string(),
-                "longest_ski".to_string(),
+                "longest_run".into(),
+                "longest_ride".into(),
+                "longest_ski".into(),
             ],
             time_pr_types: vec![
-                "fastest_5k".to_string(),
-                "fastest_10k".to_string(),
-                "fastest_marathon".to_string(),
+                "fastest_5k".into(),
+                "fastest_10k".into(),
+                "fastest_marathon".into(),
             ],
         }
     }
@@ -258,14 +248,10 @@ impl Default for PersonalRecordConfig {
 impl Default for WeatherApiConfig {
     fn default() -> Self {
         Self {
-            provider: "openweathermap".to_string(),
+            provider: "openweathermap".into(),
             enabled: true,
             cache_duration_hours: 24,
             request_timeout_seconds: 10,
-            // In production, don't fall back to mock data by default
-            fallback_to_mock: std::env::var("WEATHER_FALLBACK_TO_MOCK")
-                .map(|v| v.to_lowercase() == "true")
-                .unwrap_or(false),
             rate_limit_requests_per_minute: 60,
         }
     }
@@ -317,8 +303,8 @@ mod tests {
         let config = FitnessConfig::default();
         let weather = &config.intelligence.weather_mapping;
 
-        assert!(weather.rain_keywords.contains(&"rain".to_string()));
-        assert!(weather.snow_keywords.contains(&"snow".to_string()));
+        assert!(weather.rain_keywords.contains(&"rain".into()));
+        assert!(weather.snow_keywords.contains(&"snow".into()));
         assert_eq!(weather.wind_threshold, 15.0);
     }
 

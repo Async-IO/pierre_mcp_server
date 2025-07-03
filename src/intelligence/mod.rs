@@ -490,7 +490,7 @@ mod tests {
     #[test]
     fn test_activity_intelligence_creation() {
         let intelligence = ActivityIntelligence::new(
-            "Great morning run!".to_string(),
+            "Great morning run!".into(),
             vec![],
             PerformanceMetrics {
                 relative_effort: Some(5.0),

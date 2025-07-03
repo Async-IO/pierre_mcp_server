@@ -1,4 +1,5 @@
-// Test real weather API with historical data
+// ABOUTME: Weather API testing utility for validating real-time weather data integration
+// ABOUTME: Tests OpenWeatherMap API connectivity and historical weather data retrieval
 use chrono::Utc;
 use pierre_mcp_server::config::fitness_config::WeatherApiConfig;
 use pierre_mcp_server::intelligence::weather::WeatherService;
@@ -124,13 +125,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("   • OpenWeatherMap service might be down");
             }
 
-            println!("\n🎭 Falling back to mock weather:");
-            let mock_weather = weather_service.generate_mock_weather();
-            println!(
-                "   🌡️  Temperature: {:.1}°C",
-                mock_weather.temperature_celsius
-            );
-            println!("   🌦️  Conditions: {}", mock_weather.conditions);
+            println!("\n❌ Weather API failed and no fallback available");
+            println!("   Configure weather API properly for production use");
         }
     }
 

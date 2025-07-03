@@ -265,8 +265,8 @@ impl DatabaseProvider for SqliteDatabase {
                 id: log.id.to_string(),
                 timestamp: log.timestamp,
                 api_key_id: log.api_key_id.unwrap_or_default(),
-                api_key_name: "Unknown".to_string(),
-                tool_name: "Unknown".to_string(),
+                api_key_name: "Unknown".into(),
+                tool_name: "Unknown".into(),
                 status_code: log.status_code,
                 response_time_ms: log.response_time_ms,
                 error_message: log.error_message,
@@ -437,11 +437,25 @@ impl DatabaseProvider for SqliteDatabase {
 
             let tool_name: String = row
                 .try_get("tool_name")
-                .unwrap_or_else(|_| "unknown".to_string());
+                .unwrap_or_else(|_| "unknown".into());
             let usage_count: i64 = row.try_get("usage_count").unwrap_or(0);
             let avg_response_time: Option<f64> = row.try_get("avg_response_time").ok();
             let success_count: i64 = row.try_get("success_count").unwrap_or(0);
-            let _error_count: i64 = row.try_get("error_count").unwrap_or(0);
+            let error_count: i64 = row.try_get("error_count").unwrap_or(0);
+
+            // Log error rate for monitoring
+            if error_count > 0 {
+                let error_rate = (error_count as f64) / (usage_count as f64);
+                if error_rate > 0.1 {
+                    tracing::warn!(
+                        "High error rate for tool {}: {:.2}% ({} errors out of {} requests)",
+                        tool_name,
+                        error_rate * 100.0,
+                        error_count,
+                        usage_count
+                    );
+                }
+            }
 
             tool_usage.push(crate::dashboard_routes::ToolUsage {
                 tool_name,
@@ -738,7 +752,7 @@ impl DatabaseProvider for SqliteDatabase {
         let service_name = if let Some(token) = self.get_admin_token_by_id(admin_token_id).await? {
             token.service_name
         } else {
-            "unknown".to_string()
+            "unknown".into()
         };
 
         sqlx::query(query)
@@ -807,65 +821,56 @@ impl DatabaseProvider for SqliteDatabase {
             let mut record = serde_json::Map::new();
 
             if let Ok(id) = row.try_get::<i64, _>("id") {
-                record.insert("id".to_string(), serde_json::Value::Number(id.into()));
+                record.insert("id".into(), serde_json::Value::Number(id.into()));
             }
             if let Ok(admin_token_id) = row.try_get::<String, _>("admin_token_id") {
                 record.insert(
-                    "admin_token_id".to_string(),
+                    "admin_token_id".into(),
                     serde_json::Value::String(admin_token_id),
                 );
             }
             if let Ok(api_key_id) = row.try_get::<String, _>("api_key_id") {
-                record.insert(
-                    "api_key_id".to_string(),
-                    serde_json::Value::String(api_key_id),
-                );
+                record.insert("api_key_id".into(), serde_json::Value::String(api_key_id));
             }
             if let Ok(user_email) = row.try_get::<String, _>("user_email") {
-                record.insert(
-                    "user_email".to_string(),
-                    serde_json::Value::String(user_email),
-                );
+                record.insert("user_email".into(), serde_json::Value::String(user_email));
             }
             if let Ok(requested_tier) = row.try_get::<String, _>("requested_tier") {
                 record.insert(
-                    "requested_tier".to_string(),
+                    "requested_tier".into(),
                     serde_json::Value::String(requested_tier),
                 );
             }
             if let Ok(provisioned_at) = row.try_get::<String, _>("provisioned_at") {
                 record.insert(
-                    "provisioned_at".to_string(),
+                    "provisioned_at".into(),
                     serde_json::Value::String(provisioned_at),
                 );
             }
             if let Ok(provisioned_by_service) = row.try_get::<String, _>("provisioned_by_service") {
                 record.insert(
-                    "provisioned_by_service".to_string(),
+                    "provisioned_by_service".into(),
                     serde_json::Value::String(provisioned_by_service),
                 );
             }
             if let Ok(rate_limit_requests) = row.try_get::<i64, _>("rate_limit_requests") {
                 record.insert(
-                    "rate_limit_requests".to_string(),
+                    "rate_limit_requests".into(),
                     serde_json::Value::Number(rate_limit_requests.into()),
                 );
             }
             if let Ok(rate_limit_period) = row.try_get::<String, _>("rate_limit_period") {
                 record.insert(
-                    "rate_limit_period".to_string(),
+                    "rate_limit_period".into(),
                     serde_json::Value::String(rate_limit_period),
                 );
             }
             if let Ok(key_status) = row.try_get::<String, _>("key_status") {
-                record.insert(
-                    "key_status".to_string(),
-                    serde_json::Value::String(key_status),
-                );
+                record.insert("key_status".into(), serde_json::Value::String(key_status));
             }
             if let Ok(revoked_at) = row.try_get::<Option<String>, _>("revoked_at") {
                 record.insert(
-                    "revoked_at".to_string(),
+                    "revoked_at".into(),
                     revoked_at
                         .map(serde_json::Value::String)
                         .unwrap_or(serde_json::Value::Null),
@@ -873,7 +878,7 @@ impl DatabaseProvider for SqliteDatabase {
             }
             if let Ok(revoked_reason) = row.try_get::<Option<String>, _>("revoked_reason") {
                 record.insert(
-                    "revoked_reason".to_string(),
+                    "revoked_reason".into(),
                     revoked_reason
                         .map(serde_json::Value::String)
                         .unwrap_or(serde_json::Value::Null),

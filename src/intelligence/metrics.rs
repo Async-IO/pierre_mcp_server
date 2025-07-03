@@ -28,6 +28,37 @@ pub struct AdvancedMetrics {
     pub efficiency_factor: Option<f64>,
     /// Decoupling percentage
     pub decoupling_percentage: Option<f64>,
+
+    // Enhanced power metrics
+    /// Normalized power (4th root of 30-second rolling average of power^4)
+    pub normalized_power: Option<f64>,
+    /// Work (kilojoules)
+    pub work: Option<f64>,
+    /// Average power-to-weight ratio
+    pub avg_power_to_weight: Option<f64>,
+
+    // Running-specific metrics
+    /// Running effectiveness (speed per heart rate)
+    pub running_effectiveness: Option<f64>,
+    /// Stride efficiency (distance per stride)
+    pub stride_efficiency: Option<f64>,
+    /// Ground contact balance
+    pub ground_contact_balance: Option<f64>,
+
+    // Recovery and physiological metrics
+    /// Estimated recovery time in hours
+    pub estimated_recovery_time: Option<f64>,
+    /// Training load (combination of duration and intensity)
+    pub training_load: Option<f64>,
+    /// Aerobic/anaerobic contribution percentage
+    pub aerobic_contribution: Option<f64>,
+
+    // Environmental impact metrics
+    /// Temperature stress factor
+    pub temperature_stress: Option<f64>,
+    /// Altitude adjustment factor
+    pub altitude_adjustment: Option<f64>,
+
     /// Custom metrics
     pub custom_metrics: HashMap<String, f64>,
 }
@@ -91,18 +122,65 @@ impl MetricsCalculator {
             metrics.trimp = self.calculate_trimp(avg_hr as f32, duration);
         }
 
-        // Calculate TSS if we have FTP data (can estimate power from HR or use heart rate-based TSS)
-        if let (Some(avg_hr), Some(ftp)) = (activity.average_heart_rate, self.ftp) {
-            let duration_hours = activity.duration_seconds as f64 / 3600.0;
+        // Use actual TSS if available, otherwise calculate
+        metrics.training_stress_score = activity
+            .training_stress_score
+            .map(|tss| tss as f64)
+            .or_else(|| {
+                // Calculate TSS from power data if available
+                if let (Some(avg_power), Some(ftp)) = (activity.average_power, self.ftp) {
+                    let duration_hours = activity.duration_seconds as f64 / 3600.0;
+                    self.calculate_tss(avg_power as f32, ftp, duration_hours)
+                } else if let (Some(avg_hr), Some(ftp)) = (activity.average_heart_rate, self.ftp) {
+                    // Fallback to HR-based TSS estimation
+                    let duration_hours = activity.duration_seconds as f64 / 3600.0;
+                    if let Some(max_hr) = self.max_hr {
+                        let hr_percentage = avg_hr as f64 / max_hr;
+                        let estimated_power = ftp * hr_percentage;
+                        self.calculate_tss(estimated_power as f32, ftp, duration_hours)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            });
 
-            // Estimate power from heart rate using a simple relationship
-            // This is an approximation - actual power meters would be more accurate
-            if let Some(max_hr) = self.max_hr {
-                let hr_percentage = avg_hr as f64 / max_hr;
-                let estimated_power = ftp * hr_percentage; // Rough estimation
-                metrics.training_stress_score =
-                    self.calculate_tss(estimated_power as f32, ftp, duration_hours);
+        // Use actual intensity factor if available, otherwise calculate
+        metrics.intensity_factor = activity
+            .intensity_factor
+            .map(|if_val| if_val as f64)
+            .or_else(|| {
+                if let (Some(avg_power), Some(ftp)) = (activity.average_power, self.ftp) {
+                    Some(avg_power as f64 / ftp)
+                } else {
+                    None
+                }
+            });
+
+        // Calculate power-to-weight ratio if power and weight available
+        if let (Some(avg_power), Some(weight)) = (activity.average_power, self.weight_kg) {
+            metrics.power_to_weight_ratio = Some(avg_power as f64 / weight);
+            metrics.avg_power_to_weight = Some(avg_power as f64 / weight);
+        }
+
+        // Use actual normalized power or calculate from time series data
+        metrics.normalized_power = activity.normalized_power.map(|np| np as f64).or_else(|| {
+            if let Some(time_series) = &activity.time_series_data {
+                if let Some(power_data) = &time_series.power {
+                    self.calculate_normalized_power(power_data)
+                } else {
+                    None
+                }
+            } else {
+                None
             }
+        });
+
+        // Calculate work (energy) if power is available
+        if let Some(avg_power) = activity.average_power {
+            let duration_hours = activity.duration_seconds as f64 / 3600.0;
+            metrics.work = Some(avg_power as f64 * duration_hours / 1000.0); // kJ
         }
 
         // Calculate aerobic efficiency if both HR and pace/power data available
@@ -112,15 +190,66 @@ impl MetricsCalculator {
             metrics.aerobic_efficiency = Some(avg_speed / avg_hr as f64);
         }
 
-        // Calculate efficiency factor for running (pace per heart rate beat)
-        if let crate::models::SportType::Run = activity.sport_type {
+        // Running-specific metrics
+        if matches!(
+            activity.sport_type,
+            crate::models::SportType::Run | crate::models::SportType::TrailRunning
+        ) {
+            // Running effectiveness (speed per heart rate)
             if let (Some(avg_hr), Some(avg_speed)) =
                 (activity.average_heart_rate, activity.average_speed)
             {
+                metrics.running_effectiveness =
+                    Some(avg_speed / avg_hr as f64 * EFFICIENCY_TIME_MULTIPLIER);
                 metrics.efficiency_factor =
                     Some(avg_speed / avg_hr as f64 * EFFICIENCY_TIME_MULTIPLIER);
-                // pace per HR
             }
+
+            // Stride efficiency
+            if let (Some(distance), Some(avg_cadence), Some(duration)) = (
+                activity.distance_meters,
+                activity.average_cadence,
+                Some(activity.duration_seconds),
+            ) {
+                let total_steps = (avg_cadence as f64 * duration as f64) / 60.0; // Convert cadence from steps/min
+                metrics.stride_efficiency = Some(distance / total_steps);
+            }
+
+            // Ground contact balance calculation
+            if let Some(gct) = activity.ground_contact_time {
+                // Calculate balance based on ground contact time analysis
+                // A balanced runner typically has 45-55% left/right balance
+                let balance_score = self.calculate_ground_contact_balance(gct);
+                metrics.ground_contact_balance = Some(balance_score);
+            }
+        }
+
+        // Calculate variability index from time series power data
+        if let Some(time_series) = &activity.time_series_data {
+            if let Some(power_data) = &time_series.power {
+                metrics.variability_index = self.calculate_variability_index(power_data);
+            }
+
+            // Calculate decoupling from HR and pace data
+            if let (Some(hr_data), Some(speed_data)) = (&time_series.heart_rate, &time_series.speed)
+            {
+                let hr_f32: Vec<f32> = hr_data.iter().map(|&hr| hr as f32).collect();
+                metrics.decoupling_percentage = self.calculate_decoupling(&hr_f32, speed_data);
+            }
+        }
+
+        // Environmental impact calculations
+        if let Some(temp) = activity.temperature {
+            metrics.temperature_stress = Some(self.calculate_temperature_stress(temp));
+        }
+
+        if let Some(altitude) = activity.average_altitude {
+            metrics.altitude_adjustment = Some(self.calculate_altitude_adjustment(altitude));
+        }
+
+        // Estimated recovery time based on training load
+        if let Some(tss) = metrics.training_stress_score {
+            metrics.estimated_recovery_time = Some(self.calculate_recovery_time(tss));
         }
 
         Ok(metrics)
@@ -152,8 +281,34 @@ impl MetricsCalculator {
         Some((duration_hours * intensity_factor * intensity_factor * TSS_BASE_MULTIPLIER).round())
     }
 
+    /// Calculate normalized power (4th root of 30-second rolling average of power^4)
+    pub fn calculate_normalized_power(&self, power_data: &[u32]) -> Option<f64> {
+        if power_data.len() < 30 {
+            return None; // Need at least 30 seconds of data
+        }
+
+        // Convert to f64 for calculations
+        let power_f64: Vec<f64> = power_data.iter().map(|&p| p as f64).collect();
+
+        // Calculate 30-second rolling averages of power^4
+        let mut rolling_avg_power4 = Vec::new();
+        for i in 29..power_f64.len() {
+            let window = &power_f64[(i - 29)..=i];
+            let avg_power4: f64 = window.iter().map(|&p| p.powi(4)).sum::<f64>() / 30.0;
+            rolling_avg_power4.push(avg_power4);
+        }
+
+        if rolling_avg_power4.is_empty() {
+            return None;
+        }
+
+        // Take the average of all 30-second power^4 values, then take 4th root
+        let mean_power4 = rolling_avg_power4.iter().sum::<f64>() / rolling_avg_power4.len() as f64;
+        Some(mean_power4.powf(0.25))
+    }
+
     /// Calculate power variability index
-    pub fn calculate_variability_index(&self, power_data: &[f32]) -> Option<f64> {
+    pub fn calculate_variability_index(&self, power_data: &[u32]) -> Option<f64> {
         if power_data.is_empty() {
             return None;
         }
@@ -161,11 +316,15 @@ impl MetricsCalculator {
         let avg_power: f64 =
             power_data.iter().map(|&p| p as f64).sum::<f64>() / power_data.len() as f64;
 
-        // Calculate normalized power (simplified)
-        let sum_of_squares: f64 = power_data.iter().map(|&p| (p as f64).powi(2)).sum();
-        let normalized_power = (sum_of_squares / power_data.len() as f64).sqrt();
-
-        Some(normalized_power / avg_power)
+        // Use normalized power if we can calculate it
+        if let Some(normalized_power) = self.calculate_normalized_power(power_data) {
+            Some(normalized_power / avg_power)
+        } else {
+            // Fallback to simple variability calculation
+            let sum_of_squares: f64 = power_data.iter().map(|&p| (p as f64).powi(2)).sum();
+            let rms_power = (sum_of_squares / power_data.len() as f64).sqrt();
+            Some(rms_power / avg_power)
+        }
     }
 
     /// Calculate pace decoupling for endurance activities
@@ -200,6 +359,100 @@ impl MetricsCalculator {
 
         // Decoupling percentage
         Some(((second_efficiency - first_efficiency) / first_efficiency) * 100.0)
+    }
+
+    /// Calculate temperature stress factor
+    fn calculate_temperature_stress(&self, temperature: f32) -> f64 {
+        // Temperature stress increases outside the optimal range of 10-20°C
+        let optimal_min = 10.0;
+        let optimal_max = 20.0;
+
+        if temperature >= optimal_min && temperature <= optimal_max {
+            1.0 // No stress
+        } else if temperature < optimal_min {
+            // Cold stress increases as temperature drops
+            1.0 + ((optimal_min - temperature) / 10.0).clamp(0.0, 2.0) as f64
+        } else {
+            // Heat stress increases as temperature rises
+            1.0 + ((temperature - optimal_max) / 10.0).clamp(0.0, 3.0) as f64
+        }
+    }
+
+    /// Calculate altitude adjustment factor
+    fn calculate_altitude_adjustment(&self, altitude: f32) -> f64 {
+        // Performance decreases with altitude due to reduced oxygen
+        // Approximately 1% performance loss per 100m above 1500m
+        if altitude <= 1500.0 {
+            1.0 // No adjustment needed
+        } else {
+            let altitude_effect = (altitude - 1500.0) / 10000.0; // 1% per 100m
+            1.0 + (altitude_effect.min(0.20) as f64) // Cap at 20% adjustment
+        }
+    }
+
+    /// Calculate estimated recovery time based on training stress
+    fn calculate_recovery_time(&self, tss: f64) -> f64 {
+        // Simple recovery time estimation based on TSS
+        // Formula: Recovery hours = TSS / 10 (simplified)
+        (tss / 10.0).clamp(2.0, 72.0) // Minimum 2 hours, maximum 72 hours
+    }
+
+    /// Calculate training load combining duration and intensity
+    pub fn calculate_training_load(&self, activity: &Activity) -> Option<f64> {
+        let duration_hours = activity.duration_seconds as f64 / 3600.0;
+
+        // Use intensity factor if available, otherwise estimate from heart rate
+        let intensity = if let Some(if_val) = activity.intensity_factor {
+            if_val as f64
+        } else if let (Some(avg_hr), Some(lthr)) = (activity.average_heart_rate, self.lthr) {
+            (avg_hr as f64 / lthr).min(1.5) // Cap at 150% of threshold
+        } else {
+            0.7 // Default moderate intensity
+        };
+
+        Some(duration_hours * intensity * 100.0) // Arbitrary scaling factor
+    }
+
+    /// Calculate aerobic vs anaerobic contribution
+    pub fn calculate_aerobic_contribution(&self, activity: &Activity) -> Option<f64> {
+        // Estimate based on heart rate zones or intensity
+        if let (Some(avg_hr), Some(lthr)) = (activity.average_heart_rate, self.lthr) {
+            let hr_ratio = avg_hr as f64 / lthr;
+
+            if hr_ratio <= 0.85 {
+                Some(95.0) // Mostly aerobic
+            } else if hr_ratio <= 1.0 {
+                Some(80.0) // Mixed aerobic/anaerobic
+            } else if hr_ratio <= 1.15 {
+                Some(60.0) // More anaerobic
+            } else {
+                Some(40.0) // Heavily anaerobic
+            }
+        } else {
+            None
+        }
+    }
+
+    /// Calculate ground contact balance from ground contact time
+    fn calculate_ground_contact_balance(&self, ground_contact_time: u32) -> f64 {
+        // Ground contact time in milliseconds - analyze for balance estimation
+        // Typical ground contact times: 200-300ms for recreational runners
+        // Balanced runners have consistent contact times
+
+        let gct_ms = ground_contact_time as f64;
+
+        // Estimate balance based on contact time patterns
+        // This is a simplified calculation that would ideally use left/right foot data
+        if (200.0..=300.0).contains(&gct_ms) {
+            // Good contact time range suggests better balance
+            50.0 + ((250.0 - (gct_ms - 250.0).abs()) / 250.0) * 5.0
+        } else if gct_ms < 200.0 {
+            // Very short contact time - might indicate imbalance
+            45.0 + (gct_ms / 200.0) * 5.0
+        } else {
+            // Long contact time - might indicate fatigue or imbalance
+            55.0 - ((gct_ms - 300.0) / 100.0).min(10.0)
+        }
     }
 }
 
@@ -247,11 +500,11 @@ impl ZoneAnalysis {
             .count() as f64;
 
         let mut time_in_zones = HashMap::new();
-        time_in_zones.insert("recovery".to_string(), (zone1 / total_points) * 100.0);
-        time_in_zones.insert("aerobic".to_string(), (zone2 / total_points) * 100.0);
-        time_in_zones.insert("tempo".to_string(), (zone3 / total_points) * 100.0);
-        time_in_zones.insert("threshold".to_string(), (zone4 / total_points) * 100.0);
-        time_in_zones.insert("vo2max".to_string(), (zone5 / total_points) * 100.0);
+        time_in_zones.insert("recovery".into(), (zone1 / total_points) * 100.0);
+        time_in_zones.insert("aerobic".into(), (zone2 / total_points) * 100.0);
+        time_in_zones.insert("tempo".into(), (zone3 / total_points) * 100.0);
+        time_in_zones.insert("threshold".into(), (zone4 / total_points) * 100.0);
+        time_in_zones.insert("vo2max".into(), (zone5 / total_points) * 100.0);
 
         Self {
             zone1_percentage: (zone1 / total_points) * 100.0,
@@ -298,14 +551,11 @@ impl ZoneAnalysis {
             .count() as f64;
 
         let mut time_in_zones = HashMap::new();
-        time_in_zones.insert(
-            "active_recovery".to_string(),
-            (zone1 / total_points) * 100.0,
-        );
-        time_in_zones.insert("endurance".to_string(), (zone2 / total_points) * 100.0);
-        time_in_zones.insert("tempo".to_string(), (zone3 / total_points) * 100.0);
-        time_in_zones.insert("threshold".to_string(), (zone4 / total_points) * 100.0);
-        time_in_zones.insert("vo2max".to_string(), (zone5 / total_points) * 100.0);
+        time_in_zones.insert("active_recovery".into(), (zone1 / total_points) * 100.0);
+        time_in_zones.insert("endurance".into(), (zone2 / total_points) * 100.0);
+        time_in_zones.insert("tempo".into(), (zone3 / total_points) * 100.0);
+        time_in_zones.insert("threshold".into(), (zone4 / total_points) * 100.0);
+        time_in_zones.insert("vo2max".into(), (zone5 / total_points) * 100.0);
 
         Self {
             zone1_percentage: (zone1 / total_points) * 100.0,
@@ -339,13 +589,15 @@ mod tests {
 
         let activity = Activity {
             average_speed: Some(10.0),
+            average_power: Some(250), // Now we have power data
             ..Activity::default()
         };
-        // Power data not available in current Activity model - skip this test
 
         let metrics = calculator.calculate_metrics(&activity).unwrap();
-        // Since no power data is available, power_to_weight_ratio should be None
-        assert_eq!(metrics.power_to_weight_ratio, None);
+        // Power-to-weight ratio should be 250W / 70kg ≈ 3.57 W/kg
+        assert!(metrics.power_to_weight_ratio.is_some());
+        let ratio = metrics.power_to_weight_ratio.unwrap();
+        assert!((ratio - 3.57).abs() < 0.1);
     }
 
     #[test]
@@ -364,5 +616,60 @@ mod tests {
                 + analysis.zone5_percentage
                 <= 100.1
         ); // Allow for floating point precision
+    }
+
+    #[test]
+    fn test_normalized_power_calculation() {
+        let calculator = MetricsCalculator::new();
+        let power_data = vec![200, 250, 300, 280, 220, 240, 260, 290, 310, 270]; // 10 seconds of data
+
+        // Should return None for insufficient data
+        assert!(calculator.calculate_normalized_power(&power_data).is_none());
+
+        // Test with sufficient data (30+ points)
+        let mut long_power_data = vec![250; 60]; // 60 seconds at 250W
+        long_power_data.extend(vec![300; 30]); // 30 seconds at 300W
+
+        let np = calculator
+            .calculate_normalized_power(&long_power_data)
+            .unwrap();
+        assert!(np > 250.0 && np < 300.0); // Should be between average and max
+    }
+
+    #[test]
+    fn test_enhanced_metrics_calculation() {
+        let calculator = MetricsCalculator::new().with_user_data(
+            Some(280.0),
+            Some(165.0),
+            Some(190.0),
+            Some(60.0),
+            Some(75.0),
+        );
+
+        let activity = Activity {
+            average_power: Some(250),
+            normalized_power: Some(265),
+            intensity_factor: Some(0.89),
+            training_stress_score: Some(85.0),
+            temperature: Some(25.0),
+            average_altitude: Some(2000.0),
+            ..Activity::default()
+        };
+
+        let metrics = calculator.calculate_metrics(&activity).unwrap();
+
+        // Verify enhanced metrics are calculated
+        assert_eq!(metrics.power_to_weight_ratio, Some(250.0 / 75.0));
+        assert_eq!(metrics.normalized_power, Some(265.0));
+        // Check intensity factor with tolerance for f32->f64 conversion precision
+        if let Some(if_val) = metrics.intensity_factor {
+            assert!((if_val - 0.89).abs() < 0.01, "Intensity factor: {}", if_val);
+        } else {
+            panic!("Intensity factor should be calculated");
+        }
+        assert_eq!(metrics.training_stress_score, Some(85.0));
+        assert!(metrics.temperature_stress.is_some());
+        assert!(metrics.altitude_adjustment.is_some());
+        assert!(metrics.estimated_recovery_time.is_some());
     }
 }

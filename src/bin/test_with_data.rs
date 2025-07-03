@@ -1,3 +1,5 @@
+// ABOUTME: Comprehensive testing utility for validating server functionality with real fitness data
+// ABOUTME: End-to-end testing tool for MCP protocol, activity analysis, and data processing workflows
 use anyhow::Result;
 use serde_json::json;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};

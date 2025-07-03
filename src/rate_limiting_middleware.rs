@@ -121,8 +121,8 @@ mod tests {
             limit: Some(1000),
             remaining: Some(0),
             reset_at: Some(Utc::now() + chrono::Duration::hours(1)),
-            tier: "professional".to_string(),
-            auth_method: "api_key".to_string(),
+            tier: "professional".into(),
+            auth_method: "api_key".into(),
         };
 
         let error = create_rate_limit_error(&rate_limit_info);
@@ -143,8 +143,8 @@ mod tests {
             limit: Some(1000),
             remaining: Some(500),
             reset_at: None,
-            tier: "starter".to_string(),
-            auth_method: "jwt".to_string(),
+            tier: "starter".into(),
+            auth_method: "jwt".into(),
         };
 
         assert!(check_rate_limit_and_respond(&info).is_ok());
@@ -155,8 +155,8 @@ mod tests {
             limit: Some(1000),
             remaining: Some(0),
             reset_at: Some(Utc::now()),
-            tier: "starter".to_string(),
-            auth_method: "jwt".to_string(),
+            tier: "starter".into(),
+            auth_method: "jwt".into(),
         };
 
         assert!(check_rate_limit_and_respond(&info).is_err());

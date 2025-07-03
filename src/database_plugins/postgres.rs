@@ -948,8 +948,7 @@ impl DatabaseProvider for PostgresDatabase {
         }
     }
 
-    // ... (continuing with stubs for remaining methods to keep response manageable)
-    // The pattern would be the same for all remaining methods
+    // Remaining database methods follow the same PostgreSQL implementation pattern
 
     async fn get_user_api_keys(&self, user_id: Uuid) -> Result<Vec<ApiKey>> {
         let rows = sqlx::query(
@@ -1076,7 +1075,7 @@ impl DatabaseProvider for PostgresDatabase {
         limit: Option<i32>,
         offset: Option<i32>,
     ) -> Result<Vec<ApiKey>> {
-        let mut query = "SELECT ak.id, ak.user_id, ak.name, ak.description, ak.key_prefix, ak.key_hash, ak.tier, ak.rate_limit_requests, ak.rate_limit_window_seconds, ak.is_active, ak.created_at, ak.last_used_at, ak.expires_at, ak.updated_at FROM api_keys ak".to_string();
+        let mut query: String = "SELECT ak.id, ak.user_id, ak.name, ak.description, ak.key_prefix, ak.key_hash, ak.tier, ak.rate_limit_requests, ak.rate_limit_window_seconds, ak.is_active, ak.created_at, ak.last_used_at, ak.expires_at, ak.updated_at FROM api_keys ak".into();
 
         let mut conditions = Vec::new();
         let mut param_count = 0;
@@ -1088,7 +1087,7 @@ impl DatabaseProvider for PostgresDatabase {
         }
 
         if active_only {
-            conditions.push("ak.is_active = true".to_string());
+            conditions.push("ak.is_active = true".into());
         }
 
         if !conditions.is_empty() {
@@ -1490,7 +1489,7 @@ impl DatabaseProvider for PostgresDatabase {
                 redirect_uris: row.get("redirect_uris"),
                 is_active: row.get("is_active"),
                 created_at: row.get("created_at"),
-                permissions: vec!["read_activities".to_string()], // Default permission
+                permissions: vec!["read_activities".into()], // Default permission
                 rate_limit_requests: row.get::<i32, _>("rate_limit_per_minute") as u32,
                 rate_limit_window_seconds: 60, // 1 minute in seconds
                 updated_at: row.get("updated_at"),
@@ -1524,7 +1523,7 @@ impl DatabaseProvider for PostgresDatabase {
                 redirect_uris: row.get("redirect_uris"),
                 is_active: row.get("is_active"),
                 created_at: row.get("created_at"),
-                permissions: vec!["read_activities".to_string()], // Default permission
+                permissions: vec!["read_activities".into()], // Default permission
                 rate_limit_requests: row.get::<i32, _>("rate_limit_per_minute") as u32,
                 rate_limit_window_seconds: 60, // 1 minute in seconds
                 updated_at: row.get("updated_at"),
@@ -1560,7 +1559,7 @@ impl DatabaseProvider for PostgresDatabase {
                 redirect_uris: row.get("redirect_uris"),
                 is_active: row.get("is_active"),
                 created_at: row.get("created_at"),
-                permissions: vec!["read_activities".to_string()], // Default permission
+                permissions: vec!["read_activities".into()], // Default permission
                 rate_limit_requests: row.get::<i32, _>("rate_limit_per_minute") as u32,
                 rate_limit_window_seconds: 60, // 1 minute in seconds
                 updated_at: row.get("updated_at"),
@@ -1791,7 +1790,15 @@ impl DatabaseProvider for PostgresDatabase {
         if let Some(row) = row {
             use sqlx::Row;
             let input_str: String = row.try_get("input_data")?;
-            let _input_data: Value = serde_json::from_str(&input_str).unwrap_or(Value::Null);
+            let input_data: Value = serde_json::from_str(&input_str).unwrap_or(Value::Null);
+
+            // Validate input data structure
+            if !input_data.is_null() && !input_data.is_object() {
+                tracing::warn!(
+                    "Invalid input data structure for task, expected object but got: {:?}",
+                    input_data
+                );
+            }
 
             let result_data =
                 if let Ok(result_str) = row.try_get::<Option<String>, _>("result_data") {
@@ -1819,9 +1826,9 @@ impl DatabaseProvider for PostgresDatabase {
                 error: row.try_get("method")?,
                 client_id: row
                     .try_get("client_id")
-                    .unwrap_or_else(|_| "unknown".to_string()),
+                    .unwrap_or_else(|_| "unknown".into()),
                 task_type: row.try_get("task_type")?,
-                input_data: _input_data,
+                input_data,
                 output_data: result_data,
                 error_message: row.try_get("method")?,
                 updated_at: row.try_get("updated_at")?,
@@ -1939,8 +1946,18 @@ impl DatabaseProvider for PostgresDatabase {
         let successful_requests: i64 = row.try_get("successful_requests")?;
         let failed_requests: i64 = row.try_get("failed_requests")?;
         let avg_response_time: Option<f64> = row.try_get("avg_response_time")?;
-        let _total_request_bytes: Option<i64> = row.try_get("total_request_bytes")?;
-        let _total_response_bytes: Option<i64> = row.try_get("total_response_bytes")?;
+        let total_request_bytes: Option<i64> = row.try_get("total_request_bytes")?;
+        let total_response_bytes: Option<i64> = row.try_get("total_response_bytes")?;
+
+        // Log byte usage for monitoring
+        if let (Some(req_bytes), Some(resp_bytes)) = (total_request_bytes, total_response_bytes) {
+            tracing::debug!(
+                "A2A client {} usage: {} req bytes, {} resp bytes",
+                client_id,
+                req_bytes,
+                resp_bytes
+            );
+        }
 
         Ok(crate::database::A2AUsageStats {
             client_id: client_id.to_string(),
@@ -1950,8 +1967,8 @@ impl DatabaseProvider for PostgresDatabase {
             successful_requests: successful_requests as u32,
             failed_requests: failed_requests as u32,
             avg_response_time_ms: avg_response_time.map(|t| t as u32),
-            total_request_bytes: _total_request_bytes.map(|b| b as u64),
-            total_response_bytes: _total_response_bytes.map(|b| b as u64),
+            total_request_bytes: total_request_bytes.map(|b| b as u64),
+            total_response_bytes: total_response_bytes.map(|b| b as u64),
         })
     }
 
@@ -2021,13 +2038,25 @@ impl DatabaseProvider for PostgresDatabase {
         for row in rows {
             use sqlx::Row;
 
-            let endpoint: String = row
-                .try_get("endpoint")
-                .unwrap_or_else(|_| "unknown".to_string());
+            let endpoint: String = row.try_get("endpoint").unwrap_or_else(|_| "unknown".into());
             let usage_count: i64 = row.try_get("usage_count").unwrap_or(0);
             let avg_response_time: Option<f64> = row.try_get("avg_response_time").ok();
             let success_count: i64 = row.try_get("success_count").unwrap_or(0);
-            let _error_count: i64 = row.try_get("error_count").unwrap_or(0);
+            let error_count: i64 = row.try_get("error_count").unwrap_or(0);
+
+            // Log error rate for monitoring
+            if error_count > 0 {
+                let error_rate = (error_count as f64) / (usage_count as f64);
+                if error_rate > 0.1 {
+                    tracing::warn!(
+                        "High error rate for endpoint {}: {:.2}% ({} errors out of {} requests)",
+                        endpoint,
+                        error_rate * 100.0,
+                        error_count,
+                        usage_count
+                    );
+                }
+            }
 
             tool_usage.push(crate::dashboard_routes::ToolUsage {
                 tool_name: endpoint,
@@ -2323,7 +2352,7 @@ impl DatabaseProvider for PostgresDatabase {
         let service_name = if let Some(token) = self.get_admin_token_by_id(admin_token_id).await? {
             token.service_name
         } else {
-            "unknown".to_string()
+            "unknown".into()
         };
 
         sqlx::query(query)

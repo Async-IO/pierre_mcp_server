@@ -252,7 +252,7 @@ pub mod middleware {
     ) -> Result<impl warp::Reply, std::convert::Infallible> {
         if let Some(AdminAuthError::InvalidAuthHeader) = err.find() {
             Ok(warp::reply::with_status(
-                "Invalid Authorization header".to_string(),
+                "Invalid Authorization header".into(),
                 warp::http::StatusCode::BAD_REQUEST,
             ))
         } else if let Some(AdminAuthError::AuthenticationFailed(msg)) = err.find() {
@@ -262,7 +262,7 @@ pub mod middleware {
             ))
         } else {
             Ok(warp::reply::with_status(
-                "Internal server error".to_string(),
+                "Internal server error".into(),
                 warp::http::StatusCode::INTERNAL_SERVER_ERROR,
             ))
         }

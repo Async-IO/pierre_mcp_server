@@ -14,7 +14,7 @@ use crate::config::intelligence_config::{IntelligenceConfig, WeatherAnalysisConf
 use crate::intelligence::physiological_constants::{
     unit_conversions::*, weather_impact_factors::*, weather_thresholds::*,
 };
-use chrono::{DateTime, Datelike, Timelike, Utc};
+use chrono::{DateTime, Utc};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -118,7 +118,7 @@ impl WeatherService {
     ) -> Result<WeatherConditions, WeatherError> {
         // Check if weather API is enabled
         if !self.api_config.enabled {
-            return Ok(self.generate_mock_weather());
+            return Err(WeatherError::ApiDisabled);
         }
 
         // Create cache key
@@ -156,13 +156,8 @@ impl WeatherService {
                 Ok(weather)
             }
             Err(e) => {
-                // Fall back to mock data if configured
-                if self.api_config.fallback_to_mock {
-                    tracing::warn!("Weather API failed, falling back to mock data: {}", e);
-                    Ok(self.generate_mock_weather())
-                } else {
-                    Err(e)
-                }
+                tracing::error!("Weather API request failed: {}", e);
+                Err(e)
             }
         }
     }
@@ -193,9 +188,10 @@ impl WeatherService {
         longitude: f64,
         timestamp: DateTime<Utc>,
     ) -> Result<WeatherConditions, WeatherError> {
-        let api_key = self.api_key.as_ref().ok_or_else(|| {
-            WeatherError::ApiError("OpenWeather API key not configured".to_string())
-        })?;
+        let api_key = self
+            .api_key
+            .as_ref()
+            .ok_or_else(|| WeatherError::ApiError("OpenWeather API key not configured".into()))?;
 
         let base_url = crate::constants::env_config::openweather_api_base();
         let url = format!(
@@ -216,7 +212,7 @@ impl WeatherService {
             let error_text = response
                 .text()
                 .await
-                .unwrap_or_else(|_| "Unknown error".to_string());
+                .unwrap_or_else(|_| "Unknown error".into());
             return Err(WeatherError::ApiError(format!(
                 "OpenWeather API returned status {}: {}",
                 status, error_text
@@ -242,7 +238,7 @@ impl WeatherService {
                 weather.main.clone()
             }
         } else {
-            "clear".to_string()
+            "clear".into()
         };
 
         Ok(WeatherConditions {
@@ -263,66 +259,13 @@ impl WeatherService {
         start_time: DateTime<Utc>,
     ) -> Result<Option<WeatherConditions>, WeatherError> {
         if let (Some(lat), Some(lon)) = (start_latitude, start_longitude) {
-            let weather = self.get_weather_at_time(lat, lon, start_time).await?;
-            Ok(Some(weather))
+            match self.get_weather_at_time(lat, lon, start_time).await {
+                Ok(weather) => Ok(Some(weather)),
+                Err(WeatherError::ApiDisabled) => Ok(None), // Gracefully handle disabled API
+                Err(e) => Err(e),
+            }
         } else {
             Ok(None)
-        }
-    }
-
-    /// Generate mock weather data for testing
-    pub fn generate_mock_weather(&self) -> WeatherConditions {
-        // Generate realistic weather based on current time
-        let now = Utc::now();
-        let hour = now.hour();
-
-        // Simple seasonal/time-based mock data with varied conditions
-        let (base_temp, conditions) = match now.month() {
-            12 | 1 | 2 => (2.0, if now.day() % 4 == 0 { "snow" } else { "cloudy" }), // Winter
-            3..=5 => (
-                12.0,
-                if now.day() % 3 == 0 {
-                    "rainy"
-                } else {
-                    "partly cloudy"
-                },
-            ), // Spring
-            6..=8 => (
-                22.0,
-                if now.day() % 5 == 0 {
-                    "thunderstorms"
-                } else {
-                    "sunny"
-                },
-            ), // Summer
-            _ => (
-                8.0,
-                if now.day() % 3 == 0 {
-                    "rainy"
-                } else {
-                    "overcast"
-                },
-            ), // Fall
-        };
-
-        // Add some variation based on time of day
-        let temp_adjustment = match hour {
-            6..=11 => -2.0, // Cooler morning
-            12..=17 => 3.0, // Warmer afternoon
-            18..=21 => 0.0, // Moderate evening
-            _ => -5.0,      // Cooler night
-        };
-
-        let temperature = base_temp + temp_adjustment;
-
-        // Use the conditions from seasonal data
-        let conditions_str = conditions;
-
-        WeatherConditions {
-            temperature_celsius: temperature,
-            humidity_percentage: Some(60.0 + (now.timestamp() % 30) as f32),
-            wind_speed_kmh: Some(5.0 + (now.timestamp() % 15) as f32),
-            conditions: conditions_str.to_string(),
         }
     }
 
@@ -334,24 +277,23 @@ impl WeatherService {
         // Temperature impact using physiological constants
         match weather.temperature_celsius {
             t if t < EXTREME_COLD_CELSIUS => {
-                impact_factors
-                    .push("Extremely cold conditions increase energy expenditure".to_string());
+                impact_factors.push("Extremely cold conditions increase energy expenditure".into());
                 overall_difficulty += EXTREME_COLD_DIFFICULTY;
             }
             t if t < COLD_THRESHOLD_CELSIUS => {
-                impact_factors.push("Cold conditions may affect performance".to_string());
+                impact_factors.push("Cold conditions may affect performance".into());
                 overall_difficulty += COLD_DIFFICULTY;
             }
             t if t > EXTREME_HOT_THRESHOLD_CELSIUS => {
-                impact_factors.push("Hot conditions increase heat stress".to_string());
+                impact_factors.push("Hot conditions increase heat stress".into());
                 overall_difficulty += EXTREME_HOT_DIFFICULTY;
             }
             t if t > HOT_THRESHOLD_CELSIUS => {
-                impact_factors.push("Warm conditions may increase perceived effort".to_string());
+                impact_factors.push("Warm conditions may increase perceived effort".into());
                 overall_difficulty += WARM_DIFFICULTY;
             }
             _ => {
-                impact_factors.push("Ideal temperature conditions".to_string());
+                impact_factors.push("Ideal temperature conditions".into());
             }
         }
 
@@ -359,12 +301,11 @@ impl WeatherService {
         if let Some(wind_speed) = weather.wind_speed_kmh {
             match wind_speed {
                 w if w > STRONG_WIND_THRESHOLD => {
-                    impact_factors
-                        .push("Strong winds significantly impact performance".to_string());
+                    impact_factors.push("Strong winds significantly impact performance".into());
                     overall_difficulty += STRONG_WIND_DIFFICULTY;
                 }
                 w if w > MODERATE_WIND_THRESHOLD => {
-                    impact_factors.push("Moderate winds may affect pace".to_string());
+                    impact_factors.push("Moderate winds may affect pace".into());
                     overall_difficulty += MODERATE_WIND_DIFFICULTY;
                 }
                 _ => {}
@@ -373,11 +314,10 @@ impl WeatherService {
 
         // Precipitation impact
         if weather.conditions.contains("rain") {
-            impact_factors
-                .push("Wet conditions require extra caution and mental focus".to_string());
+            impact_factors.push("Wet conditions require extra caution and mental focus".into());
             overall_difficulty += RAIN_DIFFICULTY;
         } else if weather.conditions.contains("snow") {
-            impact_factors.push("Snow conditions significantly increase difficulty".to_string());
+            impact_factors.push("Snow conditions significantly increase difficulty".into());
             overall_difficulty += SNOW_DIFFICULTY;
         }
 
@@ -386,7 +326,7 @@ impl WeatherService {
             if humidity > HIGH_HUMIDITY_THRESHOLD
                 && weather.temperature_celsius > HUMIDITY_IMPACT_TEMP_THRESHOLD
             {
-                impact_factors.push("High humidity makes cooling less efficient".to_string());
+                impact_factors.push("High humidity makes cooling less efficient".into());
                 overall_difficulty += HIGH_HUMIDITY_DIFFICULTY;
             }
         }
@@ -442,6 +382,9 @@ pub enum WeatherError {
     #[error("Weather data unavailable for requested time")]
     DataUnavailable,
 
+    #[error("Weather API is disabled")]
+    ApiDisabled,
+
     #[error("Network error: {0}")]
     NetworkError(#[from] reqwest::Error),
 }
@@ -454,20 +397,9 @@ mod tests {
     #[test]
     fn test_weather_service_creation() {
         let config = crate::config::fitness_config::WeatherApiConfig::default();
-        let _service = WeatherService::new(config, None);
-        // Just test creation - no assertion needed
-    }
-
-    #[test]
-    fn test_generate_mock_weather() {
-        let config = crate::config::fitness_config::WeatherApiConfig::default();
         let service = WeatherService::new(config, None);
-        let weather = service.generate_mock_weather();
-
-        assert!(weather.temperature_celsius > -20.0 && weather.temperature_celsius < 40.0);
-        assert!(weather.humidity_percentage.is_some());
-        assert!(weather.wind_speed_kmh.is_some());
-        assert!(!weather.conditions.is_empty());
+        // Verify service is created with correct configuration
+        assert!(service.get_config().enabled);
     }
 
     #[test]
@@ -478,7 +410,7 @@ mod tests {
             temperature_celsius: -10.0,
             humidity_percentage: Some(50.0),
             wind_speed_kmh: Some(10.0),
-            conditions: "snow".to_string(),
+            conditions: "snow".into(),
         };
 
         let impact = service.analyze_weather_impact(&cold_weather);
@@ -498,7 +430,7 @@ mod tests {
             temperature_celsius: 15.0,
             humidity_percentage: Some(50.0),
             wind_speed_kmh: Some(5.0),
-            conditions: "sunny".to_string(),
+            conditions: "sunny".into(),
         };
 
         let impact = service.analyze_weather_impact(&ideal_weather);
@@ -513,7 +445,7 @@ mod tests {
             temperature_celsius: 32.0,
             humidity_percentage: Some(85.0),
             wind_speed_kmh: Some(2.0),
-            conditions: "sunny".to_string(),
+            conditions: "sunny".into(),
         };
 
         let impact = service.analyze_weather_impact(&hot_humid_weather);
@@ -525,9 +457,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_weather_at_time() {
+    async fn test_get_weather_at_time_disabled() {
         let config = WeatherApiConfig {
-            fallback_to_mock: true,
+            enabled: false,
             ..Default::default()
         };
         let mut service = WeatherService::new(config, None);
@@ -535,15 +467,14 @@ mod tests {
             .get_weather_at_time(45.5017, -73.5673, Utc::now())
             .await; // Montreal coords
 
-        assert!(result.is_ok());
-        let weather = result.unwrap();
-        assert!(weather.temperature_celsius > -50.0 && weather.temperature_celsius < 50.0);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), WeatherError::ApiDisabled));
     }
 
     #[tokio::test]
-    async fn test_get_weather_for_activity_with_coords() {
+    async fn test_get_weather_for_activity_with_coords_disabled() {
         let config = WeatherApiConfig {
-            fallback_to_mock: true,
+            enabled: false,
             ..Default::default()
         };
         let mut service = WeatherService::new(config, None);
@@ -552,7 +483,7 @@ mod tests {
             .await;
 
         assert!(result.is_ok());
-        assert!(result.unwrap().is_some());
+        assert!(result.unwrap().is_none()); // Should return None when API disabled
     }
 
     #[tokio::test]

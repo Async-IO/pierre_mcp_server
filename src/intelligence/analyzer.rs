@@ -364,7 +364,7 @@ impl ActivityAnalyzer {
         // Personal records context
         let pr_context = match performance.personal_records.len() {
             0 => String::new(),
-            1 => " with 1 new personal record".to_string(),
+            1 => " with 1 new personal record".into(),
             n => format!(" with {} new personal records", n),
         };
 
@@ -433,8 +433,8 @@ mod tests {
 
     fn create_test_activity() -> Activity {
         Activity {
-            id: "test123".to_string(),
-            name: "Morning Run".to_string(),
+            id: "test123".into(),
+            name: "Morning Run".into(),
             sport_type: SportType::Run,
             start_date: Utc::now(),
             duration_seconds: 3000,         // 50 minutes
@@ -442,12 +442,38 @@ mod tests {
             elevation_gain: Some(100.0),
             average_speed: Some(3.33), // 12 km/h
             max_speed: Some(5.0),      // 18 km/h
-            provider: "test".to_string(),
+            provider: "test".into(),
             average_heart_rate: Some(155),
             max_heart_rate: Some(180),
             calories: Some(500),
             steps: Some(12000),
             heart_rate_zones: None,
+
+            // Advanced metrics (all None for test)
+            average_power: None,
+            max_power: None,
+            normalized_power: None,
+            power_zones: None,
+            ftp: None,
+            average_cadence: None,
+            max_cadence: None,
+            hrv_score: None,
+            recovery_heart_rate: None,
+            temperature: None,
+            humidity: None,
+            average_altitude: None,
+            wind_speed: None,
+            ground_contact_time: None,
+            vertical_oscillation: None,
+            stride_length: None,
+            running_power: None,
+            breathing_rate: None,
+            spo2: None,
+            training_stress_score: None,
+            intensity_factor: None,
+            suffer_score: None,
+            time_series_data: None,
+
             start_latitude: Some(45.5017), // Montreal
             start_longitude: Some(-73.5673),
             city: None,
@@ -459,8 +485,12 @@ mod tests {
 
     #[test]
     fn test_activity_analyzer_creation() {
-        let _analyzer = ActivityAnalyzer::new();
-        // Test creation - no assertion needed
+        let analyzer = ActivityAnalyzer::new();
+        // Verify analyzer is created with default configurations
+        let activity = create_test_activity();
+        let metrics = analyzer.calculate_performance_metrics(&activity).unwrap();
+        assert!(metrics.efficiency_score.is_some());
+        assert!(metrics.efficiency_score.unwrap() > 0.0);
     }
 
     #[test]

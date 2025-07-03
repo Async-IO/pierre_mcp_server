@@ -211,7 +211,7 @@ impl Database {
 
             // Add the goal ID to the JSON object
             if let serde_json::Value::Object(ref mut map) = goal {
-                map.insert("id".to_string(), serde_json::Value::String(goal_id));
+                map.insert("id".into(), serde_json::Value::String(goal_id));
             }
 
             goals.push(goal);
@@ -221,15 +221,67 @@ impl Database {
     }
 
     /// Update goal progress
-    pub async fn update_goal_progress(&self, goal_id: &str, _current_value: f64) -> Result<()> {
-        // This is a simplified version - in reality you'd update the JSON data
+    pub async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> Result<()> {
+        // Get the current goal data
+        let row = sqlx::query(
+            r#"
+            SELECT goal_data FROM goals WHERE id = $1
+            "#,
+        )
+        .bind(goal_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        let goal_data_str: String = row.get("goal_data");
+        let mut goal_data: serde_json::Value = serde_json::from_str(&goal_data_str)?;
+
+        // Update the current_value in the JSON
+        if let Some(obj) = goal_data.as_object_mut() {
+            obj.insert(
+                "current_value".into(),
+                serde_json::Value::Number(
+                    serde_json::Number::from_f64(current_value).ok_or_else(|| {
+                        anyhow::anyhow!("Invalid current_value: {}", current_value)
+                    })?,
+                ),
+            );
+
+            // Update last_updated timestamp
+            obj.insert(
+                "last_updated".into(),
+                serde_json::Value::String(chrono::Utc::now().to_rfc3339()),
+            );
+
+            // Calculate progress percentage if target_value exists
+            if let Some(target) = obj.get("target_value").and_then(|v| v.as_f64()) {
+                if target > 0.0 {
+                    let progress_percentage = (current_value / target * 100.0).clamp(0.0, 100.0);
+                    obj.insert(
+                        "progress_percentage".into(),
+                        serde_json::Value::Number(
+                            serde_json::Number::from_f64(progress_percentage).ok_or_else(|| {
+                                anyhow::anyhow!(
+                                    "Invalid progress_percentage: {}",
+                                    progress_percentage
+                                )
+                            })?,
+                        ),
+                    );
+                }
+            }
+        }
+
+        // Save the updated goal data back to the database
+        let updated_goal_json = serde_json::to_string(&goal_data)?;
+
         sqlx::query(
             r#"
             UPDATE goals
-            SET updated_at = CURRENT_TIMESTAMP
-            WHERE id = $1
+            SET goal_data = $1, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $2
             "#,
         )
+        .bind(updated_goal_json)
         .bind(goal_id)
         .execute(&self.pool)
         .await?;
@@ -390,8 +442,8 @@ mod tests {
         let user = User {
             id: Uuid::new_v4(),
             email: format!("analytics_{}@example.com", Uuid::new_v4()),
-            display_name: Some("Analytics User".to_string()),
-            password_hash: "hashed".to_string(),
+            display_name: Some("Analytics User".into()),
+            password_hash: "hashed".into(),
             tier: UserTier::Professional,
             strava_token: None,
             fitbit_token: None,
@@ -417,14 +469,14 @@ mod tests {
             id: None,
             user_id: user.id,
             timestamp: Utc::now(),
-            endpoint: "/api/v1/profile".to_string(),
-            method: "GET".to_string(),
+            endpoint: "/api/v1/profile".into(),
+            method: "GET".into(),
             status_code: 200,
             response_time_ms: Some(25),
             request_size_bytes: Some(128),
             response_size_bytes: Some(512),
-            ip_address: Some("192.168.1.1".to_string()),
-            user_agent: Some("TestClient/1.0".to_string()),
+            ip_address: Some("192.168.1.1".into()),
+            user_agent: Some("TestClient/1.0".into()),
         };
 
         db.record_jwt_usage(&usage)
@@ -489,15 +541,18 @@ mod tests {
             "severity": "positive"
         });
 
-        let _insight_id = db
+        let insight_id = db
             .store_insight(
                 user.id,
-                Some("activity_123".to_string()),
+                Some("activity_123".into()),
                 "performance",
                 insight_data,
             )
             .await
             .expect("Failed to store insight");
+
+        // Verify the insight was stored with a valid ID
+        assert!(!insight_id.is_empty());
 
         // Get user insights
         let insights = db
@@ -520,7 +575,7 @@ mod tests {
                 id: Uuid::new_v4(),
                 email: format!("stats_user_{}@example.com", i),
                 display_name: None,
-                password_hash: "hashed".to_string(),
+                password_hash: "hashed".into(),
                 tier: UserTier::Starter,
                 strava_token: None,
                 fitbit_token: None,

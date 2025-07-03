@@ -227,22 +227,20 @@ impl ConfigValidator {
             if key.starts_with("heart_rate") {
                 impact
                     .affected_components
-                    .push("Heart Rate Analysis".to_string());
+                    .push("Heart Rate Analysis".into());
             }
             if key.starts_with("performance") {
-                impact
-                    .affected_components
-                    .push("Effort Scoring".to_string());
+                impact.affected_components.push("Effort Scoring".into());
             }
             if key.starts_with("efficiency") {
                 impact
                     .affected_components
-                    .push("Efficiency Calculation".to_string());
+                    .push("Efficiency Calculation".into());
             }
             if key.contains("lactate") {
                 impact
                     .affected_components
-                    .push("Lactate Threshold Analysis".to_string());
+                    .push("Lactate Threshold Analysis".into());
             }
         }
 
@@ -265,13 +263,13 @@ impl ConfigValidator {
     fn build_safety_rules() -> Vec<SafetyRule> {
         vec![
             SafetyRule {
-                name: "Heart Rate Safety".to_string(),
-                description: "Ensure heart rate thresholds are physiologically safe".to_string(),
+                name: "Heart Rate Safety".into(),
+                description: "Ensure heart rate thresholds are physiologically safe".into(),
                 validator: |key, value, profile| {
                     if key.contains("heart_rate") && key.contains("percentage") {
                         if let ConfigValue::Float(percentage) = value {
                             if *percentage > 100.0 {
-                                return Err("Heart rate percentage cannot exceed 100%".to_string());
+                                return Err("Heart rate percentage cannot exceed 100%".into());
                             }
                             if *percentage < 30.0 {
                                 return Err(
@@ -300,17 +298,17 @@ impl ConfigValidator {
                 },
             },
             SafetyRule {
-                name: "Intensity Limits".to_string(),
-                description: "Prevent dangerously high intensity settings".to_string(),
+                name: "Intensity Limits".into(),
+                description: "Prevent dangerously high intensity settings".into(),
                 validator: |key, value, _profile| {
                     if key.contains("max_intensity") || key.contains("safety") {
                         if let ConfigValue::Float(intensity) = value {
                             if *intensity > 1.0 {
-                                return Err("Maximum intensity cannot exceed 100%".to_string());
+                                return Err("Maximum intensity cannot exceed 100%".into());
                             }
                             if *intensity < 0.3 {
                                 return Err(
-                                    "Maximum intensity too low for effective training".to_string()
+                                    "Maximum intensity too low for effective training".into()
                                 );
                             }
                         }
@@ -319,16 +317,16 @@ impl ConfigValidator {
                 },
             },
             SafetyRule {
-                name: "Divisor Sanity Check".to_string(),
-                description: "Ensure divisors are within reasonable ranges".to_string(),
+                name: "Divisor Sanity Check".into(),
+                description: "Ensure divisors are within reasonable ranges".into(),
                 validator: |key, value, _profile| {
                     if key.contains("divisor") {
                         if let ConfigValue::Float(divisor) = value {
                             if *divisor <= 0.0 {
-                                return Err("Divisor must be positive".to_string());
+                                return Err("Divisor must be positive".into());
                             }
                             if *divisor > 1000.0 {
-                                return Err("Divisor value unreasonably high".to_string());
+                                return Err("Divisor value unreasonably high".into());
                             }
                         }
                     }
@@ -342,13 +340,13 @@ impl ConfigValidator {
     fn build_relationship_rules() -> Vec<RelationshipRule> {
         vec![
             RelationshipRule {
-                name: "Heart Rate Zone Order".to_string(),
+                name: "Heart Rate Zone Order".into(),
                 parameters: vec![
-                    "heart_rate.recovery_zone".to_string(),
-                    "heart_rate.endurance_zone".to_string(),
-                    "heart_rate.tempo_zone".to_string(),
-                    "heart_rate.anaerobic_threshold".to_string(),
-                    "heart_rate.vo2_max_zone".to_string(),
+                    "heart_rate.recovery_zone".into(),
+                    "heart_rate.endurance_zone".into(),
+                    "heart_rate.tempo_zone".into(),
+                    "heart_rate.anaerobic_threshold".into(),
+                    "heart_rate.vo2_max_zone".into(),
                 ],
                 validator: |params| {
                     let zones = [
@@ -385,10 +383,10 @@ impl ConfigValidator {
                 },
             },
             RelationshipRule {
-                name: "Lactate Threshold Consistency".to_string(),
+                name: "Lactate Threshold Consistency".into(),
                 parameters: vec![
-                    "lactate.threshold_percentage".to_string(),
-                    "heart_rate.anaerobic_threshold".to_string(),
+                    "lactate.threshold_percentage".into(),
+                    "heart_rate.anaerobic_threshold".into(),
                 ],
                 validator: |params| {
                     if let (
@@ -469,7 +467,7 @@ mod tests {
         let validator = ConfigValidator::new();
         let mut changes = HashMap::new();
         changes.insert(
-            "heart_rate.anaerobic_threshold".to_string(),
+            "heart_rate.anaerobic_threshold".into(),
             ConfigValue::Float(85.0),
         );
 
@@ -483,7 +481,7 @@ mod tests {
         let validator = ConfigValidator::new();
         let mut changes = HashMap::new();
         changes.insert(
-            "heart_rate.anaerobic_threshold".to_string(),
+            "heart_rate.anaerobic_threshold".into(),
             ConfigValue::Float(150.0), // Above valid range
         );
 
@@ -496,12 +494,9 @@ mod tests {
     fn test_zone_order_validation() {
         let validator = ConfigValidator::new();
         let mut changes = HashMap::new();
+        changes.insert("heart_rate.recovery_zone".into(), ConfigValue::Float(80.0));
         changes.insert(
-            "heart_rate.recovery_zone".to_string(),
-            ConfigValue::Float(80.0),
-        );
-        changes.insert(
-            "heart_rate.endurance_zone".to_string(),
+            "heart_rate.endurance_zone".into(),
             ConfigValue::Float(70.0), // Lower than recovery zone
         );
 
@@ -518,7 +513,7 @@ mod tests {
         let validator = ConfigValidator::new();
         let mut changes = HashMap::new();
         changes.insert(
-            "performance.run_distance_divisor".to_string(),
+            "performance.run_distance_divisor".into(),
             ConfigValue::Float(20.0), // Double the default
         );
 
@@ -529,7 +524,7 @@ mod tests {
         assert!(impact.effort_score_change != 0.0);
         assert!(impact
             .affected_components
-            .contains(&"Effort Scoring".to_string()));
+            .contains(&"Effort Scoring".into()));
     }
 
     #[test]
@@ -537,7 +532,7 @@ mod tests {
         let validator = ConfigValidator::new();
         let mut changes = HashMap::new();
         changes.insert(
-            "lactate.threshold_percentage".to_string(),
+            "lactate.threshold_percentage".into(),
             ConfigValue::Float(85.0),
         );
 

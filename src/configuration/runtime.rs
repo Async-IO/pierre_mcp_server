@@ -130,21 +130,21 @@ impl RuntimeConfig {
         let mut constants = HashMap::new();
 
         // Heart rate zones - using default values for now
-        constants.insert("heart_rate.anaerobic_threshold".to_string(), 85.0);
-        constants.insert("heart_rate.vo2_max_zone".to_string(), 95.0);
-        constants.insert("heart_rate.tempo_zone".to_string(), 80.0);
-        constants.insert("heart_rate.endurance_zone".to_string(), 70.0);
-        constants.insert("heart_rate.recovery_zone".to_string(), 60.0);
+        constants.insert("heart_rate.anaerobic_threshold".into(), 85.0);
+        constants.insert("heart_rate.vo2_max_zone".into(), 95.0);
+        constants.insert("heart_rate.tempo_zone".into(), 80.0);
+        constants.insert("heart_rate.endurance_zone".into(), 70.0);
+        constants.insert("heart_rate.recovery_zone".into(), 60.0);
 
         // Performance calculation - using default values for now
-        constants.insert("performance.run_distance_divisor".to_string(), 10.0);
-        constants.insert("performance.bike_distance_divisor".to_string(), 40.0);
-        constants.insert("performance.swim_distance_divisor".to_string(), 2.0);
-        constants.insert("performance.elevation_divisor".to_string(), 100.0);
+        constants.insert("performance.run_distance_divisor".into(), 10.0);
+        constants.insert("performance.bike_distance_divisor".into(), 40.0);
+        constants.insert("performance.swim_distance_divisor".into(), 2.0);
+        constants.insert("performance.elevation_divisor".into(), 100.0);
 
         // Efficiency calculation - using default values for now
-        constants.insert("efficiency.base_score".to_string(), 50.0);
-        constants.insert("efficiency.hr_factor".to_string(), 1000.0);
+        constants.insert("efficiency.base_score".into(), 50.0);
+        constants.insert("efficiency.hr_factor".into(), 1000.0);
 
         constants
     }
@@ -171,8 +171,8 @@ impl RuntimeConfig {
     /// Apply a configuration profile
     pub fn apply_profile(&mut self, profile: ConfigProfile) {
         self.log_change(
-            "system".to_string(),
-            "profile".to_string(),
+            "system".into(),
+            "profile".into(),
             Some(ConfigValue::String(self.active_profile.name())),
             ConfigValue::String(profile.name()),
             Some(format!("Applied {} profile", profile.name())),
@@ -202,7 +202,7 @@ impl RuntimeConfig {
         let old_value = self.get_value(&key);
 
         self.log_change(
-            "session".to_string(),
+            "session".into(),
             key.clone(),
             old_value,
             value.clone(),
@@ -243,11 +243,11 @@ impl RuntimeConfig {
         self.last_modified = Utc::now();
 
         self.log_change(
-            "system".to_string(),
-            "all_overrides".to_string(),
+            "system".into(),
+            "all_overrides".into(),
             None,
-            ConfigValue::String("reset".to_string()),
-            Some("Reset all session overrides".to_string()),
+            ConfigValue::String("reset".into()),
+            Some("Reset all session overrides".into()),
         );
     }
 
@@ -415,7 +415,7 @@ mod tests {
         // Add some overrides
         config
             .set_override(
-                "heart_rate.custom_threshold".to_string(),
+                "heart_rate.custom_threshold".into(),
                 ConfigValue::Float(82.5),
             )
             .unwrap();
@@ -430,7 +430,7 @@ mod tests {
         let mut config = RuntimeConfig::new();
 
         config
-            .set_override("test.parameter".to_string(), ConfigValue::Float(50.0))
+            .set_override("test.parameter".into(), ConfigValue::Float(50.0))
             .unwrap();
 
         let changes = config.get_recent_changes(10);

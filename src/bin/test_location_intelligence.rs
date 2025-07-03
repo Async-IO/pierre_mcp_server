@@ -1,3 +1,5 @@
+// ABOUTME: Location intelligence testing utility for verifying GPS and geographic analysis features
+// ABOUTME: Tests route analysis, location-based insights, and geographic data processing capabilities
 use anyhow::Result;
 use pierre_mcp_server::intelligence::location::LocationService;
 use serde_json::{json, Value};
@@ -75,8 +77,20 @@ async fn main() -> Result<()> {
 
             let mut line = String::new();
             reader.read_line(&mut line)?;
-            let _init_response: Value = serde_json::from_str(&line)?;
+            let init_response: Value = serde_json::from_str(&line)?;
             println!("✅ MCP connection initialized");
+
+            // Validate initialization response
+            if let Some(result) = init_response.get("result") {
+                if let Some(server_info) = result.get("serverInfo") {
+                    if let Some(name) = server_info.get("name") {
+                        println!("   Server: {}", name);
+                    }
+                    if let Some(version) = server_info.get("version") {
+                        println!("   Version: {}", version);
+                    }
+                }
+            }
 
             // Get a recent activity with GPS coordinates
             println!("\n📊 Retrieving recent activities...");

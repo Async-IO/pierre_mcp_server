@@ -206,7 +206,7 @@ impl A2AServer {
         });
 
         A2AResponse {
-            jsonrpc: "2.0".to_string(),
+            jsonrpc: "2.0".into(),
             result: Some(result),
             error: None,
             id: request.id,
@@ -216,7 +216,7 @@ impl A2AServer {
     async fn handle_message_send(&self, request: A2ARequest) -> A2AResponse {
         // Message sending would forward requests to appropriate handlers
         A2AResponse {
-            jsonrpc: "2.0".to_string(),
+            jsonrpc: "2.0".into(),
             result: Some(serde_json::json!({"status": "received"})),
             error: None,
             id: request.id,
@@ -224,15 +224,15 @@ impl A2AServer {
     }
 
     async fn handle_message_stream(&self, request: A2ARequest) -> A2AResponse {
-        // Streaming implementation using a task-based approach
-        // In a full implementation, this would establish a persistent connection
-        // For now, we'll return a response indicating streaming is not yet fully supported
+        // Message streaming is intentionally not supported in this implementation
+        // A2A protocol uses stateless request-response pattern for reliability
         A2AResponse {
-            jsonrpc: "2.0".to_string(),
+            jsonrpc: "2.0".into(),
             result: Some(serde_json::json!({
                 "status": "streaming_not_supported",
-                "message": "Message streaming is not yet implemented. Use message/send for single messages.",
-                "alternative": "Use a2a/message/send for immediate message delivery"
+                "message": "Message streaming is not supported by design. A2A protocol uses stateless message delivery.",
+                "alternative": "Use a2a/message/send for reliable message delivery",
+                "reason": "Stateless design ensures better reliability and scalability"
             })),
             error: None,
             id: request.id,
@@ -272,7 +272,7 @@ impl A2AServer {
         };
 
         A2AResponse {
-            jsonrpc: "2.0".to_string(),
+            jsonrpc: "2.0".into(),
             result: Some(serde_json::to_value(task).unwrap()),
             error: None,
             id: request.id,
@@ -285,11 +285,11 @@ impl A2AServer {
             Some(serde_json::Value::String(id)) => id,
             _ => {
                 return A2AResponse {
-                    jsonrpc: "2.0".to_string(),
+                    jsonrpc: "2.0".into(),
                     result: None,
                     error: Some(A2AError {
                         code: -32602,
-                        message: "Invalid params: task_id is required".to_string(),
+                        message: "Invalid params: task_id is required".into(),
                         data: None,
                     }),
                     id: request.id,
@@ -314,7 +314,7 @@ impl A2AServer {
         });
 
         A2AResponse {
-            jsonrpc: "2.0".to_string(),
+            jsonrpc: "2.0".into(),
             result: Some(task),
             error: None,
             id: request.id,
@@ -351,7 +351,7 @@ impl A2AServer {
         let paginated_tasks: Vec<_> = mock_tasks.into_iter().skip(offset).take(limit).collect();
 
         A2AResponse {
-            jsonrpc: "2.0".to_string(),
+            jsonrpc: "2.0".into(),
             result: Some(serde_json::json!({
                 "tasks": paginated_tasks,
                 "pagination": {
@@ -394,7 +394,7 @@ impl A2AServer {
         ]);
 
         A2AResponse {
-            jsonrpc: "2.0".to_string(),
+            jsonrpc: "2.0".into(),
             result: Some(tools),
             error: None,
             id: request.id,
@@ -420,8 +420,8 @@ impl A2AServer {
         let universal_request = crate::protocols::universal::UniversalRequest {
             tool_name: tool_name.to_string(),
             parameters: serde_json::Value::Object(tool_params),
-            user_id: "unknown".to_string(), // In production, this would come from authentication
-            protocol: "a2a".to_string(),
+            user_id: "unknown".into(), // In production, this would come from authentication
+            protocol: "a2a".into(),
         };
 
         // Check if we have proper dependencies injected
@@ -430,11 +430,11 @@ impl A2AServer {
             _ => {
                 // Return error if dependencies are not available
                 return A2AResponse {
-                    jsonrpc: "2.0".to_string(),
+                    jsonrpc: "2.0".into(),
                     result: None,
                     error: Some(A2AError {
                         code: -32000,
-                        message: "A2A server not properly configured with database and intelligence dependencies".to_string(),
+                        message: "A2A server not properly configured with database and intelligence dependencies".into(),
                         data: None,
                     }),
                     id: request.id,
@@ -477,22 +477,19 @@ impl A2AServer {
                                     client_id: std::env::var("STRAVA_CLIENT_ID").ok(),
                                     client_secret: std::env::var("STRAVA_CLIENT_SECRET").ok(),
                                     redirect_uri: std::env::var("STRAVA_REDIRECT_URI").ok(),
-                                    scopes: vec![
-                                        "read".to_string(),
-                                        "activity:read_all".to_string(),
-                                    ],
+                                    scopes: vec!["read".into(), "activity:read_all".into()],
                                     enabled: true,
                                 },
                                 fitbit: crate::config::environment::OAuthProviderConfig {
                                     client_id: std::env::var("FITBIT_CLIENT_ID").ok(),
                                     client_secret: std::env::var("FITBIT_CLIENT_SECRET").ok(),
                                     redirect_uri: std::env::var("FITBIT_REDIRECT_URI").ok(),
-                                    scopes: vec!["activity".to_string(), "profile".to_string()],
+                                    scopes: vec!["activity".into(), "profile".into()],
                                     enabled: true,
                                 },
                             },
                             security: crate::config::environment::SecurityConfig {
-                                cors_origins: vec!["*".to_string()],
+                                cors_origins: vec!["*".into()],
                                 rate_limit: crate::config::environment::RateLimitConfig {
                                     enabled: false,
                                     requests_per_window: 100,
@@ -511,22 +508,22 @@ impl A2AServer {
                             external_services: crate::config::environment::ExternalServicesConfig {
                                 weather: crate::config::environment::WeatherServiceConfig {
                                     api_key: std::env::var("OPENWEATHER_API_KEY").ok(),
-                                    base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                                    base_url: "https://api.openweathermap.org/data/2.5".into(),
                                     enabled: false,
                                 },
                                 geocoding: crate::config::environment::GeocodingServiceConfig {
-                                    base_url: "https://nominatim.openstreetmap.org".to_string(),
+                                    base_url: "https://nominatim.openstreetmap.org".into(),
                                     enabled: true,
                                 },
                                 strava_api: crate::config::environment::StravaApiConfig {
-                                    base_url: "https://www.strava.com/api/v3".to_string(),
-                                    auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                                    token_url: "https://www.strava.com/oauth/token".to_string(),
+                                    base_url: "https://www.strava.com/api/v3".into(),
+                                    auth_url: "https://www.strava.com/oauth/authorize".into(),
+                                    token_url: "https://www.strava.com/oauth/token".into(),
                                 },
                                 fitbit_api: crate::config::environment::FitbitApiConfig {
-                                    base_url: "https://api.fitbit.com".to_string(),
-                                    auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                                    token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+                                    base_url: "https://api.fitbit.com".into(),
+                                    auth_url: "https://www.fitbit.com/oauth2/authorize".into(),
+                                    token_url: "https://api.fitbit.com/oauth2/token".into(),
                                 },
                             },
                             app_behavior: crate::config::environment::AppBehaviorConfig {
@@ -534,8 +531,8 @@ impl A2AServer {
                                 default_activities_limit: 20,
                                 ci_mode: false,
                                 protocol: crate::config::environment::ProtocolConfig {
-                                    mcp_version: "2024-11-05".to_string(),
-                                    server_name: "pierre-mcp-server".to_string(),
+                                    mcp_version: "2024-11-05".into(),
+                                    server_name: "pierre-mcp-server".into(),
                                     server_version: env!("CARGO_PKG_VERSION").to_string(),
                                 },
                             },
@@ -553,13 +550,13 @@ impl A2AServer {
 
         match executor.execute_tool(universal_request).await {
             Ok(response) => A2AResponse {
-                jsonrpc: "2.0".to_string(),
+                jsonrpc: "2.0".into(),
                 result: response.result,
                 error: None,
                 id: request.id,
             },
             Err(e) => A2AResponse {
-                jsonrpc: "2.0".to_string(),
+                jsonrpc: "2.0".into(),
                 result: None,
                 error: Some(A2AError {
                     code: -32000,
@@ -581,7 +578,7 @@ impl A2AServer {
         // In a full implementation, this would cancel an active task
         // For now, we'll simulate task cancellation
         A2AResponse {
-            jsonrpc: "2.0".to_string(),
+            jsonrpc: "2.0".into(),
             result: Some(serde_json::json!({
                 "task_id": task_id,
                 "status": "cancelled",
@@ -600,7 +597,7 @@ impl A2AServer {
 
         // In a full implementation, this would store push notification settings
         A2AResponse {
-            jsonrpc: "2.0".to_string(),
+            jsonrpc: "2.0".into(),
             result: Some(serde_json::json!({
                 "status": "configured",
                 "config": config,
@@ -619,7 +616,7 @@ impl A2AServer {
         };
 
         A2AResponse {
-            jsonrpc: "2.0".to_string(),
+            jsonrpc: "2.0".into(),
             result: None,
             error: Some(error),
             id: request.id,
@@ -645,8 +642,8 @@ mod tests {
     async fn test_a2a_initialize() {
         let server = create_test_server();
         let request = A2ARequest {
-            jsonrpc: "2.0".to_string(),
-            method: "a2a/initialize".to_string(),
+            jsonrpc: "2.0".into(),
+            method: "a2a/initialize".into(),
             params: None,
             id: Some(serde_json::Value::Number(1.into())),
         };
@@ -676,17 +673,17 @@ mod tests {
     async fn test_a2a_initialize_with_string_id() {
         let server = create_test_server();
         let request = A2ARequest {
-            jsonrpc: "2.0".to_string(),
-            method: "a2a/initialize".to_string(),
+            jsonrpc: "2.0".into(),
+            method: "a2a/initialize".into(),
             params: None,
-            id: Some(serde_json::Value::String("test-id".to_string())),
+            id: Some(serde_json::Value::String("test-id".into())),
         };
 
         let response = server.handle_request(request).await;
         assert!(response.result.is_some());
         assert_eq!(
             response.id,
-            Some(serde_json::Value::String("test-id".to_string()))
+            Some(serde_json::Value::String("test-id".into()))
         );
     }
 
@@ -694,8 +691,8 @@ mod tests {
     async fn test_a2a_message_send() {
         let server = create_test_server();
         let request = A2ARequest {
-            jsonrpc: "2.0".to_string(),
-            method: "message/send".to_string(),
+            jsonrpc: "2.0".into(),
+            method: "message/send".into(),
             params: Some(serde_json::json!({
                 "message": {
                     "id": "msg_123",
@@ -722,8 +719,8 @@ mod tests {
     async fn test_a2a_message_stream() {
         let server = create_test_server();
         let request = A2ARequest {
-            jsonrpc: "2.0".to_string(),
-            method: "message/stream".to_string(),
+            jsonrpc: "2.0".into(),
+            method: "message/stream".into(),
             params: Some(serde_json::json!({
                 "stream_id": "stream_123"
             })),
@@ -745,8 +742,8 @@ mod tests {
     async fn test_a2a_task_create() {
         let server = create_test_server();
         let request = A2ARequest {
-            jsonrpc: "2.0".to_string(),
-            method: "tasks/create".to_string(),
+            jsonrpc: "2.0".into(),
+            method: "tasks/create".into(),
             params: Some(serde_json::json!({
                 "type": "fitness_analysis",
                 "description": "Analyze weekly running data"
@@ -770,8 +767,8 @@ mod tests {
     async fn test_a2a_task_get() {
         let server = create_test_server();
         let request = A2ARequest {
-            jsonrpc: "2.0".to_string(),
-            method: "tasks/get".to_string(),
+            jsonrpc: "2.0".into(),
+            method: "tasks/get".into(),
             params: Some(serde_json::json!({
                 "task_id": "task_123"
             })),
@@ -791,8 +788,8 @@ mod tests {
     async fn test_a2a_task_get_missing_id() {
         let server = create_test_server();
         let request = A2ARequest {
-            jsonrpc: "2.0".to_string(),
-            method: "tasks/get".to_string(),
+            jsonrpc: "2.0".into(),
+            method: "tasks/get".into(),
             params: Some(serde_json::json!({})), // Missing task_id
             id: Some(serde_json::Value::Number(6.into())),
         };
@@ -810,8 +807,8 @@ mod tests {
     async fn test_a2a_task_list() {
         let server = create_test_server();
         let request = A2ARequest {
-            jsonrpc: "2.0".to_string(),
-            method: "a2a/tasks/list".to_string(),
+            jsonrpc: "2.0".into(),
+            method: "a2a/tasks/list".into(),
             params: Some(serde_json::json!({
                 "limit": 5,
                 "offset": 0
@@ -837,8 +834,8 @@ mod tests {
     async fn test_a2a_task_cancel() {
         let server = create_test_server();
         let request = A2ARequest {
-            jsonrpc: "2.0".to_string(),
-            method: "tasks/cancel".to_string(),
+            jsonrpc: "2.0".into(),
+            method: "tasks/cancel".into(),
             params: Some(serde_json::json!({
                 "task_id": "task_456"
             })),
@@ -858,8 +855,8 @@ mod tests {
     async fn test_a2a_tools_list() {
         let server = create_test_server();
         let request = A2ARequest {
-            jsonrpc: "2.0".to_string(),
-            method: "tools/list".to_string(),
+            jsonrpc: "2.0".into(),
+            method: "tools/list".into(),
             params: None,
             id: Some(serde_json::Value::Number(9.into())),
         };
@@ -885,8 +882,8 @@ mod tests {
     async fn test_a2a_tool_call_without_dependencies() {
         let server = create_test_server(); // No dependencies injected
         let request = A2ARequest {
-            jsonrpc: "2.0".to_string(),
-            method: "tools/call".to_string(),
+            jsonrpc: "2.0".into(),
+            method: "tools/call".into(),
             params: Some(serde_json::json!({
                 "tool_name": "get_activities",
                 "parameters": {
@@ -909,8 +906,8 @@ mod tests {
     async fn test_a2a_push_notification_config() {
         let server = create_test_server();
         let request = A2ARequest {
-            jsonrpc: "2.0".to_string(),
-            method: "tasks/pushNotificationConfig/set".to_string(),
+            jsonrpc: "2.0".into(),
+            method: "tasks/pushNotificationConfig/set".into(),
             params: Some(serde_json::json!({
                 "config": {
                     "endpoint": "https://example.com/webhook",
@@ -933,8 +930,8 @@ mod tests {
     async fn test_a2a_unknown_method() {
         let server = create_test_server();
         let request = A2ARequest {
-            jsonrpc: "2.0".to_string(),
-            method: "unknown/method".to_string(),
+            jsonrpc: "2.0".into(),
+            method: "unknown/method".into(),
             params: None,
             id: Some(serde_json::Value::Number(12.into())),
         };
@@ -955,8 +952,8 @@ mod tests {
 
         // Test legacy a2a/message/send
         let request = A2ARequest {
-            jsonrpc: "2.0".to_string(),
-            method: "a2a/message/send".to_string(),
+            jsonrpc: "2.0".into(),
+            method: "a2a/message/send".into(),
             params: None,
             id: Some(serde_json::Value::Number(13.into())),
         };
@@ -966,8 +963,8 @@ mod tests {
 
         // Test legacy a2a/tools/list
         let request = A2ARequest {
-            jsonrpc: "2.0".to_string(),
-            method: "a2a/tools/list".to_string(),
+            jsonrpc: "2.0".into(),
+            method: "a2a/tools/list".into(),
             params: None,
             id: Some(serde_json::Value::Number(14.into())),
         };
@@ -979,10 +976,10 @@ mod tests {
     #[test]
     fn test_a2a_request_serialization() {
         let request = A2ARequest {
-            jsonrpc: "2.0".to_string(),
-            method: "test/method".to_string(),
+            jsonrpc: "2.0".into(),
+            method: "test/method".into(),
             params: Some(serde_json::json!({"key": "value"})),
-            id: Some(serde_json::Value::String("req_123".to_string())),
+            id: Some(serde_json::Value::String("req_123".into())),
         };
 
         let json = serde_json::to_string(&request).unwrap();
@@ -999,7 +996,7 @@ mod tests {
     #[test]
     fn test_a2a_response_serialization() {
         let response = A2AResponse {
-            jsonrpc: "2.0".to_string(),
+            jsonrpc: "2.0".into(),
             result: Some(serde_json::json!({"status": "success"})),
             error: None,
             id: Some(serde_json::Value::Number(42.into())),
@@ -1020,7 +1017,7 @@ mod tests {
     fn test_a2a_error_serialization() {
         let error = A2AError {
             code: -32603,
-            message: "Internal error".to_string(),
+            message: "Internal error".into(),
             data: Some(serde_json::json!({"details": "Something went wrong"})),
         };
 
@@ -1038,7 +1035,7 @@ mod tests {
     #[test]
     fn test_message_part_serialization() {
         let text_part = MessagePart::Text {
-            content: "Hello, world!".to_string(),
+            content: "Hello, world!".into(),
         };
 
         let json = serde_json::to_string(&text_part).unwrap();
@@ -1054,9 +1051,9 @@ mod tests {
         assert!(json.contains("\"key\":\"value\""));
 
         let file_part = MessagePart::File {
-            name: "test.txt".to_string(),
-            mime_type: "text/plain".to_string(),
-            content: "base64encodedcontent".to_string(),
+            name: "test.txt".into(),
+            mime_type: "text/plain".into(),
+            content: "base64encodedcontent".into(),
         };
 
         let json = serde_json::to_string(&file_part).unwrap();
@@ -1087,14 +1084,14 @@ mod tests {
     #[test]
     fn test_a2a_task_serialization() {
         let task = A2ATask {
-            id: "task_789".to_string(),
+            id: "task_789".into(),
             status: TaskStatus::Running,
             created_at: chrono::Utc::now(),
             completed_at: None,
             result: Some(serde_json::json!({"progress": 50})),
             error: None,
-            client_id: "test_client".to_string(),
-            task_type: "analysis".to_string(),
+            client_id: "test_client".into(),
+            task_type: "analysis".into(),
             input_data: serde_json::json!({"test": "data"}),
             output_data: Some(serde_json::json!({"progress": 50})),
             error_message: None,
@@ -1115,10 +1112,10 @@ mod tests {
     #[test]
     fn test_a2a_message_serialization() {
         let message = A2AMessage {
-            id: "msg_456".to_string(),
+            id: "msg_456".into(),
             parts: vec![
                 MessagePart::Text {
-                    content: "Hello".to_string(),
+                    content: "Hello".into(),
                 },
                 MessagePart::Data {
                     content: serde_json::json!({"count": 42}),
@@ -1126,8 +1123,8 @@ mod tests {
             ],
             metadata: Some({
                 let mut metadata = std::collections::HashMap::new();
-                metadata.insert("priority".to_string(), serde_json::json!("high"));
-                metadata.insert("tags".to_string(), serde_json::json!(["urgent", "ai"]));
+                metadata.insert("priority".into(), serde_json::json!("high"));
+                metadata.insert("tags".into(), serde_json::json!(["urgent", "ai"]));
                 metadata
             }),
         };

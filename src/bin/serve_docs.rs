@@ -1,3 +1,5 @@
+// ABOUTME: Documentation server utility for serving API documentation and project guides
+// ABOUTME: HTTP server for hosting documentation files during development and testing
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -18,7 +20,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
     let port = std::env::var("DOCS_PORT")
-        .unwrap_or_else(|_| "3000".to_string())
+        .unwrap_or_else(|_| "3000".into())
         .parse::<u16>()
         .unwrap_or(3000);
 

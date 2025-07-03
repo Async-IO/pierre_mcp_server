@@ -69,7 +69,7 @@ pub struct LocationService {
 
 impl LocationService {
     pub fn new() -> Self {
-        Self::with_config("https://nominatim.openstreetmap.org".to_string(), true)
+        Self::with_config("https://nominatim.openstreetmap.org".into(), true)
     }
 
     pub fn with_config(base_url: String, enabled: bool) -> Self {
@@ -104,7 +104,7 @@ impl LocationService {
                 natural: None,
                 tourism: None,
                 leisure: None,
-                display_name: "Location service disabled".to_string(),
+                display_name: "Location service disabled".into(),
                 coordinates: (latitude, longitude),
             });
         }
@@ -266,47 +266,44 @@ mod tests {
         let service = LocationService::new();
         let response = NominatimResponse {
             place_id: 12345,
-            licence: "test".to_string(),
-            osm_type: "way".to_string(),
+            licence: "test".into(),
+            osm_type: "way".into(),
             osm_id: 54321,
-            lat: "45.5017".to_string(),
-            lon: "-73.5673".to_string(),
-            display_name: "Trail de la Montagne, Montreal, Quebec, Canada".to_string(),
+            lat: "45.5017".into(),
+            lon: "-73.5673".into(),
+            display_name: "Trail de la Montagne, Montreal, Quebec, Canada".into(),
             address: NominatimAddress {
                 house_number: None,
-                road: Some("Trail de la Montagne".to_string()),
+                road: Some("Trail de la Montagne".into()),
                 suburb: None,
-                city: Some("Montreal".to_string()),
+                city: Some("Montreal".into()),
                 town: None,
                 village: None,
                 county: None,
-                state: Some("Quebec".to_string()),
-                postcode: Some("H3A 0G4".to_string()),
-                country: Some("Canada".to_string()),
-                country_code: Some("ca".to_string()),
+                state: Some("Quebec".into()),
+                postcode: Some("H3A 0G4".into()),
+                country: Some("Canada".into()),
+                country_code: Some("ca".into()),
                 amenity: None,
-                natural: Some("peak".to_string()),
+                natural: Some("peak".into()),
                 tourism: None,
                 leisure: None,
             },
             boundingbox: vec![
-                "45.5000".to_string(),
-                "45.5100".to_string(),
-                "-73.5700".to_string(),
-                "-73.5600".to_string(),
+                "45.5000".into(),
+                "45.5100".into(),
+                "-73.5700".into(),
+                "-73.5600".into(),
             ],
         };
 
         let location = service.parse_nominatim_response(&response, 45.5017, -73.5673);
 
-        assert_eq!(location.city, Some("Montreal".to_string()));
-        assert_eq!(location.region, Some("Quebec".to_string()));
-        assert_eq!(location.country, Some("Canada".to_string()));
-        assert_eq!(
-            location.trail_name,
-            Some("Trail de la Montagne".to_string())
-        );
-        assert_eq!(location.natural, Some("peak".to_string()));
+        assert_eq!(location.city, Some("Montreal".into()));
+        assert_eq!(location.region, Some("Quebec".into()));
+        assert_eq!(location.country, Some("Canada".into()));
+        assert_eq!(location.trail_name, Some("Trail de la Montagne".into()));
+        assert_eq!(location.natural, Some("peak".into()));
         assert_eq!(location.coordinates, (45.5017, -73.5673));
         assert_eq!(
             location.display_name,
@@ -319,43 +316,43 @@ mod tests {
         let service = LocationService::new();
         let response = NominatimResponse {
             place_id: 67890,
-            licence: "test".to_string(),
-            osm_type: "relation".to_string(),
+            licence: "test".into(),
+            osm_type: "relation".into(),
             osm_id: 98765,
-            lat: "45.9224".to_string(),
-            lon: "-74.0679".to_string(),
+            lat: "45.9224".into(),
+            lon: "-74.0679".into(),
             display_name: "Saint-Hippolyte, La Rivière-du-Nord, Laurentides, Québec, Canada"
                 .to_string(),
             address: NominatimAddress {
                 house_number: None,
                 road: None,
                 suburb: None,
-                city: Some("Saint-Hippolyte".to_string()),
+                city: Some("Saint-Hippolyte".into()),
                 town: None,
                 village: None,
-                county: Some("La Rivière-du-Nord".to_string()),
-                state: Some("Québec".to_string()),
+                county: Some("La Rivière-du-Nord".into()),
+                state: Some("Québec".into()),
                 postcode: None,
-                country: Some("Canada".to_string()),
-                country_code: Some("ca".to_string()),
+                country: Some("Canada".into()),
+                country_code: Some("ca".into()),
                 amenity: None,
                 natural: None,
                 tourism: None,
                 leisure: None,
             },
             boundingbox: vec![
-                "45.9000".to_string(),
-                "45.9500".to_string(),
-                "-74.1000".to_string(),
-                "-74.0000".to_string(),
+                "45.9000".into(),
+                "45.9500".into(),
+                "-74.1000".into(),
+                "-74.0000".into(),
             ],
         };
 
         let location = service.parse_nominatim_response(&response, 45.9224, -74.0679);
 
-        assert_eq!(location.city, Some("Saint-Hippolyte".to_string()));
-        assert_eq!(location.region, Some("Québec".to_string()));
-        assert_eq!(location.country, Some("Canada".to_string()));
+        assert_eq!(location.city, Some("Saint-Hippolyte".into()));
+        assert_eq!(location.region, Some("Québec".into()));
+        assert_eq!(location.country, Some("Canada".into()));
         assert_eq!(location.trail_name, None); // No trail in this response
         assert_eq!(location.coordinates, (45.9224, -74.0679));
         assert!(location.display_name.contains("Saint-Hippolyte"));
@@ -366,48 +363,45 @@ mod tests {
         let service = LocationService::new();
         let response = NominatimResponse {
             place_id: 11111,
-            licence: "test".to_string(),
-            osm_type: "way".to_string(),
+            licence: "test".into(),
+            osm_type: "way".into(),
             osm_id: 22222,
-            lat: "45.4000".to_string(),
-            lon: "-73.6000".to_string(),
+            lat: "45.4000".into(),
+            lon: "-73.6000".into(),
             display_name: "Sentier de la Nature, Parc du Mont-Royal, Montreal, Quebec, Canada"
                 .to_string(),
             address: NominatimAddress {
                 house_number: None,
-                road: Some("Sentier de la Nature".to_string()), // French trail name
-                suburb: Some("Parc du Mont-Royal".to_string()),
-                city: Some("Montreal".to_string()),
+                road: Some("Sentier de la Nature".into()), // French trail name
+                suburb: Some("Parc du Mont-Royal".into()),
+                city: Some("Montreal".into()),
                 town: None,
                 village: None,
                 county: None,
-                state: Some("Quebec".to_string()),
+                state: Some("Quebec".into()),
                 postcode: None,
-                country: Some("Canada".to_string()),
-                country_code: Some("ca".to_string()),
+                country: Some("Canada".into()),
+                country_code: Some("ca".into()),
                 amenity: None,
-                natural: Some("forest".to_string()),
+                natural: Some("forest".into()),
                 tourism: None,
                 leisure: None,
             },
             boundingbox: vec![
-                "45.3900".to_string(),
-                "45.4100".to_string(),
-                "-73.6100".to_string(),
-                "-73.5900".to_string(),
+                "45.3900".into(),
+                "45.4100".into(),
+                "-73.6100".into(),
+                "-73.5900".into(),
             ],
         };
 
         let location = service.parse_nominatim_response(&response, 45.4000, -73.6000);
 
-        assert_eq!(location.city, Some("Montreal".to_string()));
-        assert_eq!(location.region, Some("Quebec".to_string()));
-        assert_eq!(location.country, Some("Canada".to_string()));
-        assert_eq!(
-            location.trail_name,
-            Some("Sentier de la Nature".to_string())
-        ); // French "sentier" = trail
-        assert_eq!(location.natural, Some("forest".to_string()));
+        assert_eq!(location.city, Some("Montreal".into()));
+        assert_eq!(location.region, Some("Quebec".into()));
+        assert_eq!(location.country, Some("Canada".into()));
+        assert_eq!(location.trail_name, Some("Sentier de la Nature".into())); // French "sentier" = trail
+        assert_eq!(location.natural, Some("forest".into()));
     }
 
     #[test]
@@ -415,43 +409,43 @@ mod tests {
         let service = LocationService::new();
         let response = NominatimResponse {
             place_id: 33333,
-            licence: "test".to_string(),
-            osm_type: "node".to_string(),
+            licence: "test".into(),
+            osm_type: "node".into(),
             osm_id: 44444,
-            lat: "45.5000".to_string(),
-            lon: "-73.5500".to_string(),
-            display_name: "Downtown, Montreal, Quebec, Canada".to_string(),
+            lat: "45.5000".into(),
+            lon: "-73.5500".into(),
+            display_name: "Downtown, Montreal, Quebec, Canada".into(),
             address: NominatimAddress {
                 house_number: None,
                 road: None,
-                suburb: Some("Downtown".to_string()),
-                city: None,                         // No city field
-                town: Some("Montreal".to_string()), // Use town instead
+                suburb: Some("Downtown".into()),
+                city: None,                    // No city field
+                town: Some("Montreal".into()), // Use town instead
                 village: None,
                 county: None,
-                state: Some("Quebec".to_string()),
-                postcode: Some("H3B 4W5".to_string()),
-                country: Some("Canada".to_string()),
-                country_code: Some("ca".to_string()),
+                state: Some("Quebec".into()),
+                postcode: Some("H3B 4W5".into()),
+                country: Some("Canada".into()),
+                country_code: Some("ca".into()),
                 amenity: None,
                 natural: None,
                 tourism: None,
                 leisure: None,
             },
             boundingbox: vec![
-                "45.4900".to_string(),
-                "45.5100".to_string(),
-                "-73.5600".to_string(),
-                "-73.5400".to_string(),
+                "45.4900".into(),
+                "45.5100".into(),
+                "-73.5600".into(),
+                "-73.5400".into(),
             ],
         };
 
         let location = service.parse_nominatim_response(&response, 45.5000, -73.5500);
 
         // Should fall back to town when city is not available
-        assert_eq!(location.city, Some("Montreal".to_string()));
-        assert_eq!(location.region, Some("Quebec".to_string()));
-        assert_eq!(location.country, Some("Canada".to_string()));
+        assert_eq!(location.city, Some("Montreal".into()));
+        assert_eq!(location.region, Some("Quebec".into()));
+        assert_eq!(location.country, Some("Canada".into()));
         assert_eq!(location.trail_name, None);
     }
 
@@ -469,15 +463,15 @@ mod tests {
 
         // Manually add a cache entry
         let location_data = LocationData {
-            city: Some("Test City".to_string()),
-            region: Some("Test Region".to_string()),
-            country: Some("Test Country".to_string()),
+            city: Some("Test City".into()),
+            region: Some("Test Region".into()),
+            country: Some("Test Country".into()),
             trail_name: None,
             amenity: None,
             natural: None,
             tourism: None,
             leisure: None,
-            display_name: "Test Location".to_string(),
+            display_name: "Test Location".into(),
             coordinates: (45.0, -73.0),
         };
 
@@ -488,7 +482,7 @@ mod tests {
 
         service
             .cache
-            .insert("45.000000,-73.000000".to_string(), cache_entry);
+            .insert("45.000000,-73.000000".into(), cache_entry);
 
         let (total, expired) = service.get_cache_stats();
         assert_eq!(total, 1);
@@ -514,35 +508,30 @@ mod tests {
         for (road_name, should_be_trail) in test_cases {
             let response = NominatimResponse {
                 place_id: 1,
-                licence: "test".to_string(),
-                osm_type: "way".to_string(),
+                licence: "test".into(),
+                osm_type: "way".into(),
                 osm_id: 1,
-                lat: "45.0".to_string(),
-                lon: "-73.0".to_string(),
+                lat: "45.0".into(),
+                lon: "-73.0".into(),
                 display_name: format!("{}, Test City, Test Region, Test Country", road_name),
                 address: NominatimAddress {
                     house_number: None,
                     road: Some(road_name.to_string()),
                     suburb: None,
-                    city: Some("Test City".to_string()),
+                    city: Some("Test City".into()),
                     town: None,
                     village: None,
                     county: None,
-                    state: Some("Test Region".to_string()),
+                    state: Some("Test Region".into()),
                     postcode: None,
-                    country: Some("Test Country".to_string()),
-                    country_code: Some("tc".to_string()),
+                    country: Some("Test Country".into()),
+                    country_code: Some("tc".into()),
                     amenity: None,
                     natural: None,
                     tourism: None,
                     leisure: None,
                 },
-                boundingbox: vec![
-                    "44.9".to_string(),
-                    "45.1".to_string(),
-                    "-73.1".to_string(),
-                    "-72.9".to_string(),
-                ],
+                boundingbox: vec!["44.9".into(), "45.1".into(), "-73.1".into(), "-72.9".into()],
             };
 
             let location = service.parse_nominatim_response(&response, 45.0, -73.0);

@@ -151,7 +151,7 @@ impl DatabaseUrl {
         match self {
             DatabaseUrl::SQLite { path } => format!("sqlite:{}", path.display()),
             DatabaseUrl::PostgreSQL { connection_string } => connection_string.clone(),
-            DatabaseUrl::Memory => "sqlite::memory:".to_string(),
+            DatabaseUrl::Memory => "sqlite::memory:".into(),
         }
     }
 
@@ -585,7 +585,16 @@ impl ServerConfig {
     /// Initialize all configurations including intelligence config
     pub fn init_all_configs(&self) -> Result<()> {
         // Initialize intelligence configuration
-        let _intelligence_config = crate::config::intelligence_config::IntelligenceConfig::global();
+        let intelligence_config = crate::config::intelligence_config::IntelligenceConfig::global();
+
+        // Validate intelligence configuration is properly loaded by accessing a field
+        info!(
+            "Intelligence config initialized successfully (min duration: {}s)",
+            intelligence_config
+                .activity_analyzer
+                .analysis
+                .min_duration_seconds
+        );
 
         info!("All configurations initialized successfully");
         Ok(())
@@ -702,7 +711,7 @@ fn parse_scopes(scopes_str: &str) -> Vec<String> {
 /// Parse comma-separated CORS origins
 fn parse_origins(origins_str: &str) -> Vec<String> {
     if origins_str == "*" {
-        vec!["*".to_string()]
+        vec!["*".into()]
     } else {
         origins_str
             .split(',')
@@ -845,7 +854,7 @@ mod tests {
                 },
             },
             security: SecurityConfig {
-                cors_origins: vec!["*".to_string()],
+                cors_origins: vec!["*".into()],
                 rate_limit: RateLimitConfig {
                     enabled: false,
                     requests_per_window: limits::DEFAULT_RATE_LIMIT_REQUESTS,
@@ -863,22 +872,22 @@ mod tests {
             external_services: ExternalServicesConfig {
                 weather: WeatherServiceConfig {
                     api_key: None,
-                    base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                    base_url: "https://api.openweathermap.org/data/2.5".into(),
                     enabled: false,
                 },
                 geocoding: GeocodingServiceConfig {
-                    base_url: "https://nominatim.openstreetmap.org".to_string(),
+                    base_url: "https://nominatim.openstreetmap.org".into(),
                     enabled: true,
                 },
                 strava_api: StravaApiConfig {
-                    base_url: "https://www.strava.com/api/v3".to_string(),
-                    auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                    token_url: "https://www.strava.com/oauth/token".to_string(),
+                    base_url: "https://www.strava.com/api/v3".into(),
+                    auth_url: "https://www.strava.com/oauth/authorize".into(),
+                    token_url: "https://www.strava.com/oauth/token".into(),
                 },
                 fitbit_api: FitbitApiConfig {
-                    base_url: "https://api.fitbit.com".to_string(),
-                    auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                    token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+                    base_url: "https://api.fitbit.com".into(),
+                    auth_url: "https://www.fitbit.com/oauth2/authorize".into(),
+                    token_url: "https://api.fitbit.com/oauth2/token".into(),
                 },
             },
             app_behavior: AppBehaviorConfig {
@@ -886,9 +895,9 @@ mod tests {
                 default_activities_limit: 20,
                 ci_mode: false,
                 protocol: ProtocolConfig {
-                    mcp_version: "2024-11-05".to_string(),
-                    server_name: "pierre-mcp-server".to_string(),
-                    server_version: "test".to_string(),
+                    mcp_version: "2024-11-05".into(),
+                    server_name: "pierre-mcp-server".into(),
+                    server_version: "test".into(),
                 },
             },
         };

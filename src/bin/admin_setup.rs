@@ -1,6 +1,5 @@
-//! Admin Token Setup Tool
-//!
-//! This binary provides a command-line interface for managing admin tokens
+// ABOUTME: Administrative token setup utility for configuring system admin credentials
+// ABOUTME: Command-line interface for managing admin tokens and administrative access controls
 //! for the Pierre MCP Server. Admin tokens are used by admin services to
 //! provision and manage API keys for users.
 //!
@@ -157,7 +156,7 @@ async fn main() -> Result<()> {
     let database_url = args
         .database_url
         .or_else(|| env::var("DATABASE_URL").ok())
-        .unwrap_or_else(|| "sqlite:./data/users.db".to_string());
+        .unwrap_or_else(|| "sqlite:./data/users.db".into());
 
     let encryption_key = match args
         .encryption_key

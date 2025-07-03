@@ -165,7 +165,7 @@ impl Database {
 
     /// Deactivate an API key
     pub async fn deactivate_api_key(&self, api_key_id: &str, user_id: Uuid) -> Result<()> {
-        let _result = sqlx::query(
+        sqlx::query(
             r#"
             UPDATE api_keys
             SET is_active = 0
@@ -349,9 +349,6 @@ impl Database {
         let successful_requests: i32 = stats.get(1);
         let failed_requests: i32 = stats.get(2);
         let total_response_time: Option<i64> = stats.get(3);
-        let _max_response_time: Option<i32> = stats.get(4);
-        let _total_request_bytes: Option<i64> = stats.get(5);
-        let _total_response_bytes: Option<i64> = stats.get(6);
 
         // Get tool usage aggregation
         let tool_usage_stats = sqlx::query(
@@ -435,8 +432,8 @@ mod tests {
         let user = User {
             id: Uuid::new_v4(),
             email: format!("test_{}@example.com", Uuid::new_v4()),
-            display_name: Some("Test User".to_string()),
-            password_hash: "hashed".to_string(),
+            display_name: Some("Test User".into()),
+            password_hash: "hashed".into(),
             tier: UserTier::Professional,
             strava_token: None,
             fitbit_token: None,
@@ -460,8 +457,8 @@ mod tests {
         // Create API key
         let manager = ApiKeyManager::new();
         let request = crate::api_keys::CreateApiKeyRequest {
-            name: "Test Key".to_string(),
-            description: Some("Test API key".to_string()),
+            name: "Test Key".into(),
+            description: Some("Test API key".into()),
             tier: ApiKeyTier::Professional,
             rate_limit_requests: Some(1000),
             expires_in_days: Some(30),
@@ -500,7 +497,7 @@ mod tests {
         // Create API key
         let manager = ApiKeyManager::new();
         let request = crate::api_keys::CreateApiKeyRequest {
-            name: "Usage Test Key".to_string(),
+            name: "Usage Test Key".into(),
             description: None,
             tier: ApiKeyTier::Starter,
             rate_limit_requests: Some(100),
@@ -521,13 +518,13 @@ mod tests {
             id: None,
             api_key_id: api_key.id.clone(),
             timestamp: Utc::now(),
-            tool_name: "get_activities".to_string(),
+            tool_name: "get_activities".into(),
             status_code: 200,
             response_time_ms: Some(50),
             request_size_bytes: Some(256),
             response_size_bytes: Some(1024),
             ip_address: Some(crate::constants::demo_data::TEST_IP_ADDRESS.to_string()),
-            user_agent: Some("TestAgent/1.0".to_string()),
+            user_agent: Some("TestAgent/1.0".into()),
             error_message: None,
         };
 

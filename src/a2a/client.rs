@@ -178,7 +178,7 @@ impl A2AClientManager {
             redirect_uris: request.redirect_uris.clone(),
             is_active: true,
             created_at: chrono::Utc::now(),
-            permissions: vec!["read_activities".to_string()], // Default permissions
+            permissions: vec!["read_activities".into()], // Default permissions
             rate_limit_requests: 1000,
             rate_limit_window_seconds: 3600,
             updated_at: chrono::Utc::now(),
@@ -201,7 +201,7 @@ impl A2AClientManager {
             api_key,
             public_key: keypair.public_key,
             private_key: keypair.private_key,
-            key_type: "ed25519".to_string(),
+            key_type: "ed25519".into(),
         })
     }
 
@@ -212,13 +212,13 @@ impl A2AClientManager {
     ) -> Result<(), crate::a2a::A2AError> {
         if request.name.is_empty() {
             return Err(crate::a2a::A2AError::InvalidRequest(
-                "Client name is required".to_string(),
+                "Client name is required".into(),
             ));
         }
 
         if request.capabilities.is_empty() {
             return Err(crate::a2a::A2AError::InvalidRequest(
-                "At least one capability is required".to_string(),
+                "At least one capability is required".into(),
             ));
         }
 
@@ -249,7 +249,7 @@ impl A2AClientManager {
         &self,
         client: &A2AClient,
         client_secret: &str,
-        _api_key: &str,
+        api_key_for_link: &str,
         system_user_id: Uuid,
     ) -> Result<(), crate::a2a::A2AError> {
         // Create API key using the proper system user
@@ -263,7 +263,7 @@ impl A2AClientManager {
             expires_in_days: None,                           // No expiration
         };
 
-        let (api_key_obj, _generated_key) = api_key_manager
+        let (api_key_obj, generated_key) = api_key_manager
             .create_api_key(system_user_id, request)
             .await
             .map_err(|e| {
@@ -278,6 +278,16 @@ impl A2AClientManager {
                 crate::a2a::A2AError::InternalError(format!("Failed to store API key: {}", e))
             })?;
 
+        // Log the generated API key for audit purposes
+        tracing::debug!(
+            "Generated API key: {} (hidden for security)",
+            if generated_key.len() > 8 {
+                &generated_key[..8]
+            } else {
+                "[too_short]"
+            }
+        );
+
         // Create A2A client entry linked to the API key
         self.database
             .create_a2a_client(client, client_secret, &api_key_obj.id)
@@ -290,6 +300,7 @@ impl A2AClientManager {
             client_id = %client.id,
             client_name = %client.name,
             system_user_id = %system_user_id,
+            api_key_link = %api_key_for_link,
             "A2A client stored securely in database"
         );
         Ok(())
@@ -335,8 +346,7 @@ impl A2AClientManager {
     /// Deactivate a client
     pub async fn deactivate_client(&self, client_id: &str) -> Result<(), crate::a2a::A2AError> {
         // First verify the client exists
-        let _client = self
-            .get_client(client_id)
+        self.get_client(client_id)
             .await?
             .ok_or_else(|| crate::a2a::A2AError::ClientNotRegistered(client_id.to_string()))?;
 
@@ -431,7 +441,7 @@ impl A2AClientManager {
             requests_this_month,
             total_requests: total_stats.total_requests as u64,
             last_request_at,
-            rate_limit_tier: "professional".to_string(), // Default for A2A clients
+            rate_limit_tier: "professional".into(), // Default for A2A clients
         })
     }
 
@@ -442,7 +452,7 @@ impl A2AClientManager {
         user_id: Option<&str>,
     ) -> Result<String, crate::a2a::A2AError> {
         let user_uuid = user_id.and_then(|id| uuid::Uuid::parse_str(id).ok());
-        let granted_scopes = vec!["fitness:read".to_string(), "analytics:read".to_string()];
+        let granted_scopes = vec!["fitness:read".into(), "analytics:read".into()];
 
         let session_token = self
             .database
@@ -569,7 +579,7 @@ impl A2AClientManager {
             response_size_bytes: params.response_size_bytes,
             ip_address: params.ip_address,
             user_agent: params.user_agent,
-            protocol_version: "1.0".to_string(),
+            protocol_version: "1.0".into(),
             client_capabilities: params.client_capabilities,
             granted_scopes: params.granted_scopes,
         };
@@ -703,7 +713,7 @@ impl A2AClientManager {
                 api_key: format!("a2a_{}", client_id),
                 public_key,
                 private_key: String::new(), // Never expose private keys
-                key_type: "ed25519".to_string(),
+                key_type: "ed25519".into(),
             };
 
             Ok(Some(credentials))
@@ -725,9 +735,13 @@ mod tests {
     #[tokio::test]
     async fn test_client_manager_creation() {
         let database = create_test_database().await;
-        let _manager = A2AClientManager::new(database);
+        let manager = A2AClientManager::new(database);
 
-        // Should create without errors
+        // Should create without errors - manager created successfully
+        assert!(matches!(
+            manager.database.database_type(),
+            crate::database_plugins::factory::DatabaseType::SQLite
+        ));
     }
 
     #[tokio::test]
@@ -737,11 +751,11 @@ mod tests {
 
         // Valid request
         let valid_request = ClientRegistrationRequest {
-            name: "Test Client".to_string(),
-            description: "A test client".to_string(),
-            capabilities: vec!["fitness-data-analysis".to_string()],
-            redirect_uris: vec!["https://example.com/callback".to_string()],
-            contact_email: "test@example.com".to_string(),
+            name: "Test Client".into(),
+            description: "A test client".into(),
+            capabilities: vec!["fitness-data-analysis".into()],
+            redirect_uris: vec!["https://example.com/callback".into()],
+            contact_email: "test@example.com".into(),
         };
 
         assert!(manager
@@ -750,11 +764,11 @@ mod tests {
 
         // Invalid request - empty name
         let invalid_request = ClientRegistrationRequest {
-            name: "".to_string(),
-            description: "A test client".to_string(),
-            capabilities: vec!["fitness-data-analysis".to_string()],
+            name: "".into(),
+            description: "A test client".into(),
+            capabilities: vec!["fitness-data-analysis".into()],
             redirect_uris: vec![],
-            contact_email: "test@example.com".to_string(),
+            contact_email: "test@example.com".into(),
         };
 
         assert!(manager
@@ -763,11 +777,11 @@ mod tests {
 
         // Invalid request - unknown capability
         let invalid_capability_request = ClientRegistrationRequest {
-            name: "Test Client".to_string(),
-            description: "A test client".to_string(),
-            capabilities: vec!["unknown-capability".to_string()],
+            name: "Test Client".into(),
+            description: "A test client".into(),
+            capabilities: vec!["unknown-capability".into()],
             redirect_uris: vec![],
-            contact_email: "test@example.com".to_string(),
+            contact_email: "test@example.com".into(),
         };
 
         assert!(manager
@@ -782,11 +796,11 @@ mod tests {
 
         // First, create a test client
         let client_request = ClientRegistrationRequest {
-            name: "Test Client".to_string(),
-            description: "A test client".to_string(),
-            capabilities: vec!["fitness-data-analysis".to_string()],
+            name: "Test Client".into(),
+            description: "A test client".into(),
+            capabilities: vec!["fitness-data-analysis".into()],
             redirect_uris: vec![],
-            contact_email: "test@example.com".to_string(),
+            contact_email: "test@example.com".into(),
         };
 
         let credentials = manager.register_client(client_request).await.unwrap();
@@ -813,20 +827,23 @@ mod tests {
 
         // First, create a test client
         let client_request = ClientRegistrationRequest {
-            name: "Test Client 2".to_string(),
-            description: "Another test client".to_string(),
-            capabilities: vec!["fitness-data-analysis".to_string()],
+            name: "Test Client 2".into(),
+            description: "Another test client".into(),
+            capabilities: vec!["fitness-data-analysis".into()],
             redirect_uris: vec![],
-            contact_email: "test2@example.com".to_string(),
+            contact_email: "test2@example.com".into(),
         };
 
         let credentials = manager.register_client(client_request).await.unwrap();
 
         // Create session with the actual client ID
-        let _session_id = manager
+        let session_id = manager
             .create_session(&credentials.client_id, Some("test_user"))
             .await
             .unwrap();
+
+        // Verify session was created
+        assert!(!session_id.is_empty());
 
         // Simplified test since we're using database storage now
 
@@ -845,11 +862,11 @@ mod tests {
 
         // First, create a test client
         let client_request = ClientRegistrationRequest {
-            name: "Usage Test Client".to_string(),
-            description: "A client for testing usage tracking".to_string(),
-            capabilities: vec!["fitness-data-analysis".to_string()],
+            name: "Usage Test Client".into(),
+            description: "A client for testing usage tracking".into(),
+            capabilities: vec!["fitness-data-analysis".into()],
             redirect_uris: vec![],
-            contact_email: "usage@example.com".to_string(),
+            contact_email: "usage@example.com".into(),
         };
 
         let credentials = manager.register_client(client_request).await.unwrap();
@@ -870,16 +887,16 @@ mod tests {
         let usage_params = crate::a2a::client::A2AUsageParams {
             client_id: credentials.client_id.clone(),
             session_token: Some(session_token),
-            tool_name: "analyze_activity".to_string(),
+            tool_name: "analyze_activity".into(),
             response_time_ms: Some(150),
             status_code: 200,
             error_message: None,
             request_size_bytes: Some(256),
             response_size_bytes: Some(512),
-            ip_address: Some("127.0.0.1".to_string()),
-            user_agent: Some("test-agent/1.0".to_string()),
-            client_capabilities: vec!["fitness-data-analysis".to_string()],
-            granted_scopes: vec!["fitness:read".to_string()],
+            ip_address: Some("127.0.0.1".into()),
+            user_agent: Some("test-agent/1.0".into()),
+            client_capabilities: vec!["fitness-data-analysis".into()],
+            granted_scopes: vec!["fitness:read".into()],
         };
         let result = manager.record_detailed_usage(usage_params).await;
 

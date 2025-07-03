@@ -276,7 +276,7 @@ impl ConfigurationRoutes {
         ResponseMetadata {
             timestamp: chrono::Utc::now(),
             processing_time_ms: Some(processing_start.elapsed().as_millis() as u64),
-            api_version: "1.0.0".to_string(),
+            api_version: "1.0.0".into(),
         }
     }
 
@@ -313,22 +313,22 @@ impl ConfigurationRoutes {
                 let profile_type = profile.name();
                 let description = match &profile {
                     ConfigProfile::Default => {
-                        "Standard configuration with default thresholds".to_string()
+                        "Standard configuration with default thresholds".into()
                     }
                     ConfigProfile::Research { .. } => {
-                        "Research-grade detailed analysis with high sensitivity".to_string()
+                        "Research-grade detailed analysis with high sensitivity".into()
                     }
                     ConfigProfile::Elite { .. } => {
-                        "Elite athlete profile with strict performance standards".to_string()
+                        "Elite athlete profile with strict performance standards".into()
                     }
                     ConfigProfile::Recreational { .. } => {
-                        "Recreational athlete with forgiving analysis".to_string()
+                        "Recreational athlete with forgiving analysis".into()
                     }
                     ConfigProfile::Beginner { .. } => {
-                        "Beginner-friendly with reduced thresholds".to_string()
+                        "Beginner-friendly with reduced thresholds".into()
                     }
                     ConfigProfile::Medical { .. } => {
-                        "Medical/rehabilitation with conservative limits".to_string()
+                        "Medical/rehabilitation with conservative limits".into()
                     }
                     ConfigProfile::SportSpecific { sport, .. } => {
                         format!("Sport-specific optimization for {}", sport)
@@ -478,7 +478,10 @@ impl ConfigurationRoutes {
         request: PersonalizedZonesRequest,
     ) -> Result<PersonalizedZonesResponse> {
         let processing_start = std::time::Instant::now();
-        let _user_id = self.authenticate_user(auth_header).await?;
+        let user_id = self.authenticate_user(auth_header).await?;
+
+        // Log personalized zones request
+        tracing::debug!("Generating personalized zones for user {}", user_id);
 
         let resting_hr = request.resting_hr.unwrap_or(60);
         let max_hr = request.max_hr.unwrap_or(190);
@@ -515,9 +518,9 @@ impl ConfigurationRoutes {
                 estimated_ftp: ftp,
             },
             zone_calculations: ZoneCalculationMethods {
-                method: "Karvonen method with VO2 max adjustments".to_string(),
-                pace_formula: "Jack Daniels VDOT".to_string(),
-                power_estimation: "VO2 max derived FTP".to_string(),
+                method: "Karvonen method with VO2 max adjustments".into(),
+                pace_formula: "Jack Daniels VDOT".into(),
+                power_estimation: "VO2 max derived FTP".into(),
             },
             metadata: Self::create_metadata(processing_start),
         })
@@ -567,15 +570,15 @@ impl ConfigurationRoutes {
 
         let safety_checks = if validation_result.is_valid {
             SafetyChecks {
-                physiological_limits: "All parameters within safe ranges".to_string(),
-                relationship_constraints: "Parameter relationships validated".to_string(),
-                scientific_bounds: "Values conform to sports science literature".to_string(),
+                physiological_limits: "All parameters within safe ranges".into(),
+                relationship_constraints: "Parameter relationships validated".into(),
+                scientific_bounds: "Values conform to sports science literature".into(),
             }
         } else {
             SafetyChecks {
-                physiological_limits: "Some parameters outside safe ranges".to_string(),
-                relationship_constraints: "Parameter relationship violations detected".to_string(),
-                scientific_bounds: "Values do not conform to scientific limits".to_string(),
+                physiological_limits: "Some parameters outside safe ranges".into(),
+                relationship_constraints: "Parameter relationship violations detected".into(),
+                scientific_bounds: "Values do not conform to scientific limits".into(),
             }
         };
 

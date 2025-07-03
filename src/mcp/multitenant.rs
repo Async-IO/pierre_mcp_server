@@ -91,8 +91,11 @@ impl MultiTenantMcpServer {
         let auth_manager = self.auth_manager.clone();
 
         // Create route handlers
-        let _auth_routes = AuthRoutes::new((*database).clone(), (*auth_manager).clone());
-        let _oauth_routes = OAuthRoutes::new((*database).clone());
+        let auth_routes = AuthRoutes::new((*database).clone(), (*auth_manager).clone());
+        let oauth_routes = OAuthRoutes::new((*database).clone());
+
+        // Validate route handlers are properly initialized
+        tracing::debug!("Initialized auth and OAuth route handlers for multi-tenant server - auth routes: {:p}, oauth routes: {:p}", &auth_routes, &oauth_routes);
 
         // Start HTTP server for auth endpoints in background
         let http_port = port + 1; // Use port+1 for HTTP
@@ -153,7 +156,7 @@ impl MultiTenantMcpServer {
             b"fallback_secret".to_vec()
         };
         let jwt_secret_str =
-            String::from_utf8(jwt_secret).unwrap_or_else(|_| "fallback_secret".to_string());
+            String::from_utf8(jwt_secret).unwrap_or_else(|_| "fallback_secret".into());
 
         let admin_context = crate::admin_routes::AdminApiContext::new(
             database.as_ref().clone(),
@@ -1197,7 +1200,7 @@ impl MultiTenantMcpServer {
                 result: None,
                 error: Some(McpError {
                     code: ERROR_METHOD_NOT_FOUND,
-                    message: "Method not found".to_string(),
+                    message: "Method not found".into(),
                     data: None,
                 }),
                 id: request.id,
@@ -1227,7 +1230,7 @@ impl MultiTenantMcpServer {
                 result: None,
                 error: Some(McpError {
                     code: ERROR_INVALID_PARAMS,
-                    message: "Invalid authentication request".to_string(),
+                    message: "Invalid authentication request".into(),
                     data: None,
                 }),
                 id: request.id,
@@ -1664,7 +1667,16 @@ impl MultiTenantMcpServer {
                 }
             }
             ANALYZE_GOAL_FEASIBILITY => {
-                let _goal_data = args.clone();
+                let goal_data = args.clone();
+
+                // Log goal analysis request
+                tracing::debug!("Analyzing goal feasibility for user {}", user_id);
+                if let Some(goal_type) = goal_data.get("goal_type") {
+                    tracing::debug!("Goal type: {}", goal_type);
+                }
+                if let Some(target_value) = goal_data.get("target_value") {
+                    tracing::debug!("Target value: {}", target_value);
+                }
 
                 let response = serde_json::json!({
                     "feasibility_analysis": {
@@ -1888,8 +1900,16 @@ impl MultiTenantMcpServer {
             },
             GET_ACTIVITY_INTELLIGENCE => {
                 let activity_id = args[ACTIVITY_ID].as_str().unwrap_or("");
-                let _include_weather = args["include_weather"].as_bool().unwrap_or(true);
+                let include_weather = args["include_weather"].as_bool().unwrap_or(true);
                 let include_location = args["include_location"].as_bool().unwrap_or(true);
+
+                // Log intelligence request parameters
+                tracing::debug!(
+                    "Generating activity intelligence for activity {} (weather: {}, location: {})",
+                    activity_id,
+                    include_weather,
+                    include_location
+                );
 
                 // Get activities from provider
                 match provider.get_activities(Some(100), None).await {
@@ -2044,7 +2064,7 @@ impl MultiTenantMcpServer {
                                         if let Some(distance) = activity.distance_meters {
                                             format!("Covered {:.1} km", distance / 1000.0)
                                         } else {
-                                            "Distance tracking not available".to_string()
+                                            "Distance tracking not available".into()
                                         }
                                     ]
                                 }
@@ -2206,7 +2226,7 @@ impl MultiTenantMcpServer {
                                 result: None,
                                 error: Some(McpError {
                                     code: ERROR_INVALID_PARAMS,
-                                    message: "One or both activities not found".to_string(),
+                                    message: "One or both activities not found".into(),
                                     data: None,
                                 }),
                                 id,
@@ -2597,7 +2617,7 @@ fn with_cors_headers(
     let csp_value = headers
         .get("Content-Security-Policy")
         .cloned()
-        .unwrap_or_else(|| "default-src 'self'".to_string());
+        .unwrap_or_else(|| "default-src 'self'".into());
 
     warp::reply::with_header(
         warp::reply::with_header(

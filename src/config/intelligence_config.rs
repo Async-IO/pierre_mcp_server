@@ -380,9 +380,7 @@ impl IntelligenceConfig<true> {
         if let Ok(val) = std::env::var("INTELLIGENCE_RECOMMENDATION_LOW_DISTANCE") {
             self.recommendation_engine.thresholds.low_weekly_distance_km =
                 val.parse().map_err(|_| {
-                    ConfigError::Parse(
-                        "Invalid INTELLIGENCE_RECOMMENDATION_LOW_DISTANCE".to_string(),
-                    )
+                    ConfigError::Parse("Invalid INTELLIGENCE_RECOMMENDATION_LOW_DISTANCE".into())
                 })?;
         }
 
@@ -390,20 +388,20 @@ impl IntelligenceConfig<true> {
             self.recommendation_engine
                 .thresholds
                 .high_weekly_distance_km = val.parse().map_err(|_| {
-                ConfigError::Parse("Invalid INTELLIGENCE_RECOMMENDATION_HIGH_DISTANCE".to_string())
+                ConfigError::Parse("Invalid INTELLIGENCE_RECOMMENDATION_HIGH_DISTANCE".into())
             })?;
         }
 
         // Weather analysis overrides
         if let Ok(val) = std::env::var("INTELLIGENCE_WEATHER_IDEAL_MIN_TEMP") {
             self.weather_analysis.temperature.ideal_min_celsius = val.parse().map_err(|_| {
-                ConfigError::Parse("Invalid INTELLIGENCE_WEATHER_IDEAL_MIN_TEMP".to_string())
+                ConfigError::Parse("Invalid INTELLIGENCE_WEATHER_IDEAL_MIN_TEMP".into())
             })?;
         }
 
         if let Ok(val) = std::env::var("INTELLIGENCE_WEATHER_IDEAL_MAX_TEMP") {
             self.weather_analysis.temperature.ideal_max_celsius = val.parse().map_err(|_| {
-                ConfigError::Parse("Invalid INTELLIGENCE_WEATHER_IDEAL_MAX_TEMP".to_string())
+                ConfigError::Parse("Invalid INTELLIGENCE_WEATHER_IDEAL_MAX_TEMP".into())
             })?;
         }
 
@@ -439,12 +437,12 @@ impl Default for IntelligenceConfig<true> {
                     min_confidence_threshold: 0.6,
                 },
                 messages: RecommendationMessages {
-                    low_distance: "Consider gradually increasing your weekly distance".to_string(),
-                    high_distance: "You're covering good distance - focus on quality".to_string(),
-                    low_frequency: "Try to add one more training session per week".to_string(),
+                    low_distance: "Consider gradually increasing your weekly distance".into(),
+                    high_distance: "You're covering good distance - focus on quality".into(),
+                    low_frequency: "Try to add one more training session per week".into(),
                     high_frequency: "You're training frequently - ensure adequate recovery"
                         .to_string(),
-                    pace_improvement: "Focus on tempo runs to improve your pace".to_string(),
+                    pace_improvement: "Focus on tempo runs to improve your pace".into(),
                     consistency_improvement: "Try to maintain a more consistent training schedule"
                         .to_string(),
                     recovery_needed: "Consider adding more recovery time between sessions"
@@ -566,9 +564,9 @@ impl Default for IntelligenceConfig<true> {
                     min_pace_min_per_km: 2.0,
                 },
                 aggregation: MetricsAggregationConfig {
-                    weekly_aggregation_method: "average".to_string(),
-                    monthly_aggregation_method: "weighted_average".to_string(),
-                    trend_calculation_method: "linear_regression".to_string(),
+                    weekly_aggregation_method: "average".into(),
+                    monthly_aggregation_method: "weighted_average".into(),
+                    trend_calculation_method: "linear_regression".into(),
                 },
             },
             _phantom: PhantomData,

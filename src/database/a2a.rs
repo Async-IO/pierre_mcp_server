@@ -58,6 +58,8 @@ impl Database {
                 public_key TEXT NOT NULL,
                 client_secret TEXT NOT NULL,
                 permissions TEXT NOT NULL,
+                capabilities TEXT NOT NULL DEFAULT '[]',
+                redirect_uris TEXT NOT NULL DEFAULT '[]',
                 rate_limit_requests INTEGER NOT NULL DEFAULT 1000,
                 rate_limit_window_seconds INTEGER NOT NULL DEFAULT 3600,
                 is_active BOOLEAN NOT NULL DEFAULT 1,
@@ -69,6 +71,25 @@ impl Database {
         )
         .execute(&self.pool)
         .await?;
+
+        // Add capabilities and redirect_uris columns if they don't exist (migration)
+        sqlx::query(
+            r#"
+            ALTER TABLE a2a_clients ADD COLUMN capabilities TEXT DEFAULT '[]'
+            "#,
+        )
+        .execute(&self.pool)
+        .await
+        .ok(); // Ignore error if column already exists
+
+        sqlx::query(
+            r#"
+            ALTER TABLE a2a_clients ADD COLUMN redirect_uris TEXT DEFAULT '[]'
+            "#,
+        )
+        .execute(&self.pool)
+        .await
+        .ok(); // Ignore error if column already exists
 
         // Create a2a_sessions table
         sqlx::query(
@@ -190,9 +211,10 @@ impl Database {
             r#"
             INSERT INTO a2a_clients (
                 id, name, description, public_key, client_secret, permissions,
+                capabilities, redirect_uris,
                 rate_limit_requests, rate_limit_window_seconds, is_active,
                 created_at, updated_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
             "#,
         )
         .bind(&client.id)
@@ -201,6 +223,8 @@ impl Database {
         .bind(&client.public_key)
         .bind(client_secret)
         .bind(serde_json::to_string(&client.permissions)?)
+        .bind(serde_json::to_string(&client.capabilities)?)
+        .bind(serde_json::to_string(&client.redirect_uris)?)
         .bind(client.rate_limit_requests as i32)
         .bind(client.rate_limit_window_seconds as i32)
         .bind(client.is_active)
@@ -235,7 +259,7 @@ impl Database {
     pub async fn get_a2a_client(&self, client_id: &str) -> Result<Option<A2AClient>> {
         let row = sqlx::query(
             r#"
-            SELECT id, name, description, public_key, permissions,
+            SELECT id, name, description, public_key, permissions, capabilities, redirect_uris,
                    rate_limit_requests, rate_limit_window_seconds, is_active,
                    created_at, updated_at
             FROM a2a_clients
@@ -250,13 +274,20 @@ impl Database {
             let permissions_json: String = row.get("permissions");
             let permissions = serde_json::from_str(&permissions_json)?;
 
+            let capabilities_json: String = row.get("capabilities");
+            let capabilities = serde_json::from_str(&capabilities_json).unwrap_or_else(|_| vec![]); // Default to empty vec if parsing fails
+
+            let redirect_uris_json: String = row.get("redirect_uris");
+            let redirect_uris =
+                serde_json::from_str(&redirect_uris_json).unwrap_or_else(|_| vec![]); // Default to empty vec if parsing fails
+
             Ok(Some(A2AClient {
                 id: row.get("id"),
                 name: row.get("name"),
                 description: row.get("description"),
                 public_key: row.get("public_key"),
-                capabilities: vec![],  // Map from permissions or set default
-                redirect_uris: vec![], // Set default
+                capabilities,
+                redirect_uris,
                 is_active: row.get("is_active"),
                 created_at: row.get("created_at"),
                 permissions,
@@ -274,7 +305,7 @@ impl Database {
         let rows = if user_id == &Uuid::nil() {
             // Admin/system-wide query - list all active A2A clients
             let query = r#"
-                SELECT c.id, c.name, c.description, c.public_key, c.permissions,
+                SELECT c.id, c.name, c.description, c.public_key, c.permissions, c.capabilities, c.redirect_uris,
                        c.rate_limit_requests, c.rate_limit_window_seconds, c.is_active,
                        c.created_at, c.updated_at
                 FROM a2a_clients c 
@@ -286,7 +317,7 @@ impl Database {
         } else {
             // User-specific query - filter by user_id through their associated API keys
             let query = r#"
-                SELECT DISTINCT c.id, c.name, c.description, c.public_key, c.permissions,
+                SELECT DISTINCT c.id, c.name, c.description, c.public_key, c.permissions, c.capabilities, c.redirect_uris,
                        c.rate_limit_requests, c.rate_limit_window_seconds, c.is_active,
                        c.created_at, c.updated_at
                 FROM a2a_clients c 
@@ -307,13 +338,20 @@ impl Database {
             let permissions_json: String = row.get("permissions");
             let permissions = serde_json::from_str(&permissions_json)?;
 
+            let capabilities_json: String = row.get("capabilities");
+            let capabilities = serde_json::from_str(&capabilities_json).unwrap_or_else(|_| vec![]); // Default to empty vec if parsing fails
+
+            let redirect_uris_json: String = row.get("redirect_uris");
+            let redirect_uris =
+                serde_json::from_str(&redirect_uris_json).unwrap_or_else(|_| vec![]); // Default to empty vec if parsing fails
+
             clients.push(A2AClient {
                 id: row.get("id"),
                 name: row.get("name"),
                 description: row.get("description"),
                 public_key: row.get("public_key"),
-                capabilities: vec![],  // Map from permissions or set default
-                redirect_uris: vec![], // Set default
+                capabilities,
+                redirect_uris,
                 is_active: row.get("is_active"),
                 created_at: row.get("created_at"),
                 permissions,
@@ -395,7 +433,7 @@ impl Database {
     pub async fn get_a2a_client_by_name(&self, name: &str) -> Result<Option<A2AClient>> {
         let row = sqlx::query(
             r#"
-            SELECT id, name, description, public_key, permissions,
+            SELECT id, name, description, public_key, permissions, capabilities, redirect_uris,
                    rate_limit_requests, rate_limit_window_seconds, is_active,
                    created_at, updated_at
             FROM a2a_clients
@@ -410,13 +448,20 @@ impl Database {
             let permissions_json: String = row.get("permissions");
             let permissions = serde_json::from_str(&permissions_json)?;
 
+            let capabilities_json: String = row.get("capabilities");
+            let capabilities = serde_json::from_str(&capabilities_json).unwrap_or_else(|_| vec![]); // Default to empty vec if parsing fails
+
+            let redirect_uris_json: String = row.get("redirect_uris");
+            let redirect_uris =
+                serde_json::from_str(&redirect_uris_json).unwrap_or_else(|_| vec![]); // Default to empty vec if parsing fails
+
             Ok(Some(A2AClient {
                 id: row.get("id"),
                 name: row.get("name"),
                 description: row.get("description"),
                 public_key: row.get("public_key"),
-                capabilities: vec![],  // Map from permissions or set default
-                redirect_uris: vec![], // Set default
+                capabilities,
+                redirect_uris,
                 is_active: row.get("is_active"),
                 created_at: row.get("created_at"),
                 permissions,
@@ -848,7 +893,7 @@ mod tests {
             id: test_user_id,
             email: format!("test_{}@example.com", unique_id),
             display_name: Some(format!("Test User {}", unique_id)),
-            password_hash: "dummy_hash".to_string(),
+            password_hash: format!("test_hash_{}", unique_id),
             tier: crate::models::UserTier::Professional,
             strava_token: None,
             fitbit_token: None,
@@ -865,9 +910,9 @@ mod tests {
             id: format!("test_api_key_{}", unique_id),
             user_id: test_user_id,
             name: format!("Test API Key {}", unique_id),
-            description: Some("Test API key for A2A client".to_string()),
+            description: Some("Test API key for A2A client".into()),
             key_prefix: format!("pk_test_{}", &unique_id.to_string()[0..8]),
-            key_hash: "dummy_hash".to_string(),
+            key_hash: format!("test_key_hash_{}", unique_id),
             tier: crate::api_keys::ApiKeyTier::Professional,
             rate_limit_requests: 1000,
             rate_limit_window_seconds: 3600,
@@ -885,9 +930,9 @@ mod tests {
             name: format!("Test Client {}", unique_id),
             description: format!("Test A2A client {}", unique_id),
             public_key: format!("test_public_key_{}", unique_id), // Make unique
-            capabilities: vec!["fitness-data-analysis".to_string()],
-            redirect_uris: vec!["https://test.example.com".to_string()],
-            permissions: vec!["read_activities".to_string(), "write_goals".to_string()],
+            capabilities: vec!["fitness-data-analysis".into()],
+            redirect_uris: vec!["https://test.example.com".into()],
+            permissions: vec!["read_activities".into(), "write_goals".into()],
             rate_limit_requests: 1000,
             rate_limit_window_seconds: 3600,
             is_active: true,
@@ -948,7 +993,7 @@ mod tests {
             id: format!("session_{}", Uuid::new_v4()),
             client_id: client.id.clone(),
             user_id: None, // No user association for this test
-            granted_scopes: vec!["read".to_string(), "write".to_string()],
+            granted_scopes: vec!["read".into(), "write".into()],
             expires_at: Utc::now() + chrono::Duration::hours(1),
             last_activity: Utc::now(),
             created_at: Utc::now(),
@@ -1004,7 +1049,7 @@ mod tests {
         let task = A2ATask {
             id: format!("task_{}", Uuid::new_v4()),
             client_id: client.id.clone(),
-            task_type: "analysis".to_string(),
+            task_type: "analysis".into(),
             input_data: serde_json::json!({"data": "test"}),
             output_data: None,
             status: TaskStatus::Pending,
@@ -1063,17 +1108,17 @@ mod tests {
             client_id: client.id.clone(),
             session_token: None, // No session for this test
             timestamp: Utc::now(),
-            tool_name: "analyze".to_string(),
+            tool_name: "analyze".into(),
             request_size_bytes: Some(256),
             response_size_bytes: Some(512),
             response_time_ms: Some(100),
             status_code: 200,
             error_message: None,
             ip_address: Some(crate::constants::demo_data::TEST_IP_ADDRESS.to_string()),
-            user_agent: Some("test-agent".to_string()),
-            protocol_version: "1.0".to_string(),
-            client_capabilities: vec!["analysis".to_string()],
-            granted_scopes: vec!["read".to_string()],
+            user_agent: Some("test-agent".into()),
+            protocol_version: "1.0".into(),
+            client_capabilities: vec!["analysis".into()],
+            granted_scopes: vec!["read".into()],
         };
 
         db.record_a2a_usage(&usage)

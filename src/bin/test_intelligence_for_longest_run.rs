@@ -1,4 +1,5 @@
-// Test Activity Intelligence for the longest 2025 run
+// ABOUTME: Intelligence analysis utility for testing AI insights on longest running activities
+// ABOUTME: Validates fitness intelligence algorithms using peak performance activity data
 use anyhow::Result;
 use serde_json::{json, Value};
 use std::io::{BufRead, BufReader, Write};
@@ -33,8 +34,20 @@ fn main() -> Result<()> {
 
     let mut line = String::new();
     reader.read_line(&mut line)?;
-    let _init_response: Value = serde_json::from_str(&line)?;
+    let init_response: Value = serde_json::from_str(&line)?;
     println!("✅ MCP connection initialized");
+
+    // Validate initialization response
+    if let Some(result) = init_response.get("result") {
+        if let Some(server_info) = result.get("serverInfo") {
+            if let Some(name) = server_info.get("name") {
+                println!("   Server: {}", name);
+            }
+            if let Some(version) = server_info.get("version") {
+                println!("   Version: {}", version);
+            }
+        }
+    }
 
     // Get activities to find the longest 2025 run
     println!("\n📊 Retrieving activities to find longest 2025 run...");

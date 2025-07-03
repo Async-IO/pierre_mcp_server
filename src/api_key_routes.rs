@@ -121,7 +121,7 @@ impl ApiKeyRoutes {
         Ok(ApiKeyCreateResponse {
             api_key: full_key,
             key_info,
-            warning: "Store this API key securely. It will not be shown again.".to_string(),
+            warning: "Store this API key securely. It will not be shown again.".into(),
         })
     }
 
@@ -157,7 +157,7 @@ impl ApiKeyRoutes {
         Ok(ApiKeyCreateResponse {
             api_key: full_key,
             key_info,
-            warning: "Store this API key securely. It will not be shown again.".to_string(),
+            warning: "Store this API key securely. It will not be shown again.".into(),
         })
     }
 
@@ -272,7 +272,7 @@ impl ApiKeyRoutes {
                 "This is a trial API key that will expire on {}. Store it securely - it cannot be recovered once lost.",
                 api_key.expires_at
                     .map(|d| d.format("%Y-%m-%d").to_string())
-                    .unwrap_or_else(|| "N/A".to_string())
+                    .unwrap_or_else(|| "N/A".into())
             ),
         })
     }

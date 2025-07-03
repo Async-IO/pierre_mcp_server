@@ -382,8 +382,8 @@ async fn handle_provision_api_key(
                 id: Uuid::new_v4(),
                 email: request.user_email.clone(),
                 display_name: Some(format!("API User ({})", request.user_email)),
-                password_hash: "api-key-only".to_string(), // API-only user
-                tier: crate::models::UserTier::Starter,    // Default tier for API users
+                password_hash: "api-key-only".into(), // API-only user
+                tier: crate::models::UserTier::Starter, // Default tier for API users
                 strava_token: None,
                 fitbit_token: None,
                 is_active: true,
@@ -574,7 +574,7 @@ async fn handle_revoke_api_key(
                 data: Some(serde_json::json!({
                     "api_key_id": request.api_key_id,
                     "revoked_by": admin_token.service_name,
-                    "reason": request.reason.unwrap_or_else(|| "Admin revocation".to_string())
+                    "reason": request.reason.unwrap_or_else(|| "Admin revocation".into())
                 })),
             };
 
@@ -721,7 +721,7 @@ async fn handle_token_info(
         Ok(None) => {
             let response = AdminResponse {
                 success: false,
-                message: "Token not found in database".to_string(),
+                message: "Token not found in database".into(),
                 data: None,
             };
 
@@ -818,9 +818,7 @@ async fn handle_setup_status(context: AdminApiContext) -> Result<impl Reply, Rej
             let error_status = crate::routes::SetupStatusResponse {
                 needs_setup: true,
                 admin_user_exists: false,
-                message: Some(
-                    "Error checking setup status. Please contact administrator.".to_string(),
-                ),
+                message: Some("Error checking setup status. Please contact administrator.".into()),
             };
             Ok(with_status(
                 json(&error_status),
@@ -852,12 +850,12 @@ mod tests {
     #[test]
     fn test_provision_request_validation() {
         let request = ProvisionApiKeyRequest {
-            user_email: "test@example.com".to_string(),
-            tier: "starter".to_string(),
-            description: Some("Test key".to_string()),
+            user_email: "test@example.com".into(),
+            tier: "starter".into(),
+            description: Some("Test key".into()),
             expires_in_days: Some(30),
             rate_limit_requests: Some(100),
-            rate_limit_period: Some("hour".to_string()),
+            rate_limit_period: Some("hour".into()),
         };
 
         assert_eq!(request.user_email, "test@example.com");
@@ -1056,7 +1054,7 @@ async fn handle_admin_tokens_create(
             );
             let response = AdminResponse {
                 success: true,
-                message: "Admin token created successfully".to_string(),
+                message: "Admin token created successfully".into(),
                 data: Some(serde_json::json!(generated_token)),
             };
             Ok(with_status(json(&response), StatusCode::CREATED))
@@ -1088,7 +1086,7 @@ async fn handle_admin_tokens_details(
         Ok(Some(token)) => {
             let response = AdminResponse {
                 success: true,
-                message: "Admin token details retrieved".to_string(),
+                message: "Admin token details retrieved".into(),
                 data: Some(serde_json::json!(token)),
             };
             Ok(with_status(json(&response), StatusCode::OK))
@@ -1096,7 +1094,7 @@ async fn handle_admin_tokens_details(
         Ok(None) => {
             let response = AdminResponse {
                 success: false,
-                message: "Admin token not found".to_string(),
+                message: "Admin token not found".into(),
                 data: None,
             };
             Ok(with_status(json(&response), StatusCode::NOT_FOUND))
@@ -1129,7 +1127,7 @@ async fn handle_admin_tokens_revoke(
             info!("✅ Admin token revoked successfully: {}", token_id);
             let response = AdminResponse {
                 success: true,
-                message: "Admin token revoked successfully".to_string(),
+                message: "Admin token revoked successfully".into(),
                 data: Some(serde_json::json!({
                     "token_id": token_id,
                     "status": "revoked"
@@ -1167,7 +1165,7 @@ async fn handle_admin_tokens_rotate(
         Ok(None) => {
             let response = AdminResponse {
                 success: false,
-                message: "Admin token not found".to_string(),
+                message: "Admin token not found".into(),
                 data: None,
             };
             return Ok(with_status(json(&response), StatusCode::NOT_FOUND));
@@ -1218,7 +1216,7 @@ async fn handle_admin_tokens_rotate(
             );
             let response = AdminResponse {
                 success: true,
-                message: "Admin token rotated successfully".to_string(),
+                message: "Admin token rotated successfully".into(),
                 data: Some(serde_json::json!({
                     "old_token_id": token_id,
                     "new_token": new_token

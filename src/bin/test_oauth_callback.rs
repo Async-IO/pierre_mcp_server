@@ -1,3 +1,5 @@
+// ABOUTME: OAuth callback testing utility for validating authentication flow with fitness providers
+// ABOUTME: Integration testing tool for Strava, Fitbit, and other OAuth-based fitness service connections
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -36,7 +38,7 @@ async fn main() -> Result<()> {
     let register_request = RegisterRequest {
         email: test_email.to_string(),
         password: test_password.to_string(),
-        display_name: Some("Test User".to_string()),
+        display_name: Some("Test User".into()),
     };
 
     let register_response = auth_routes.register(register_request).await?;
@@ -49,8 +51,10 @@ async fn main() -> Result<()> {
         password: test_password.to_string(),
     };
 
-    let _login_response = auth_routes.login(login_request).await?;
+    let login_response = auth_routes.login(login_request).await?;
     println!("✅ User logged in, JWT token generated");
+    println!("   Token expires at: {}", login_response.expires_at);
+    println!("   User ID: {}", login_response.user.user_id);
 
     // 4. Test OAuth authorization URL generation
     let auth_url_response = oauth_routes.get_auth_url(user_id, "strava").await?;
@@ -136,9 +140,15 @@ async fn main() -> Result<()> {
     match client.get(&oauth_url).send().await {
         Ok(response) => {
             if response.status().is_success() {
-                let _oauth_data: serde_json::Value = response.json().await?;
+                let oauth_data: serde_json::Value = response.json().await?;
                 println!("✅ OAuth URL endpoint working");
                 println!("   Authorization URL generated via HTTP API");
+                if let Some(auth_url) = oauth_data.get("authorization_url") {
+                    println!("   Generated URL: {}", auth_url);
+                }
+                if let Some(state) = oauth_data.get("state") {
+                    println!("   State parameter: {}", state);
+                }
             } else {
                 println!("⚠️  OAuth URL endpoint returned: {}", response.status());
             }

@@ -1,4 +1,5 @@
-// Test weather integration with real activity data
+// ABOUTME: Weather integration testing utility for validating environmental data correlation with activities
+// ABOUTME: Integration testing tool for weather API connectivity and activity-weather data correlation
 use chrono::Utc;
 use pierre_mcp_server::config::fitness_config::WeatherApiConfig;
 use pierre_mcp_server::intelligence::weather::WeatherService;
@@ -11,8 +12,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create test activity with GPS coordinates (Montreal)
     let activity = Activity {
-        id: "test_weather".to_string(),
-        name: "Test Weather Integration".to_string(),
+        id: "test_weather".into(),
+        name: "Test Weather Integration".into(),
         sport_type: SportType::Run,
         start_date: Utc::now(),
         duration_seconds: 3600,         // 1 hour
@@ -25,13 +26,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         calories: Some(500),
         steps: None,
         heart_rate_zones: None,
+
+        // Advanced metrics (all None for test)
+        average_power: None,
+        max_power: None,
+        normalized_power: None,
+        power_zones: None,
+        ftp: None,
+        average_cadence: None,
+        max_cadence: None,
+        hrv_score: None,
+        recovery_heart_rate: None,
+        temperature: None,
+        humidity: None,
+        average_altitude: None,
+        wind_speed: None,
+        ground_contact_time: None,
+        vertical_oscillation: None,
+        stride_length: None,
+        running_power: None,
+        breathing_rate: None,
+        spo2: None,
+        training_stress_score: None,
+        intensity_factor: None,
+        suffer_score: None,
+        time_series_data: None,
+
         start_latitude: Some(45.5017), // Montreal
         start_longitude: Some(-73.5673),
         city: None,
         region: None,
         country: None,
         trail_name: None,
-        provider: "test".to_string(),
+        provider: "test".into(),
     };
 
     // Test with default configuration (will use mock weather)
@@ -50,8 +77,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   Provider: {}", weather_service.get_config().provider);
     println!("   Enabled: {}", weather_service.get_config().enabled);
     println!(
-        "   Fallback to Mock: {}",
-        weather_service.get_config().fallback_to_mock
+        "   Cache Duration: {} hours",
+        weather_service.get_config().cache_duration_hours
     );
 
     // Test weather retrieval
@@ -99,19 +126,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(e) => {
             println!("⚠️  Weather fetch failed: {}", e);
-            println!("   This is expected if OPENWEATHER_API_KEY is not set");
-            println!("   The system should fall back to mock weather data");
+            println!("   This is expected if OPENWEATHER_API_KEY is not set or API is disabled");
         }
     }
-
-    // Test mock weather generation
-    println!("\n🎭 Mock Weather Generation:");
-    let mock_weather = weather_service.generate_mock_weather();
-    println!(
-        "   Mock Temperature: {:.1}°C",
-        mock_weather.temperature_celsius
-    );
-    println!("   Mock Conditions: {}", mock_weather.conditions);
 
     println!("\n✅ Weather Integration Test Complete!");
     println!("\n📝 Next Steps:");

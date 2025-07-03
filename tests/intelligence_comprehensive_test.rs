@@ -717,6 +717,26 @@ fn test_activity_insights_serialization() -> Result<()> {
             variability_index: Some(1.1),
             efficiency_factor: Some(1.2),
             decoupling_percentage: Some(5.5),
+
+            // Enhanced power metrics
+            normalized_power: None,
+            work: None,
+            avg_power_to_weight: None,
+
+            // Running-specific metrics
+            running_effectiveness: None,
+            stride_efficiency: None,
+            ground_contact_balance: None,
+
+            // Recovery and physiological metrics
+            estimated_recovery_time: None,
+            training_load: None,
+            aerobic_contribution: None,
+
+            // Environmental impact metrics
+            temperature_stress: None,
+            altitude_adjustment: None,
+
             custom_metrics: HashMap::new(),
         },
         recommendations: vec!["Focus on consistent pacing".to_string()],

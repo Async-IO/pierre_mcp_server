@@ -83,12 +83,12 @@ impl ConfigProfile {
     /// Get the profile name
     pub fn name(&self) -> String {
         match self {
-            Self::Default => "default".to_string(),
-            Self::Research { .. } => "research".to_string(),
-            Self::Elite { .. } => "elite".to_string(),
-            Self::Recreational { .. } => "recreational".to_string(),
-            Self::Beginner { .. } => "beginner".to_string(),
-            Self::Medical { .. } => "medical".to_string(),
+            Self::Default => "default".into(),
+            Self::Research { .. } => "research".into(),
+            Self::Elite { .. } => "elite".into(),
+            Self::Recreational { .. } => "recreational".into(),
+            Self::Beginner { .. } => "beginner".into(),
+            Self::Medical { .. } => "medical".into(),
             Self::SportSpecific { sport, .. } => format!("sport_{}", sport.to_lowercase()),
             Self::Custom { name, .. } => name.clone(),
         }
@@ -118,37 +118,34 @@ impl ConfigProfile {
                 sensitivity_multiplier,
                 ..
             } => {
-                adjustments.insert(
-                    "sensitivity_multiplier".to_string(),
-                    *sensitivity_multiplier,
-                );
-                adjustments.insert("analysis_depth".to_string(), 2.0); // Double analysis depth
+                adjustments.insert("sensitivity_multiplier".into(), *sensitivity_multiplier);
+                adjustments.insert("analysis_depth".into(), 2.0); // Double analysis depth
             }
 
             Self::Elite {
                 performance_factor,
                 recovery_sensitivity,
             } => {
-                adjustments.insert("threshold_multiplier".to_string(), *performance_factor);
-                adjustments.insert("recovery_sensitivity".to_string(), *recovery_sensitivity);
-                adjustments.insert("performance_standards".to_string(), 1.15);
+                adjustments.insert("threshold_multiplier".into(), *performance_factor);
+                adjustments.insert("recovery_sensitivity".into(), *recovery_sensitivity);
+                adjustments.insert("performance_standards".into(), 1.15);
             }
 
             Self::Recreational {
                 threshold_tolerance,
                 ..
             } => {
-                adjustments.insert("threshold_multiplier".to_string(), *threshold_tolerance);
-                adjustments.insert("effort_scaling".to_string(), 0.9); // Slightly easier effort scores
+                adjustments.insert("threshold_multiplier".into(), *threshold_tolerance);
+                adjustments.insert("effort_scaling".into(), 0.9); // Slightly easier effort scores
             }
 
             Self::Beginner {
                 threshold_reduction,
                 ..
             } => {
-                adjustments.insert("threshold_multiplier".to_string(), *threshold_reduction);
-                adjustments.insert("zone_buffer".to_string(), 1.1); // 10% buffer between zones
-                adjustments.insert("achievement_sensitivity".to_string(), 1.2); // More achievements
+                adjustments.insert("threshold_multiplier".into(), *threshold_reduction);
+                adjustments.insert("zone_buffer".into(), 1.1); // 10% buffer between zones
+                adjustments.insert("achievement_sensitivity".into(), 1.2); // More achievements
             }
 
             Self::Medical {
@@ -156,9 +153,9 @@ impl ConfigProfile {
                 safety_margin,
                 ..
             } => {
-                adjustments.insert("max_intensity".to_string(), *max_intensity);
-                adjustments.insert("safety_margin".to_string(), *safety_margin);
-                adjustments.insert("conservative_factor".to_string(), 0.8);
+                adjustments.insert("max_intensity".into(), *max_intensity);
+                adjustments.insert("safety_margin".into(), *safety_margin);
+                adjustments.insert("conservative_factor".into(), 0.8);
             }
 
             Self::SportSpecific {
@@ -297,9 +294,9 @@ impl ProfileTemplates {
     /// Get all available profile templates
     pub fn all() -> Vec<(String, ConfigProfile)> {
         vec![
-            ("Default".to_string(), ConfigProfile::Default),
+            ("Default".into(), ConfigProfile::Default),
             (
-                "Research".to_string(),
+                "Research".into(),
                 ConfigProfile::Research {
                     sensitivity_multiplier: 1.5,
                     zone_granularity: ZoneGranularity::Fine,
@@ -307,28 +304,28 @@ impl ProfileTemplates {
                 },
             ),
             (
-                "Elite Athlete".to_string(),
+                "Elite Athlete".into(),
                 ConfigProfile::Elite {
                     performance_factor: 1.15,
                     recovery_sensitivity: 1.2,
                 },
             ),
             (
-                "Recreational Athlete".to_string(),
+                "Recreational Athlete".into(),
                 ConfigProfile::Recreational {
                     motivation_bias: 0.1,
                     threshold_tolerance: 1.1,
                 },
             ),
             (
-                "Beginner".to_string(),
+                "Beginner".into(),
                 ConfigProfile::Beginner {
                     threshold_reduction: 0.85,
                     simplified_metrics: true,
                 },
             ),
             (
-                "Medical/Rehab".to_string(),
+                "Medical/Rehab".into(),
                 ConfigProfile::Medical {
                     max_intensity: 0.75,
                     conservative_thresholds: true,
@@ -336,35 +333,35 @@ impl ProfileTemplates {
                 },
             ),
             (
-                "Cycling Specialist".to_string(),
+                "Cycling Specialist".into(),
                 ConfigProfile::SportSpecific {
-                    sport: "cycling".to_string(),
+                    sport: "cycling".into(),
                     specialization_factors: HashMap::from([
-                        ("power_weight_importance".to_string(), 1.2),
-                        ("aerodynamic_factor".to_string(), 1.1),
-                        ("ftp_calculation_method".to_string(), 0.95),
+                        ("power_weight_importance".into(), 1.2),
+                        ("aerodynamic_factor".into(), 1.1),
+                        ("ftp_calculation_method".into(), 0.95),
                     ]),
                 },
             ),
             (
-                "Running Specialist".to_string(),
+                "Running Specialist".into(),
                 ConfigProfile::SportSpecific {
-                    sport: "running".to_string(),
+                    sport: "running".into(),
                     specialization_factors: HashMap::from([
-                        ("running_economy_factor".to_string(), 1.15),
-                        ("cadence_importance".to_string(), 1.1),
-                        ("vertical_oscillation_penalty".to_string(), 1.2),
+                        ("running_economy_factor".into(), 1.15),
+                        ("cadence_importance".into(), 1.1),
+                        ("vertical_oscillation_penalty".into(), 1.2),
                     ]),
                 },
             ),
             (
-                "Swimming Specialist".to_string(),
+                "Swimming Specialist".into(),
                 ConfigProfile::SportSpecific {
-                    sport: "swimming".to_string(),
+                    sport: "swimming".into(),
                     specialization_factors: HashMap::from([
-                        ("stroke_efficiency_weight".to_string(), 1.3),
-                        ("breathing_pattern_factor".to_string(), 1.1),
-                        ("turn_efficiency".to_string(), 1.05),
+                        ("stroke_efficiency_weight".into(), 1.3),
+                        ("breathing_pattern_factor".into(), 1.1),
+                        ("turn_efficiency".into(), 1.05),
                     ]),
                 },
             ),

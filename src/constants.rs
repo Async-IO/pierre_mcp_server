@@ -19,7 +19,7 @@ pub mod protocol {
 
     /// Get MCP Protocol version from environment or default
     pub fn mcp_protocol_version() -> String {
-        env::var("MCP_PROTOCOL_VERSION").unwrap_or_else(|_| "2025-06-18".to_string())
+        env::var("MCP_PROTOCOL_VERSION").unwrap_or_else(|_| "2025-06-18".into())
     }
 
     /// JSON-RPC version (standard, not configurable)
@@ -27,14 +27,14 @@ pub mod protocol {
 
     /// Get server name from environment or default
     pub fn server_name() -> String {
-        env::var("SERVER_NAME").unwrap_or_else(|_| "pierre-mcp-server".to_string())
+        env::var("SERVER_NAME").unwrap_or_else(|_| "pierre-mcp-server".into())
     }
 
     /// Get multi-tenant server name variant
     pub fn server_name_multitenant() -> String {
         env::var("SERVER_NAME")
             .map(|name| format!("{}-multitenant", name))
-            .unwrap_or_else(|_| "pierre-mcp-server-multitenant".to_string())
+            .unwrap_or_else(|_| "pierre-mcp-server-multitenant".into())
     }
 
     /// Server version from Cargo.toml
@@ -68,23 +68,23 @@ pub mod env_config {
 
     /// Get database URL from environment or default
     pub fn database_url() -> String {
-        env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:./data/users.db".to_string())
+        env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:./data/users.db".into())
     }
 
     /// Get encryption key path from environment or default
     pub fn encryption_key_path() -> String {
-        env::var("ENCRYPTION_KEY_PATH").unwrap_or_else(|_| "./data/encryption.key".to_string())
+        env::var("ENCRYPTION_KEY_PATH").unwrap_or_else(|_| "./data/encryption.key".into())
     }
 
     /// Get JWT secret path from environment or default
     pub fn jwt_secret_path() -> String {
-        env::var("JWT_SECRET_PATH").unwrap_or_else(|_| "./data/jwt.secret".to_string())
+        env::var("JWT_SECRET_PATH").unwrap_or_else(|_| "./data/jwt.secret".into())
     }
 
     /// Get JWT expiry hours from environment or default
     pub fn jwt_expiry_hours() -> i64 {
         env::var("JWT_EXPIRY_HOURS")
-            .unwrap_or_else(|_| "24".to_string())
+            .unwrap_or_else(|_| "24".into())
             .parse()
             .unwrap_or(24)
     }
@@ -136,30 +136,29 @@ pub mod env_config {
 
     /// Get log level from environment or default
     pub fn log_level() -> String {
-        env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string())
+        env::var("RUST_LOG").unwrap_or_else(|_| "info".into())
     }
 
     /// Get Strava API base URL from environment or default
     pub fn strava_api_base() -> String {
-        env::var("STRAVA_API_BASE").unwrap_or_else(|_| "https://www.strava.com/api/v3".to_string())
+        env::var("STRAVA_API_BASE").unwrap_or_else(|_| "https://www.strava.com/api/v3".into())
     }
 
     /// Get Strava auth URL from environment or default
     pub fn strava_auth_url() -> String {
         env::var("STRAVA_AUTH_URL")
-            .unwrap_or_else(|_| "https://www.strava.com/oauth/authorize".to_string())
+            .unwrap_or_else(|_| "https://www.strava.com/oauth/authorize".into())
     }
 
     /// Get Strava token URL from environment or default
     pub fn strava_token_url() -> String {
-        env::var("STRAVA_TOKEN_URL")
-            .unwrap_or_else(|_| "https://www.strava.com/oauth/token".to_string())
+        env::var("STRAVA_TOKEN_URL").unwrap_or_else(|_| "https://www.strava.com/oauth/token".into())
     }
 
     /// Get max activities fetch limit from environment or default
     pub fn max_activities_fetch() -> usize {
         env::var("MAX_ACTIVITIES_FETCH")
-            .unwrap_or_else(|_| "100".to_string())
+            .unwrap_or_else(|_| "100".into())
             .parse()
             .unwrap_or(100)
     }
@@ -167,31 +166,31 @@ pub mod env_config {
     /// Get Fitbit auth URL from environment or default
     pub fn fitbit_auth_url() -> String {
         env::var("FITBIT_AUTH_URL")
-            .unwrap_or_else(|_| "https://www.fitbit.com/oauth2/authorize".to_string())
+            .unwrap_or_else(|_| "https://www.fitbit.com/oauth2/authorize".into())
     }
 
     /// Get Fitbit token URL from environment or default
     pub fn fitbit_token_url() -> String {
         env::var("FITBIT_TOKEN_URL")
-            .unwrap_or_else(|_| "https://api.fitbit.com/oauth2/token".to_string())
+            .unwrap_or_else(|_| "https://api.fitbit.com/oauth2/token".into())
     }
 
     /// Get Strava deauthorize URL from environment or default
     pub fn strava_deauthorize_url() -> String {
         env::var("STRAVA_DEAUTHORIZE_URL")
-            .unwrap_or_else(|_| "https://www.strava.com/oauth/deauthorize".to_string())
+            .unwrap_or_else(|_| "https://www.strava.com/oauth/deauthorize".into())
     }
 
     /// Get Fitbit revoke URL from environment or default
     pub fn fitbit_revoke_url() -> String {
         env::var("FITBIT_REVOKE_URL")
-            .unwrap_or_else(|_| "https://api.fitbit.com/oauth2/revoke".to_string())
+            .unwrap_or_else(|_| "https://api.fitbit.com/oauth2/revoke".into())
     }
 
     /// Get default activities limit from environment or default
     pub fn default_activities_limit() -> usize {
         env::var("DEFAULT_ACTIVITIES_LIMIT")
-            .unwrap_or_else(|_| "20".to_string())
+            .unwrap_or_else(|_| "20".into())
             .parse()
             .unwrap_or(20)
     }
@@ -199,7 +198,7 @@ pub mod env_config {
     /// Get OpenWeather API base URL from environment or default
     pub fn openweather_api_base() -> String {
         env::var("OPENWEATHER_API_BASE_URL")
-            .unwrap_or_else(|_| "https://api.openweathermap.org".to_string())
+            .unwrap_or_else(|_| "https://api.openweathermap.org".into())
     }
 }
 
