@@ -444,23 +444,29 @@ impl ApiKeyManager {
                 let now = Utc::now();
                 let next_month = if now.month() == 12 {
                     now.with_year(now.year() + 1)
-                        .expect("Failed to set year for next month calculation")
-                        .with_month(1)
-                        .expect("Failed to set month to January")
+                        .and_then(|dt| dt.with_month(1))
+                        .unwrap_or_else(|| {
+                            tracing::warn!("Failed to calculate next year/January, using fallback");
+                            now + chrono::Duration::days(30)
+                        })
                 } else {
-                    now.with_month(now.month() + 1)
-                        .expect("Failed to increment month")
+                    now.with_month(now.month() + 1).unwrap_or_else(|| {
+                        tracing::warn!("Failed to increment month, using fallback");
+                        now + chrono::Duration::days(30)
+                    })
                 };
 
                 let reset_at = next_month
                     .with_day(1)
-                    .expect("Failed to set day to 1st of month")
-                    .with_hour(0)
-                    .expect("Failed to set hour to 0")
-                    .with_minute(0)
-                    .expect("Failed to set minute to 0")
-                    .with_second(0)
-                    .expect("Failed to set second to 0");
+                    .and_then(|dt| dt.with_hour(0))
+                    .and_then(|dt| dt.with_minute(0))
+                    .and_then(|dt| dt.with_second(0))
+                    .unwrap_or_else(|| {
+                        tracing::warn!(
+                            "Failed to set reset time components, using beginning of next month"
+                        );
+                        next_month
+                    });
 
                 RateLimitStatus {
                     is_rate_limited,

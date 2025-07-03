@@ -411,7 +411,7 @@ impl DatabaseProvider for SqliteDatabase {
         end_time: DateTime<Utc>,
     ) -> Result<Vec<crate::dashboard_routes::ToolUsage>> {
         // Query API key usage for this user within the time range
-        let query = r#"
+        let query = r"
             SELECT tool_name, COUNT(*) as usage_count,
                    AVG(response_time_ms) as avg_response_time,
                    SUM(CASE WHEN status_code < 400 THEN 1 ELSE 0 END) as success_count,
@@ -422,7 +422,7 @@ impl DatabaseProvider for SqliteDatabase {
             GROUP BY tool_name
             ORDER BY usage_count DESC
             LIMIT 10
-        "#;
+        ";
 
         let rows = sqlx::query(query)
             .bind(user_id)
@@ -525,13 +525,13 @@ impl DatabaseProvider for SqliteDatabase {
         let jwt_secret_hash = AdminJwtManager::hash_secret(&jwt_secret);
 
         // Store in database
-        let query = r#"
+        let query = r"
             INSERT INTO admin_tokens (
                 id, service_name, service_description, token_hash, token_prefix,
                 jwt_secret_hash, permissions, is_super_admin, is_active,
                 created_at, expires_at, usage_count
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        "#;
+        ";
 
         let permissions_json = permissions.to_json()?;
         let created_at = chrono::Utc::now();
@@ -568,12 +568,12 @@ impl DatabaseProvider for SqliteDatabase {
         &self,
         token_id: &str,
     ) -> Result<Option<crate::admin::models::AdminToken>> {
-        let query = r#"
+        let query = r"
             SELECT id, service_name, service_description, token_hash, token_prefix,
                    jwt_secret_hash, permissions, is_super_admin, is_active,
                    created_at, expires_at, last_used_at, last_used_ip, usage_count
             FROM admin_tokens WHERE id = ?
-        "#;
+        ";
 
         let row = sqlx::query(query)
             .bind(token_id)
@@ -591,12 +591,12 @@ impl DatabaseProvider for SqliteDatabase {
         &self,
         token_prefix: &str,
     ) -> Result<Option<crate::admin::models::AdminToken>> {
-        let query = r#"
+        let query = r"
             SELECT id, service_name, service_description, token_hash, token_prefix,
                    jwt_secret_hash, permissions, is_super_admin, is_active,
                    created_at, expires_at, last_used_at, last_used_ip, usage_count
             FROM admin_tokens WHERE token_prefix = ?
-        "#;
+        ";
 
         let row = sqlx::query(query)
             .bind(token_prefix)
@@ -615,19 +615,19 @@ impl DatabaseProvider for SqliteDatabase {
         include_inactive: bool,
     ) -> Result<Vec<crate::admin::models::AdminToken>> {
         let query = if include_inactive {
-            r#"
+            r"
                 SELECT id, service_name, service_description, token_hash, token_prefix,
                        jwt_secret_hash, permissions, is_super_admin, is_active,
                        created_at, expires_at, last_used_at, last_used_ip, usage_count
                 FROM admin_tokens ORDER BY created_at DESC
-            "#
+            "
         } else {
-            r#"
+            r"
                 SELECT id, service_name, service_description, token_hash, token_prefix,
                        jwt_secret_hash, permissions, is_super_admin, is_active,
                        created_at, expires_at, last_used_at, last_used_ip, usage_count
                 FROM admin_tokens WHERE is_active = 1 ORDER BY created_at DESC
-            "#
+            "
         };
 
         let rows = sqlx::query(query).fetch_all(self.inner.pool()).await?;
@@ -656,11 +656,11 @@ impl DatabaseProvider for SqliteDatabase {
         token_id: &str,
         ip_address: Option<&str>,
     ) -> Result<()> {
-        let query = r#"
+        let query = r"
             UPDATE admin_tokens 
             SET last_used_at = ?, last_used_ip = ?, usage_count = usage_count + 1
             WHERE id = ?
-        "#;
+        ";
 
         sqlx::query(query)
             .bind(chrono::Utc::now())
@@ -676,13 +676,13 @@ impl DatabaseProvider for SqliteDatabase {
         &self,
         usage: &crate::admin::models::AdminTokenUsage,
     ) -> Result<()> {
-        let query = r#"
+        let query = r"
             INSERT INTO admin_token_usage (
                 admin_token_id, timestamp, action, target_resource,
                 ip_address, user_agent, request_size_bytes, success,
                 error_message, response_time_ms
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        "#;
+        ";
 
         sqlx::query(query)
             .bind(&usage.admin_token_id)
@@ -707,14 +707,14 @@ impl DatabaseProvider for SqliteDatabase {
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
     ) -> Result<Vec<crate::admin::models::AdminTokenUsage>> {
-        let query = r#"
+        let query = r"
             SELECT id, admin_token_id, timestamp, action, target_resource,
                    ip_address, user_agent, request_size_bytes, success,
                    error_message, response_time_ms
             FROM admin_token_usage 
             WHERE admin_token_id = ? AND timestamp BETWEEN ? AND ?
             ORDER BY timestamp DESC
-        "#;
+        ";
 
         let rows = sqlx::query(query)
             .bind(token_id)
@@ -740,13 +740,13 @@ impl DatabaseProvider for SqliteDatabase {
         rate_limit_requests: u32,
         rate_limit_period: &str,
     ) -> Result<()> {
-        let query = r#"
+        let query = r"
             INSERT INTO admin_provisioned_keys (
                 admin_token_id, api_key_id, user_email, requested_tier,
                 provisioned_at, provisioned_by_service, rate_limit_requests,
                 rate_limit_period, key_status
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        "#;
+        ";
 
         // Get service name from admin token
         let service_name = if let Some(token) = self.get_admin_token_by_id(admin_token_id).await? {
@@ -781,14 +781,14 @@ impl DatabaseProvider for SqliteDatabase {
 
         let (query, bind_values) = if let Some(token_id) = admin_token_id {
             (
-                r#"
+                r"
                 SELECT id, admin_token_id, api_key_id, user_email, requested_tier,
                        provisioned_at, provisioned_by_service, rate_limit_requests,
                        rate_limit_period, key_status, revoked_at, revoked_reason
                 FROM admin_provisioned_keys 
                 WHERE admin_token_id = ? AND provisioned_at BETWEEN ? AND ?
                 ORDER BY provisioned_at DESC
-                "#,
+                ",
                 vec![
                     token_id.to_string(),
                     start_date.to_rfc3339(),
@@ -797,14 +797,14 @@ impl DatabaseProvider for SqliteDatabase {
             )
         } else {
             (
-                r#"
+                r"
                 SELECT id, admin_token_id, api_key_id, user_email, requested_tier,
                        provisioned_at, provisioned_by_service, rate_limit_requests,
                        rate_limit_period, key_status, revoked_at, revoked_reason
                 FROM admin_provisioned_keys 
                 WHERE provisioned_at BETWEEN ? AND ?
                 ORDER BY provisioned_at DESC
-                "#,
+                ",
                 vec![start_date.to_rfc3339(), end_date.to_rfc3339()],
             )
         };

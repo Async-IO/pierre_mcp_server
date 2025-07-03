@@ -1,3 +1,5 @@
+// ABOUTME: Fitbit API integration and health data fetching
+// ABOUTME: Handles Fitbit authentication, activity retrieval, and health metrics
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -29,7 +31,7 @@ use tracing::info;
 const FITBIT_API_BASE: &str = "https://api.fitbit.com/1";
 const FITBIT_AUTH_URL: &str = "https://www.fitbit.com/oauth2/authorize";
 
-/// Fitbit provider implementation supporting OAuth2 with PKCE
+/// Fitbit provider implementation supporting `OAuth2` with `PKCE`
 pub struct FitbitProvider {
     client: Client,
     access_token: Option<String>,
@@ -438,8 +440,13 @@ impl From<FitbitActivity> for Activity {
     fn from(fitbit: FitbitActivity) -> Self {
         // Parse start time
         let start_date = DateTime::parse_from_rfc3339(&fitbit.start_time)
+            .or_else(|_| DateTime::parse_from_str(&fitbit.start_time, "%Y-%m-%dT%H:%M:%S%.3f"))
             .unwrap_or_else(|_| {
-                DateTime::parse_from_str(&fitbit.start_time, "%Y-%m-%dT%H:%M:%S%.3f").unwrap()
+                tracing::warn!(
+                    "Failed to parse start_time '{}', using current time",
+                    fitbit.start_time
+                );
+                Utc::now().fixed_offset()
             })
             .with_timezone(&Utc);
 

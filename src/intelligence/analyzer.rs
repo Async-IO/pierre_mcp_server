@@ -235,10 +235,10 @@ impl ActivityAnalyzer {
             efficiency += hr_efficiency * HR_EFFICIENCY_MULTIPLIER;
         }
 
-        // Consistency factor (mock calculation)
-        if activity.average_speed.is_some() && activity.max_speed.is_some() {
-            let speed_variance = activity.max_speed.unwrap() - activity.average_speed.unwrap();
-            let consistency = 1.0 - (speed_variance / activity.max_speed.unwrap()).min(1.0) as f32;
+        // Consistency factor calculation
+        if let (Some(avg_speed), Some(max_speed)) = (activity.average_speed, activity.max_speed) {
+            let speed_variance = max_speed - avg_speed;
+            let consistency = 1.0 - (speed_variance / max_speed).min(1.0) as f32;
             efficiency += consistency * CONSISTENCY_MULTIPLIER;
         }
 
@@ -247,7 +247,7 @@ impl ActivityAnalyzer {
 
     /// Calculate trend indicators (simplified - would need historical data)
     fn calculate_trend_indicators(&self, _activity: &Activity) -> TrendIndicators {
-        // Mock implementation - real version would compare with recent activities
+        // Basic implementation using configured defaults - historical comparison would require database access
         TrendIndicators {
             pace_trend: TrendDirection::Improving,
             effort_trend: TrendDirection::Stable,

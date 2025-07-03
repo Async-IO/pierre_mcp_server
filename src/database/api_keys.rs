@@ -1,4 +1,5 @@
-//! API key management database operations
+// ABOUTME: API key management database operations
+// ABOUTME: Handles API key generation, validation, and rate limiting storage
 
 use super::Database;
 use crate::api_keys::{ApiKey, ApiKeyTier, ApiKeyUsage, ApiKeyUsageStats};
@@ -12,7 +13,7 @@ impl Database {
     pub(super) async fn migrate_api_keys(&self) -> Result<()> {
         // Create api_keys table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS api_keys (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -30,14 +31,14 @@ impl Database {
                 UNIQUE(key_hash),
                 UNIQUE(key_prefix)
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
 
         // Create api_key_usage table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS api_key_usage (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 api_key_id TEXT NOT NULL REFERENCES api_keys(id) ON DELETE CASCADE,
@@ -51,7 +52,7 @@ impl Database {
                 ip_address TEXT,
                 user_agent TEXT
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
@@ -83,7 +84,7 @@ impl Database {
     /// Create a new API key
     pub async fn create_api_key(&self, api_key: &ApiKey) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             INSERT INTO api_keys (
                 id, user_id, name, description, key_hash, key_prefix, tier,
                 rate_limit_requests, rate_limit_window_seconds, is_active,
@@ -91,7 +92,7 @@ impl Database {
             ) VALUES (
                 $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
             )
-            "#,
+            ",
         )
         .bind(&api_key.id)
         .bind(api_key.user_id.to_string())
@@ -118,10 +119,10 @@ impl Database {
         key_hash: &str,
     ) -> Result<Option<ApiKey>> {
         let row = sqlx::query(
-            r#"
+            r"
             SELECT * FROM api_keys
             WHERE key_prefix = $1 AND key_hash = $2 AND is_active = 1
-            "#,
+            ",
         )
         .bind(key_prefix)
         .bind(key_hash)
@@ -134,11 +135,11 @@ impl Database {
     /// Get all API keys for a user
     pub async fn get_user_api_keys(&self, user_id: Uuid) -> Result<Vec<ApiKey>> {
         let rows = sqlx::query(
-            r#"
+            r"
             SELECT * FROM api_keys
             WHERE user_id = $1
             ORDER BY created_at DESC
-            "#,
+            ",
         )
         .bind(user_id.to_string())
         .fetch_all(&self.pool)
@@ -150,11 +151,11 @@ impl Database {
     /// Update API key last used timestamp
     pub async fn update_api_key_last_used(&self, api_key_id: &str) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             UPDATE api_keys
             SET last_used_at = CURRENT_TIMESTAMP
             WHERE id = $1
-            "#,
+            ",
         )
         .bind(api_key_id)
         .execute(&self.pool)
@@ -166,11 +167,11 @@ impl Database {
     /// Deactivate an API key
     pub async fn deactivate_api_key(&self, api_key_id: &str, user_id: Uuid) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             UPDATE api_keys
             SET is_active = 0
             WHERE id = $1 AND user_id = $2
-            "#,
+            ",
         )
         .bind(api_key_id)
         .bind(user_id.to_string())
@@ -184,9 +185,9 @@ impl Database {
     /// Get an API key by ID
     pub async fn get_api_key_by_id(&self, api_key_id: &str) -> Result<Option<ApiKey>> {
         let row = sqlx::query(
-            r#"
+            r"
             SELECT * FROM api_keys WHERE id = $1
-            "#,
+            ",
         )
         .bind(api_key_id)
         .fetch_optional(&self.pool)
@@ -238,13 +239,13 @@ impl Database {
     /// Clean up expired API keys
     pub async fn cleanup_expired_api_keys(&self) -> Result<u64> {
         let result = sqlx::query(
-            r#"
+            r"
             UPDATE api_keys
             SET is_active = 0
             WHERE expires_at IS NOT NULL 
             AND expires_at < CURRENT_TIMESTAMP 
             AND is_active = 1
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
@@ -255,12 +256,12 @@ impl Database {
     /// Get expired API keys
     pub async fn get_expired_api_keys(&self) -> Result<Vec<ApiKey>> {
         let rows = sqlx::query(
-            r#"
+            r"
             SELECT * FROM api_keys
             WHERE expires_at IS NOT NULL 
             AND expires_at < CURRENT_TIMESTAMP 
             AND is_active = 1
-            "#,
+            ",
         )
         .fetch_all(&self.pool)
         .await?;
@@ -271,13 +272,13 @@ impl Database {
     /// Record API key usage
     pub async fn record_api_key_usage(&self, usage: &ApiKeyUsage) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             INSERT INTO api_key_usage (
                 api_key_id, timestamp, tool_name, status_code,
                 response_time_ms, request_size_bytes, response_size_bytes,
                 ip_address, user_agent
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            "#,
+            ",
         )
         .bind(&usage.api_key_id)
         .bind(usage.timestamp)
@@ -305,10 +306,10 @@ impl Database {
         let window_start = Utc::now() - Duration::seconds(api_key.rate_limit_window_seconds as i64);
 
         let count: i32 = sqlx::query_scalar(
-            r#"
+            r"
             SELECT COUNT(*) FROM api_key_usage
             WHERE api_key_id = $1 AND timestamp > $2
-            "#,
+            ",
         )
         .bind(api_key_id)
         .bind(window_start)
@@ -326,7 +327,7 @@ impl Database {
         end_date: DateTime<Utc>,
     ) -> Result<ApiKeyUsageStats> {
         let stats = sqlx::query(
-            r#"
+            r"
             SELECT 
                 COUNT(*) as total_requests,
                 COUNT(CASE WHEN status_code >= 200 AND status_code < 300 THEN 1 END) as successful_requests,
@@ -337,7 +338,7 @@ impl Database {
                 SUM(response_size_bytes) as total_response_bytes
             FROM api_key_usage
             WHERE api_key_id = $1 AND timestamp >= $2 AND timestamp <= $3
-            "#,
+            ",
         )
         .bind(api_key_id)
         .bind(start_date)
@@ -352,7 +353,7 @@ impl Database {
 
         // Get tool usage aggregation
         let tool_usage_stats = sqlx::query(
-            r#"
+            r"
             SELECT tool_name, 
                    COUNT(*) as tool_count,
                    AVG(response_time_ms) as avg_response_time,
@@ -361,7 +362,7 @@ impl Database {
             WHERE api_key_id = $1 AND timestamp >= $2 AND timestamp <= $3
             GROUP BY tool_name
             ORDER BY tool_count DESC
-            "#,
+            ",
         )
         .bind(api_key_id)
         .bind(start_date)
@@ -575,7 +576,7 @@ mod tests {
             rate_limit_requests: 10,
             rate_limit_window_seconds: 3600,
             is_active: true,
-            expires_at: Some(DateTime::from_timestamp(1000000000, 0).unwrap()), // Year 2001 - clearly expired
+            expires_at: Some(DateTime::from_timestamp(1_000_000_000, 0).unwrap()), // Year 2001 - clearly expired
             last_used_at: None,
             created_at: Utc::now() - Duration::days(1),
         };

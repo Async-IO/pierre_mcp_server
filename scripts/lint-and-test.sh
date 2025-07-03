@@ -1,10 +1,12 @@
 #!/bin/bash
 
-# Pierre MCP Server - Comprehensive Lint and Test Runner
-# This script runs all linting and testing for both Rust backend and TypeScript frontend
+# Pierre MCP Server - Comprehensive Validation Script
+# This script enforces all mandatory code quality standards and dev best practices
 # Usage: ./scripts/lint-and-test.sh [--coverage]
 
 set -e  # Exit on any error
+
+echo "🔍 Running Pierre MCP Server Validation Suite..."
 
 # Parse command line arguments
 ENABLE_COVERAGE=false
@@ -70,13 +72,13 @@ else
     ALL_PASSED=false
 fi
 
-# Run Clippy linter with core warnings only (pedantic allowed for now)
-echo -e "${BLUE}==== Running Rust linter (Clippy)... ====${NC}"
-if cargo clippy --all-targets --all-features --quiet -- -D warnings -A clippy::pedantic -A clippy::nursery; then
-    echo -e "${GREEN}[OK] Rust linting passed (core issues fixed, pedantic warnings allowed)${NC}"
+# Run Clippy linter with STRICT settings (dev standards compliance)
+echo -e "${BLUE}==== Running Rust linter (Clippy) - STRICT MODE... ====${NC}"
+if cargo clippy --all-targets --all-features --quiet -- -W clippy::all -W clippy::pedantic -W clippy::nursery -D warnings; then
+    echo -e "${GREEN}[OK] Rust linting passed (STRICT dev standards compliance)${NC}"
 else
-    echo -e "${RED}[FAIL] Rust linting failed${NC}"
-    echo -e "${YELLOW}💡 Run 'cargo clippy --all-targets --all-features -- -W clippy::pedantic -W clippy::nursery' to see all warnings${NC}"
+    echo -e "${RED}[FAIL] Rust linting failed - dev standards compliance violation${NC}"
+    echo -e "${YELLOW}💡 Fix ALL clippy warnings to meet dev standards${NC}"
     ALL_PASSED=false
 fi
 
@@ -188,16 +190,69 @@ fi
 
 # Additional checks
 echo ""
-echo -e "${BLUE}==== Additional Project Checks ====${NC}"
+echo -e "${BLUE}==== Dev Standards Compliance Checks ====${NC}"
 
-# Check for TODO/FIXME comments
-echo -e "${BLUE}==== Checking for TODO/FIXME comments... ====${NC}"
-TODO_COUNT=$(grep -r "TODO\|FIXME" --include="*.rs" src/ 2>/dev/null | wc -l | tr -d ' ')
-if [ "$TODO_COUNT" -gt 0 ]; then
-    echo -e "${YELLOW}[WARN]  Found ${TODO_COUNT} TODO/FIXME comments in Rust code${NC}"
-    grep -r "TODO\|FIXME" --include="*.rs" src/ 2>/dev/null || true
+# Check for prohibited patterns (dev standards compliance)
+echo -e "${BLUE}==== Checking for prohibited error handling patterns... ====${NC}"
+UNWRAPS=$(rg "unwrap\(\)" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
+EXPECTS=$(rg "expect\(" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
+PANICS=$(rg "panic!\(" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
+CLONES=$(rg "\.clone\(\)" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
+MOCKS=$(rg -i "mock|placeholder|todo|fixme" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
+ARCS=$(rg "Arc<" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
+
+echo "Found: $UNWRAPS unwraps, $EXPECTS expects, $PANICS panics, $CLONES clones, $MOCKS incomplete code, $ARCS Arc usages"
+
+if [ "$UNWRAPS" -gt 0 ]; then 
+    echo -e "${RED}[FAIL] Found $UNWRAPS unwrap() calls (dev standards violation)${NC}"
+    ALL_PASSED=false
+fi
+if [ "$EXPECTS" -gt 0 ]; then 
+    echo -e "${RED}[FAIL] Found $EXPECTS expect() calls (dev standards violation)${NC}"
+    ALL_PASSED=false
+fi
+if [ "$PANICS" -gt 0 ]; then 
+    echo -e "${RED}[FAIL] Found $PANICS panic!() calls (dev standards violation)${NC}"
+    ALL_PASSED=false
+fi
+if [ "$MOCKS" -gt 0 ]; then 
+    echo -e "${RED}[FAIL] Found $MOCKS incomplete implementations (dev standards violation)${NC}"
+    ALL_PASSED=false
+fi
+if [ "$UNWRAPS" -eq 0 ] && [ "$EXPECTS" -eq 0 ] && [ "$PANICS" -eq 0 ] && [ "$MOCKS" -eq 0 ]; then
+    echo -e "${GREEN}[OK] All prohibited patterns check passed${NC}"
+fi
+
+# Clone usage analysis (informational)
+echo -e "${BLUE}==== Analyzing clone() usage patterns... ====${NC}"
+if [ "$CLONES" -gt 0 ]; then
+    echo -e "${YELLOW}[INFO] Found $CLONES clone() calls - review for optimization opportunities${NC}"
+    echo -e "${YELLOW}   Consider: borrowing (&T), Cow<T>, Arc<T>, or Rc<T> alternatives${NC}"
+    echo -e "${YELLOW}   Each clone should be justified by ownership requirements${NC}"
 else
-    echo -e "${GREEN}[OK] No TODO/FIXME comments found${NC}"
+    echo -e "${GREEN}[OK] No clone() calls found${NC}"
+fi
+
+# Check Arc usage documentation (good practice)
+echo -e "${BLUE}==== Checking Arc usage patterns... ====${NC}"
+if [ "$ARCS" -gt 0 ]; then
+    echo -e "${YELLOW}[INFO] Found $ARCS Arc usages - verify each is documented and justified${NC}"
+    echo -e "${YELLOW}   Good practice: Document why shared ownership is needed${NC}"
+else
+    echo -e "${GREEN}[OK] No Arc usage found${NC}"
+fi
+
+# Check for ABOUTME comments
+echo -e "${BLUE}==== Checking for ABOUTME comments... ====${NC}"
+TOTAL_RS_FILES=$(find src -name "*.rs" | wc -l | tr -d ' ')
+ABOUTME_COUNT=$(rg "ABOUTME:" src/ 2>/dev/null | wc -l)
+MISSING_ABOUTME=$((TOTAL_RS_FILES * 2 - ABOUTME_COUNT))
+
+if [ "$MISSING_ABOUTME" -gt 0 ]; then
+    echo -e "${RED}[FAIL] Missing ABOUTME comments in $((MISSING_ABOUTME / 2)) files (dev standards violation)${NC}"
+    ALL_PASSED=false
+else
+    echo -e "${GREEN}[OK] All files have required ABOUTME comments${NC}"
 fi
 
 # Check for security vulnerabilities (if cargo-audit is installed)
@@ -211,6 +266,43 @@ if command_exists cargo-audit; then
     fi
 else
     echo -e "${YELLOW}[WARN]  cargo-audit not installed. Install with: cargo install cargo-audit${NC}"
+fi
+
+# Performance and Architecture Gates (dev best practices)
+echo -e "${BLUE}==== Performance and Architecture Validation... ====${NC}"
+
+# Build release binary and check size
+echo -e "${BLUE}==== Building release binary for performance check... ====${NC}"
+if cargo build --release --quiet; then
+    echo -e "${GREEN}[OK] Release build successful${NC}"
+    
+    # Check binary size (dev best practice: <50MB for pierre_mcp_server)
+    if [ -f "target/release/pierre_mcp_server" ]; then
+        BINARY_SIZE=$(ls -lh target/release/pierre_mcp_server | awk '{print $5}')
+        BINARY_SIZE_BYTES=$(ls -l target/release/pierre_mcp_server | awk '{print $5}')
+        MAX_SIZE_BYTES=$((50 * 1024 * 1024))  # 50MB in bytes
+        
+        if [ "$BINARY_SIZE_BYTES" -le "$MAX_SIZE_BYTES" ]; then
+            echo -e "${GREEN}[OK] Binary size ($BINARY_SIZE) within dev best practice (<50MB)${NC}"
+        else
+            echo -e "${RED}[FAIL] Binary size ($BINARY_SIZE) exceeds dev best practice limit (50MB)${NC}"
+            ALL_PASSED=false
+        fi
+    else
+        echo -e "${YELLOW}[WARN] pierre_mcp_server binary not found - size check skipped${NC}"
+    fi
+else
+    echo -e "${RED}[FAIL] Release build failed${NC}"
+    ALL_PASSED=false
+fi
+
+# Run tests in release mode (good practice)
+echo -e "${BLUE}==== Running tests in release mode... ====${NC}"
+if cargo test --release --quiet; then
+    echo -e "${GREEN}[OK] Release mode tests passed${NC}"
+else
+    echo -e "${RED}[FAIL] Release mode tests failed${NC}"
+    ALL_PASSED=false
 fi
 
 # Check documentation
@@ -353,15 +445,21 @@ echo -e "${GREEN}[OK] Final cleanup completed${NC}"
 
 # Summary
 echo ""
-echo -e "${BLUE}==== Summary ====${NC}"
+echo -e "${BLUE}==== Dev Standards Compliance Summary ====${NC}"
 if [ "$ALL_PASSED" = true ]; then
-    echo -e "${GREEN}[OK] All checks passed! ✨${NC}"
+    echo -e "${GREEN}✅ ALL VALIDATION PASSED - Task can be marked complete${NC}"
     echo ""
     echo "[OK] Rust formatting"
-    echo "[OK] Rust linting (Clippy)"
+    echo "[OK] Rust linting (STRICT dev standards compliance)"
     echo "[OK] Rust compilation"
     echo "[OK] Rust tests"
+    echo "[OK] Release mode tests"
     echo "[OK] A2A compliance tests"
+    echo "[OK] Prohibited patterns check"
+    echo "[OK] Clone usage analysis"
+    echo "[OK] Arc usage patterns check"
+    echo "[OK] Binary size validation"
+    echo "[OK] ABOUTME comments compliance"
     echo "[OK] Frontend linting"
     echo "[OK] TypeScript type checking"
     echo "[OK] Frontend tests"
@@ -377,9 +475,10 @@ if [ "$ALL_PASSED" = true ]; then
         echo "[OK] Python examples validation"
     fi
     echo ""
-    echo -e "${GREEN}[OK] Your code is ready for production! 🚀${NC}"
+    echo -e "${GREEN}🚀 Code meets ALL dev standards and is ready for production!${NC}"
     exit 0
 else
-    echo -e "${RED}[FAIL] Some checks failed. Please fix the issues above.${NC}"
+    echo -e "${RED}❌ VALIDATION FAILED - Task cannot be marked complete${NC}"
+    echo -e "${RED}Fix ALL issues above to meet dev standards requirements${NC}"
     exit 1
 fi

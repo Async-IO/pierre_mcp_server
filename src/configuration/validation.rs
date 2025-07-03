@@ -1,3 +1,5 @@
+// ABOUTME: Configuration validation and type checking utilities
+// ABOUTME: Ensures configuration values are valid and within acceptable ranges
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -167,7 +169,7 @@ impl ConfigValidator {
 
         // Check VO2 max requirement
         if param_def.requires_vo2_max
-            && (user_profile.is_none() || user_profile.unwrap().vo2_max.is_none())
+            && (user_profile.is_none() || user_profile.as_ref().is_none_or(|p| p.vo2_max.is_none()))
         {
             return Err(format!("Parameter {} requires VO2 max data", key));
         }

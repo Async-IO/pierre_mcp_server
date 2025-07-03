@@ -13,7 +13,7 @@ use crate::{
     database_plugins::{factory::Database, DatabaseProvider},
     models::User,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::{info, warn};
@@ -309,7 +309,10 @@ fn extract_bearer_token(auth_header: &str) -> Result<String> {
         return Err(anyhow!("Invalid authorization header format"));
     }
 
-    let token = auth_header.strip_prefix("Bearer ").unwrap().trim();
+    let token = auth_header
+        .strip_prefix("Bearer ")
+        .context("Failed to extract bearer token")?
+        .trim();
     if token.is_empty() {
         return Err(anyhow!("Empty bearer token"));
     }

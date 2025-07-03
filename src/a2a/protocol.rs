@@ -280,88 +280,94 @@ impl A2AServer {
     }
 
     async fn handle_task_get(&self, request: A2ARequest) -> A2AResponse {
-        // Extract task ID from parameters
-        let task_id = match request.params.as_ref().and_then(|p| p.get("task_id")) {
-            Some(serde_json::Value::String(id)) => id,
-            _ => {
+        // Validate task ID parameter
+        if let Some(params) = request.params.as_ref() {
+            if let Some(serde_json::Value::String(_task_id)) = params.get("task_id") {
+                // Task ID is valid, continue processing
+            } else {
                 return A2AResponse {
                     jsonrpc: "2.0".into(),
                     result: None,
                     error: Some(A2AError {
                         code: -32602,
-                        message: "Invalid params: task_id is required".into(),
+                        message: "Invalid params: task_id must be a string".into(),
                         data: None,
                     }),
                     id: request.id,
                 };
             }
-        };
+        } else {
+            return A2AResponse {
+                jsonrpc: "2.0".into(),
+                result: None,
+                error: Some(A2AError {
+                    code: -32602,
+                    message: "Invalid params: task_id is required".into(),
+                    data: None,
+                }),
+                id: request.id,
+            };
+        }
 
-        // For now, return a mock task - in production this would query the database
-        let task = serde_json::json!({
-            "id": task_id,
-            "type": "fitness_analysis",
-            "status": "completed",
-            "result": {
-                "summary": "Task completed successfully",
-                "data": {
-                    "activities_analyzed": 10,
-                    "insights_generated": 3
-                }
-            },
-            "created_at": chrono::Utc::now().to_rfc3339(),
-            "completed_at": chrono::Utc::now().to_rfc3339()
-        });
+        // Query database for actual task data if available
+        if self.database.is_some() {
+            // Try to get task from database
+            // For now, return error since task storage is not implemented
+            return A2AResponse {
+                jsonrpc: "2.0".into(),
+                result: None,
+                error: Some(A2AError {
+                    code: -32000,
+                    message: "Task storage not implemented".into(),
+                    data: None,
+                }),
+                id: request.id,
+            };
+        }
 
+        // No database available - return error
         A2AResponse {
             jsonrpc: "2.0".into(),
-            result: Some(task),
-            error: None,
+            result: None,
+            error: Some(A2AError {
+                code: -32000,
+                message: "Database not available for task retrieval".into(),
+                data: None,
+            }),
             id: request.id,
         }
     }
 
     async fn handle_task_list(&self, request: A2ARequest) -> A2AResponse {
-        // Extract pagination parameters
-        let default_params = serde_json::json!({});
-        let params = request.params.as_ref().unwrap_or(&default_params);
-        let limit = params.get("limit").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
-        let offset = params.get("offset").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+        // Validate parameters exist
+        if let Some(params) = request.params.as_ref() {
+            // Parameters were provided, validate them
+            tracing::debug!("Task list request with parameters: {:?}", params);
+        }
 
-        // For now, return mock tasks - in production this would query the database
-        let mock_tasks = vec![
-            serde_json::json!({
-                "id": "task_001",
-                "type": "fitness_analysis",
-                "status": "completed",
-                "created_at": chrono::Utc::now().to_rfc3339(),
-                "description": "Analyze weekly running performance"
-            }),
-            serde_json::json!({
-                "id": "task_002",
-                "type": "goal_tracking",
-                "status": "in_progress",
-                "created_at": chrono::Utc::now().to_rfc3339(),
-                "description": "Track marathon training progress"
-            }),
-        ];
+        // Query database for actual tasks if available
+        if self.database.is_none() {
+            return A2AResponse {
+                jsonrpc: "2.0".into(),
+                result: None,
+                error: Some(A2AError {
+                    code: -32000,
+                    message: "Database not available for task listing".into(),
+                    data: None,
+                }),
+                id: request.id,
+            };
+        }
 
-        // Apply pagination
-        let total_count = mock_tasks.len();
-        let paginated_tasks: Vec<_> = mock_tasks.into_iter().skip(offset).take(limit).collect();
-
+        // Task storage not implemented yet
         A2AResponse {
             jsonrpc: "2.0".into(),
-            result: Some(serde_json::json!({
-                "tasks": paginated_tasks,
-                "pagination": {
-                    "total_count": total_count,
-                    "limit": limit,
-                    "offset": offset,
-                    "has_more": offset + limit < total_count
-                }
-            })),
-            error: None,
+            result: None,
+            error: Some(A2AError {
+                code: -32000,
+                message: "Task listing not implemented".into(),
+                data: None,
+            }),
             id: request.id,
         }
     }
@@ -776,12 +782,15 @@ mod tests {
         };
 
         let response = server.handle_request(request).await;
-        assert!(response.result.is_some());
-        assert!(response.error.is_none());
+        assert!(response.result.is_none());
+        assert!(response.error.is_some());
 
-        let result = response.result.unwrap();
-        assert_eq!(result.get("id").unwrap().as_str(), Some("task_123"));
-        assert_eq!(result.get("status").unwrap().as_str(), Some("completed"));
+        let error = response.error.unwrap();
+        assert_eq!(error.code, -32000);
+        assert!(
+            error.message.contains("Task storage not implemented")
+                || error.message.contains("Database not available")
+        );
     }
 
     #[tokio::test]
@@ -800,7 +809,11 @@ mod tests {
 
         let error = response.error.unwrap();
         assert_eq!(error.code, -32602);
-        assert!(error.message.contains("task_id is required"));
+        assert!(
+            error.message.contains("task_id")
+                && (error.message.contains("required")
+                    || error.message.contains("must be a string"))
+        );
     }
 
     #[tokio::test]
@@ -817,17 +830,15 @@ mod tests {
         };
 
         let response = server.handle_request(request).await;
-        assert!(response.result.is_some());
-        assert!(response.error.is_none());
+        assert!(response.result.is_none());
+        assert!(response.error.is_some());
 
-        let result = response.result.unwrap();
-        assert!(result.get("tasks").is_some());
-        assert!(result.get("pagination").is_some());
-
-        let pagination = result.get("pagination").unwrap();
-        assert!(pagination.get("total_count").is_some());
-        assert!(pagination.get("limit").is_some());
-        assert!(pagination.get("offset").is_some());
+        let error = response.error.unwrap();
+        assert_eq!(error.code, -32000);
+        assert!(
+            error.message.contains("Task listing not implemented")
+                || error.message.contains("Database not available")
+        );
     }
 
     #[tokio::test]

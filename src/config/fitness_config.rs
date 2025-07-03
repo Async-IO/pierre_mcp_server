@@ -83,10 +83,9 @@ impl FitnessConfig {
         if let Some(config_path) = path {
             if Path::new(&config_path).exists() {
                 return Self::load_from_file(&config_path);
-            } else {
-                // If explicit path doesn't exist, fall back to defaults
-                return Ok(Self::default());
             }
+            // If explicit path doesn't exist, fall back to defaults
+            return Ok(Self::default());
         }
 
         // Try default fitness config file

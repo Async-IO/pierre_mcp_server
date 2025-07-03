@@ -66,7 +66,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn migrate(&self) -> Result<()> {
         // Create users table with PostgreSQL-specific syntax
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS users (
                 id UUID PRIMARY KEY,
                 email TEXT UNIQUE NOT NULL,
@@ -87,28 +87,28 @@ impl DatabaseProvider for PostgresDatabase {
                 created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                 last_active TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
 
         // Create user_profiles table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS user_profiles (
                 user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
                 profile_data JSONB NOT NULL,
                 created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
 
         // Create goals table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS goals (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -116,14 +116,14 @@ impl DatabaseProvider for PostgresDatabase {
                 created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
 
         // Create insights table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS insights (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -132,14 +132,14 @@ impl DatabaseProvider for PostgresDatabase {
                 metadata JSONB,
                 created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
 
         // Create api_keys table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS api_keys (
                 id TEXT PRIMARY KEY,
                 user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -156,14 +156,14 @@ impl DatabaseProvider for PostgresDatabase {
                 last_used_at TIMESTAMPTZ,
                 updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
 
         // Create api_key_usage table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS api_key_usage (
                 id SERIAL PRIMARY KEY,
                 api_key_id TEXT NOT NULL REFERENCES api_keys(id) ON DELETE CASCADE,
@@ -177,14 +177,14 @@ impl DatabaseProvider for PostgresDatabase {
                 ip_address INET,
                 user_agent TEXT
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
 
         // Create A2A tables
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS a2a_clients (
                 client_id TEXT PRIMARY KEY,
                 user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -201,13 +201,13 @@ impl DatabaseProvider for PostgresDatabase {
                 created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
 
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS a2a_sessions (
                 session_token TEXT PRIMARY KEY,
                 client_id TEXT NOT NULL REFERENCES a2a_clients(client_id) ON DELETE CASCADE,
@@ -218,13 +218,13 @@ impl DatabaseProvider for PostgresDatabase {
                 expires_at TIMESTAMPTZ NOT NULL,
                 last_active_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
 
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS a2a_tasks (
                 task_id TEXT PRIMARY KEY,
                 session_token TEXT NOT NULL REFERENCES a2a_sessions(session_token) ON DELETE CASCADE,
@@ -235,13 +235,13 @@ impl DatabaseProvider for PostgresDatabase {
                 created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
 
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS a2a_usage (
                 id SERIAL PRIMARY KEY,
                 client_id TEXT NOT NULL REFERENCES a2a_clients(client_id) ON DELETE CASCADE,
@@ -259,7 +259,7 @@ impl DatabaseProvider for PostgresDatabase {
                 client_capabilities TEXT[] DEFAULT '{}',
                 granted_scopes TEXT[] DEFAULT '{}'
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
@@ -299,7 +299,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         // Create admin tokens tables
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS admin_tokens (
                 id TEXT PRIMARY KEY,
                 service_name TEXT NOT NULL,
@@ -307,7 +307,7 @@ impl DatabaseProvider for PostgresDatabase {
                 token_hash TEXT NOT NULL,
                 token_prefix TEXT NOT NULL,
                 jwt_secret_hash TEXT NOT NULL,
-                permissions TEXT NOT NULL DEFAULT '["provision_keys"]',
+                permissions TEXT NOT NULL DEFAULT '[]',
                 is_super_admin BOOLEAN NOT NULL DEFAULT false,
                 is_active BOOLEAN NOT NULL DEFAULT true,
                 created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -316,13 +316,13 @@ impl DatabaseProvider for PostgresDatabase {
                 last_used_ip INET,
                 usage_count BIGINT NOT NULL DEFAULT 0
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
 
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS admin_token_usage (
                 id SERIAL PRIMARY KEY,
                 admin_token_id TEXT NOT NULL REFERENCES admin_tokens(id) ON DELETE CASCADE,
@@ -336,13 +336,13 @@ impl DatabaseProvider for PostgresDatabase {
                 method TEXT,
                 response_time_ms INTEGER
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
 
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS admin_provisioned_keys (
                 id SERIAL PRIMARY KEY,
                 admin_token_id TEXT NOT NULL REFERENCES admin_tokens(id) ON DELETE CASCADE,
@@ -357,7 +357,7 @@ impl DatabaseProvider for PostgresDatabase {
                 revoked_at TIMESTAMPTZ,
                 revoked_reason TEXT
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
@@ -391,7 +391,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         // Create jwt_usage table for JWT token tracking
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS jwt_usage (
                 id SERIAL PRIMARY KEY,
                 user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -405,7 +405,7 @@ impl DatabaseProvider for PostgresDatabase {
                 ip_address INET,
                 user_agent TEXT
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
@@ -425,10 +425,10 @@ impl DatabaseProvider for PostgresDatabase {
         let user_id = Uuid::new_v4();
 
         sqlx::query(
-            r#"
+            r"
             INSERT INTO users (id, email, display_name, password_hash, tier, is_active, created_at, last_active)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            "#,
+            ",
         )
         .bind(user.id)
         .bind(&user.email)
@@ -450,11 +450,11 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn get_user(&self, user_id: Uuid) -> Result<Option<User>> {
         let row = sqlx::query(
-            r#"
+            r"
             SELECT id, email, display_name, password_hash, tier, is_active, created_at, last_active
             FROM users
             WHERE id = $1
-            "#,
+            ",
         )
         .bind(user_id)
         .fetch_optional(&self.pool)
@@ -487,11 +487,11 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn get_user_by_email(&self, email: &str) -> Result<Option<User>> {
         let row = sqlx::query(
-            r#"
+            r"
             SELECT id, email, display_name, password_hash, tier, is_active, created_at, last_active
             FROM users
             WHERE email = $1
-            "#,
+            ",
         )
         .bind(email)
         .fetch_optional(&self.pool)
@@ -530,11 +530,11 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn update_last_active(&self, user_id: Uuid) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             UPDATE users
             SET last_active = CURRENT_TIMESTAMP
             WHERE id = $1
-            "#,
+            ",
         )
         .bind(user_id)
         .execute(&self.pool)
@@ -568,7 +568,7 @@ impl DatabaseProvider for PostgresDatabase {
         let encrypted = self.encrypt_token(&token)?;
 
         sqlx::query(
-            r#"
+            r"
             UPDATE users
             SET strava_access_token = $1,
                 strava_refresh_token = $2,
@@ -576,7 +576,7 @@ impl DatabaseProvider for PostgresDatabase {
                 strava_scope = $4,
                 strava_nonce = $5
             WHERE id = $6
-            "#,
+            ",
         )
         .bind(&encrypted.access_token)
         .bind(&encrypted.refresh_token)
@@ -592,11 +592,11 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn get_strava_token(&self, user_id: Uuid) -> Result<Option<DecryptedToken>> {
         let row = sqlx::query(
-            r#"
+            r"
             SELECT strava_access_token, strava_refresh_token, strava_expires_at, strava_scope, strava_nonce
             FROM users
             WHERE id = $1 AND strava_access_token IS NOT NULL
-            "#,
+            ",
         )
         .bind(user_id)
         .fetch_optional(&self.pool)
@@ -638,7 +638,7 @@ impl DatabaseProvider for PostgresDatabase {
         let encrypted = self.encrypt_token(&token)?;
 
         sqlx::query(
-            r#"
+            r"
             UPDATE users
             SET fitbit_access_token = $1,
                 fitbit_refresh_token = $2,
@@ -646,7 +646,7 @@ impl DatabaseProvider for PostgresDatabase {
                 fitbit_scope = $4,
                 fitbit_nonce = $5
             WHERE id = $6
-            "#,
+            ",
         )
         .bind(&encrypted.access_token)
         .bind(&encrypted.refresh_token)
@@ -662,11 +662,11 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn get_fitbit_token(&self, user_id: Uuid) -> Result<Option<DecryptedToken>> {
         let row = sqlx::query(
-            r#"
+            r"
             SELECT fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope, fitbit_nonce
             FROM users
             WHERE id = $1 AND fitbit_access_token IS NOT NULL
-            "#,
+            ",
         )
         .bind(user_id)
         .fetch_optional(&self.pool)
@@ -693,7 +693,7 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn clear_strava_token(&self, user_id: Uuid) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             UPDATE users
             SET strava_access_token = NULL,
                 strava_refresh_token = NULL,
@@ -701,7 +701,7 @@ impl DatabaseProvider for PostgresDatabase {
                 strava_scope = NULL,
                 strava_nonce = NULL
             WHERE id = $1
-            "#,
+            ",
         )
         .bind(user_id)
         .execute(&self.pool)
@@ -712,7 +712,7 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn clear_fitbit_token(&self, user_id: Uuid) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             UPDATE users
             SET fitbit_access_token = NULL,
                 fitbit_refresh_token = NULL,
@@ -720,7 +720,7 @@ impl DatabaseProvider for PostgresDatabase {
                 fitbit_scope = NULL,
                 fitbit_nonce = NULL
             WHERE id = $1
-            "#,
+            ",
         )
         .bind(user_id)
         .execute(&self.pool)
@@ -731,12 +731,12 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn upsert_user_profile(&self, user_id: Uuid, profile_data: Value) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             INSERT INTO user_profiles (user_id, profile_data, updated_at)
             VALUES ($1, $2, CURRENT_TIMESTAMP)
             ON CONFLICT (user_id)
             DO UPDATE SET profile_data = $2, updated_at = CURRENT_TIMESTAMP
-            "#,
+            ",
         )
         .bind(user_id)
         .bind(&profile_data)
@@ -748,11 +748,11 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn get_user_profile(&self, user_id: Uuid) -> Result<Option<Value>> {
         let row = sqlx::query(
-            r#"
+            r"
             SELECT profile_data
             FROM user_profiles
             WHERE user_id = $1
-            "#,
+            ",
         )
         .bind(user_id)
         .fetch_optional(&self.pool)
@@ -769,10 +769,10 @@ impl DatabaseProvider for PostgresDatabase {
         let goal_id = Uuid::new_v4().to_string();
 
         sqlx::query(
-            r#"
+            r"
             INSERT INTO goals (id, user_id, goal_data)
             VALUES ($1, $2, $3)
-            "#,
+            ",
         )
         .bind(&goal_id)
         .bind(user_id)
@@ -785,12 +785,12 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn get_user_goals(&self, user_id: Uuid) -> Result<Vec<Value>> {
         let rows = sqlx::query(
-            r#"
+            r"
             SELECT goal_data
             FROM goals
             WHERE user_id = $1
             ORDER BY created_at DESC
-            "#,
+            ",
         )
         .bind(user_id)
         .fetch_all(&self.pool)
@@ -802,12 +802,12 @@ impl DatabaseProvider for PostgresDatabase {
     async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> Result<()> {
         // This would need to update the JSONB field - simplified implementation
         sqlx::query(
-            r#"
+            r"
             UPDATE goals
             SET goal_data = jsonb_set(goal_data, '{current_value}', $1::text::jsonb),
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $2
-            "#,
+            ",
         )
         .bind(current_value)
         .bind(goal_id)
@@ -825,10 +825,10 @@ impl DatabaseProvider for PostgresDatabase {
         let insight_id = Uuid::new_v4().to_string();
 
         sqlx::query(
-            r#"
+            r"
             INSERT INTO insights (id, user_id, insight_type, content, metadata)
             VALUES ($1, $2, $3, $4, $5)
-            "#,
+            ",
         )
         .bind(&insight_id)
         .bind(user_id)
@@ -851,13 +851,13 @@ impl DatabaseProvider for PostgresDatabase {
 
         let rows = if let Some(insight_type) = insight_type {
             sqlx::query(
-                r#"
+                r"
                 SELECT content
                 FROM insights
                 WHERE user_id = $1 AND insight_type = $2
                 ORDER BY created_at DESC
                 LIMIT $3
-                "#,
+                ",
             )
             .bind(user_id)
             .bind(insight_type)
@@ -866,13 +866,13 @@ impl DatabaseProvider for PostgresDatabase {
             .await?
         } else {
             sqlx::query(
-                r#"
+                r"
                 SELECT content
                 FROM insights
                 WHERE user_id = $1
                 ORDER BY created_at DESC
                 LIMIT $2
-                "#,
+                ",
             )
             .bind(user_id)
             .bind(limit as i64)
@@ -885,10 +885,10 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn create_api_key(&self, api_key: &ApiKey) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             INSERT INTO api_keys (id, user_id, name, key_prefix, key_hash, description, tier, is_active, rate_limit_requests, rate_limit_window_seconds, expires_at)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-            "#,
+            ",
         )
         .bind(&api_key.id)
         .bind(api_key.user_id)
@@ -909,12 +909,12 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn get_api_key_by_prefix(&self, prefix: &str, hash: &str) -> Result<Option<ApiKey>> {
         let row = sqlx::query(
-            r#"
+            r"
             SELECT id, user_id, name, key_prefix, key_hash, description, tier, is_active, rate_limit_requests, 
                    rate_limit_window_seconds, created_at, expires_at, last_used_at, updated_at
             FROM api_keys 
             WHERE id LIKE $1 AND key_hash = $2 AND is_active = true
-            "#,
+            ",
         )
         .bind(format!("{}%", prefix))
         .bind(hash)
@@ -952,13 +952,13 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn get_user_api_keys(&self, user_id: Uuid) -> Result<Vec<ApiKey>> {
         let rows = sqlx::query(
-            r#"
+            r"
             SELECT id, user_id, name, key_prefix, key_hash, description, tier, is_active, rate_limit_requests, 
                    rate_limit_window_seconds, created_at, expires_at, last_used_at, updated_at
             FROM api_keys 
             WHERE user_id = $1
             ORDER BY created_at DESC
-            "#,
+            ",
         )
         .bind(user_id)
         .fetch_all(&self.pool)
@@ -992,11 +992,11 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn update_api_key_last_used(&self, api_key_id: &str) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             UPDATE api_keys 
             SET last_used_at = CURRENT_TIMESTAMP 
             WHERE id = $1
-            "#,
+            ",
         )
         .bind(api_key_id)
         .execute(&self.pool)
@@ -1007,11 +1007,11 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn deactivate_api_key(&self, api_key_id: &str, user_id: Uuid) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             UPDATE api_keys 
             SET is_active = false 
             WHERE id = $1 AND user_id = $2
-            "#,
+            ",
         )
         .bind(api_key_id)
         .bind(user_id)
@@ -1023,13 +1023,13 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn get_api_key_by_id(&self, api_key_id: &str) -> Result<Option<ApiKey>> {
         let row = sqlx::query(
-            r#"
+            r"
             SELECT id, user_id, name, description, key_prefix, key_hash, tier, 
                    rate_limit_requests, rate_limit_window_seconds, is_active, 
                    created_at, last_used_at, expires_at, updated_at
             FROM api_keys
             WHERE id = $1
-            "#,
+            ",
         )
         .bind(api_key_id)
         .fetch_optional(&self.pool)
@@ -1154,11 +1154,11 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn cleanup_expired_api_keys(&self) -> Result<u64> {
         let result = sqlx::query(
-            r#"
+            r"
             UPDATE api_keys 
             SET is_active = false 
             WHERE expires_at IS NOT NULL AND expires_at < CURRENT_TIMESTAMP AND is_active = true
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
@@ -1168,13 +1168,13 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn get_expired_api_keys(&self) -> Result<Vec<ApiKey>> {
         let rows = sqlx::query(
-            r#"
+            r"
             SELECT id, user_id, name, key_prefix, key_hash, description, tier, is_active, rate_limit_requests, 
                    rate_limit_window_seconds, created_at, expires_at, last_used_at, updated_at
             FROM api_keys 
             WHERE expires_at IS NOT NULL AND expires_at < CURRENT_TIMESTAMP
             ORDER BY expires_at ASC
-            "#,
+            ",
         )
         .fetch_all(&self.pool)
         .await?;
@@ -1207,11 +1207,11 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn record_api_key_usage(&self, usage: &ApiKeyUsage) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             INSERT INTO api_key_usage (api_key_id, timestamp, endpoint, response_time_ms, status_code, 
                                      method, request_size_bytes, response_size_bytes, ip_address, user_agent)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-            "#,
+            ",
         )
         .bind(&usage.api_key_id)
         .bind(usage.timestamp)
@@ -1231,11 +1231,11 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn get_api_key_current_usage(&self, api_key_id: &str) -> Result<u32> {
         let row = sqlx::query(
-            r#"
+            r"
             SELECT COUNT(*) as count
             FROM api_key_usage 
             WHERE api_key_id = $1 AND timestamp >= CURRENT_DATE
-            "#,
+            ",
         )
         .bind(api_key_id)
         .fetch_one(&self.pool)
@@ -1251,7 +1251,7 @@ impl DatabaseProvider for PostgresDatabase {
         end_date: DateTime<Utc>,
     ) -> Result<ApiKeyUsageStats> {
         let row = sqlx::query(
-            r#"
+            r"
             SELECT 
                 COUNT(*) as total_requests,
                 COUNT(CASE WHEN status_code >= 200 AND status_code < 300 THEN 1 END) as successful_requests,
@@ -1261,7 +1261,7 @@ impl DatabaseProvider for PostgresDatabase {
                 SUM(response_size_bytes) as total_response_size
             FROM api_key_usage 
             WHERE api_key_id = $1 AND timestamp >= $2 AND timestamp <= $3
-            "#,
+            ",
         )
         .bind(api_key_id)
         .bind(start_date)
@@ -1271,7 +1271,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         // Get tool usage aggregation
         let tool_usage_stats = sqlx::query(
-            r#"
+            r"
             SELECT tool_name, 
                    COUNT(*) as tool_count,
                    AVG(response_time_ms) as avg_response_time,
@@ -1280,7 +1280,7 @@ impl DatabaseProvider for PostgresDatabase {
             WHERE api_key_id = $1 AND timestamp >= $2 AND timestamp <= $3
             GROUP BY tool_name
             ORDER BY tool_count DESC
-            "#,
+            ",
         )
         .bind(api_key_id)
         .bind(start_date)
@@ -1322,13 +1322,13 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn record_jwt_usage(&self, usage: &JwtUsage) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             INSERT INTO jwt_usage (
                 user_id, timestamp, endpoint, response_time_ms, status_code,
                 method, request_size_bytes, response_size_bytes, 
                 ip_address, user_agent
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-            "#,
+            ",
         )
         .bind(usage.user_id)
         .bind(usage.timestamp)
@@ -1348,11 +1348,11 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn get_jwt_current_usage(&self, user_id: Uuid) -> Result<u32> {
         let row = sqlx::query(
-            r#"
+            r"
             SELECT COUNT(*) as count
             FROM jwt_usage 
             WHERE user_id = $1 AND timestamp >= DATE_TRUNC('month', CURRENT_DATE)
-            "#,
+            ",
         )
         .bind(user_id)
         .fetch_one(&self.pool)
@@ -1370,12 +1370,12 @@ impl DatabaseProvider for PostgresDatabase {
         tool_filter: Option<&str>,
     ) -> Result<Vec<crate::dashboard_routes::RequestLog>> {
         let mut query = String::from(
-            r#"
+            r"
             SELECT api_key_id, timestamp, endpoint, response_time_ms, status_code, 
                    method, request_size_bytes, response_size_bytes, ip_address, user_agent
             FROM api_key_usage 
             WHERE 1=1
-            "#,
+            ",
         );
         let mut params: Vec<Box<dyn sqlx::Encode<sqlx::Postgres> + Send + Sync>> = Vec::new();
         let mut param_count = 0;
@@ -1412,9 +1412,22 @@ impl DatabaseProvider for PostgresDatabase {
 
         query.push_str(" ORDER BY timestamp DESC LIMIT 1000");
 
-        // For now, return empty vec as implementing dynamic query building is complex
-        // This would need proper query builder or raw SQL construction
-        Ok(vec![])
+        // Execute the dynamically built query
+        let mut sql_query = sqlx::query_as::<_, crate::database::AnalyticsEntry>(&query);
+        
+        // Bind all parameters
+        for param in params {
+            if let Ok(string_val) = param.downcast::<String>() {
+                sql_query = sql_query.bind(*string_val);
+            } else if let Ok(datetime_val) = param.downcast::<chrono::DateTime<chrono::Utc>>() {
+                sql_query = sql_query.bind(*datetime_val);
+            } else if let Ok(i32_val) = param.downcast::<i32>() {
+                sql_query = sql_query.bind(*i32_val);
+            }
+        }
+
+        let results = sql_query.fetch_all(&self.pool).await?;
+        Ok(results)
     }
 
     async fn get_system_stats(&self) -> Result<(u64, u64)> {
@@ -1441,12 +1454,12 @@ impl DatabaseProvider for PostgresDatabase {
         api_key_id: &str,
     ) -> Result<String> {
         sqlx::query(
-            r#"
+            r"
             INSERT INTO a2a_clients (client_id, user_id, name, description, client_secret_hash, 
                                     api_key_hash, capabilities, redirect_uris, 
                                     is_active, rate_limit_per_minute, rate_limit_per_day)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-            "#,
+            ",
         )
         .bind(&client.id)
         .bind(Uuid::new_v4()) // Generate a user_id since A2AClient doesn't have one
@@ -1467,13 +1480,13 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn get_a2a_client(&self, client_id: &str) -> Result<Option<A2AClient>> {
         let row = sqlx::query(
-            r#"
+            r"
             SELECT client_id, user_id, name, description, client_secret_hash, capabilities, 
                    redirect_uris, contact_email, is_active, rate_limit_per_minute, 
                    rate_limit_per_day, created_at, updated_at
             FROM a2a_clients
             WHERE client_id = $1
-            "#,
+            ",
         )
         .bind(client_id)
         .fetch_optional(&self.pool)
@@ -1501,13 +1514,13 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn get_a2a_client_by_name(&self, name: &str) -> Result<Option<A2AClient>> {
         let row = sqlx::query(
-            r#"
+            r"
             SELECT client_id, user_id, name, description, client_secret_hash, capabilities, 
                    redirect_uris, contact_email, is_active, rate_limit_per_minute, 
                    rate_limit_per_day, created_at, updated_at
             FROM a2a_clients
             WHERE name = $1
-            "#,
+            ",
         )
         .bind(name)
         .fetch_optional(&self.pool)
@@ -1535,14 +1548,14 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn list_a2a_clients(&self, user_id: &Uuid) -> Result<Vec<A2AClient>> {
         let rows = sqlx::query(
-            r#"
+            r"
             SELECT client_id, user_id, name, description, client_secret_hash, capabilities, 
                    redirect_uris, contact_email, is_active, rate_limit_per_minute, 
                    rate_limit_per_day, created_at, updated_at
             FROM a2a_clients
             WHERE user_id = $1
             ORDER BY created_at DESC
-            "#,
+            ",
         )
         .bind(user_id)
         .fetch_all(&self.pool)
@@ -1640,11 +1653,11 @@ impl DatabaseProvider for PostgresDatabase {
         let scopes_json = serde_json::to_string(granted_scopes)?;
 
         sqlx::query(
-            r#"
+            r"
             INSERT INTO a2a_sessions (
                 session_id, client_id, user_id, granted_scopes, created_at, expires_at, last_activity
             ) VALUES ($1, $2, $3, $4, $5, $6, $5)
-            "#,
+            ",
         )
         .bind(&session_id)
         .bind(client_id)
@@ -1660,12 +1673,12 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn get_a2a_session(&self, session_token: &str) -> Result<Option<A2ASession>> {
         let row = sqlx::query(
-            r#"
+            r"
             SELECT session_token, client_id, user_id, granted_scopes, 
                    expires_at, last_activity, created_at
             FROM a2a_sessions
             WHERE session_token = $1 AND expires_at > NOW()
-            "#,
+            ",
         )
         .bind(session_token)
         .fetch_optional(&self.pool)
@@ -1702,13 +1715,13 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn get_active_a2a_sessions(&self, client_id: &str) -> Result<Vec<A2ASession>> {
         let rows = sqlx::query(
-            r#"
+            r"
             SELECT session_token, client_id, user_id, granted_scopes, 
                    expires_at, last_activity, created_at, requests_count
             FROM a2a_sessions
             WHERE client_id = $1 AND expires_at > NOW()
             ORDER BY last_activity DESC
-            "#,
+            ",
         )
         .bind(client_id)
         .fetch_all(&self.pool)
@@ -1756,11 +1769,11 @@ impl DatabaseProvider for PostgresDatabase {
         let input_json = serde_json::to_string(input_data)?;
 
         sqlx::query(
-            r#"
+            r"
             INSERT INTO a2a_tasks 
             (task_id, client_id, session_id, task_type, input_data, status, created_at)
             VALUES ($1, $2, $3, $4, $5, $6, NOW())
-            "#,
+            ",
         )
         .bind(&task_id)
         .bind(client_id)
@@ -1776,12 +1789,12 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn get_a2a_task(&self, task_id: &str) -> Result<Option<A2ATask>> {
         let row = sqlx::query(
-            r#"
+            r"
             SELECT task_id, client_id, session_id, task_type, input_data,
                    status, result_data, method, created_at, updated_at
             FROM a2a_tasks
             WHERE task_id = $1
-            "#,
+            ",
         )
         .bind(task_id)
         .fetch_optional(&self.pool)
@@ -1856,11 +1869,11 @@ impl DatabaseProvider for PostgresDatabase {
         let result_json = result.map(serde_json::to_string).transpose()?;
 
         sqlx::query(
-            r#"
+            r"
             UPDATE a2a_tasks 
             SET status = $1, result_data = $2, method = $3, updated_at = NOW()
             WHERE task_id = $4
-            "#,
+            ",
         )
         .bind(status_str)
         .bind(result_json)
@@ -1874,13 +1887,13 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn record_a2a_usage(&self, usage: &A2AUsage) -> Result<()> {
         let _ = sqlx::query(
-            r#"
+            r"
             INSERT INTO a2a_usage 
             (client_id, session_token, endpoint, status_code, 
              response_time_ms, request_size_bytes, response_size_bytes, timestamp,
              method, ip_address, user_agent, protocol_version)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-            "#,
+            ",
         )
         .bind(&usage.client_id)
         .bind(&usage.session_token)
@@ -1902,11 +1915,11 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn get_a2a_client_current_usage(&self, client_id: &str) -> Result<u32> {
         let row = sqlx::query(
-            r#"
+            r"
             SELECT COUNT(*) as usage_count
             FROM a2a_usage
             WHERE client_id = $1 AND timestamp >= NOW() - INTERVAL '1 hour'
-            "#,
+            ",
         )
         .bind(client_id)
         .fetch_one(&self.pool)
@@ -1923,7 +1936,7 @@ impl DatabaseProvider for PostgresDatabase {
         end_date: DateTime<Utc>,
     ) -> Result<crate::database::A2AUsageStats> {
         let row = sqlx::query(
-            r#"
+            r"
             SELECT 
                 COUNT(*) as total_requests,
                 COUNT(CASE WHEN status_code < 400 THEN 1 END) as successful_requests,
@@ -1933,7 +1946,7 @@ impl DatabaseProvider for PostgresDatabase {
                 SUM(response_size_bytes) as total_response_bytes
             FROM a2a_usage
             WHERE client_id = $1 AND timestamp BETWEEN $2 AND $3
-            "#,
+            ",
         )
         .bind(client_id)
         .bind(start_date)
@@ -1978,7 +1991,7 @@ impl DatabaseProvider for PostgresDatabase {
         days: u32,
     ) -> Result<Vec<(DateTime<Utc>, u32, u32)>> {
         let rows = sqlx::query(
-            r#"
+            r"
             SELECT 
                 DATE_TRUNC('day', timestamp) as day,
                 COUNT(CASE WHEN status_code < 400 THEN 1 END) as success_count,
@@ -1988,7 +2001,7 @@ impl DatabaseProvider for PostgresDatabase {
               AND timestamp >= NOW() - INTERVAL '$2 days'
             GROUP BY DATE_TRUNC('day', timestamp)
             ORDER BY day
-            "#,
+            ",
         )
         .bind(client_id)
         .bind(days as i32)
@@ -2015,7 +2028,7 @@ impl DatabaseProvider for PostgresDatabase {
         end_time: DateTime<Utc>,
     ) -> Result<Vec<crate::dashboard_routes::ToolUsage>> {
         let rows = sqlx::query(
-            r#"
+            r"
             SELECT endpoint, COUNT(*) as usage_count,
                    AVG(response_time_ms) as avg_response_time,
                    COUNT(CASE WHEN status_code < 400 THEN 1 END) as success_count,
@@ -2026,7 +2039,7 @@ impl DatabaseProvider for PostgresDatabase {
             GROUP BY endpoint
             ORDER BY usage_count DESC
             LIMIT 10
-            "#,
+            ",
         )
         .bind(user_id)
         .bind(start_time)
@@ -2126,13 +2139,13 @@ impl DatabaseProvider for PostgresDatabase {
         let jwt_secret_hash = AdminJwtManager::hash_secret(&jwt_secret);
 
         // Store in database
-        let query = r#"
+        let query = r"
             INSERT INTO admin_tokens (
                 id, service_name, service_description, token_hash, token_prefix,
                 jwt_secret_hash, permissions, is_super_admin, is_active,
                 created_at, expires_at, usage_count
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-        "#;
+        ";
 
         let permissions_json = permissions.to_json()?;
         let created_at = chrono::Utc::now();
@@ -2169,12 +2182,12 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         token_id: &str,
     ) -> Result<Option<crate::admin::models::AdminToken>> {
-        let query = r#"
+        let query = r"
             SELECT id, service_name, service_description, token_hash, token_prefix,
                    jwt_secret_hash, permissions, is_super_admin, is_active,
                    created_at, expires_at, last_used_at, last_used_ip, usage_count
             FROM admin_tokens WHERE id = $1
-        "#;
+        ";
 
         let row = sqlx::query(query)
             .bind(token_id)
@@ -2192,12 +2205,12 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         token_prefix: &str,
     ) -> Result<Option<crate::admin::models::AdminToken>> {
-        let query = r#"
+        let query = r"
             SELECT id, service_name, service_description, token_hash, token_prefix,
                    jwt_secret_hash, permissions, is_super_admin, is_active,
                    created_at, expires_at, last_used_at, last_used_ip, usage_count
             FROM admin_tokens WHERE token_prefix = $1
-        "#;
+        ";
 
         let row = sqlx::query(query)
             .bind(token_prefix)
@@ -2216,19 +2229,19 @@ impl DatabaseProvider for PostgresDatabase {
         include_inactive: bool,
     ) -> Result<Vec<crate::admin::models::AdminToken>> {
         let query = if include_inactive {
-            r#"
+            r"
                 SELECT id, service_name, service_description, token_hash, token_prefix,
                        jwt_secret_hash, permissions, is_super_admin, is_active,
                        created_at, expires_at, last_used_at, last_used_ip, usage_count
                 FROM admin_tokens ORDER BY created_at DESC
-            "#
+            "
         } else {
-            r#"
+            r"
                 SELECT id, service_name, service_description, token_hash, token_prefix,
                        jwt_secret_hash, permissions, is_super_admin, is_active,
                        created_at, expires_at, last_used_at, last_used_ip, usage_count
                 FROM admin_tokens WHERE is_active = true ORDER BY created_at DESC
-            "#
+            "
         };
 
         let rows = sqlx::query(query).fetch_all(&self.pool).await?;
@@ -2257,11 +2270,11 @@ impl DatabaseProvider for PostgresDatabase {
         token_id: &str,
         ip_address: Option<&str>,
     ) -> Result<()> {
-        let query = r#"
+        let query = r"
             UPDATE admin_tokens 
             SET last_used_at = CURRENT_TIMESTAMP, last_used_ip = $1, usage_count = usage_count + 1
             WHERE id = $2
-        "#;
+        ";
 
         sqlx::query(query)
             .bind(ip_address)
@@ -2276,13 +2289,13 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         usage: &crate::admin::models::AdminTokenUsage,
     ) -> Result<()> {
-        let query = r#"
+        let query = r"
             INSERT INTO admin_token_usage (
                 admin_token_id, timestamp, action, target_resource,
                 ip_address, user_agent, request_size_bytes, success,
                 method, response_time_ms
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        "#;
+        ";
 
         sqlx::query(query)
             .bind(&usage.admin_token_id)
@@ -2307,14 +2320,14 @@ impl DatabaseProvider for PostgresDatabase {
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
     ) -> Result<Vec<crate::admin::models::AdminTokenUsage>> {
-        let query = r#"
+        let query = r"
             SELECT id, admin_token_id, timestamp, action, target_resource,
                    ip_address, user_agent, request_size_bytes, success,
                    method, response_time_ms
             FROM admin_token_usage 
             WHERE admin_token_id = $1 AND timestamp BETWEEN $2 AND $3
             ORDER BY timestamp DESC
-        "#;
+        ";
 
         let rows = sqlx::query(query)
             .bind(token_id)
@@ -2340,13 +2353,13 @@ impl DatabaseProvider for PostgresDatabase {
         rate_limit_requests: u32,
         rate_limit_period: &str,
     ) -> Result<()> {
-        let query = r#"
+        let query = r"
             INSERT INTO admin_provisioned_keys (
                 admin_token_id, api_key_id, user_email, requested_tier,
                 provisioned_at, provisioned_by_service, rate_limit_requests,
                 rate_limit_period, key_status
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        "#;
+        ";
 
         // Get service name from admin token
         let service_name = if let Some(token) = self.get_admin_token_by_id(admin_token_id).await? {
@@ -2380,14 +2393,14 @@ impl DatabaseProvider for PostgresDatabase {
         // Simplified implementation using direct queries instead of complex dynamic binding
         if let Some(token_id) = admin_token_id {
             let rows = sqlx::query(
-                r#"
+                r"
                     SELECT id, admin_token_id, api_key_id, user_email, requested_tier,
                            provisioned_at, provisioned_by_service, rate_limit_requests,
                            rate_limit_period, key_status, revoked_at, revoked_reason
                     FROM admin_provisioned_keys 
                     WHERE admin_token_id = $1 AND provisioned_at BETWEEN $2 AND $3
                     ORDER BY provisioned_at DESC
-                "#,
+                ",
             )
             .bind(token_id)
             .bind(start_date)
@@ -2416,14 +2429,14 @@ impl DatabaseProvider for PostgresDatabase {
             Ok(results)
         } else {
             let rows = sqlx::query(
-                r#"
+                r"
                     SELECT id, admin_token_id, api_key_id, user_email, requested_tier,
                            provisioned_at, provisioned_by_service, rate_limit_requests,
                            rate_limit_period, key_status, revoked_at, revoked_reason
                     FROM admin_provisioned_keys 
                     WHERE provisioned_at BETWEEN $1 AND $2
                     ORDER BY provisioned_at DESC
-                "#,
+                ",
             )
             .bind(start_date)
             .bind(end_date)

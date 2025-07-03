@@ -107,7 +107,7 @@ impl Database {
 
         // Create admin_token_usage table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS admin_token_usage (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 admin_token_id TEXT NOT NULL REFERENCES admin_tokens(id) ON DELETE CASCADE,
@@ -121,14 +121,14 @@ impl Database {
                 error_message TEXT,
                 response_time_ms INTEGER
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
 
         // Create admin_provisioned_keys table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS admin_provisioned_keys (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 admin_token_id TEXT NOT NULL REFERENCES admin_tokens(id) ON DELETE CASCADE,
@@ -143,7 +143,7 @@ impl Database {
                 revoked_at DATETIME,
                 revoked_reason TEXT
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;

@@ -311,13 +311,13 @@ mod tests {
         match &database {
             crate::database_plugins::factory::Database::SQLite(sqlite_db) => {
                 sqlx::query(
-                    r#"
+                    r"
                     INSERT INTO admin_tokens (
                         id, service_name, token_hash, token_prefix,
                         jwt_secret_hash, permissions, is_super_admin, is_active,
                         created_at, usage_count
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    "#,
+                    ",
                 )
                 .bind("test_token_123")
                 .bind("test_service")

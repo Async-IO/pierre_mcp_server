@@ -1,4 +1,5 @@
-//! User management database operations
+// ABOUTME: User management database operations
+// ABOUTME: Handles user registration, authentication, and profile management
 
 use super::Database;
 use crate::models::{EncryptedToken, User};
@@ -11,7 +12,7 @@ impl Database {
     pub(super) async fn migrate_users(&self) -> Result<()> {
         // Create users table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS users (
                 id TEXT PRIMARY KEY,
                 email TEXT UNIQUE NOT NULL,
@@ -34,21 +35,21 @@ impl Database {
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 last_active DATETIME DEFAULT CURRENT_TIMESTAMP
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
 
         // Create user_profiles table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS user_profiles (
                 user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
                 profile_data TEXT NOT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
@@ -101,7 +102,7 @@ impl Database {
                 };
 
             sqlx::query(
-                r#"
+                r"
                 UPDATE users SET
                     display_name = $2,
                     password_hash = $3,
@@ -119,7 +120,7 @@ impl Database {
                     is_active = $15,
                     last_active = CURRENT_TIMESTAMP
                 WHERE id = $1
-                "#,
+                ",
             )
             .bind(user.id.to_string())
             .bind(&user.display_name)
@@ -167,14 +168,14 @@ impl Database {
                 };
 
             sqlx::query(
-                r#"
+                r"
                 INSERT INTO users (
                     id, email, display_name, password_hash, tier, 
                     strava_access_token, strava_refresh_token, strava_expires_at, strava_scope, strava_nonce,
                     fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope, fitbit_nonce,
                     is_active, created_at, last_active
                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
-                "#,
+                ",
             )
             .bind(user.id.to_string())
             .bind(&user.email)
@@ -226,13 +227,13 @@ impl Database {
     /// Internal implementation for getting a user
     async fn get_user_impl(&self, field: &str, value: &str) -> Result<Option<User>> {
         let query = format!(
-            r#"
+            r"
             SELECT id, email, display_name, password_hash, tier,
                    strava_access_token, strava_refresh_token, strava_expires_at, strava_scope, strava_nonce,
                    fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope, fitbit_nonce,
                    is_active, created_at, last_active
             FROM users WHERE {} = $1
-            "#,
+            ",
             field
         );
 
@@ -340,13 +341,13 @@ impl Database {
         let profile_json = serde_json::to_string(&profile_data)?;
 
         sqlx::query(
-            r#"
+            r"
             INSERT INTO user_profiles (user_id, profile_data, updated_at)
             VALUES ($1, $2, CURRENT_TIMESTAMP)
             ON CONFLICT(user_id) DO UPDATE SET
                 profile_data = $2,
                 updated_at = CURRENT_TIMESTAMP
-            "#,
+            ",
         )
         .bind(user_id.to_string())
         .bind(profile_json)
@@ -359,9 +360,9 @@ impl Database {
     /// Get user profile data
     pub async fn get_user_profile(&self, user_id: Uuid) -> Result<Option<serde_json::Value>> {
         let row = sqlx::query(
-            r#"
+            r"
             SELECT profile_data FROM user_profiles WHERE user_id = $1
-            "#,
+            ",
         )
         .bind(user_id.to_string())
         .fetch_optional(&self.pool)

@@ -1,3 +1,5 @@
+// ABOUTME: Configuration catalog defining available config parameters and defaults
+// ABOUTME: Centralizes configuration schema and validation rules
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -440,7 +442,7 @@ impl CatalogBuilder {
                             key: "vo2.vdot_coefficient_b".into(),
                             description: "VDOT formula coefficient B (linear term)".into(),
                             data_type: ParameterType::Float,
-                            default_value: ConfigValue::Float(5.000663),
+                            default_value: ConfigValue::Float(5.000_663),
                             valid_range: Some(ConfigValue::FloatRange { min: 4.0, max: 6.0 }),
                             units: Some("(m/min)/(ml/kg/min)".into()),
                             scientific_basis: Some("Jack Daniels Running Formula".into()),
@@ -450,7 +452,7 @@ impl CatalogBuilder {
                             key: "vo2.vdot_coefficient_c".into(),
                             description: "VDOT formula coefficient C (quadratic term)".into(),
                             data_type: ParameterType::Float,
-                            default_value: ConfigValue::Float(0.007546),
+                            default_value: ConfigValue::Float(0.007_546),
                             valid_range: Some(ConfigValue::FloatRange {
                                 min: 0.005,
                                 max: 0.01,

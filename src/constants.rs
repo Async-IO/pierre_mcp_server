@@ -349,7 +349,7 @@ pub mod crypto {
 pub mod security {
     /// HSTS max-age values
     pub const HSTS_MAX_AGE_DEV: u32 = 86400; // 1 day in seconds
-    pub const HSTS_MAX_AGE_PROD: u32 = 31536000; // 1 year in seconds
+    pub const HSTS_MAX_AGE_PROD: u32 = 31_536_000; // 1 year in seconds
 }
 
 /// OAuth scopes and provider defaults
@@ -371,6 +371,9 @@ pub mod defaults {
 
     /// Default unit system
     pub const DEFAULT_UNITS: &str = "metric";
+
+    /// Default goal timeframe in days
+    pub const DEFAULT_GOAL_TIMEFRAME_DAYS: i64 = 90;
 }
 
 /// Database schema constants

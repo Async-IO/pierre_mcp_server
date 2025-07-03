@@ -1,3 +1,5 @@
+// ABOUTME: User profile configuration and fitness-specific settings
+// ABOUTME: Manages athlete profiles, preferences, and personalized configurations
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -241,7 +243,7 @@ impl FitnessLevel {
         // Get thresholds from configuration catalog
         use super::catalog::CatalogBuilder;
         let gender_prefix = match gender {
-            Some("F") | Some("female") => "female",
+            Some("F" | "female") => "female",
             _ => "male", // Male or unspecified
         };
 

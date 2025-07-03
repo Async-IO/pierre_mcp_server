@@ -1,4 +1,5 @@
-//! Analytics and usage tracking database operations
+// ABOUTME: Analytics and usage tracking database operations
+// ABOUTME: Stores and retrieves usage metrics and performance analytics
 
 use super::Database;
 use crate::rate_limiting::JwtUsage;
@@ -26,7 +27,7 @@ impl Database {
     pub(super) async fn migrate_analytics(&self) -> Result<()> {
         // Create JWT usage tracking table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS jwt_usage (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -40,14 +41,14 @@ impl Database {
                 ip_address TEXT,
                 user_agent TEXT
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
 
         // Create goals table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS goals (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -55,14 +56,14 @@ impl Database {
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
 
         // Create insights table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS insights (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -71,14 +72,14 @@ impl Database {
                 insight_data TEXT NOT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
 
         // Create request_logs table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS request_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
@@ -90,7 +91,7 @@ impl Database {
                 response_time_ms INTEGER,
                 error_message TEXT
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
@@ -128,13 +129,13 @@ impl Database {
     /// Record JWT usage for rate limiting
     pub async fn record_jwt_usage(&self, usage: &JwtUsage) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             INSERT INTO jwt_usage (
                 user_id, timestamp, endpoint, method, status_code,
                 response_time_ms, request_size_bytes, response_size_bytes,
                 ip_address, user_agent
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-            "#,
+            ",
         )
         .bind(usage.user_id.to_string())
         .bind(usage.timestamp)
@@ -157,10 +158,10 @@ impl Database {
         let window_start = Utc::now() - Duration::hours(1); // 1 hour window
 
         let count: i32 = sqlx::query_scalar(
-            r#"
+            r"
             SELECT COUNT(*) FROM jwt_usage
             WHERE user_id = $1 AND timestamp > $2
-            "#,
+            ",
         )
         .bind(user_id.to_string())
         .bind(window_start)
@@ -176,10 +177,10 @@ impl Database {
         let goal_json = serde_json::to_string(&goal_data)?;
 
         sqlx::query(
-            r#"
+            r"
             INSERT INTO goals (id, user_id, goal_data)
             VALUES ($1, $2, $3)
-            "#,
+            ",
         )
         .bind(&goal_id)
         .bind(user_id.to_string())
@@ -193,11 +194,11 @@ impl Database {
     /// Get all goals for a user
     pub async fn get_user_goals(&self, user_id: Uuid) -> Result<Vec<serde_json::Value>> {
         let rows = sqlx::query(
-            r#"
+            r"
             SELECT id, goal_data FROM goals
             WHERE user_id = $1
             ORDER BY created_at DESC
-            "#,
+            ",
         )
         .bind(user_id.to_string())
         .fetch_all(&self.pool)
@@ -224,9 +225,9 @@ impl Database {
     pub async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> Result<()> {
         // Get the current goal data
         let row = sqlx::query(
-            r#"
+            r"
             SELECT goal_data FROM goals WHERE id = $1
-            "#,
+            ",
         )
         .bind(goal_id)
         .fetch_one(&self.pool)
@@ -275,11 +276,11 @@ impl Database {
         let updated_goal_json = serde_json::to_string(&goal_data)?;
 
         sqlx::query(
-            r#"
+            r"
             UPDATE goals
             SET goal_data = $1, updated_at = CURRENT_TIMESTAMP
             WHERE id = $2
-            "#,
+            ",
         )
         .bind(updated_goal_json)
         .bind(goal_id)
@@ -301,10 +302,10 @@ impl Database {
         let insight_json = serde_json::to_string(&insight_data)?;
 
         sqlx::query(
-            r#"
+            r"
             INSERT INTO insights (id, user_id, activity_id, insight_type, insight_data)
             VALUES ($1, $2, $3, $4, $5)
-            "#,
+            ",
         )
         .bind(&insight_id)
         .bind(user_id.to_string())
@@ -324,12 +325,12 @@ impl Database {
         limit: i32,
     ) -> Result<Vec<serde_json::Value>> {
         let rows = sqlx::query(
-            r#"
+            r"
             SELECT insight_data FROM insights
             WHERE user_id = $1
             ORDER BY created_at DESC
             LIMIT $2
-            "#,
+            ",
         )
         .bind(user_id.to_string())
         .bind(limit)
@@ -356,12 +357,12 @@ impl Database {
         offset: i32,
     ) -> Result<Vec<RequestLog>> {
         let mut query = String::from(
-            r#"
+            r"
             SELECT id, user_id, api_key_id, timestamp, method, endpoint, 
                    status_code, response_time_ms, error_message
             FROM request_logs
             WHERE 1=1
-            "#,
+            ",
         );
 
         let mut bind_values = vec![];

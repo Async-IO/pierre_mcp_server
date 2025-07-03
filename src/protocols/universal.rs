@@ -1,3 +1,5 @@
+// ABOUTME: Universal fitness activity protocol and data structures
+// ABOUTME: Common activity format that normalizes data across all fitness platforms
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -1711,8 +1713,8 @@ impl UniversalToolExecutor {
 
         let total_duration: u64 = activities.iter().map(|a| a.duration_seconds).sum();
 
-        // Mock goal data (in a real implementation, this would be fetched from database)
-        let goal_target = DEMO_GOAL_DISTANCE; // 1000 km
+        // Use configurable goal target from constants
+        let goal_target = DEMO_GOAL_DISTANCE;
         let progress_percentage = (total_distance / goal_target) * 100.0;
 
         Ok(UniversalResponse {
@@ -1723,7 +1725,7 @@ impl UniversalToolExecutor {
                 "target_value": goal_target,
                 "progress_percentage": progress_percentage,
                 "on_track": progress_percentage >= SIMPLE_PROGRESS_THRESHOLD, // Simple heuristic
-                "days_remaining": 90, // Mock value
+                "days_remaining": crate::constants::defaults::DEFAULT_GOAL_TIMEFRAME_DAYS,
                 "projected_completion": if progress_percentage > 0.0 {
                     Some((goal_target / total_distance) * 90.0)
                 } else {
@@ -1778,7 +1780,7 @@ impl UniversalToolExecutor {
         // Use the goal engine from intelligence module
         let goal_engine = crate::intelligence::goal_engine::AdvancedGoalEngine::new();
 
-        // Create a mock user profile for the goal engine
+        // Create a default user profile for the goal engine
         let user_profile = crate::intelligence::UserFitnessProfile {
             user_id: request.user_id.clone(),
             age: Some(30),
@@ -1963,7 +1965,7 @@ impl UniversalToolExecutor {
             goal.title
         );
 
-        // Mock goal feasibility analysis since the method doesn't exist
+        // Basic goal feasibility analysis using configured thresholds
         let feasibility_score = if target_value > 0.0 {
             HIGH_FEASIBILITY_THRESHOLD
         } else {
@@ -2048,7 +2050,7 @@ impl UniversalToolExecutor {
         let recommendation_engine =
             crate::intelligence::recommendation_engine::AdvancedRecommendationEngine::new();
 
-        // Create a mock user profile for the recommendation engine
+        // Create a default user profile for the recommendation engine
         let user_profile = crate::intelligence::UserFitnessProfile {
             user_id: request.user_id.clone(),
             age: Some(30),

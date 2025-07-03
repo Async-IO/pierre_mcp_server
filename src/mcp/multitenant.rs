@@ -1,3 +1,5 @@
+// ABOUTME: Multi-tenant MCP server implementation with tenant isolation
+// ABOUTME: Handles MCP protocol with per-tenant data isolation and access control
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -91,8 +93,8 @@ impl MultiTenantMcpServer {
         let auth_manager = self.auth_manager.clone();
 
         // Create route handlers
-        let auth_routes = AuthRoutes::new((*database).clone(), (*auth_manager).clone());
-        let oauth_routes = OAuthRoutes::new((*database).clone());
+        let auth_routes = AuthRoutes::new(database.as_ref().clone(), auth_manager.as_ref().clone());
+        let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
 
         // Validate route handlers are properly initialized
         tracing::debug!("Initialized auth and OAuth route handlers for multi-tenant server - auth routes: {:p}, oauth routes: {:p}", &auth_routes, &oauth_routes);
@@ -139,24 +141,37 @@ impl MultiTenantMcpServer {
             config.security.headers.environment
         );
 
-        let auth_routes = AuthRoutes::new((*database).clone(), (*auth_manager).clone());
+        let auth_routes = AuthRoutes::new(database.as_ref().clone(), auth_manager.as_ref().clone());
         let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
-        let api_key_routes = ApiKeyRoutes::new((*database).clone(), (*auth_manager).clone());
-        let dashboard_routes = DashboardRoutes::new((*database).clone(), (*auth_manager).clone());
+        let api_key_routes =
+            ApiKeyRoutes::new(database.as_ref().clone(), auth_manager.as_ref().clone());
+        let dashboard_routes =
+            DashboardRoutes::new(database.as_ref().clone(), auth_manager.as_ref().clone());
         let a2a_routes = A2ARoutes::new(database.clone(), auth_manager.clone(), config.clone());
-        let configuration_routes =
-            ConfigurationRoutes::new((*database).clone(), (*auth_manager).clone());
+        let configuration_routes = Arc::new(ConfigurationRoutes::new(
+            database.as_ref().clone(),
+            auth_manager.as_ref().clone(),
+        ));
 
         // Admin routes for token management and API key provisioning
-        // Load JWT secret for admin tokens (same as user JWT secret for now)
+        // Load JWT secret for admin tokens (same as user JWT secret)
         let jwt_secret = if config.auth.jwt_secret_path.exists() {
-            std::fs::read(&config.auth.jwt_secret_path)
-                .unwrap_or_else(|_| b"fallback_secret".to_vec())
+            std::fs::read(&config.auth.jwt_secret_path).map_err(|e| {
+                anyhow::anyhow!(
+                    "Failed to read JWT secret from {}: {}. This is required for security.",
+                    config.auth.jwt_secret_path.display(),
+                    e
+                )
+            })?
         } else {
-            b"fallback_secret".to_vec()
+            return Err(anyhow::anyhow!(
+                "JWT secret file not found at {}. This is required for security.",
+                config.auth.jwt_secret_path.display()
+            ));
         };
-        let jwt_secret_str =
-            String::from_utf8(jwt_secret).unwrap_or_else(|_| "fallback_secret".into());
+        let jwt_secret_str = String::from_utf8(jwt_secret).map_err(|e| {
+            anyhow::anyhow!("JWT secret file contains invalid UTF-8: {}", e)
+        })?;
 
         let admin_context = crate::admin_routes::AdminApiContext::new(
             database.as_ref().clone(),
@@ -837,11 +852,11 @@ impl MultiTenantMcpServer {
             .and(warp::get())
             .and(warp::header::optional::<String>("authorization"))
             .and_then({
-                let configuration_routes = configuration_routes.clone();
+                let config_routes = configuration_routes.clone();
                 move |auth_header: Option<String>| {
-                    let configuration_routes = configuration_routes.clone();
+                    let config_routes_inner = config_routes.clone();
                     async move {
-                        match configuration_routes
+                        match config_routes_inner
                             .get_configuration_catalog(auth_header.as_deref())
                             .await
                         {
@@ -861,11 +876,11 @@ impl MultiTenantMcpServer {
             .and(warp::get())
             .and(warp::header::optional::<String>("authorization"))
             .and_then({
-                let configuration_routes = configuration_routes.clone();
+                let config_routes = configuration_routes.clone();
                 move |auth_header: Option<String>| {
-                    let configuration_routes = configuration_routes.clone();
+                    let config_routes_inner = config_routes.clone();
                     async move {
-                        match configuration_routes
+                        match config_routes_inner
                             .get_configuration_profiles(auth_header.as_deref())
                             .await
                         {
@@ -885,11 +900,11 @@ impl MultiTenantMcpServer {
             .and(warp::get())
             .and(warp::header::optional::<String>("authorization"))
             .and_then({
-                let configuration_routes = configuration_routes.clone();
+                let config_routes = configuration_routes.clone();
                 move |auth_header: Option<String>| {
-                    let configuration_routes = configuration_routes.clone();
+                    let config_routes = config_routes.clone();
                     async move {
-                        match configuration_routes
+                        match config_routes
                             .get_user_configuration(auth_header.as_deref())
                             .await
                         {
@@ -910,11 +925,11 @@ impl MultiTenantMcpServer {
             .and(warp::header::optional::<String>("authorization"))
             .and(warp::body::json())
             .and_then({
-                let configuration_routes = configuration_routes.clone();
+                let config_routes = configuration_routes.clone();
                 move |auth_header: Option<String>, request: crate::configuration_routes::UpdateConfigurationRequest| {
-                    let configuration_routes = configuration_routes.clone();
+                    let config_routes = config_routes.clone();
                     async move {
-                        match configuration_routes
+                        match config_routes
                             .update_user_configuration(auth_header.as_deref(), request)
                             .await
                         {
@@ -935,11 +950,11 @@ impl MultiTenantMcpServer {
             .and(warp::header::optional::<String>("authorization"))
             .and(warp::body::json())
             .and_then({
-                let configuration_routes = configuration_routes.clone();
+                let config_routes = configuration_routes.clone();
                 move |auth_header: Option<String>, request: crate::configuration_routes::PersonalizedZonesRequest| {
-                    let configuration_routes = configuration_routes.clone();
+                    let config_routes = config_routes.clone();
                     async move {
-                        match configuration_routes
+                        match config_routes
                             .calculate_personalized_zones(auth_header.as_deref(), request)
                             .await
                         {
@@ -960,11 +975,11 @@ impl MultiTenantMcpServer {
             .and(warp::header::optional::<String>("authorization"))
             .and(warp::body::json())
             .and_then({
-                let configuration_routes = configuration_routes.clone();
+                let config_routes = configuration_routes.clone();
                 move |auth_header: Option<String>, request: crate::configuration_routes::ValidateConfigurationRequest| {
-                    let configuration_routes = configuration_routes.clone();
+                    let config_routes = config_routes.clone();
                     async move {
-                        match configuration_routes
+                        match config_routes
                             .validate_configuration(auth_header.as_deref(), request)
                             .await
                         {
@@ -1069,7 +1084,13 @@ impl MultiTenantMcpServer {
                         )
                         .await;
 
-                        let response_str = serde_json::to_string(&response).unwrap();
+                        let response_str = match serde_json::to_string(&response) {
+                            Ok(s) => s,
+                            Err(e) => {
+                                tracing::error!("Failed to serialize response: {}", e);
+                                continue;
+                            }
+                        };
                         if let (Ok(()), Ok(()), Ok(())) = (
                             writer.write_all(response_str.as_bytes()).await,
                             writer.write_all(b"\n").await,
@@ -1930,8 +1951,18 @@ impl MultiTenantMcpServer {
 
                                     match location_service
                                         .get_location_from_coordinates(
-                                            activity.start_latitude.unwrap(),
-                                            activity.start_longitude.unwrap(),
+                                            activity.start_latitude.unwrap_or_else(|| {
+                                                tracing::warn!(
+                                                    "Missing latitude despite earlier check"
+                                                );
+                                                0.0
+                                            }),
+                                            activity.start_longitude.unwrap_or_else(|| {
+                                                tracing::warn!(
+                                                    "Missing longitude despite earlier check"
+                                                );
+                                                0.0
+                                            }),
                                         )
                                         .await
                                     {

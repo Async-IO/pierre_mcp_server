@@ -73,14 +73,20 @@ impl LocationService {
     }
 
     pub fn with_config(base_url: String, enabled: bool) -> Self {
+        let client = Client::builder()
+            .user_agent("Pierre MCP Server/0.1.0 (https://github.com/jfarcand/pierre_mcp_server)")
+            .timeout(Duration::from_secs(10))
+            .build()
+            .unwrap_or_else(|e| {
+                tracing::warn!(
+                    "Failed to create HTTP client for location service: {}, using default",
+                    e
+                );
+                Client::new()
+            });
+
         Self {
-            client: Client::builder()
-                .user_agent(
-                    "Pierre MCP Server/0.1.0 (https://github.com/jfarcand/pierre_mcp_server)",
-                )
-                .timeout(Duration::from_secs(10))
-                .build()
-                .expect("Failed to create HTTP client"),
+            client,
             cache: HashMap::new(),
             cache_duration: Duration::from_secs(24 * 60 * 60), // 24 hours
             base_url,

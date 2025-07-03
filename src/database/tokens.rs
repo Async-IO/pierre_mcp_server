@@ -1,4 +1,5 @@
-//! OAuth token management database operations
+// ABOUTME: OAuth token management database operations
+// ABOUTME: Handles encryption, storage, and retrieval of OAuth tokens
 
 use super::{Database, EncryptionHelper};
 use crate::models::{DecryptedToken, EncryptedToken};
@@ -41,7 +42,7 @@ impl Database {
 
         let prefix = provider.column_prefix();
         let query = format!(
-            r#"
+            r"
             UPDATE users SET
                 {}_access_token = $2,
                 {}_refresh_token = $3,
@@ -49,7 +50,7 @@ impl Database {
                 {}_scope = $5,
                 {}_nonce = $6
             WHERE id = $1
-            "#,
+            ",
             prefix, prefix, prefix, prefix, prefix
         );
 
@@ -74,11 +75,11 @@ impl Database {
     ) -> Result<Option<DecryptedToken>> {
         let prefix = provider.column_prefix();
         let query = format!(
-            r#"
+            r"
             SELECT {}_access_token, {}_refresh_token, {}_expires_at, 
                    {}_scope, {}_nonce
             FROM users WHERE id = $1
-            "#,
+            ",
             prefix, prefix, prefix, prefix, prefix
         );
 
@@ -124,7 +125,7 @@ impl Database {
     pub async fn clear_oauth_token(&self, user_id: Uuid, provider: OAuthProvider) -> Result<()> {
         let prefix = provider.column_prefix();
         let query = format!(
-            r#"
+            r"
             UPDATE users SET
                 {}_access_token = NULL,
                 {}_refresh_token = NULL,
@@ -132,7 +133,7 @@ impl Database {
                 {}_scope = NULL,
                 {}_nonce = NULL
             WHERE id = $1
-            "#,
+            ",
             prefix, prefix, prefix, prefix, prefix
         );
 

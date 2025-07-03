@@ -1,3 +1,5 @@
+// ABOUTME: VO2 max calculation configuration and physiological constants
+// ABOUTME: Provides configurable parameters for aerobic capacity calculations
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -193,8 +195,8 @@ impl VO2MaxCalculator {
 
         // Get coefficients from configuration
         let coeff_a = get_config_value("vo2.vdot_coefficient_a", 29.54);
-        let coeff_b = get_config_value("vo2.vdot_coefficient_b", 5.000663);
-        let coeff_c = get_config_value("vo2.vdot_coefficient_c", 0.007546);
+        let coeff_b = get_config_value("vo2.vdot_coefficient_b", 5.000_663);
+        let coeff_c = get_config_value("vo2.vdot_coefficient_c", 0.007_546);
 
         // Convert VDOT to velocity at VO2max (vVO2max) in m/min
         let v_vo2max = coeff_a + coeff_b * vdot - coeff_c * vdot * vdot;
