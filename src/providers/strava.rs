@@ -52,7 +52,7 @@ static STRAVA_CONFIG: OnceLock<StravaConfig> = OnceLock::new();
 impl StravaConfig {
     /// Get the global Strava configuration
     pub fn global() -> &'static Self {
-        STRAVA_CONFIG.get_or_init(StravaConfig::default)
+        STRAVA_CONFIG.get_or_init(Self::default)
     }
 
     /// Reset the global configuration (used for testing)
@@ -277,7 +277,7 @@ impl StravaProvider {
         .await?;
 
         self.access_token = Some(new_token.access_token.clone());
-        self.refresh_token = new_token.refresh_token.clone();
+        self.refresh_token.clone_from(&new_token.refresh_token);
 
         info!("Token refreshed successfully");
 
@@ -312,7 +312,7 @@ impl FitnessProvider for StravaProvider {
                 self.refresh_token = refresh_token;
                 Ok(())
             }
-            _ => Err(anyhow::anyhow!("Strava requires OAuth2 authentication")),
+            AuthData::ApiKey(_) => Err(anyhow::anyhow!("Strava requires OAuth2 authentication")),
         }
     }
 
@@ -371,7 +371,7 @@ impl FitnessProvider for StravaProvider {
 
         // Build query parameters without unnecessary allocations
         let per_page = limit.unwrap_or(30);
-        let page = offset.map(|o| o / per_page + 1).unwrap_or(1);
+        let page = offset.map_or(1, |o| o / per_page + 1);
 
         let query = [
             ("per_page", per_page.to_string()),
@@ -452,7 +452,10 @@ impl FitnessProvider for StravaProvider {
             activities.len()
         );
 
-        Ok(activities.into_iter().map(|a| a.into()).collect())
+        Ok(activities
+            .into_iter()
+            .map(std::convert::Into::into)
+            .collect())
     }
 
     /// Get a specific activity by ID from Strava
@@ -628,7 +631,7 @@ impl From<StravaActivity> for Activity {
                 }
             });
 
-        Activity {
+        Self {
             id: strava.id.to_string(),
             name: strava.name,
             sport_type: SportType::from_provider_string(&strava.activity_type, &fitness_config),
@@ -636,10 +639,18 @@ impl From<StravaActivity> for Activity {
             duration_seconds: strava.elapsed_time,
             distance_meters: strava.distance,
             elevation_gain: strava.total_elevation_gain,
-            average_heart_rate: strava
-                .average_heartrate
-                .map(|hr| hr.round().max(0.0) as u32),
-            max_heart_rate: strava.max_heartrate.map(|hr| hr.round().max(0.0) as u32),
+            average_heart_rate: strava.average_heartrate.map(|hr| {
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                {
+                    hr.round().max(0.0) as u32
+                }
+            }),
+            max_heart_rate: strava.max_heartrate.map(|hr| {
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                {
+                    hr.round().max(0.0) as u32
+                }
+            }),
             average_speed: strava.average_speed,
             max_speed: strava.max_speed,
             calories: None,

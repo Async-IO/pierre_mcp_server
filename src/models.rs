@@ -114,29 +114,32 @@ pub enum UserTier {
 
 impl UserTier {
     /// Get monthly request limit for this tier
+    #[must_use]
     pub const fn monthly_limit(&self) -> Option<u32> {
         match self {
-            UserTier::Starter => Some(10_000),
-            UserTier::Professional => Some(100_000),
-            UserTier::Enterprise => None, // Unlimited
+            Self::Starter => Some(10_000),
+            Self::Professional => Some(100_000),
+            Self::Enterprise => None, // Unlimited
         }
     }
 
     /// Get display name for this tier
+    #[must_use]
     pub const fn display_name(&self) -> &'static str {
         match self {
-            UserTier::Starter => "Starter",
-            UserTier::Professional => "Professional",
-            UserTier::Enterprise => "Enterprise",
+            Self::Starter => "Starter",
+            Self::Professional => "Professional",
+            Self::Enterprise => "Enterprise",
         }
     }
 
     /// Convert to string for database storage
+    #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
-            UserTier::Starter => "starter",
-            UserTier::Professional => "professional",
-            UserTier::Enterprise => "enterprise",
+            Self::Starter => "starter",
+            Self::Professional => "professional",
+            Self::Enterprise => "enterprise",
         }
     }
 }
@@ -146,10 +149,10 @@ impl std::str::FromStr for UserTier {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "starter" => Ok(UserTier::Starter),
-            "professional" => Ok(UserTier::Professional),
-            "enterprise" => Ok(UserTier::Enterprise),
-            _ => Err(anyhow::anyhow!("Invalid user tier: {}", s)),
+            "starter" => Ok(Self::Starter),
+            "professional" => Ok(Self::Professional),
+            "enterprise" => Ok(Self::Enterprise),
+            _ => Err(anyhow::anyhow!("Invalid user tier: {s}")),
         }
     }
 }
@@ -384,6 +387,7 @@ pub struct HealthMetrics {
 
 impl SleepSession {
     /// Calculate sleep stages summary
+    #[must_use]
     pub fn stage_summary(&self) -> HashMap<SleepStageType, u32> {
         let mut summary = HashMap::new();
         for stage in &self.stages {
@@ -393,32 +397,44 @@ impl SleepSession {
     }
 
     /// Get deep sleep percentage
+    #[must_use]
     pub fn deep_sleep_percentage(&self) -> f32 {
-        let deep_sleep_minutes = self
+        let deep_sleep_total = self
             .stages
             .iter()
             .filter(|s| matches!(s.stage_type, SleepStageType::Deep))
             .map(|s| s.duration_minutes)
-            .sum::<u32>() as f32;
+            .sum::<u32>();
+        #[allow(clippy::cast_precision_loss)]
+        let deep_sleep_minutes = deep_sleep_total as f32;
 
         if self.total_sleep_time > 0 {
-            (deep_sleep_minutes / self.total_sleep_time as f32) * 100.0
+            #[allow(clippy::cast_precision_loss)]
+            {
+                (deep_sleep_minutes / (self.total_sleep_time as f32)) * 100.0
+            }
         } else {
             0.0
         }
     }
 
     /// Get REM sleep percentage
+    #[must_use]
     pub fn rem_sleep_percentage(&self) -> f32 {
-        let rem_sleep_minutes = self
+        let rem_sleep_total = self
             .stages
             .iter()
             .filter(|s| matches!(s.stage_type, SleepStageType::Rem))
             .map(|s| s.duration_minutes)
-            .sum::<u32>() as f32;
+            .sum::<u32>();
+        #[allow(clippy::cast_precision_loss)]
+        let rem_sleep_minutes = rem_sleep_total as f32;
 
         if self.total_sleep_time > 0 {
-            (rem_sleep_minutes / self.total_sleep_time as f32) * 100.0
+            #[allow(clippy::cast_precision_loss)]
+            {
+                (rem_sleep_minutes / (self.total_sleep_time as f32)) * 100.0
+            }
         } else {
             0.0
         }
@@ -427,6 +443,7 @@ impl SleepSession {
 
 impl RecoveryMetrics {
     /// Check if recovery metrics indicate good readiness for training
+    #[must_use]
     pub fn is_ready_for_training(&self) -> bool {
         // Consider ready if recovery score > 70 and readiness score > 70
         match (self.recovery_score, self.readiness_score) {
@@ -438,6 +455,7 @@ impl RecoveryMetrics {
     }
 
     /// Get overall wellness score combining all available metrics
+    #[must_use]
     pub fn wellness_score(&self) -> Option<f32> {
         let mut total_score = 0.0;
         let mut factor_count = 0;
@@ -459,7 +477,8 @@ impl RecoveryMetrics {
         }
 
         if factor_count > 0 {
-            Some(total_score / factor_count as f32)
+            #[allow(clippy::cast_precision_loss)]
+            Some(total_score / (factor_count as f32))
         } else {
             None
         }
@@ -621,6 +640,7 @@ pub enum SportType {
 
 impl SportType {
     /// Create `SportType` from provider string using configuration mapping
+    #[must_use]
     pub fn from_provider_string(
         provider_sport: &str,
         fitness_config: &crate::config::FitnessConfig,
@@ -632,126 +652,128 @@ impl SportType {
 
         // Fall back to direct mapping for backward compatibility
         match provider_sport {
-            "Run" => SportType::Run,
-            "Ride" => SportType::Ride,
-            "Swim" => SportType::Swim,
-            "Walk" => SportType::Walk,
-            "Hike" => SportType::Hike,
-            "VirtualRide" => SportType::VirtualRide,
-            "VirtualRun" => SportType::VirtualRun,
-            "Workout" => SportType::Workout,
-            "Yoga" => SportType::Yoga,
-            "EBikeRide" => SportType::EbikeRide,
-            "MountainBikeRide" => SportType::MountainBike,
-            "GravelRide" => SportType::GravelRide,
-            "CrossCountrySkiing" => SportType::CrossCountrySkiing,
-            "AlpineSkiing" => SportType::AlpineSkiing,
-            "Snowboarding" => SportType::Snowboarding,
-            "Snowshoe" => SportType::Snowshoe,
-            "IceSkate" => SportType::IceSkating,
-            "BackcountrySki" => SportType::BackcountrySkiing,
-            "Kayaking" => SportType::Kayaking,
-            "Canoeing" => SportType::Canoeing,
-            "Rowing" => SportType::Rowing,
-            "StandUpPaddling" => SportType::Paddleboarding,
-            "Surfing" => SportType::Surfing,
-            "Kitesurf" => SportType::Kitesurfing,
-            "WeightTraining" => SportType::StrengthTraining,
-            "Crossfit" => SportType::Crossfit,
-            "Pilates" => SportType::Pilates,
-            "RockClimbing" => SportType::RockClimbing,
-            "TrailRunning" => SportType::TrailRunning,
-            "Soccer" => SportType::Soccer,
-            "Basketball" => SportType::Basketball,
-            "Tennis" => SportType::Tennis,
-            "Golf" => SportType::Golf,
-            "Skateboard" => SportType::Skateboarding,
-            "InlineSkate" => SportType::InlineSkating,
-            other => SportType::Other(other.to_string()),
+            "Run" => Self::Run,
+            "Ride" => Self::Ride,
+            "Swim" => Self::Swim,
+            "Walk" => Self::Walk,
+            "Hike" => Self::Hike,
+            "VirtualRide" => Self::VirtualRide,
+            "VirtualRun" => Self::VirtualRun,
+            "Workout" => Self::Workout,
+            "Yoga" => Self::Yoga,
+            "EBikeRide" => Self::EbikeRide,
+            "MountainBikeRide" => Self::MountainBike,
+            "GravelRide" => Self::GravelRide,
+            "CrossCountrySkiing" => Self::CrossCountrySkiing,
+            "AlpineSkiing" => Self::AlpineSkiing,
+            "Snowboarding" => Self::Snowboarding,
+            "Snowshoe" => Self::Snowshoe,
+            "IceSkate" => Self::IceSkating,
+            "BackcountrySki" => Self::BackcountrySkiing,
+            "Kayaking" => Self::Kayaking,
+            "Canoeing" => Self::Canoeing,
+            "Rowing" => Self::Rowing,
+            "StandUpPaddling" => Self::Paddleboarding,
+            "Surfing" => Self::Surfing,
+            "Kitesurf" => Self::Kitesurfing,
+            "WeightTraining" => Self::StrengthTraining,
+            "Crossfit" => Self::Crossfit,
+            "Pilates" => Self::Pilates,
+            "RockClimbing" => Self::RockClimbing,
+            "TrailRunning" => Self::TrailRunning,
+            "Soccer" => Self::Soccer,
+            "Basketball" => Self::Basketball,
+            "Tennis" => Self::Tennis,
+            "Golf" => Self::Golf,
+            "Skateboard" => Self::Skateboarding,
+            "InlineSkate" => Self::InlineSkating,
+            other => Self::Other(other.to_string()),
         }
     }
 
     /// Create `SportType` from internal configuration string
+    #[must_use]
     pub fn from_internal_string(internal_name: &str) -> Self {
         match internal_name {
-            "run" => SportType::Run,
-            "bike_ride" => SportType::Ride,
-            "swim" => SportType::Swim,
-            "walk" => SportType::Walk,
-            "hike" => SportType::Hike,
-            "virtual_ride" => SportType::VirtualRide,
-            "virtual_run" => SportType::VirtualRun,
-            "workout" => SportType::Workout,
-            "yoga" => SportType::Yoga,
-            "ebike_ride" => SportType::EbikeRide,
-            "mountain_bike" => SportType::MountainBike,
-            "gravel_ride" => SportType::GravelRide,
-            "cross_country_skiing" => SportType::CrossCountrySkiing,
-            "alpine_skiing" => SportType::AlpineSkiing,
-            "snowboarding" => SportType::Snowboarding,
-            "snowshoe" => SportType::Snowshoe,
-            "ice_skating" => SportType::IceSkating,
-            "backcountry_skiing" => SportType::BackcountrySkiing,
-            "kayaking" => SportType::Kayaking,
-            "canoeing" => SportType::Canoeing,
-            "rowing" => SportType::Rowing,
-            "paddleboarding" => SportType::Paddleboarding,
-            "surfing" => SportType::Surfing,
-            "kitesurfing" => SportType::Kitesurfing,
-            "strength_training" => SportType::StrengthTraining,
-            "crossfit" => SportType::Crossfit,
-            "pilates" => SportType::Pilates,
-            "rock_climbing" => SportType::RockClimbing,
-            "trail_running" => SportType::TrailRunning,
-            "soccer" => SportType::Soccer,
-            "basketball" => SportType::Basketball,
-            "tennis" => SportType::Tennis,
-            "golf" => SportType::Golf,
-            "skateboarding" => SportType::Skateboarding,
-            "inline_skating" => SportType::InlineSkating,
-            other => SportType::Other(other.to_string()),
+            "run" => Self::Run,
+            "bike_ride" => Self::Ride,
+            "swim" => Self::Swim,
+            "walk" => Self::Walk,
+            "hike" => Self::Hike,
+            "virtual_ride" => Self::VirtualRide,
+            "virtual_run" => Self::VirtualRun,
+            "workout" => Self::Workout,
+            "yoga" => Self::Yoga,
+            "ebike_ride" => Self::EbikeRide,
+            "mountain_bike" => Self::MountainBike,
+            "gravel_ride" => Self::GravelRide,
+            "cross_country_skiing" => Self::CrossCountrySkiing,
+            "alpine_skiing" => Self::AlpineSkiing,
+            "snowboarding" => Self::Snowboarding,
+            "snowshoe" => Self::Snowshoe,
+            "ice_skating" => Self::IceSkating,
+            "backcountry_skiing" => Self::BackcountrySkiing,
+            "kayaking" => Self::Kayaking,
+            "canoeing" => Self::Canoeing,
+            "rowing" => Self::Rowing,
+            "paddleboarding" => Self::Paddleboarding,
+            "surfing" => Self::Surfing,
+            "kitesurfing" => Self::Kitesurfing,
+            "strength_training" => Self::StrengthTraining,
+            "crossfit" => Self::Crossfit,
+            "pilates" => Self::Pilates,
+            "rock_climbing" => Self::RockClimbing,
+            "trail_running" => Self::TrailRunning,
+            "soccer" => Self::Soccer,
+            "basketball" => Self::Basketball,
+            "tennis" => Self::Tennis,
+            "golf" => Self::Golf,
+            "skateboarding" => Self::Skateboarding,
+            "inline_skating" => Self::InlineSkating,
+            other => Self::Other(other.to_string()),
         }
     }
 
     /// Get the human-readable name for this sport type
+    #[must_use]
     pub const fn display_name(&self) -> &'static str {
         match self {
-            SportType::Run => "run",
-            SportType::Ride => "bike ride",
-            SportType::Swim => "swim",
-            SportType::Walk => "walk",
-            SportType::Hike => "hike",
-            SportType::VirtualRide => "indoor bike ride",
-            SportType::VirtualRun => "treadmill run",
-            SportType::Workout => "workout",
-            SportType::Yoga => "yoga session",
-            SportType::EbikeRide => "e-bike ride",
-            SportType::MountainBike => "mountain bike ride",
-            SportType::GravelRide => "gravel ride",
-            SportType::CrossCountrySkiing => "cross-country ski",
-            SportType::AlpineSkiing => "alpine ski",
-            SportType::Snowboarding => "snowboard session",
-            SportType::Snowshoe => "snowshoe hike",
-            SportType::IceSkating => "ice skating session",
-            SportType::BackcountrySkiing => "backcountry ski",
-            SportType::Kayaking => "kayak session",
-            SportType::Canoeing => "canoe trip",
-            SportType::Rowing => "rowing session",
-            SportType::Paddleboarding => "paddleboard session",
-            SportType::Surfing => "surf session",
-            SportType::Kitesurfing => "kitesurf session",
-            SportType::StrengthTraining => "strength training",
-            SportType::Crossfit => "CrossFit workout",
-            SportType::Pilates => "Pilates session",
-            SportType::RockClimbing => "climbing session",
-            SportType::TrailRunning => "trail run",
-            SportType::Soccer => "soccer game",
-            SportType::Basketball => "basketball game",
-            SportType::Tennis => "tennis match",
-            SportType::Golf => "golf round",
-            SportType::Skateboarding => "skate session",
-            SportType::InlineSkating => "inline skating",
-            SportType::Other(_name) => "activity", // Could use name but keeping generic
+            Self::Run => "run",
+            Self::Ride => "bike ride",
+            Self::Swim => "swim",
+            Self::Walk => "walk",
+            Self::Hike => "hike",
+            Self::VirtualRide => "indoor bike ride",
+            Self::VirtualRun => "treadmill run",
+            Self::Workout => "workout",
+            Self::Yoga => "yoga session",
+            Self::EbikeRide => "e-bike ride",
+            Self::MountainBike => "mountain bike ride",
+            Self::GravelRide => "gravel ride",
+            Self::CrossCountrySkiing => "cross-country ski",
+            Self::AlpineSkiing => "alpine ski",
+            Self::Snowboarding => "snowboard session",
+            Self::Snowshoe => "snowshoe hike",
+            Self::IceSkating => "ice skating session",
+            Self::BackcountrySkiing => "backcountry ski",
+            Self::Kayaking => "kayak session",
+            Self::Canoeing => "canoe trip",
+            Self::Rowing => "rowing session",
+            Self::Paddleboarding => "paddleboard session",
+            Self::Surfing => "surf session",
+            Self::Kitesurfing => "kitesurf session",
+            Self::StrengthTraining => "strength training",
+            Self::Crossfit => "CrossFit workout",
+            Self::Pilates => "Pilates session",
+            Self::RockClimbing => "climbing session",
+            Self::TrailRunning => "trail run",
+            Self::Soccer => "soccer game",
+            Self::Basketball => "basketball game",
+            Self::Tennis => "tennis match",
+            Self::Golf => "golf round",
+            Self::Skateboarding => "skate session",
+            Self::InlineSkating => "inline skating",
+            Self::Other(_name) => "activity", // Could use name but keeping generic
         }
     }
 }
@@ -915,7 +937,8 @@ pub struct UserPhysiologicalProfile {
 
 impl UserPhysiologicalProfile {
     /// Create a new physiological profile
-    pub fn new(user_id: Uuid, primary_sport: SportType) -> Self {
+    #[must_use]
+    pub const fn new(user_id: Uuid, primary_sport: SportType) -> Self {
         Self {
             user_id,
             vo2_max: None,
@@ -931,31 +954,33 @@ impl UserPhysiologicalProfile {
     }
 
     /// Estimate max heart rate from age if not provided
+    #[must_use]
     pub fn estimated_max_hr(&self) -> Option<u16> {
         self.max_hr.or_else(|| {
             self.age.map(|age| {
                 // Use Tanaka formula: 208 - (0.7 × age)
-                (208.0 - (0.7 * age as f64)) as u16
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                { 0.7f64.mul_add(-f64::from(age), 208.0) as u16 }
             })
         })
     }
 
     /// Check if profile has sufficient data for VO2 max calculations
-    pub fn has_vo2_max_data(&self) -> bool {
+    #[must_use]
+    pub const fn has_vo2_max_data(&self) -> bool {
         self.vo2_max.is_some()
             && self.resting_hr.is_some()
             && (self.max_hr.is_some() || self.age.is_some())
     }
 
     /// Get fitness level from VO2 max if available
+    #[must_use]
     pub fn fitness_level_from_vo2_max(&self) -> crate::configuration::profiles::FitnessLevel {
-        if let Some(vo2_max) = self.vo2_max {
+        self.vo2_max.map_or(self.fitness_level, |vo2_max| {
             crate::configuration::profiles::FitnessLevel::from_vo2_max(
                 vo2_max, self.age, None, // Gender not stored in this profile
             )
-        } else {
-            self.fitness_level
-        }
+        })
     }
 }
 
@@ -1035,6 +1060,7 @@ pub struct AuthResponse {
 
 impl User {
     /// Create a new user with the given email and password hash
+    #[must_use]
     pub fn new(email: String, password_hash: String, display_name: Option<String>) -> Self {
         let now = Utc::now();
         Self {
@@ -1052,6 +1078,7 @@ impl User {
     }
 
     /// Check if user has valid Strava token
+    #[must_use]
     pub fn has_strava_access(&self) -> bool {
         self.strava_token
             .as_ref()
@@ -1059,6 +1086,7 @@ impl User {
     }
 
     /// Check if user has valid Fitbit token
+    #[must_use]
     pub fn has_fitbit_access(&self) -> bool {
         self.fitbit_token
             .as_ref()
@@ -1066,6 +1094,7 @@ impl User {
     }
 
     /// Get list of available providers for this user
+    #[must_use]
     pub fn available_providers(&self) -> Vec<String> {
         let mut providers = Vec::new();
         if self.has_strava_access() {
@@ -1085,6 +1114,10 @@ impl User {
 
 impl EncryptedToken {
     /// Create a new encrypted token
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if encryption fails or if the encryption key is invalid
     pub fn new(
         access_token: &str,
         refresh_token: &str,
@@ -1092,6 +1125,7 @@ impl EncryptedToken {
         scope: String,
         encryption_key: &[u8],
     ) -> Result<Self, anyhow::Error> {
+        use base64::{engine::general_purpose, Engine as _};
         use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
         use ring::rand::{SecureRandom, SystemRandom};
 
@@ -1101,7 +1135,6 @@ impl EncryptedToken {
         let mut nonce_bytes = [0u8; 12];
         rng.fill(&mut nonce_bytes)?;
         let nonce = Nonce::assume_unique_for_key(nonce_bytes);
-        use base64::{engine::general_purpose, Engine as _};
 
         // Create encryption key
         let unbound_key = UnboundKey::new(&AES_256_GCM, encryption_key)?;
@@ -1188,7 +1221,7 @@ mod tests {
         Activity {
             id: "12345".into(),
             name: "Morning Run".into(),
-            sport_type: SportType::Run,
+            sport_type: Self::Run,
             start_date: Utc::now(),
             duration_seconds: 1800,        // 30 minutes
             distance_meters: Some(5000.0), // 5km
@@ -1253,7 +1286,7 @@ mod tests {
         let activity = create_sample_activity();
         assert_eq!(activity.id, "12345");
         assert_eq!(activity.name, "Morning Run");
-        assert!(matches!(activity.sport_type, SportType::Run));
+        assert!(matches!(activity.sport_type, Self::Run));
         assert_eq!(activity.duration_seconds, 1800);
         assert_eq!(activity.distance_meters, Some(5000.0));
         assert_eq!(activity.provider, "strava");
@@ -1273,27 +1306,27 @@ mod tests {
             serde_json::from_str(&json).expect("Failed to deserialize activity");
         assert_eq!(deserialized.id, activity.id);
         assert_eq!(deserialized.name, activity.name);
-        assert!(matches!(deserialized.sport_type, SportType::Run));
+        assert!(matches!(deserialized.sport_type, Self::Run));
     }
 
     #[test]
     fn test_sport_type_serialization() {
         // Test standard sport types
-        assert_eq!(serde_json::to_string(&SportType::Run).unwrap(), "\"run\"");
-        assert_eq!(serde_json::to_string(&SportType::Ride).unwrap(), "\"ride\"");
+        assert_eq!(serde_json::to_string(&Self::Run).unwrap(), "\"run\"");
+        assert_eq!(serde_json::to_string(&Self::Ride).unwrap(), "\"ride\"");
         assert_eq!(
-            serde_json::to_string(&SportType::VirtualRun).unwrap(),
+            serde_json::to_string(&Self::VirtualRun).unwrap(),
             "\"virtual_run\""
         );
 
         // Test Other variant
-        let custom_sport = SportType::Other("CrossCountrySkiing".into());
+        let custom_sport = Self::Other("CrossCountrySkiing".into());
         let json = serde_json::to_string(&custom_sport).unwrap();
         assert!(json.contains("CrossCountrySkiing"));
 
         // Test deserialization
         let sport: SportType = serde_json::from_str("\"run\"").unwrap();
-        assert!(matches!(sport, SportType::Run));
+        assert!(matches!(sport, Self::Run));
     }
 
     #[test]

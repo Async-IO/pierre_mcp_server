@@ -245,7 +245,7 @@ impl FitbitProvider {
         .await?;
 
         self.access_token = Some(new_token.access_token.clone());
-        self.refresh_token = new_token.refresh_token.clone();
+        self.refresh_token.clone_from(&new_token.refresh_token);
 
         info!("Fitbit token refreshed successfully");
 
@@ -267,7 +267,7 @@ impl FitbitProvider {
 
         let response: FitbitActivitiesResponse = self
             .client
-            .get(format!("{}/user/-/activities/list.json", FITBIT_API_BASE))
+            .get(format!("{FITBIT_API_BASE}/user/-/activities/list.json"))
             .bearer_auth(token)
             .query(&[
                 ("beforeDate", end_date),
@@ -301,7 +301,7 @@ impl FitnessProvider for FitbitProvider {
                 self.refresh_token = refresh_token;
                 Ok(())
             }
-            _ => Err(anyhow::anyhow!("Fitbit requires OAuth2 authentication")),
+            AuthData::ApiKey(_) => Err(anyhow::anyhow!("Fitbit requires OAuth2 authentication")),
         }
     }
 
@@ -310,7 +310,7 @@ impl FitnessProvider for FitbitProvider {
 
         let response: FitbitUser = self
             .client
-            .get(format!("{}/user/-/profile.json", FITBIT_API_BASE))
+            .get(format!("{FITBIT_API_BASE}/user/-/profile.json"))
             .bearer_auth(token)
             .send()
             .await?
@@ -344,7 +344,10 @@ impl FitnessProvider for FitbitProvider {
             )
             .await?;
 
-        let mut result: Vec<Activity> = activities.into_iter().map(|a| a.into()).collect();
+        let mut result: Vec<Activity> = activities
+            .into_iter()
+            .map(std::convert::Into::into)
+            .collect();
 
         // Apply limit if specified
         if let Some(limit) = limit {
@@ -359,7 +362,7 @@ impl FitnessProvider for FitbitProvider {
 
         let response: FitbitActivityDetail = self
             .client
-            .get(format!("{}/user/-/activities/{}.json", FITBIT_API_BASE, id))
+            .get(format!("{FITBIT_API_BASE}/user/-/activities/{id}.json"))
             .bearer_auth(token)
             .send()
             .await?
@@ -375,7 +378,7 @@ impl FitnessProvider for FitbitProvider {
         // Get lifetime stats from Fitbit
         let response: FitbitLifetimeStats = self
             .client
-            .get(format!("{}/user/-/activities.json", FITBIT_API_BASE))
+            .get(format!("{FITBIT_API_BASE}/user/-/activities.json"))
             .bearer_auth(token)
             .send()
             .await?
@@ -497,7 +500,7 @@ impl From<FitbitActivity> for Activity {
             _ => SportType::Other(fitbit.activity_name.clone()),
         };
 
-        Activity {
+        Self {
             id: fitbit.activity_id.to_string(),
             name: fitbit.activity_name,
             sport_type,
@@ -509,6 +512,7 @@ impl From<FitbitActivity> for Activity {
             max_heart_rate: None, // Not directly available in Fitbit API
             average_speed: fitbit.distance.and_then(|d| {
                 if fitbit.duration > 0 {
+                    #[allow(clippy::cast_precision_loss)]
                     Some((d * 1000.0) / (fitbit.duration as f64 / 1000.0)) // m/s
                 } else {
                     None
