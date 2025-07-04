@@ -35,6 +35,7 @@ pub struct PkceParams {
 
 impl PkceParams {
     /// Generate `PKCE` parameters with `S256` challenge method
+    #[must_use]
     pub fn generate() -> Self {
         // Generate a cryptographically secure random code verifier (43-128 characters)
         const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
@@ -67,11 +68,13 @@ pub struct OAuth2Token {
 }
 
 impl OAuth2Token {
+    #[must_use]
     pub fn is_expired(&self) -> bool {
         self.expires_at
             .is_some_and(|expires_at| expires_at <= Utc::now())
     }
 
+    #[must_use]
     pub fn will_expire_soon(&self) -> bool {
         self.expires_at
             .is_some_and(|expires_at| expires_at <= Utc::now() + Duration::minutes(5))
@@ -84,6 +87,7 @@ pub struct OAuth2Client {
 }
 
 impl OAuth2Client {
+    #[must_use]
     pub fn new(config: OAuth2Config) -> Self {
         Self {
             config,
@@ -91,6 +95,11 @@ impl OAuth2Client {
         }
     }
 
+    /// Get authorization URL
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the authorization URL is malformed
     pub fn get_authorization_url(&self, state: &str) -> Result<String> {
         let mut url = Url::parse(&self.config.auth_url).context("Invalid auth URL")?;
 
@@ -105,6 +114,10 @@ impl OAuth2Client {
     }
 
     /// Get authorization `URL` with `PKCE` support
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the authorization URL is malformed
     pub fn get_authorization_url_with_pkce(
         &self,
         state: &str,
@@ -130,6 +143,11 @@ impl OAuth2Client {
         Ok(url.to_string())
     }
 
+    /// Exchange authorization code for tokens
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the token exchange request fails or response is invalid
     pub async fn exchange_code(&self, code: &str) -> Result<OAuth2Token> {
         let params = [
             ("client_id", self.config.client_id.as_str()),
@@ -152,6 +170,10 @@ impl OAuth2Client {
     }
 
     /// Exchange authorization code with `PKCE` support
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the token exchange request fails or response is invalid
     pub async fn exchange_code_with_pkce(
         &self,
         code: &str,
@@ -181,6 +203,11 @@ impl OAuth2Client {
         Ok(self.token_from_response(response))
     }
 
+    /// Refresh an expired access token
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the token refresh request fails or response is invalid
     pub async fn refresh_token(&self, refresh_token: &str) -> Result<OAuth2Token> {
         let params = [
             ("client_id", self.config.client_id.as_str()),
@@ -201,10 +228,12 @@ impl OAuth2Client {
         Ok(self.token_from_response(response))
     }
 
+    #[must_use]
+    #[allow(clippy::unused_self)]
     fn token_from_response(&self, response: TokenResponse) -> OAuth2Token {
         let expires_at = response
             .expires_in
-            .map(|seconds| Utc::now() + Duration::seconds(seconds as i64));
+            .map(|seconds| Utc::now() + Duration::seconds(i64::try_from(seconds).unwrap_or(3600)));
 
         OAuth2Token {
             access_token: response.access_token,
@@ -227,7 +256,7 @@ struct TokenResponse {
 
 // Strava-specific OAuth2 extensions
 pub mod strava {
-    use super::*;
+    use super::{DateTime, Deserialize, OAuth2Token, PkceParams, Result, Utc};
 
     #[derive(Debug, Deserialize)]
     pub struct StravaTokenResponse {
@@ -247,6 +276,11 @@ pub mod strava {
         pub lastname: Option<String>,
     }
 
+    /// Exchange Strava authorization code for tokens and athlete info
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the token exchange request fails or response is invalid
     pub async fn exchange_strava_code(
         client: &reqwest::Client,
         client_id: &str,
@@ -282,6 +316,10 @@ pub mod strava {
     }
 
     /// Exchange Strava authorization code with `PKCE` support
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the token exchange request fails or response is invalid
     pub async fn exchange_strava_code_with_pkce(
         client: &reqwest::Client,
         client_id: &str,
@@ -318,6 +356,11 @@ pub mod strava {
         Ok((token, response.athlete))
     }
 
+    /// Refresh Strava access token
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the token refresh request fails or response is invalid
     pub async fn refresh_strava_token(
         client: &reqwest::Client,
         client_id: &str,
@@ -353,7 +396,7 @@ pub mod strava {
 
 // Fitbit-specific OAuth2 extensions
 pub mod fitbit {
-    use super::*;
+    use super::{Deserialize, Duration, OAuth2Token, PkceParams, Result, Utc};
 
     #[derive(Debug, Deserialize)]
     pub struct FitbitTokenResponse {
@@ -371,6 +414,10 @@ pub mod fitbit {
     }
 
     /// Exchange Fitbit authorization code for tokens
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the token exchange request fails or response is invalid
     pub async fn exchange_fitbit_code(
         client: &reqwest::Client,
         client_id: &str,
@@ -410,6 +457,10 @@ pub mod fitbit {
     }
 
     /// Exchange Fitbit authorization code with `PKCE` support
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the token exchange request fails or response is invalid
     pub async fn exchange_fitbit_code_with_pkce(
         client: &reqwest::Client,
         client_id: &str,
@@ -451,6 +502,10 @@ pub mod fitbit {
     }
 
     /// Refresh Fitbit access token
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the token refresh request fails or response is invalid
     pub async fn refresh_fitbit_token(
         client: &reqwest::Client,
         client_id: &str,

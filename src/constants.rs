@@ -18,6 +18,7 @@ pub mod protocol {
     use std::env;
 
     /// Get `MCP` Protocol version from environment or default
+    #[must_use]
     pub fn mcp_protocol_version() -> String {
         env::var("MCP_PROTOCOL_VERSION").unwrap_or_else(|_| "2025-06-18".into())
     }
@@ -26,15 +27,15 @@ pub mod protocol {
     pub const JSONRPC_VERSION: &str = "2.0";
 
     /// Get server name from environment or default
+    #[must_use]
     pub fn server_name() -> String {
         env::var("SERVER_NAME").unwrap_or_else(|_| "pierre-mcp-server".into())
     }
 
     /// Get multi-tenant server name variant
+    #[must_use]
     pub fn server_name_multitenant() -> String {
-        env::var("SERVER_NAME")
-            .map(|name| format!("{}-multitenant", name))
-            .unwrap_or_else(|_| "pierre-mcp-server-multitenant".into())
+        env::var("SERVER_NAME").map_or_else(|_| "pierre-mcp-server-multitenant".into(), |name| format!("{name}-multitenant"))
     }
 
     /// Server version from Cargo.toml
@@ -51,6 +52,7 @@ pub mod env_config {
     use super::env;
 
     /// Get `MCP` server port from environment or default
+    #[must_use]
     pub fn mcp_port() -> u16 {
         env::var("MCP_PORT")
             .unwrap_or_else(|_| crate::constants::ports::DEFAULT_MCP_PORT.to_string())
@@ -59,6 +61,7 @@ pub mod env_config {
     }
 
     /// Get `HTTP` server port from environment or default
+    #[must_use]
     pub fn http_port() -> u16 {
         env::var("HTTP_PORT")
             .unwrap_or_else(|_| crate::constants::ports::DEFAULT_HTTP_PORT.to_string())
@@ -67,21 +70,25 @@ pub mod env_config {
     }
 
     /// Get database `URL` from environment or default
+    #[must_use]
     pub fn database_url() -> String {
         env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:./data/users.db".into())
     }
 
     /// Get encryption key path from environment or default
+    #[must_use]
     pub fn encryption_key_path() -> String {
         env::var("ENCRYPTION_KEY_PATH").unwrap_or_else(|_| "./data/encryption.key".into())
     }
 
     /// Get `JWT` secret path from environment or default
+    #[must_use]
     pub fn jwt_secret_path() -> String {
         env::var("JWT_SECRET_PATH").unwrap_or_else(|_| "./data/jwt.secret".into())
     }
 
     /// Get `JWT` expiry hours from environment or default
+    #[must_use]
     pub fn jwt_expiry_hours() -> i64 {
         env::var("JWT_EXPIRY_HOURS")
             .unwrap_or_else(|_| "24".into())
@@ -90,16 +97,19 @@ pub mod env_config {
     }
 
     /// Get Strava `client_id` from environment
+    #[must_use]
     pub fn strava_client_id() -> Option<String> {
         env::var("STRAVA_CLIENT_ID").ok()
     }
 
     /// Get Strava client secret from environment
+    #[must_use]
     pub fn strava_client_secret() -> Option<String> {
         env::var("STRAVA_CLIENT_SECRET").ok()
     }
 
     /// Get Strava redirect `URI` from environment or default
+    #[must_use]
     pub fn strava_redirect_uri() -> String {
         env::var("STRAVA_REDIRECT_URI").unwrap_or_else(|_| {
             format!(
@@ -110,16 +120,19 @@ pub mod env_config {
     }
 
     /// Get Fitbit `client_id` from environment
+    #[must_use]
     pub fn fitbit_client_id() -> Option<String> {
         env::var("FITBIT_CLIENT_ID").ok()
     }
 
     /// Get Fitbit client secret from environment
+    #[must_use]
     pub fn fitbit_client_secret() -> Option<String> {
         env::var("FITBIT_CLIENT_SECRET").ok()
     }
 
     /// Get Fitbit redirect `URI` from environment or default
+    #[must_use]
     pub fn fitbit_redirect_uri() -> String {
         env::var("FITBIT_REDIRECT_URI").unwrap_or_else(|_| {
             format!(
@@ -129,33 +142,39 @@ pub mod env_config {
         })
     }
 
-    /// Get OpenWeather `API` key from environment
+    /// Get `OpenWeather` `API` key from environment
+    #[must_use]
     pub fn openweather_api_key() -> Option<String> {
         env::var("OPENWEATHER_API_KEY").ok()
     }
 
     /// Get log level from environment or default
+    #[must_use]
     pub fn log_level() -> String {
         env::var("RUST_LOG").unwrap_or_else(|_| "info".into())
     }
 
     /// Get Strava `API` base `URL` from environment or default
+    #[must_use]
     pub fn strava_api_base() -> String {
         env::var("STRAVA_API_BASE").unwrap_or_else(|_| "https://www.strava.com/api/v3".into())
     }
 
     /// Get Strava auth `URL` from environment or default
+    #[must_use]
     pub fn strava_auth_url() -> String {
         env::var("STRAVA_AUTH_URL")
             .unwrap_or_else(|_| "https://www.strava.com/oauth/authorize".into())
     }
 
     /// Get Strava token `URL` from environment or default
+    #[must_use]
     pub fn strava_token_url() -> String {
         env::var("STRAVA_TOKEN_URL").unwrap_or_else(|_| "https://www.strava.com/oauth/token".into())
     }
 
     /// Get max activities fetch limit from environment or default
+    #[must_use]
     pub fn max_activities_fetch() -> usize {
         env::var("MAX_ACTIVITIES_FETCH")
             .unwrap_or_else(|_| "100".into())
@@ -164,30 +183,35 @@ pub mod env_config {
     }
 
     /// Get Fitbit auth `URL` from environment or default
+    #[must_use]
     pub fn fitbit_auth_url() -> String {
         env::var("FITBIT_AUTH_URL")
             .unwrap_or_else(|_| "https://www.fitbit.com/oauth2/authorize".into())
     }
 
     /// Get Fitbit token `URL` from environment or default
+    #[must_use]
     pub fn fitbit_token_url() -> String {
         env::var("FITBIT_TOKEN_URL")
             .unwrap_or_else(|_| "https://api.fitbit.com/oauth2/token".into())
     }
 
     /// Get Strava deauthorize `URL` from environment or default
+    #[must_use]
     pub fn strava_deauthorize_url() -> String {
         env::var("STRAVA_DEAUTHORIZE_URL")
             .unwrap_or_else(|_| "https://www.strava.com/oauth/deauthorize".into())
     }
 
     /// Get Fitbit revoke `URL` from environment or default
+    #[must_use]
     pub fn fitbit_revoke_url() -> String {
         env::var("FITBIT_REVOKE_URL")
             .unwrap_or_else(|_| "https://api.fitbit.com/oauth2/revoke".into())
     }
 
     /// Get default activities limit from environment or default
+    #[must_use]
     pub fn default_activities_limit() -> usize {
         env::var("DEFAULT_ACTIVITIES_LIMIT")
             .unwrap_or_else(|_| "20".into())
@@ -195,7 +219,8 @@ pub mod env_config {
             .unwrap_or(20)
     }
 
-    /// Get OpenWeather `API` base `URL` from environment or default
+    /// Get `OpenWeather` `API` base `URL` from environment or default
+    #[must_use]
     pub fn openweather_api_base() -> String {
         env::var("OPENWEATHER_API_BASE_URL")
             .unwrap_or_else(|_| "https://api.openweathermap.org".into())

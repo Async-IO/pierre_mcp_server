@@ -19,6 +19,10 @@ pub use intelligence_config::{
 };
 
 /// Initialize all configurations
+///
+/// # Errors
+///
+/// Returns an error if configuration initialization fails
 pub fn init_configs() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize global intelligence config
     let intelligence_config = IntelligenceConfig::global();

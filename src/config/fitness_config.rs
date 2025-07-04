@@ -78,6 +78,10 @@ pub struct WeatherApiConfig {
 
 impl FitnessConfig {
     /// Load fitness configuration from file or use defaults
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the specified config file exists but cannot be read or parsed
     pub fn load(path: Option<String>) -> Result<Self> {
         // Try explicit path first
         if let Some(config_path) = path {
@@ -98,23 +102,29 @@ impl FitnessConfig {
     }
 
     /// Load configuration from a specific file
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be read or contains invalid TOML syntax
     pub fn load_from_file(path: &str) -> Result<Self> {
         let content = fs::read_to_string(path)
-            .with_context(|| format!("Failed to read fitness config file: {}", path))?;
+            .with_context(|| format!("Failed to read fitness config file: {path}"))?;
 
-        let config: FitnessConfig = toml::from_str(&content)
-            .with_context(|| format!("Failed to parse fitness config file: {}", path))?;
+        let config: Self = toml::from_str(&content)
+            .with_context(|| format!("Failed to parse fitness config file: {path}"))?;
 
         Ok(config)
     }
 
     /// Get the internal sport type name for a provider sport type
+    #[must_use]
     pub fn map_sport_type(&self, provider_sport: &str) -> Option<&str> {
-        self.sport_types.get(provider_sport).map(|s| s.as_str())
+        self.sport_types.get(provider_sport).map(std::string::String::as_str)
     }
 
     /// Get all configured sport type mappings
-    pub fn get_sport_mappings(&self) -> &HashMap<String, String> {
+    #[must_use]
+    pub const fn get_sport_mappings(&self) -> &HashMap<String, String> {
         &self.sport_types
     }
 }

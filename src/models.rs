@@ -960,7 +960,9 @@ impl UserPhysiologicalProfile {
             self.age.map(|age| {
                 // Use Tanaka formula: 208 - (0.7 × age)
                 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                { 0.7f64.mul_add(-f64::from(age), 208.0) as u16 }
+                {
+                    0.7f64.mul_add(-f64::from(age), 208.0) as u16
+                }
             })
         })
     }
@@ -1171,6 +1173,10 @@ impl EncryptedToken {
     }
 
     /// Decrypt the token for use
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if decryption fails, nonce is invalid, or the encryption key is incorrect
     pub fn decrypt(&self, encryption_key: &[u8]) -> Result<DecryptedToken, anyhow::Error> {
         use base64::{engine::general_purpose, Engine as _};
         use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
@@ -1221,7 +1227,7 @@ mod tests {
         Activity {
             id: "12345".into(),
             name: "Morning Run".into(),
-            sport_type: Self::Run,
+            sport_type: SportType::Run,
             start_date: Utc::now(),
             duration_seconds: 1800,        // 30 minutes
             distance_meters: Some(5000.0), // 5km
@@ -1286,7 +1292,7 @@ mod tests {
         let activity = create_sample_activity();
         assert_eq!(activity.id, "12345");
         assert_eq!(activity.name, "Morning Run");
-        assert!(matches!(activity.sport_type, Self::Run));
+        assert!(matches!(activity.sport_type, SportType::Run));
         assert_eq!(activity.duration_seconds, 1800);
         assert_eq!(activity.distance_meters, Some(5000.0));
         assert_eq!(activity.provider, "strava");
@@ -1306,27 +1312,27 @@ mod tests {
             serde_json::from_str(&json).expect("Failed to deserialize activity");
         assert_eq!(deserialized.id, activity.id);
         assert_eq!(deserialized.name, activity.name);
-        assert!(matches!(deserialized.sport_type, Self::Run));
+        assert!(matches!(deserialized.sport_type, SportType::Run));
     }
 
     #[test]
     fn test_sport_type_serialization() {
         // Test standard sport types
-        assert_eq!(serde_json::to_string(&Self::Run).unwrap(), "\"run\"");
-        assert_eq!(serde_json::to_string(&Self::Ride).unwrap(), "\"ride\"");
+        assert_eq!(serde_json::to_string(&SportType::Run).unwrap(), "\"run\"");
+        assert_eq!(serde_json::to_string(&SportType::Ride).unwrap(), "\"ride\"");
         assert_eq!(
-            serde_json::to_string(&Self::VirtualRun).unwrap(),
+            serde_json::to_string(&SportType::VirtualRun).unwrap(),
             "\"virtual_run\""
         );
 
         // Test Other variant
-        let custom_sport = Self::Other("CrossCountrySkiing".into());
+        let custom_sport = SportType::Other("CrossCountrySkiing".into());
         let json = serde_json::to_string(&custom_sport).unwrap();
         assert!(json.contains("CrossCountrySkiing"));
 
         // Test deserialization
         let sport: SportType = serde_json::from_str("\"run\"").unwrap();
-        assert!(matches!(sport, Self::Run));
+        assert!(matches!(sport, SportType::Run));
     }
 
     #[test]
@@ -1365,9 +1371,12 @@ mod tests {
         };
 
         assert_eq!(stats.total_activities, 150);
-        assert_eq!(stats.total_distance, 1_500_000.0);
+        #[allow(clippy::float_cmp)]
+        {
+            assert_eq!(stats.total_distance, 1_500_000.0);
+            assert_eq!(stats.total_elevation_gain, 25000.0);
+        }
         assert_eq!(stats.total_duration, 540_000);
-        assert_eq!(stats.total_elevation_gain, 25000.0);
     }
 
     #[test]

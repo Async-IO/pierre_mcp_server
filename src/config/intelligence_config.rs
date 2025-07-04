@@ -303,6 +303,10 @@ impl IntelligenceConfig<true> {
     }
 
     /// Load configuration from environment and files
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if environment variables contain invalid values or validation fails
     pub fn load() -> Result<Self, ConfigError> {
         let mut config = Self::default();
 
@@ -410,6 +414,7 @@ impl IntelligenceConfig<true> {
 }
 
 impl Default for IntelligenceConfig<true> {
+    #[allow(clippy::too_many_lines)]
     fn default() -> Self {
         Self {
             recommendation_engine: RecommendationEngineConfig {
@@ -602,6 +607,7 @@ impl Default for ConservativeStrategy {
 }
 
 impl ConservativeStrategy {
+    #[must_use]
     pub fn new() -> Self {
         let mut config = IntelligenceConfig::default();
 
@@ -651,6 +657,7 @@ impl Default for AggressiveStrategy {
 }
 
 impl AggressiveStrategy {
+    #[must_use]
     pub fn new() -> Self {
         let mut config = IntelligenceConfig::default();
 

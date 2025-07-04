@@ -28,26 +28,27 @@ pub enum LogLevel {
 }
 
 impl LogLevel {
-    /// Convert to tracing::Level
-    pub fn to_tracing_level(&self) -> tracing::Level {
+    /// Convert to `tracing::Level`
+    #[must_use]
+    pub const fn to_tracing_level(&self) -> tracing::Level {
         match self {
-            LogLevel::Error => tracing::Level::ERROR,
-            LogLevel::Warn => tracing::Level::WARN,
-            LogLevel::Info => tracing::Level::INFO,
-            LogLevel::Debug => tracing::Level::DEBUG,
-            LogLevel::Trace => tracing::Level::TRACE,
+            Self::Error => tracing::Level::ERROR,
+            Self::Warn => tracing::Level::WARN,
+            Self::Info => tracing::Level::INFO,
+            Self::Debug => tracing::Level::DEBUG,
+            Self::Trace => tracing::Level::TRACE,
         }
     }
 
     /// Parse from string with fallback
+    #[must_use]
     pub fn from_str_or_default(s: &str) -> Self {
         match s.to_lowercase().as_str() {
-            "error" => LogLevel::Error,
-            "warn" => LogLevel::Warn,
-            "info" => LogLevel::Info,
-            "debug" => LogLevel::Debug,
-            "trace" => LogLevel::Trace,
-            _ => LogLevel::Info, // Default fallback
+            "error" => Self::Error,
+            "warn" => Self::Warn,
+            "debug" => Self::Debug,
+            "trace" => Self::Trace,
+            _ => Self::Info, // Default fallback (including "info")
         }
     }
 }
@@ -55,11 +56,11 @@ impl LogLevel {
 impl std::fmt::Display for LogLevel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            LogLevel::Error => write!(f, "error"),
-            LogLevel::Warn => write!(f, "warn"),
-            LogLevel::Info => write!(f, "info"),
-            LogLevel::Debug => write!(f, "debug"),
-            LogLevel::Trace => write!(f, "trace"),
+            Self::Error => write!(f, "error"),
+            Self::Warn => write!(f, "warn"),
+            Self::Info => write!(f, "info"),
+            Self::Debug => write!(f, "debug"),
+            Self::Trace => write!(f, "trace"),
         }
     }
 }
@@ -76,37 +77,40 @@ pub enum Environment {
 
 impl Environment {
     /// Parse from string with fallback
+    #[must_use]
     pub fn from_str_or_default(s: &str) -> Self {
         match s.to_lowercase().as_str() {
-            "production" | "prod" => Environment::Production,
-            "testing" | "test" => Environment::Testing,
-            "development" | "dev" => Environment::Development,
-            _ => Environment::Development, // Default fallback for unrecognized values
+            "production" | "prod" => Self::Production,
+            "testing" | "test" => Self::Testing,
+            _ => Self::Development, // Default fallback (including "development" | "dev")
         }
     }
 
     /// Check if this is a production environment
-    pub fn is_production(&self) -> bool {
-        matches!(self, Environment::Production)
+    #[must_use]
+    pub const fn is_production(&self) -> bool {
+        matches!(self, Self::Production)
     }
 
     /// Check if this is a development environment
-    pub fn is_development(&self) -> bool {
-        matches!(self, Environment::Development)
+    #[must_use]
+    pub const fn is_development(&self) -> bool {
+        matches!(self, Self::Development)
     }
 
     /// Check if this is a testing environment
-    pub fn is_testing(&self) -> bool {
-        matches!(self, Environment::Testing)
+    #[must_use]
+    pub const fn is_testing(&self) -> bool {
+        matches!(self, Self::Testing)
     }
 }
 
 impl std::fmt::Display for Environment {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Environment::Development => write!(f, "development"),
-            Environment::Production => write!(f, "production"),
-            Environment::Testing => write!(f, "testing"),
+            Self::Development => write!(f, "development"),
+            Self::Production => write!(f, "production"),
+            Self::Testing => write!(f, "testing"),
         }
     }
 }
@@ -114,66 +118,74 @@ impl std::fmt::Display for Environment {
 /// Type-safe database configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DatabaseUrl {
-    /// SQLite database with file path
+    /// `SQLite` database with file path
     SQLite { path: PathBuf },
-    /// PostgreSQL connection
+    /// `PostgreSQL` connection
     PostgreSQL { connection_string: String },
-    /// In-memory SQLite (for testing)
+    /// In-memory `SQLite` (for testing)
     Memory,
 }
 
 impl DatabaseUrl {
     /// Parse from string with validation
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database URL format is invalid or unsupported
     pub fn parse_url(s: &str) -> Result<Self> {
         if s.starts_with("sqlite:") {
             let path_str = s.strip_prefix("sqlite:").unwrap_or(s);
             if path_str == ":memory:" {
-                Ok(DatabaseUrl::Memory)
+                Ok(Self::Memory)
             } else {
-                Ok(DatabaseUrl::SQLite {
+                Ok(Self::SQLite {
                     path: PathBuf::from(path_str),
                 })
             }
         } else if s.starts_with("postgresql://") || s.starts_with("postgres://") {
-            Ok(DatabaseUrl::PostgreSQL {
+            Ok(Self::PostgreSQL {
                 connection_string: s.to_string(),
             })
         } else {
             // Fallback: treat as SQLite file path
-            Ok(DatabaseUrl::SQLite {
+            Ok(Self::SQLite {
                 path: PathBuf::from(s),
             })
         }
     }
 
     /// Convert to connection string
+    #[must_use]
     pub fn to_connection_string(&self) -> String {
         match self {
-            DatabaseUrl::SQLite { path } => format!("sqlite:{}", path.display()),
-            DatabaseUrl::PostgreSQL { connection_string } => connection_string.clone(),
-            DatabaseUrl::Memory => "sqlite::memory:".into(),
+            Self::SQLite { path } => format!("sqlite:{}", path.display()),
+            Self::PostgreSQL { connection_string } => connection_string.clone(),
+            Self::Memory => "sqlite::memory:".into(),
         }
     }
 
     /// Check if this is an in-memory database
-    pub fn is_memory(&self) -> bool {
-        matches!(self, DatabaseUrl::Memory)
+    #[must_use]
+    pub const fn is_memory(&self) -> bool {
+        matches!(self, Self::Memory)
     }
 
-    /// Check if this is a SQLite database
-    pub fn is_sqlite(&self) -> bool {
-        matches!(self, DatabaseUrl::SQLite { .. } | DatabaseUrl::Memory)
+    /// Check if this is a `SQLite` database
+    #[must_use]
+    pub const fn is_sqlite(&self) -> bool {
+        matches!(self, Self::SQLite { .. } | Self::Memory)
     }
 
-    /// Check if this is a PostgreSQL database
-    pub fn is_postgresql(&self) -> bool {
-        matches!(self, DatabaseUrl::PostgreSQL { .. })
+    /// Check if this is a `PostgreSQL` database
+    #[must_use]
+    pub const fn is_postgresql(&self) -> bool {
+        matches!(self, Self::PostgreSQL { .. })
     }
 }
 
 impl Default for DatabaseUrl {
     fn default() -> Self {
-        DatabaseUrl::SQLite {
+        Self::SQLite {
             path: PathBuf::from("./data/users.db"),
         }
     }
@@ -209,7 +221,7 @@ pub struct ServerConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseConfig {
-    /// Database URL (SQLite path or PostgreSQL connection string)
+    /// Database URL (`SQLite` path or `PostgreSQL` connection string)
     pub url: DatabaseUrl,
     /// Path to encryption key file
     pub encryption_key_path: PathBuf,
@@ -315,7 +327,7 @@ pub struct ExternalServicesConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WeatherServiceConfig {
-    /// OpenWeather API key
+    /// `OpenWeather` API key
     pub api_key: Option<String>,
     /// Weather service base URL
     pub base_url: String,
@@ -375,6 +387,11 @@ pub struct ProtocolConfig {
 
 impl ServerConfig {
     /// Load configuration from environment variables
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if environment variables contain invalid values or required configuration is missing
+    #[allow(clippy::too_many_lines)]
     pub fn from_env() -> Result<Self> {
         info!("Loading configuration from environment variables");
 
@@ -383,7 +400,7 @@ impl ServerConfig {
             warn!("No .env file found or failed to load: {}", e);
         }
 
-        let config = ServerConfig {
+        let config = Self {
             mcp_port: env_config::mcp_port(),
             http_port: env_config::http_port(),
             log_level: LogLevel::from_str_or_default(&env_config::log_level()),
@@ -392,36 +409,36 @@ impl ServerConfig {
                 url: DatabaseUrl::parse_url(&env_config::database_url())
                     .unwrap_or_else(|_| DatabaseUrl::default()),
                 encryption_key_path: PathBuf::from(env_config::encryption_key_path()),
-                auto_migrate: env_var_or("AUTO_MIGRATE", "true")?
+                auto_migrate: env_var_or("AUTO_MIGRATE", "true")
                     .parse()
                     .context("Invalid AUTO_MIGRATE value")?,
                 backup: BackupConfig {
-                    enabled: env_var_or("BACKUP_ENABLED", "true")?
+                    enabled: env_var_or("BACKUP_ENABLED", "true")
                         .parse()
                         .context("Invalid BACKUP_ENABLED value")?,
                     interval_seconds: env_var_or(
                         "BACKUP_INTERVAL",
                         &limits::DEFAULT_BACKUP_INTERVAL_SECS.to_string(),
-                    )?
+                    )
                     .parse()
                     .context("Invalid BACKUP_INTERVAL value")?,
                     retention_count: env_var_or(
                         "BACKUP_RETENTION",
                         &limits::DEFAULT_BACKUP_RETENTION_COUNT.to_string(),
-                    )?
+                    )
                     .parse()
                     .context("Invalid BACKUP_RETENTION value")?,
                     directory: PathBuf::from(env_var_or(
                         "BACKUP_DIRECTORY",
                         defaults::DEFAULT_BACKUP_DIR,
-                    )?),
+                    )),
                 },
             },
 
             auth: AuthConfig {
                 jwt_secret_path: PathBuf::from(env_config::jwt_secret_path()),
-                jwt_expiry_hours: env_config::jwt_expiry_hours() as u64,
-                enable_refresh_tokens: env_var_or("ENABLE_REFRESH_TOKENS", "false")?
+                jwt_expiry_hours: u64::try_from(env_config::jwt_expiry_hours().max(0)).unwrap_or(24),
+                enable_refresh_tokens: env_var_or("ENABLE_REFRESH_TOKENS", "false")
                     .parse()
                     .context("Invalid ENABLE_REFRESH_TOKENS value")?,
             },
@@ -432,7 +449,7 @@ impl ServerConfig {
                     client_secret: env_config::strava_client_secret(),
                     redirect_uri: Some(env_config::strava_redirect_uri()),
                     scopes: parse_scopes(oauth::STRAVA_DEFAULT_SCOPES),
-                    enabled: env_var_or("STRAVA_ENABLED", "true")?
+                    enabled: env_var_or("STRAVA_ENABLED", "true")
                         .parse()
                         .context("Invalid STRAVA_ENABLED value")?,
                 },
@@ -441,33 +458,33 @@ impl ServerConfig {
                     client_secret: env::var("FITBIT_CLIENT_SECRET").ok(),
                     redirect_uri: env::var("FITBIT_REDIRECT_URI").ok(),
                     scopes: parse_scopes(oauth::FITBIT_DEFAULT_SCOPES),
-                    enabled: env_var_or("FITBIT_ENABLED", "true")?
+                    enabled: env_var_or("FITBIT_ENABLED", "true")
                         .parse()
                         .context("Invalid FITBIT_ENABLED value")?,
                 },
             },
 
             security: SecurityConfig {
-                cors_origins: parse_origins(&env_var_or("CORS_ORIGINS", "*")?),
+                cors_origins: parse_origins(&env_var_or("CORS_ORIGINS", "*")),
                 rate_limit: RateLimitConfig {
-                    enabled: env_var_or("RATE_LIMIT_ENABLED", "true")?
+                    enabled: env_var_or("RATE_LIMIT_ENABLED", "true")
                         .parse()
                         .context("Invalid RATE_LIMIT_ENABLED value")?,
                     requests_per_window: env_var_or(
                         "RATE_LIMIT_REQUESTS",
                         &limits::DEFAULT_RATE_LIMIT_REQUESTS.to_string(),
-                    )?
+                    )
                     .parse()
                     .context("Invalid RATE_LIMIT_REQUESTS value")?,
                     window_seconds: env_var_or(
                         "RATE_LIMIT_WINDOW",
                         &limits::DEFAULT_RATE_LIMIT_WINDOW_SECS.to_string(),
-                    )?
+                    )
                     .parse()
                     .context("Invalid RATE_LIMIT_WINDOW value")?,
                 },
                 tls: TlsConfig {
-                    enabled: env_var_or("TLS_ENABLED", "false")?
+                    enabled: env_var_or("TLS_ENABLED", "false")
                         .parse()
                         .context("Invalid TLS_ENABLED value")?,
                     cert_path: env::var("TLS_CERT_PATH").ok().map(PathBuf::from),
@@ -477,7 +494,7 @@ impl ServerConfig {
                     environment: Environment::from_str_or_default(&env_var_or(
                         "SECURITY_HEADERS_ENV",
                         "development",
-                    )?),
+                    )),
                 },
             },
 
@@ -487,8 +504,8 @@ impl ServerConfig {
                     base_url: env_var_or(
                         "OPENWEATHER_BASE_URL",
                         "https://api.openweathermap.org/data/2.5",
-                    )?,
-                    enabled: env_var_or("WEATHER_SERVICE_ENABLED", "true")?
+                    ),
+                    enabled: env_var_or("WEATHER_SERVICE_ENABLED", "true")
                         .parse()
                         .context("Invalid WEATHER_SERVICE_ENABLED value")?,
                 },
@@ -496,48 +513,48 @@ impl ServerConfig {
                     base_url: env_var_or(
                         "GEOCODING_BASE_URL",
                         "https://nominatim.openstreetmap.org",
-                    )?,
-                    enabled: env_var_or("GEOCODING_SERVICE_ENABLED", "true")?
+                    ),
+                    enabled: env_var_or("GEOCODING_SERVICE_ENABLED", "true")
                         .parse()
                         .context("Invalid GEOCODING_SERVICE_ENABLED value")?,
                 },
                 strava_api: StravaApiConfig {
-                    base_url: env_var_or("STRAVA_API_BASE", "https://www.strava.com/api/v3")?,
+                    base_url: env_var_or("STRAVA_API_BASE", "https://www.strava.com/api/v3"),
                     auth_url: env_var_or(
                         "STRAVA_AUTH_URL",
                         "https://www.strava.com/oauth/authorize",
-                    )?,
+                    ),
                     token_url: env_var_or(
                         "STRAVA_TOKEN_URL",
                         "https://www.strava.com/oauth/token",
-                    )?,
+                    ),
                 },
                 fitbit_api: FitbitApiConfig {
-                    base_url: env_var_or("FITBIT_API_BASE", "https://api.fitbit.com")?,
+                    base_url: env_var_or("FITBIT_API_BASE", "https://api.fitbit.com"),
                     auth_url: env_var_or(
                         "FITBIT_AUTH_URL",
                         "https://www.fitbit.com/oauth2/authorize",
-                    )?,
+                    ),
                     token_url: env_var_or(
                         "FITBIT_TOKEN_URL",
                         "https://api.fitbit.com/oauth2/token",
-                    )?,
+                    ),
                 },
             },
 
             app_behavior: AppBehaviorConfig {
-                max_activities_fetch: env_var_or("MAX_ACTIVITIES_FETCH", "100")?
+                max_activities_fetch: env_var_or("MAX_ACTIVITIES_FETCH", "100")
                     .parse()
                     .context("Invalid MAX_ACTIVITIES_FETCH value")?,
-                default_activities_limit: env_var_or("DEFAULT_ACTIVITIES_LIMIT", "20")?
+                default_activities_limit: env_var_or("DEFAULT_ACTIVITIES_LIMIT", "20")
                     .parse()
                     .context("Invalid DEFAULT_ACTIVITIES_LIMIT value")?,
-                ci_mode: env_var_or("CI", "false")?
+                ci_mode: env_var_or("CI", "false")
                     .parse()
                     .context("Invalid CI value")?,
                 protocol: ProtocolConfig {
-                    mcp_version: env_var_or("MCP_PROTOCOL_VERSION", "2024-11-05")?,
-                    server_name: env_var_or("SERVER_NAME", "pierre-mcp-server")?,
+                    mcp_version: env_var_or("MCP_PROTOCOL_VERSION", "2024-11-05"),
+                    server_name: env_var_or("SERVER_NAME", "pierre-mcp-server"),
                     server_version: env!("CARGO_PKG_VERSION").to_string(),
                 },
             },
@@ -549,6 +566,10 @@ impl ServerConfig {
     }
 
     /// Validate configuration values
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if configuration values are invalid or conflicting
     pub fn validate(&self) -> Result<()> {
         // Port validation
         if self.mcp_port == self.http_port {
@@ -583,6 +604,10 @@ impl ServerConfig {
     }
 
     /// Initialize all configurations including intelligence config
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if intelligence configuration cannot be loaded or validated
     pub fn init_all_configs(&self) -> Result<()> {
         // Initialize intelligence configuration
         let intelligence_config = crate::config::intelligence_config::IntelligenceConfig::global();
@@ -601,6 +626,7 @@ impl ServerConfig {
     }
 
     /// Get a summary of the configuration for logging (without secrets)
+    #[must_use]
     pub fn summary(&self) -> String {
         format!(
             "Pierre MCP Server Configuration:\n\
@@ -656,27 +682,32 @@ impl ServerConfig {
     }
 
     /// Convenience methods for accessing commonly used values
-    /// Get the OpenWeather API key if available
+    /// Get the `OpenWeather` API key if available
+    #[must_use]
     pub fn openweather_api_key(&self) -> Option<&str> {
         self.external_services.weather.api_key.as_deref()
     }
 
     /// Get Strava API configuration
-    pub fn strava_api_config(&self) -> &StravaApiConfig {
+    #[must_use]
+    pub const fn strava_api_config(&self) -> &StravaApiConfig {
         &self.external_services.strava_api
     }
 
     /// Get Fitbit API configuration
-    pub fn fitbit_api_config(&self) -> &FitbitApiConfig {
+    #[must_use]
+    pub const fn fitbit_api_config(&self) -> &FitbitApiConfig {
         &self.external_services.fitbit_api
     }
 
     /// Check if CI mode is enabled
-    pub fn is_ci_mode(&self) -> bool {
+    #[must_use]
+    pub const fn is_ci_mode(&self) -> bool {
         self.app_behavior.ci_mode
     }
 
     /// Get protocol information
+    #[must_use]
     pub fn protocol_info(&self) -> (&str, &str, &str) {
         (
             &self.app_behavior.protocol.mcp_version,
@@ -686,7 +717,8 @@ impl ServerConfig {
     }
 
     /// Get activity fetch limits
-    pub fn activity_limits(&self) -> (usize, usize) {
+    #[must_use]
+    pub const fn activity_limits(&self) -> (usize, usize) {
         (
             self.app_behavior.max_activities_fetch,
             self.app_behavior.default_activities_limit,
@@ -695,11 +727,12 @@ impl ServerConfig {
 }
 
 /// Get environment variable or default value
-fn env_var_or(key: &str, default: &str) -> Result<String> {
-    Ok(env::var(key).unwrap_or_else(|_| default.to_string()))
+fn env_var_or(key: &str, default: &str) -> String {
+    env::var(key).unwrap_or_else(|_| default.to_string())
 }
 
 /// Parse comma-separated scopes
+#[must_use]
 fn parse_scopes(scopes_str: &str) -> Vec<String> {
     scopes_str
         .split(',')
@@ -709,6 +742,7 @@ fn parse_scopes(scopes_str: &str) -> Vec<String> {
 }
 
 /// Parse comma-separated CORS origins
+#[must_use]
 fn parse_origins(origins_str: &str) -> Vec<String> {
     if origins_str == "*" {
         vec!["*".into()]
