@@ -883,7 +883,7 @@ impl Database {
 #[cfg(test)]
 mod tests {
     use super::*;
-    // Note: A2APermission should be defined - using String for now
+    // A2APermission represented as String until enum is defined
 
     async fn create_test_client(db: &Database) -> (A2AClient, Uuid) {
         let unique_id = Uuid::new_v4();

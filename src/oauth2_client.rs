@@ -25,7 +25,7 @@ pub struct OAuth2Config {
     pub use_pkce: bool,
 }
 
-/// PKCE (Proof Key for Code Exchange) parameters for enhanced OAuth2 security
+/// `PKCE` (Proof Key for Code Exchange) parameters for enhanced `OAuth2` security
 #[derive(Debug, Clone)]
 pub struct PkceParams {
     pub code_verifier: String,
@@ -34,7 +34,7 @@ pub struct PkceParams {
 }
 
 impl PkceParams {
-    /// Generate PKCE parameters with S256 challenge method
+    /// Generate `PKCE` parameters with `S256` challenge method
     pub fn generate() -> Self {
         // Generate a cryptographically secure random code verifier (43-128 characters)
         const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
@@ -104,7 +104,7 @@ impl OAuth2Client {
         Ok(url.to_string())
     }
 
-    /// Get authorization URL with PKCE support
+    /// Get authorization `URL` with `PKCE` support
     pub fn get_authorization_url_with_pkce(
         &self,
         state: &str,
@@ -151,7 +151,7 @@ impl OAuth2Client {
         Ok(self.token_from_response(response))
     }
 
-    /// Exchange authorization code with PKCE support
+    /// Exchange authorization code with `PKCE` support
     pub async fn exchange_code_with_pkce(
         &self,
         code: &str,
@@ -281,7 +281,7 @@ pub mod strava {
         Ok((token, response.athlete))
     }
 
-    /// Exchange Strava authorization code with PKCE support
+    /// Exchange Strava authorization code with `PKCE` support
     pub async fn exchange_strava_code_with_pkce(
         client: &reqwest::Client,
         client_id: &str,
@@ -409,7 +409,7 @@ pub mod fitbit {
         Ok((token, Some(user_info)))
     }
 
-    /// Exchange Fitbit authorization code with PKCE support
+    /// Exchange Fitbit authorization code with `PKCE` support
     pub async fn exchange_fitbit_code_with_pkce(
         client: &reqwest::Client,
         client_id: &str,

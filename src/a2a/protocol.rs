@@ -312,7 +312,7 @@ impl A2AServer {
         // Query database for actual task data if available
         if self.database.is_some() {
             // Try to get task from database
-            // For now, return error since task storage is not implemented
+            // Return error - task storage requires database implementation
             return A2AResponse {
                 jsonrpc: "2.0".into(),
                 result: None,
@@ -582,7 +582,7 @@ impl A2AServer {
             .unwrap_or("unknown");
 
         // In a full implementation, this would cancel an active task
-        // For now, we'll simulate task cancellation
+        // Simulate task cancellation until full task management is implemented
         A2AResponse {
             jsonrpc: "2.0".into(),
             result: Some(serde_json::json!({

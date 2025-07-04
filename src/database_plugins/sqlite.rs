@@ -17,6 +17,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
+use sqlx::Row;
 use uuid::Uuid;
 
 /// SQLite database implementation
@@ -138,6 +139,54 @@ impl DatabaseProvider for SqliteDatabase {
         self.inner
             .update_goal_progress(goal_id, current_value)
             .await
+    }
+
+    async fn get_user_configuration(&self, user_id: &str) -> Result<Option<String>> {
+        let query = "SELECT config_data FROM user_configurations WHERE user_id = ?";
+
+        let row = sqlx::query(query)
+            .bind(user_id)
+            .fetch_optional(self.inner.pool())
+            .await?;
+
+        if let Some(row) = row {
+            Ok(Some(row.try_get("config_data")?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn save_user_configuration(&self, user_id: &str, config_json: &str) -> Result<()> {
+        // First ensure the user_configurations table exists
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS user_configurations (
+                user_id TEXT PRIMARY KEY,
+                config_data TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(self.inner.pool())
+        .await?;
+
+        // Insert or update configuration
+        let query = r"
+            INSERT INTO user_configurations (user_id, config_data, updated_at) 
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(user_id) DO UPDATE SET 
+                config_data = excluded.config_data,
+                updated_at = CURRENT_TIMESTAMP
+        ";
+
+        sqlx::query(query)
+            .bind(user_id)
+            .bind(config_json)
+            .execute(self.inner.pool())
+            .await?;
+
+        Ok(())
     }
 
     async fn store_insight(&self, user_id: Uuid, insight_data: Value) -> Result<String> {
@@ -267,8 +316,8 @@ impl DatabaseProvider for SqliteDatabase {
                 api_key_id: log.api_key_id.unwrap_or_default(),
                 api_key_name: "Unknown".into(),
                 tool_name: "Unknown".into(),
-                status_code: log.status_code,
-                response_time_ms: log.response_time_ms,
+                status_code: log.status_code as i32,
+                response_time_ms: log.response_time_ms.map(|ms| ms as i32),
                 error_message: log.error_message,
                 request_size_bytes: None,
                 response_size_bytes: None,

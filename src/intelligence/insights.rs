@@ -87,6 +87,7 @@ impl Default for InsightGenerator {
 
 impl InsightGenerator {
     /// Create a new insight generator with default config
+    #[must_use]
     pub fn new() -> Self {
         Self {
             config: InsightConfig::default(),
@@ -94,6 +95,7 @@ impl InsightGenerator {
     }
 
     /// Create a new insight generator with custom config
+    #[must_use]
     pub fn with_config(config: InsightConfig) -> Self {
         Self { config }
     }

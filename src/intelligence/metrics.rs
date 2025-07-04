@@ -85,6 +85,7 @@ impl Default for MetricsCalculator {
 
 impl MetricsCalculator {
     /// Create a new metrics calculator
+    #[must_use]
     pub fn new() -> Self {
         Self {
             ftp: None,
@@ -96,6 +97,7 @@ impl MetricsCalculator {
     }
 
     /// Set user parameters for calculations
+    #[must_use]
     pub fn with_user_data(
         mut self,
         ftp: Option<f64>,

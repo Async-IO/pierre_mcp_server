@@ -80,6 +80,7 @@ pub struct CatalogBuilder;
 
 impl CatalogBuilder {
     /// Build the complete configuration catalog
+    #[must_use]
     pub fn build() -> ConfigCatalog {
         let categories = vec![
             Self::build_physiological_zones_category(),

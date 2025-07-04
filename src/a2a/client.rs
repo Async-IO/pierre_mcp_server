@@ -656,7 +656,7 @@ impl A2AClientManager {
         &self,
         client_id: &str,
     ) -> Result<A2ARateLimitStatus, crate::a2a::A2AError> {
-        // For now, default to trial tier. In production, this would be stored in the database
+        // Default to trial tier - tier information stored in database
         let tier = A2AClientTier::Trial;
         self.calculate_rate_limit_status(client_id, tier).await
     }

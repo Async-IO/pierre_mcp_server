@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-/// API Key tiers with rate limits
+/// `API` Key tiers with rate limits
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum ApiKeyTier {
@@ -82,7 +82,7 @@ impl std::str::FromStr for ApiKeyTier {
     }
 }
 
-/// API Key model
+/// `API` Key model
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiKey {
     pub id: String,
@@ -100,7 +100,7 @@ pub struct ApiKey {
     pub created_at: DateTime<Utc>,
 }
 
-/// API Key creation request with rate limit
+/// `API` Key creation request with rate limit
 #[derive(Debug, Deserialize)]
 pub struct CreateApiKeyRequest {
     pub name: String,
@@ -110,7 +110,7 @@ pub struct CreateApiKeyRequest {
     pub expires_in_days: Option<i64>,
 }
 
-/// New simplified API Key creation request
+/// New simplified `API` Key creation request
 #[derive(Debug, Deserialize)]
 pub struct CreateApiKeyRequestSimple {
     pub name: String,
@@ -119,7 +119,7 @@ pub struct CreateApiKeyRequestSimple {
     pub expires_in_days: Option<i64>,
 }
 
-/// API Key response (includes the actual key only on creation)
+/// `API` Key response (includes the actual key only on creation)
 #[derive(Debug, Serialize)]
 pub struct ApiKeyResponse {
     pub id: String,
@@ -171,7 +171,7 @@ pub struct RateLimitStatus {
     pub reset_at: Option<DateTime<Utc>>,
 }
 
-/// Generated API key data
+/// Generated `API` key data
 #[derive(Debug)]
 pub struct ApiKeyData {
     pub full_key: String,
@@ -179,7 +179,7 @@ pub struct ApiKeyData {
     pub key_hash: String,
 }
 
-/// API Key Manager
+/// `API` Key Manager
 #[derive(Clone)]
 pub struct ApiKeyManager {
     key_prefix: &'static str,
@@ -192,14 +192,14 @@ impl Default for ApiKeyManager {
 }
 
 impl ApiKeyManager {
-    /// Create a new API key manager
+    /// Create a new `API` key manager
     pub fn new() -> Self {
         Self {
             key_prefix: "pk_live_", // Production keys
         }
     }
 
-    /// Generate a new API key with optional trial prefix
+    /// Generate a new `API` key with optional trial prefix
     pub fn generate_api_key(&self, is_trial: bool) -> ApiKeyData {
         // Generate 32 random bytes for the key
         let random_bytes: String = thread_rng()
@@ -236,7 +236,7 @@ impl ApiKeyManager {
         }
     }
 
-    /// Validate an API key format
+    /// Validate an `API` key format
     pub fn validate_key_format(&self, api_key: &str) -> Result<()> {
         if !api_key.starts_with(self.key_prefix) && !api_key.starts_with("pk_trial_") {
             anyhow::bail!("Invalid API key format");
@@ -260,19 +260,19 @@ impl ApiKeyManager {
         api_key.chars().take(12).collect()
     }
 
-    /// Hash an API key for comparison
+    /// Hash an `API` key for comparison
     pub fn hash_key(&self, api_key: &str) -> String {
         let mut hasher = Sha256::new();
         hasher.update(api_key.as_bytes());
         format!("{:x}", hasher.finalize())
     }
 
-    /// Check if an API key string is a trial key
+    /// Check if an `API` key string is a trial key
     pub fn is_trial_key(&self, api_key: &str) -> bool {
         api_key.starts_with("pk_trial_")
     }
 
-    /// Create a new API key with simplified request
+    /// Create a new `API` key with simplified request
     pub async fn create_api_key_simple(
         &self,
         user_id: Uuid,
@@ -338,7 +338,7 @@ impl ApiKeyManager {
         Ok((api_key, full_key))
     }
 
-    /// Create a new API key (legacy method with tier)
+    /// Create a new `API` key (legacy method with tier)
     pub async fn create_api_key(
         &self,
         user_id: Uuid,
@@ -393,7 +393,7 @@ impl ApiKeyManager {
         Ok((api_key, full_key))
     }
 
-    /// Create a trial API key with default settings
+    /// Create a trial `API` key with default settings
     pub async fn create_trial_key(
         &self,
         user_id: Uuid,
@@ -426,7 +426,7 @@ impl ApiKeyManager {
         Ok(())
     }
 
-    /// Get rate limit status for an API key
+    /// Get rate limit status for an `API` key
     pub fn rate_limit_status(&self, api_key: &ApiKey, current_usage: u32) -> RateLimitStatus {
         match api_key.tier {
             ApiKeyTier::Enterprise => RateLimitStatus {

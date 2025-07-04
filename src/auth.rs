@@ -37,7 +37,7 @@ fn humanize_duration(duration: Duration) -> String {
     }
 }
 
-/// JWT validation error with detailed information
+/// `JWT` validation error with detailed information
 #[derive(Debug, Clone)]
 pub enum JwtValidationError {
     /// Token has expired
@@ -52,7 +52,7 @@ pub enum JwtValidationError {
         /// Reason for invalidity
         reason: String,
     },
-    /// Token is malformed (not proper JWT format)
+    /// Token is malformed (not proper `JWT` format)
     TokenMalformed {
         /// Details about malformation
         details: String,
@@ -102,10 +102,10 @@ impl std::fmt::Display for JwtValidationError {
 
 impl std::error::Error for JwtValidationError {}
 
-/// JWT claims for user authentication
+/// `JWT` claims for user authentication
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
-    /// User ID
+    /// User `ID`
     pub sub: String,
     /// User email
     pub email: String,
@@ -120,27 +120,27 @@ pub struct Claims {
 /// Authentication result with user context and rate limiting info
 #[derive(Debug)]
 pub struct AuthResult {
-    /// Authenticated user ID
+    /// Authenticated user `ID`
     pub user_id: Uuid,
     /// Authentication method used
     pub auth_method: AuthMethod,
-    /// Rate limit information (always provided for both API keys and JWT tokens)
+    /// Rate limit information (always provided for both `API` keys and `JWT` tokens)
     pub rate_limit: UnifiedRateLimitInfo,
 }
 
 /// Authentication method used
 #[derive(Debug, Clone)]
 pub enum AuthMethod {
-    /// JWT token authentication
+    /// `JWT` token authentication
     JwtToken {
         /// User tier for rate limiting
         tier: String,
     },
-    /// API key authentication
+    /// `API` key authentication
     ApiKey {
-        /// API key ID
+        /// `API` key `ID`
         key_id: String,
-        /// API key tier
+        /// `API` key tier
         tier: String,
     },
 }
@@ -167,7 +167,7 @@ impl AuthMethod {
     }
 }
 
-/// Authentication manager for JWT tokens and user sessions
+/// Authentication manager for `JWT` tokens and user sessions
 pub struct AuthManager {
     jwt_secret: Vec<u8>,
     token_expiry_hours: i64,
@@ -197,12 +197,19 @@ impl AuthManager {
         }
     }
 
-    /// Get the JWT secret
+    /// Get the `JWT` secret
     pub fn jwt_secret(&self) -> &[u8] {
         &self.jwt_secret
     }
 
-    /// Generate a JWT token for a user
+    /// Generate a `JWT` token for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - JWT encoding fails due to invalid claims
+    /// - Secret key is malformed
+    /// - System time is unavailable for timestamp generation
     pub fn generate_token(&self, user: &User) -> Result<String> {
         let now = Utc::now();
         let expiry = now + Duration::hours(self.token_expiry_hours);
@@ -229,7 +236,15 @@ impl AuthManager {
         Ok(token)
     }
 
-    /// Validate a JWT token and extract claims
+    /// Validate a `JWT` token and extract claims
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Token signature is invalid
+    /// - Token has expired
+    /// - Token is malformed or not valid JWT format
+    /// - Token claims cannot be deserialized
     pub fn validate_token(&self, token: &str) -> Result<Claims> {
         let mut validation = Validation::new(Algorithm::HS256);
         validation.validate_exp = true;
@@ -243,7 +258,7 @@ impl AuthManager {
         Ok(token_data.claims)
     }
 
-    /// Validate a JWT token with detailed error information
+    /// Validate a `JWT` token with detailed error information
     pub fn validate_token_detailed(&self, token: &str) -> Result<Claims, JwtValidationError> {
         tracing::debug!("Validating JWT token (length: {} chars)", token.len());
 
@@ -331,6 +346,13 @@ impl AuthManager {
     }
 
     /// Create a user session from a valid user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - JWT token generation fails
+    /// - User data is invalid
+    /// - System time is unavailable
     pub fn create_session(&self, user: &User) -> Result<UserSession> {
         let jwt_token = self.generate_token(user)?;
         let expires_at = Utc::now() + Duration::hours(self.token_expiry_hours);
@@ -371,6 +393,14 @@ impl AuthManager {
     }
 
     /// Refresh a token if it's still valid
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Old token signature is invalid (even if expired)
+    /// - Token is malformed
+    /// - New token generation fails
+    /// - User data is invalid
     pub fn refresh_token(&self, old_token: &str, user: &User) -> Result<String> {
         // First validate the old token (even if expired, we want to check signature)
         let mut validation = Validation::new(Algorithm::HS256);
@@ -386,8 +416,16 @@ impl AuthManager {
         self.generate_token(user)
     }
 
-    /// Extract user ID from token without full validation
+    /// Extract user `ID` from token without full validation
     /// Used for database lookups when token might be expired
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Token signature is invalid
+    /// - Token is malformed
+    /// - User ID in token is not a valid UUID
+    /// - Token claims cannot be deserialized
     pub fn extract_user_id(&self, token: &str) -> Result<Uuid> {
         let mut validation = Validation::new(Algorithm::HS256);
         validation.validate_exp = false;
@@ -408,6 +446,13 @@ impl AuthManager {
     }
 
     /// Check if initial setup is needed by verifying if admin user exists
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database connection fails
+    /// - Database query execution fails
+    /// - User data deserialization fails
     pub async fn check_setup_status(
         &self,
         database: &Database,
@@ -447,7 +492,7 @@ impl AuthManager {
     }
 }
 
-/// Generate a random JWT secret
+/// Generate a random `JWT` secret
 pub fn generate_jwt_secret() -> [u8; 64] {
     use ring::rand::{SecureRandom, SystemRandom};
 
@@ -472,7 +517,7 @@ pub fn generate_jwt_secret() -> [u8; 64] {
     secret
 }
 
-/// Middleware for MCP protocol authentication
+/// Middleware for `MCP` protocol authentication
 #[derive(Clone)]
 pub struct McpAuthMiddleware {
     auth_manager: AuthManager,
@@ -482,7 +527,7 @@ pub struct McpAuthMiddleware {
 }
 
 impl McpAuthMiddleware {
-    /// Create new MCP auth middleware
+    /// Create new `MCP` auth middleware
     pub fn new(auth_manager: AuthManager, database: std::sync::Arc<Database>) -> Self {
         Self {
             auth_manager,
@@ -492,7 +537,17 @@ impl McpAuthMiddleware {
         }
     }
 
-    /// Authenticate MCP request and extract user context with rate limiting
+    /// Authenticate `MCP` request and extract user context with rate limiting
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Authentication header is missing or malformed
+    /// - JWT token validation fails
+    /// - API key validation fails
+    /// - Database queries fail
+    /// - Rate limit calculations fail
+    /// - User lookup fails
     pub async fn authenticate_request(&self, auth_header: Option<&str>) -> Result<AuthResult> {
         let auth_str = match auth_header {
             Some(header) => {
@@ -552,7 +607,7 @@ impl McpAuthMiddleware {
         }
     }
 
-    /// Authenticate using API key
+    /// Authenticate using `API` key
     async fn authenticate_api_key(&self, api_key: &str) -> Result<AuthResult> {
         // Validate key format
         self.api_key_manager.validate_key_format(api_key)?;
@@ -601,7 +656,7 @@ impl McpAuthMiddleware {
         })
     }
 
-    /// Authenticate using JWT token
+    /// Authenticate using `JWT` token
     async fn authenticate_jwt_token(&self, token: &str) -> Result<AuthResult> {
         match self.auth_manager.validate_token_detailed(token) {
             Ok(claims) => {
@@ -638,7 +693,7 @@ impl McpAuthMiddleware {
         }
     }
 
-    /// Legacy method for backward compatibility - authenticate and return just user ID
+    /// Legacy method for backward compatibility - authenticate and return just user `ID`
     pub async fn authenticate_request_legacy(&self, auth_header: Option<&str>) -> Result<Uuid> {
         let auth_result = self.authenticate_request(auth_header).await?;
         Ok(auth_result.user_id)

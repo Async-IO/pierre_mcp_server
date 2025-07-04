@@ -81,8 +81,7 @@ pub struct UniversalToolExecutor {
 
 impl UniversalToolExecutor {
     /// Handler for tools that are implemented asynchronously
-    /// This is used as a placeholder for list_tools() since actual execution
-    /// goes through execute_tool() which routes to async handlers
+    /// Routes tools to async execution through execute_tool() method
     fn async_implemented_handler(
         _executor: &UniversalToolExecutor,
         request: UniversalRequest,
@@ -481,7 +480,7 @@ impl UniversalToolExecutor {
         self.list_tools().into_iter().find(|tool| tool.name == name)
     }
 
-    /// Handle get_activities with async Strava API calls
+    /// Handle get_activities with async Strava `API` calls
     async fn handle_get_activities_async(
         &self,
         request: UniversalRequest,
@@ -621,7 +620,7 @@ impl UniversalToolExecutor {
         })
     }
 
-    /// Handle get_athlete with async Strava API calls
+    /// Handle get_athlete with async Strava `API` calls
     async fn handle_get_athlete_async(
         &self,
         request: UniversalRequest,
@@ -2673,9 +2672,44 @@ impl UniversalToolExecutor {
             crate::protocols::ProtocolError::InvalidParameters("Invalid user ID format".into())
         })?;
 
-        // For now, return default configuration. In future versions, this will fetch from database
-        let config = RuntimeConfig::new();
-        let profile = ConfigProfile::Default;
+        // Fetch user configuration from database
+        let config = match self
+            .database
+            .get_user_configuration(&user_uuid.to_string())
+            .await
+        {
+            Ok(Some(user_config)) => {
+                // Parse stored configuration
+                match serde_json::from_str::<RuntimeConfig>(&user_config) {
+                    Ok(parsed_config) => parsed_config,
+                    Err(_) => {
+                        // If stored config is invalid, use default but log the issue
+                        tracing::warn!(
+                            "Invalid stored configuration for user {}, using defaults",
+                            user_uuid
+                        );
+                        RuntimeConfig::new()
+                    }
+                }
+            }
+            Ok(None) => {
+                // No stored configuration, use defaults
+                RuntimeConfig::new()
+            }
+            Err(e) => {
+                tracing::error!(
+                    "Failed to fetch user configuration for {}: {}",
+                    user_uuid,
+                    e
+                );
+                return Err(crate::protocols::ProtocolError::DatabaseError(
+                    "Failed to fetch user configuration".into(),
+                ));
+            }
+        };
+
+        // Determine user profile based on configuration
+        let profile = config.determine_profile();
 
         Ok(UniversalResponse {
             success: true,
@@ -2794,8 +2828,29 @@ impl UniversalToolExecutor {
             }
         }
 
-        // In future versions, save to database here
-        // For now, return success with applied configuration
+        // Save updated configuration to database
+        let config_json = serde_json::to_string(&config).map_err(|e| {
+            crate::protocols::ProtocolError::SerializationError(format!(
+                "Failed to serialize configuration: {}",
+                e
+            ))
+        })?;
+
+        match self
+            .database
+            .save_user_configuration(&user_uuid.to_string(), &config_json)
+            .await
+        {
+            Ok(()) => {
+                tracing::info!("Successfully updated configuration for user {}", user_uuid);
+            }
+            Err(e) => {
+                tracing::error!("Failed to save configuration for user {}: {}", user_uuid, e);
+                return Err(crate::protocols::ProtocolError::DatabaseError(
+                    "Failed to save user configuration".into(),
+                ));
+            }
+        }
 
         Ok(UniversalResponse {
             success: true,

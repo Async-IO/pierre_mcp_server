@@ -615,7 +615,7 @@ pub mod api_limits {
     pub const GOAL_ANALYSIS_ACTIVITY_LIMIT: usize = 100;
 }
 
-/// Demo and mock data constants for development
+/// Sample data constants for testing and development
 pub mod demo_data {
     /// Previous best time for demo purposes (minutes)
     pub const DEMO_PREVIOUS_BEST_TIME: f64 = 18.5;

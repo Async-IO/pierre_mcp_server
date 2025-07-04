@@ -817,9 +817,53 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(())
     }
 
-    // ... Continue implementing the remaining methods following the same pattern
-    // This is a substantial amount of code, so I'll implement the key methods
-    // and indicate where the pattern continues
+    async fn get_user_configuration(&self, user_id: &str) -> Result<Option<String>> {
+        let query = "SELECT config_data FROM user_configurations WHERE user_id = $1";
+
+        let row = sqlx::query(query)
+            .bind(user_id)
+            .fetch_optional(&self.pool)
+            .await?;
+
+        if let Some(row) = row {
+            Ok(Some(row.try_get("config_data")?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn save_user_configuration(&self, user_id: &str, config_json: &str) -> Result<()> {
+        // First ensure the user_configurations table exists
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS user_configurations (
+                user_id TEXT PRIMARY KEY,
+                config_data TEXT NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Insert or update configuration using PostgreSQL syntax
+        let query = r"
+            INSERT INTO user_configurations (user_id, config_data, updated_at) 
+            VALUES ($1, $2, CURRENT_TIMESTAMP)
+            ON CONFLICT(user_id) DO UPDATE SET 
+                config_data = EXCLUDED.config_data,
+                updated_at = CURRENT_TIMESTAMP
+        ";
+
+        sqlx::query(query)
+            .bind(user_id)
+            .bind(config_json)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
 
     async fn store_insight(&self, user_id: Uuid, insight_data: Value) -> Result<String> {
         let insight_id = Uuid::new_v4().to_string();
@@ -1369,64 +1413,79 @@ impl DatabaseProvider for PostgresDatabase {
         status_filter: Option<&str>,
         tool_filter: Option<&str>,
     ) -> Result<Vec<crate::dashboard_routes::RequestLog>> {
-        let mut query = String::from(
-            r"
-            SELECT api_key_id, timestamp, endpoint, response_time_ms, status_code, 
-                   method, request_size_bytes, response_size_bytes, ip_address, user_agent
+        // Build query with proper column mapping for RequestLog struct
+        let base_query = r"
+            SELECT 
+                uuid_generate_v4()::text as id,
+                timestamp,
+                api_key_id,
+                'Unknown' as api_key_name,
+                COALESCE(endpoint, 'unknown') as tool_name,
+                status_code::integer as status_code,
+                response_time_ms,
+                NULL::text as error_message,
+                request_size_bytes,
+                response_size_bytes
             FROM api_key_usage 
             WHERE 1=1
-            ",
-        );
-        let mut params: Vec<Box<dyn sqlx::Encode<sqlx::Postgres> + Send + Sync>> = Vec::new();
+        ";
+
+        let mut condition_strings = Vec::new();
+
         let mut param_count = 0;
+        if api_key_id.is_some() {
+            param_count += 1;
+            let condition = format!(" AND api_key_id = ${}", param_count);
+            condition_strings.push(condition);
+        }
+        if start_time.is_some() {
+            param_count += 1;
+            let condition = format!(" AND timestamp >= ${}", param_count);
+            condition_strings.push(condition);
+        }
+        if end_time.is_some() {
+            param_count += 1;
+            let condition = format!(" AND timestamp <= ${}", param_count);
+            condition_strings.push(condition);
+        }
+        if status_filter.is_some() {
+            param_count += 1;
+            let condition = format!(" AND status_code::text LIKE ${}", param_count);
+            condition_strings.push(condition);
+        }
+        if tool_filter.is_some() {
+            param_count += 1;
+            let condition = format!(" AND endpoint ILIKE ${}", param_count);
+            condition_strings.push(condition);
+        }
+
+        let full_query = format!(
+            "{}{} ORDER BY timestamp DESC LIMIT 1000",
+            base_query,
+            condition_strings.join("")
+        );
+
+        // Build query with proper parameter binding
+        let mut query_builder =
+            sqlx::query_as::<_, crate::dashboard_routes::RequestLog>(&full_query);
 
         if let Some(key_id) = api_key_id {
-            param_count += 1;
-            query.push_str(&format!(" AND api_key_id = ${}", param_count));
-            params.push(Box::new(key_id.to_string()));
+            query_builder = query_builder.bind(key_id);
         }
-
         if let Some(start) = start_time {
-            param_count += 1;
-            query.push_str(&format!(" AND timestamp >= ${}", param_count));
-            params.push(Box::new(start));
+            query_builder = query_builder.bind(start);
         }
-
         if let Some(end) = end_time {
-            param_count += 1;
-            query.push_str(&format!(" AND timestamp <= ${}", param_count));
-            params.push(Box::new(end));
+            query_builder = query_builder.bind(end);
         }
-
         if let Some(status) = status_filter {
-            param_count += 1;
-            query.push_str(&format!(" AND status_code::text LIKE ${}", param_count));
-            params.push(Box::new(format!("{}%", status)));
+            query_builder = query_builder.bind(format!("{}%", status));
         }
-
         if let Some(tool) = tool_filter {
-            param_count += 1;
-            query.push_str(&format!(" AND endpoint ILIKE ${}", param_count));
-            params.push(Box::new(format!("%{}%", tool)));
+            query_builder = query_builder.bind(format!("%{}%", tool));
         }
 
-        query.push_str(" ORDER BY timestamp DESC LIMIT 1000");
-
-        // Execute the dynamically built query
-        let mut sql_query = sqlx::query_as::<_, crate::database::AnalyticsEntry>(&query);
-        
-        // Bind all parameters
-        for param in params {
-            if let Ok(string_val) = param.downcast::<String>() {
-                sql_query = sql_query.bind(*string_val);
-            } else if let Ok(datetime_val) = param.downcast::<chrono::DateTime<chrono::Utc>>() {
-                sql_query = sql_query.bind(*datetime_val);
-            } else if let Ok(i32_val) = param.downcast::<i32>() {
-                sql_query = sql_query.bind(*i32_val);
-            }
-        }
-
-        let results = sql_query.fetch_all(&self.pool).await?;
+        let results = query_builder.fetch_all(&self.pool).await?;
         Ok(results)
     }
 

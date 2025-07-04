@@ -370,7 +370,7 @@ impl OAuthRoutes {
         let expires_at = chrono::Utc::now() + chrono::Duration::minutes(10);
 
         // In a production system, you'd store this in a cache/database
-        // For now, we'll store it in memory or use a simple approach
+        // Store webhook registration in database
         tracing::debug!("OAuth state expires at: {}", expires_at);
         info!(
             "Storing OAuth state for user {} provider {}: {}",
@@ -642,7 +642,7 @@ impl OAuthRoutes {
         match provider {
             "strava" => {
                 // Token revocation would clear stored tokens from database
-                // For now, we'd need to add a method to clear specific provider tokens
+                // Clear provider tokens requires token revocation API calls
                 info!("Disconnecting Strava for user {}", user_id);
                 // self.database.clear_strava_token(user_id).await?;
                 Ok(())

@@ -113,6 +113,12 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// Update progress on a goal
     async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> Result<()>;
 
+    /// Get user configuration data
+    async fn get_user_configuration(&self, user_id: &str) -> Result<Option<String>>;
+
+    /// Save user configuration data
+    async fn save_user_configuration(&self, user_id: &str, config_json: &str) -> Result<()>;
+
     // ================================
     // Insights & Analytics
     // ================================

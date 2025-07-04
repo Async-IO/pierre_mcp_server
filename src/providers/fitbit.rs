@@ -48,6 +48,7 @@ impl Default for FitbitProvider {
 
 impl FitbitProvider {
     /// Create a new Fitbit provider instance
+    #[must_use]
     pub fn new() -> Self {
         Self {
             client: Client::new(),
@@ -58,7 +59,7 @@ impl FitbitProvider {
         }
     }
 
-    /// Get OAuth2 authorization URL for Fitbit
+    /// Get `OAuth2` authorization URL for Fitbit
     ///
     /// # Arguments
     /// * `redirect_uri` - The redirect URI registered with your Fitbit app
@@ -69,6 +70,9 @@ impl FitbitProvider {
     /// - `activity` - Access to activities and exercise logs
     /// - `profile` - Access to profile information
     /// - `sleep` - Access to sleep data (for future enhancement)
+    ///
+    /// # Errors
+    /// Returns an error if `client_id` is not configured
     pub fn get_auth_url(&self, redirect_uri: &str, state: &str) -> Result<String> {
         let client_id = self
             .client_id
@@ -86,12 +90,15 @@ impl FitbitProvider {
         Ok(url.to_string())
     }
 
-    /// Get OAuth2 authorization URL with PKCE support for enhanced security
+    /// Get `OAuth2` authorization URL with PKCE support for enhanced security
     ///
     /// # Arguments
     /// * `redirect_uri` - The redirect URI registered with your Fitbit app
     /// * `state` - A unique state parameter for CSRF protection
     /// * `pkce` - PKCE parameters for enhanced security
+    ///
+    /// # Errors
+    /// Returns an error if `client_id` is not configured or URL parsing fails
     pub fn get_auth_url_with_pkce(
         &self,
         redirect_uri: &str,
@@ -116,11 +123,20 @@ impl FitbitProvider {
         Ok(url.to_string())
     }
 
-    /// Exchange authorization code for access tokens
+    /// Exchange authorization code for access and refresh tokens
     ///
     /// # Arguments
     /// * `code` - Authorization code received from Fitbit
     /// * `redirect_uri` - The same redirect URI used in authorization
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Client ID or secret is not configured
+    /// - HTTP request to token endpoint fails
+    /// - Fitbit API returns error response
+    /// - Response cannot be parsed as JSON
+    /// - Token exchange fails
     pub async fn exchange_code(
         &mut self,
         code: &str,
@@ -156,6 +172,16 @@ impl FitbitProvider {
     /// * `code` - Authorization code received from Fitbit
     /// * `redirect_uri` - The same redirect URI used in authorization
     /// * `pkce` - PKCE parameters used in authorization
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Client ID or secret is not configured
+    /// - HTTP request to token endpoint fails
+    /// - PKCE verification fails
+    /// - Fitbit API returns error response
+    /// - Response cannot be parsed as JSON
+    /// - Token exchange fails
     pub async fn exchange_code_with_pkce(
         &mut self,
         code: &str,
@@ -188,6 +214,16 @@ impl FitbitProvider {
     }
 
     /// Refresh access token using refresh token
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - No refresh token is available
+    /// - Client ID or secret is not configured
+    /// - HTTP request to token endpoint fails
+    /// - Fitbit API returns error response
+    /// - Response cannot be parsed as JSON
+    /// - Token refresh fails
     pub async fn refresh_access_token(&mut self) -> Result<(String, String)> {
         let refresh_token = self
             .refresh_token

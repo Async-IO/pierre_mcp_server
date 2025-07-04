@@ -68,10 +68,12 @@ pub struct LocationService {
 }
 
 impl LocationService {
+    #[must_use]
     pub fn new() -> Self {
         Self::with_config("https://nominatim.openstreetmap.org".into(), true)
     }
 
+    #[must_use]
     pub fn with_config(base_url: String, enabled: bool) -> Self {
         let client = Client::builder()
             .user_agent("Pierre MCP Server/0.1.0 (https://github.com/jfarcand/pierre_mcp_server)")

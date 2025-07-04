@@ -38,8 +38,8 @@ pub struct RecentActivity {
     pub timestamp: chrono::DateTime<Utc>,
     pub api_key_name: String,
     pub tool_name: String,
-    pub status_code: u16,
-    pub response_time_ms: Option<u32>,
+    pub status_code: i32,
+    pub response_time_ms: Option<i32>,
 }
 
 #[derive(Debug, Serialize)]
@@ -77,18 +77,18 @@ pub struct RateLimitOverview {
     pub reset_date: Option<chrono::DateTime<Utc>>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct RequestLog {
     pub id: String,
     pub timestamp: chrono::DateTime<Utc>,
     pub api_key_id: String,
     pub api_key_name: String,
     pub tool_name: String,
-    pub status_code: u16,
-    pub response_time_ms: Option<u32>,
+    pub status_code: i32,
+    pub response_time_ms: Option<i32>,
     pub error_message: Option<String>,
-    pub request_size_bytes: Option<u32>,
-    pub response_size_bytes: Option<u32>,
+    pub request_size_bytes: Option<i32>,
+    pub response_size_bytes: Option<i32>,
 }
 
 #[derive(Debug, Serialize)]

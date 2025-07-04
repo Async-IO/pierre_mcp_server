@@ -62,7 +62,7 @@ pub enum ErrorCode {
 }
 
 impl ErrorCode {
-    /// Get the HTTP status code for this error
+    /// Get the `HTTP` status code for this error
     pub const fn http_status(self) -> u16 {
         match self {
             // 400 Bad Request
@@ -191,12 +191,13 @@ pub struct AppError {
     pub code: ErrorCode,
     /// Human-readable error message
     pub message: String,
-    /// Optional request ID for tracing
+    /// Optional request `ID` for tracing
     pub request_id: Option<String>,
 }
 
 impl AppError {
     /// Create a new AppError with the given code and message
+    #[must_use]
     pub fn new(code: ErrorCode, message: impl Into<String>) -> Self {
         Self {
             code,
@@ -205,13 +206,14 @@ impl AppError {
         }
     }
 
-    /// Add a request ID to the error
+    /// Add a request `ID` to the error
+    #[must_use]
     pub fn with_request_id(mut self, request_id: impl Into<String>) -> Self {
         self.request_id = Some(request_id.into());
         self
     }
 
-    /// Get the HTTP status code for this error
+    /// Get the `HTTP` status code for this error
     pub fn http_status(&self) -> u16 {
         self.code.http_status()
     }
@@ -229,7 +231,7 @@ impl Reject for AppError {}
 /// Result type alias for convenience
 pub type AppResult<T> = Result<T, AppError>;
 
-/// Simplified HTTP error response format
+/// Simplified `HTTP` error response format
 #[derive(Debug, Serialize)]
 pub struct ErrorResponse {
     pub code: ErrorCode,
@@ -253,21 +255,25 @@ impl From<AppError> for ErrorResponse {
 /// Convenience functions for creating common errors
 impl AppError {
     /// Authentication required
+    #[must_use]
     pub fn auth_required() -> Self {
         Self::new(ErrorCode::AuthRequired, "Authentication required")
     }
 
     /// Invalid authentication
+    #[must_use]
     pub fn auth_invalid(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::AuthInvalid, message)
     }
 
     /// Authentication expired
+    #[must_use]
     pub fn auth_expired() -> Self {
         Self::new(ErrorCode::AuthExpired, "Authentication token has expired")
     }
 
     /// Rate limit exceeded
+    #[must_use]
     pub fn rate_limit_exceeded(limit: u32) -> Self {
         Self::new(
             ErrorCode::RateLimitExceeded,
@@ -276,6 +282,7 @@ impl AppError {
     }
 
     /// Resource not found
+    #[must_use]
     pub fn not_found(resource: impl Into<String>) -> Self {
         Self::new(
             ErrorCode::ResourceNotFound,
@@ -284,26 +291,31 @@ impl AppError {
     }
 
     /// Invalid input
+    #[must_use]
     pub fn invalid_input(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::InvalidInput, message)
     }
 
     /// Internal server error
+    #[must_use]
     pub fn internal(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::InternalError, message)
     }
 
     /// Database error
+    #[must_use]
     pub fn database(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::DatabaseError, message)
     }
 
     /// Configuration error
+    #[must_use]
     pub fn config(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::ConfigError, message)
     }
 
     /// External service error
+    #[must_use]
     pub fn external_service(service: impl Into<String>, message: impl Into<String>) -> Self {
         Self::new(
             ErrorCode::ExternalServiceError,
@@ -372,6 +384,12 @@ impl From<crate::protocols::ProtocolError> for AppError {
             crate::protocols::ProtocolError::ConversionFailed(message) => {
                 AppError::internal(format!("Protocol conversion failed: {}", message))
             }
+            crate::protocols::ProtocolError::SerializationError(message) => {
+                AppError::internal(format!("Serialization failed: {}", message))
+            }
+            crate::protocols::ProtocolError::DatabaseError(message) => {
+                AppError::internal(format!("Database operation failed: {}", message))
+            }
         }
     }
 }
@@ -385,7 +403,7 @@ impl From<Box<dyn std::error::Error + Send + Sync>> for AppError {
     }
 }
 
-/// Convert AppError to warp Reply for HTTP responses
+/// Convert AppError to warp Reply for `HTTP` responses
 impl warp::Reply for AppError {
     fn into_response(self) -> warp::reply::Response {
         let status = warp::http::StatusCode::from_u16(self.code.http_status())

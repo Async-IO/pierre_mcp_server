@@ -100,7 +100,7 @@ pub struct TimeSeriesData {
     pub gps_coordinates: Option<Vec<(f64, f64)>>,
 }
 
-/// User tier for rate limiting - same as API key tiers for consistency
+/// User tier for rate limiting - same as `API` key tiers for consistency
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum UserTier {
@@ -162,13 +162,13 @@ impl std::str::FromStr for UserTier {
 /// # Examples
 ///
 /// ```rust
-/// use pierre_mcp_server::models::{Activity, SportType};
+/// use pierre_mcp_server::models::{Activity, `SportType`};
 /// use chrono::Utc;
 ///
 /// let activity = Activity {
 ///     id: "12345".into(),
 ///     name: "Morning Run".into(),
-///     sport_type: SportType::Run,
+///     sport_type: `SportType`::Run,
 ///     start_date: Utc::now(),
 ///     duration_seconds: 1800, // 30 minutes
 ///     distance_meters: Some(5000.0), // 5km
@@ -588,7 +588,7 @@ pub enum SportType {
     // Strength and fitness
     /// Weight/strength training
     StrengthTraining,
-    /// CrossFit workout
+    /// `CrossFit` workout
     Crossfit,
     /// Pilates session
     Pilates,
@@ -620,7 +620,7 @@ pub enum SportType {
 }
 
 impl SportType {
-    /// Create SportType from provider string using configuration mapping
+    /// Create `SportType` from provider string using configuration mapping
     pub fn from_provider_string(
         provider_sport: &str,
         fitness_config: &crate::config::FitnessConfig,
@@ -671,7 +671,7 @@ impl SportType {
         }
     }
 
-    /// Create SportType from internal configuration string
+    /// Create `SportType` from internal configuration string
     pub fn from_internal_string(internal_name: &str) -> Self {
         match internal_name {
             "run" => SportType::Run,
@@ -785,7 +785,7 @@ pub struct Athlete {
     pub firstname: Option<String>,
     /// Last name (may not be public on some providers)
     pub lastname: Option<String>,
-    /// URL to profile picture/avatar
+    /// `URL` to profile picture/avatar
     pub profile_picture: Option<String>,
     /// Source provider of this athlete data
     pub provider: String,
@@ -826,7 +826,7 @@ pub struct Stats {
 /// Links back to the specific activity where the record was achieved.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PersonalRecord {
-    /// ID of the activity where this record was achieved
+    /// `ID` of the activity where this record was achieved
     pub activity_id: String,
     /// Type of performance metric
     pub metric: PrMetric,
@@ -859,7 +859,7 @@ pub enum PrMetric {
 
 /// Represents a user in the multi-tenant system
 ///
-/// Users are authenticated through OAuth providers and have encrypted tokens
+/// Users are authenticated through `OAuth` providers and have encrypted tokens
 /// stored securely for accessing their fitness data.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
@@ -891,7 +891,7 @@ pub struct User {
 /// pace zones, and other performance thresholds based on individual fitness metrics.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserPhysiologicalProfile {
-    /// User ID this profile belongs to
+    /// User `ID` this profile belongs to
     pub user_id: Uuid,
     /// VO2 max in ml/kg/min (if measured or estimated)
     pub vo2_max: Option<f64>,
@@ -959,10 +959,10 @@ impl UserPhysiologicalProfile {
     }
 }
 
-/// Encrypted OAuth token storage
+/// Encrypted `OAuth` token storage
 ///
 /// Tokens are encrypted at rest using AES-256-GCM encryption.
-/// Only decrypted when needed for API calls.
+/// Only decrypted when needed for `API` calls.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EncryptedToken {
     /// Encrypted access token (base64 encoded)
@@ -977,9 +977,9 @@ pub struct EncryptedToken {
     pub nonce: String,
 }
 
-/// Decrypted OAuth token for API calls
+/// Decrypted `OAuth` token for `API` calls
 ///
-/// This is never stored - only exists in memory during API requests.
+/// This is never stored - only exists in memory during `API` requests.
 #[derive(Debug, Clone)]
 pub struct DecryptedToken {
     /// Plain text access token
@@ -992,14 +992,14 @@ pub struct DecryptedToken {
     pub scope: String,
 }
 
-/// User session for MCP protocol authentication
+/// User session for `MCP` protocol authentication
 ///
-/// Contains JWT token and user context for secure MCP communication.
+/// Contains `JWT` token and user context for secure `MCP` communication.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserSession {
-    /// User ID this session belongs to
+    /// User `ID` this session belongs to
     pub user_id: Uuid,
-    /// JWT token for authentication
+    /// `JWT` token for authentication
     pub jwt_token: String,
     /// When the session expires
     pub expires_at: DateTime<Utc>,
@@ -1009,23 +1009,23 @@ pub struct UserSession {
     pub available_providers: Vec<String>,
 }
 
-/// Authentication request for MCP protocol
+/// Authentication request for `MCP` protocol
 ///
-/// Clients send this to authenticate with the MCP server.
+/// Clients send this to authenticate with the `MCP` server.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthRequest {
-    /// JWT token for authentication
+    /// `JWT` token for authentication
     pub token: String,
 }
 
-/// Authentication response for MCP protocol
+/// Authentication response for `MCP` protocol
 ///
 /// Server responds with user context and available capabilities.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthResponse {
     /// Whether authentication was successful
     pub authenticated: bool,
-    /// User ID if authenticated
+    /// User `ID` if authenticated
     pub user_id: Option<Uuid>,
     /// Error message if authentication failed
     pub error: Option<String>,

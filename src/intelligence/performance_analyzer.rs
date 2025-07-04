@@ -57,6 +57,7 @@ impl Default for AdvancedPerformanceAnalyzer {
 
 impl AdvancedPerformanceAnalyzer {
     /// Create a new performance analyzer with default strategy
+    #[must_use]
     pub fn new() -> Self {
         let global_config = IntelligenceConfig::global();
         Self {
@@ -69,6 +70,7 @@ impl AdvancedPerformanceAnalyzer {
 
 impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
     /// Create with custom strategy
+    #[must_use]
     pub fn with_strategy(strategy: S) -> Self {
         let global_config = IntelligenceConfig::global();
         Self {
@@ -79,6 +81,7 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
     }
 
     /// Create with custom configuration
+    #[must_use]
     pub fn with_config(strategy: S, config: PerformanceAnalyzerConfig) -> Self {
         Self {
             strategy,
@@ -88,6 +91,7 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
     }
 
     /// Create analyzer with user profile using default strategy
+    #[must_use]
     pub fn with_profile(profile: UserFitnessProfile) -> AdvancedPerformanceAnalyzer {
         let global_config = IntelligenceConfig::global();
         AdvancedPerformanceAnalyzer {

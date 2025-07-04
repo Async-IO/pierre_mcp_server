@@ -24,7 +24,7 @@ fn get_config_value(key: &str, fallback: f64) -> f64 {
 }
 
 /// VO2 max-based physiological calculator
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VO2MaxCalculator {
     /// VO2 max in ml/kg/min
     pub vo2_max: f64,

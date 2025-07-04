@@ -169,9 +169,8 @@ impl MultiTenantMcpServer {
                 config.auth.jwt_secret_path.display()
             ));
         };
-        let jwt_secret_str = String::from_utf8(jwt_secret).map_err(|e| {
-            anyhow::anyhow!("JWT secret file contains invalid UTF-8: {}", e)
-        })?;
+        let jwt_secret_str = String::from_utf8(jwt_secret)
+            .map_err(|e| anyhow::anyhow!("JWT secret file contains invalid UTF-8: {}", e))?;
 
         let admin_context = crate::admin_routes::AdminApiContext::new(
             database.as_ref().clone(),
@@ -1466,7 +1465,7 @@ impl MultiTenantMcpServer {
                 .insert(provider_name.to_string(), provider);
         }
 
-        // Return a new instance (simplified for now)
+        // Return a new instance with current authentication
         let mut new_provider = create_provider(provider_name)?;
         if let Some(decrypted_token) = database.get_strava_token(user_id).await? {
             let auth_data = AuthData::OAuth2 {

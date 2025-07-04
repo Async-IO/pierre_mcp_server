@@ -161,7 +161,7 @@ impl AdminAuthService {
                 .unwrap_or(crate::admin::models::AdminAction::ProvisionKey),
             target_resource: target_resource.map(|s| s.to_string()),
             ip_address: ip_address.map(|s| s.to_string()),
-            user_agent: None, // Can be added later
+            user_agent: None, // Optional user agent information
             request_size_bytes: None,
             success,
             error_message: error_message.map(|s| s.to_string()),

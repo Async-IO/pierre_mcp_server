@@ -19,7 +19,7 @@ use tokio::sync::RwLock;
 use uuid::Uuid;
 
 /// Session-specific runtime configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuntimeConfig {
     /// Base physiological constants (from static definitions)
     base_constants: HashMap<String, f64>,
@@ -108,6 +108,7 @@ pub trait ConfigAware {
 
 impl RuntimeConfig {
     /// Create a new runtime configuration with defaults
+    #[must_use]
     pub fn new() -> Self {
         Self {
             base_constants: Self::load_base_constants(),
@@ -121,6 +122,7 @@ impl RuntimeConfig {
     }
 
     /// Create with a specific profile
+    #[must_use]
     pub fn with_profile(profile: ConfigProfile) -> Self {
         let mut config = Self::new();
         config.active_profile = profile;
@@ -131,20 +133,20 @@ impl RuntimeConfig {
     fn load_base_constants() -> HashMap<String, f64> {
         let mut constants = HashMap::new();
 
-        // Heart rate zones - using default values for now
+        // Heart rate zones - physiological standards
         constants.insert("heart_rate.anaerobic_threshold".into(), 85.0);
         constants.insert("heart_rate.vo2_max_zone".into(), 95.0);
         constants.insert("heart_rate.tempo_zone".into(), 80.0);
         constants.insert("heart_rate.endurance_zone".into(), 70.0);
         constants.insert("heart_rate.recovery_zone".into(), 60.0);
 
-        // Performance calculation - using default values for now
+        // Performance calculation coefficients
         constants.insert("performance.run_distance_divisor".into(), 10.0);
         constants.insert("performance.bike_distance_divisor".into(), 40.0);
         constants.insert("performance.swim_distance_divisor".into(), 2.0);
         constants.insert("performance.elevation_divisor".into(), 100.0);
 
-        // Efficiency calculation - using default values for now
+        // Efficiency calculation baseline
         constants.insert("efficiency.base_score".into(), 50.0);
         constants.insert("efficiency.hr_factor".into(), 1000.0);
 
@@ -182,6 +184,11 @@ impl RuntimeConfig {
 
         self.active_profile = profile;
         self.last_modified = Utc::now();
+    }
+
+    /// Determine profile based on current configuration settings
+    pub fn determine_profile(&self) -> ConfigProfile {
+        self.active_profile.clone()
     }
 
     /// Get a configuration value
@@ -337,6 +344,7 @@ pub struct ConfigurationManager {
 
 impl ConfigurationManager {
     /// Create a new configuration manager
+    #[must_use]
     pub fn new() -> Self {
         Self {
             user_configs: Arc::new(RwLock::new(HashMap::new())),

@@ -70,6 +70,15 @@ impl Database {
     }
 
     /// Create a new database instance based on the connection string
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database URL format is unsupported or invalid
+    /// - PostgreSQL feature is not enabled when PostgreSQL URL is provided
+    /// - Database connection fails
+    /// - Database initialization or migration fails
+    /// - Encryption key is invalid
     pub async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
         debug!("Detecting database type from URL: {}", database_url);
         let db_type = detect_database_type(database_url)?;
@@ -101,6 +110,13 @@ impl Database {
 }
 
 /// Automatically detect database type from connection string
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Database URL format is not recognized (must start with 'sqlite:' or 'postgresql://')
+/// - PostgreSQL URL is provided but PostgreSQL feature is not enabled
+/// - Connection string is malformed or empty
 pub fn detect_database_type(database_url: &str) -> Result<DatabaseType> {
     if database_url.starts_with("sqlite:") {
         Ok(DatabaseType::SQLite)
@@ -125,10 +141,28 @@ pub fn detect_database_type(database_url: &str) -> Result<DatabaseType> {
 // Implement DatabaseProvider for the enum by delegating to the appropriate implementation
 #[async_trait]
 impl DatabaseProvider for Database {
+    /// Create a new database provider instance
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database URL format is unsupported
+    /// - Database connection fails
+    /// - Migration process fails
+    /// - Encryption setup fails
     async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
         Self::new(database_url, encryption_key).await
     }
 
+    /// Run database migrations
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - SQL migration statements fail to execute
+    /// - Database connection is lost during migration
+    /// - Migration scripts are malformed
+    /// - Insufficient database permissions
     async fn migrate(&self) -> Result<()> {
         match self {
             Database::SQLite(db) => db.migrate().await,
@@ -137,6 +171,15 @@ impl DatabaseProvider for Database {
         }
     }
 
+    /// Create a new user in the database
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - User data validation fails
+    /// - Database constraint violations (e.g., duplicate email)
+    /// - SQL execution fails
+    /// - Database connection issues
     async fn create_user(&self, user: &crate::models::User) -> Result<uuid::Uuid> {
         match self {
             Database::SQLite(db) => db.create_user(user).await,
@@ -145,6 +188,14 @@ impl DatabaseProvider for Database {
         }
     }
 
+    /// Get a user by their UUID
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
     async fn get_user(&self, user_id: uuid::Uuid) -> Result<Option<crate::models::User>> {
         match self {
             Database::SQLite(db) => db.get_user(user_id).await,
@@ -153,6 +204,15 @@ impl DatabaseProvider for Database {
         }
     }
 
+    /// Get a user by their email address
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
+    /// - Email format validation fails
     async fn get_user_by_email(&self, email: &str) -> Result<Option<crate::models::User>> {
         match self {
             Database::SQLite(db) => db.get_user_by_email(email).await,
@@ -161,6 +221,15 @@ impl DatabaseProvider for Database {
         }
     }
 
+    /// Get a user by email, returning an error if not found
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - User with email is not found
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
     async fn get_user_by_email_required(&self, email: &str) -> Result<crate::models::User> {
         match self {
             Database::SQLite(db) => db.get_user_by_email_required(email).await,
@@ -169,6 +238,14 @@ impl DatabaseProvider for Database {
         }
     }
 
+    /// Update user's last active timestamp
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - User does not exist
+    /// - Database update fails
+    /// - Database connection issues
     async fn update_last_active(&self, user_id: uuid::Uuid) -> Result<()> {
         match self {
             Database::SQLite(db) => db.update_last_active(user_id).await,
@@ -177,6 +254,14 @@ impl DatabaseProvider for Database {
         }
     }
 
+    /// Get total count of users in the database
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Count aggregation fails
+    /// - Database connection issues
     async fn get_user_count(&self) -> Result<i64> {
         match self {
             Database::SQLite(db) => db.get_user_count().await,
@@ -185,6 +270,16 @@ impl DatabaseProvider for Database {
         }
     }
 
+    /// Update or store Strava OAuth tokens for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - User does not exist
+    /// - Token encryption fails
+    /// - Database update fails
+    /// - Database connection issues
+    /// - Token data is invalid
     async fn update_strava_token(
         &self,
         user_id: uuid::Uuid,
@@ -206,6 +301,15 @@ impl DatabaseProvider for Database {
         }
     }
 
+    /// Get decrypted Strava token for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Token decryption fails
+    /// - Data deserialization fails
+    /// - Database connection issues
     async fn get_strava_token(
         &self,
         user_id: uuid::Uuid,
@@ -238,6 +342,15 @@ impl DatabaseProvider for Database {
         }
     }
 
+    /// Get decrypted Fitbit token for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Token decryption fails
+    /// - Data deserialization fails
+    /// - Database connection issues
     async fn get_fitbit_token(
         &self,
         user_id: uuid::Uuid,
@@ -249,6 +362,14 @@ impl DatabaseProvider for Database {
         }
     }
 
+    /// Clear/delete Strava token for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database delete operation fails
+    /// - User does not exist
+    /// - Database connection issues
     async fn clear_strava_token(&self, user_id: uuid::Uuid) -> Result<()> {
         match self {
             Database::SQLite(db) => db.clear_strava_token(user_id).await,
@@ -257,6 +378,14 @@ impl DatabaseProvider for Database {
         }
     }
 
+    /// Clear/delete Fitbit token for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database delete operation fails
+    /// - User does not exist
+    /// - Database connection issues
     async fn clear_fitbit_token(&self, user_id: uuid::Uuid) -> Result<()> {
         match self {
             Database::SQLite(db) => db.clear_fitbit_token(user_id).await,
@@ -313,6 +442,22 @@ impl DatabaseProvider for Database {
         }
     }
 
+    async fn get_user_configuration(&self, user_id: &str) -> Result<Option<String>> {
+        match self {
+            Database::SQLite(db) => db.get_user_configuration(user_id).await,
+            #[cfg(feature = "postgresql")]
+            Database::PostgreSQL(db) => db.get_user_configuration(user_id).await,
+        }
+    }
+
+    async fn save_user_configuration(&self, user_id: &str, config_json: &str) -> Result<()> {
+        match self {
+            Database::SQLite(db) => db.save_user_configuration(user_id, config_json).await,
+            #[cfg(feature = "postgresql")]
+            Database::PostgreSQL(db) => db.save_user_configuration(user_id, config_json).await,
+        }
+    }
+
     async fn store_insight(
         &self,
         user_id: uuid::Uuid,
@@ -338,6 +483,15 @@ impl DatabaseProvider for Database {
         }
     }
 
+    /// Create a new API key in the database
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - API key data validation fails
+    /// - Database constraint violations (e.g., duplicate key)
+    /// - SQL execution fails
+    /// - Database connection issues
     async fn create_api_key(&self, api_key: &crate::api_keys::ApiKey) -> Result<()> {
         match self {
             Database::SQLite(db) => db.create_api_key(api_key).await,
@@ -346,6 +500,14 @@ impl DatabaseProvider for Database {
         }
     }
 
+    /// Get an API key by its prefix and hash
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
     async fn get_api_key_by_prefix(
         &self,
         prefix: &str,
@@ -506,6 +668,16 @@ impl DatabaseProvider for Database {
         }
     }
 
+    /// Create a new A2A (Agent-to-Agent) client
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Client data validation fails
+    /// - Database constraint violations
+    /// - Secret encryption fails
+    /// - SQL execution fails
+    /// - Database connection issues
     async fn create_a2a_client(
         &self,
         client: &A2AClient,
@@ -525,6 +697,14 @@ impl DatabaseProvider for Database {
         }
     }
 
+    /// Get an A2A client by ID
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database query execution fails
+    /// - Data deserialization fails
+    /// - Database connection issues
     async fn get_a2a_client(&self, client_id: &str) -> Result<Option<A2AClient>> {
         match self {
             Database::SQLite(db) => db.get_a2a_client(client_id).await,
@@ -746,6 +926,16 @@ impl DatabaseProvider for Database {
     // Admin Token Management
     // ================================
 
+    /// Create a new admin token
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Token generation fails
+    /// - Database insertion fails
+    /// - Token data validation fails
+    /// - Hash generation fails
+    /// - Database connection issues
     async fn create_admin_token(
         &self,
         request: &crate::admin::models::CreateAdminTokenRequest,

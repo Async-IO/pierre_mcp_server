@@ -35,6 +35,13 @@ struct StravaTokenResponse {
 
 impl StravaOAuthProvider {
     /// Create a new Strava OAuth provider from configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Client ID is not configured in the provided config
+    /// - Client secret is not configured in the provided config
+    /// - Configuration parameters are invalid
     pub fn from_config(config: &OAuthProviderConfig) -> Result<Self, OAuthError> {
         let client_id = config
             .client_id
@@ -66,6 +73,13 @@ impl StravaOAuthProvider {
     }
 
     /// Legacy constructor that reads from environment variables (deprecated)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - STRAVA_CLIENT_ID environment variable is not set
+    /// - STRAVA_CLIENT_SECRET environment variable is not set
+    /// - Environment variable values are invalid
     #[deprecated(note = "Use from_config() instead for centralized configuration")]
     pub fn new() -> Result<Self, OAuthError> {
         let client_id = std::env::var("STRAVA_CLIENT_ID")
@@ -90,6 +104,15 @@ impl OAuthProvider for StravaOAuthProvider {
         "strava"
     }
 
+    /// Generate authorization URL for Strava OAuth flow
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - URL encoding fails for any parameter
+    /// - Base authorization URL is malformed
+    /// - State parameter is invalid
+    #[allow(clippy::unused_async)]
     async fn generate_auth_url(
         &self,
         _user_id: Uuid,
@@ -299,6 +322,7 @@ impl OAuthProvider for FitbitOAuthProvider {
         "fitbit"
     }
 
+    #[allow(clippy::unused_async)]
     async fn generate_auth_url(
         &self,
         _user_id: Uuid,

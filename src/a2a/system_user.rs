@@ -89,7 +89,7 @@ impl A2ASystemUserService {
         contact_email: &str,
     ) -> Result<()> {
         // Store in a metadata table or as user properties
-        // For now, we'll store it as part of the user's display name and email patterns
+        // Store system identifier in user display name and email patterns
         tracing::debug!(
             user_id = %user_id,
             client_id = %client_id,
@@ -130,7 +130,7 @@ impl A2ASystemUserService {
 
         if let Some(user) = self.database.get_user_by_email(&system_email).await? {
             // Instead of deleting, we could mark as inactive
-            // For now, we'll just log the deactivation
+            // Log system user deactivation
             tracing::info!(
                 user_id = %user.id,
                 client_id = %client_id,

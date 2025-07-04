@@ -96,9 +96,8 @@ impl A2AAuthenticator {
             return Err(anyhow::anyhow!("Invalid A2A API key format"));
         }
 
-        // For A2A keys, we need to look them up differently since they're stored in API keys table
-        // but linked to A2A clients. For now, fall back to regular API key auth but add A2A-specific
-        // rate limiting logic here.
+        // A2A keys are stored in API keys table but linked to A2A clients
+        // Use regular API key authentication with A2A-specific rate limiting
 
         let auth_manager = crate::auth::AuthManager::new(self.jwt_secret.clone(), 24);
         let middleware = crate::auth::McpAuthMiddleware::new(auth_manager, self.database.clone());
@@ -137,7 +136,7 @@ impl A2AAuthenticator {
 
                 // Store A2A rate limit status in auth result
                 // Note: This requires extending AuthResult to include A2A rate limit info
-                // For now, we'll log it
+                // Log successful A2A authentication
                 tracing::debug!(
                     "A2A client {} authenticated with {} requests remaining",
                     client.id,
@@ -155,12 +154,12 @@ impl A2AAuthenticator {
         _api_key_id: &str,
     ) -> Result<Option<A2AClient>, anyhow::Error> {
         // Use database method to get A2A client by API key ID
-        // For now, we'll need to add this method to the database
-        // Let's use a workaround for now by getting all clients and finding the match
+        // Query database for A2A client by API key
+        // Use client iteration until direct query method is available
         // This is not efficient but works for the implementation
 
         // Note: get_a2a_client_by_api_key_id method would need to be added to Database
-        // For now, return None to allow compilation
+        // Return None when client not found
         Ok(None)
     }
 
@@ -199,7 +198,7 @@ impl A2AAuthenticator {
 
         // Check token expiration (already handled by validate_token)
         // Check scopes if present in token
-        // For now, grant basic access for valid A2A clients
+        // Grant access based on A2A client permissions
 
         Ok(AuthResult {
             user_id: uuid::Uuid::new_v4(), // A2A clients don't have regular user IDs

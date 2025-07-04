@@ -252,7 +252,7 @@ impl ToolEngine {
         user_context: &UserContext,
         _tool_name: &str,
     ) -> Result<bool, AppError> {
-        // For now, all authenticated users can use all tools
+        // All authenticated users can use all tools
         // This can be extended with more granular permissions based on tiers
         match user_context.tier.as_str() {
             "trial" | "starter" | "professional" | "enterprise" => Ok(true),

@@ -43,7 +43,7 @@ pub struct LoggingConfig {
 
 #[derive(Debug, Clone)]
 pub enum LogFormat {
-    /// JSON format for production logging
+    /// `JSON` format for production logging
     Json,
     /// Pretty format for development
     Pretty,
@@ -220,7 +220,7 @@ impl AppLogger {
         );
     }
 
-    /// Log OAuth events
+    /// Log `OAuth` events
     pub fn log_oauth_event(user_id: &str, provider: &str, event: &str, success: bool) {
         info!(
             user.id = %user_id,
@@ -231,7 +231,7 @@ impl AppLogger {
         );
     }
 
-    /// Log API requests
+    /// Log `API` requests
     pub fn log_api_request(
         method: &str,
         path: &str,

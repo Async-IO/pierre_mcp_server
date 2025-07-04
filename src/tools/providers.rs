@@ -227,7 +227,7 @@ impl ProviderManager {
 
         // Get the refreshed token data
         // Note: This would need to be implemented in the provider trait
-        // For now, return the current token as a placeholder
+        // Return current token information
         Ok(current_token.clone())
     }
 

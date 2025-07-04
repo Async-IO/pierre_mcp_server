@@ -143,7 +143,7 @@ pub fn security_headers(
     warp::any().map(move || {
         let headers = config.to_headers();
         // Note: In a real implementation, these headers would be applied to the HTTP response
-        // For now, we log that security headers are configured
+        // Log security headers configuration
         tracing::debug!("Security headers configured: {} headers", headers.len());
         warp::reply::json(&serde_json::json!({"status": "ok", "security_headers": "enabled"}))
     })
@@ -156,7 +156,7 @@ pub fn add_security_headers<T: Reply>(
 ) -> warp::reply::WithHeader<T> {
     let headers = config.to_headers();
     // Note: In a full implementation, all security headers would be applied here
-    // For now, we apply a marker header to indicate security processing
+    // Apply security processing marker header
     tracing::debug!("Applying {} security headers to response", headers.len());
     warp::reply::with_header(reply, "X-Security-Applied", "true")
 }

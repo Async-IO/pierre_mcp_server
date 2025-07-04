@@ -33,6 +33,15 @@ pub struct Database {
 
 impl Database {
     /// Create a new database connection
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database URL is invalid or malformed
+    /// - Database connection fails
+    /// - SQLite file creation fails
+    /// - Migration process fails
+    /// - Encryption key is invalid
     pub async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
         // Ensure SQLite creates the database file if it doesn't exist
         let connection_options = if database_url.starts_with("sqlite:") {
@@ -60,6 +69,14 @@ impl Database {
     }
 
     /// Run database migrations
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Migration SQL statements fail to execute
+    /// - Database schema creation fails
+    /// - Insufficient database permissions
+    /// - Database connection is lost during migration
     pub async fn migrate(&self) -> Result<()> {
         // User tables
         self.migrate_users().await?;
@@ -80,6 +97,14 @@ impl Database {
     }
 
     /// Create admin tables
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Table creation SQL fails
+    /// - Index creation fails
+    /// - Database constraints cannot be applied
+    /// - SQL syntax errors in migration statements
     async fn migrate_admin(&self) -> Result<()> {
         // Create admin_tokens table
         sqlx::query(

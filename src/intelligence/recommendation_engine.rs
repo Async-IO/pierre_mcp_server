@@ -62,6 +62,7 @@ impl Default for AdvancedRecommendationEngine {
 
 impl AdvancedRecommendationEngine {
     /// Create a new recommendation engine with default strategy
+    #[must_use]
     pub fn new() -> Self {
         let global_config = IntelligenceConfig::global();
         Self {
@@ -74,6 +75,7 @@ impl AdvancedRecommendationEngine {
 
 impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
     /// Create a new recommendation engine with custom strategy
+    #[must_use]
     pub fn with_strategy(strategy: S) -> Self {
         let global_config = IntelligenceConfig::global();
         Self {
@@ -84,6 +86,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
     }
 
     /// Create with custom configuration
+    #[must_use]
     pub fn with_config(strategy: S, config: RecommendationEngineConfig) -> Self {
         Self {
             strategy,
@@ -93,6 +96,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
     }
 
     /// Create engine with user profile using default strategy
+    #[must_use]
     pub fn with_profile(profile: UserFitnessProfile) -> AdvancedRecommendationEngine {
         let global_config = IntelligenceConfig::global();
         AdvancedRecommendationEngine {
@@ -234,7 +238,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
             for primary_sport in &profile.primary_sports {
                 // Convert string to SportType for comparison - this is simplified
                 if sports.is_empty() {
-                    // Just check if sports exist for now
+                    // Check if sports exist in activity history
                     gaps.push(TrainingGap {
                         gap_type: GapType::MissingSport,
                         duration_days: 0,

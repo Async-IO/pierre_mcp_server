@@ -16,15 +16,46 @@ use std::collections::HashMap;
 #[async_trait::async_trait]
 pub trait ActivityAnalyzerTrait {
     /// Analyze a single activity and generate insights
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Activity data is invalid or corrupted
+    /// - Metrics calculation fails
+    /// - Anomaly detection fails
+    /// - Data processing errors occur
     async fn analyze_activity(&self, activity: &Activity) -> Result<ActivityInsights>;
 
     /// Detect anomalies in activity data
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Activity data is malformed
+    /// - Anomaly detection algorithms fail
+    /// - Data validation errors occur
     async fn detect_anomalies(&self, activity: &Activity) -> Result<Vec<Anomaly>>;
 
     /// Calculate training load for an activity
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Activity duration data is invalid
+    /// - Heart rate data is corrupted
+    /// - Training load calculation fails
+    /// - Mathematical operations fail
     async fn calculate_training_load(&self, activity: &Activity) -> Result<f64>;
 
     /// Compare activity against user's historical data
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Historical activity data is invalid
+    /// - Activity comparison calculations fail
+    /// - Statistical analysis fails
+    /// - Data aggregation errors occur
     async fn compare_to_history(
         &self,
         activity: &Activity,
@@ -46,6 +77,7 @@ impl Default for AdvancedActivityAnalyzer {
 
 impl AdvancedActivityAnalyzer {
     /// Create a new activity analyzer
+    #[must_use]
     pub fn new() -> Self {
         let global_config = IntelligenceConfig::global();
         Self {
@@ -55,6 +87,7 @@ impl AdvancedActivityAnalyzer {
     }
 
     /// Create with custom configuration
+    #[must_use]
     pub fn with_config(config: ActivityAnalyzerConfig) -> Self {
         Self {
             config,
@@ -63,6 +96,7 @@ impl AdvancedActivityAnalyzer {
     }
 
     /// Create analyzer with user-specific parameters
+    #[must_use]
     pub fn with_user_data(
         ftp: Option<f64>,
         lthr: Option<f64>,
@@ -316,6 +350,15 @@ impl AdvancedActivityAnalyzer {
 
 #[async_trait::async_trait]
 impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
+    /// Analyze a single activity and generate comprehensive insights
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Activity data is invalid or corrupted
+    /// - Metrics calculation fails
+    /// - Anomaly detection fails
+    /// - Data processing errors occur
     async fn analyze_activity(&self, activity: &Activity) -> Result<ActivityInsights> {
         // Calculate advanced metrics
         let metrics = self.metrics_calculator.calculate_metrics(activity)?;
@@ -342,6 +385,14 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
         })
     }
 
+    /// Detect anomalies in activity data using physiological thresholds
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Activity data is malformed
+    /// - Anomaly detection algorithms fail
+    /// - Data validation errors occur
     async fn detect_anomalies(&self, activity: &Activity) -> Result<Vec<Anomaly>> {
         let mut anomalies = Vec::new();
 
@@ -404,6 +455,15 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
         Ok(anomalies)
     }
 
+    /// Calculate training load based on duration and intensity
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Activity duration data is invalid
+    /// - Heart rate data is corrupted
+    /// - Training load calculation fails
+    /// - Mathematical operations fail
     async fn calculate_training_load(&self, activity: &Activity) -> Result<f64> {
         // Calculate training load based on available metrics
         let mut load = 0.0;
@@ -429,6 +489,15 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
         Ok(load)
     }
 
+    /// Compare activity against historical performance data
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Historical activity data is invalid
+    /// - Activity comparison calculations fail
+    /// - Statistical analysis fails
+    /// - Data aggregation errors occur
     async fn compare_to_history(
         &self,
         activity: &Activity,

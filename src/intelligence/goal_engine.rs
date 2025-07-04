@@ -56,6 +56,7 @@ impl Default for AdvancedGoalEngine {
 
 impl AdvancedGoalEngine {
     /// Create a new goal engine with default strategy
+    #[must_use]
     pub fn new() -> Self {
         let global_config = IntelligenceConfig::global();
         Self {
@@ -68,6 +69,7 @@ impl AdvancedGoalEngine {
 
 impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
     /// Create with custom strategy
+    #[must_use]
     pub fn with_strategy(strategy: S) -> Self {
         let global_config = IntelligenceConfig::global();
         Self {
@@ -78,6 +80,7 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
     }
 
     /// Create with custom configuration
+    #[must_use]
     pub fn with_config(strategy: S, config: GoalEngineConfig) -> Self {
         Self {
             strategy,
@@ -88,6 +91,7 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
 
     /// Create engine with user profile
     /// Create goal engine with user profile using default strategy
+    #[must_use]
     pub fn with_profile(profile: UserFitnessProfile) -> AdvancedGoalEngine {
         let global_config = IntelligenceConfig::global();
         AdvancedGoalEngine {

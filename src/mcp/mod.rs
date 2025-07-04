@@ -439,6 +439,10 @@ async fn handle_tool_call_unified(
                 crate::protocols::ProtocolError::ConfigurationError(msg) => {
                     (ERROR_INTERNAL_ERROR, msg)
                 }
+                crate::protocols::ProtocolError::SerializationError(msg) => {
+                    (ERROR_INTERNAL_ERROR, msg)
+                }
+                crate::protocols::ProtocolError::DatabaseError(msg) => (ERROR_INTERNAL_ERROR, msg),
             };
 
             McpResponse {

@@ -30,6 +30,7 @@ pub struct ActivityAnalyzer {
 
 impl ActivityAnalyzer {
     /// Create a new activity analyzer
+    #[must_use]
     pub fn new() -> Self {
         Self {
             insight_generator: InsightGenerator::new(),

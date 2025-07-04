@@ -9,7 +9,7 @@ use sqlx::Row;
 use uuid::Uuid;
 
 impl Database {
-    /// Create API key tables
+    /// Create `API` key tables
     pub(super) async fn migrate_api_keys(&self) -> Result<()> {
         // Create api_keys table
         sqlx::query(
@@ -81,7 +81,7 @@ impl Database {
         Ok(())
     }
 
-    /// Create a new API key
+    /// Create a new `API` key
     pub async fn create_api_key(&self, api_key: &ApiKey) -> Result<()> {
         sqlx::query(
             r"
@@ -112,7 +112,7 @@ impl Database {
         Ok(())
     }
 
-    /// Get an API key by its prefix (for validation)
+    /// Get an `API` key by its prefix (for validation)
     pub async fn get_api_key_by_prefix(
         &self,
         key_prefix: &str,
@@ -132,7 +132,7 @@ impl Database {
         row.map(Self::row_to_api_key).transpose()
     }
 
-    /// Get all API keys for a user
+    /// Get all `API` keys for a user
     pub async fn get_user_api_keys(&self, user_id: Uuid) -> Result<Vec<ApiKey>> {
         let rows = sqlx::query(
             r"
@@ -148,7 +148,7 @@ impl Database {
         rows.into_iter().map(Self::row_to_api_key).collect()
     }
 
-    /// Update API key last used timestamp
+    /// Update `API` key last used timestamp
     pub async fn update_api_key_last_used(&self, api_key_id: &str) -> Result<()> {
         sqlx::query(
             r"
@@ -164,7 +164,7 @@ impl Database {
         Ok(())
     }
 
-    /// Deactivate an API key
+    /// Deactivate an `API` key
     pub async fn deactivate_api_key(&self, api_key_id: &str, user_id: Uuid) -> Result<()> {
         sqlx::query(
             r"
@@ -182,7 +182,7 @@ impl Database {
         Ok(())
     }
 
-    /// Get an API key by ID
+    /// Get an `API` key by `ID`
     pub async fn get_api_key_by_id(&self, api_key_id: &str) -> Result<Option<ApiKey>> {
         let row = sqlx::query(
             r"
@@ -196,7 +196,7 @@ impl Database {
         row.map(Self::row_to_api_key).transpose()
     }
 
-    /// Get API keys with filtering
+    /// Get `API` keys with filtering
     pub async fn get_api_keys_filtered(
         &self,
         user_id: Option<Uuid>,
@@ -236,7 +236,7 @@ impl Database {
         rows.into_iter().map(Self::row_to_api_key).collect()
     }
 
-    /// Clean up expired API keys
+    /// Clean up expired `API` keys
     pub async fn cleanup_expired_api_keys(&self) -> Result<u64> {
         let result = sqlx::query(
             r"
@@ -253,7 +253,7 @@ impl Database {
         Ok(result.rows_affected())
     }
 
-    /// Get expired API keys
+    /// Get expired `API` keys
     pub async fn get_expired_api_keys(&self) -> Result<Vec<ApiKey>> {
         let rows = sqlx::query(
             r"
@@ -269,7 +269,7 @@ impl Database {
         rows.into_iter().map(Self::row_to_api_key).collect()
     }
 
-    /// Record API key usage
+    /// Record `API` key usage
     pub async fn record_api_key_usage(&self, usage: &ApiKeyUsage) -> Result<()> {
         sqlx::query(
             r"
@@ -295,7 +295,7 @@ impl Database {
         Ok(())
     }
 
-    /// Get current usage count for an API key (for rate limiting)
+    /// Get current usage count for an `API` key (for rate limiting)
     pub async fn get_api_key_current_usage(&self, api_key_id: &str) -> Result<u32> {
         // Get the API key to determine its rate limit window
         let api_key = self
@@ -319,7 +319,7 @@ impl Database {
         Ok(count as u32)
     }
 
-    /// Get API key usage statistics
+    /// Get `API` key usage statistics
     pub async fn get_api_key_usage_stats(
         &self,
         api_key_id: &str,

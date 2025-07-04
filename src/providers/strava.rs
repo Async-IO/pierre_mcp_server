@@ -78,6 +78,7 @@ impl Default for StravaProvider {
 }
 
 impl StravaProvider {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             client: Client::new(),
@@ -87,6 +88,7 @@ impl StravaProvider {
         }
     }
 
+    #[must_use]
     pub fn with_config(config: &'static StravaConfig) -> Self {
         Self {
             client: Client::new(),
@@ -96,6 +98,14 @@ impl StravaProvider {
         }
     }
 
+    /// Get the authorization URL for Strava OAuth flow
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Client ID is not configured or empty
+    /// - Auth URL is malformed and cannot be parsed
+    /// - URL encoding fails for any parameter
     pub fn get_auth_url(&self, redirect_uri: &str, state: &str) -> Result<String> {
         if self.config.client_id.is_empty() {
             return Err(anyhow::anyhow!("Client ID not configured"));
@@ -113,6 +123,14 @@ impl StravaProvider {
     }
 
     /// Get authorization URL with PKCE support for enhanced security
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Client ID is not configured or empty
+    /// - Auth URL is malformed and cannot be parsed
+    /// - URL encoding fails for any parameter
+    /// - PKCE parameters are invalid
     pub fn get_auth_url_with_pkce(
         &self,
         redirect_uri: &str,
@@ -136,6 +154,16 @@ impl StravaProvider {
         Ok(url.into())
     }
 
+    /// Exchange authorization code for access and refresh tokens
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Client credentials are not configured
+    /// - HTTP request to token endpoint fails
+    /// - Token exchange API returns an error response
+    /// - Response cannot be parsed as JSON
+    /// - Strava API returns invalid token data
     pub async fn exchange_code(&mut self, code: &str) -> Result<(String, String)> {
         if self.config.client_id.is_empty() || self.config.client_secret.is_empty() {
             return Err(anyhow::anyhow!("Client credentials not configured"));
@@ -171,6 +199,16 @@ impl StravaProvider {
     }
 
     /// Exchange authorization code with PKCE support for enhanced security
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Client credentials are not configured
+    /// - HTTP request to token endpoint fails
+    /// - Token exchange API returns an error response
+    /// - Response cannot be parsed as JSON
+    /// - PKCE verification fails
+    /// - Strava API returns invalid token data
     pub async fn exchange_code_with_pkce(
         &mut self,
         code: &str,
@@ -209,6 +247,17 @@ impl StravaProvider {
         Ok((token.access_token, refresh_token))
     }
 
+    /// Refresh the access token using the stored refresh token
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - No refresh token is available
+    /// - Client credentials are not configured
+    /// - HTTP request to token endpoint fails
+    /// - Token refresh API returns an error response
+    /// - Response cannot be parsed as JSON
+    /// - Strava API returns invalid token data
     pub async fn refresh_access_token(&mut self) -> Result<(String, String)> {
         let refresh_token = self
             .refresh_token
@@ -244,6 +293,13 @@ impl StravaProvider {
 
 #[async_trait]
 impl FitnessProvider for StravaProvider {
+    /// Authenticate with the provided OAuth2 credentials
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Auth data is not OAuth2 format (Strava requires OAuth2)
+    /// - Token storage fails
     async fn authenticate(&mut self, auth_data: AuthData) -> Result<()> {
         match auth_data {
             AuthData::OAuth2 {
@@ -260,6 +316,16 @@ impl FitnessProvider for StravaProvider {
         }
     }
 
+    /// Get the authenticated athlete's profile information
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Not authenticated (no access token)
+    /// - HTTP request to Strava API fails
+    /// - API returns error response (e.g., 401 Unauthorized)
+    /// - Response cannot be parsed as JSON
+    /// - Strava API returns malformed athlete data
     async fn get_athlete(&self) -> Result<Athlete> {
         let token = self.access_token.as_ref().context("Not authenticated")?;
 
@@ -285,6 +351,17 @@ impl FitnessProvider for StravaProvider {
         })
     }
 
+    /// Get a list of activities from Strava
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Not authenticated (no access token)
+    /// - HTTP request to Strava API fails
+    /// - API returns error response (e.g., 401 Unauthorized, 429 Rate Limited)
+    /// - Response cannot be parsed as JSON
+    /// - Strava API returns malformed activity data
+    /// - Network connection fails
     async fn get_activities(
         &self,
         limit: Option<usize>,
@@ -378,6 +455,17 @@ impl FitnessProvider for StravaProvider {
         Ok(activities.into_iter().map(|a| a.into()).collect())
     }
 
+    /// Get a specific activity by ID from Strava
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Not authenticated (no access token)
+    /// - HTTP request to Strava API fails
+    /// - API returns error response (e.g., 401 Unauthorized, 404 Not Found)
+    /// - Response cannot be parsed as JSON
+    /// - Strava API returns malformed activity data
+    /// - Activity ID is invalid or inaccessible
     async fn get_activity(&self, id: &str) -> Result<Activity> {
         let token = self.access_token.as_ref().context("Not authenticated")?;
 
@@ -397,6 +485,17 @@ impl FitnessProvider for StravaProvider {
         Ok(response.into())
     }
 
+    /// Get athlete statistics from Strava
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Not authenticated (no access token)
+    /// - HTTP request to Strava API fails
+    /// - API returns error response (e.g., 401 Unauthorized)
+    /// - Response cannot be parsed as JSON
+    /// - Both athlete stats API and activities fallback fail
+    /// - Strava API returns malformed stats data
     async fn get_stats(&self) -> Result<Stats> {
         // Try Strava's athlete stats endpoint first
         if let Ok(strava_stats) = self.get_strava_athlete_stats().await {
@@ -419,6 +518,15 @@ impl FitnessProvider for StravaProvider {
         })
     }
 
+    /// Get personal records from Strava (currently not implemented)
+    ///
+    /// # Errors
+    ///
+    /// This method currently returns an empty vector and does not error.
+    /// Future implementation may return errors for:
+    /// - Authentication failures
+    /// - API communication issues
+    /// - Data parsing errors
     async fn get_personal_records(&self) -> Result<Vec<PersonalRecord>> {
         Ok(vec![])
     }
@@ -429,7 +537,17 @@ impl FitnessProvider for StravaProvider {
 }
 
 impl StravaProvider {
-    // Try to get stats from Strava's athlete stats endpoint
+    /// Try to get stats from Strava's athlete stats endpoint
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Not authenticated (no access token)
+    /// - HTTP request to get athlete profile fails
+    /// - HTTP request to get athlete stats fails
+    /// - API returns error response (e.g., 401 Unauthorized, 403 Forbidden)
+    /// - Response cannot be parsed as JSON
+    /// - Strava API returns malformed athlete or stats data
     async fn get_strava_athlete_stats(&self) -> Result<Stats> {
         let token = self.access_token.as_ref().context("Not authenticated")?;
 

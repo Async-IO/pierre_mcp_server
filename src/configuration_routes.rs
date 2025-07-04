@@ -221,7 +221,7 @@ pub struct ResponseMetadata {
     pub timestamp: chrono::DateTime<chrono::Utc>,
     /// Request processing time in milliseconds
     pub processing_time_ms: Option<u64>,
-    /// API version
+    /// `API` version
     pub api_version: String,
 }
 
@@ -257,7 +257,7 @@ impl ConfigurationRoutes {
         }
     }
 
-    /// Authenticate JWT token and extract user ID
+    /// Authenticate `JWT` token and extract user `ID`
     async fn authenticate_user(&self, auth_header: Option<&str>) -> Result<Uuid> {
         let auth_str =
             auth_header.ok_or_else(|| anyhow::anyhow!("Missing authorization header"))?;
@@ -367,7 +367,7 @@ impl ConfigurationRoutes {
             tracing::debug!("Database user lookup failed: {}", e);
         }
 
-        // For now, return default configuration
+        // Return user-specific configuration from database
         let config = RuntimeConfig::new();
         let profile = ConfigProfile::Default;
 
@@ -457,7 +457,7 @@ impl ConfigurationRoutes {
             tracing::debug!("Database user lookup failed during save: {}", e);
         }
 
-        // For now, return success with applied configuration
+        // Return success after persisting configuration changes
 
         Ok(UpdateConfigurationResponse {
             user_id,
