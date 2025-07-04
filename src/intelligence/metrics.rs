@@ -160,7 +160,11 @@ impl MetricsCalculator {
                         let hr_percentage = f64::from(avg_hr) / max_hr;
                         let estimated_power = ftp * hr_percentage;
                         #[allow(clippy::cast_possible_truncation)]
-                        Some(Self::calculate_tss(estimated_power as f32, ftp, duration_hours))
+                        Some(Self::calculate_tss(
+                            estimated_power as f32,
+                            ftp,
+                            duration_hours,
+                        ))
                     } else {
                         None
                     }
@@ -288,11 +292,13 @@ impl MetricsCalculator {
     /// Calculate Training Impulse (TRIMP)
     fn calculate_trimp(&self, avg_hr: f32, duration_seconds: i32) -> Option<f64> {
         #[allow(clippy::question_mark)]
-        let Some(max_hr) = self.max_hr else {
+        let Some(max_hr) = self.max_hr
+        else {
             return None;
         };
         #[allow(clippy::question_mark)]
-        let Some(resting_hr) = self.resting_hr else {
+        let Some(resting_hr) = self.resting_hr
+        else {
             return None;
         };
 
@@ -582,6 +588,7 @@ impl ZoneAnalysis {
 
     /// Calculate time in zones based on power data
     #[allow(clippy::cast_precision_loss)]
+    #[must_use]
     pub fn from_power_data(power_data: &[f32], ftp: f64) -> Self {
         let total_points = power_data.len() as f64;
 

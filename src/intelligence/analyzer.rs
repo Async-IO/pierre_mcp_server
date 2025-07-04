@@ -55,7 +55,7 @@ impl ActivityAnalyzer {
     /// # Errors
     ///
     /// Returns an error if analysis fails due to invalid data or computation errors
-    pub async fn analyze_activity(
+    pub fn analyze_activity(
         &self,
         activity: &Activity,
         context: Option<ActivityContext>,

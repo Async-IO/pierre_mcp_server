@@ -95,7 +95,7 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
 
     /// Create with custom configuration
     #[must_use]
-    pub fn with_config(strategy: S, config: PerformanceAnalyzerConfig) -> Self {
+    pub const fn with_config(strategy: S, config: PerformanceAnalyzerConfig) -> Self {
         Self {
             strategy,
             config,
@@ -145,10 +145,9 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
         let sum_values_squared: f64 = data_points.iter().map(|p| p.value.powi(2)).sum();
 
         let numerator = n.mul_add(sum_x_y, -(sum_x * sum_y));
-        let denominator = (
-            n.mul_add(sum_x_squared, -sum_x.powi(2))
-                * n.mul_add(sum_values_squared, -sum_y.powi(2))
-        ).sqrt();
+        let denominator = (n.mul_add(sum_x_squared, -sum_x.powi(2))
+            * n.mul_add(sum_values_squared, -sum_y.powi(2)))
+        .sqrt();
 
         if denominator == 0.0 {
             return 0.0;
@@ -315,10 +314,11 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
                 "pace" | "speed" => activity.average_speed,
                 "heart_rate" => activity.average_heart_rate.map(f64::from),
                 "distance" => activity.distance_meters,
-                "duration" => {
+                "duration" =>
+                {
                     #[allow(clippy::cast_precision_loss)]
                     Some(activity.duration_seconds as f64)
-                },
+                }
                 "elevation" => activity.elevation_gain,
                 _ => None,
             };
@@ -350,18 +350,12 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
             .iter()
             .map(|p| p.value)
             .sum::<f64>()
-            / {
-                #[allow(clippy::cast_precision_loss)]
-                (data_points.len() / 2) as f64
-            };
+            / (data_points.len() / 2) as f64;
         let second_half_avg = data_points[data_points.len() / 2..]
             .iter()
             .map(|p| p.value)
             .sum::<f64>()
-            / {
-                #[allow(clippy::cast_precision_loss)]
-                (data_points.len() - data_points.len() / 2) as f64
-            };
+            / (data_points.len() - data_points.len() / 2) as f64;
 
         let trend_direction =
             if (second_half_avg - first_half_avg).abs() < first_half_avg * STABILITY_THRESHOLD {
@@ -447,11 +441,10 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
                 let duration = activity.duration_seconds;
                 if hr > RECOVERY_HR_THRESHOLD && duration > MIN_AEROBIC_DURATION {
                     // Above aerobic threshold with sufficient duration
-                    aerobic_score +=
-                        (f64::from(hr) - f64::from(RECOVERY_HR_THRESHOLD)) * {
-                            #[allow(clippy::cast_precision_loss)]
-                            (duration as f64 / 3600.0)
-                        };
+                    aerobic_score += (f64::from(hr) - f64::from(RECOVERY_HR_THRESHOLD)) * {
+                        #[allow(clippy::cast_precision_loss)]
+                        (duration as f64 / 3600.0)
+                    };
                     aerobic_count += 1;
                 }
             }
@@ -497,7 +490,10 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
 
         // Overall score is weighted average using fitness component weights
         let overall_score = aerobic_fitness
-            .mul_add(AEROBIC_WEIGHT, strength_endurance.mul_add(STRENGTH_WEIGHT, consistency * CONSISTENCY_WEIGHT))
+            .mul_add(
+                AEROBIC_WEIGHT,
+                strength_endurance.mul_add(STRENGTH_WEIGHT, consistency * CONSISTENCY_WEIGHT),
+            )
             .min(100.0);
 
         // Determine trend by comparing with older activities
@@ -538,24 +534,22 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
         }
 
         // Calculate recent average performance
-        let recent_performance = similar_activities.last().map_or(0.0, |last_activity| {
-            match target.metric.as_str() {
-                "distance" => last_activity.distance_meters.unwrap_or(0.0),
-                "time" => {
-                    #[allow(clippy::cast_precision_loss)]
-                    last_activity.duration_seconds as f64
-                },
-                "pace" => last_activity.average_speed.unwrap_or(0.0),
-                _ => 0.0,
-            }
-        });
+        let recent_performance =
+            similar_activities
+                .last()
+                .map_or(0.0, |last_activity| match target.metric.as_str() {
+                    "distance" => last_activity.distance_meters.unwrap_or(0.0),
+                    "time" => last_activity.duration_seconds as f64,
+                    "pace" => last_activity.average_speed.unwrap_or(0.0),
+                    _ => 0.0,
+                });
 
         // Training adaptation factors based on volume
         #[allow(clippy::cast_precision_loss)]
         let training_days = similar_activities.len() as f64;
         #[allow(clippy::cast_precision_loss)]
         let min_data_points_f64 = (self.config.trend_analysis.min_data_points * 2) as f64;
-        
+
         let improvement_factor = if training_days > 20.0 {
             HIGH_VOLUME_IMPROVEMENT_FACTOR
         } else if training_days > min_data_points_f64 {
@@ -592,7 +586,11 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
         })
     }
 
-    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+    #[allow(
+        clippy::cast_precision_loss,
+        clippy::cast_possible_truncation,
+        clippy::cast_possible_wrap
+    )]
     async fn analyze_training_load(&self, activities: &[Activity]) -> Result<TrainingLoadAnalysis> {
         // Analyze training load over recent weeks
         let weeks = 4;
@@ -628,31 +626,16 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
                 .sum();
 
             weekly_loads.push(WeeklyLoad {
-                week_number: {
-                    #[allow(clippy::cast_possible_truncation)]
-                    (week + 1) as i32
-                },
-                total_duration_hours: {
-                    #[allow(clippy::cast_precision_loss)]
-                    total_duration as f64 / 3600.0
-                },
+                week_number: (week + 1) as i32,
+                total_duration_hours: total_duration as f64 / 3600.0,
                 total_distance_km: total_distance / 1000.0,
-                activity_count: {
-                    #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-                    week_activities.len() as i32
-                },
+                activity_count: week_activities.len() as i32,
                 intensity_score: week_activities
                     .iter()
-                    .filter_map(|a| a.average_heart_rate.map(|hr| {
-                        #[allow(clippy::cast_precision_loss)]
-                        hr as f32
-                    }))
+                    .filter_map(|a| a.average_heart_rate.map(|hr| hr as f32))
                     .map(f64::from)
                     .sum::<f64>()
-                    / {
-                        #[allow(clippy::cast_precision_loss)]
-                        week_activities.len().max(1) as f64
-                    },
+                    / week_activities.len().max(1) as f64,
             });
         }
 
@@ -661,26 +644,20 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
             .iter()
             .map(|w| w.total_duration_hours)
             .sum::<f64>()
-            / {
-                #[allow(clippy::cast_precision_loss)]
-                weekly_loads.len() as f64
-            };
+            / weekly_loads.len() as f64;
 
         let load_variance = weekly_loads
             .iter()
             .map(|w| (w.total_duration_hours - avg_load).powi(2))
             .sum::<f64>()
-            / {
-                #[allow(clippy::cast_precision_loss)]
-                weekly_loads.len() as f64
-            };
+            / weekly_loads.len() as f64;
 
-        let load_balance_score = (load_variance.sqrt() / avg_load).mul_add(-100.0, 100.0).max(0.0);
+        let load_balance_score = (load_variance.sqrt() / avg_load)
+            .mul_add(-100.0, 100.0)
+            .max(0.0);
 
         // Determine if currently in recovery phase
-        let last_week_load = weekly_loads
-            .last()
-            .map_or(0.0, |w| w.total_duration_hours);
+        let last_week_load = weekly_loads.last().map_or(0.0, |w| w.total_duration_hours);
         let previous_week_load = weekly_loads
             .get(weekly_loads.len().saturating_sub(2))
             .map_or(0.0, |w| w.total_duration_hours);
@@ -701,10 +678,7 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
                 ];
 
                 // Add strategy-based recovery recommendations using the strategy field
-                if self.strategy.should_recommend_recovery({
-                    #[allow(clippy::cast_possible_truncation)]
-                    weeks as i32
-                }) {
+                if self.strategy.should_recommend_recovery(weeks as i32) {
                     recs.push("Your training strategy recommends prioritizing recovery at this load level".into());
                 }
 
