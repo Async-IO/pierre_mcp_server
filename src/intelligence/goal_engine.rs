@@ -2,13 +2,32 @@
 // ABOUTME: Tracks training goals, milestones, progress metrics, and provides achievement insights
 //! Goal tracking and progress monitoring engine
 
-use super::*;
+use super::{
+    AdvancedInsight, Confidence, Deserialize, FitnessLevel, Goal, GoalStatus, GoalType,
+    InsightSeverity, Milestone, ProgressReport, Serialize, TimeFrame, UserFitnessProfile,
+};
 use crate::config::intelligence_config::{
     GoalEngineConfig, IntelligenceConfig, IntelligenceStrategy,
 };
 use crate::intelligence::physiological_constants::{
-    consistency::*, frequency_targets::*, goal_difficulty::*, goal_progress::*, milestones::*,
-    time_periods::*,
+    consistency::{
+        MILESTONE_ACHIEVEMENT_THRESHOLD, MIN_ACTIVITY_COUNT_FOR_ANALYSIS,
+        PROGRESS_TOLERANCE_PERCENTAGE,
+    },
+    frequency_targets::{MAX_WEEKLY_FREQUENCY, TARGET_PERFORMANCE_IMPROVEMENT},
+    goal_difficulty::{
+        CHALLENGING_GOAL_RATIO, EASY_GOAL_RATIO, GOAL_DISTANCE_PRECISION, GOAL_DISTANCE_TOLERANCE,
+        MODERATE_GOAL_RATIO,
+    },
+    goal_progress::{
+        AHEAD_OF_SCHEDULE_THRESHOLD, BEHIND_SCHEDULE_THRESHOLD, TARGET_DECREASE_MULTIPLIER,
+        TARGET_INCREASE_MULTIPLIER,
+    },
+    milestones::{MILESTONE_NAMES, MILESTONE_PERCENTAGES},
+    time_periods::{
+        GOAL_ADJUSTMENT_THRESHOLD, GOAL_ANALYSIS_WEEKS, GOAL_DAYS_REMAINING_THRESHOLD,
+        TRAINING_PATTERN_ANALYSIS_WEEKS,
+    },
 };
 use crate::models::Activity;
 use anyhow::Result;
@@ -81,7 +100,7 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
 
     /// Create with custom configuration
     #[must_use]
-    pub fn with_config(strategy: S, config: GoalEngineConfig) -> Self {
+    pub const fn with_config(strategy: S, config: GoalEngineConfig) -> Self {
         Self {
             strategy,
             config,
@@ -107,7 +126,8 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
     }
 
     /// Calculate goal difficulty based on user's current performance
-    fn calculate_goal_difficulty(&self, goal: &Goal, activities: &[Activity]) -> GoalDifficulty {
+    #[allow(clippy::cast_precision_loss)]
+    fn calculate_goal_difficulty(goal: &Goal, activities: &[Activity]) -> GoalDifficulty {
         let similar_activities: Vec<_> = activities
             .iter()
             .filter(|a| format!("{:?}", a.sport_type) == goal.goal_type.sport_type())
@@ -130,11 +150,9 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
                 let similar_distance_activities: Vec<_> = similar_activities
                     .iter()
                     .filter(|a| {
-                        if let Some(d) = a.distance_meters {
+                        a.distance_meters.is_some_and(|d| {
                             (d - distance).abs() < distance * GOAL_DISTANCE_TOLERANCE
-                        } else {
-                            false
-                        }
+                        })
                     })
                     .collect();
 
@@ -158,10 +176,7 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
                     / similar_activities.len() as f64;
                 avg_speed
             }
-            GoalType::Frequency {
-                sessions_per_week: _,
-                ..
-            } => {
+            GoalType::Frequency { .. } => {
                 // Calculate current weekly frequency
                 let weeks = 4;
                 let recent_count = similar_activities
@@ -172,7 +187,7 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
                         weeks_ago <= TRAINING_PATTERN_ANALYSIS_WEEKS
                     })
                     .count();
-                (recent_count as f64) / (weeks as f64)
+                recent_count as f64 / f64::from(weeks)
             }
             GoalType::Custom { .. } => {
                 return GoalDifficulty::Unknown;
@@ -193,19 +208,20 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
     }
 
     /// Generate progress insights based on current status
-    fn generate_progress_insights(
-        &self,
-        goal: &Goal,
-        progress: &ProgressReport,
-    ) -> Vec<AdvancedInsight> {
+    #[allow(clippy::cast_precision_loss)]
+    fn generate_progress_insights(goal: &Goal, progress: &ProgressReport) -> Vec<AdvancedInsight> {
         let mut insights = Vec::new();
 
         // Progress rate insight
+        #[allow(clippy::cast_precision_loss)]
         let days_elapsed = (Utc::now() - goal.created_at).num_days() as f64;
+        #[allow(clippy::cast_precision_loss)]
         let days_total = (goal.target_date - goal.created_at).num_days() as f64;
         let time_progress = days_elapsed / days_total;
 
-        if progress.progress_percentage > time_progress * 100.0 + PROGRESS_TOLERANCE_PERCENTAGE {
+        if progress.progress_percentage
+            > time_progress.mul_add(100.0, PROGRESS_TOLERANCE_PERCENTAGE)
+        {
             insights.push(AdvancedInsight {
                 insight_type: "ahead_of_schedule".into(),
                 message: "You're ahead of schedule! Excellent progress.".into(),
@@ -214,12 +230,11 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
                 metadata: HashMap::new(),
             });
         } else if progress.progress_percentage
-            < time_progress * 100.0 - PROGRESS_TOLERANCE_PERCENTAGE
+            < time_progress.mul_add(100.0, -PROGRESS_TOLERANCE_PERCENTAGE)
         {
             insights.push(AdvancedInsight {
                 insight_type: "behind_schedule".into(),
-                message: "Progress is behind schedule - consider adjusting training plan."
-                    .to_string(),
+                message: "Progress is behind schedule - consider adjusting training plan.".into(),
                 confidence: Confidence::High,
                 severity: InsightSeverity::Warning,
                 metadata: HashMap::new(),
@@ -238,8 +253,7 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
             insights.push(AdvancedInsight {
                 insight_type: "milestone_progress".into(),
                 message: format!(
-                    "Great milestone progress: {}/{} completed",
-                    achieved_milestones, total_milestones
+                    "Great milestone progress: {achieved_milestones}/{total_milestones} completed"
                 ),
                 confidence: Confidence::Medium,
                 severity: InsightSeverity::Info,
@@ -252,7 +266,12 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
 }
 
 #[async_trait::async_trait]
-impl GoalEngineTrait for AdvancedGoalEngine {
+impl<S: IntelligenceStrategy> GoalEngineTrait for AdvancedGoalEngine<S> {
+    #[allow(
+        clippy::cast_precision_loss,
+        clippy::cast_possible_truncation,
+        clippy::too_many_lines
+    )]
     async fn suggest_goals(
         &self,
         user_profile: &UserFitnessProfile,
@@ -275,7 +294,7 @@ impl GoalEngineTrait for AdvancedGoalEngine {
 
         for activity in &recent_activities {
             let sport = format!("{:?}", activity.sport_type);
-            let stats = sport_stats.entry(sport).or_insert(SportStats::new());
+            let stats = sport_stats.entry(sport).or_insert_with(SportStats::new);
 
             stats.activity_count += 1;
             if let Some(distance) = activity.distance_meters {
@@ -298,10 +317,10 @@ impl GoalEngineTrait for AdvancedGoalEngine {
             }
 
             let avg_distance = stats.total_distance / stats.activity_count as f64;
-            let avg_speed = if !stats.speeds.is_empty() {
-                stats.speeds.iter().sum::<f64>() / stats.speeds.len() as f64
-            } else {
+            let avg_speed = if stats.speeds.is_empty() {
                 0.0
+            } else {
+                stats.speeds.iter().sum::<f64>() / stats.speeds.len() as f64
             };
 
             // Distance goal suggestions
@@ -327,13 +346,12 @@ impl GoalEngineTrait for AdvancedGoalEngine {
                 let target_distance = stats.max_distance * strategy_multiplier;
 
                 let distance_goal = Goal {
-                    id: format!("dist_{}_{}", sport, Utc::now().timestamp()),
+                    id: format!("dist_{sport}_{}", Utc::now().timestamp()),
                     user_id: "system".into(), // Will be set by caller
-                    title: format!("Increase {} Distance", sport),
+                    title: format!("Increase {sport} Distance"),
                     description: format!(
-                        "Target distance of {:.1} km for {}",
-                        target_distance / 1000.0,
-                        sport
+                        "Target distance of {:.1} km for {sport}",
+                        target_distance / 1000.0
                     ),
                     goal_type: GoalType::Distance {
                         sport: sport.clone(),
@@ -348,12 +366,12 @@ impl GoalEngineTrait for AdvancedGoalEngine {
                 };
 
                 // Calculate actual difficulty using strategy and user data
-                let difficulty = self.calculate_goal_difficulty(&distance_goal, activities);
+                let difficulty = Self::calculate_goal_difficulty(&distance_goal, activities);
 
                 suggestions.push(GoalSuggestion {
                     goal_type: distance_goal.goal_type,
                     suggested_target: target_distance,
-                    rationale: format!("Based on your recent {} activities, you could challenge yourself with a longer distance", sport),
+                    rationale: format!("Based on your recent {sport} activities, you could challenge yourself with a longer distance"),
                     difficulty,
                     estimated_timeline_days: 30,
                     success_probability: self.config.feasibility.min_success_probability,
@@ -368,10 +386,9 @@ impl GoalEngineTrait for AdvancedGoalEngine {
                         metric: "speed".into(),
                         improvement_percent: target_improvement,
                     },
-                    suggested_target: avg_speed * (1.0 + target_improvement / 100.0),
+                    suggested_target: avg_speed.mul_add(target_improvement / 100.0, avg_speed),
                     rationale: format!(
-                        "Improve your average {} pace by {}%",
-                        sport, target_improvement
+                        "Improve your average {sport} pace by {target_improvement}%"
                     ),
                     difficulty: GoalDifficulty::Challenging,
                     estimated_timeline_days: 60,
@@ -382,14 +399,15 @@ impl GoalEngineTrait for AdvancedGoalEngine {
             // Frequency goal suggestions
             let current_frequency = stats.activity_count as f64 / GOAL_ANALYSIS_WEEKS as f64;
             if current_frequency < MAX_WEEKLY_FREQUENCY {
+                #[allow(clippy::cast_possible_truncation)]
                 let target_frequency = (current_frequency + 1.0).min(MAX_WEEKLY_FREQUENCY) as i32;
                 suggestions.push(GoalSuggestion {
                     goal_type: GoalType::Frequency {
                         sport: sport.clone(),
                         sessions_per_week: target_frequency,
                     },
-                    suggested_target: target_frequency as f64,
-                    rationale: format!("Increase {} training consistency", sport),
+                    suggested_target: f64::from(target_frequency),
+                    rationale: format!("Increase {sport} training consistency"),
                     difficulty: GoalDifficulty::Moderate,
                     estimated_timeline_days: 28,
                     success_probability: 0.80,
@@ -425,7 +443,7 @@ impl GoalEngineTrait for AdvancedGoalEngine {
                     success_probability: 0.60,
                 });
             }
-            _ => {}
+            FitnessLevel::Intermediate => {}
         }
 
         // Sort by success probability and difficulty
@@ -438,6 +456,11 @@ impl GoalEngineTrait for AdvancedGoalEngine {
         Ok(suggestions.into_iter().take(5).collect()) // Return top 5 suggestions
     }
 
+    #[allow(
+        clippy::cast_precision_loss,
+        clippy::cast_possible_truncation,
+        clippy::too_many_lines
+    )]
     async fn track_progress(&self, goal: &Goal, activities: &[Activity]) -> Result<ProgressReport> {
         // Filter relevant activities since goal creation
         let relevant_activities: Vec<_> = activities
@@ -478,31 +501,23 @@ impl GoalEngineTrait for AdvancedGoalEngine {
                 relevant_activities
                     .iter()
                     .filter(|a| {
-                        if let Some(d) = a.distance_meters {
+                        a.distance_meters.is_some_and(|d| {
                             (d - distance).abs() < distance * GOAL_DISTANCE_PRECISION
-                        } else {
-                            false
-                        }
+                        })
                     })
                     .map(|a| a.duration_seconds)
                     .min()
-                    .unwrap_or(u64::MAX) as f64
+                    .map_or(f64::MAX, |v| v as f64)
             }
-            GoalType::Frequency {
-                sessions_per_week: _,
-                ..
-            } => {
+            GoalType::Frequency { .. } => {
                 let weeks_elapsed = (Utc::now() - goal.created_at).num_weeks().max(1);
                 relevant_activities.len() as f64 / weeks_elapsed as f64
             }
             GoalType::Performance { metric, .. } => match metric.as_str() {
-                "speed" => {
-                    if let Some(latest_activity) = relevant_activities.last() {
-                        latest_activity.average_speed.unwrap_or(0.0)
-                    } else {
-                        0.0
-                    }
-                }
+                "speed" => relevant_activities
+                    .last()
+                    .and_then(|a| a.average_speed)
+                    .unwrap_or(0.0),
                 _ => 0.0,
             },
             GoalType::Custom { .. } => goal.current_value,
@@ -519,7 +534,7 @@ impl GoalEngineTrait for AdvancedGoalEngine {
         let milestones = self.create_milestones(goal).await?;
 
         // Check milestone achievements
-        let mut achieved_milestones = milestones.clone();
+        let mut achieved_milestones = milestones;
         for milestone in &mut achieved_milestones {
             if current_value >= milestone.target_value {
                 milestone.achieved = true;
@@ -537,10 +552,12 @@ impl GoalEngineTrait for AdvancedGoalEngine {
         };
 
         // Determine if on track
+        #[allow(clippy::cast_precision_loss)]
         let days_elapsed = (Utc::now() - goal.created_at).num_days() as f64;
+        #[allow(clippy::cast_precision_loss)]
         let days_total = (goal.target_date - goal.created_at).num_days() as f64;
         let expected_progress = if days_total > 0.0 {
-            (days_elapsed / days_total) * 100.0
+            days_elapsed.mul_add(100.0 / days_total, 0.0)
         } else {
             0.0
         };
@@ -557,7 +574,7 @@ impl GoalEngineTrait for AdvancedGoalEngine {
         };
 
         let mut final_report = progress_report;
-        final_report.insights = self.generate_progress_insights(goal, &final_report);
+        final_report.insights = Self::generate_progress_insights(goal, &final_report);
 
         // Generate recommendations
         final_report.recommendations = if on_track {
@@ -576,6 +593,7 @@ impl GoalEngineTrait for AdvancedGoalEngine {
         Ok(final_report)
     }
 
+    #[allow(clippy::cast_precision_loss)]
     async fn adjust_goal(
         &self,
         goal: &Goal,
@@ -590,7 +608,7 @@ impl GoalEngineTrait for AdvancedGoalEngine {
             return Ok(None);
         }
 
-        let progress_ratio = progress.progress_percentage / (time_progress * 100.0);
+        let progress_ratio = progress.progress_percentage / time_progress.mul_add(100.0, 0.0);
 
         let adjustment = if progress_ratio > AHEAD_OF_SCHEDULE_THRESHOLD {
             // Significantly ahead - suggest more ambitious goal
@@ -598,7 +616,7 @@ impl GoalEngineTrait for AdvancedGoalEngine {
                 adjustment_type: AdjustmentType::IncreaseTarget,
                 new_target_value: goal.target_value * TARGET_INCREASE_MULTIPLIER,
                 rationale: "You're making excellent progress! Consider a more ambitious target."
-                    .to_string(),
+                    .into(),
                 confidence: Confidence::Medium,
             })
         } else if progress_ratio < BEHIND_SCHEDULE_THRESHOLD {
@@ -610,7 +628,7 @@ impl GoalEngineTrait for AdvancedGoalEngine {
                     new_target_value: goal.target_value * TARGET_DECREASE_MULTIPLIER,
                     rationale:
                         "Consider adjusting to a more achievable target based on current progress."
-                            .to_string(),
+                            .into(),
                     confidence: Confidence::High,
                 })
             } else {
@@ -618,8 +636,7 @@ impl GoalEngineTrait for AdvancedGoalEngine {
                 Some(GoalAdjustment {
                     adjustment_type: AdjustmentType::ExtendDeadline,
                     new_target_value: goal.target_value,
-                    rationale: "Consider extending the deadline to maintain motivation."
-                        .to_string(),
+                    rationale: "Consider extending the deadline to maintain motivation.".into(),
                     confidence: Confidence::Medium,
                 })
             }
@@ -701,7 +718,7 @@ struct SportStats {
 }
 
 impl SportStats {
-    fn new() -> Self {
+    const fn new() -> Self {
         Self {
             activity_count: 0,
             total_distance: 0.0,
@@ -715,13 +732,13 @@ impl SportStats {
 
 impl GoalType {
     /// Get the sport type for this goal
+    #[must_use]
     pub fn sport_type(&self) -> String {
         match self {
-            GoalType::Distance { sport, .. } => sport.clone(),
-            GoalType::Time { sport, .. } => sport.clone(),
-            GoalType::Frequency { sport, .. } => sport.clone(),
-            GoalType::Performance { .. } => "Any".into(),
-            GoalType::Custom { .. } => "Any".into(),
+            Self::Distance { sport, .. }
+            | Self::Time { sport, .. }
+            | Self::Frequency { sport, .. } => sport.clone(),
+            Self::Performance { .. } | Self::Custom { .. } => "Any".into(),
         }
     }
 }
@@ -729,6 +746,7 @@ impl GoalType {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::intelligence::{TimeAvailability, UserPreferences};
     use chrono::Duration;
     use uuid::Uuid;
 

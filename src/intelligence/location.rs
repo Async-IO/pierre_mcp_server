@@ -96,6 +96,11 @@ impl LocationService {
         }
     }
 
+    /// Get location information from GPS coordinates
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the reverse geocoding request fails or the response cannot be parsed
     pub async fn get_location_from_coordinates(
         &mut self,
         latitude: f64,
@@ -117,7 +122,7 @@ impl LocationService {
             });
         }
 
-        let cache_key = format!("{:.6},{:.6}", latitude, longitude);
+        let cache_key = format!("{latitude:.6},{longitude:.6}");
 
         // Check cache first
         if let Some(entry) = self.cache.get(&cache_key) {
@@ -159,7 +164,8 @@ impl LocationService {
             .await
             .map_err(|e| anyhow!("Failed to parse reverse geocoding response: {}", e))?;
 
-        let location_data = self.parse_nominatim_response(&nominatim_response, latitude, longitude);
+        let location_data =
+            Self::parse_nominatim_response(&nominatim_response, latitude, longitude);
 
         // Cache the result
         self.cache.insert(
@@ -179,7 +185,6 @@ impl LocationService {
     }
 
     fn parse_nominatim_response(
-        &self,
         response: &NominatimResponse,
         latitude: f64,
         longitude: f64,
@@ -198,7 +203,7 @@ impl LocationService {
         let region = address.state.clone().or_else(|| address.county.clone());
 
         // Extract trail/route information from road or natural features
-        let trail_name = if let Some(road) = &address.road {
+        let trail_name = address.road.as_ref().and_then(|road| {
             // Check if it's a trail, path, or route
             if road.to_lowercase().contains("trail") 
                 || road.to_lowercase().contains("path")
@@ -211,10 +216,7 @@ impl LocationService {
             } else {
                 None
             }
-        } else {
-            None
-        };
-
+        });
         LocationData {
             city,
             region,
@@ -229,6 +231,7 @@ impl LocationService {
         }
     }
 
+    #[must_use]
     pub fn get_cache_stats(&self) -> (usize, usize) {
         let total_entries = self.cache.len();
         let expired_entries = self

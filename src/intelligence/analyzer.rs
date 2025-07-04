@@ -14,11 +14,24 @@ use super::{
     TrendDirection, TrendIndicators, ZoneDistribution,
 };
 use crate::intelligence::physiological_constants::{
-    demo_data::*,
-    efficiency_defaults::*,
-    performance_calculation::*,
-    personal_records::*,
-    zone_distributions::{efficiency_calculation::*, zone_analysis_thresholds::*, *},
+    demo_data::{DEMO_PREVIOUS_BEST_PACE, DEMO_PREVIOUS_BEST_TIME},
+    efficiency_defaults::{BASE_EFFICIENCY_SCORE, HR_EFFICIENCY_FACTOR, PACE_PER_KM_FACTOR},
+    performance_calculation::{
+        ASSUMED_RESTING_HR, BIKE_DISTANCE_DIVISOR, BIKE_EFFORT_MULTIPLIER, EFFORT_HOUR_FACTOR,
+        ELEVATION_EFFORT_DIVISOR, ELEVATION_EFFORT_FACTOR, HR_INTENSITY_EFFORT_FACTOR,
+        MAX_EFFORT_SCORE, MIN_EFFORT_SCORE, RUN_DISTANCE_DIVISOR, RUN_EFFORT_MULTIPLIER,
+        SWIM_DISTANCE_DIVISOR, SWIM_EFFORT_MULTIPLIER,
+    },
+    personal_records::{DISTANCE_PR_THRESHOLD_KM, PACE_PR_THRESHOLD_SECONDS},
+    zone_distributions::{
+        efficiency_calculation::{CONSISTENCY_MULTIPLIER, HR_EFFICIENCY_MULTIPLIER},
+        high_intensity, intensity_thresholds, low_intensity, moderate_intensity,
+        moderate_low_intensity, very_high_intensity,
+        zone_analysis_thresholds::{
+            DEMO_CONSISTENCY_SCORE, HARD_INTENSITY_EFFORT_THRESHOLD,
+            SIGNIFICANT_ENDURANCE_ZONE_THRESHOLD, TEMPO_ZONE_THRESHOLD, THRESHOLD_ZONE_THRESHOLD,
+        },
+    },
 };
 use crate::models::{Activity, SportType};
 use chrono::{DateTime, Local, Timelike, Utc};
@@ -38,6 +51,10 @@ impl ActivityAnalyzer {
     }
 
     /// Analyze a single activity and generate intelligence
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if analysis fails due to invalid data or computation errors
     pub async fn analyze_activity(
         &self,
         activity: &Activity,
@@ -49,13 +66,14 @@ impl ActivityAnalyzer {
             .generate_insights(activity, context.as_ref());
 
         // Calculate performance metrics
-        let performance = self.calculate_performance_metrics(activity)?;
+        let performance = Self::calculate_performance_metrics(activity);
 
         // Determine contextual factors
-        let contextual_factors = self.analyze_contextual_factors(activity, &context);
+        let contextual_factors = Self::analyze_contextual_factors(activity, context.as_ref());
 
         // Generate natural language summary
-        let summary = self.generate_summary(activity, &insights, &performance, &contextual_factors);
+        let summary =
+            Self::generate_summary(activity, &insights, &performance, &contextual_factors);
 
         Ok(ActivityIntelligence::new(
             summary,
@@ -66,36 +84,36 @@ impl ActivityAnalyzer {
     }
 
     /// Calculate performance metrics for an activity
-    fn calculate_performance_metrics(
-        &self,
-        activity: &Activity,
-    ) -> Result<PerformanceMetrics, AnalysisError> {
-        let relative_effort = self.calculate_relative_effort(activity);
-        let zone_distribution = self.calculate_zone_distribution(activity);
-        let personal_records = self.detect_personal_records(activity);
-        let efficiency_score = self.calculate_efficiency_score(activity);
-        let trend_indicators = self.calculate_trend_indicators(activity);
+    fn calculate_performance_metrics(activity: &Activity) -> PerformanceMetrics {
+        let relative_effort = Self::calculate_relative_effort(activity);
+        let zone_distribution = Self::calculate_zone_distribution(activity);
+        let personal_records = Self::detect_personal_records(activity);
+        let efficiency_score = Self::calculate_efficiency_score(activity);
+        let trend_indicators = Self::calculate_trend_indicators(activity);
 
-        Ok(PerformanceMetrics {
+        PerformanceMetrics {
             relative_effort: Some(relative_effort),
             zone_distribution,
             personal_records,
             efficiency_score: Some(efficiency_score),
             trend_indicators,
-        })
+        }
     }
 
     /// Calculate relative effort score (1-10 scale)
-    fn calculate_relative_effort(&self, activity: &Activity) -> f32 {
+    fn calculate_relative_effort(activity: &Activity) -> f32 {
         let mut effort = 1.0;
 
         // Base effort from duration
         let duration = activity.duration_seconds;
-        effort += (duration as f32 / 3600.0) * EFFORT_HOUR_FACTOR; // Duration-based effort
+        #[allow(clippy::cast_precision_loss)]
+        let duration_f32 = duration as f32;
+        effort += (duration_f32 / 3600.0) * EFFORT_HOUR_FACTOR; // Duration-based effort
 
         // Heart rate intensity
         if let (Some(avg_hr), Some(max_hr)) = (activity.average_heart_rate, activity.max_heart_rate)
         {
+            #[allow(clippy::cast_precision_loss)]
             let hr_intensity = (avg_hr as f32) / (max_hr as f32);
             effort += hr_intensity * HR_INTENSITY_EFFORT_FACTOR;
         }
@@ -105,35 +123,48 @@ impl ActivityAnalyzer {
             let distance_km = distance_m / 1000.0;
             match activity.sport_type {
                 SportType::Run => {
-                    effort +=
-                        (distance_km / RUN_DISTANCE_DIVISOR as f64) as f32 * RUN_EFFORT_MULTIPLIER
+                    #[allow(clippy::cast_possible_truncation)]
+                    {
+                        effort += (distance_km / f64::from(RUN_DISTANCE_DIVISOR)) as f32
+                            * RUN_EFFORT_MULTIPLIER;
+                    }
                 }
                 SportType::Ride => {
-                    effort +=
-                        (distance_km / BIKE_DISTANCE_DIVISOR as f64) as f32 * BIKE_EFFORT_MULTIPLIER
+                    #[allow(clippy::cast_possible_truncation)]
+                    {
+                        effort += (distance_km / f64::from(BIKE_DISTANCE_DIVISOR)) as f32
+                            * BIKE_EFFORT_MULTIPLIER;
+                    }
                 }
                 _ => {
-                    effort +=
-                        (distance_km / SWIM_DISTANCE_DIVISOR as f64) as f32 * SWIM_EFFORT_MULTIPLIER
+                    #[allow(clippy::cast_possible_truncation)]
+                    {
+                        effort += (distance_km / f64::from(SWIM_DISTANCE_DIVISOR)) as f32
+                            * SWIM_EFFORT_MULTIPLIER;
+                    }
                 }
             }
         }
 
         // Elevation factor
         if let Some(elevation) = activity.elevation_gain {
-            effort +=
-                (elevation / ELEVATION_EFFORT_DIVISOR as f64) as f32 * ELEVATION_EFFORT_FACTOR;
+            #[allow(clippy::cast_possible_truncation)]
+            {
+                effort += (elevation / f64::from(ELEVATION_EFFORT_DIVISOR)) as f32
+                    * ELEVATION_EFFORT_FACTOR;
+            }
         }
 
         effort.clamp(MIN_EFFORT_SCORE, MAX_EFFORT_SCORE)
     }
 
     /// Calculate heart rate zone distribution
-    fn calculate_zone_distribution(&self, activity: &Activity) -> Option<ZoneDistribution> {
+    fn calculate_zone_distribution(activity: &Activity) -> Option<ZoneDistribution> {
         // This is a simplified version - real implementation would need detailed HR data
         if let (Some(avg_hr), Some(max_hr)) = (activity.average_heart_rate, activity.max_heart_rate)
         {
             let hr_reserve = max_hr - ASSUMED_RESTING_HR; // Using configured resting HR
+            #[allow(clippy::cast_precision_loss)]
             let intensity = ((avg_hr - ASSUMED_RESTING_HR) as f32) / (hr_reserve as f32);
 
             // Estimated distribution based on average intensity using defined thresholds
@@ -182,7 +213,7 @@ impl ActivityAnalyzer {
     }
 
     /// Detect personal records (simplified version)
-    fn detect_personal_records(&self, activity: &Activity) -> Vec<PersonalRecord> {
+    fn detect_personal_records(activity: &Activity) -> Vec<PersonalRecord> {
         let mut records = Vec::new();
 
         // Example: Distance PR detection (would normally compare with historical data)
@@ -196,6 +227,7 @@ impl ActivityAnalyzer {
                     value: distance_km,
                     unit: "km".into(),
                     previous_best: Some(PREVIOUS_BEST),
+                    #[allow(clippy::cast_possible_truncation)]
                     improvement_percentage: Some(
                         ((distance_km - PREVIOUS_BEST) / PREVIOUS_BEST * 100.0) as f32,
                     ),
@@ -205,7 +237,7 @@ impl ActivityAnalyzer {
 
         // Example: Speed PR detection
         if let Some(avg_speed) = activity.average_speed {
-            let pace_per_km = PACE_PER_KM_FACTOR as f64 / avg_speed;
+            let pace_per_km = f64::from(PACE_PER_KM_FACTOR) / avg_speed;
             if pace_per_km < PACE_PR_THRESHOLD_SECONDS {
                 const PREVIOUS_BEST_PACE: f64 = DEMO_PREVIOUS_BEST_PACE;
                 records.push(PersonalRecord {
@@ -213,6 +245,7 @@ impl ActivityAnalyzer {
                     value: pace_per_km,
                     unit: "seconds/km".into(),
                     previous_best: Some(PREVIOUS_BEST_PACE),
+                    #[allow(clippy::cast_possible_truncation)]
                     improvement_percentage: Some(
                         ((PREVIOUS_BEST_PACE - pace_per_km) / PREVIOUS_BEST_PACE * 100.0) as f32,
                     ),
@@ -224,14 +257,16 @@ impl ActivityAnalyzer {
     }
 
     /// Calculate efficiency score
-    fn calculate_efficiency_score(&self, activity: &Activity) -> f32 {
+    fn calculate_efficiency_score(activity: &Activity) -> f32 {
         let mut efficiency: f32 = BASE_EFFICIENCY_SCORE; // Base score
 
         // Heart rate efficiency
         if let (Some(avg_hr), Some(avg_speed)) =
             (activity.average_heart_rate, activity.average_speed)
         {
+            #[allow(clippy::cast_possible_truncation)]
             let pace_per_km = PACE_PER_KM_FACTOR / avg_speed as f32;
+            #[allow(clippy::cast_precision_loss)]
             let hr_efficiency = HR_EFFICIENCY_FACTOR / (avg_hr as f32 * pace_per_km);
             efficiency += hr_efficiency * HR_EFFICIENCY_MULTIPLIER;
         }
@@ -239,6 +274,7 @@ impl ActivityAnalyzer {
         // Consistency factor calculation
         if let (Some(avg_speed), Some(max_speed)) = (activity.average_speed, activity.max_speed) {
             let speed_variance = max_speed - avg_speed;
+            #[allow(clippy::cast_possible_truncation)]
             let consistency = 1.0 - (speed_variance / max_speed).min(1.0) as f32;
             efficiency += consistency * CONSISTENCY_MULTIPLIER;
         }
@@ -247,7 +283,7 @@ impl ActivityAnalyzer {
     }
 
     /// Calculate trend indicators (simplified - would need historical data)
-    fn calculate_trend_indicators(&self, _activity: &Activity) -> TrendIndicators {
+    const fn calculate_trend_indicators(_activity: &Activity) -> TrendIndicators {
         // Basic implementation using configured defaults - historical comparison would require database access
         TrendIndicators {
             pace_trend: TrendDirection::Improving,
@@ -259,15 +295,14 @@ impl ActivityAnalyzer {
 
     /// Analyze contextual factors
     fn analyze_contextual_factors(
-        &self,
         activity: &Activity,
-        context: &Option<ActivityContext>,
+        context: Option<&ActivityContext>,
     ) -> ContextualFactors {
-        let time_of_day = self.determine_time_of_day(&activity.start_date);
+        let time_of_day = Self::determine_time_of_day(&activity.start_date);
 
         ContextualFactors {
             weather: None, // Weather analysis was removed
-            location: context.as_ref().and_then(|c| c.location.as_ref().cloned()),
+            location: context.and_then(|c| c.location.clone()),
             time_of_day,
             days_since_last_activity: None, // Would calculate from historical data
             weekly_load: None,              // Would calculate from recent activities
@@ -275,7 +310,7 @@ impl ActivityAnalyzer {
     }
 
     /// Determine time of day category based on local time
-    fn determine_time_of_day(&self, start_date: &DateTime<Utc>) -> TimeOfDay {
+    fn determine_time_of_day(start_date: &DateTime<Utc>) -> TimeOfDay {
         // Convert UTC to local time for proper categorization
         let local_time = start_date.with_timezone(&Local);
         match local_time.hour() {
@@ -290,7 +325,6 @@ impl ActivityAnalyzer {
 
     /// Generate natural language summary
     fn generate_summary(
-        &self,
         activity: &Activity,
         insights: &[super::insights::Insight],
         performance: &PerformanceMetrics,
@@ -302,7 +336,7 @@ impl ActivityAnalyzer {
         let activity_type = activity.sport_type.display_name();
 
         // Add weather context if available
-        let weather_context = if let Some(weather) = &context.weather {
+        let weather_context = context.weather.as_ref().map_or("", |weather| {
             match weather.conditions.to_lowercase().as_str() {
                 c if c.contains("rain")
                     || c.contains("shower")
@@ -319,54 +353,52 @@ impl ActivityAnalyzer {
                 c if c.contains("cold") || weather.temperature_celsius < 5.0 => " in cold weather",
                 _ => "",
             }
-        } else {
-            ""
-        };
+        });
 
         // Add location context
         let location_context = context.location.as_ref().map_or(String::new(), |location| {
             location.trail_name.as_ref().map_or_else(
                 || match (&location.city, &location.region) {
-                    (Some(city), Some(region)) => format!(" in {}, {}", city, region),
-                    (Some(city), None) => format!(" in {}", city),
+                    (Some(city), Some(region)) => format!(" in {city}, {region}"),
+                    (Some(city), None) => format!(" in {city}"),
                     _ => String::new(),
                 },
-                |trail_name| format!(" on {}", trail_name),
+                |trail_name| format!(" on {trail_name}"),
             )
         });
 
         // Effort categorization
-        let effort_desc = if let Some(relative_effort) = performance.relative_effort {
-            match relative_effort {
-                r if r < 3.0 => "light intensity",
-                r if r < 5.0 => "moderate intensity",
-                r if r < HARD_INTENSITY_EFFORT_THRESHOLD => "hard intensity",
-                _ => "very high intensity",
-            }
-        } else {
-            "moderate effort"
-        };
+        let effort_desc =
+            performance
+                .relative_effort
+                .map_or("moderate effort", |relative_effort| match relative_effort {
+                    r if r < 3.0 => "light intensity",
+                    r if r < 5.0 => "moderate intensity",
+                    r if r < HARD_INTENSITY_EFFORT_THRESHOLD => "hard intensity",
+                    _ => "very high intensity",
+                });
 
         // Zone analysis
-        let zone_desc = if let Some(zones) = &performance.zone_distribution {
-            if zones.zone2_endurance > SIGNIFICANT_ENDURANCE_ZONE_THRESHOLD {
-                "endurance zones"
-            } else if zones.zone4_threshold > THRESHOLD_ZONE_THRESHOLD {
-                "threshold zones"
-            } else if zones.zone3_tempo > TEMPO_ZONE_THRESHOLD {
-                "tempo zones"
-            } else {
-                "mixed training zones"
-            }
-        } else {
-            "training zones"
-        };
+        let zone_desc = performance
+            .zone_distribution
+            .as_ref()
+            .map_or("training zones", |zones| {
+                if zones.zone2_endurance > SIGNIFICANT_ENDURANCE_ZONE_THRESHOLD {
+                    "endurance zones"
+                } else if zones.zone4_threshold > THRESHOLD_ZONE_THRESHOLD {
+                    "threshold zones"
+                } else if zones.zone3_tempo > TEMPO_ZONE_THRESHOLD {
+                    "tempo zones"
+                } else {
+                    "mixed training zones"
+                }
+            });
 
         // Personal records context
         let pr_context = match performance.personal_records.len() {
             0 => String::new(),
             1 => " with 1 new personal record".into(),
-            n => format!(" with {} new personal records", n),
+            n => format!(" with {n} new personal records"),
         };
 
         // Build the summary
@@ -377,22 +409,26 @@ impl ActivityAnalyzer {
             location_context
         ));
 
-        summary_parts.push(format!(
-            "{} and {} in {}",
-            pr_context, effort_desc, zone_desc
-        ));
+        summary_parts.push(format!("{pr_context} and {effort_desc} in {zone_desc}"));
 
         let mut summary = summary_parts.join("");
 
         // Add detailed insights
         if let Some(distance) = activity.distance_meters {
             let distance_km = distance / 1000.0;
-            summary.push_str(&format!(". During this {:.1} km session", distance_km));
+            #[allow(clippy::format_push_string)]
+            {
+                summary.push_str(". During this ");
+                summary.push_str(&format!("{distance_km:.1}"));
+                summary.push_str(" km session");
+            }
         }
 
         // Add primary insight from analysis
         if let Some(main_insight) = insights.first() {
-            summary.push_str(&format!(", {}", main_insight.message.to_lowercase()));
+            let message = main_insight.message.to_lowercase();
+            summary.push_str(", ");
+            summary.push_str(&message);
         }
 
         summary

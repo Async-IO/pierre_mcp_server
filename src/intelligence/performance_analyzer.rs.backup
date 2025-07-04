@@ -126,29 +126,20 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
         }
 
         // Simple linear regression to calculate R-squared
-        #[allow(clippy::cast_precision_loss)]
         let n = data_points.len() as f64;
-        #[allow(clippy::cast_precision_loss)]
         let sum_x: f64 = (0..data_points.len()).map(|i| i as f64).sum();
         let sum_y: f64 = data_points.iter().map(|p| p.value).sum();
         let sum_x_y: f64 = data_points
             .iter()
             .enumerate()
-            .map(|(i, p)| {
-                #[allow(clippy::cast_precision_loss)]
-                let i_f64 = i as f64;
-                i_f64 * p.value
-            })
+            .map(|(i, p)| i as f64 * p.value)
             .sum();
-        #[allow(clippy::cast_precision_loss)]
         let sum_x_squared: f64 = (0..data_points.len()).map(|i| (i as f64).powi(2)).sum();
         let sum_values_squared: f64 = data_points.iter().map(|p| p.value.powi(2)).sum();
 
-        let numerator = n.mul_add(sum_x_y, -(sum_x * sum_y));
-        let denominator = (
-            n.mul_add(sum_x_squared, -sum_x.powi(2))
-                * n.mul_add(sum_values_squared, -sum_y.powi(2))
-        ).sqrt();
+        let numerator = n * sum_x_y - sum_x * sum_y;
+        let denominator =
+            ((n * sum_x_squared - sum_x.powi(2)) * (n * sum_values_squared - sum_y.powi(2))).sqrt();
 
         if denominator == 0.0 {
             return 0.0;
@@ -169,7 +160,6 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
             let end = std::cmp::min(start + window_size, data_points.len());
 
             let window_sum: f64 = data_points[start..end].iter().map(|p| p.value).sum();
-            #[allow(clippy::cast_precision_loss)]
             let window_avg = window_sum / (end - start) as f64;
 
             data_points[i].smoothed_value = Some(window_avg);
@@ -280,7 +270,6 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
 
 #[async_trait::async_trait]
 impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
-    #[allow(clippy::cast_precision_loss)]
     async fn analyze_trends(
         &self,
         activities: &[Activity],
@@ -519,7 +508,6 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
         })
     }
 
-    #[allow(clippy::cast_precision_loss)]
     async fn predict_performance(
         &self,
         activities: &[Activity],
@@ -592,7 +580,6 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
         })
     }
 
-    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
     async fn analyze_training_load(&self, activities: &[Activity]) -> Result<TrainingLoadAnalysis> {
         // Analyze training load over recent weeks
         let weeks = 4;
@@ -661,29 +648,25 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
             .iter()
             .map(|w| w.total_duration_hours)
             .sum::<f64>()
-            / {
-                #[allow(clippy::cast_precision_loss)]
-                weekly_loads.len() as f64
-            };
+            / {\n                #[allow(clippy::cast_precision_loss)]\n                weekly_loads.len() as f64\n            };
 
         let load_variance = weekly_loads
             .iter()
             .map(|w| (w.total_duration_hours - avg_load).powi(2))
             .sum::<f64>()
-            / {
-                #[allow(clippy::cast_precision_loss)]
-                weekly_loads.len() as f64
-            };
+            / {\n                #[allow(clippy::cast_precision_loss)]\n                weekly_loads.len() as f64\n            };
 
-        let load_balance_score = (load_variance.sqrt() / avg_load).mul_add(-100.0, 100.0).max(0.0);
+        let load_balance_score = (100.0 - (load_variance.sqrt() / avg_load * 100.0)).max(0.0);
 
         // Determine if currently in recovery phase
         let last_week_load = weekly_loads
             .last()
-            .map_or(0.0, |w| w.total_duration_hours);
+            .map(|w| w.total_duration_hours)
+            .unwrap_or(0.0);
         let previous_week_load = weekly_loads
             .get(weekly_loads.len().saturating_sub(2))
-            .map_or(0.0, |w| w.total_duration_hours);
+            .map(|w| w.total_duration_hours)
+            .unwrap_or(0.0);
 
         let recovery_needed = last_week_load > avg_load * RECOVERY_LOAD_MULTIPLIER
             || (last_week_load + previous_week_load) > avg_load * TWO_WEEK_RECOVERY_THRESHOLD;

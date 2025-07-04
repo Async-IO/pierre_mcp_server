@@ -3,7 +3,17 @@
 //! Advanced fitness metrics calculation and analysis
 
 // Future: use crate::config::intelligence_config::{IntelligenceConfig};
-use crate::intelligence::physiological_constants::{metrics_constants::*, zone_percentages::*};
+use crate::intelligence::physiological_constants::{
+    metrics_constants::{
+        EFFICIENCY_TIME_MULTIPLIER, MIN_DECOUPLING_DATA_POINTS, TRIMP_BASE_MULTIPLIER,
+        TRIMP_EXPONENTIAL_FACTOR, TSS_BASE_MULTIPLIER,
+    },
+    zone_percentages::{
+        HR_ZONE1_UPPER_LIMIT, HR_ZONE2_UPPER_LIMIT, HR_ZONE3_UPPER_LIMIT, HR_ZONE4_UPPER_LIMIT,
+        POWER_ZONE1_UPPER_LIMIT, POWER_ZONE2_UPPER_LIMIT, POWER_ZONE3_UPPER_LIMIT,
+        POWER_ZONE4_UPPER_LIMIT,
+    },
+};
 use crate::models::Activity;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -86,7 +96,7 @@ impl Default for MetricsCalculator {
 impl MetricsCalculator {
     /// Create a new metrics calculator
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             ftp: None,
             lthr: None,
@@ -98,7 +108,7 @@ impl MetricsCalculator {
 
     /// Set user parameters for calculations
     #[must_use]
-    pub fn with_user_data(
+    pub const fn with_user_data(
         mut self,
         ftp: Option<f64>,
         lthr: Option<f64>,
@@ -115,31 +125,42 @@ impl MetricsCalculator {
     }
 
     /// Calculate all available metrics for an activity
+    ///
+    /// # Errors
+    /// Returns an error if metrics calculation fails
+    #[allow(clippy::too_many_lines)]
     pub fn calculate_metrics(&self, activity: &Activity) -> Result<AdvancedMetrics> {
         let mut metrics = AdvancedMetrics::default();
 
         // Calculate TRIMP if heart rate data is available
         if let Some(avg_hr) = activity.average_heart_rate {
+            #[allow(clippy::cast_possible_truncation)]
             let duration = activity.duration_seconds as i32;
-            metrics.trimp = self.calculate_trimp(avg_hr as f32, duration);
+            #[allow(clippy::cast_precision_loss)]
+            {
+                metrics.trimp = self.calculate_trimp(avg_hr as f32, duration);
+            }
         }
 
         // Use actual TSS if available, otherwise calculate
-        metrics.training_stress_score = activity
-            .training_stress_score
-            .map(|tss| tss as f64)
-            .or_else(|| {
+        metrics.training_stress_score =
+            activity.training_stress_score.map(f64::from).or_else(|| {
                 // Calculate TSS from power data if available
                 if let (Some(avg_power), Some(ftp)) = (activity.average_power, self.ftp) {
+                    #[allow(clippy::cast_precision_loss)]
                     let duration_hours = activity.duration_seconds as f64 / 3600.0;
-                    self.calculate_tss(avg_power as f32, ftp, duration_hours)
+                    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+                    Some(Self::calculate_tss(avg_power as f32, ftp, duration_hours))
                 } else if let (Some(avg_hr), Some(ftp)) = (activity.average_heart_rate, self.ftp) {
                     // Fallback to HR-based TSS estimation
+                    #[allow(clippy::cast_precision_loss)]
                     let duration_hours = activity.duration_seconds as f64 / 3600.0;
+                    #[allow(clippy::option_if_let_else)]
                     if let Some(max_hr) = self.max_hr {
-                        let hr_percentage = avg_hr as f64 / max_hr;
+                        let hr_percentage = f64::from(avg_hr) / max_hr;
                         let estimated_power = ftp * hr_percentage;
-                        self.calculate_tss(estimated_power as f32, ftp, duration_hours)
+                        #[allow(clippy::cast_possible_truncation)]
+                        Some(Self::calculate_tss(estimated_power as f32, ftp, duration_hours))
                     } else {
                         None
                     }
@@ -149,26 +170,25 @@ impl MetricsCalculator {
             });
 
         // Use actual intensity factor if available, otherwise calculate
-        metrics.intensity_factor = activity
-            .intensity_factor
-            .map(|if_val| if_val as f64)
-            .or_else(|| {
-                if let (Some(avg_power), Some(ftp)) = (activity.average_power, self.ftp) {
-                    Some(avg_power as f64 / ftp)
-                } else {
-                    None
-                }
-            });
+        metrics.intensity_factor = activity.intensity_factor.map(f64::from).or_else(|| {
+            if let (Some(avg_power), Some(ftp)) = (activity.average_power, self.ftp) {
+                Some(f64::from(avg_power) / ftp)
+            } else {
+                None
+            }
+        });
 
         // Calculate power-to-weight ratio if power and weight available
         if let (Some(avg_power), Some(weight)) = (activity.average_power, self.weight_kg) {
-            metrics.power_to_weight_ratio = Some(avg_power as f64 / weight);
-            metrics.avg_power_to_weight = Some(avg_power as f64 / weight);
+            metrics.power_to_weight_ratio = Some(f64::from(avg_power) / weight);
+            metrics.avg_power_to_weight = Some(f64::from(avg_power) / weight);
         }
 
         // Use actual normalized power or calculate from time series data
-        metrics.normalized_power = activity.normalized_power.map(|np| np as f64).or_else(|| {
+        metrics.normalized_power = activity.normalized_power.map(f64::from).or_else(|| {
+            #[allow(clippy::option_if_let_else)]
             if let Some(time_series) = &activity.time_series_data {
+                #[allow(clippy::option_if_let_else)]
                 if let Some(power_data) = &time_series.power {
                     self.calculate_normalized_power(power_data)
                 } else {
@@ -181,15 +201,17 @@ impl MetricsCalculator {
 
         // Calculate work (energy) if power is available
         if let Some(avg_power) = activity.average_power {
+            #[allow(clippy::cast_precision_loss)]
             let duration_hours = activity.duration_seconds as f64 / 3600.0;
-            metrics.work = Some(avg_power as f64 * duration_hours / 1000.0); // kJ
+            metrics.work = Some(f64::from(avg_power) * duration_hours / 1000.0);
+            // kJ
         }
 
         // Calculate aerobic efficiency if both HR and pace/power data available
         if let (Some(avg_hr), Some(avg_speed)) =
             (activity.average_heart_rate, activity.average_speed)
         {
-            metrics.aerobic_efficiency = Some(avg_speed / avg_hr as f64);
+            metrics.aerobic_efficiency = Some(avg_speed / f64::from(avg_hr));
         }
 
         // Running-specific metrics
@@ -202,9 +224,9 @@ impl MetricsCalculator {
                 (activity.average_heart_rate, activity.average_speed)
             {
                 metrics.running_effectiveness =
-                    Some(avg_speed / avg_hr as f64 * EFFICIENCY_TIME_MULTIPLIER);
+                    Some(avg_speed / f64::from(avg_hr) * EFFICIENCY_TIME_MULTIPLIER);
                 metrics.efficiency_factor =
-                    Some(avg_speed / avg_hr as f64 * EFFICIENCY_TIME_MULTIPLIER);
+                    Some(avg_speed / f64::from(avg_hr) * EFFICIENCY_TIME_MULTIPLIER);
             }
 
             // Stride efficiency
@@ -213,7 +235,8 @@ impl MetricsCalculator {
                 activity.average_cadence,
                 Some(activity.duration_seconds),
             ) {
-                let total_steps = (avg_cadence as f64 * duration as f64) / 60.0; // Convert cadence from steps/min
+                #[allow(clippy::cast_precision_loss)]
+                let total_steps = (f64::from(avg_cadence) * duration as f64) / 60.0; // Convert cadence from steps/min
                 metrics.stride_efficiency = Some(distance / total_steps);
             }
 
@@ -221,7 +244,7 @@ impl MetricsCalculator {
             if let Some(gct) = activity.ground_contact_time {
                 // Calculate balance based on ground contact time analysis
                 // A balanced runner typically has 45-55% left/right balance
-                let balance_score = self.calculate_ground_contact_balance(gct);
+                let balance_score = Self::calculate_ground_contact_balance(gct);
                 metrics.ground_contact_balance = Some(balance_score);
             }
         }
@@ -235,23 +258,28 @@ impl MetricsCalculator {
             // Calculate decoupling from HR and pace data
             if let (Some(hr_data), Some(speed_data)) = (&time_series.heart_rate, &time_series.speed)
             {
+                #[allow(clippy::cast_possible_truncation)]
+                #[allow(clippy::cast_precision_loss)]
                 let hr_f32: Vec<f32> = hr_data.iter().map(|&hr| hr as f32).collect();
                 metrics.decoupling_percentage = self.calculate_decoupling(&hr_f32, speed_data);
             }
         }
 
         // Environmental impact calculations
+        #[allow(clippy::option_if_let_else)]
         if let Some(temp) = activity.temperature {
-            metrics.temperature_stress = Some(self.calculate_temperature_stress(temp));
+            metrics.temperature_stress = Some(Self::calculate_temperature_stress(temp));
         }
 
+        #[allow(clippy::option_if_let_else)]
         if let Some(altitude) = activity.average_altitude {
-            metrics.altitude_adjustment = Some(self.calculate_altitude_adjustment(altitude));
+            metrics.altitude_adjustment = Some(Self::calculate_altitude_adjustment(altitude));
         }
 
         // Estimated recovery time based on training load
+        #[allow(clippy::option_if_let_else)]
         if let Some(tss) = metrics.training_stress_score {
-            metrics.estimated_recovery_time = Some(self.calculate_recovery_time(tss));
+            metrics.estimated_recovery_time = Some(Self::calculate_recovery_time(tss));
         }
 
         Ok(metrics)
@@ -259,38 +287,43 @@ impl MetricsCalculator {
 
     /// Calculate Training Impulse (TRIMP)
     fn calculate_trimp(&self, avg_hr: f32, duration_seconds: i32) -> Option<f64> {
-        let (max_hr, resting_hr) = match (self.max_hr, self.resting_hr) {
-            (Some(max), Some(rest)) => (max, rest),
-            _ => return None,
+        #[allow(clippy::question_mark)]
+        let Some(max_hr) = self.max_hr else {
+            return None;
+        };
+        #[allow(clippy::question_mark)]
+        let Some(resting_hr) = self.resting_hr else {
+            return None;
         };
 
         let hr_reserve = max_hr - resting_hr;
-        let hr_ratio = (avg_hr as f64 - resting_hr) / hr_reserve;
-        let duration_minutes = duration_seconds as f64 / 60.0;
+        let hr_ratio = (f64::from(avg_hr) - resting_hr) / hr_reserve;
+        let duration_minutes = f64::from(duration_seconds) / 60.0;
 
         // Simplified TRIMP calculation using established constants
         Some(
             duration_minutes
                 * hr_ratio
                 * TRIMP_BASE_MULTIPLIER
-                * (std::f64::consts::E.powf(TRIMP_EXPONENTIAL_FACTOR * hr_ratio)),
+                * (TRIMP_EXPONENTIAL_FACTOR * hr_ratio).exp(),
         )
     }
 
     /// Calculate Training Stress Score (TSS)
-    fn calculate_tss(&self, avg_power: f32, ftp: f64, duration_hours: f64) -> Option<f64> {
-        let intensity_factor = avg_power as f64 / ftp;
-        Some((duration_hours * intensity_factor * intensity_factor * TSS_BASE_MULTIPLIER).round())
+    fn calculate_tss(avg_power: f32, ftp: f64, duration_hours: f64) -> f64 {
+        let intensity_factor = f64::from(avg_power) / ftp;
+        (duration_hours * intensity_factor * intensity_factor * TSS_BASE_MULTIPLIER).round()
     }
 
     /// Calculate normalized power (4th root of 30-second rolling average of power^4)
+    #[must_use]
     pub fn calculate_normalized_power(&self, power_data: &[u32]) -> Option<f64> {
         if power_data.len() < 30 {
             return None; // Need at least 30 seconds of data
         }
 
         // Convert to f64 for calculations
-        let power_f64: Vec<f64> = power_data.iter().map(|&p| p as f64).collect();
+        let power_f64: Vec<f64> = power_data.iter().map(|&p| f64::from(p)).collect();
 
         // Calculate 30-second rolling averages of power^4
         let mut rolling_avg_power4 = Vec::new();
@@ -305,31 +338,38 @@ impl MetricsCalculator {
         }
 
         // Take the average of all 30-second power^4 values, then take 4th root
+        #[allow(clippy::cast_precision_loss)]
         let mean_power4 = rolling_avg_power4.iter().sum::<f64>() / rolling_avg_power4.len() as f64;
         Some(mean_power4.powf(0.25))
     }
 
     /// Calculate power variability index
+    #[must_use]
     pub fn calculate_variability_index(&self, power_data: &[u32]) -> Option<f64> {
         if power_data.is_empty() {
             return None;
         }
 
+        #[allow(clippy::cast_precision_loss)]
         let avg_power: f64 =
-            power_data.iter().map(|&p| p as f64).sum::<f64>() / power_data.len() as f64;
+            power_data.iter().map(|&p| f64::from(p)).sum::<f64>() / power_data.len() as f64;
 
         // Use normalized power if we can calculate it
+        #[allow(clippy::option_if_let_else)]
         if let Some(normalized_power) = self.calculate_normalized_power(power_data) {
             Some(normalized_power / avg_power)
         } else {
             // Fallback to simple variability calculation
-            let sum_of_squares: f64 = power_data.iter().map(|&p| (p as f64).powi(2)).sum();
+            let sum_of_squares: f64 = power_data.iter().map(|&p| f64::from(p).powi(2)).sum();
+            #[allow(clippy::cast_precision_loss)]
             let rms_power = (sum_of_squares / power_data.len() as f64).sqrt();
             Some(rms_power / avg_power)
         }
     }
 
     /// Calculate pace decoupling for endurance activities
+    #[allow(clippy::cast_precision_loss)]
+    #[must_use]
     pub fn calculate_decoupling(&self, hr_data: &[f32], pace_data: &[f32]) -> Option<f64> {
         if hr_data.len() != pace_data.len() || hr_data.len() < MIN_DECOUPLING_DATA_POINTS {
             return None;
@@ -338,20 +378,26 @@ impl MetricsCalculator {
         let half_point = hr_data.len() / 2;
 
         // First half averages
-        let first_half_hr: f64 =
-            hr_data[..half_point].iter().map(|&h| h as f64).sum::<f64>() / half_point as f64;
+        let first_half_hr: f64 = hr_data[..half_point]
+            .iter()
+            .map(|&h| f64::from(h))
+            .sum::<f64>()
+            / half_point as f64;
         let first_half_pace: f64 = pace_data[..half_point]
             .iter()
-            .map(|&p| p as f64)
+            .map(|&p| f64::from(p))
             .sum::<f64>()
             / half_point as f64;
 
         // Second half averages
-        let second_half_hr: f64 = hr_data[half_point..].iter().map(|&h| h as f64).sum::<f64>()
+        let second_half_hr: f64 = hr_data[half_point..]
+            .iter()
+            .map(|&h| f64::from(h))
+            .sum::<f64>()
             / (hr_data.len() - half_point) as f64;
         let second_half_pace: f64 = pace_data[half_point..]
             .iter()
-            .map(|&p| p as f64)
+            .map(|&p| f64::from(p))
             .sum::<f64>()
             / (pace_data.len() - half_point) as f64;
 
@@ -364,7 +410,7 @@ impl MetricsCalculator {
     }
 
     /// Calculate temperature stress factor
-    fn calculate_temperature_stress(&self, temperature: f32) -> f64 {
+    fn calculate_temperature_stress(temperature: f32) -> f64 {
         // Temperature stress increases outside the optimal range of 10-20°C
         let optimal_min = 10.0;
         let optimal_max = 20.0;
@@ -373,41 +419,47 @@ impl MetricsCalculator {
             1.0 // No stress
         } else if temperature < optimal_min {
             // Cold stress increases as temperature drops
-            1.0 + ((optimal_min - temperature) / 10.0).clamp(0.0, 2.0) as f64
+            1.0 + f64::from(((optimal_min - temperature) / 10.0).clamp(0.0, 2.0))
         } else {
             // Heat stress increases as temperature rises
-            1.0 + ((temperature - optimal_max) / 10.0).clamp(0.0, 3.0) as f64
+            1.0 + f64::from(((temperature - optimal_max) / 10.0).clamp(0.0, 3.0))
         }
     }
 
     /// Calculate altitude adjustment factor
-    fn calculate_altitude_adjustment(&self, altitude: f32) -> f64 {
+    fn calculate_altitude_adjustment(altitude: f32) -> f64 {
         // Performance decreases with altitude due to reduced oxygen
         // Approximately 1% performance loss per 100m above 1500m
         if altitude <= 1500.0 {
             1.0 // No adjustment needed
         } else {
             let altitude_effect = (altitude - 1500.0) / 10000.0; // 1% per 100m
-            1.0 + (altitude_effect.min(0.20) as f64) // Cap at 20% adjustment
+            1.0 + f64::from(altitude_effect.min(0.20)) // Cap at 20% adjustment
         }
     }
 
     /// Calculate estimated recovery time based on training stress
-    fn calculate_recovery_time(&self, tss: f64) -> f64 {
+    const fn calculate_recovery_time(tss: f64) -> f64 {
         // Simple recovery time estimation based on TSS
         // Formula: Recovery hours = TSS / 10 (simplified)
         (tss / 10.0).clamp(2.0, 72.0) // Minimum 2 hours, maximum 72 hours
     }
 
     /// Calculate training load combining duration and intensity
+    ///
+    /// # Errors
+    /// This function does not return a Result but returns None if calculation cannot be performed
+    #[must_use]
     pub fn calculate_training_load(&self, activity: &Activity) -> Option<f64> {
+        #[allow(clippy::cast_precision_loss)]
         let duration_hours = activity.duration_seconds as f64 / 3600.0;
 
         // Use intensity factor if available, otherwise estimate from heart rate
+        #[allow(clippy::option_if_let_else)]
         let intensity = if let Some(if_val) = activity.intensity_factor {
-            if_val as f64
+            f64::from(if_val)
         } else if let (Some(avg_hr), Some(lthr)) = (activity.average_heart_rate, self.lthr) {
-            (avg_hr as f64 / lthr).min(1.5) // Cap at 150% of threshold
+            (f64::from(avg_hr) / lthr).min(1.5) // Cap at 150% of threshold
         } else {
             0.7 // Default moderate intensity
         };
@@ -416,10 +468,14 @@ impl MetricsCalculator {
     }
 
     /// Calculate aerobic vs anaerobic contribution
+    ///
+    /// # Errors
+    /// This function does not return a Result but returns None if calculation cannot be performed
+    #[must_use]
     pub fn calculate_aerobic_contribution(&self, activity: &Activity) -> Option<f64> {
         // Estimate based on heart rate zones or intensity
         if let (Some(avg_hr), Some(lthr)) = (activity.average_heart_rate, self.lthr) {
-            let hr_ratio = avg_hr as f64 / lthr;
+            let hr_ratio = f64::from(avg_hr) / lthr;
 
             if hr_ratio <= 0.85 {
                 Some(95.0) // Mostly aerobic
@@ -436,21 +492,22 @@ impl MetricsCalculator {
     }
 
     /// Calculate ground contact balance from ground contact time
-    fn calculate_ground_contact_balance(&self, ground_contact_time: u32) -> f64 {
+    fn calculate_ground_contact_balance(ground_contact_time: u32) -> f64 {
         // Ground contact time in milliseconds - analyze for balance estimation
         // Typical ground contact times: 200-300ms for recreational runners
         // Balanced runners have consistent contact times
 
-        let gct_ms = ground_contact_time as f64;
+        let gct_ms = f64::from(ground_contact_time);
 
         // Estimate balance based on contact time patterns
         // This is a simplified calculation that would ideally use left/right foot data
+        #[allow(clippy::option_if_let_else)]
         if (200.0..=300.0).contains(&gct_ms) {
             // Good contact time range suggests better balance
-            50.0 + ((250.0 - (gct_ms - 250.0).abs()) / 250.0) * 5.0
+            ((250.0 - (gct_ms - 250.0).abs()) / 250.0).mul_add(5.0, 50.0)
         } else if gct_ms < 200.0 {
             // Very short contact time - might indicate imbalance
-            45.0 + (gct_ms / 200.0) * 5.0
+            (gct_ms / 200.0).mul_add(5.0, 45.0)
         } else {
             // Long contact time - might indicate fatigue or imbalance
             55.0 - ((gct_ms - 300.0) / 100.0).min(10.0)
@@ -471,34 +528,39 @@ pub struct ZoneAnalysis {
 
 impl ZoneAnalysis {
     /// Calculate time in zones based on heart rate data
+    #[allow(clippy::cast_precision_loss)]
+    #[must_use]
     pub fn from_heart_rate_data(hr_data: &[f32], lthr: f64) -> Self {
         let total_points = hr_data.len() as f64;
 
         let zone1 = hr_data
             .iter()
-            .filter(|&&hr| hr as f64 <= lthr * HR_ZONE1_UPPER_LIMIT)
+            .filter(|&&hr| f64::from(hr) <= lthr * HR_ZONE1_UPPER_LIMIT)
             .count() as f64;
         let zone2 = hr_data
             .iter()
             .filter(|&&hr| {
-                hr as f64 > lthr * HR_ZONE1_UPPER_LIMIT && hr as f64 <= lthr * HR_ZONE2_UPPER_LIMIT
+                f64::from(hr) > lthr * HR_ZONE1_UPPER_LIMIT
+                    && f64::from(hr) <= lthr * HR_ZONE2_UPPER_LIMIT
             })
             .count() as f64;
         let zone3 = hr_data
             .iter()
             .filter(|&&hr| {
-                hr as f64 > lthr * HR_ZONE2_UPPER_LIMIT && hr as f64 <= lthr * HR_ZONE3_UPPER_LIMIT
+                f64::from(hr) > lthr * HR_ZONE2_UPPER_LIMIT
+                    && f64::from(hr) <= lthr * HR_ZONE3_UPPER_LIMIT
             })
             .count() as f64;
         let zone4 = hr_data
             .iter()
             .filter(|&&hr| {
-                hr as f64 > lthr * HR_ZONE3_UPPER_LIMIT && hr as f64 <= lthr * HR_ZONE4_UPPER_LIMIT
+                f64::from(hr) > lthr * HR_ZONE3_UPPER_LIMIT
+                    && f64::from(hr) <= lthr * HR_ZONE4_UPPER_LIMIT
             })
             .count() as f64;
         let zone5 = hr_data
             .iter()
-            .filter(|&&hr| hr as f64 > lthr * HR_ZONE4_UPPER_LIMIT)
+            .filter(|&&hr| f64::from(hr) > lthr * HR_ZONE4_UPPER_LIMIT)
             .count() as f64;
 
         let mut time_in_zones = HashMap::new();
@@ -519,37 +581,38 @@ impl ZoneAnalysis {
     }
 
     /// Calculate time in zones based on power data
+    #[allow(clippy::cast_precision_loss)]
     pub fn from_power_data(power_data: &[f32], ftp: f64) -> Self {
         let total_points = power_data.len() as f64;
 
         let zone1 = power_data
             .iter()
-            .filter(|&&p| p as f64 <= ftp * POWER_ZONE1_UPPER_LIMIT)
+            .filter(|&&p| f64::from(p) <= ftp * POWER_ZONE1_UPPER_LIMIT)
             .count() as f64;
         let zone2 = power_data
             .iter()
             .filter(|&&p| {
-                p as f64 > ftp * POWER_ZONE1_UPPER_LIMIT
-                    && p as f64 <= ftp * POWER_ZONE2_UPPER_LIMIT
+                f64::from(p) > ftp * POWER_ZONE1_UPPER_LIMIT
+                    && f64::from(p) <= ftp * POWER_ZONE2_UPPER_LIMIT
             })
             .count() as f64;
         let zone3 = power_data
             .iter()
             .filter(|&&p| {
-                p as f64 > ftp * POWER_ZONE2_UPPER_LIMIT
-                    && p as f64 <= ftp * POWER_ZONE3_UPPER_LIMIT
+                f64::from(p) > ftp * POWER_ZONE2_UPPER_LIMIT
+                    && f64::from(p) <= ftp * POWER_ZONE3_UPPER_LIMIT
             })
             .count() as f64;
         let zone4 = power_data
             .iter()
             .filter(|&&p| {
-                p as f64 > ftp * POWER_ZONE3_UPPER_LIMIT
-                    && p as f64 <= ftp * POWER_ZONE4_UPPER_LIMIT
+                f64::from(p) > ftp * POWER_ZONE3_UPPER_LIMIT
+                    && f64::from(p) <= ftp * POWER_ZONE4_UPPER_LIMIT
             })
             .count() as f64;
         let zone5 = power_data
             .iter()
-            .filter(|&&p| p as f64 > ftp * POWER_ZONE4_UPPER_LIMIT)
+            .filter(|&&p| f64::from(p) > ftp * POWER_ZONE4_UPPER_LIMIT)
             .count() as f64;
 
         let mut time_in_zones = HashMap::new();

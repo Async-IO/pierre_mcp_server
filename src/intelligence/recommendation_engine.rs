@@ -2,13 +2,32 @@
 // ABOUTME: Generates custom workout plans, recovery suggestions, and training adaptations
 //! Training recommendation engine for personalized insights
 
-use super::*;
+use super::{
+    Confidence, FitnessLevel, InsightSeverity, RecommendationPriority, RecommendationType,
+    TrainingRecommendation, UserFitnessProfile,
+};
 use crate::config::intelligence_config::{
     IntelligenceConfig, IntelligenceStrategy, RecommendationEngineConfig,
 };
 use crate::intelligence::physiological_constants::{
-    consistency::*, frequency_targets::*, hr_estimation::*, intensity_balance::*, nutrition::*,
-    time_periods::*, volume_thresholds::*,
+    consistency::CONSISTENCY_SCORE_THRESHOLD,
+    frequency_targets::MAX_WEEKLY_FREQUENCY,
+    hr_estimation::{ASSUMED_MAX_HR, RECOVERY_HR_PERCENTAGE},
+    intensity_balance::{
+        HIGH_INTENSITY_UPPER_LIMIT, LOW_INTENSITY_LOWER_LIMIT, MODERATE_NUTRITION_HR_THRESHOLD,
+    },
+    nutrition::{
+        DURING_EXERCISE_DURATION_THRESHOLD, POST_EXERCISE_DURATION_THRESHOLD,
+        PRE_EXERCISE_DURATION_THRESHOLD,
+    },
+    time_periods::{
+        LONG_TRAINING_GAP_DAYS, MAX_CONSECUTIVE_TRAINING_DAYS, RECOVERY_ANALYSIS_DAYS,
+        SHORT_TRAINING_GAP_DAYS, TRAINING_PATTERN_ANALYSIS_WEEKS,
+    },
+    volume_thresholds::{
+        HIGH_WEEKLY_LOAD_SECONDS, HIGH_WEEKLY_VOLUME_HOURS, MAX_HIGH_INTENSITY_SESSIONS_PER_WEEK,
+        MIN_WEEKLY_VOLUME_HOURS,
+    },
 };
 use crate::models::Activity;
 use anyhow::Result;
@@ -87,7 +106,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
 
     /// Create with custom configuration
     #[must_use]
-    pub fn with_config(strategy: S, config: RecommendationEngineConfig) -> Self {
+    pub const fn with_config(strategy: S, config: RecommendationEngineConfig) -> Self {
         Self {
             strategy,
             config,
@@ -136,13 +155,18 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
                 .or_insert(0) += 1;
 
             let duration = activity.duration_seconds;
-            weekly_load += duration as f64 / 3600.0; // Hours
+            #[allow(clippy::cast_precision_loss)]
+            {
+                weekly_load += duration as f64 / 3600.0;
+            } // Hours
             _total_duration += duration;
 
             if let Some(avg_hr) = activity.average_heart_rate {
                 // Use configurable heart rate thresholds
                 let hr_config = &self.config.thresholds;
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
                 let intensity_threshold = (hr_config.intensity_threshold * ASSUMED_MAX_HR) as u32;
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
                 let recovery_threshold = (RECOVERY_HR_PERCENTAGE * ASSUMED_MAX_HR) as u32;
 
                 if avg_hr > intensity_threshold {
@@ -155,18 +179,26 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
 
         weekly_load /= 4.0; // Average per week
 
-        let intensity_balance = if !recent_activities.is_empty() {
-            high_intensity_count as f64 / recent_activities.len() as f64
-        } else {
+        let intensity_balance = if recent_activities.is_empty() {
             0.0
+        } else {
+            #[allow(clippy::cast_precision_loss)]
+            {
+                f64::from(high_intensity_count) / recent_activities.len() as f64
+            }
         };
 
         // Use configurable frequency thresholds for consistency scoring
+        #[allow(clippy::cast_sign_loss)]
         let high_freq = (self.config.thresholds.high_weekly_frequency * 4) as usize; // 4 weeks
+        #[allow(clippy::cast_sign_loss)]
         let low_freq = (self.config.thresholds.low_weekly_frequency * 4) as usize;
-        let ideal_freq = ((self.config.thresholds.high_weekly_frequency
-            + self.config.thresholds.low_weekly_frequency)
-            / 2
+        #[allow(clippy::cast_sign_loss)]
+        let ideal_freq = (self
+            .config
+            .thresholds
+            .high_weekly_frequency
+            .midpoint(self.config.thresholds.low_weekly_frequency)
             * 4) as usize;
 
         let consistency_score = if recent_activities.len() >= high_freq {
@@ -189,8 +221,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
             primary_sport: sport_frequency
                 .iter()
                 .max_by_key(|(_, &count)| count)
-                .map(|(sport, _)| sport.clone())
-                .unwrap_or_else(|| "Unknown".into()),
+                .map_or_else(|| "Unknown".into(), |(sport, _)| sport.clone()),
             training_gaps: self.identify_training_gaps(&owned_activities),
         }
     }
@@ -220,7 +251,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
                 gaps.push(TrainingGap {
                     gap_type: GapType::LongRest,
                     duration_days: gap_days,
-                    description: format!("{} days without training", gap_days),
+                    description: format!("{gap_days} days without training"),
                     severity: if gap_days > LONG_TRAINING_GAP_DAYS {
                         InsightSeverity::Warning
                     } else {
@@ -243,8 +274,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
                         gap_type: GapType::MissingSport,
                         duration_days: 0,
                         description: format!(
-                            "Missing {} training in recent activities",
-                            primary_sport
+                            "Missing {primary_sport} training in recent activities"
                         ),
                         severity: InsightSeverity::Info,
                     });
@@ -287,6 +317,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
 
         // Use strategy frequency thresholds
         // Estimate weekly activities based on intensity threshold
+        #[allow(clippy::cast_possible_truncation)]
         let weekly_activities =
             (analysis.weekly_load_hours / self.config.thresholds.intensity_threshold).ceil() as i32;
         if self.strategy.should_recommend_recovery(weekly_activities) {
@@ -308,9 +339,8 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
         recommendations
     }
 
-    /// Generate sport diversity recommendations using sport_diversity and primary_sport fields
+    /// Generate sport diversity recommendations using `sport_diversity` and `primary_sport` fields
     fn generate_sport_diversity_recommendations(
-        &self,
         analysis: &TrainingPatternAnalysis,
     ) -> Vec<TrainingRecommendation> {
         let mut recommendations = Vec::new();
@@ -351,7 +381,6 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
 
     /// Generate intensity-based recommendations
     fn generate_intensity_recommendations(
-        &self,
         analysis: &TrainingPatternAnalysis,
     ) -> Vec<TrainingRecommendation> {
         let mut recommendations = Vec::new();
@@ -391,7 +420,6 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
 
     /// Generate volume-based recommendations
     fn generate_volume_recommendations(
-        &self,
         analysis: &TrainingPatternAnalysis,
     ) -> Vec<TrainingRecommendation> {
         let mut recommendations = Vec::new();
@@ -431,7 +459,6 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
 
     /// Generate consistency recommendations
     fn generate_consistency_recommendations(
-        &self,
         analysis: &TrainingPatternAnalysis,
     ) -> Vec<TrainingRecommendation> {
         let mut recommendations = Vec::new();
@@ -461,7 +488,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
                         let priority = match gap.severity {
                             InsightSeverity::Warning => RecommendationPriority::High,
                             InsightSeverity::Info => RecommendationPriority::Medium,
-                            _ => RecommendationPriority::Low,
+                            InsightSeverity::Critical => RecommendationPriority::Low,
                         };
 
                         recommendations.push(TrainingRecommendation {
@@ -483,8 +510,9 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
                     // Use severity field to determine recommendation priority
                     let priority = match gap.severity {
                         InsightSeverity::Warning => RecommendationPriority::Medium,
-                        InsightSeverity::Info => RecommendationPriority::Low,
-                        _ => RecommendationPriority::Low,
+                        InsightSeverity::Info | InsightSeverity::Critical => {
+                            RecommendationPriority::Low
+                        }
                     };
 
                     recommendations.push(TrainingRecommendation {
@@ -521,15 +549,15 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
         let analysis = self.analyze_training_patterns(activities);
 
         // Generate different types of recommendations
-        recommendations.extend(self.generate_intensity_recommendations(&analysis));
-        recommendations.extend(self.generate_volume_recommendations(&analysis));
-        recommendations.extend(self.generate_consistency_recommendations(&analysis));
+        recommendations.extend(Self::generate_intensity_recommendations(&analysis));
+        recommendations.extend(Self::generate_volume_recommendations(&analysis));
+        recommendations.extend(Self::generate_consistency_recommendations(&analysis));
 
         // Add strategy-specific recommendations using the strategy field
         recommendations.extend(self.generate_strategy_based_recommendations(&analysis));
 
         // Add sport diversity recommendations using sport_diversity and primary_sport fields
-        recommendations.extend(self.generate_sport_diversity_recommendations(&analysis));
+        recommendations.extend(Self::generate_sport_diversity_recommendations(&analysis));
 
         // Fitness level specific recommendations
         match user_profile.fitness_level {
@@ -653,12 +681,12 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
         }
 
         // Check for consecutive training days
-        let consecutive_days = self.count_consecutive_training_days(&owned_activities);
+        let consecutive_days = Self::count_consecutive_training_days(&owned_activities);
         if consecutive_days > MAX_CONSECUTIVE_TRAINING_DAYS {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Recovery,
                 title: "Take a Rest Day".into(),
-                description: format!("{} consecutive training days detected.", consecutive_days),
+                description: format!("{consecutive_days} consecutive training days detected."),
                 priority: RecommendationPriority::Medium,
                 confidence: Confidence::High,
                 rationale: "Regular rest days are essential for physical and mental recovery."
@@ -680,6 +708,7 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
     ) -> Result<Vec<TrainingRecommendation>> {
         let mut recommendations = Vec::new();
 
+        #[allow(clippy::cast_precision_loss)]
         let duration_hours = activity.duration_seconds as f64 / 3600.0;
         let high_intensity =
             activity.average_heart_rate.unwrap_or(0) > MODERATE_NUTRITION_HR_THRESHOLD;
@@ -757,6 +786,7 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
         }
 
         // Running-specific equipment
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         if sport_counts.get("Run").unwrap_or(&0) > &(MAX_WEEKLY_FREQUENCY as usize) {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Equipment,
@@ -775,6 +805,7 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
         }
 
         // Cycling-specific equipment
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         if sport_counts.get("Ride").unwrap_or(&0) > &(MAX_WEEKLY_FREQUENCY as usize) {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Equipment,
@@ -794,6 +825,7 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
 
         // General monitoring equipment
         let has_hr_data = activities.iter().any(|a| a.average_heart_rate.is_some());
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         if !has_hr_data && activities.len() > MAX_WEEKLY_FREQUENCY as usize {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Equipment,
@@ -817,7 +849,7 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
 
 impl AdvancedRecommendationEngine {
     /// Count consecutive training days
-    fn count_consecutive_training_days(&self, activities: &[Activity]) -> usize {
+    fn count_consecutive_training_days(activities: &[Activity]) -> usize {
         let mut consecutive = 0;
         let mut current_date = Utc::now().date_naive();
 
@@ -876,6 +908,7 @@ enum GapType {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::intelligence::{TimeAvailability, UserPreferences};
     use chrono::Duration;
 
     #[tokio::test]

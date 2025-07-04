@@ -19,7 +19,12 @@
 //! - Advanced metrics calculation
 
 use chrono::{DateTime, Utc};
-use physiological_constants::fitness_score_thresholds::*;
+use physiological_constants::fitness_score_thresholds::{
+    EXCELLENT_PERFORMANCE_THRESHOLD, FITNESS_IMPROVING_THRESHOLD, FITNESS_STABLE_THRESHOLD,
+    GOOD_PERFORMANCE_THRESHOLD, MIN_STATISTICAL_SIGNIFICANCE_POINTS,
+    MODERATE_PERFORMANCE_THRESHOLD, SMALL_DATASET_REDUCTION_FACTOR,
+    STATISTICAL_SIGNIFICANCE_THRESHOLD, STRENGTH_ENDURANCE_DIVISOR,
+};
 use serde::{Deserialize, Serialize};
 
 pub mod analyzer;

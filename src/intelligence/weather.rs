@@ -12,7 +12,17 @@ use super::WeatherConditions;
 use crate::config::fitness_config::WeatherApiConfig;
 use crate::config::intelligence_config::{IntelligenceConfig, WeatherAnalysisConfig};
 use crate::intelligence::physiological_constants::{
-    unit_conversions::*, weather_impact_factors::*, weather_thresholds::*,
+    unit_conversions::MS_TO_KMH_FACTOR,
+    weather_impact_factors::{
+        COLD_DIFFICULTY, EXTREME_COLD_DIFFICULTY, EXTREME_HOT_DIFFICULTY, HIGH_HUMIDITY_DIFFICULTY,
+        MODERATE_WIND_DIFFICULTY, RAIN_DIFFICULTY, SNOW_DIFFICULTY, STRONG_WIND_DIFFICULTY,
+        WARM_DIFFICULTY,
+    },
+    weather_thresholds::{
+        COLD_THRESHOLD_CELSIUS, EXTREME_COLD_CELSIUS, EXTREME_HOT_THRESHOLD_CELSIUS,
+        HIGH_HUMIDITY_THRESHOLD, HOT_THRESHOLD_CELSIUS, HUMIDITY_IMPACT_TEMP_THRESHOLD,
+        MODERATE_WIND_THRESHOLD, STRONG_WIND_THRESHOLD,
+    },
 };
 use chrono::{DateTime, Utc};
 use reqwest::Client;
@@ -36,7 +46,7 @@ struct CachedWeatherData {
     cached_at: SystemTime,
 }
 
-/// OpenWeatherMap historical API response structure
+/// `OpenWeatherMap` historical API response structure
 #[derive(Debug, Deserialize)]
 struct OpenWeatherResponse {
     data: Vec<OpenWeatherHourlyData>,
@@ -59,6 +69,7 @@ struct OpenWeatherCondition {
 
 impl WeatherService {
     /// Create a new weather service with configuration and API key
+    #[must_use]
     pub fn new(api_config: WeatherApiConfig, api_key: Option<String>) -> Self {
         let intelligence_config = IntelligenceConfig::global();
         Self {
@@ -74,6 +85,7 @@ impl WeatherService {
     }
 
     /// Create weather service with default configuration
+    #[must_use]
     pub fn with_default_config() -> Self {
         Self::new(
             WeatherApiConfig::default(),
@@ -82,6 +94,7 @@ impl WeatherService {
     }
 
     /// Create weather service with custom weather analysis configuration
+    #[must_use]
     pub fn with_weather_config(
         api_config: WeatherApiConfig,
         weather_config: WeatherAnalysisConfig,
@@ -100,16 +113,23 @@ impl WeatherService {
     }
 
     /// Get the current weather service configuration
-    pub fn get_config(&self) -> &WeatherApiConfig {
+    #[must_use]
+    pub const fn get_config(&self) -> &WeatherApiConfig {
         &self.api_config
     }
 
     /// Get the weather analysis configuration
-    pub fn get_weather_config(&self) -> &WeatherAnalysisConfig {
+    #[must_use]
+    pub const fn get_weather_config(&self) -> &WeatherAnalysisConfig {
         &self.weather_config
     }
 
     /// Get weather conditions for a specific time and location
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the weather API is disabled, the API request fails,
+    /// or the response cannot be parsed
     pub async fn get_weather_at_time(
         &mut self,
         latitude: f64,
@@ -181,7 +201,8 @@ impl WeatherService {
         }
     }
 
-    /// Fetch weather from OpenWeatherMap Historical API
+    /// Fetch weather from `OpenWeatherMap` Historical API
+    #[allow(clippy::cast_possible_truncation)]
     async fn fetch_from_openweather(
         &self,
         latitude: f64,
@@ -214,8 +235,7 @@ impl WeatherService {
                 .await
                 .unwrap_or_else(|_| "Unknown error".into());
             return Err(WeatherError::ApiError(format!(
-                "OpenWeather API returned status {}: {}",
-                status, error_text
+                "OpenWeather API returned status {status}: {error_text}"
             )));
         }
 
@@ -230,17 +250,17 @@ impl WeatherService {
             .ok_or_else(|| WeatherError::DataUnavailable)?;
 
         // Convert to our format - use both main and description for detailed conditions
-        let conditions = if let Some(weather) = closest_data.weather.first() {
-            // Combine main weather type with detailed description
-            if weather.description.to_lowercase() != weather.main.to_lowercase() {
-                format!("{} - {}", weather.main, weather.description)
-            } else {
-                weather.main.clone()
-            }
-        } else {
-            "clear".into()
-        };
-
+        let conditions = closest_data.weather.first().map_or_else(
+            || "clear".into(),
+            |weather| {
+                // Combine main weather type with detailed description
+                if weather.description.to_lowercase() == weather.main.to_lowercase() {
+                    weather.main.clone()
+                } else {
+                    format!("{} - {}", weather.main, weather.description)
+                }
+            },
+        );
         Ok(WeatherConditions {
             temperature_celsius: closest_data.temp as f32,
             humidity_percentage: closest_data.humidity.map(|h| h as f32),
@@ -252,6 +272,10 @@ impl WeatherService {
     }
 
     /// Get weather conditions for an activity's start location and time
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if weather API calls fail or location data is invalid
     pub async fn get_weather_for_activity(
         &mut self,
         start_latitude: Option<f64>,
@@ -270,6 +294,8 @@ impl WeatherService {
     }
 
     /// Analyze weather impact on performance
+    #[must_use]
+    #[allow(clippy::cast_possible_truncation)]
     pub fn analyze_weather_impact(&self, weather: &WeatherConditions) -> WeatherImpact {
         let mut impact_factors = Vec::new();
         let mut overall_difficulty = 0.0;

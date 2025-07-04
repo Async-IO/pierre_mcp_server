@@ -2,11 +2,28 @@
 // ABOUTME: Analyzes individual activities for pace, power, heart rate patterns and training insights
 //! Activity analysis engine for detailed activity insights
 
-use super::*;
+use super::{
+    ActivityInsights, AdvancedInsight, AdvancedMetrics, Anomaly, Confidence, InsightSeverity,
+    MetricsCalculator,
+};
 use crate::config::intelligence_config::{ActivityAnalyzerConfig, IntelligenceConfig};
 use crate::intelligence::physiological_constants::{
-    activity_scoring::*, duration::*, efficiency::*, heart_rate::*, max_speeds::*, performance::*,
-    power::*, running::*, training_load::*,
+    activity_scoring::{
+        BASE_ACTIVITY_SCORE, COMPLETION_BONUS, DURATION_BONUS, HR_ZONE_BONUS, INTENSITY_BONUS,
+        STANDARD_BONUS,
+    },
+    duration::{ENDURANCE_DURATION_THRESHOLD, LONG_WORKOUT_DURATION, MIN_AEROBIC_DURATION},
+    efficiency::{EXCELLENT_AEROBIC_EFFICIENCY, GOOD_AEROBIC_EFFICIENCY},
+    heart_rate::{
+        AEROBIC_THRESHOLD_PERCENTAGE, ANAEROBIC_THRESHOLD_PERCENTAGE, HIGH_INTENSITY_HR_THRESHOLD,
+        MAX_REALISTIC_HEART_RATE, MODERATE_HR_THRESHOLD, RECOVERY_HR_THRESHOLD,
+        VERY_HIGH_INTENSITY_HR_THRESHOLD,
+    },
+    max_speeds::{DEFAULT_MAX_SPEED, MAX_CYCLING_SPEED, MAX_RUNNING_SPEED, MAX_SWIMMING_SPEED},
+    performance::{HR_EFFICIENCY_IMPROVEMENT_THRESHOLD, PACE_IMPROVEMENT_THRESHOLD},
+    power::{COMPETITIVE_POWER_TO_WEIGHT, ELITE_POWER_TO_WEIGHT, RECREATIONAL_POWER_TO_WEIGHT},
+    running::FAST_PACE_THRESHOLD,
+    training_load::{HIGH_TSS_THRESHOLD, LOW_TSS_THRESHOLD},
 };
 use crate::models::{Activity, SportType};
 use anyhow::Result;
@@ -88,7 +105,7 @@ impl AdvancedActivityAnalyzer {
 
     /// Create with custom configuration
     #[must_use]
-    pub fn with_config(config: ActivityAnalyzerConfig) -> Self {
+    pub const fn with_config(config: ActivityAnalyzerConfig) -> Self {
         Self {
             config,
             metrics_calculator: MetricsCalculator::new(),
@@ -170,7 +187,6 @@ impl AdvancedActivityAnalyzer {
 
     /// Generate insights for activity performance
     fn generate_performance_insights(
-        &self,
         activity: &Activity,
         metrics: &AdvancedMetrics,
     ) -> Vec<AdvancedInsight> {
@@ -179,6 +195,7 @@ impl AdvancedActivityAnalyzer {
         // Heart rate insights
         if let Some(avg_hr) = activity.average_heart_rate {
             if let Some(max_hr) = activity.max_heart_rate {
+                #[allow(clippy::cast_precision_loss)]
                 let hr_reserve_used = (avg_hr as f32 / max_hr as f32) * 100.0;
 
                 let (message, confidence) = if hr_reserve_used > ANAEROBIC_THRESHOLD_PERCENTAGE {
@@ -282,11 +299,7 @@ impl AdvancedActivityAnalyzer {
     }
 
     /// Generate training recommendations based on activity
-    fn generate_recommendations(
-        &self,
-        activity: &Activity,
-        metrics: &AdvancedMetrics,
-    ) -> Vec<String> {
+    fn generate_recommendations(activity: &Activity, metrics: &AdvancedMetrics) -> Vec<String> {
         let mut recommendations = Vec::new();
 
         // Duration-based recommendations using physiological thresholds
@@ -367,10 +380,10 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
         let overall_score = self.calculate_overall_score(activity, &metrics);
 
         // Generate performance insights
-        let insights = self.generate_performance_insights(activity, &metrics);
+        let insights = Self::generate_performance_insights(activity, &metrics);
 
         // Generate recommendations
-        let recommendations = self.generate_recommendations(activity, &metrics);
+        let recommendations = Self::generate_recommendations(activity, &metrics);
 
         // Detect anomalies
         let anomalies = self.detect_anomalies(activity).await?;
@@ -406,7 +419,7 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
                     confidence: Confidence::High,
                     affected_metric: "max_heartrate".into(),
                     expected_value: Some(200.0),
-                    actual_value: Some(max_hr as f64),
+                    actual_value: Some(f64::from(max_hr)),
                 });
             }
         }
@@ -427,8 +440,8 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
                 anomalies.push(Anomaly {
                     anomaly_type: "unrealistic_speed".into(),
                     description: format!(
-                        "Maximum speed seems unusually high for {:?}",
-                        activity.sport_type
+                        "Maximum speed seems unusually high for {sport_type:?}",
+                        sport_type = activity.sport_type
                     ),
                     severity: InsightSeverity::Warning,
                     confidence: Confidence::Medium,
@@ -470,7 +483,10 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
 
         // Base load on duration
         let duration = activity.duration_seconds;
-        load += duration as f64 / 60.0; // Minutes as base
+        #[allow(clippy::cast_precision_loss)]
+        {
+            load += duration as f64 / 60.0; // Minutes as base
+        }
 
         // Multiply by intensity factor using heart rate zones
         if let Some(avg_hr) = activity.average_heart_rate {
@@ -498,6 +514,7 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
     /// - Activity comparison calculations fail
     /// - Statistical analysis fails
     /// - Data aggregation errors occur
+    #[allow(clippy::too_many_lines)]
     async fn compare_to_history(
         &self,
         activity: &Activity,
@@ -519,15 +536,32 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
         if let Some(current_speed) = activity.average_speed {
             let historical_speeds: Vec<f32> = same_sport_activities
                 .iter()
-                .filter_map(|a| a.average_speed.map(|s| s as f32))
+                .filter_map(|a| {
+                    a.average_speed.map(|s| {
+                        #[allow(clippy::cast_possible_truncation)]
+                        {
+                            s as f32
+                        }
+                    })
+                })
                 .collect();
 
             if !historical_speeds.is_empty() {
-                let avg_historical_speed =
-                    historical_speeds.iter().sum::<f32>() / historical_speeds.len() as f32;
-                let improvement =
-                    ((current_speed as f32 - avg_historical_speed) / avg_historical_speed) * 100.0;
+                let avg_historical_speed = {
+                    #[allow(clippy::cast_precision_loss)]
+                    {
+                        historical_speeds.iter().sum::<f32>() / historical_speeds.len() as f32
+                    }
+                };
+                let improvement = {
+                    #[allow(clippy::cast_possible_truncation)]
+                    {
+                        ((current_speed as f32 - avg_historical_speed) / avg_historical_speed)
+                            * 100.0
+                    }
+                };
 
+                #[allow(clippy::cast_possible_truncation)]
                 if improvement > PACE_IMPROVEMENT_THRESHOLD as f32 {
                     let mut metadata = HashMap::new();
                     metadata.insert(
@@ -546,30 +580,32 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
                     insights.push(AdvancedInsight {
                         insight_type: "pace_improvement".into(),
                         message: format!(
-                            "Pace improved by {:.1}% compared to recent activities",
-                            improvement
+                            "Pace improved by {improvement:.1}% compared to recent activities"
                         ),
                         confidence: Confidence::High,
                         severity: InsightSeverity::Info,
                         metadata,
                     });
-                } else if improvement < -(PACE_IMPROVEMENT_THRESHOLD as f32) {
-                    let mut metadata = HashMap::new();
-                    metadata.insert(
-                        "decline_percentage".into(),
-                        serde_json::Value::from(-improvement),
-                    );
+                } else {
+                    #[allow(clippy::cast_possible_truncation)]
+                    if improvement < -(PACE_IMPROVEMENT_THRESHOLD as f32) {
+                        let mut metadata = HashMap::new();
+                        metadata.insert(
+                            "decline_percentage".into(),
+                            serde_json::Value::from(-improvement),
+                        );
 
-                    insights.push(AdvancedInsight {
-                        insight_type: "pace_decline".into(),
-                        message: format!(
-                            "Pace was {:.1}% slower than recent average",
-                            -improvement
-                        ),
-                        confidence: Confidence::Medium,
-                        severity: InsightSeverity::Warning,
-                        metadata,
-                    });
+                        insights.push(AdvancedInsight {
+                            insight_type: "pace_decline".into(),
+                            message: {
+                                let decline = -improvement;
+                                format!("Pace was {decline:.1}% slower than recent average")
+                            },
+                            confidence: Confidence::Medium,
+                            severity: InsightSeverity::Warning,
+                            metadata,
+                        });
+                    }
                 }
             }
         }
@@ -578,13 +614,16 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
         if let (Some(current_hr), Some(current_speed)) =
             (activity.average_heart_rate, activity.average_speed)
         {
-            let current_efficiency = current_speed / current_hr as f64;
+            let current_efficiency = current_speed / f64::from(current_hr);
 
             let historical_efficiencies: Vec<f32> = same_sport_activities
                 .iter()
                 .filter_map(|a| {
                     if let (Some(hr), Some(speed)) = (a.average_heart_rate, a.average_speed) {
-                        Some((speed / hr as f64) as f32)
+                        #[allow(clippy::cast_possible_truncation)]
+                        {
+                            Some((speed / f64::from(hr)) as f32)
+                        }
                     } else {
                         None
                     }
@@ -592,10 +631,15 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
                 .collect();
 
             if !historical_efficiencies.is_empty() {
-                let avg_efficiency = historical_efficiencies.iter().sum::<f32>()
-                    / historical_efficiencies.len() as f32;
-                let efficiency_change =
-                    ((current_efficiency - avg_efficiency as f64) / avg_efficiency as f64) * 100.0;
+                let avg_efficiency = historical_efficiencies.iter().sum::<f32>() / {
+                    #[allow(clippy::cast_precision_loss)]
+                    {
+                        historical_efficiencies.len() as f32
+                    }
+                };
+                let efficiency_change = ((current_efficiency - f64::from(avg_efficiency))
+                    / f64::from(avg_efficiency))
+                    * 100.0;
 
                 if efficiency_change > HR_EFFICIENCY_IMPROVEMENT_THRESHOLD {
                     let mut metadata = HashMap::new();

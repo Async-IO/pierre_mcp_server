@@ -118,9 +118,8 @@ async fn create_tool_executor() -> Result<Arc<UniversalToolExecutor>> {
         // For backward compatibility, use a default key file path
         let key_path = "data/encryption.key";
         if std::path::Path::new(key_path).exists() {
-            std::fs::read(key_path).with_context(|| {
-                format!("Failed to read default encryption key from {key_path}")
-            })?
+            std::fs::read(key_path)
+                .with_context(|| format!("Failed to read default encryption key from {key_path}"))?
         } else {
             // Generate a new key and save it
             let key = crate::database::generate_encryption_key();
@@ -136,7 +135,7 @@ async fn create_tool_executor() -> Result<Arc<UniversalToolExecutor>> {
     let database = Arc::new(
         Database::new(&database_url, encryption_key)
             .await
-            .with_context(|| format!("Failed to create database connection to {database_url}"))?
+            .with_context(|| format!("Failed to create database connection to {database_url}"))?,
     );
 
     let intelligence = Arc::new(ActivityIntelligence::new(
@@ -415,11 +414,10 @@ async fn handle_tool_call_unified(
             // Convert to MCP-compliant tool response format
             let tool_response = schema::ToolResponse {
                 content: vec![schema::Content::Text {
-                    text: universal_response
-                        .result
-                        .as_ref()
-                        .map(|v| serde_json::to_string_pretty(v).unwrap_or_else(|_| v.to_string()))
-                        .unwrap_or_else(|| "No result".into()),
+                    text: universal_response.result.as_ref().map_or_else(
+                        || "No result".into(),
+                        |v| serde_json::to_string_pretty(v).unwrap_or_else(|_| v.to_string()),
+                    ),
                 }],
                 is_error: !universal_response.success,
                 structured_content: universal_response.result,
@@ -438,22 +436,14 @@ async fn handle_tool_call_unified(
                 crate::protocols::ProtocolError::InvalidParameters(msg) => {
                     (ERROR_INVALID_PARAMS, msg)
                 }
-                crate::protocols::ProtocolError::ExecutionFailed(msg) => {
+                crate::protocols::ProtocolError::ExecutionFailed(msg)
+                | crate::protocols::ProtocolError::UnsupportedProtocol(msg)
+                | crate::protocols::ProtocolError::ConversionFailed(msg)
+                | crate::protocols::ProtocolError::ConfigurationError(msg)
+                | crate::protocols::ProtocolError::SerializationError(msg)
+                | crate::protocols::ProtocolError::DatabaseError(msg) => {
                     (ERROR_INTERNAL_ERROR, msg)
                 }
-                crate::protocols::ProtocolError::UnsupportedProtocol(msg) => {
-                    (ERROR_INTERNAL_ERROR, msg)
-                }
-                crate::protocols::ProtocolError::ConversionFailed(msg) => {
-                    (ERROR_INTERNAL_ERROR, msg)
-                }
-                crate::protocols::ProtocolError::ConfigurationError(msg) => {
-                    (ERROR_INTERNAL_ERROR, msg)
-                }
-                crate::protocols::ProtocolError::SerializationError(msg) => {
-                    (ERROR_INTERNAL_ERROR, msg)
-                }
-                crate::protocols::ProtocolError::DatabaseError(msg) => (ERROR_INTERNAL_ERROR, msg),
             };
 
             McpResponse {

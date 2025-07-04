@@ -9,7 +9,9 @@
 //! Insight generation and management for athlete intelligence
 
 use crate::intelligence::physiological_constants::{
-    activity_scoring::*, business_thresholds::*, fitness_score_thresholds::*,
+    activity_scoring::{BASE_ACTIVITY_SCORE, COMPLETION_BONUS, STANDARD_BONUS},
+    business_thresholds::ACHIEVEMENT_DISTANCE_THRESHOLD_KM,
+    fitness_score_thresholds::GOOD_FITNESS_THRESHOLD,
     performance_calculation::MAX_EFFORT_SCORE,
 };
 use crate::models::Activity;
@@ -32,7 +34,7 @@ pub struct Insight {
 }
 
 /// Categories of insights that can be generated
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum InsightType {
     /// Performance achievement (PR, improvement)
@@ -73,6 +75,7 @@ pub struct InsightConfig {
 impl Default for InsightConfig {
     fn default() -> Self {
         Self {
+            #[allow(clippy::cast_possible_truncation)]
             min_confidence_threshold: GOOD_FITNESS_THRESHOLD as f32,
             max_insights_per_activity: 5,
         }
@@ -96,11 +99,16 @@ impl InsightGenerator {
 
     /// Create a new insight generator with custom config
     #[must_use]
-    pub fn with_config(config: InsightConfig) -> Self {
+    pub const fn with_config(config: InsightConfig) -> Self {
         Self { config }
     }
 
     /// Generate insights for a single activity
+    ///
+    /// # Panics
+    ///
+    /// Panics if confidence comparison fails during sorting
+    #[must_use]
     pub fn generate_insights(
         &self,
         activity: &Activity,
@@ -109,24 +117,28 @@ impl InsightGenerator {
         let mut insights = Vec::new();
 
         // Generate different types of insights
-        insights.extend(self.generate_achievement_insights(activity));
-        insights.extend(self.generate_zone_insights(activity));
-        insights.extend(self.generate_effort_insights(activity));
+        insights.extend(Self::generate_achievement_insights(activity));
+        insights.extend(Self::generate_zone_insights(activity));
+        insights.extend(Self::generate_effort_insights(activity));
 
         if let Some(ctx) = context {
-            insights.extend(self.generate_location_insights(activity, ctx));
+            insights.extend(Self::generate_location_insights(activity, ctx));
         }
 
         // Filter by confidence and limit count
         insights.retain(|insight| insight.confidence >= self.config.min_confidence_threshold);
-        insights.sort_by(|a, b| b.confidence.partial_cmp(&a.confidence).unwrap());
+        insights.sort_by(|a, b| {
+            b.confidence
+                .partial_cmp(&a.confidence)
+                .expect("Confidence values should be comparable")
+        });
         insights.truncate(self.config.max_insights_per_activity);
 
         insights
     }
 
     /// Generate achievement-related insights
-    fn generate_achievement_insights(&self, activity: &Activity) -> Vec<Insight> {
+    fn generate_achievement_insights(activity: &Activity) -> Vec<Insight> {
         let mut insights = Vec::new();
 
         // Example: Distance PR detection
@@ -137,8 +149,7 @@ impl InsightGenerator {
                 insights.push(Insight {
                     insight_type: InsightType::Achievement,
                     message: format!(
-                        "Impressive distance! You completed {:.2} km, showing great endurance.",
-                        distance_km
+                        "Impressive distance! You completed {distance_km:.2} km, showing great endurance.",
                     ),
                     confidence: 85.0,
                     data: Some(serde_json::json!({
@@ -153,12 +164,13 @@ impl InsightGenerator {
     }
 
     /// Generate zone analysis insights
-    fn generate_zone_insights(&self, activity: &Activity) -> Vec<Insight> {
+    fn generate_zone_insights(activity: &Activity) -> Vec<Insight> {
         let mut insights = Vec::new();
 
         // Analyze heart rate zones if available
         if let (Some(avg_hr), Some(max_hr)) = (activity.average_heart_rate, activity.max_heart_rate)
         {
+            #[allow(clippy::cast_precision_loss)]
             let hr_intensity = (avg_hr as f32) / (max_hr as f32);
 
             let (zone_description, confidence) = match hr_intensity {
@@ -171,8 +183,7 @@ impl InsightGenerator {
 
             insights.push(Insight {
                 insight_type: InsightType::ZoneAnalysis,
-                message: format!("Your average heart rate of {} bpm indicates most time was spent in the {}. This is excellent for building aerobic capacity.",
-                               avg_hr, zone_description),
+                message: format!("Your average heart rate of {avg_hr} bpm indicates most time was spent in the {zone_description}. This is excellent for building aerobic capacity."),
                 confidence,
                 data: Some(serde_json::json!({
                     "avg_heartrate": avg_hr,
@@ -187,13 +198,14 @@ impl InsightGenerator {
     }
 
     /// Generate effort analysis insights
-    fn generate_effort_insights(&self, activity: &Activity) -> Vec<Insight> {
+    fn generate_effort_insights(activity: &Activity) -> Vec<Insight> {
         let mut insights = Vec::new();
 
         // Analyze effort based on duration and intensity
         let duration = activity.duration_seconds;
-        let effort_score = self.calculate_relative_effort(activity);
+        let effort_score = Self::calculate_relative_effort(activity);
 
+        #[allow(clippy::cast_possible_truncation)]
         let effort_description = match effort_score {
             x if x < (BASE_ACTIVITY_SCORE * 0.6) as f32 => ("light", "perfect for recovery"),
             x if x < BASE_ACTIVITY_SCORE as f32 => ("moderate", "good training stimulus"),
@@ -207,7 +219,7 @@ impl InsightGenerator {
             message: format!(
                 "With a {} effort level, this {} session was {} for your training goals.",
                 effort_description.0,
-                Self::format_duration(duration as i32),
+                Self::format_duration(duration.try_into().unwrap_or(0)),
                 effort_description.1
             ),
             confidence: 80.0,
@@ -222,34 +234,45 @@ impl InsightGenerator {
     }
 
     /// Calculate relative effort score (1-10 scale)
-    fn calculate_relative_effort(&self, activity: &Activity) -> f32 {
+    fn calculate_relative_effort(activity: &Activity) -> f32 {
+        #[allow(clippy::cast_possible_truncation)]
         let mut effort_score = COMPLETION_BONUS as f32;
 
         // Factor in duration
         let duration = activity.duration_seconds;
-        effort_score += (duration as f32 / 3600.0) * (COMPLETION_BONUS as f32 * 2.0); // +2 per hour
+        #[allow(clippy::cast_precision_loss)]
+        let duration_f32 = duration as f32;
+        #[allow(clippy::cast_possible_truncation)]
+        {
+            effort_score += (duration_f32 / 3600.0) * (COMPLETION_BONUS as f32 * 2.0);
+            // +2 per hour
+        }
 
         // Factor in heart rate intensity
         if let (Some(avg_hr), Some(max_hr)) = (activity.average_heart_rate, activity.max_heart_rate)
         {
+            #[allow(clippy::cast_precision_loss)]
             let hr_intensity = (avg_hr as f32) / (max_hr as f32);
-            effort_score += hr_intensity * BASE_ACTIVITY_SCORE as f32;
+            #[allow(clippy::cast_possible_truncation)]
+            {
+                effort_score += hr_intensity * (BASE_ACTIVITY_SCORE as f32);
+            }
         }
 
         // Factor in elevation gain
         if let Some(elevation) = activity.elevation_gain {
-            effort_score += (elevation / 100.0) as f32 * STANDARD_BONUS as f32; // +0.5 per 100m
+            #[allow(clippy::cast_possible_truncation)]
+            {
+                effort_score += (elevation / 100.0) as f32 * (STANDARD_BONUS as f32);
+                // +0.5 per 100m
+            }
         }
 
         effort_score.min(MAX_EFFORT_SCORE)
     }
 
     /// Generate location and terrain insights
-    fn generate_location_insights(
-        &self,
-        activity: &Activity,
-        context: &ActivityContext,
-    ) -> Vec<Insight> {
+    fn generate_location_insights(activity: &Activity, context: &ActivityContext) -> Vec<Insight> {
         let mut insights = Vec::new();
 
         if let Some(location) = &context.location {
@@ -258,8 +281,7 @@ impl InsightGenerator {
                 insights.push(Insight {
                     insight_type: InsightType::LocationInsight,
                     message: format!(
-                        "Explored the {} route, a great choice for your {} training",
-                        trail_name,
+                        "Explored the {trail_name} route, a great choice for your {} training",
                         activity.sport_type.display_name()
                     ),
                     confidence: 80.0,
@@ -273,16 +295,14 @@ impl InsightGenerator {
             // Elevation and terrain analysis
             if let Some(elevation_gain) = activity.elevation_gain {
                 if elevation_gain > 500.0 {
-                    let location_desc = if let Some(city) = &location.city {
-                        format!(" in {}", city)
-                    } else {
-                        "".into()
-                    };
+                    let location_desc = location
+                        .city
+                        .as_ref()
+                        .map_or_else(String::new, |city| format!(" in {city}"));
 
                     insights.push(Insight {
                         insight_type: InsightType::LocationInsight,
-                        message: format!("Tackled significant elevation gain of {:.0}m{}, building excellent climbing strength", 
-                                       elevation_gain, location_desc),
+                        message: format!("Tackled significant elevation gain of {elevation_gain:.0}m{location_desc}, building excellent climbing strength"),
                         confidence: 85.0,
                         data: Some(serde_json::json!({
                             "elevation_gain": elevation_gain,
@@ -297,8 +317,7 @@ impl InsightGenerator {
             if let (Some(city), Some(region)) = (&location.city, &location.region) {
                 insights.push(Insight {
                     insight_type: InsightType::LocationInsight,
-                    message: format!("Training in {}, {} - taking advantage of the local terrain and environment", 
-                                   city, region),
+                    message: format!("Training in {city}, {region} - taking advantage of the local terrain and environment"),
                     confidence: 75.0,
                     data: Some(serde_json::json!({
                         "city": city,
@@ -312,20 +331,19 @@ impl InsightGenerator {
     }
 
     /// Format duration in human-readable form
+    #[must_use]
     fn format_duration(seconds: i32) -> String {
         let hours = seconds / 3600;
         let minutes = (seconds % 3600) / 60;
 
         if hours > 0 {
             format!(
-                "{} hour{} {} minute{}",
-                hours,
+                "{hours} hour{} {minutes} minute{}",
                 if hours == 1 { "" } else { "s" },
-                minutes,
                 if minutes == 1 { "" } else { "s" }
             )
         } else {
-            format!("{} minute{}", minutes, if minutes == 1 { "" } else { "s" })
+            format!("{minutes} minute{}", if minutes == 1 { "" } else { "s" })
         }
     }
 }
