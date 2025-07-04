@@ -203,7 +203,7 @@ impl UniversalToolExecutor {
         intelligence: Arc<ActivityIntelligence>,
         config: Arc<crate::config::environment::ServerConfig>,
     ) -> Self {
-        let mut executor = Self {
+        let executor = Self {
             database,
             intelligence,
             config,
@@ -261,7 +261,7 @@ impl UniversalToolExecutor {
     }
 
     /// Register all default tools
-    fn register_default_tools(&mut self) {
+    fn register_default_tools(&self) {
         // All tools are now handled through async execute_tool match statement
         // No sync tools needed as everything is async
     }
@@ -307,18 +307,15 @@ impl UniversalToolExecutor {
             "get_configuration_catalog" => {
                 self.handle_get_configuration_catalog_async(request).await
             }
-            "get_configuration_profiles" => {
-                self.handle_get_configuration_profiles_async(request).await
-            }
+            "get_configuration_profiles" => self.handle_get_configuration_profiles_async(request),
             "get_user_configuration" => self.handle_get_user_configuration_async(request).await,
             "update_user_configuration" => {
                 self.handle_update_user_configuration_async(request).await
             }
             "calculate_personalized_zones" => {
                 self.handle_calculate_personalized_zones_async(request)
-                    .await
             }
-            "validate_configuration" => self.handle_validate_configuration_async(request).await,
+            "validate_configuration" => self.handle_validate_configuration_async(request),
             _ => {
                 // Handle synchronous tools
                 let tool = self.tools.get(&request.tool_name).ok_or_else(|| {
@@ -2596,7 +2593,7 @@ impl UniversalToolExecutor {
     }
 
     /// Handle get_configuration_profiles tool - returns available profiles
-    async fn handle_get_configuration_profiles_async(
+    fn handle_get_configuration_profiles_async(
         &self,
         _request: UniversalRequest,
     ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
@@ -2885,7 +2882,7 @@ impl UniversalToolExecutor {
     }
 
     /// Handle calculate_personalized_zones tool - calculates training zones based on VO2 max
-    async fn handle_calculate_personalized_zones_async(
+    fn handle_calculate_personalized_zones_async(
         &self,
         request: UniversalRequest,
     ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
@@ -2982,7 +2979,7 @@ impl UniversalToolExecutor {
     }
 
     /// Handle validate_configuration tool - validates parameters against rules
-    async fn handle_validate_configuration_async(
+    fn handle_validate_configuration_async(
         &self,
         request: UniversalRequest,
     ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {

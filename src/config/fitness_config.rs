@@ -119,7 +119,9 @@ impl FitnessConfig {
     /// Get the internal sport type name for a provider sport type
     #[must_use]
     pub fn map_sport_type(&self, provider_sport: &str) -> Option<&str> {
-        self.sport_types.get(provider_sport).map(std::string::String::as_str)
+        self.sport_types
+            .get(provider_sport)
+            .map(std::string::String::as_str)
     }
 
     /// Get all configured sport type mappings

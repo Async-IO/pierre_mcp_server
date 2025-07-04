@@ -15,7 +15,22 @@ use crate::a2a_routes::A2ARoutes;
 use crate::api_key_routes::ApiKeyRoutes;
 use crate::auth::{AuthManager, AuthResult, McpAuthMiddleware};
 use crate::configuration_routes::ConfigurationRoutes;
-use crate::constants::{errors::*, json_fields::*, protocol, protocol::*, tools::*};
+use crate::constants::{
+    errors::{
+        ERROR_INTERNAL_ERROR, ERROR_INVALID_PARAMS, ERROR_METHOD_NOT_FOUND, ERROR_UNAUTHORIZED,
+    },
+    json_fields::{ACTIVITY_ID, GOAL_ID, LIMIT, OFFSET, PROVIDER},
+    protocol,
+    protocol::{JSONRPC_VERSION, SERVER_VERSION},
+    tools::{
+        ANALYZE_ACTIVITY, ANALYZE_GOAL_FEASIBILITY, ANALYZE_PERFORMANCE_TRENDS,
+        ANALYZE_TRAINING_LOAD, CALCULATE_FITNESS_SCORE, CALCULATE_METRICS, COMPARE_ACTIVITIES,
+        CONNECT_FITBIT, CONNECT_STRAVA, DETECT_PATTERNS, DISCONNECT_PROVIDER,
+        GENERATE_RECOMMENDATIONS, GET_ACTIVITIES, GET_ACTIVITY_INTELLIGENCE, GET_ATHLETE,
+        GET_CONNECTION_STATUS, GET_STATS, PREDICT_PERFORMANCE, SET_GOAL, SUGGEST_GOALS,
+        TRACK_PROGRESS,
+    },
+};
 use crate::dashboard_routes::DashboardRoutes;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::intelligence::insights::ActivityContext;
@@ -81,6 +96,11 @@ impl MultiTenantMcpServer {
     }
 
     /// Run the multi-tenant server with both HTTP and MCP endpoints
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the server fails to start or bind to the specified port
+    #[allow(clippy::large_futures)]
     pub async fn run(self, port: u16) -> Result<()> {
         // Create HTTP + MCP server
         info!(
@@ -122,6 +142,7 @@ impl MultiTenantMcpServer {
     }
 
     /// Run HTTP server for authentication endpoints
+    #[allow(clippy::too_many_lines)]
     async fn run_http_server(
         port: u16,
         database: Arc<Database>,
@@ -266,20 +287,17 @@ impl MultiTenantMcpServer {
                 move |provider: String, user_id_str: String| {
                     let oauth_routes = oauth_routes.clone();
                     async move {
-                        match Uuid::parse_str(&user_id_str) {
-                            Ok(user_id) => {
-                                match oauth_routes.get_auth_url(user_id, &provider).await {
-                                    Ok(auth_response) => Ok(warp::reply::json(&auth_response)),
-                                    Err(e) => {
-                                        let error = serde_json::json!({"error": e.to_string()});
-                                        Err(warp::reject::custom(ApiError(error)))
-                                    }
+                        if let Ok(user_id) = Uuid::parse_str(&user_id_str) {
+                            match oauth_routes.get_auth_url(user_id, &provider).await {
+                                Ok(auth_response) => Ok(warp::reply::json(&auth_response)),
+                                Err(e) => {
+                                    let error = serde_json::json!({"error": e.to_string()});
+                                    Err(warp::reject::custom(ApiError(error)))
                                 }
                             }
-                            Err(_) => {
-                                let error = serde_json::json!({"error": "Invalid user ID format"});
-                                Err(warp::reject::custom(ApiError(error)))
-                            }
+                        } else {
+                            let error = serde_json::json!({"error": "Invalid user ID format"});
+                            Err(warp::reject::custom(ApiError(error)))
                         }
                     }
                 }
@@ -315,7 +333,7 @@ impl MultiTenantMcpServer {
                             Ok(callback_response) => {
                                 let success_response = serde_json::json!({
                                     "success": true,
-                                    "message": format!("{} account connected successfully!", provider),
+                                    "message": format!("{provider} account connected successfully!"),
                                     "provider": provider,
                                     "user_id": callback_response.user_id,
                                     "expires_at": callback_response.expires_at
@@ -327,7 +345,7 @@ impl MultiTenantMcpServer {
                             }
                             Err(e) => {
                                 let error_response = serde_json::json!({
-                                    "error": format!("Failed to process OAuth callback: {}", e),
+                                    "error": format!("Failed to process OAuth callback: {e}"),
                                     "provider": provider
                                 });
                                 Err(warp::reject::custom(ApiError(error_response)))
@@ -430,20 +448,18 @@ impl MultiTenantMcpServer {
                             chrono::Utc::now().to_rfc3339()
                         });
 
-                        let start_date = match chrono::DateTime::parse_from_rfc3339(&start_date_str) {
-                            Ok(dt) => dt.with_timezone(&chrono::Utc),
-                            Err(_) => {
-                                let error = serde_json::json!({"error": "Invalid start_date format. Use RFC3339."});
-                                return Err(warp::reject::custom(ApiError(error)));
-                            }
+                        let start_date = if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(&start_date_str) {
+                            dt.with_timezone(&chrono::Utc)
+                        } else {
+                            let error = serde_json::json!({"error": "Invalid start_date format. Use RFC3339."});
+                            return Err(warp::reject::custom(ApiError(error)));
                         };
 
-                        let end_date = match chrono::DateTime::parse_from_rfc3339(&end_date_str) {
-                            Ok(dt) => dt.with_timezone(&chrono::Utc),
-                            Err(_) => {
-                                let error = serde_json::json!({"error": "Invalid end_date format. Use RFC3339."});
-                                return Err(warp::reject::custom(ApiError(error)));
-                            }
+                        let end_date = if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(&end_date_str) {
+                            dt.with_timezone(&chrono::Utc)
+                        } else {
+                            let error = serde_json::json!({"error": "Invalid end_date format. Use RFC3339."});
+                            return Err(warp::reject::custom(ApiError(error)));
                         };
 
                         match api_key_routes.get_api_key_usage(auth_header.as_deref(), &api_key_id, start_date, end_date).await {
@@ -550,10 +566,10 @@ impl MultiTenantMcpServer {
                       params: std::collections::HashMap<String, String>| {
                     let dashboard_routes = dashboard_routes.clone();
                     async move {
-                        let api_key_id = params.get("api_key_id").map(|s| s.as_str());
-                        let time_range = params.get("time_range").map(|s| s.as_str());
-                        let status = params.get("status").map(|s| s.as_str());
-                        let tool = params.get("tool").map(|s| s.as_str());
+                        let api_key_id = params.get("api_key_id").map(std::string::String::as_str);
+                        let time_range = params.get("time_range").map(std::string::String::as_str);
+                        let status = params.get("status").map(std::string::String::as_str);
+                        let tool = params.get("tool").map(std::string::String::as_str);
 
                         match dashboard_routes
                             .get_request_logs(
@@ -587,8 +603,8 @@ impl MultiTenantMcpServer {
                       params: std::collections::HashMap<String, String>| {
                     let dashboard_routes = dashboard_routes.clone();
                     async move {
-                        let api_key_id = params.get("api_key_id").map(|s| s.as_str());
-                        let time_range = params.get("time_range").map(|s| s.as_str());
+                        let api_key_id = params.get("api_key_id").map(std::string::String::as_str);
+                        let time_range = params.get("time_range").map(std::string::String::as_str);
 
                         match dashboard_routes
                             .get_request_stats(auth_header.as_deref(), api_key_id, time_range)
@@ -616,8 +632,8 @@ impl MultiTenantMcpServer {
                       params: std::collections::HashMap<String, String>| {
                     let dashboard_routes = dashboard_routes.clone();
                     async move {
-                        let api_key_id = params.get("api_key_id").map(|s| s.as_str());
-                        let time_range = params.get("time_range").map(|s| s.as_str());
+                        let api_key_id = params.get("api_key_id").map(std::string::String::as_str);
+                        let time_range = params.get("time_range").map(std::string::String::as_str);
 
                         match dashboard_routes
                             .get_tool_usage_breakdown(
@@ -1045,7 +1061,7 @@ impl MultiTenantMcpServer {
         let routes = http_routes.or(ws_routes).recover(handle_rejection);
 
         info!("HTTP server ready on port {}", port);
-        warp::serve(routes).run(([127, 0, 0, 1], port)).await;
+        Box::pin(warp::serve(routes).run(([127, 0, 0, 1], port))).await;
 
         Ok(())
     }
@@ -1055,7 +1071,7 @@ impl MultiTenantMcpServer {
         use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
         use tokio::net::TcpListener;
 
-        let listener = TcpListener::bind(format!("127.0.0.1:{}", port)).await?;
+        let listener = TcpListener::bind(format!("127.0.0.1:{port}")).await?;
         info!("MCP server listening on port {}", port);
 
         loop {
@@ -1090,10 +1106,13 @@ impl MultiTenantMcpServer {
                                 continue;
                             }
                         };
-                        if let (Ok(()), Ok(()), Ok(())) = (
-                            writer.write_all(response_str.as_bytes()).await,
-                            writer.write_all(b"\n").await,
-                            writer.flush().await,
+                        if matches!(
+                            (
+                                writer.write_all(response_str.as_bytes()).await,
+                                writer.write_all(b"\n").await,
+                                writer.flush().await,
+                            ),
+                            (Ok(()), Ok(()), Ok(()))
                         ) {
                             // Response sent successfully
                         }
@@ -1106,6 +1125,7 @@ impl MultiTenantMcpServer {
 
     /// Handle MCP request with authentication
     #[allow(clippy::type_complexity)]
+    #[allow(clippy::too_many_lines)]
     pub async fn handle_request(
         request: McpRequest,
         database: &Arc<Database>,
@@ -1229,6 +1249,7 @@ impl MultiTenantMcpServer {
     }
 
     /// Handle authentication request
+    #[allow(clippy::unused_async)]
     async fn handle_authenticate(
         request: McpRequest,
         auth_manager: &Arc<AuthManager>,
@@ -1260,6 +1281,7 @@ impl MultiTenantMcpServer {
 
     /// Handle authenticated tool call with user context and rate limiting
     #[allow(clippy::type_complexity)]
+    #[allow(clippy::too_many_lines)]
     async fn handle_authenticated_tool_call(
         request: McpRequest,
         auth_result: AuthResult,
@@ -1349,7 +1371,7 @@ impl MultiTenantMcpServer {
                         result: None,
                         error: Some(McpError {
                             code: ERROR_METHOD_NOT_FOUND,
-                            message: format!("Unknown tool: {}", tool_name),
+                            message: format!("Unknown tool: {tool_name}"),
                             data: None,
                         }),
                         id: request.id,
@@ -1371,7 +1393,7 @@ impl MultiTenantMcpServer {
                             result: None,
                             error: Some(McpError {
                                 code: ERROR_INTERNAL_ERROR,
-                                message: format!("Provider authentication failed: {}", e),
+                                message: format!("Provider authentication failed: {e}"),
                                 data: None,
                             }),
                             id: request.id,
@@ -1409,6 +1431,10 @@ impl MultiTenantMcpServer {
     }
 
     /// Get or create a user-specific provider instance
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the provider cannot be created or authenticated
     pub async fn get_user_provider(
         user_id: Uuid,
         provider_name: &str,
@@ -1481,7 +1507,7 @@ impl MultiTenantMcpServer {
         Ok(new_provider)
     }
 
-    /// Handle connect_strava tool call
+    /// Handle `connect_strava` tool call
     async fn handle_connect_strava(
         user_id: Uuid,
         database: &Arc<Database>,
@@ -1501,7 +1527,7 @@ impl MultiTenantMcpServer {
                 result: None,
                 error: Some(McpError {
                     code: ERROR_INTERNAL_ERROR,
-                    message: format!("Failed to generate Strava authorization URL: {}", e),
+                    message: format!("Failed to generate Strava authorization URL: {e}"),
                     data: None,
                 }),
                 id,
@@ -1509,7 +1535,7 @@ impl MultiTenantMcpServer {
         }
     }
 
-    /// Handle connect_fitbit tool call
+    /// Handle `connect_fitbit` tool call
     async fn handle_connect_fitbit(
         user_id: Uuid,
         database: &Arc<Database>,
@@ -1529,7 +1555,7 @@ impl MultiTenantMcpServer {
                 result: None,
                 error: Some(McpError {
                     code: ERROR_INTERNAL_ERROR,
-                    message: format!("Failed to generate Fitbit authorization URL: {}", e),
+                    message: format!("Failed to generate Fitbit authorization URL: {e}"),
                     data: None,
                 }),
                 id,
@@ -1537,7 +1563,7 @@ impl MultiTenantMcpServer {
         }
     }
 
-    /// Handle get_connection_status tool call
+    /// Handle `get_connection_status` tool call
     async fn handle_get_connection_status(
         user_id: Uuid,
         database: &Arc<Database>,
@@ -1557,7 +1583,7 @@ impl MultiTenantMcpServer {
                 result: None,
                 error: Some(McpError {
                     code: ERROR_INTERNAL_ERROR,
-                    message: format!("Failed to get connection status: {}", e),
+                    message: format!("Failed to get connection status: {e}"),
                     data: None,
                 }),
                 id,
@@ -1565,7 +1591,7 @@ impl MultiTenantMcpServer {
         }
     }
 
-    /// Handle disconnect_provider tool call
+    /// Handle `disconnect_provider` tool call
     async fn handle_disconnect_provider(
         user_id: Uuid,
         provider: &str,
@@ -1578,7 +1604,7 @@ impl MultiTenantMcpServer {
             Ok(()) => {
                 let response = serde_json::json!({
                     "success": true,
-                    "message": format!("Successfully disconnected {}", provider),
+                    "message": format!("Successfully disconnected {provider}"),
                     "provider": provider
                 });
 
@@ -1594,7 +1620,7 @@ impl MultiTenantMcpServer {
                 result: None,
                 error: Some(McpError {
                     code: ERROR_INTERNAL_ERROR,
-                    message: format!("Failed to disconnect provider: {}", e),
+                    message: format!("Failed to disconnect provider: {e}"),
                     data: None,
                 }),
                 id,
@@ -1603,6 +1629,7 @@ impl MultiTenantMcpServer {
     }
 
     /// Execute tool call without provider (for database-only tools)
+    #[allow(clippy::too_many_lines)]
     async fn execute_tool_call_without_provider(
         tool_name: &str,
         args: &Value,
@@ -1632,7 +1659,7 @@ impl MultiTenantMcpServer {
                             result: None,
                             error: Some(McpError {
                                 code: ERROR_INTERNAL_ERROR,
-                                message: format!("Failed to create goal: {}", e),
+                                message: format!("Failed to create goal: {e}"),
                                 data: None,
                             }),
                             id,
@@ -1665,7 +1692,7 @@ impl MultiTenantMcpServer {
                                 result: None,
                                 error: Some(McpError {
                                     code: ERROR_INVALID_PARAMS,
-                                    message: format!("Goal with ID '{}' not found", goal_id),
+                                    message: format!("Goal with ID '{goal_id}' not found"),
                                     data: None,
                                 }),
                                 id,
@@ -1678,7 +1705,7 @@ impl MultiTenantMcpServer {
                             result: None,
                             error: Some(McpError {
                                 code: ERROR_INTERNAL_ERROR,
-                                message: format!("Failed to get goals: {}", e),
+                                message: format!("Failed to get goals: {e}"),
                                 data: None,
                             }),
                             id,
@@ -1842,7 +1869,7 @@ impl MultiTenantMcpServer {
                     result: None,
                     error: Some(McpError {
                         code: ERROR_METHOD_NOT_FOUND,
-                        message: format!("Unknown tool: {}", tool_name),
+                        message: format!("Unknown tool: {tool_name}"),
                         data: None,
                     }),
                     id,
@@ -1859,6 +1886,7 @@ impl MultiTenantMcpServer {
     }
 
     /// Execute tool call with provider
+    #[allow(clippy::too_many_lines)]
     async fn execute_tool_call(
         tool_name: &str,
         args: &Value,
@@ -1869,8 +1897,8 @@ impl MultiTenantMcpServer {
     ) -> McpResponse {
         let result = match tool_name {
             GET_ACTIVITIES => {
-                let limit = args[LIMIT].as_u64().map(|n| n as usize);
-                let offset = args[OFFSET].as_u64().map(|n| n as usize);
+                let limit = args[LIMIT].as_u64().and_then(|n| usize::try_from(n).ok());
+                let offset = args[OFFSET].as_u64().and_then(|n| usize::try_from(n).ok());
 
                 match provider.get_activities(limit, offset).await {
                     Ok(activities) => serde_json::to_value(activities).ok(),
@@ -1880,7 +1908,7 @@ impl MultiTenantMcpServer {
                             result: None,
                             error: Some(McpError {
                                 code: ERROR_INTERNAL_ERROR,
-                                message: format!("Failed to get activities: {}", e),
+                                message: format!("Failed to get activities: {e}"),
                                 data: None,
                             }),
                             id,
@@ -1896,7 +1924,7 @@ impl MultiTenantMcpServer {
                         result: None,
                         error: Some(McpError {
                             code: ERROR_INTERNAL_ERROR,
-                            message: format!("Failed to get athlete: {}", e),
+                            message: format!("Failed to get athlete: {e}"),
                             data: None,
                         }),
                         id,
@@ -1911,7 +1939,7 @@ impl MultiTenantMcpServer {
                         result: None,
                         error: Some(McpError {
                             code: ERROR_INTERNAL_ERROR,
-                            message: format!("Failed to get stats: {}", e),
+                            message: format!("Failed to get stats: {e}"),
                             data: None,
                         }),
                         id,
@@ -2025,7 +2053,7 @@ impl MultiTenantMcpServer {
                                         result: None,
                                         error: Some(McpError {
                                             code: ERROR_INTERNAL_ERROR,
-                                            message: format!("Intelligence analysis failed: {}", e),
+                                            message: format!("Intelligence analysis failed: {e}"),
                                             data: None,
                                         }),
                                         id,
@@ -2038,10 +2066,7 @@ impl MultiTenantMcpServer {
                                 result: None,
                                 error: Some(McpError {
                                     code: ERROR_INVALID_PARAMS,
-                                    message: format!(
-                                        "Activity with ID '{}' not found",
-                                        activity_id
-                                    ),
+                                    message: format!("Activity with ID '{activity_id}' not found"),
                                     data: None,
                                 }),
                                 id,
@@ -2054,7 +2079,7 @@ impl MultiTenantMcpServer {
                             result: None,
                             error: Some(McpError {
                                 code: ERROR_INTERNAL_ERROR,
-                                message: format!("Failed to get activities: {}", e),
+                                message: format!("Failed to get activities: {e}"),
                                 data: None,
                             }),
                             id,
@@ -2078,7 +2103,8 @@ impl MultiTenantMcpServer {
                                     "distance_km": activity.distance_meters.map(|d| d / 1000.0),
                                     "pace_per_km": activity.distance_meters.and_then(|d| {
                                         if d > 0.0 {
-                                            Some((activity.duration_seconds as f64 / 60.0) / (d / 1000.0))
+                                            #[allow(clippy::cast_precision_loss)]
+                                Some((activity.duration_seconds as f64 / 60.0) / (d / 1000.0))
                                         } else {
                                             None
                                         }
@@ -2091,11 +2117,10 @@ impl MultiTenantMcpServer {
                                         format!("This was a {} lasting {} minutes",
                                             activity.sport_type.display_name(),
                                             activity.duration_seconds / 60),
-                                        if let Some(distance) = activity.distance_meters {
-                                            format!("Covered {:.1} km", distance / 1000.0)
-                                        } else {
-                                            "Distance tracking not available".into()
-                                        }
+                                        activity.distance_meters.map_or_else(
+                                            || "Distance tracking not available".into(),
+                                            |distance| format!("Covered {:.1} km", distance / 1000.0)
+                                        )
                                     ]
                                 }
                             });
@@ -2106,10 +2131,7 @@ impl MultiTenantMcpServer {
                                 result: None,
                                 error: Some(McpError {
                                     code: ERROR_INVALID_PARAMS,
-                                    message: format!(
-                                        "Activity with ID '{}' not found",
-                                        activity_id
-                                    ),
+                                    message: format!("Activity with ID '{activity_id}' not found"),
                                     data: None,
                                 }),
                                 id,
@@ -2122,7 +2144,7 @@ impl MultiTenantMcpServer {
                             result: None,
                             error: Some(McpError {
                                 code: ERROR_INTERNAL_ERROR,
-                                message: format!("Failed to get activities: {}", e),
+                                message: format!("Failed to get activities: {e}"),
                                 data: None,
                             }),
                             id,
@@ -2147,7 +2169,7 @@ impl MultiTenantMcpServer {
                                         "average_hr": activity.average_heart_rate,
                                         "max_hr": activity.max_heart_rate,
                                         "hr_reserve_used": activity.average_heart_rate.and_then(|avg| {
-                                            activity.max_heart_rate.map(|max| (avg as f64 / max as f64) * 100.0)
+                                            activity.max_heart_rate.map(|max| (f64::from(avg) / f64::from(max)) * 100.0)
                                         })
                                     },
                                     "elevation_gain_m": activity.elevation_gain,
@@ -2161,10 +2183,7 @@ impl MultiTenantMcpServer {
                                 result: None,
                                 error: Some(McpError {
                                     code: ERROR_INVALID_PARAMS,
-                                    message: format!(
-                                        "Activity with ID '{}' not found",
-                                        activity_id
-                                    ),
+                                    message: format!("Activity with ID '{activity_id}' not found"),
                                     data: None,
                                 }),
                                 id,
@@ -2177,7 +2196,7 @@ impl MultiTenantMcpServer {
                             result: None,
                             error: Some(McpError {
                                 code: ERROR_INTERNAL_ERROR,
-                                message: format!("Failed to get activities: {}", e),
+                                message: format!("Failed to get activities: {e}"),
                                 data: None,
                             }),
                             id,
@@ -2211,7 +2230,7 @@ impl MultiTenantMcpServer {
                             result: None,
                             error: Some(McpError {
                                 code: ERROR_INTERNAL_ERROR,
-                                message: format!("Failed to get activities: {}", e),
+                                message: format!("Failed to get activities: {e}"),
                                 data: None,
                             }),
                             id,
@@ -2269,7 +2288,7 @@ impl MultiTenantMcpServer {
                             result: None,
                             error: Some(McpError {
                                 code: ERROR_INTERNAL_ERROR,
-                                message: format!("Failed to get activities: {}", e),
+                                message: format!("Failed to get activities: {e}"),
                                 data: None,
                             }),
                             id,
@@ -2304,7 +2323,7 @@ impl MultiTenantMcpServer {
                             result: None,
                             error: Some(McpError {
                                 code: ERROR_INTERNAL_ERROR,
-                                message: format!("Failed to get activities: {}", e),
+                                message: format!("Failed to get activities: {e}"),
                                 data: None,
                             }),
                             id,
@@ -2340,7 +2359,7 @@ impl MultiTenantMcpServer {
                         result: None,
                         error: Some(McpError {
                             code: ERROR_INTERNAL_ERROR,
-                            message: format!("Failed to get activities: {}", e),
+                            message: format!("Failed to get activities: {e}"),
                             data: None,
                         }),
                         id,
@@ -2382,7 +2401,7 @@ impl MultiTenantMcpServer {
                         result: None,
                         error: Some(McpError {
                             code: ERROR_INTERNAL_ERROR,
-                            message: format!("Failed to get activities: {}", e),
+                            message: format!("Failed to get activities: {e}"),
                             data: None,
                         }),
                         id,
@@ -2392,11 +2411,11 @@ impl MultiTenantMcpServer {
             "calculate_fitness_score" => match provider.get_activities(Some(30), None).await {
                 Ok(activities) => {
                     let total_activities = activities.len();
-                    let avg_duration = if !activities.is_empty() {
+                    let avg_duration = if activities.is_empty() {
+                        0
+                    } else {
                         activities.iter().map(|a| a.duration_seconds).sum::<u64>()
                             / activities.len() as u64
-                    } else {
-                        0
                     };
 
                     let fitness_score = std::cmp::min(85, 50 + total_activities * 2);
@@ -2426,7 +2445,7 @@ impl MultiTenantMcpServer {
                         result: None,
                         error: Some(McpError {
                             code: ERROR_INTERNAL_ERROR,
-                            message: format!("Failed to get activities: {}", e),
+                            message: format!("Failed to get activities: {e}"),
                             data: None,
                         }),
                         id,
@@ -2465,7 +2484,7 @@ impl MultiTenantMcpServer {
                             result: None,
                             error: Some(McpError {
                                 code: ERROR_INTERNAL_ERROR,
-                                message: format!("Failed to get activities: {}", e),
+                                message: format!("Failed to get activities: {e}"),
                                 data: None,
                             }),
                             id,
@@ -2483,6 +2502,7 @@ impl MultiTenantMcpServer {
                             .filter_map(|a| a.distance_meters)
                             .sum::<f64>();
 
+                        #[allow(clippy::cast_precision_loss)]
                         let weekly_hours = (total_duration as f64 / 3600.0) / 4.0; // Assuming 4 weeks of data
 
                         let load_level = if weekly_hours < 3.0 {
@@ -2522,7 +2542,7 @@ impl MultiTenantMcpServer {
                             result: None,
                             error: Some(McpError {
                                 code: ERROR_INTERNAL_ERROR,
-                                message: format!("Failed to get activities: {}", e),
+                                message: format!("Failed to get activities: {e}"),
                                 data: None,
                             }),
                             id,
@@ -2536,7 +2556,7 @@ impl MultiTenantMcpServer {
                     result: None,
                     error: Some(McpError {
                         code: ERROR_METHOD_NOT_FOUND,
-                        message: format!("Unknown tool: {}", tool_name),
+                        message: format!("Unknown tool: {tool_name}"),
                         data: None,
                     }),
                     id,
@@ -2553,6 +2573,10 @@ impl MultiTenantMcpServer {
     }
 
     /// Record API key usage for billing and analytics
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the usage cannot be recorded in the database
     pub async fn record_api_key_usage(
         database: &Arc<Database>,
         api_key_id: &str,
@@ -2575,7 +2599,7 @@ impl MultiTenantMcpServer {
             api_key_id: api_key_id.to_string(),
             timestamp: Utc::now(),
             tool_name: tool_name.to_string(),
-            response_time_ms: Some(response_time.as_millis() as u32),
+            response_time_ms: u32::try_from(response_time.as_millis()).ok(),
             status_code,
             error_message,
             request_size_bytes: None,  // Could be calculated from request
@@ -2589,11 +2613,13 @@ impl MultiTenantMcpServer {
     }
 
     /// Get database reference for admin API
+    #[must_use]
     pub fn database(&self) -> &Database {
         &self.database
     }
 
     /// Get auth manager reference for admin API
+    #[must_use]
     pub fn auth_manager(&self) -> &AuthManager {
         &self.auth_manager
     }
@@ -2665,6 +2691,7 @@ fn with_cors_headers(
 }
 
 /// Handle HTTP rejections and errors
+#[allow(clippy::option_if_let_else)]
 async fn handle_rejection(
     err: warp::Rejection,
 ) -> Result<Box<dyn warp::Reply>, std::convert::Infallible> {

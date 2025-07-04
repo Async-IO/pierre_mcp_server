@@ -12,7 +12,10 @@
 //! capabilities, and tool schemas. This ensures protocol compliance and makes
 //! it easy to modify the schema without hardcoding JSON.
 
-use crate::constants::{json_fields::*, tools::*};
+use crate::constants::{
+    json_fields::{ACTIVITY_ID, LIMIT, OFFSET, PROVIDER},
+    tools::{ANALYZE_ACTIVITY, CONNECT_FITBIT, CONNECT_STRAVA, DISCONNECT_PROVIDER, GET_ACTIVITIES, GET_ACTIVITY_INTELLIGENCE, GET_ATHLETE, GET_CONNECTION_STATUS, GET_STATS}
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -201,6 +204,7 @@ pub struct ClientInfo {
 
 impl InitializeResponse {
     /// Create a new initialize response with current server configuration
+    #[must_use]
     pub fn new(protocol_version: String, server_name: String, server_version: String) -> Self {
         Self {
             protocol_version,
@@ -223,6 +227,7 @@ impl InitializeResponse {
 }
 
 /// Get all available tools (public interface for tests)
+#[must_use]
 pub fn get_tools() -> Vec<ToolSchema> {
     create_fitness_tools()
 }
@@ -263,7 +268,7 @@ fn create_fitness_tools() -> Vec<ToolSchema> {
     ]
 }
 
-/// Create the get_activities tool schema
+/// Create the `get_activities` tool schema
 fn create_get_activities_tool() -> ToolSchema {
     let mut properties = HashMap::new();
 

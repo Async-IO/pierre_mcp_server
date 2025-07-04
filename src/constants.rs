@@ -35,7 +35,10 @@ pub mod protocol {
     /// Get multi-tenant server name variant
     #[must_use]
     pub fn server_name_multitenant() -> String {
-        env::var("SERVER_NAME").map_or_else(|_| "pierre-mcp-server-multitenant".into(), |name| format!("{name}-multitenant"))
+        env::var("SERVER_NAME").map_or_else(
+            |_| "pierre-mcp-server-multitenant".into(),
+            |name| format!("{name}-multitenant"),
+        )
     }
 
     /// Server version from Cargo.toml

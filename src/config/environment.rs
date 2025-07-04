@@ -437,7 +437,8 @@ impl ServerConfig {
 
             auth: AuthConfig {
                 jwt_secret_path: PathBuf::from(env_config::jwt_secret_path()),
-                jwt_expiry_hours: u64::try_from(env_config::jwt_expiry_hours().max(0)).unwrap_or(24),
+                jwt_expiry_hours: u64::try_from(env_config::jwt_expiry_hours().max(0))
+                    .unwrap_or(24),
                 enable_refresh_tokens: env_var_or("ENABLE_REFRESH_TOKENS", "false")
                     .parse()
                     .context("Invalid ENABLE_REFRESH_TOKENS value")?,
@@ -524,10 +525,7 @@ impl ServerConfig {
                         "STRAVA_AUTH_URL",
                         "https://www.strava.com/oauth/authorize",
                     ),
-                    token_url: env_var_or(
-                        "STRAVA_TOKEN_URL",
-                        "https://www.strava.com/oauth/token",
-                    ),
+                    token_url: env_var_or("STRAVA_TOKEN_URL", "https://www.strava.com/oauth/token"),
                 },
                 fitbit_api: FitbitApiConfig {
                     base_url: env_var_or("FITBIT_API_BASE", "https://api.fitbit.com"),
