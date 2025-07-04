@@ -20,8 +20,28 @@ use crate::intelligence::analyzer::ActivityAnalyzer;
 use crate::intelligence::goal_engine::GoalEngineTrait;
 use crate::intelligence::performance_analyzer::PerformanceAnalyzerTrait;
 use crate::intelligence::physiological_constants::{
-    api_limits::*, business_thresholds::*, demo_data::*, efficiency_defaults::*,
-    fitness_score_thresholds::*, goal_feasibility::*, hr_estimation::*, unit_conversions::*,
+    api_limits::{
+        DEFAULT_ACTIVITY_LIMIT, GOAL_ANALYSIS_ACTIVITY_LIMIT, LARGE_ACTIVITY_LIMIT,
+        MAX_ACTIVITY_LIMIT, SMALL_ACTIVITY_LIMIT,
+    },
+    business_thresholds::{
+        CONFIDENCE_BASE_DIVISOR, DEFAULT_HR_EFFORT_SCORE, DISTANCE_SCORE_DIVISOR,
+        DURATION_SCORE_FACTOR, EFFORT_SCORE_MULTIPLIER, FATIGUE_EXPONENT, MARATHON_DISTANCE_KM,
+        MAX_CONFIDENCE_RATIO, MAX_DISTANCE_SCORE, MAX_PACE_SCORE, MAX_SCORE, MIN_SCORE,
+        MIN_VALID_DISTANCE, PACE_SCORING_BASE, PACE_SCORING_MULTIPLIER,
+        SLOW_PACE_THRESHOLD_MIN_PER_KM,
+    },
+    demo_data::DEMO_GOAL_DISTANCE,
+    efficiency_defaults::{DEFAULT_EFFICIENCY_SCORE, DEFAULT_EFFICIENCY_WITH_DISTANCE},
+    fitness_score_thresholds::{
+        BEGINNER_FITNESS_THRESHOLD, EXCELLENT_FITNESS_THRESHOLD, GOOD_FITNESS_THRESHOLD,
+        MODERATE_FITNESS_THRESHOLD,
+    },
+    goal_feasibility::{
+        HIGH_FEASIBILITY_THRESHOLD, MODERATE_FEASIBILITY_THRESHOLD, SIMPLE_PROGRESS_THRESHOLD,
+    },
+    hr_estimation::ASSUMED_MAX_HR,
+    unit_conversions::MS_TO_KMH_FACTOR,
 };
 use crate::intelligence::recommendation_engine::RecommendationEngineTrait;
 use crate::intelligence::ActivityIntelligence;
@@ -81,7 +101,7 @@ pub struct UniversalToolExecutor {
 
 impl UniversalToolExecutor {
     /// Handler for tools that are implemented asynchronously
-    /// Routes tools to async execution through execute_tool() method
+    /// Routes tools to async execution through `execute_tool()` method
     fn async_implemented_handler(
         _executor: &UniversalToolExecutor,
         request: UniversalRequest,
@@ -92,7 +112,7 @@ impl UniversalToolExecutor {
         )))
     }
 
-    /// Provide real activity intelligence analysis using the ActivityIntelligence engine
+    /// Provide real activity intelligence analysis using the `ActivityIntelligence` engine
     async fn get_real_activity_intelligence(
         &self,
         request: &UniversalRequest,
@@ -104,8 +124,8 @@ impl UniversalToolExecutor {
             .ok_or("Missing activity_id parameter")?;
 
         // Parse user_id
-        let user_id = uuid::Uuid::parse_str(&request.user_id)
-            .map_err(|e| format!("Invalid user ID: {}", e))?;
+        let user_id =
+            uuid::Uuid::parse_str(&request.user_id).map_err(|e| format!("Invalid user ID: {e}"))?;
 
         // First, try to get the activity from the database or providers
         let activity_data = match self.get_activity_data(activity_id, user_id).await {
@@ -131,7 +151,7 @@ impl UniversalToolExecutor {
 
         // Use the real ActivityAnalyzer for analysis
         let analyzer = ActivityAnalyzer::new();
-        match analyzer.analyze_activity(&activity_data, None).await {
+        match analyzer.analyze_activity(&activity_data, None) {
             Ok(analysis) => Ok(serde_json::json!({
                 "activity_id": activity_id,
                 "analysis_type": "full_intelligence",
@@ -148,7 +168,7 @@ impl UniversalToolExecutor {
                     "analysis_timestamp": analysis.generated_at.to_rfc3339()
                 }
             })),
-            Err(e) => Err(format!("Activity intelligence analysis failed: {}", e)),
+            Err(e) => Err(format!("Activity intelligence analysis failed: {e}")),
         }
     }
 
@@ -165,7 +185,7 @@ impl UniversalToolExecutor {
             // Authenticate with stored token
             let auth_data = AuthData::OAuth2 {
                 client_id: "strava_client".into(), // Would be from config in real implementation
-                client_secret: "".into(),
+                client_secret: String::new(),
                 access_token: Some(strava_token.access_token),
                 refresh_token: Some(strava_token.refresh_token),
             };
@@ -184,7 +204,7 @@ impl UniversalToolExecutor {
             // Authenticate with stored token
             let auth_data = AuthData::OAuth2 {
                 client_id: "fitbit_client".into(), // Would be from config in real implementation
-                client_secret: "".into(),
+                client_secret: String::new(),
                 access_token: Some(fitbit_token.access_token),
                 refresh_token: Some(fitbit_token.refresh_token),
             };
@@ -198,20 +218,18 @@ impl UniversalToolExecutor {
 
         Err("Activity not found in any connected providers".into())
     }
+    #[must_use]
     pub fn new(
         database: Arc<Database>,
         intelligence: Arc<ActivityIntelligence>,
         config: Arc<crate::config::environment::ServerConfig>,
     ) -> Self {
-        let executor = Self {
+        Self {
             database,
             intelligence,
             config,
             tools: HashMap::new(),
-        };
-
-        executor.register_default_tools();
-        executor
+        }
     }
 
     /// Get valid token for a provider, automatically refreshing if needed
@@ -260,18 +278,16 @@ impl UniversalToolExecutor {
         oauth_manager.ensure_valid_token(user_id, provider).await
     }
 
-    /// Register all default tools
-    fn register_default_tools(&self) {
-        // All tools are now handled through async execute_tool match statement
-        // No sync tools needed as everything is async
-    }
-
     /// Register a new tool
     pub fn register_tool(&mut self, tool: UniversalTool) {
         self.tools.insert(tool.name.clone(), tool);
     }
 
     /// Execute a tool by name
+    ///
+    /// # Errors
+    ///
+    /// Returns a protocol error if tool execution fails or tool is not found.
     pub async fn execute_tool(
         &self,
         request: UniversalRequest,
@@ -327,6 +343,7 @@ impl UniversalToolExecutor {
     }
 
     /// List available tools
+    #[must_use]
     pub fn list_tools(&self) -> Vec<UniversalTool> {
         vec![
             UniversalTool {
@@ -473,6 +490,7 @@ impl UniversalToolExecutor {
     }
 
     /// Get tool by name
+    #[must_use]
     pub fn get_tool(&self, name: &str) -> Option<UniversalTool> {
         self.list_tools().into_iter().find(|tool| tool.name == name)
     }
@@ -486,8 +504,10 @@ impl UniversalToolExecutor {
         let limit = request
             .parameters
             .get("limit")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(10) as usize;
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or(10)
+            .try_into()
+            .unwrap_or(10_usize);
 
         let provider_type = request
             .parameters
@@ -752,10 +772,11 @@ impl UniversalToolExecutor {
 
                 // Generate basic analysis
                 let efficiency_score = if let Some(distance) = activity.distance_meters {
-                    if activity.duration_seconds > 0 && distance > MIN_VALID_DISTANCE as f64 {
+                    if activity.duration_seconds > 0 && distance > f64::from(MIN_VALID_DISTANCE) {
                         // Simple efficiency calculation: distance/time ratio normalized
                         let speed_ms = distance / activity.duration_seconds as f64;
-                        (speed_ms * MAX_SCORE as f64).clamp(MIN_SCORE as f64, MAX_SCORE as f64)
+                        (speed_ms * f64::from(MAX_SCORE))
+                            .clamp(f64::from(MIN_SCORE), f64::from(MAX_SCORE))
                     } else {
                         DEFAULT_EFFICIENCY_SCORE
                     }
@@ -922,7 +943,7 @@ impl UniversalToolExecutor {
             Err(e) => Ok(UniversalResponse {
                 success: false,
                 result: None,
-                error: Some(format!("Activity intelligence analysis failed: {}", e)),
+                error: Some(format!("Activity intelligence analysis failed: {e}")),
                 metadata: Some({
                     let mut map = std::collections::HashMap::new();
                     map.insert(
@@ -1029,10 +1050,7 @@ impl UniversalToolExecutor {
                     Err(e) => Ok(UniversalResponse {
                         success: false,
                         result: None,
-                        error: Some(format!(
-                            "Failed to generate Strava authorization URL: {}",
-                            e
-                        )),
+                        error: Some(format!("Failed to generate Strava authorization URL: {e}")),
                         metadata: None,
                     }),
                 }
@@ -1040,7 +1058,7 @@ impl UniversalToolExecutor {
             Err(e) => Ok(UniversalResponse {
                 success: false,
                 result: None,
-                error: Some(format!("Failed to initialize Strava provider: {}", e)),
+                error: Some(format!("Failed to initialize Strava provider: {e}")),
                 metadata: None,
             }),
         }
@@ -1601,7 +1619,7 @@ impl UniversalToolExecutor {
 
             // Use analyzer to analyze the first activity for pattern detection
             if let Some(first_activity) = activities.first() {
-                match analyzer.analyze_activity(first_activity, None).await {
+                match analyzer.analyze_activity(first_activity, None) {
                     Ok(intelligence) => {
                         tracing::debug!(
                             "Sample activity analysis completed - {} insights generated",

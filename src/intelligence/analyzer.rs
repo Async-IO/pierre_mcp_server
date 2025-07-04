@@ -55,6 +55,7 @@ impl ActivityAnalyzer {
     /// # Errors
     ///
     /// Returns an error if analysis fails due to invalid data or computation errors
+    #[allow(clippy::needless_pass_by_value)]
     pub fn analyze_activity(
         &self,
         activity: &Activity,

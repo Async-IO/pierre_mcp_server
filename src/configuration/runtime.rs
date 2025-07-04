@@ -77,7 +77,8 @@ pub trait ConfigAware {
             .get_value(key)
             .and_then(|v| match v {
                 ConfigValue::Float(f) => Some(f),
-                ConfigValue::Integer(i) => Some(i as f64),
+                #[allow(clippy::cast_precision_loss)]
+                ConfigValue::Integer(i) => Some(i as f64), // Cast needed for interface compatibility
                 _ => None,
             })
             .unwrap_or(default)
@@ -187,11 +188,13 @@ impl RuntimeConfig {
     }
 
     /// Determine profile based on current configuration settings
+    #[must_use]
     pub fn determine_profile(&self) -> ConfigProfile {
         self.active_profile.clone()
     }
 
     /// Get a configuration value
+    #[must_use]
     pub fn get_value(&self, key: &str) -> Option<ConfigValue> {
         // Check session overrides first
         if let Some(value) = self.session_overrides.get(key) {
@@ -207,6 +210,11 @@ impl RuntimeConfig {
     }
 
     /// Set a session override value
+    ///
+    /// # Errors
+    ///
+    /// This function currently doesn't return any errors but is designed to validate
+    /// configuration changes in the future.
     pub fn set_override(&mut self, key: String, value: ConfigValue) -> Result<(), String> {
         let old_value = self.get_value(&key);
 
@@ -225,9 +233,10 @@ impl RuntimeConfig {
     }
 
     /// Get all values for a module
+    #[must_use]
     pub fn get_module_values(&self, module: &str) -> HashMap<String, ConfigValue> {
         let mut values = HashMap::new();
-        let prefix = format!("{}.", module);
+        let prefix = format!("{module}.");
 
         // Collect base constants
         for (key, value) in &self.base_constants {
@@ -280,21 +289,25 @@ impl RuntimeConfig {
     }
 
     /// Get recent changes
+    #[must_use]
     pub fn get_recent_changes(&self, limit: usize) -> Vec<&ConfigChange> {
         self.change_log.iter().rev().take(limit).collect()
     }
 
     /// Get the active profile
-    pub fn get_profile(&self) -> &ConfigProfile {
+    #[must_use]
+    pub const fn get_profile(&self) -> &ConfigProfile {
         &self.active_profile
     }
 
     /// Get session overrides
-    pub fn get_session_overrides(&self) -> &HashMap<String, ConfigValue> {
+    #[must_use]
+    pub const fn get_session_overrides(&self) -> &HashMap<String, ConfigValue> {
         &self.session_overrides
     }
 
     /// Export configuration state
+    #[must_use]
     pub fn export(&self) -> ConfigExport {
         ConfigExport {
             profile: self.active_profile.clone(),
@@ -366,13 +379,21 @@ impl ConfigurationManager {
     }
 
     /// Update a user's configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the updater function fails to apply the configuration changes.
     pub async fn update_user_config<F>(&self, user_id: Uuid, updater: F) -> Result<(), String>
     where
         F: FnOnce(&mut RuntimeConfig) -> Result<(), String>,
     {
-        let mut configs = self.user_configs.write().await;
-        let config = configs.entry(user_id).or_insert_with(RuntimeConfig::new);
-        updater(config)
+        updater(
+            self.user_configs
+                .write()
+                .await
+                .entry(user_id)
+                .or_insert_with(RuntimeConfig::new),
+        )
     }
 }
 

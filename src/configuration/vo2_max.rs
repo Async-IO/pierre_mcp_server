@@ -111,7 +111,13 @@ pub struct PersonalizedPowerZones {
 }
 
 impl VO2MaxCalculator {
+    /// Helper function to safely convert HR calculations to u16
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    fn hr_calc_to_u16(base_hr: u16, reserve: f64, percentage: f64) -> u16 {
+        base_hr + (reserve * percentage) as u16
+    }
     /// Create a new VO2 max calculator
+    #[must_use]
     pub fn new(
         vo2_max: f64,
         resting_hr: u16,
@@ -135,8 +141,9 @@ impl VO2MaxCalculator {
     }
 
     /// Calculate personalized heart rate zones using Karvonen method
+    #[must_use]
     pub fn calculate_hr_zones(&self) -> PersonalizedHRZones {
-        let hr_reserve = (self.max_hr - self.resting_hr) as f64;
+        let hr_reserve = f64::from(self.max_hr - self.resting_hr);
 
         // Zone percentages based on VO2 max level
         let (z1_low, z1_high, z2_low, z2_high, z3_low, z3_high, z4_low, z4_high, z5_low, z5_high) =
@@ -155,26 +162,26 @@ impl VO2MaxCalculator {
             };
 
         PersonalizedHRZones {
-            zone1_lower: self.resting_hr + (hr_reserve * z1_low) as u16,
-            zone1_upper: self.resting_hr + (hr_reserve * z1_high) as u16,
+            zone1_lower: Self::hr_calc_to_u16(self.resting_hr, hr_reserve, z1_low),
+            zone1_upper: Self::hr_calc_to_u16(self.resting_hr, hr_reserve, z1_high),
 
-            zone2_lower: self.resting_hr + (hr_reserve * z2_low) as u16,
-            zone2_upper: self.resting_hr + (hr_reserve * z2_high) as u16,
+            zone2_lower: Self::hr_calc_to_u16(self.resting_hr, hr_reserve, z2_low),
+            zone2_upper: Self::hr_calc_to_u16(self.resting_hr, hr_reserve, z2_high),
 
-            zone3_lower: self.resting_hr + (hr_reserve * z3_low) as u16,
-            zone3_upper: self.resting_hr + (hr_reserve * z3_high) as u16,
+            zone3_lower: Self::hr_calc_to_u16(self.resting_hr, hr_reserve, z3_low),
+            zone3_upper: Self::hr_calc_to_u16(self.resting_hr, hr_reserve, z3_high),
 
-            zone4_lower: self.resting_hr + (hr_reserve * z4_low) as u16,
-            zone4_upper: self.resting_hr + (hr_reserve * z4_high) as u16,
+            zone4_lower: Self::hr_calc_to_u16(self.resting_hr, hr_reserve, z4_low),
+            zone4_upper: Self::hr_calc_to_u16(self.resting_hr, hr_reserve, z4_high),
 
-            zone5_lower: self.resting_hr + (hr_reserve * z5_low) as u16,
-            zone5_upper: (self.resting_hr as f64 + hr_reserve * z5_high).min(self.max_hr as f64)
-                as u16,
+            zone5_lower: Self::hr_calc_to_u16(self.resting_hr, hr_reserve, z5_low),
+            zone5_upper: Self::hr_calc_to_u16(self.resting_hr, hr_reserve, z5_high)
+                .min(self.max_hr),
 
             // Zone 6 for advanced athletes only (configurable threshold)
             zone6_lower: if self.vo2_max >= get_config_value("hr_zones.elite_zone6_threshold", 50.0)
             {
-                Some(self.resting_hr + (hr_reserve * 0.95) as u16)
+                Some(Self::hr_calc_to_u16(self.resting_hr, hr_reserve, 0.95))
             } else {
                 None
             },
@@ -188,6 +195,7 @@ impl VO2MaxCalculator {
     }
 
     /// Calculate personalized running pace zones
+    #[must_use]
     pub fn calculate_pace_zones(&self) -> PersonalizedPaceZones {
         // Calculate critical velocity at lactate threshold
         // Using simplified Jack Daniels' VDOT formulas
@@ -199,13 +207,13 @@ impl VO2MaxCalculator {
         let coeff_c = get_config_value("vo2.vdot_coefficient_c", 0.007_546);
 
         // Convert VDOT to velocity at VO2max (vVO2max) in m/min
-        let v_vo2max = coeff_a + coeff_b * vdot - coeff_c * vdot * vdot;
+        let v_vo2max = (coeff_c * vdot).mul_add(-vdot, vdot.mul_add(coeff_b, coeff_a));
 
         // Calculate threshold velocity using configurable parameters
         let threshold_base = get_config_value("vo2.threshold_velocity_base", 0.86);
         let threshold_factor = get_config_value("vo2.threshold_adjustment_factor", 0.4);
         let threshold_velocity =
-            v_vo2max * (threshold_base + (self.lactate_threshold - 0.75) * threshold_factor);
+            v_vo2max * (self.lactate_threshold - 0.75).mul_add(threshold_factor, threshold_base);
 
         // Convert to pace (seconds per km)
         let threshold_pace = 1000.0 / threshold_velocity * 60.0;
@@ -251,6 +259,7 @@ impl VO2MaxCalculator {
     }
 
     /// Calculate functional threshold power (FTP) from VO2 max
+    #[must_use]
     pub fn estimate_ftp(&self) -> f64 {
         // Get power coefficient from configuration
         let power_coefficient = get_config_value("vo2.power_coefficient", 13.5);
@@ -274,6 +283,7 @@ impl VO2MaxCalculator {
     }
 
     /// Calculate personalized power zones for cycling
+    #[must_use]
     pub fn calculate_power_zones(&self, ftp: Option<f64>) -> PersonalizedPowerZones {
         let ftp_value = ftp.unwrap_or_else(|| self.estimate_ftp());
 
@@ -289,6 +299,7 @@ impl VO2MaxCalculator {
     }
 
     /// Get zone name for a given heart rate
+    #[must_use]
     pub fn get_hr_zone_name(&self, heart_rate: u16) -> &'static str {
         let zones = self.calculate_hr_zones();
 
@@ -303,9 +314,10 @@ impl VO2MaxCalculator {
     }
 
     /// Calculate training impulse (TRIMP) for an activity
+    #[must_use]
     pub fn calculate_trimp(&self, avg_hr: u16, duration_minutes: f64, gender: &str) -> f64 {
-        let hr_reserve = (self.max_hr - self.resting_hr) as f64;
-        let hr_ratio = (avg_hr - self.resting_hr) as f64 / hr_reserve;
+        let hr_reserve = f64::from(self.max_hr - self.resting_hr);
+        let hr_ratio = f64::from(avg_hr - self.resting_hr) / hr_reserve;
 
         // Gender-specific weighting factor
         let gender_factor: f64 = match gender {
@@ -325,12 +337,11 @@ pub trait SportEfficiency {
 impl SportEfficiency for crate::models::SportType {
     fn sport_efficiency_factor(&self) -> f64 {
         match self {
-            crate::models::SportType::Run => 1.0,
-            crate::models::SportType::Ride => 0.9, // Cycling is mechanically more efficient
-            crate::models::SportType::Swim => 0.7, // Swimming has lower mechanical efficiency
-            crate::models::SportType::Walk => 0.8,
-            crate::models::SportType::Hike => 0.85,
-            _ => 0.9,
+            Self::Run => 1.0,
+            Self::Swim => 0.7, // Swimming has lower mechanical efficiency
+            Self::Walk => 0.8,
+            Self::Hike => 0.85,
+            _ => 0.9, // Default including cycling which is mechanically more efficient
         }
     }
 }

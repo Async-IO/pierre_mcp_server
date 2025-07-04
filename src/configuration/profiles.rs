@@ -83,6 +83,7 @@ pub enum ConfigProfile {
 
 impl ConfigProfile {
     /// Get the profile name
+    #[must_use]
     pub fn name(&self) -> String {
         match self {
             Self::Default => "default".into(),
@@ -97,6 +98,7 @@ impl ConfigProfile {
     }
 
     /// Create an elite profile from VO2 max
+    #[must_use]
     pub fn elite_from_vo2_max(vo2_max: f64) -> Self {
         let performance_factor = match vo2_max {
             v if v >= 70.0 => 1.2,  // Professional level
@@ -112,6 +114,7 @@ impl ConfigProfile {
     }
 
     /// Get parameter adjustments for this profile
+    #[must_use]
     pub fn get_adjustments(&self) -> HashMap<String, f64> {
         let mut adjustments = HashMap::new();
 
@@ -191,7 +194,7 @@ impl Default for ConfigProfile {
 }
 
 /// Zone analysis granularity
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ZoneGranularity {
     /// Standard 5-zone model
     Standard,
@@ -202,7 +205,7 @@ pub enum ZoneGranularity {
 }
 
 /// Athlete fitness level
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum FitnessLevel {
     Beginner,
     Recreational,
@@ -214,7 +217,8 @@ pub enum FitnessLevel {
 
 impl FitnessLevel {
     /// Get threshold adjustment factor for fitness level
-    pub fn threshold_factor(&self) -> f64 {
+    #[must_use]
+    pub const fn threshold_factor(&self) -> f64 {
         match self {
             Self::Beginner => 0.85,
             Self::Recreational => 0.90,
@@ -226,19 +230,19 @@ impl FitnessLevel {
     }
 
     /// Create from VO2 max value
+    #[must_use]
+    #[allow(clippy::items_after_statements)]
     pub fn from_vo2_max(vo2_max: f64, age: Option<u16>, gender: Option<&str>) -> Self {
         // Adjust for age if provided
-        let age_adjusted_vo2 = if let Some(age) = age {
+        let age_adjusted_vo2 = age.map_or(vo2_max, |age| {
             // VO2 max declines approximately 1% per year after age 25
             let age_factor = if age > 25 {
-                1.0 - ((age - 25) as f64 * 0.01)
+                f64::from(age - 25).mul_add(-0.01, 1.0)
             } else {
                 1.0
             };
             vo2_max / age_factor.max(0.7)
-        } else {
-            vo2_max
-        };
+        });
 
         // Get thresholds from configuration catalog
         use super::catalog::CatalogBuilder;
@@ -248,7 +252,7 @@ impl FitnessLevel {
         };
 
         let get_threshold = |level: &str| -> f64 {
-            let key = format!("fitness.vo2_max_threshold_{}_{}", gender_prefix, level);
+            let key = format!("fitness.vo2_max_threshold_{gender_prefix}_{level}");
             CatalogBuilder::get_parameter(&key)
                 .and_then(|param| match param.default_value {
                     super::runtime::ConfigValue::Float(v) => Some(v),
@@ -258,13 +262,22 @@ impl FitnessLevel {
                     // Fallback values if parameter not found
                     match (gender_prefix, level) {
                         ("female", "beginner") => 30.0,
-                        ("female", "recreational") => 35.0,
+                        ("female", "recreational") | ("male", "beginner") => 35.0,
                         ("female", "intermediate") => 42.0,
-                        ("female", "advanced") => 50.0,
-                        ("female", "elite") => 55.0,
-                        ("male", "beginner") => 35.0,
-                        ("male", "recreational") => 42.0,
-                        ("male", "intermediate") => 50.0,
+                        ("female", "advanced") | ("male", "recreational") => {
+                            if gender_prefix == "female" {
+                                50.0
+                            } else {
+                                42.0
+                            }
+                        }
+                        ("female", "elite") | ("male", "intermediate") => {
+                            if gender_prefix == "female" {
+                                55.0
+                            } else {
+                                50.0
+                            }
+                        }
                         ("male", "advanced") => 55.0,
                         ("male", "elite") => 60.0,
                         _ => 50.0,
@@ -294,6 +307,7 @@ pub struct ProfileTemplates;
 
 impl ProfileTemplates {
     /// Get all available profile templates
+    #[must_use]
     pub fn all() -> Vec<(String, ConfigProfile)> {
         vec![
             ("Default".into(), ConfigProfile::Default),
@@ -371,6 +385,7 @@ impl ProfileTemplates {
     }
 
     /// Get a profile template by name
+    #[must_use]
     pub fn get(name: &str) -> Option<ConfigProfile> {
         Self::all()
             .into_iter()

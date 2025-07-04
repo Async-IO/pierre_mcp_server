@@ -81,6 +81,7 @@ pub struct RelationshipRule {
 
 impl ConfigValidator {
     /// Create a new configuration validator
+    #[must_use]
     pub fn new() -> Self {
         Self {
             safety_rules: Self::build_safety_rules(),
@@ -89,6 +90,7 @@ impl ConfigValidator {
     }
 
     /// Validate a set of configuration changes
+    #[must_use]
     pub fn validate(
         &self,
         changes: &HashMap<String, ConfigValue>,
@@ -119,7 +121,7 @@ impl ConfigValidator {
         }
 
         // 3. Perform impact analysis
-        result.impact_analysis = Some(self.analyze_impact(changes));
+        result.impact_analysis = Some(Self::analyze_impact(changes));
 
         result
     }
@@ -133,15 +135,15 @@ impl ConfigValidator {
     ) -> Result<(), String> {
         // Check if parameter exists in catalog
         let param_def = CatalogBuilder::get_parameter(key)
-            .ok_or_else(|| format!("Unknown parameter: {}", key))?;
+            .ok_or_else(|| format!("Unknown parameter: {key}"))?;
 
         // Validate data type
         match (&param_def.data_type, value) {
-            (crate::configuration::catalog::ParameterType::Float, ConfigValue::Float(_)) => {}
-            (crate::configuration::catalog::ParameterType::Integer, ConfigValue::Integer(_)) => {}
-            (crate::configuration::catalog::ParameterType::Boolean, ConfigValue::Boolean(_)) => {}
-            (crate::configuration::catalog::ParameterType::String, ConfigValue::String(_)) => {}
-            _ => return Err(format!("Type mismatch for parameter {}", key)),
+            (crate::configuration::catalog::ParameterType::Float, ConfigValue::Float(_))
+            | (crate::configuration::catalog::ParameterType::Integer, ConfigValue::Integer(_))
+            | (crate::configuration::catalog::ParameterType::Boolean, ConfigValue::Boolean(_))
+            | (crate::configuration::catalog::ParameterType::String, ConfigValue::String(_)) => {}
+            _ => return Err(format!("Type mismatch for parameter {key}")),
         }
 
         // Validate range if specified
@@ -150,16 +152,14 @@ impl ConfigValidator {
                 (ConfigValue::Float(v), ConfigValue::FloatRange { min, max }) => {
                     if v < min || v > max {
                         return Err(format!(
-                            "Value {} is outside valid range [{}, {}] for {}",
-                            v, min, max, key
+                            "Value {v} is outside valid range [{min}, {max}] for {key}"
                         ));
                     }
                 }
                 (ConfigValue::Integer(v), ConfigValue::IntegerRange { min, max }) => {
                     if v < min || v > max {
                         return Err(format!(
-                            "Value {} is outside valid range [{}, {}] for {}",
-                            v, min, max, key
+                            "Value {v} is outside valid range [{min}, {max}] for {key}"
                         ));
                     }
                 }
@@ -171,7 +171,7 @@ impl ConfigValidator {
         if param_def.requires_vo2_max
             && (user_profile.is_none() || user_profile.as_ref().is_none_or(|p| p.vo2_max.is_none()))
         {
-            return Err(format!("Parameter {} requires VO2 max data", key));
+            return Err(format!("Parameter {key} requires VO2 max data"));
         }
 
         // Apply safety rules
@@ -185,7 +185,7 @@ impl ConfigValidator {
     }
 
     /// Analyze impact of configuration changes
-    fn analyze_impact(&self, changes: &HashMap<String, ConfigValue>) -> ImpactAnalysis {
+    fn analyze_impact(changes: &HashMap<String, ConfigValue>) -> ImpactAnalysis {
         let mut impact = ImpactAnalysis {
             effort_score_change: 0.0,
             zone_boundary_changes: HashMap::new(),
@@ -283,7 +283,7 @@ impl ConfigValidator {
                             // Age-based safety checks
                             if let Some(profile) = profile {
                                 if let Some(age) = profile.age {
-                                    let estimated_max_hr = 220.0 - age as f64;
+                                    let estimated_max_hr = 220.0 - f64::from(age);
                                     let actual_hr = estimated_max_hr * percentage / 100.0;
 
                                     if age > 65 && actual_hr > 160.0 {
@@ -375,7 +375,7 @@ impl ConfigValidator {
                     for (name, value_opt) in zones {
                         if let Some(ConfigValue::Float(value)) = value_opt {
                             if *value <= prev_value {
-                                return Err(format!("{} must be higher than previous zone", name));
+                                return Err(format!("{name} must be higher than previous zone"));
                             }
                             prev_value = *value;
                         }
@@ -421,7 +421,8 @@ impl Default for ConfigValidator {
 
 impl ValidationResult {
     /// Create a new validation result
-    pub fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self {
             is_valid: true,
             errors: Vec::new(),

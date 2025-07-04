@@ -47,7 +47,7 @@ pub struct ConfigModule {
 /// Configuration parameter definition
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfigParameter {
-    /// Parameter key (e.g., "heart_rate.anaerobic_threshold")
+    /// Parameter key (e.g., `heart_rate.anaerobic_threshold`)
     pub key: String,
     /// Human-readable description
     pub description: String,
@@ -104,6 +104,7 @@ impl CatalogBuilder {
     }
 
     /// Build physiological zones category
+    #[allow(clippy::too_many_lines)]
     fn build_physiological_zones_category() -> ConfigCategory {
         ConfigCategory {
             name: "physiological_zones".into(),
@@ -680,6 +681,7 @@ impl CatalogBuilder {
     }
 
     /// Build performance calculation category
+    #[allow(clippy::too_many_lines)]
     fn build_performance_calculation_category() -> ConfigCategory {
         ConfigCategory {
             name: "performance_calculation".into(),
@@ -957,6 +959,7 @@ impl CatalogBuilder {
     }
 
     /// Get a specific parameter by key
+    #[must_use]
     pub fn get_parameter(key: &str) -> Option<ConfigParameter> {
         let catalog = Self::build();
 
@@ -969,6 +972,7 @@ impl CatalogBuilder {
     }
 
     /// Get all parameters for a module
+    #[must_use]
     pub fn get_module_parameters(module_name: &str) -> Vec<ConfigParameter> {
         let catalog = Self::build();
 

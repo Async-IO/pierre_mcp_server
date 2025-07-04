@@ -2021,7 +2021,7 @@ impl MultiTenantMcpServer {
                             };
 
                             // Generate activity intelligence
-                            match analyzer.analyze_activity(activity, context).await {
+                            match analyzer.analyze_activity(activity, context) {
                                 Ok(intelligence) => Some(serde_json::json!({
                                     "summary": intelligence.summary,
                                     "activity_id": activity.id,
