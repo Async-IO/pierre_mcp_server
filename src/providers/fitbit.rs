@@ -158,7 +158,7 @@ impl FitbitProvider {
         .await?;
 
         self.access_token = Some(token.access_token.clone());
-        self.refresh_token = token.refresh_token.clone();
+        self.refresh_token.clone_from(&token.refresh_token);
 
         info!("Fitbit authentication successful");
 
@@ -205,7 +205,7 @@ impl FitbitProvider {
         .await?;
 
         self.access_token = Some(token.access_token.clone());
-        self.refresh_token = token.refresh_token.clone();
+        self.refresh_token.clone_from(&token.refresh_token);
 
         info!("Fitbit authentication with PKCE successful");
 
