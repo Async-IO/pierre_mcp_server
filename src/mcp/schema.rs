@@ -14,7 +14,10 @@
 
 use crate::constants::{
     json_fields::{ACTIVITY_ID, LIMIT, OFFSET, PROVIDER},
-    tools::{ANALYZE_ACTIVITY, CONNECT_FITBIT, CONNECT_STRAVA, DISCONNECT_PROVIDER, GET_ACTIVITIES, GET_ACTIVITY_INTELLIGENCE, GET_ATHLETE, GET_CONNECTION_STATUS, GET_STATS}
+    tools::{
+        ANALYZE_ACTIVITY, CONNECT_FITBIT, CONNECT_STRAVA, DISCONNECT_PROVIDER, GET_ACTIVITIES,
+        GET_ACTIVITY_INTELLIGENCE, GET_ATHLETE, GET_CONNECTION_STATUS, GET_STATS,
+    },
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -221,7 +224,7 @@ impl InitializeResponse {
                     list_changed: Some(false),
                 }),
             },
-            instructions: Some("This server provides fitness data tools for Strava and Fitbit integration. Use connect_strava or connect_fitbit to authenticate, then use get_activities, get_athlete, and other analytics tools to access your fitness data.".into()),
+            instructions: Some("This server provides fitness data tools for Strava and Fitbit integration. Use `connect_strava` or `connect_fitbit` to authenticate, then use `get_activities`, `get_athlete`, and other analytics tools to access your fitness data.".into()),
         }
     }
 }
@@ -307,7 +310,7 @@ fn create_get_activities_tool() -> ToolSchema {
     }
 }
 
-/// Create the get_athlete tool schema
+/// Create the `get_athlete` tool schema
 fn create_get_athlete_tool() -> ToolSchema {
     let mut properties = HashMap::new();
 
@@ -330,7 +333,7 @@ fn create_get_athlete_tool() -> ToolSchema {
     }
 }
 
-/// Create the get_stats tool schema
+/// Create the `get_stats` tool schema
 fn create_get_stats_tool() -> ToolSchema {
     let mut properties = HashMap::new();
 
@@ -353,7 +356,7 @@ fn create_get_stats_tool() -> ToolSchema {
     }
 }
 
-/// Create the get_activity_intelligence tool schema
+/// Create the `get_activity_intelligence` tool schema
 fn create_get_activity_intelligence_tool() -> ToolSchema {
     let mut properties = HashMap::new();
 
@@ -401,7 +404,7 @@ fn create_get_activity_intelligence_tool() -> ToolSchema {
     }
 }
 
-/// Create the connect_strava tool schema
+/// Create the `connect_strava` tool schema
 fn create_connect_strava_tool() -> ToolSchema {
     let properties = HashMap::new(); // No parameters needed - uses user's JWT context
 
@@ -416,7 +419,7 @@ fn create_connect_strava_tool() -> ToolSchema {
     }
 }
 
-/// Create the connect_fitbit tool schema
+/// Create the `connect_fitbit` tool schema
 fn create_connect_fitbit_tool() -> ToolSchema {
     let properties = HashMap::new(); // No parameters needed - uses user's JWT context
 
@@ -431,7 +434,7 @@ fn create_connect_fitbit_tool() -> ToolSchema {
     }
 }
 
-/// Create the get_connection_status tool schema
+/// Create the `get_connection_status` tool schema
 fn create_get_connection_status_tool() -> ToolSchema {
     let properties = HashMap::new(); // No parameters needed - uses user's JWT context
 
@@ -446,7 +449,7 @@ fn create_get_connection_status_tool() -> ToolSchema {
     }
 }
 
-/// Create the disconnect_provider tool schema
+/// Create the `disconnect_provider` tool schema
 fn create_disconnect_provider_tool() -> ToolSchema {
     let mut properties = HashMap::new();
 
@@ -471,7 +474,7 @@ fn create_disconnect_provider_tool() -> ToolSchema {
 
 // === ADVANCED ANALYTICS TOOLS ===
 
-/// Create the analyze_activity tool schema
+/// Create the `analyze_activity` tool schema
 fn create_analyze_activity_tool() -> ToolSchema {
     let mut properties = HashMap::new();
 
@@ -502,7 +505,7 @@ fn create_analyze_activity_tool() -> ToolSchema {
     }
 }
 
-/// Create the calculate_metrics tool schema
+/// Create the `calculate_metrics` tool schema
 fn create_calculate_metrics_tool() -> ToolSchema {
     let mut properties = HashMap::new();
 
@@ -544,7 +547,7 @@ fn create_calculate_metrics_tool() -> ToolSchema {
     }
 }
 
-/// Create the analyze_performance_trends tool schema
+/// Create the `analyze_performance_trends` tool schema
 fn create_analyze_performance_trends_tool() -> ToolSchema {
     let mut properties = HashMap::new();
 
@@ -592,7 +595,7 @@ fn create_analyze_performance_trends_tool() -> ToolSchema {
     }
 }
 
-/// Create the compare_activities tool schema
+/// Create the `compare_activities` tool schema
 fn create_compare_activities_tool() -> ToolSchema {
     let mut properties = HashMap::new();
 
@@ -640,7 +643,7 @@ fn create_compare_activities_tool() -> ToolSchema {
     }
 }
 
-/// Create the detect_patterns tool schema
+/// Create the `detect_patterns` tool schema
 fn create_detect_patterns_tool() -> ToolSchema {
     let mut properties = HashMap::new();
 
@@ -676,7 +679,7 @@ fn create_detect_patterns_tool() -> ToolSchema {
     }
 }
 
-/// Create the set_goal tool schema
+/// Create the `set_goal` tool schema
 fn create_set_goal_tool() -> ToolSchema {
     let mut properties = HashMap::new();
 
@@ -748,7 +751,7 @@ fn create_set_goal_tool() -> ToolSchema {
     }
 }
 
-/// Create the track_progress tool schema
+/// Create the `track_progress` tool schema
 fn create_track_progress_tool() -> ToolSchema {
     let mut properties = HashMap::new();
 
@@ -771,7 +774,7 @@ fn create_track_progress_tool() -> ToolSchema {
     }
 }
 
-/// Create the suggest_goals tool schema
+/// Create the `suggest_goals` tool schema
 fn create_suggest_goals_tool() -> ToolSchema {
     let mut properties = HashMap::new();
 
@@ -805,7 +808,7 @@ fn create_suggest_goals_tool() -> ToolSchema {
     }
 }
 
-/// Create the analyze_goal_feasibility tool schema
+/// Create the `analyze_goal_feasibility` tool schema
 fn create_analyze_goal_feasibility_tool() -> ToolSchema {
     let mut properties = HashMap::new();
 
@@ -828,7 +831,7 @@ fn create_analyze_goal_feasibility_tool() -> ToolSchema {
     }
 }
 
-/// Create the generate_recommendations tool schema
+/// Create the `generate_recommendations` tool schema
 fn create_generate_recommendations_tool() -> ToolSchema {
     let mut properties = HashMap::new();
 
@@ -872,7 +875,7 @@ fn create_generate_recommendations_tool() -> ToolSchema {
     }
 }
 
-/// Create the calculate_fitness_score tool schema
+/// Create the `calculate_fitness_score` tool schema
 fn create_calculate_fitness_score_tool() -> ToolSchema {
     let mut properties = HashMap::new();
 
@@ -905,7 +908,7 @@ fn create_calculate_fitness_score_tool() -> ToolSchema {
     }
 }
 
-/// Create the predict_performance tool schema
+/// Create the `predict_performance` tool schema
 fn create_predict_performance_tool() -> ToolSchema {
     let mut properties = HashMap::new();
 
@@ -952,7 +955,7 @@ fn create_predict_performance_tool() -> ToolSchema {
     }
 }
 
-/// Create the analyze_training_load tool schema
+/// Create the `analyze_training_load` tool schema
 fn create_analyze_training_load_tool() -> ToolSchema {
     let mut properties = HashMap::new();
 
@@ -985,7 +988,7 @@ fn create_analyze_training_load_tool() -> ToolSchema {
     }
 }
 
-/// Create the get_configuration_catalog tool schema
+/// Create the `get_configuration_catalog` tool schema
 fn create_get_configuration_catalog_tool() -> ToolSchema {
     ToolSchema {
         name: "get_configuration_catalog".into(),
@@ -998,7 +1001,7 @@ fn create_get_configuration_catalog_tool() -> ToolSchema {
     }
 }
 
-/// Create the get_configuration_profiles tool schema
+/// Create the `get_configuration_profiles` tool schema
 fn create_get_configuration_profiles_tool() -> ToolSchema {
     ToolSchema {
         name: "get_configuration_profiles".into(),
@@ -1011,7 +1014,7 @@ fn create_get_configuration_profiles_tool() -> ToolSchema {
     }
 }
 
-/// Create the get_user_configuration tool schema
+/// Create the `get_user_configuration` tool schema
 fn create_get_user_configuration_tool() -> ToolSchema {
     ToolSchema {
         name: "get_user_configuration".into(),
@@ -1026,7 +1029,7 @@ fn create_get_user_configuration_tool() -> ToolSchema {
     }
 }
 
-/// Create the update_user_configuration tool schema
+/// Create the `update_user_configuration` tool schema
 fn create_update_user_configuration_tool() -> ToolSchema {
     let mut properties = HashMap::new();
 
@@ -1058,7 +1061,7 @@ fn create_update_user_configuration_tool() -> ToolSchema {
     }
 }
 
-/// Create the calculate_personalized_zones tool schema
+/// Create the `calculate_personalized_zones` tool schema
 fn create_calculate_personalized_zones_tool() -> ToolSchema {
     let mut properties = HashMap::new();
 
@@ -1116,7 +1119,7 @@ fn create_calculate_personalized_zones_tool() -> ToolSchema {
     }
 }
 
-/// Create the validate_configuration tool schema
+/// Create the `validate_configuration` tool schema
 fn create_validate_configuration_tool() -> ToolSchema {
     let mut properties = HashMap::new();
 

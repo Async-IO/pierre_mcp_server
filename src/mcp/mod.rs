@@ -19,8 +19,8 @@ use tracing::info;
 
 use crate::config::fitness_config::FitnessConfig as Config;
 use crate::constants::{
-    errors::*,
-    json_fields::*,
+    errors::{ERROR_INTERNAL_ERROR, ERROR_INVALID_PARAMS, ERROR_METHOD_NOT_FOUND},
+    json_fields::{ARGUMENTS, NAME},
     protocol,
     protocol::{JSONRPC_VERSION, SERVER_VERSION},
 };
@@ -39,6 +39,7 @@ pub struct McpServer {
 }
 
 impl McpServer {
+    #[must_use]
     pub fn new(config: Config) -> Self {
         Self {
             config,
@@ -46,16 +47,25 @@ impl McpServer {
         }
     }
 
+    /// Run the MCP server
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the server fails to bind to the port or handle connections
+    ///
+    /// # Panics
+    ///
+    /// Panics if JSON serialization of responses fails
     pub async fn run(self, port: u16) -> Result<()> {
         use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
         use tokio::net::TcpListener;
 
-        let listener = TcpListener::bind(format!("127.0.0.1:{}", port)).await?;
-        info!("MCP server listening on port {}", port);
+        let listener = TcpListener::bind(format!("127.0.0.1:{port}")).await?;
+        info!("MCP server listening on port {port}");
 
         loop {
             let (socket, addr) = listener.accept().await?;
-            info!("New connection from {}", addr);
+            info!("New connection from {addr}");
 
             let providers = self.providers.clone();
             let config = self.config.clone();
@@ -72,7 +82,7 @@ impl McpServer {
                             match create_tool_executor().await {
                                 Ok(executor) => Some(executor),
                                 Err(e) => {
-                                    tracing::error!("Failed to create tool executor: {}", e);
+                                    tracing::error!("Failed to create tool executor: {e}");
                                     None
                                 }
                             }
@@ -95,6 +105,7 @@ impl McpServer {
 }
 
 /// Create a tool executor for MCP server with proper configuration
+#[allow(clippy::too_many_lines)]
 async fn create_tool_executor() -> Result<Arc<UniversalToolExecutor>> {
     // Use environment variables for database configuration in production
     let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "data/pierre.db".into());
@@ -102,13 +113,13 @@ async fn create_tool_executor() -> Result<Arc<UniversalToolExecutor>> {
     // Load or generate encryption key
     let encryption_key = if let Ok(key_path) = std::env::var("ENCRYPTION_KEY_PATH") {
         std::fs::read(&key_path)
-            .with_context(|| format!("Failed to read encryption key from {}", key_path))?
+            .with_context(|| format!("Failed to read encryption key from {key_path}"))?
     } else {
         // For backward compatibility, use a default key file path
         let key_path = "data/encryption.key";
         if std::path::Path::new(key_path).exists() {
             std::fs::read(key_path).with_context(|| {
-                format!("Failed to read default encryption key from {}", key_path)
+                format!("Failed to read default encryption key from {key_path}")
             })?
         } else {
             // Generate a new key and save it
@@ -117,7 +128,7 @@ async fn create_tool_executor() -> Result<Arc<UniversalToolExecutor>> {
                 std::fs::create_dir_all(parent)?;
             }
             std::fs::write(key_path, key)?;
-            tracing::info!("Generated new encryption key: {}", key_path);
+            tracing::info!("Generated new encryption key: {key_path}");
             key.to_vec()
         }
     };
@@ -125,7 +136,7 @@ async fn create_tool_executor() -> Result<Arc<UniversalToolExecutor>> {
     let database = Arc::new(
         Database::new(&database_url, encryption_key)
             .await
-            .with_context(|| format!("Failed to create database connection to {}", database_url))?,
+            .with_context(|| format!("Failed to create database connection to {database_url}"))?
     );
 
     let intelligence = Arc::new(ActivityIntelligence::new(
@@ -287,9 +298,9 @@ async fn handle_request(
             error: Some(McpError {
                 code: -32600,
                 message: format!(
-                    "Invalid JSON-RPC version: expected '{}', got '{}'",
-                    crate::constants::protocol::JSONRPC_VERSION,
-                    request.jsonrpc
+                    "Invalid JSON-RPC version: expected '{expected}', got '{actual}'",
+                    expected = crate::constants::protocol::JSONRPC_VERSION,
+                    actual = request.jsonrpc
                 ),
                 data: None,
             }),
@@ -312,9 +323,9 @@ async fn handle_request(
                     init_request.protocol_version
                 );
                 tracing::debug!(
-                    "Client info: name={}, version={}",
-                    init_request.client_info.name,
-                    init_request.client_info.version
+                    "Client info: name={name}, version={version}",
+                    name = init_request.client_info.name,
+                    version = init_request.client_info.version
                 );
             }
 
