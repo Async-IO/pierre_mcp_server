@@ -287,18 +287,19 @@ impl MultiTenantMcpServer {
                 move |provider: String, user_id_str: String| {
                     let oauth_routes = oauth_routes.clone();
                     async move {
-                        if let Ok(user_id) = Uuid::parse_str(&user_id_str) {
-                            match oauth_routes.get_auth_url(user_id, &provider) {
+                        Uuid::parse_str(&user_id_str).map_or_else(
+                            |_| {
+                                let error = serde_json::json!({"error": "Invalid user ID format"});
+                                Err(warp::reject::custom(ApiError(error)))
+                            },
+                            |user_id| match oauth_routes.get_auth_url(user_id, &provider) {
                                 Ok(auth_response) => Ok(warp::reply::json(&auth_response)),
                                 Err(e) => {
                                     let error = serde_json::json!({"error": e.to_string()});
                                     Err(warp::reject::custom(ApiError(error)))
                                 }
-                            }
-                        } else {
-                            let error = serde_json::json!({"error": "Invalid user ID format"});
-                            Err(warp::reject::custom(ApiError(error)))
-                        }
+                            },
+                        )
                     }
                 }
             });
@@ -1296,24 +1297,14 @@ impl MultiTenantMcpServer {
 
         // Handle OAuth-related tools (don't require existing provider)
         match tool_name {
-            CONNECT_STRAVA => {
-                return Self::handle_connect_strava(user_id, database, request.id).await;
-            }
-            CONNECT_FITBIT => {
-                return Self::handle_connect_fitbit(user_id, database, request.id).await;
-            }
+            CONNECT_STRAVA => Self::handle_connect_strava(user_id, database, request.id),
+            CONNECT_FITBIT => Self::handle_connect_fitbit(user_id, database, request.id),
             GET_CONNECTION_STATUS => {
                 return Self::handle_get_connection_status(user_id, database, request.id).await;
             }
             DISCONNECT_PROVIDER => {
                 let provider_name = args[PROVIDER].as_str().unwrap_or("");
-                return Self::handle_disconnect_provider(
-                    user_id,
-                    provider_name,
-                    database,
-                    request.id,
-                )
-                .await;
+                Self::handle_disconnect_provider(user_id, provider_name, database, request.id)
             }
             // Tools that don't require providers
             SET_GOAL
@@ -1502,11 +1493,7 @@ impl MultiTenantMcpServer {
     }
 
     /// Handle `connect_strava` tool call
-    async fn handle_connect_strava(
-        user_id: Uuid,
-        database: &Arc<Database>,
-        id: Value,
-    ) -> McpResponse {
+    fn handle_connect_strava(user_id: Uuid, database: &Arc<Database>, id: Value) -> McpResponse {
         let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
 
         match oauth_routes.get_auth_url(user_id, "strava") {
@@ -1530,11 +1517,7 @@ impl MultiTenantMcpServer {
     }
 
     /// Handle `connect_fitbit` tool call
-    async fn handle_connect_fitbit(
-        user_id: Uuid,
-        database: &Arc<Database>,
-        id: Value,
-    ) -> McpResponse {
+    fn handle_connect_fitbit(user_id: Uuid, database: &Arc<Database>, id: Value) -> McpResponse {
         let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
 
         match oauth_routes.get_auth_url(user_id, "fitbit") {
@@ -1586,7 +1569,7 @@ impl MultiTenantMcpServer {
     }
 
     /// Handle `disconnect_provider` tool call
-    async fn handle_disconnect_provider(
+    fn handle_disconnect_provider(
         user_id: Uuid,
         provider: &str,
         database: &Arc<Database>,

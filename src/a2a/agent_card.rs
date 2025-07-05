@@ -38,7 +38,7 @@ pub struct AuthenticationInfo {
     pub api_key: Option<ApiKeyInfo>,
 }
 
-/// OAuth2 authentication information
+/// `OAuth2` authentication information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuth2Info {
     pub authorization_url: String,
@@ -75,6 +75,7 @@ pub struct ToolExample {
 
 impl AgentCard {
     /// Create a new Agent Card for Pierre
+    #[must_use]
     pub fn new() -> Self {
         Self {
             name: "Pierre Fitness AI".into(),
@@ -112,6 +113,7 @@ impl AgentCard {
     }
 
     /// Create tool definitions for the agent card
+    #[allow(clippy::too_many_lines)]
     fn create_tool_definitions() -> Vec<ToolDefinition> {
         vec![
             ToolDefinition {
@@ -310,11 +312,21 @@ impl AgentCard {
     }
 
     /// Serialize the agent card to JSON
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if serialization fails
     pub fn to_json(&self) -> Result<String, serde_json::Error> {
         serde_json::to_string_pretty(self)
     }
 
     /// Create agent card from JSON
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - JSON parsing fails
+    /// - JSON structure is invalid
     pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {
         serde_json::from_str(json)
     }

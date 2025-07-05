@@ -129,7 +129,7 @@ impl WebSocketManager {
                                 }
                                 Err(e) => {
                                     let error_msg = WebSocketMessage::Error {
-                                        message: format!("Authentication failed: {}", e),
+                                        message: format!("Authentication failed: {e}"),
                                     };
                                     if let Ok(json) = serde_json::to_string(&error_msg) {
                                         let _ = tx.send(Message::text(json));
@@ -160,7 +160,7 @@ impl WebSocketManager {
                         }
                         Err(e) => {
                             let error_msg = WebSocketMessage::Error {
-                                message: format!("Invalid message format: {}", e),
+                                message: format!("Invalid message format: {e}"),
                             };
                             if let Ok(json) = serde_json::to_string(&error_msg) {
                                 let _ = tx.send(Message::text(json));
@@ -195,7 +195,7 @@ impl WebSocketManager {
         let auth_header = if token.starts_with("Bearer ") {
             token.to_string()
         } else {
-            format!("Bearer {}", token)
+            format!("Bearer {token}")
         };
 
         self.auth_middleware
@@ -224,6 +224,10 @@ impl WebSocketManager {
     }
 
     /// Broadcast system statistics
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:\n    /// - System statistics retrieval fails\n    /// - Message serialization fails\n    /// - Broadcasting to clients fails
     pub async fn broadcast_system_stats(&self) -> Result<()> {
         let stats = self.get_system_stats().await?;
         let message = WebSocketMessage::SystemStats {

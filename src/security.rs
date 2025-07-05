@@ -181,7 +181,9 @@ pub struct SecurityAudit {
 
 /// Audit security headers on a response
 #[must_use]
-pub fn audit_security_headers<S: ::std::hash::BuildHasher>(headers: &HashMap<String, String, S>) -> SecurityAudit {
+pub fn audit_security_headers<S: ::std::hash::BuildHasher>(
+    headers: &HashMap<String, String, S>,
+) -> SecurityAudit {
     let mut missing_headers = Vec::new();
     let mut warnings = Vec::new();
     let mut score = 100u8;

@@ -27,7 +27,8 @@ pub mod headers {
     pub const RETRY_AFTER: &str = "Retry-After";
 }
 
-/// Create a HeaderMap with rate limit headers
+/// Create a `HeaderMap` with rate limit headers
+#[must_use]
 pub fn create_rate_limit_headers(rate_limit_info: &UnifiedRateLimitInfo) -> HeaderMap {
     let mut headers = HeaderMap::new();
 
@@ -77,6 +78,7 @@ pub fn create_rate_limit_headers(rate_limit_info: &UnifiedRateLimitInfo) -> Head
 }
 
 /// Create a rate limit exceeded error response with proper headers
+#[must_use]
 pub fn create_rate_limit_error(rate_limit_info: &UnifiedRateLimitInfo) -> AppError {
     let limit = rate_limit_info.limit.unwrap_or(0);
 
@@ -90,6 +92,7 @@ pub fn create_rate_limit_error(rate_limit_info: &UnifiedRateLimitInfo) -> AppErr
 }
 
 /// Create a 429 Too Many Requests JSON error response
+#[must_use]
 pub fn create_rate_limit_error_json(rate_limit_info: &UnifiedRateLimitInfo) -> impl Reply {
     let error = create_rate_limit_error(rate_limit_info);
     let error_response = crate::errors::ErrorResponse::from(error);
@@ -100,6 +103,10 @@ pub fn create_rate_limit_error_json(rate_limit_info: &UnifiedRateLimitInfo) -> i
 }
 
 /// Helper function to check rate limits and return appropriate response
+///
+/// # Errors
+///
+/// Returns an error if the rate limit has been exceeded
 #[allow(clippy::result_large_err)]
 pub fn check_rate_limit_and_respond(
     rate_limit_info: &UnifiedRateLimitInfo,

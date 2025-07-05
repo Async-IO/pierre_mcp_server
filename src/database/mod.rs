@@ -39,7 +39,7 @@ impl Database {
     /// Returns an error if:
     /// - Database URL is invalid or malformed
     /// - Database connection fails
-    /// - SQLite file creation fails
+    /// - `SQLite` file creation fails
     /// - Migration process fails
     /// - Encryption key is invalid
     pub async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
@@ -64,7 +64,8 @@ impl Database {
     }
 
     /// Get a reference to the database pool for advanced operations
-    pub fn pool(&self) -> &Pool<Sqlite> {
+    #[must_use]
+    pub const fn pool(&self) -> &Pool<Sqlite> {
         &self.pool
     }
 
@@ -216,6 +217,7 @@ impl EncryptionHelper for Database {
 }
 
 /// Generate a secure encryption key (32 bytes for AES-256)
+#[must_use]
 pub fn generate_encryption_key() -> [u8; 32] {
     use rand::Rng;
     let mut key = [0u8; 32];

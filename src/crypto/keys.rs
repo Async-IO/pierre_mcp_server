@@ -34,6 +34,10 @@ pub struct A2AKeyManager;
 
 impl A2AKeyManager {
     /// Generate a new Ed25519 keypair for A2A client
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if key generation fails
     pub fn generate_keypair() -> Result<A2AKeypair> {
         use rand::RngCore;
 
@@ -54,6 +58,7 @@ impl A2AKeyManager {
     }
 
     /// Create public key info from keypair
+    #[must_use]
     pub fn create_public_key_info(keypair: &A2AKeypair) -> A2APublicKey {
         A2APublicKey {
             public_key: keypair.public_key.clone(),
@@ -63,6 +68,12 @@ impl A2AKeyManager {
     }
 
     /// Sign data with private key
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Private key decoding fails
+    /// - Key format is invalid
     pub fn sign_data(private_key: &str, data: &[u8]) -> Result<String> {
         let secret_bytes = general_purpose::STANDARD.decode(private_key)?;
         let signing_key = SigningKey::from_bytes(secret_bytes.as_slice().try_into()?);
@@ -72,6 +83,12 @@ impl A2AKeyManager {
     }
 
     /// Verify signature with public key
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Public key or signature decoding fails
+    /// - Key format is invalid
     pub fn verify_signature(public_key: &str, data: &[u8], signature: &str) -> Result<bool> {
         let public_bytes = general_purpose::STANDARD.decode(public_key)?;
         let verifying_key = VerifyingKey::from_bytes(public_bytes.as_slice().try_into()?)?;
@@ -80,12 +97,13 @@ impl A2AKeyManager {
         let signature = Signature::from_bytes(sig_bytes.as_slice().try_into()?);
 
         match verifying_key.verify(data, &signature) {
-            Ok(_) => Ok(true),
+            Ok(()) => Ok(true),
             Err(_) => Ok(false),
         }
     }
 
     /// Generate a challenge for client verification
+    #[must_use]
     pub fn generate_challenge() -> String {
         use rand::Rng;
         let mut rng = OsRng;

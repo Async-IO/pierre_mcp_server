@@ -107,6 +107,7 @@ pub struct ProviderRegistry {
 }
 
 impl ProviderRegistry {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             providers: HashMap::new(),
@@ -120,13 +121,18 @@ impl ProviderRegistry {
     }
 
     /// Get provider by name
+    #[must_use]
     pub fn get_provider(&self, name: &str) -> Option<&dyn OAuthProvider> {
-        self.providers.get(name).map(|p| p.as_ref())
+        self.providers.get(name).map(std::convert::AsRef::as_ref)
     }
 
     /// List all registered providers
+    #[must_use]
     pub fn list_providers(&self) -> Vec<&str> {
-        self.providers.keys().map(|s| s.as_str()).collect()
+        self.providers
+            .keys()
+            .map(std::string::String::as_str)
+            .collect()
     }
 }
 

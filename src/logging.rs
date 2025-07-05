@@ -68,6 +68,7 @@ impl Default for LoggingConfig {
 
 impl LoggingConfig {
     /// Create logging configuration from environment variables
+    #[must_use]
     pub fn from_env() -> Self {
         let level = env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
 
@@ -98,6 +99,10 @@ impl LoggingConfig {
     }
 
     /// Initialize the global tracing subscriber
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the tracing subscriber fails to initialize
     pub fn init(&self) -> Result<()> {
         // Create environment filter
         let env_filter = EnvFilter::try_from_default_env()
@@ -196,11 +201,19 @@ impl LoggingConfig {
 }
 
 /// Initialize logging with default configuration
+///
+/// # Errors
+///
+/// Returns an error if logging initialization fails
 pub fn init_default() -> Result<()> {
     LoggingConfig::default().init()
 }
 
 /// Initialize logging from environment
+///
+/// # Errors
+///
+/// Returns an error if logging initialization fails
 pub fn init_from_env() -> Result<()> {
     LoggingConfig::from_env().init()
 }
@@ -288,6 +301,7 @@ impl AppLogger {
     }
 
     /// Log performance metrics
+    #[allow(clippy::or_fun_call)]
     pub fn log_performance_metric(
         metric_name: &str,
         value: f64,
