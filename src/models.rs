@@ -1392,7 +1392,7 @@ mod tests {
         let deserialized: Stats = serde_json::from_str(&json).expect("Failed to deserialize stats");
 
         assert_eq!(deserialized.total_activities, stats.total_activities);
-        assert_eq!(deserialized.total_distance, stats.total_distance);
+        assert!((deserialized.total_distance - stats.total_distance).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -1406,7 +1406,7 @@ mod tests {
 
         assert_eq!(pr.activity_id, "12345");
         assert!(matches!(pr.metric, PrMetric::LongestDistance));
-        assert_eq!(pr.value, 42195.0);
+        assert!((pr.value - 42195.0).abs() < f64::EPSILON);
     }
 
     #[test]

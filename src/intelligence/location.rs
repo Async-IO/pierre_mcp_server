@@ -268,6 +268,10 @@ mod tests {
     #[tokio::test]
     async fn test_location_service_creation() {
         let service = LocationService::new();
+        tracing::trace!(
+            "Created location service for testing: {:?}",
+            std::ptr::addr_of!(service)
+        );
         assert_eq!(service.cache.len(), 0);
         assert_eq!(service.cache_duration, Duration::from_secs(24 * 60 * 60));
     }
@@ -275,6 +279,10 @@ mod tests {
     #[test]
     fn test_parse_nominatim_response_with_trail() {
         let service = LocationService::new();
+        tracing::trace!(
+            "Created location service for testing: {:?}",
+            std::ptr::addr_of!(service)
+        );
         let response = NominatimResponse {
             place_id: 12345,
             licence: "test".into(),
@@ -308,7 +316,7 @@ mod tests {
             ],
         };
 
-        let location = service.parse_nominatim_response(&response, 45.5017, -73.5673);
+        let location = LocationService::parse_nominatim_response(&response, 45.5017, -73.5673);
 
         assert_eq!(location.city, Some("Montreal".into()));
         assert_eq!(location.region, Some("Quebec".into()));
@@ -325,6 +333,10 @@ mod tests {
     #[test]
     fn test_parse_nominatim_response_saint_hippolyte() {
         let service = LocationService::new();
+        tracing::trace!(
+            "Created location service for testing: {:?}",
+            std::ptr::addr_of!(service)
+        );
         let response = NominatimResponse {
             place_id: 67890,
             licence: "test".into(),
@@ -359,7 +371,7 @@ mod tests {
             ],
         };
 
-        let location = service.parse_nominatim_response(&response, 45.9224, -74.0679);
+        let location = LocationService::parse_nominatim_response(&response, 45.9224, -74.0679);
 
         assert_eq!(location.city, Some("Saint-Hippolyte".into()));
         assert_eq!(location.region, Some("Québec".into()));
@@ -372,6 +384,10 @@ mod tests {
     #[test]
     fn test_parse_nominatim_response_with_path() {
         let service = LocationService::new();
+        tracing::trace!(
+            "Created location service for testing: {:?}",
+            std::ptr::addr_of!(service)
+        );
         let response = NominatimResponse {
             place_id: 11111,
             licence: "test".into(),
@@ -406,7 +422,7 @@ mod tests {
             ],
         };
 
-        let location = service.parse_nominatim_response(&response, 45.4000, -73.6000);
+        let location = LocationService::parse_nominatim_response(&response, 45.4000, -73.6000);
 
         assert_eq!(location.city, Some("Montreal".into()));
         assert_eq!(location.region, Some("Quebec".into()));
@@ -418,6 +434,10 @@ mod tests {
     #[test]
     fn test_parse_nominatim_response_city_fallback() {
         let service = LocationService::new();
+        tracing::trace!(
+            "Created location service for testing: {:?}",
+            std::ptr::addr_of!(service)
+        );
         let response = NominatimResponse {
             place_id: 33333,
             licence: "test".into(),
@@ -451,7 +471,7 @@ mod tests {
             ],
         };
 
-        let location = service.parse_nominatim_response(&response, 45.5000, -73.5500);
+        let location = LocationService::parse_nominatim_response(&response, 45.5000, -73.5500);
 
         // Should fall back to town when city is not available
         assert_eq!(location.city, Some("Montreal".into()));
@@ -463,6 +483,10 @@ mod tests {
     #[test]
     fn test_cache_stats() {
         let service = LocationService::new();
+        tracing::trace!(
+            "Created location service for testing: {:?}",
+            std::ptr::addr_of!(service)
+        );
         let (total, expired) = service.get_cache_stats();
         assert_eq!(total, 0);
         assert_eq!(expired, 0);
@@ -503,6 +527,10 @@ mod tests {
     #[test]
     fn test_trail_name_detection() {
         let service = LocationService::new();
+        tracing::trace!(
+            "Created location service for testing: {:?}",
+            std::ptr::addr_of!(service)
+        );
 
         // Test various trail naming patterns
         let test_cases = vec![
@@ -545,7 +573,7 @@ mod tests {
                 boundingbox: vec!["44.9".into(), "45.1".into(), "-73.1".into(), "-72.9".into()],
             };
 
-            let location = service.parse_nominatim_response(&response, 45.0, -73.0);
+            let location = LocationService::parse_nominatim_response(&response, 45.0, -73.0);
 
             if should_be_trail {
                 assert_eq!(

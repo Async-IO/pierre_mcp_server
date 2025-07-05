@@ -417,6 +417,10 @@ mod tests {
     #[test]
     fn test_insight_generator_creation() {
         let generator = InsightGenerator::new();
+        tracing::trace!(
+            "Created generator for testing: {:?}",
+            std::ptr::addr_of!(generator)
+        );
         assert_eq!(
             generator.config.min_confidence_threshold,
             GOOD_FITNESS_THRESHOLD as f32
@@ -427,9 +431,13 @@ mod tests {
     #[test]
     fn test_generate_achievement_insights() {
         let generator = InsightGenerator::new();
+        tracing::trace!(
+            "Created generator for testing: {:?}",
+            std::ptr::addr_of!(generator)
+        );
         let activity = create_test_activity();
 
-        let insights = generator.generate_achievement_insights(&activity);
+        let insights = InsightGenerator::generate_achievement_insights(&activity);
         assert!(!insights.is_empty());
 
         let first_insight = &insights[0];
@@ -443,9 +451,13 @@ mod tests {
     #[test]
     fn test_generate_zone_insights() {
         let generator = InsightGenerator::new();
+        tracing::trace!(
+            "Created generator for testing: {:?}",
+            std::ptr::addr_of!(generator)
+        );
         let activity = create_test_activity();
 
-        let insights = generator.generate_zone_insights(&activity);
+        let insights = InsightGenerator::generate_zone_insights(&activity);
         assert!(!insights.is_empty());
 
         let zone_insight = &insights[0];
@@ -459,9 +471,13 @@ mod tests {
     #[test]
     fn test_calculate_relative_effort() {
         let generator = InsightGenerator::new();
+        tracing::trace!(
+            "Created generator for testing: {:?}",
+            std::ptr::addr_of!(generator)
+        );
         let activity = create_test_activity();
 
-        let effort = generator.calculate_relative_effort(&activity);
+        let effort = InsightGenerator::calculate_relative_effort(&activity);
         assert!((COMPLETION_BONUS as f32..=10.0).contains(&effort));
     }
 
@@ -475,6 +491,10 @@ mod tests {
     #[test]
     fn test_location_insights_with_trail() {
         let generator = InsightGenerator::new();
+        tracing::trace!(
+            "Created generator for testing: {:?}",
+            std::ptr::addr_of!(generator)
+        );
         let activity = create_test_activity();
 
         let location_context = LocationContext {
@@ -491,7 +511,7 @@ mod tests {
             recent_activities: None,
         };
 
-        let insights = generator.generate_location_insights(&activity, &context);
+        let insights = InsightGenerator::generate_location_insights(&activity, &context);
 
         assert!(!insights.is_empty());
 
@@ -519,6 +539,10 @@ mod tests {
     #[test]
     fn test_location_insights_with_elevation() {
         let generator = InsightGenerator::new();
+        tracing::trace!(
+            "Created generator for testing: {:?}",
+            std::ptr::addr_of!(generator)
+        );
         let mut activity = create_test_activity();
         activity.elevation_gain = Some(600.0); // Significant elevation
 
@@ -536,7 +560,7 @@ mod tests {
             recent_activities: None,
         };
 
-        let insights = generator.generate_location_insights(&activity, &context);
+        let insights = InsightGenerator::generate_location_insights(&activity, &context);
 
         // Check for elevation-specific insight
         let elevation_insight = insights.iter().find(|insight| {
@@ -553,6 +577,10 @@ mod tests {
     #[test]
     fn test_location_insights_without_location() {
         let generator = InsightGenerator::new();
+        tracing::trace!(
+            "Created generator for testing: {:?}",
+            std::ptr::addr_of!(generator)
+        );
         let activity = create_test_activity();
 
         let context = ActivityContext {
@@ -560,7 +588,7 @@ mod tests {
             recent_activities: None,
         };
 
-        let insights = generator.generate_location_insights(&activity, &context);
+        let insights = InsightGenerator::generate_location_insights(&activity, &context);
         assert!(
             insights.is_empty(),
             "Should not generate location insights without location data"

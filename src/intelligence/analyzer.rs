@@ -524,9 +524,13 @@ mod tests {
     #[test]
     fn test_activity_analyzer_creation() {
         let analyzer = ActivityAnalyzer::new();
+        tracing::trace!(
+            "Created analyzer for testing: {:?}",
+            std::ptr::addr_of!(analyzer)
+        );
         // Verify analyzer is created with default configurations
         let activity = create_test_activity();
-        let metrics = analyzer.calculate_performance_metrics(&activity).unwrap();
+        let metrics = ActivityAnalyzer::calculate_performance_metrics(&activity);
         assert!(metrics.efficiency_score.is_some());
         assert!(metrics.efficiency_score.unwrap() > 0.0);
     }
@@ -534,9 +538,13 @@ mod tests {
     #[test]
     fn test_calculate_relative_effort() {
         let analyzer = ActivityAnalyzer::new();
+        tracing::trace!(
+            "Created analyzer for testing: {:?}",
+            std::ptr::addr_of!(analyzer)
+        );
         let activity = create_test_activity();
 
-        let effort = analyzer.calculate_relative_effort(&activity);
+        let effort = ActivityAnalyzer::calculate_relative_effort(&activity);
         assert!((1.0..=10.0).contains(&effort));
         assert!(effort > 3.0); // Should be moderate effort for 10km run
     }
@@ -544,9 +552,13 @@ mod tests {
     #[test]
     fn test_calculate_zone_distribution() {
         let analyzer = ActivityAnalyzer::new();
+        tracing::trace!(
+            "Created analyzer for testing: {:?}",
+            std::ptr::addr_of!(analyzer)
+        );
         let activity = create_test_activity();
 
-        let zones = analyzer.calculate_zone_distribution(&activity);
+        let zones = ActivityAnalyzer::calculate_zone_distribution(&activity);
         assert!(zones.is_some());
 
         if let Some(zones) = zones {
@@ -562,10 +574,14 @@ mod tests {
     #[test]
     fn test_detect_personal_records() {
         let analyzer = ActivityAnalyzer::new();
+        tracing::trace!(
+            "Created analyzer for testing: {:?}",
+            std::ptr::addr_of!(analyzer)
+        );
         let mut activity = create_test_activity();
         activity.distance_meters = Some(25000.0); // Long distance for PR
 
-        let records = analyzer.detect_personal_records(&activity);
+        let records = ActivityAnalyzer::detect_personal_records(&activity);
         assert!(!records.is_empty());
 
         let distance_pr = &records[0];
@@ -576,6 +592,10 @@ mod tests {
     #[test]
     fn test_determine_time_of_day() {
         let analyzer = ActivityAnalyzer::new();
+        tracing::trace!(
+            "Created analyzer for testing: {:?}",
+            std::ptr::addr_of!(analyzer)
+        );
 
         // Test various times - using UTC times that when converted to local will be predictable
         // Testing the logic rather than timezone conversion specifics
@@ -596,7 +616,7 @@ mod tests {
                 .and_hms_opt(hour, 0, 0)
                 .unwrap()
                 .and_utc();
-            let time_of_day = analyzer.determine_time_of_day(&test_time);
+            let time_of_day = ActivityAnalyzer::determine_time_of_day(&test_time);
 
             // Since we're converting UTC to local time, we can't guarantee exact matches
             // But we can verify the function doesn't panic and returns a valid TimeOfDay
@@ -616,18 +636,26 @@ mod tests {
     #[test]
     fn test_calculate_efficiency_score() {
         let analyzer = ActivityAnalyzer::new();
+        tracing::trace!(
+            "Created analyzer for testing: {:?}",
+            std::ptr::addr_of!(analyzer)
+        );
         let activity = create_test_activity();
 
-        let efficiency = analyzer.calculate_efficiency_score(&activity);
+        let efficiency = ActivityAnalyzer::calculate_efficiency_score(&activity);
         assert!((0.0..=100.0).contains(&efficiency));
     }
 
     #[tokio::test]
     async fn test_analyze_activity() {
         let analyzer = ActivityAnalyzer::new();
+        tracing::trace!(
+            "Created analyzer for testing: {:?}",
+            std::ptr::addr_of!(analyzer)
+        );
         let activity = create_test_activity();
 
-        let result = analyzer.analyze_activity(&activity, None).await;
+        let result = analyzer.analyze_activity(&activity, None);
         assert!(result.is_ok());
 
         let intelligence = result.unwrap();

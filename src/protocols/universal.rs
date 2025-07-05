@@ -49,10 +49,6 @@
 #![allow(clippy::fn_params_excessive_bools)]
 // Final allow for remaining complex patterns in this protocol adapter
 #![allow(clippy::too_many_lines)]
-#![allow(clippy::equatable_if_let)]
-#![allow(clippy::cast_sign_loss)]
-#![allow(clippy::bool_to_int_with_if)]
-#![allow(clippy::unused_async)]
 
 // Intelligence config will be used for future enhancements
 use crate::database_plugins::{factory::Database, DatabaseProvider};
@@ -348,7 +344,7 @@ impl UniversalToolExecutor {
             "connect_fitbit" => self.handle_connect_fitbit_async(request).await,
             "disconnect_provider" => self.handle_disconnect_provider_async(request).await,
             "set_goal" => self.handle_set_goal_async(request).await,
-            "calculate_metrics" => self.handle_calculate_metrics_async(request).await,
+            "calculate_metrics" => self.handle_calculate_metrics_async(request),
             "analyze_performance_trends" => {
                 self.handle_analyze_performance_trends_async(request).await
             }
@@ -362,9 +358,7 @@ impl UniversalToolExecutor {
             "predict_performance" => self.handle_predict_performance_async(request).await,
             "analyze_training_load" => self.handle_analyze_training_load_async(request).await,
             // Configuration Management Tools
-            "get_configuration_catalog" => {
-                self.handle_get_configuration_catalog_async(request).await
-            }
+            "get_configuration_catalog" => self.handle_get_configuration_catalog_async(request),
             "get_configuration_profiles" => self.handle_get_configuration_profiles_async(request),
             "get_user_configuration" => self.handle_get_user_configuration_async(request).await,
             "update_user_configuration" => {
@@ -1292,7 +1286,7 @@ impl UniversalToolExecutor {
     }
 
     /// Handle calculate_metrics tool asynchronously
-    async fn handle_calculate_metrics_async(
+    fn handle_calculate_metrics_async(
         &self,
         request: UniversalRequest,
     ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
@@ -1420,7 +1414,7 @@ impl UniversalToolExecutor {
                         refresh_token: Some(token_data.refresh_token.clone()),
                     };
 
-                    if let Ok(()) = provider.authenticate(auth_data).await {
+                    if matches!(provider.authenticate(auth_data).await, Ok(())) {
                         if let Ok(provider_activities) = provider
                             .get_activities(Some(LARGE_ACTIVITY_LIMIT), None)
                             .await
@@ -1532,7 +1526,7 @@ impl UniversalToolExecutor {
                         refresh_token: Some(token_data.refresh_token.clone()),
                     };
 
-                    if let Ok(()) = provider.authenticate(auth_data).await {
+                    if matches!(provider.authenticate(auth_data).await, Ok(())) {
                         // Get activities
                         if let Ok(activities) = provider
                             .get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None)
@@ -1623,7 +1617,7 @@ impl UniversalToolExecutor {
                         refresh_token: Some(token_data.refresh_token.clone()),
                     };
 
-                    if let Ok(()) = provider.authenticate(auth_data).await {
+                    if matches!(provider.authenticate(auth_data).await, Ok(())) {
                         if let Ok(provider_activities) = provider
                             .get_activities(Some(MAX_ACTIVITY_LIMIT), None)
                             .await
@@ -1745,7 +1739,7 @@ impl UniversalToolExecutor {
                         refresh_token: Some(token_data.refresh_token.clone()),
                     };
 
-                    if let Ok(()) = provider.authenticate(auth_data).await {
+                    if matches!(provider.authenticate(auth_data).await, Ok(())) {
                         if let Ok(provider_activities) = provider
                             .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
                             .await
@@ -1818,7 +1812,7 @@ impl UniversalToolExecutor {
                         refresh_token: Some(token_data.refresh_token.clone()),
                     };
 
-                    if let Ok(()) = provider.authenticate(auth_data).await {
+                    if matches!(provider.authenticate(auth_data).await, Ok(())) {
                         if let Ok(provider_activities) = provider
                             .get_activities(Some(SMALL_ACTIVITY_LIMIT), None)
                             .await
@@ -1959,7 +1953,7 @@ impl UniversalToolExecutor {
                         refresh_token: Some(token_data.refresh_token.clone()),
                     };
 
-                    if let Ok(()) = provider.authenticate(auth_data).await {
+                    if matches!(provider.authenticate(auth_data).await, Ok(())) {
                         if let Ok(provider_activities) = provider
                             .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
                             .await
@@ -2087,7 +2081,7 @@ impl UniversalToolExecutor {
                         refresh_token: Some(token_data.refresh_token.clone()),
                     };
 
-                    if let Ok(()) = provider.authenticate(auth_data).await {
+                    if matches!(provider.authenticate(auth_data).await, Ok(())) {
                         if let Ok(provider_activities) = provider
                             .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
                             .await
@@ -2196,7 +2190,7 @@ impl UniversalToolExecutor {
                         refresh_token: Some(token_data.refresh_token.clone()),
                     };
 
-                    if let Ok(()) = provider.authenticate(auth_data).await {
+                    if matches!(provider.authenticate(auth_data).await, Ok(())) {
                         if let Ok(provider_activities) = provider
                             .get_activities(Some(SMALL_ACTIVITY_LIMIT), None)
                             .await
@@ -2346,7 +2340,7 @@ impl UniversalToolExecutor {
                         refresh_token: Some(token_data.refresh_token.clone()),
                     };
 
-                    if let Ok(()) = provider.authenticate(auth_data).await {
+                    if matches!(provider.authenticate(auth_data).await, Ok(())) {
                         if let Ok(provider_activities) = provider
                             .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
                             .await
@@ -2424,8 +2418,8 @@ impl UniversalToolExecutor {
                 "predicted_time": {
                     "minutes": adjusted_time,
                     "formatted": format!("{}:{:02}",
-                        adjusted_time as u32,
-                        ((adjusted_time % 1.0) * 60.0) as u32
+                        u32::try_from(adjusted_time.max(0.0) as i64).unwrap_or(0),
+                        u32::try_from(((adjusted_time % 1.0) * 60.0).max(0.0) as i64).unwrap_or(0)
                     )
                 },
                 "predicted_pace": {
@@ -2478,7 +2472,7 @@ impl UniversalToolExecutor {
                         refresh_token: Some(token_data.refresh_token.clone()),
                     };
 
-                    if let Ok(()) = provider.authenticate(auth_data).await {
+                    if matches!(provider.authenticate(auth_data).await, Ok(())) {
                         if let Ok(provider_activities) = provider
                             .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
                             .await
@@ -2510,7 +2504,12 @@ impl UniversalToolExecutor {
         // Calculate weekly loads
         let mut weekly_loads = vec![0.0; 4];
         for activity in &recent_activities {
-            let weeks_ago = (chrono::Utc::now() - activity.start_date).num_weeks() as usize;
+            let weeks_ago = usize::try_from(
+                (chrono::Utc::now() - activity.start_date)
+                    .num_weeks()
+                    .max(0),
+            )
+            .unwrap_or(0);
             if weeks_ago < 4 {
                 let load = activity.duration_seconds as f64 / 60.0; // Simple duration-based load
                 weekly_loads[3 - weeks_ago] += load;
@@ -2614,7 +2613,7 @@ impl UniversalToolExecutor {
     }
 
     /// Handle get_configuration_catalog tool - returns complete parameter catalog
-    async fn handle_get_configuration_catalog_async(
+    fn handle_get_configuration_catalog_async(
         &self,
         _request: UniversalRequest,
     ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
@@ -2916,7 +2915,7 @@ impl UniversalToolExecutor {
                     "applied_overrides": config.get_session_overrides().len(),
                     "last_modified": chrono::Utc::now(),
                 },
-                "changes_applied": parameter_count + if profile_name.is_some() { 1 } else { 0 },
+                "changes_applied": parameter_count + usize::from(profile_name.is_some()),
                 "metadata": {
                     "timestamp": chrono::Utc::now(),
                     "processing_time_ms": None::<u64>,
