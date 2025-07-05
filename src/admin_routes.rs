@@ -9,7 +9,9 @@ use crate::{
     admin::{auth::AdminAuthService, models::AdminPermission},
     api_keys::ApiKeyTier,
     auth::AuthManager,
-    constants::time_constants::*,
+    constants::time_constants::{
+        SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MONTH, SECONDS_PER_WEEK,
+    },
     database_plugins::{factory::Database, DatabaseProvider},
     models::User,
 };
@@ -101,6 +103,7 @@ pub struct AdminTokenInfoResponse {
 }
 
 /// Create admin routes filter
+#[allow(clippy::needless_pass_by_value)]
 pub fn admin_routes(
     context: AdminApiContext,
 ) -> impl Filter<Extract = impl Reply, Error = std::convert::Infallible> + Clone {
@@ -115,7 +118,7 @@ pub fn admin_routes(
     let admin_tokens_create_route = admin_tokens_create_route(context.clone());
     let admin_tokens_details_route = admin_tokens_details_route(context.clone());
     let admin_tokens_revoke_route = admin_tokens_revoke_route(context.clone());
-    let admin_tokens_rotate_route = admin_tokens_rotate_route(context.clone());
+    let admin_tokens_rotate_route = admin_tokens_rotate_route(context);
 
     let health_route = admin_health_route();
 
@@ -138,6 +141,7 @@ pub fn admin_routes(
 
 /// Create admin routes filter without recovery (maintains Rejection error type)
 /// This is used for embedding in other servers that handle rejections differently
+#[allow(clippy::needless_pass_by_value)]
 pub fn admin_routes_with_rejection(
     context: AdminApiContext,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
@@ -152,7 +156,7 @@ pub fn admin_routes_with_rejection(
     let admin_tokens_create_route = admin_tokens_create_route(context.clone());
     let admin_tokens_details_route = admin_tokens_details_route(context.clone());
     let admin_tokens_revoke_route = admin_tokens_revoke_route(context.clone());
-    let admin_tokens_rotate_route = admin_tokens_rotate_route(context.clone());
+    let admin_tokens_rotate_route = admin_tokens_rotate_route(context);
 
     let health_route = admin_health_route();
 
@@ -293,14 +297,18 @@ fn extract_client_ip(
     remote_addr: Option<std::net::SocketAddr>,
 ) -> Option<String> {
     // Priority: X-Forwarded-For > X-Real-IP > Remote Address
-    if let Some(xff) = x_forwarded_for {
-        // X-Forwarded-For can contain multiple IPs, take the first one
-        xff.split(',').next().map(|ip| ip.trim().to_string())
-    } else if let Some(real_ip) = x_real_ip {
-        Some(real_ip.trim().to_string())
-    } else {
-        remote_addr.map(|addr| addr.ip().to_string())
-    }
+    x_forwarded_for.map_or_else(
+        || {
+            x_real_ip.map_or_else(
+                || remote_addr.map(|addr| addr.ip().to_string()),
+                |real_ip| Some(real_ip.trim().to_string()),
+            )
+        },
+        |xff| {
+            // X-Forwarded-For can contain multiple IPs, take the first one
+            xff.split(',').next().map(|ip| ip.trim().to_string())
+        },
+    )
 }
 
 /// Extract Bearer token from Authorization header
@@ -333,6 +341,74 @@ fn convert_rate_limit_period(period: &str) -> Result<u32> {
     }
 }
 
+/// Validate API key tier from string
+fn validate_tier(tier_str: &str) -> Result<ApiKeyTier, String> {
+    match tier_str {
+        "trial" => Ok(ApiKeyTier::Trial),
+        "starter" => Ok(ApiKeyTier::Starter),
+        "professional" => Ok(ApiKeyTier::Professional),
+        "enterprise" => Ok(ApiKeyTier::Enterprise),
+        _ => Err(format!(
+            "Invalid tier: {tier_str}. Supported: trial, starter, professional, enterprise"
+        )),
+    }
+}
+
+/// Create and store API key
+async fn create_and_store_api_key(
+    context: &AdminApiContext,
+    user: &User,
+    request: &ProvisionApiKeyRequest,
+    tier: &ApiKeyTier,
+    admin_token: &crate::admin::models::ValidatedAdminToken,
+) -> Result<(crate::api_keys::ApiKey, String), String> {
+    // Generate API key using ApiKeyManager
+    let api_key_manager = crate::api_keys::ApiKeyManager::new();
+    let create_request = crate::api_keys::CreateApiKeyRequest {
+        name: request
+            .description
+            .clone()
+            .unwrap_or_else(|| format!("API Key provisioned by {}", admin_token.service_name)),
+        description: Some(format!(
+            "Provisioned by admin service: {}",
+            admin_token.service_name
+        )),
+        tier: tier.clone(),
+        rate_limit_requests: request.rate_limit_requests,
+        expires_in_days: request.expires_in_days.map(i64::from),
+    };
+
+    let (mut final_api_key, api_key_string) =
+        match api_key_manager.create_api_key(user.id, create_request) {
+            Ok((key, key_string)) => (key, key_string),
+            Err(e) => {
+                return Err(format!("Failed to generate API key: {e}"));
+            }
+        };
+
+    // Apply custom rate limits if provided
+    if let Some(requests) = request.rate_limit_requests {
+        final_api_key.rate_limit_requests = requests;
+        if let Some(ref period) = request.rate_limit_period {
+            match convert_rate_limit_period(period) {
+                Ok(window_seconds) => {
+                    final_api_key.rate_limit_window_seconds = window_seconds;
+                }
+                Err(e) => {
+                    return Err(e.to_string());
+                }
+            }
+        }
+    }
+
+    // Store API key
+    if let Err(e) = context.database.create_api_key(&final_api_key).await {
+        return Err(format!("Failed to create API key: {e}"));
+    }
+
+    Ok((final_api_key, api_key_string))
+}
+
 /// Helper to inject context into filters
 fn with_context(
     context: AdminApiContext,
@@ -341,6 +417,7 @@ fn with_context(
 }
 
 /// Handle API key provisioning
+#[allow(clippy::too_many_lines)]
 async fn handle_provision_api_key(
     admin_token: crate::admin::models::ValidatedAdminToken,
     request: ProvisionApiKeyRequest,
@@ -352,19 +429,13 @@ async fn handle_provision_api_key(
     );
 
     // Validate tier
-    let tier = match request.tier.as_str() {
-        "trial" => ApiKeyTier::Trial,
-        "starter" => ApiKeyTier::Starter,
-        "professional" => ApiKeyTier::Professional,
-        "enterprise" => ApiKeyTier::Enterprise,
-        _ => {
+    let tier = match validate_tier(&request.tier) {
+        Ok(t) => t,
+        Err(error_msg) => {
             return Ok(with_status(
                 json(&AdminResponse {
                     success: false,
-                    message: format!(
-                        "Invalid tier: {}. Supported: trial, starter, professional, enterprise",
-                        request.tier
-                    ),
+                    message: error_msg,
                     data: None,
                 }),
                 StatusCode::BAD_REQUEST,
@@ -396,8 +467,7 @@ async fn handle_provision_api_key(
 
             let user_id = context.database.create_user(&new_user).await.map_err(|e| {
                 warp::reject::custom(AdminApiError::DatabaseError(format!(
-                    "Failed to create user: {}",
-                    e
+                    "Failed to create user: {e}"
                 )))
             })?;
 
@@ -410,7 +480,7 @@ async fn handle_provision_api_key(
             return Ok(with_status(
                 json(&AdminResponse {
                     success: false,
-                    message: format!("Failed to lookup user: {}", e),
+                    message: format!("Failed to lookup user: {e}"),
                     data: None,
                 }),
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -418,71 +488,21 @@ async fn handle_provision_api_key(
         }
     };
 
-    // Generate API key using ApiKeyManager
-    let api_key_manager = crate::api_keys::ApiKeyManager::new();
-    let create_request = crate::api_keys::CreateApiKeyRequest {
-        name: request
-            .description
-            .unwrap_or_else(|| format!("API Key provisioned by {}", admin_token.service_name)),
-        description: Some(format!(
-            "Provisioned by admin service: {}",
-            admin_token.service_name
-        )),
-        tier: tier.clone(),
-        rate_limit_requests: request.rate_limit_requests,
-        expires_in_days: request.expires_in_days.map(|d| d as i64),
-    };
-
-    let (mut final_api_key, api_key_string) = match api_key_manager
-        .create_api_key(user.id, create_request)
-        .await
-    {
-        Ok((key, key_string)) => (key, key_string),
-        Err(e) => {
-            return Ok(with_status(
-                json(&AdminResponse {
-                    success: false,
-                    message: format!("Failed to generate API key: {}", e),
-                    data: None,
-                }),
-                StatusCode::INTERNAL_SERVER_ERROR,
-            ));
-        }
-    };
-
-    // Apply custom rate limits if provided
-    if let Some(requests) = request.rate_limit_requests {
-        final_api_key.rate_limit_requests = requests;
-        if let Some(ref period) = request.rate_limit_period {
-            match convert_rate_limit_period(period) {
-                Ok(window_seconds) => {
-                    final_api_key.rate_limit_window_seconds = window_seconds;
-                }
-                Err(e) => {
-                    return Ok(with_status(
-                        json(&AdminResponse {
-                            success: false,
-                            message: e.to_string(),
-                            data: None,
-                        }),
-                        StatusCode::BAD_REQUEST,
-                    ));
-                }
+    // Create and store API key
+    let (final_api_key, api_key_string) =
+        match create_and_store_api_key(&context, &user, &request, &tier, &admin_token).await {
+            Ok((key, key_string)) => (key, key_string),
+            Err(error_msg) => {
+                return Ok(with_status(
+                    json(&AdminResponse {
+                        success: false,
+                        message: error_msg,
+                        data: None,
+                    }),
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                ));
             }
-        }
-    }
-
-    // Store API key
-    if let Err(e) = context.database.create_api_key(&final_api_key).await {
-        return Ok(with_status(
-            json(&AdminResponse {
-                success: false,
-                message: format!("Failed to create API key: {}", e),
-                data: None,
-            }),
-            StatusCode::INTERNAL_SERVER_ERROR,
-        ));
-    }
+        };
 
     // Record the provisioning action for audit
     let period_name = request.rate_limit_period.as_deref().unwrap_or("month");
@@ -492,7 +512,7 @@ async fn handle_provision_api_key(
             &admin_token.token_id,
             &final_api_key.id,
             &user.email,
-            &format!("{:?}", tier).to_lowercase(),
+            &format!("{tier:?}").to_lowercase(),
             final_api_key.rate_limit_requests,
             period_name,
         )
@@ -513,7 +533,7 @@ async fn handle_provision_api_key(
         api_key_id: final_api_key.id.clone(),
         api_key: api_key_string,
         user_id: user.id.to_string(),
-        tier: format!("{:?}", tier).to_lowercase(),
+        tier: format!("{tier:?}").to_lowercase(),
         expires_at: final_api_key.expires_at.map(|dt| dt.to_rfc3339()),
         rate_limit: Some(RateLimitInfo {
             requests: final_api_key.rate_limit_requests,
@@ -553,7 +573,7 @@ async fn handle_revoke_api_key(
         Err(e) => {
             let response = AdminResponse {
                 success: false,
-                message: format!("Failed to lookup API key: {}", e),
+                message: format!("Failed to lookup API key: {e}"),
                 data: None,
             };
             return Ok(with_status(
@@ -588,7 +608,7 @@ async fn handle_revoke_api_key(
 
             let response = AdminResponse {
                 success: false,
-                message: format!("Failed to revoke API key: {}", e),
+                message: format!("Failed to revoke API key: {e}"),
                 data: None,
             };
 
@@ -612,7 +632,7 @@ async fn handle_list_api_keys(
     );
 
     // Parse query parameters
-    let user_email = query.get("user_email").map(|s| s.as_str());
+    let user_email = query.get("user_email").map(std::string::String::as_str);
     let active_only = query
         .get("active_only")
         .and_then(|v| v.parse::<bool>().ok())
@@ -676,7 +696,7 @@ async fn handle_list_api_keys(
             warn!("Failed to list API keys: {}", e);
             let response = AdminResponse {
                 success: false,
-                message: format!("Failed to list API keys: {}", e),
+                message: format!("Failed to list API keys: {e}"),
                 data: None,
             };
             Ok(with_status(
@@ -711,7 +731,7 @@ async fn handle_token_info(
                     .permissions
                     .to_vec()
                     .iter()
-                    .map(|p| p.to_string())
+                    .map(std::string::ToString::to_string)
                     .collect(),
                 is_super_admin: token_details.is_super_admin,
                 created_at: token_details.created_at.to_rfc3339(),
@@ -733,7 +753,7 @@ async fn handle_token_info(
         Err(e) => {
             let response = AdminResponse {
                 success: false,
-                message: format!("Failed to retrieve token info: {}", e),
+                message: format!("Failed to retrieve token info: {e}"),
                 data: None,
             };
 
@@ -758,7 +778,7 @@ impl warp::reject::Reject for AdminApiError {}
 
 /// Handle admin API rejections
 async fn handle_admin_rejection(err: Rejection) -> Result<impl Reply, std::convert::Infallible> {
-    let (status, message) = if let Some(AdminApiError::InvalidAuthHeader) = err.find() {
+    let (status, message) = if matches!(err.find(), Some(AdminApiError::InvalidAuthHeader)) {
         (StatusCode::BAD_REQUEST, "Invalid Authorization header")
     } else if let Some(AdminApiError::AuthenticationFailed(msg)) = err.find() {
         (StatusCode::UNAUTHORIZED, msg.as_str())
@@ -984,7 +1004,7 @@ async fn handle_admin_tokens_list(
             warn!("Failed to list admin tokens: {}", e);
             let response = AdminResponse {
                 success: false,
-                message: format!("Failed to list admin tokens: {}", e),
+                message: format!("Failed to list admin tokens: {e}"),
                 data: None,
             };
             Ok(with_status(
@@ -1030,17 +1050,16 @@ async fn handle_admin_tokens_create(
         // Parse permission strings into AdminPermission enum values
         let mut parsed_permissions = Vec::new();
         for perm_str in permission_strings {
-            match perm_str.parse::<AdminPermission>() {
-                Ok(permission) => parsed_permissions.push(permission),
-                Err(_) => {
-                    warn!("Invalid permission string: {}", perm_str);
-                    let response = AdminResponse {
-                        success: false,
-                        message: format!("Invalid permission: {}", perm_str),
-                        data: None,
-                    };
-                    return Ok(with_status(json(&response), StatusCode::BAD_REQUEST));
-                }
+            if let Ok(permission) = perm_str.parse::<AdminPermission>() {
+                parsed_permissions.push(permission);
+            } else {
+                warn!("Invalid permission string: {}", perm_str);
+                let response = AdminResponse {
+                    success: false,
+                    message: format!("Invalid permission: {perm_str}"),
+                    data: None,
+                };
+                return Ok(with_status(json(&response), StatusCode::BAD_REQUEST));
             }
         }
 
@@ -1066,7 +1085,7 @@ async fn handle_admin_tokens_create(
             warn!("Failed to create admin token: {}", e);
             let response = AdminResponse {
                 success: false,
-                message: format!("Failed to create admin token: {}", e),
+                message: format!("Failed to create admin token: {e}"),
                 data: None,
             };
             Ok(with_status(
@@ -1106,7 +1125,7 @@ async fn handle_admin_tokens_details(
             warn!("Failed to get admin token details: {}", e);
             let response = AdminResponse {
                 success: false,
-                message: format!("Failed to get admin token details: {}", e),
+                message: format!("Failed to get admin token details: {e}"),
                 data: None,
             };
             Ok(with_status(
@@ -1126,7 +1145,7 @@ async fn handle_admin_tokens_revoke(
     info!("🗑️ Revoking admin token: {}", token_id);
 
     match context.database.deactivate_admin_token(&token_id).await {
-        Ok(_) => {
+        Ok(()) => {
             info!("✅ Admin token revoked successfully: {}", token_id);
             let response = AdminResponse {
                 success: true,
@@ -1142,7 +1161,7 @@ async fn handle_admin_tokens_revoke(
             warn!("Failed to revoke admin token: {}", e);
             let response = AdminResponse {
                 success: false,
-                message: format!("Failed to revoke admin token: {}", e),
+                message: format!("Failed to revoke admin token: {e}"),
                 data: None,
             };
             Ok(with_status(
@@ -1177,7 +1196,7 @@ async fn handle_admin_tokens_rotate(
             warn!("Failed to get admin token for rotation: {}", e);
             let response = AdminResponse {
                 success: false,
-                message: format!("Failed to get admin token: {}", e),
+                message: format!("Failed to get admin token: {e}"),
                 data: None,
             };
             return Ok(with_status(
@@ -1231,7 +1250,7 @@ async fn handle_admin_tokens_rotate(
             warn!("Failed to create new token during rotation: {}", e);
             let response = AdminResponse {
                 success: false,
-                message: format!("Failed to rotate admin token: {}", e),
+                message: format!("Failed to rotate admin token: {e}"),
                 data: None,
             };
             Ok(with_status(

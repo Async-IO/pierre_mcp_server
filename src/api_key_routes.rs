@@ -100,8 +100,7 @@ impl ApiKeyRoutes {
         // Create the API key
         let (api_key, full_key) = self
             .api_key_manager
-            .create_api_key_simple(user_id, request)
-            .await?;
+            .create_api_key_simple(user_id, request)?;
 
         // Store in database
         self.database.create_api_key(&api_key).await?;
@@ -134,10 +133,7 @@ impl ApiKeyRoutes {
         let user_id = self.authenticate_user(auth_header).await?;
 
         // Create the API key
-        let (api_key, full_key) = self
-            .api_key_manager
-            .create_api_key(user_id, request)
-            .await?;
+        let (api_key, full_key) = self.api_key_manager.create_api_key(user_id, request)?;
 
         // Store in database
         self.database.create_api_key(&api_key).await?;
@@ -247,10 +243,9 @@ impl ApiKeyRoutes {
         }
 
         // Create the trial key
-        let (api_key, full_key) = self
-            .api_key_manager
-            .create_trial_key(user_id, name, description)
-            .await?;
+        let (api_key, full_key) =
+            self.api_key_manager
+                .create_trial_key(user_id, name, description)?;
 
         // Store in database
         self.database.create_api_key(&api_key).await?;

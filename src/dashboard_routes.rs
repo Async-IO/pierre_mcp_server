@@ -142,7 +142,8 @@ impl DashboardRoutes {
         // Get user's API keys
         let api_keys = self.database.get_user_api_keys(user_id).await?;
         let total_api_keys = u32::try_from(api_keys.len()).unwrap_or(0);
-        let active_api_keys = u32::try_from(api_keys.iter().filter(|k| k.is_active).count()).unwrap_or(0);
+        let active_api_keys =
+            u32::try_from(api_keys.iter().filter(|k| k.is_active).count()).unwrap_or(0);
 
         // Calculate time ranges
         let today_start = Utc::now()
@@ -308,7 +309,9 @@ impl DashboardRoutes {
                 .sum::<f64>()
                 / {
                     #[allow(clippy::cast_precision_loss)]
-                    { time_series.len() as f64 }
+                    {
+                        time_series.len() as f64
+                    }
                 }
         };
 

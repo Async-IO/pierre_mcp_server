@@ -61,8 +61,7 @@ impl StravaOAuthProvider {
 
         let redirect_uri = config
             .redirect_uri
-            .as_ref()
-            .cloned()
+            .clone()
             .unwrap_or_else(crate::constants::env_config::strava_redirect_uri);
 
         Ok(Self {
@@ -77,8 +76,8 @@ impl StravaOAuthProvider {
     /// # Errors
     ///
     /// Returns an error if:
-    /// - STRAVA_CLIENT_ID environment variable is not set
-    /// - STRAVA_CLIENT_SECRET environment variable is not set
+    /// - `STRAVA_CLIENT_ID` environment variable is not set
+    /// - `STRAVA_CLIENT_SECRET` environment variable is not set
     /// - Environment variable values are invalid
     #[deprecated(note = "Use from_config() instead for centralized configuration")]
     pub fn new() -> Result<Self, OAuthError> {
@@ -100,7 +99,7 @@ impl StravaOAuthProvider {
 
 #[async_trait::async_trait]
 impl OAuthProvider for StravaOAuthProvider {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "strava"
     }
 
@@ -163,7 +162,7 @@ impl OAuthProvider for StravaOAuthProvider {
             .map_err(|e| OAuthError::TokenExchangeFailed(e.to_string()))?;
 
         let token_response: StravaTokenResponse = serde_json::from_str(&response_text)
-            .map_err(|e| OAuthError::TokenExchangeFailed(format!("Parse error: {}", e)))?;
+            .map_err(|e| OAuthError::TokenExchangeFailed(format!("Parse error: {e}")))?;
 
         let expires_at =
             chrono::DateTime::<chrono::Utc>::from_timestamp(token_response.expires_at, 0)
@@ -204,7 +203,7 @@ impl OAuthProvider for StravaOAuthProvider {
             .map_err(|e| OAuthError::TokenRefreshFailed(e.to_string()))?;
 
         let token_response: StravaTokenResponse = serde_json::from_str(&response_text)
-            .map_err(|e| OAuthError::TokenRefreshFailed(format!("Parse error: {}", e)))?;
+            .map_err(|e| OAuthError::TokenRefreshFailed(format!("Parse error: {e}")))?;
 
         let expires_at =
             chrono::DateTime::<chrono::Utc>::from_timestamp(token_response.expires_at, 0)
@@ -267,6 +266,13 @@ struct FitbitTokenResponse {
 
 impl FitbitOAuthProvider {
     /// Create a new Fitbit OAuth provider from configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Client ID is not configured in the provided config
+    /// - Client secret is not configured in the provided config
+    /// - Configuration parameters are invalid
     pub fn from_config(config: &OAuthProviderConfig) -> Result<Self, OAuthError> {
         let client_id = config
             .client_id
@@ -286,8 +292,7 @@ impl FitbitOAuthProvider {
 
         let redirect_uri = config
             .redirect_uri
-            .as_ref()
-            .cloned()
+            .clone()
             .unwrap_or_else(crate::constants::env_config::fitbit_redirect_uri);
 
         Ok(Self {
@@ -298,6 +303,13 @@ impl FitbitOAuthProvider {
     }
 
     /// Legacy constructor that reads from environment variables (deprecated)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - `FITBIT_CLIENT_ID` environment variable is not set
+    /// - `FITBIT_CLIENT_SECRET` environment variable is not set
+    /// - Environment variable values are invalid
     #[deprecated(note = "Use from_config() instead for centralized configuration")]
     pub fn new() -> Result<Self, OAuthError> {
         let client_id = std::env::var("FITBIT_CLIENT_ID")
@@ -318,7 +330,7 @@ impl FitbitOAuthProvider {
 
 #[async_trait::async_trait]
 impl OAuthProvider for FitbitOAuthProvider {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "fitbit"
     }
 
@@ -363,7 +375,7 @@ impl OAuthProvider for FitbitOAuthProvider {
 
         let response = client
             .post(crate::constants::env_config::fitbit_token_url())
-            .header("Authorization", format!("Basic {}", auth_header))
+            .header("Authorization", format!("Basic {auth_header}"))
             .form(&params)
             .send()
             .await
@@ -375,7 +387,7 @@ impl OAuthProvider for FitbitOAuthProvider {
             .map_err(|e| OAuthError::TokenExchangeFailed(e.to_string()))?;
 
         let token_response: FitbitTokenResponse = serde_json::from_str(&response_text)
-            .map_err(|e| OAuthError::TokenExchangeFailed(format!("Parse error: {}", e)))?;
+            .map_err(|e| OAuthError::TokenExchangeFailed(format!("Parse error: {e}")))?;
 
         let expires_at = chrono::Utc::now() + chrono::Duration::seconds(token_response.expires_in);
 
@@ -401,7 +413,7 @@ impl OAuthProvider for FitbitOAuthProvider {
 
         let response = client
             .post(crate::constants::env_config::fitbit_token_url())
-            .header("Authorization", format!("Basic {}", auth_header))
+            .header("Authorization", format!("Basic {auth_header}"))
             .form(&params)
             .send()
             .await
@@ -413,7 +425,7 @@ impl OAuthProvider for FitbitOAuthProvider {
             .map_err(|e| OAuthError::TokenRefreshFailed(e.to_string()))?;
 
         let token_response: FitbitTokenResponse = serde_json::from_str(&response_text)
-            .map_err(|e| OAuthError::TokenRefreshFailed(format!("Parse error: {}", e)))?;
+            .map_err(|e| OAuthError::TokenRefreshFailed(format!("Parse error: {e}")))?;
 
         let expires_at = chrono::Utc::now() + chrono::Duration::seconds(token_response.expires_in);
 
@@ -434,7 +446,7 @@ impl OAuthProvider for FitbitOAuthProvider {
 
         let response = client
             .post(crate::constants::env_config::fitbit_revoke_url())
-            .header("Authorization", format!("Basic {}", auth_header))
+            .header("Authorization", format!("Basic {auth_header}"))
             .form(&[("token", access_token)])
             .send()
             .await

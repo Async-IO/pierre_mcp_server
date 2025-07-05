@@ -46,10 +46,56 @@ pub struct A2AUsageStats {
     pub total_response_bytes: Option<u64>,
 }
 
+/// Helper functions for safe type conversions
+fn safe_u32_to_i32(value: u32) -> Result<i32> {
+    i32::try_from(value).map_err(|_| anyhow!("Value {} too large to convert to i32", value))
+}
+
+/// Safely convert i32 to u32, returning an error if negative
+fn safe_i32_to_u32(value: i32) -> Result<u32> {
+    u32::try_from(value).map_err(|_| anyhow!("Cannot convert negative value {} to u32", value))
+}
+
+/// Safely convert i32 to u64, returning an error if negative
+fn safe_i32_to_u64(value: i32) -> Result<u64> {
+    u64::try_from(value).map_err(|_| anyhow!("Cannot convert negative value {} to u64", value))
+}
+
+/// Safely convert i64 to u64, returning an error if negative
+fn safe_i64_to_u64(value: i64) -> Result<u64> {
+    u64::try_from(value).map_err(|_| anyhow!("Cannot convert negative value {} to u64", value))
+}
+
+/// Safely convert f64 to u32, clamping to u32 range
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+fn safe_f64_to_u32(value: f64) -> u32 {
+    if value.is_nan() || value < 0.0 {
+        0
+    } else if value > f64::from(u32::MAX) {
+        u32::MAX
+    } else {
+        value as u32
+    }
+}
+
 impl Database {
-    /// Create A2A tables
+    /// Create A2A tables and indexes
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail
     pub(super) async fn migrate_a2a(&self) -> Result<()> {
-        // Create a2a_clients table
+        self.create_a2a_clients_table().await?;
+        self.migrate_a2a_clients_columns().await?;
+        self.create_a2a_sessions_table().await?;
+        self.create_a2a_tasks_table().await?;
+        self.create_a2a_usage_table().await?;
+        self.create_a2a_client_api_keys_table().await?;
+        self.create_a2a_indexes().await?;
+        Ok(())
+    }
+
+    /// Create `a2a_clients` table
+    async fn create_a2a_clients_table(&self) -> Result<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS a2a_clients (
@@ -72,8 +118,12 @@ impl Database {
         )
         .execute(&self.pool)
         .await?;
+        Ok(())
+    }
 
-        // Add capabilities and redirect_uris columns if they don't exist (migration)
+    /// Migrate `a2a_clients` table to add new columns
+    async fn migrate_a2a_clients_columns(&self) -> Result<()> {
+        // Add capabilities column if it doesn't exist (migration)
         sqlx::query(
             r"
             ALTER TABLE a2a_clients ADD COLUMN capabilities TEXT DEFAULT '[]'
@@ -83,6 +133,7 @@ impl Database {
         .await
         .ok(); // Ignore error if column already exists
 
+        // Add redirect_uris column if it doesn't exist (migration)
         sqlx::query(
             r"
             ALTER TABLE a2a_clients ADD COLUMN redirect_uris TEXT DEFAULT '[]'
@@ -92,7 +143,11 @@ impl Database {
         .await
         .ok(); // Ignore error if column already exists
 
-        // Create a2a_sessions table
+        Ok(())
+    }
+
+    /// Create `a2a_sessions` table
+    async fn create_a2a_sessions_table(&self) -> Result<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS a2a_sessions (
@@ -109,8 +164,11 @@ impl Database {
         )
         .execute(&self.pool)
         .await?;
+        Ok(())
+    }
 
-        // Create a2a_tasks table
+    /// Create `a2a_tasks` table
+    async fn create_a2a_tasks_table(&self) -> Result<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS a2a_tasks (
@@ -129,8 +187,11 @@ impl Database {
         )
         .execute(&self.pool)
         .await?;
+        Ok(())
+    }
 
-        // Create a2a_usage table
+    /// Create `a2a_usage` table
+    async fn create_a2a_usage_table(&self) -> Result<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS a2a_usage (
@@ -154,8 +215,11 @@ impl Database {
         )
         .execute(&self.pool)
         .await?;
+        Ok(())
+    }
 
-        // Create a2a_client_api_keys junction table for API key associations
+    /// Create `a2a_client_api_keys` junction table
+    async fn create_a2a_client_api_keys_table(&self) -> Result<()> {
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS a2a_client_api_keys (
@@ -168,8 +232,11 @@ impl Database {
         )
         .execute(&self.pool)
         .await?;
+        Ok(())
+    }
 
-        // Create indexes
+    /// Create indexes for A2A tables
+    async fn create_a2a_indexes(&self) -> Result<()> {
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_a2a_sessions_client_id ON a2a_sessions(client_id)",
         )
@@ -202,6 +269,9 @@ impl Database {
     }
 
     /// Create a new A2A client
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail or JSON serialization fails
     pub async fn create_a2a_client(
         &self,
         client: &A2AClient,
@@ -226,8 +296,8 @@ impl Database {
         .bind(serde_json::to_string(&client.permissions)?)
         .bind(serde_json::to_string(&client.capabilities)?)
         .bind(serde_json::to_string(&client.redirect_uris)?)
-        .bind(client.rate_limit_requests as i32)
-        .bind(client.rate_limit_window_seconds as i32)
+        .bind(safe_u32_to_i32(client.rate_limit_requests)?)
+        .bind(safe_u32_to_i32(client.rate_limit_window_seconds)?)
         .bind(client.is_active)
         .bind(client.created_at)
         .bind(client.updated_at)
@@ -257,6 +327,9 @@ impl Database {
     }
 
     /// Get an A2A client by ID
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail or JSON deserialization fails
     pub async fn get_a2a_client(&self, client_id: &str) -> Result<Option<A2AClient>> {
         let row = sqlx::query(
             r"
@@ -292,8 +365,10 @@ impl Database {
                 is_active: row.get("is_active"),
                 created_at: row.get("created_at"),
                 permissions,
-                rate_limit_requests: row.get::<i32, _>("rate_limit_requests") as u32,
-                rate_limit_window_seconds: row.get::<i32, _>("rate_limit_window_seconds") as u32,
+                rate_limit_requests: safe_i32_to_u32(row.get::<i32, _>("rate_limit_requests"))?,
+                rate_limit_window_seconds: safe_i32_to_u32(
+                    row.get::<i32, _>("rate_limit_window_seconds"),
+                )?,
                 updated_at: row.get("updated_at"),
             }))
         } else {
@@ -301,7 +376,10 @@ impl Database {
         }
     }
 
-    /// List all A2A clients for a user (or all clients if user_id is nil)
+    /// List all A2A clients for a user (or all clients if `user_id` is nil)
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail or JSON deserialization fails
     pub async fn list_a2a_clients(&self, user_id: &Uuid) -> Result<Vec<A2AClient>> {
         let rows = if user_id == &Uuid::nil() {
             // Admin/system-wide query - list all active A2A clients
@@ -356,8 +434,10 @@ impl Database {
                 is_active: row.get("is_active"),
                 created_at: row.get("created_at"),
                 permissions,
-                rate_limit_requests: row.get::<i32, _>("rate_limit_requests") as u32,
-                rate_limit_window_seconds: row.get::<i32, _>("rate_limit_window_seconds") as u32,
+                rate_limit_requests: safe_i32_to_u32(row.get::<i32, _>("rate_limit_requests"))?,
+                rate_limit_window_seconds: safe_i32_to_u32(
+                    row.get::<i32, _>("rate_limit_window_seconds"),
+                )?,
                 updated_at: row.get("updated_at"),
             });
         }
@@ -366,6 +446,9 @@ impl Database {
     }
 
     /// Deactivate an A2A client
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail or client not found
     pub async fn deactivate_a2a_client(&self, client_id: &str) -> Result<()> {
         let query = "UPDATE a2a_clients SET is_active = 0, updated_at = ? WHERE id = ?";
         let now = chrono::Utc::now();
@@ -384,6 +467,9 @@ impl Database {
     }
 
     /// Get client credentials for authentication
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail
     pub async fn get_a2a_client_credentials(
         &self,
         client_id: &str,
@@ -395,16 +481,20 @@ impl Database {
             .fetch_optional(&self.pool)
             .await?;
 
-        if let Some(row) = row {
-            let id: String = row.get("id");
-            let secret: String = row.get("client_secret");
-            Ok(Some((id, secret)))
-        } else {
-            Ok(None)
-        }
+        Ok(row.map_or_else(
+            || None,
+            |row| {
+                let id: String = row.get("id");
+                let secret: String = row.get("client_secret");
+                Some((id, secret))
+            },
+        ))
     }
 
     /// Invalidate all active sessions for a client
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail
     pub async fn invalidate_a2a_client_sessions(&self, client_id: &str) -> Result<()> {
         let query =
             "UPDATE a2a_sessions SET expires_at = datetime('now', '-1 hour') WHERE client_id = ?";
@@ -418,6 +508,9 @@ impl Database {
     }
 
     /// Deactivate all API keys associated with a client
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail
     pub async fn deactivate_client_api_keys(&self, client_id: &str) -> Result<()> {
         // Get API keys associated with the client through the a2a_clients table
         let query = "UPDATE api_keys SET is_active = 0 WHERE id IN (SELECT api_key_id FROM a2a_client_api_keys WHERE client_id = ?)";
@@ -431,6 +524,9 @@ impl Database {
     }
 
     /// Get A2A client by name
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail or JSON deserialization fails
     pub async fn get_a2a_client_by_name(&self, name: &str) -> Result<Option<A2AClient>> {
         let row = sqlx::query(
             r"
@@ -466,8 +562,10 @@ impl Database {
                 is_active: row.get("is_active"),
                 created_at: row.get("created_at"),
                 permissions,
-                rate_limit_requests: row.get::<i32, _>("rate_limit_requests") as u32,
-                rate_limit_window_seconds: row.get::<i32, _>("rate_limit_window_seconds") as u32,
+                rate_limit_requests: safe_i32_to_u32(row.get::<i32, _>("rate_limit_requests"))?,
+                rate_limit_window_seconds: safe_i32_to_u32(
+                    row.get::<i32, _>("rate_limit_window_seconds"),
+                )?,
                 updated_at: row.get("updated_at"),
             }))
         } else {
@@ -476,6 +574,9 @@ impl Database {
     }
 
     /// Create a new A2A session
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail
     pub async fn create_a2a_session(
         &self,
         client_id: &str,
@@ -497,7 +598,7 @@ impl Database {
         )
         .bind(&session_token)
         .bind(client_id)
-        .bind(user_id.map(|u| u.to_string()))
+        .bind(user_id.map(ToString::to_string))
         .bind(granted_scopes.join(","))
         .bind(expires_at)
         .bind(now)
@@ -510,6 +611,9 @@ impl Database {
     }
 
     /// Get an A2A session by token
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail or UUID parsing fails
     pub async fn get_a2a_session(&self, session_token: &str) -> Result<Option<A2ASession>> {
         let row = sqlx::query(
             r"
@@ -533,7 +637,7 @@ impl Database {
             let granted_scopes_str: String = row.get("granted_scopes");
             let granted_scopes = granted_scopes_str
                 .split(',')
-                .map(|s| s.to_string())
+                .map(ToString::to_string)
                 .collect();
 
             Ok(Some(A2ASession {
@@ -544,7 +648,7 @@ impl Database {
                 created_at: row.get("created_at"),
                 expires_at: row.get("expires_at"),
                 last_activity: row.get("last_activity"),
-                requests_count: row.get::<i32, _>("requests_count") as u64,
+                requests_count: safe_i32_to_u64(row.get::<i32, _>("requests_count"))?,
             }))
         } else {
             Ok(None)
@@ -552,6 +656,9 @@ impl Database {
     }
 
     /// Update A2A session activity timestamp
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail
     pub async fn update_a2a_session_activity(&self, session_token: &str) -> Result<()> {
         sqlx::query(
             r"
@@ -568,6 +675,9 @@ impl Database {
     }
 
     /// Get active sessions for a specific client
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail or UUID parsing fails
     pub async fn get_active_a2a_sessions(&self, client_id: &str) -> Result<Vec<A2ASession>> {
         let rows = sqlx::query(
             r"
@@ -593,7 +703,7 @@ impl Database {
             let granted_scopes_str: String = row.get("granted_scopes");
             let granted_scopes = granted_scopes_str
                 .split(',')
-                .map(|s| s.to_string())
+                .map(ToString::to_string)
                 .collect();
 
             sessions.push(A2ASession {
@@ -604,7 +714,7 @@ impl Database {
                 created_at: row.get("created_at"),
                 expires_at: row.get("expires_at"),
                 last_activity: row.get("last_activity"),
-                requests_count: row.get::<i32, _>("requests_count") as u64,
+                requests_count: safe_i32_to_u64(row.get::<i32, _>("requests_count"))?,
             });
         }
 
@@ -612,6 +722,9 @@ impl Database {
     }
 
     /// Create a new A2A task
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail or JSON serialization fails
     pub async fn create_a2a_task(
         &self,
         client_id: &str,
@@ -647,6 +760,9 @@ impl Database {
     }
 
     /// Get an A2A task by ID
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail or JSON deserialization fails
     pub async fn get_a2a_task(&self, task_id: &str) -> Result<Option<A2ATask>> {
         let row = sqlx::query(
             r"
@@ -701,6 +817,9 @@ impl Database {
     }
 
     /// Update A2A task status
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail or JSON serialization fails
     pub async fn update_a2a_task_status(
         &self,
         task_id: &str,
@@ -735,6 +854,9 @@ impl Database {
     }
 
     /// Record A2A usage for rate limiting and analytics
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail or JSON serialization fails
     pub async fn record_a2a_usage(&self, usage: &A2AUsage) -> Result<()> {
         sqlx::query(
             r"
@@ -749,11 +871,11 @@ impl Database {
         .bind(&usage.session_token)
         .bind(usage.timestamp)
         .bind(&usage.tool_name)
-        .bind(usage.response_time_ms.map(|t| t as i32))
-        .bind(usage.status_code as i32)
+        .bind(usage.response_time_ms.map(safe_u32_to_i32).transpose()?)
+        .bind(i32::from(usage.status_code))
         .bind(&usage.error_message)
-        .bind(usage.request_size_bytes.map(|s| s as i32))
-        .bind(usage.response_size_bytes.map(|s| s as i32))
+        .bind(usage.request_size_bytes.map(safe_u32_to_i32).transpose()?)
+        .bind(usage.response_size_bytes.map(safe_u32_to_i32).transpose()?)
         .bind(&usage.ip_address)
         .bind(&usage.user_agent)
         .bind(&usage.protocol_version)
@@ -766,6 +888,9 @@ impl Database {
     }
 
     /// Get current usage count for an A2A client (for rate limiting)
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail or client not found
     pub async fn get_a2a_client_current_usage(&self, client_id: &str) -> Result<u32> {
         // Get the client to determine its rate limit window
         let client = self
@@ -774,7 +899,7 @@ impl Database {
             .ok_or_else(|| anyhow!("A2A client not found: {}", client_id))?;
 
         let window_start =
-            Utc::now() - chrono::Duration::seconds(client.rate_limit_window_seconds as i64);
+            Utc::now() - chrono::Duration::seconds(i64::from(client.rate_limit_window_seconds));
 
         let count: i32 = sqlx::query_scalar(
             r"
@@ -787,10 +912,13 @@ impl Database {
         .fetch_one(&self.pool)
         .await?;
 
-        Ok(count as u32)
+        safe_i32_to_u32(count)
     }
 
     /// Get A2A usage statistics for a client
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail
     pub async fn get_a2a_usage_stats(
         &self,
         client_id: &str,
@@ -827,22 +955,28 @@ impl Database {
             client_id: client_id.to_string(),
             period_start: start_date,
             period_end: end_date,
-            total_requests: total_requests as u32,
-            successful_requests: successful_requests as u32,
-            failed_requests: failed_requests as u32,
-            avg_response_time_ms: avg_response_time.map(|t| t as u32),
-            total_request_bytes: total_request_bytes.map(|b| b as u64),
-            total_response_bytes: total_response_bytes.map(|b| b as u64),
+            total_requests: safe_i32_to_u32(total_requests)?,
+            successful_requests: safe_i32_to_u32(successful_requests)?,
+            failed_requests: safe_i32_to_u32(failed_requests)?,
+            avg_response_time_ms: avg_response_time.map(safe_f64_to_u32),
+            total_request_bytes: total_request_bytes.map(safe_i64_to_u64).transpose()?,
+            total_response_bytes: total_response_bytes.map(safe_i64_to_u64).transpose()?,
         })
     }
 
     /// Get A2A client usage history (daily aggregates with success/error counts)
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail or date parsing fails
+    ///
+    /// # Panics
+    /// Panics if the date string from database is not in expected YYYY-MM-DD format
     pub async fn get_a2a_client_usage_history(
         &self,
         client_id: &str,
         days: u32,
     ) -> Result<Vec<(DateTime<Utc>, u32, u32)>> {
-        let start_date = Utc::now() - chrono::Duration::days(days as i64);
+        let start_date = Utc::now() - chrono::Duration::days(i64::from(days));
 
         let rows = sqlx::query(
             r"
@@ -870,10 +1004,14 @@ impl Database {
             // Parse date string (YYYY-MM-DD format from SQLite date())
             let date = chrono::NaiveDate::parse_from_str(&date_str, "%Y-%m-%d")?
                 .and_hms_opt(0, 0, 0)
-                .unwrap()
+                .ok_or_else(|| anyhow!("Failed to create datetime from date {}", date_str))?
                 .and_utc();
 
-            history.push((date, success_count as u32, error_count as u32));
+            history.push((
+                date,
+                safe_i32_to_u32(success_count)?,
+                safe_i32_to_u32(error_count)?,
+            ));
         }
 
         Ok(history)

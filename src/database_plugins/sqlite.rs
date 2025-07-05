@@ -1,9 +1,9 @@
 // ABOUTME: SQLite database implementation for local development and single-user deployments
 // ABOUTME: Provides embedded database support with encryption and file-based storage
-//! SQLite database implementation
+//! `SQLite` database implementation
 //!
-//! This module wraps the existing SQLite database functionality
-//! to implement the DatabaseProvider trait.
+//! This module wraps the existing `SQLite` database functionality
+//! to implement the `DatabaseProvider` trait.
 
 use super::DatabaseProvider;
 use crate::a2a::auth::A2AClient;
@@ -20,7 +20,7 @@ use serde_json::Value;
 use sqlx::Row;
 use uuid::Uuid;
 
-/// SQLite database implementation
+/// `SQLite` database implementation
 #[derive(Clone)]
 pub struct SqliteDatabase {
     /// The underlying database instance
@@ -29,7 +29,8 @@ pub struct SqliteDatabase {
 
 impl SqliteDatabase {
     /// Get a reference to the inner database for methods not yet migrated
-    pub fn inner(&self) -> &crate::database::Database {
+    #[must_use]
+    pub const fn inner(&self) -> &crate::database::Database {
         &self.inner
     }
 }
@@ -203,7 +204,7 @@ impl DatabaseProvider for SqliteDatabase {
     ) -> Result<Vec<Value>> {
         let insights = self
             .inner
-            .get_user_insights(user_id, limit.unwrap_or(10) as i32)
+            .get_user_insights(user_id, i32::try_from(limit.unwrap_or(10))?)
             .await?;
 
         // Filter by insight_type if specified
@@ -316,8 +317,8 @@ impl DatabaseProvider for SqliteDatabase {
                 api_key_id: log.api_key_id.unwrap_or_default(),
                 api_key_name: "Unknown".into(),
                 tool_name: "Unknown".into(),
-                status_code: log.status_code as i32,
-                response_time_ms: log.response_time_ms.map(|ms| ms as i32),
+                status_code: i32::from(log.status_code),
+                response_time_ms: log.response_time_ms.and_then(|ms| i32::try_from(ms).ok()),
                 error_message: log.error_message,
                 request_size_bytes: None,
                 response_size_bytes: None,
@@ -494,6 +495,7 @@ impl DatabaseProvider for SqliteDatabase {
 
             // Log error rate for monitoring
             if error_count > 0 {
+                #[allow(clippy::cast_precision_loss)]
                 let error_rate = (error_count as f64) / (usage_count as f64);
                 if error_rate > 0.1 {
                     tracing::warn!(
@@ -508,9 +510,12 @@ impl DatabaseProvider for SqliteDatabase {
 
             tool_usage.push(crate::dashboard_routes::ToolUsage {
                 tool_name,
-                request_count: usage_count as u64,
+                request_count: u64::try_from(usage_count)?,
                 success_rate: if usage_count > 0 {
-                    (success_count as f64) / (usage_count as f64)
+                    #[allow(clippy::cast_precision_loss)]
+                    {
+                        (success_count as f64) / (usage_count as f64)
+                    }
                 } else {
                     0.0
                 },
@@ -543,21 +548,23 @@ impl DatabaseProvider for SqliteDatabase {
         let jwt_manager = AdminJwtManager::with_secret(&jwt_secret);
 
         // Get permissions
-        let permissions = match &request.permissions {
-            Some(perms) => AdminPermissions::new(perms.clone()),
-            None => {
+        let permissions = request.permissions.as_ref().map_or_else(
+            || {
                 if request.is_super_admin {
                     AdminPermissions::super_admin()
                 } else {
                     AdminPermissions::default_admin()
                 }
-            }
-        };
+            },
+            |perms| AdminPermissions::new(perms.clone()),
+        );
 
         // Calculate expiration
-        let expires_at = request
-            .expires_in_days
-            .map(|days| chrono::Utc::now() + chrono::Duration::days(days as i64));
+        let expires_at = request.expires_in_days.and_then(|days| {
+            i64::try_from(days)
+                .ok()
+                .map(|d| chrono::Utc::now() + chrono::Duration::days(d))
+        });
 
         // Generate JWT token
         let jwt_token = jwt_manager.generate_token(
@@ -630,7 +637,7 @@ impl DatabaseProvider for SqliteDatabase {
             .await?;
 
         if let Some(row) = row {
-            Ok(Some(self.row_to_admin_token(row)?))
+            Ok(Some(Self::row_to_admin_token(&row)?))
         } else {
             Ok(None)
         }
@@ -653,7 +660,7 @@ impl DatabaseProvider for SqliteDatabase {
             .await?;
 
         if let Some(row) = row {
-            Ok(Some(self.row_to_admin_token(row)?))
+            Ok(Some(Self::row_to_admin_token(&row)?))
         } else {
             Ok(None)
         }
@@ -683,7 +690,7 @@ impl DatabaseProvider for SqliteDatabase {
 
         let mut tokens = Vec::new();
         for row in rows {
-            tokens.push(self.row_to_admin_token(row)?);
+            tokens.push(Self::row_to_admin_token(&row)?);
         }
 
         Ok(tokens)
@@ -774,7 +781,7 @@ impl DatabaseProvider for SqliteDatabase {
 
         let mut usage_history = Vec::new();
         for row in rows {
-            usage_history.push(self.row_to_admin_token_usage(row)?);
+            usage_history.push(Self::row_to_admin_token_usage(&row)?);
         }
 
         Ok(usage_history)
@@ -826,27 +833,10 @@ impl DatabaseProvider for SqliteDatabase {
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
     ) -> Result<Vec<serde_json::Value>> {
-        use sqlx::Row;
-
-        let (query, bind_values) = if let Some(token_id) = admin_token_id {
-            (
-                r"
-                SELECT id, admin_token_id, api_key_id, user_email, requested_tier,
-                       provisioned_at, provisioned_by_service, rate_limit_requests,
-                       rate_limit_period, key_status, revoked_at, revoked_reason
-                FROM admin_provisioned_keys 
-                WHERE admin_token_id = ? AND provisioned_at BETWEEN ? AND ?
-                ORDER BY provisioned_at DESC
-                ",
-                vec![
-                    token_id.to_string(),
-                    start_date.to_rfc3339(),
-                    end_date.to_rfc3339(),
-                ],
-            )
-        } else {
-            (
-                r"
+        let (query, bind_values) = admin_token_id.map_or_else(
+            || {
+                (
+                    r"
                 SELECT id, admin_token_id, api_key_id, user_email, requested_tier,
                        provisioned_at, provisioned_by_service, rate_limit_requests,
                        rate_limit_period, key_status, revoked_at, revoked_reason
@@ -854,9 +844,27 @@ impl DatabaseProvider for SqliteDatabase {
                 WHERE provisioned_at BETWEEN ? AND ?
                 ORDER BY provisioned_at DESC
                 ",
-                vec![start_date.to_rfc3339(), end_date.to_rfc3339()],
-            )
-        };
+                    vec![start_date.to_rfc3339(), end_date.to_rfc3339()],
+                )
+            },
+            |token_id| {
+                (
+                    r"
+                SELECT id, admin_token_id, api_key_id, user_email, requested_tier,
+                       provisioned_at, provisioned_by_service, rate_limit_requests,
+                       rate_limit_period, key_status, revoked_at, revoked_reason
+                FROM admin_provisioned_keys 
+                WHERE admin_token_id = ? AND provisioned_at BETWEEN ? AND ?
+                ORDER BY provisioned_at DESC
+                ",
+                    vec![
+                        token_id.to_string(),
+                        start_date.to_rfc3339(),
+                        end_date.to_rfc3339(),
+                    ],
+                )
+            },
+        );
 
         let mut sqlx_query = sqlx::query(query);
         for value in bind_values {
@@ -865,87 +873,93 @@ impl DatabaseProvider for SqliteDatabase {
 
         let rows = sqlx_query.fetch_all(self.inner.pool()).await?;
 
-        let mut results = Vec::new();
-        for row in rows {
-            let mut record = serde_json::Map::new();
-
-            if let Ok(id) = row.try_get::<i64, _>("id") {
-                record.insert("id".into(), serde_json::Value::Number(id.into()));
-            }
-            if let Ok(admin_token_id) = row.try_get::<String, _>("admin_token_id") {
-                record.insert(
-                    "admin_token_id".into(),
-                    serde_json::Value::String(admin_token_id),
-                );
-            }
-            if let Ok(api_key_id) = row.try_get::<String, _>("api_key_id") {
-                record.insert("api_key_id".into(), serde_json::Value::String(api_key_id));
-            }
-            if let Ok(user_email) = row.try_get::<String, _>("user_email") {
-                record.insert("user_email".into(), serde_json::Value::String(user_email));
-            }
-            if let Ok(requested_tier) = row.try_get::<String, _>("requested_tier") {
-                record.insert(
-                    "requested_tier".into(),
-                    serde_json::Value::String(requested_tier),
-                );
-            }
-            if let Ok(provisioned_at) = row.try_get::<String, _>("provisioned_at") {
-                record.insert(
-                    "provisioned_at".into(),
-                    serde_json::Value::String(provisioned_at),
-                );
-            }
-            if let Ok(provisioned_by_service) = row.try_get::<String, _>("provisioned_by_service") {
-                record.insert(
-                    "provisioned_by_service".into(),
-                    serde_json::Value::String(provisioned_by_service),
-                );
-            }
-            if let Ok(rate_limit_requests) = row.try_get::<i64, _>("rate_limit_requests") {
-                record.insert(
-                    "rate_limit_requests".into(),
-                    serde_json::Value::Number(rate_limit_requests.into()),
-                );
-            }
-            if let Ok(rate_limit_period) = row.try_get::<String, _>("rate_limit_period") {
-                record.insert(
-                    "rate_limit_period".into(),
-                    serde_json::Value::String(rate_limit_period),
-                );
-            }
-            if let Ok(key_status) = row.try_get::<String, _>("key_status") {
-                record.insert("key_status".into(), serde_json::Value::String(key_status));
-            }
-            if let Ok(revoked_at) = row.try_get::<Option<String>, _>("revoked_at") {
-                record.insert(
-                    "revoked_at".into(),
-                    revoked_at
-                        .map(serde_json::Value::String)
-                        .unwrap_or(serde_json::Value::Null),
-                );
-            }
-            if let Ok(revoked_reason) = row.try_get::<Option<String>, _>("revoked_reason") {
-                record.insert(
-                    "revoked_reason".into(),
-                    revoked_reason
-                        .map(serde_json::Value::String)
-                        .unwrap_or(serde_json::Value::Null),
-                );
-            }
-
-            results.push(serde_json::Value::Object(record));
-        }
+        let results = rows
+            .iter()
+            .map(Self::row_to_provisioned_key_json)
+            .collect::<Result<Vec<_>>>()?;
 
         Ok(results)
     }
 }
 
 impl SqliteDatabase {
-    /// Convert database row to AdminToken
+    /// Convert database row to JSON for provisioned keys
+    #[allow(clippy::unnecessary_wraps)]
+    fn row_to_provisioned_key_json(row: &sqlx::sqlite::SqliteRow) -> Result<serde_json::Value> {
+        use sqlx::Row;
+        let mut record = serde_json::Map::new();
+
+        if let Ok(id) = row.try_get::<i64, _>("id") {
+            record.insert("id".into(), serde_json::Value::Number(id.into()));
+        }
+        if let Ok(admin_token_id) = row.try_get::<String, _>("admin_token_id") {
+            record.insert(
+                "admin_token_id".into(),
+                serde_json::Value::String(admin_token_id),
+            );
+        }
+        if let Ok(api_key_id) = row.try_get::<String, _>("api_key_id") {
+            record.insert("api_key_id".into(), serde_json::Value::String(api_key_id));
+        }
+        if let Ok(user_email) = row.try_get::<String, _>("user_email") {
+            record.insert("user_email".into(), serde_json::Value::String(user_email));
+        }
+        if let Ok(requested_tier) = row.try_get::<String, _>("requested_tier") {
+            record.insert(
+                "requested_tier".into(),
+                serde_json::Value::String(requested_tier),
+            );
+        }
+        if let Ok(provisioned_at) = row.try_get::<String, _>("provisioned_at") {
+            record.insert(
+                "provisioned_at".into(),
+                serde_json::Value::String(provisioned_at),
+            );
+        }
+        if let Ok(provisioned_by_service) = row.try_get::<String, _>("provisioned_by_service") {
+            record.insert(
+                "provisioned_by_service".into(),
+                serde_json::Value::String(provisioned_by_service),
+            );
+        }
+        if let Ok(rate_limit_requests) = row.try_get::<i64, _>("rate_limit_requests") {
+            record.insert(
+                "rate_limit_requests".into(),
+                serde_json::Value::Number(rate_limit_requests.into()),
+            );
+        }
+        if let Ok(rate_limit_period) = row.try_get::<String, _>("rate_limit_period") {
+            record.insert(
+                "rate_limit_period".into(),
+                serde_json::Value::String(rate_limit_period),
+            );
+        }
+        if let Ok(key_status) = row.try_get::<String, _>("key_status") {
+            record.insert("key_status".into(), serde_json::Value::String(key_status));
+        }
+        if let Ok(revoked_at) = row.try_get::<Option<String>, _>("revoked_at") {
+            record.insert(
+                "revoked_at".into(),
+                revoked_at.map_or(serde_json::Value::Null, serde_json::Value::String),
+            );
+        }
+        if let Ok(revoked_reason) = row.try_get::<Option<String>, _>("revoked_reason") {
+            record.insert(
+                "revoked_reason".into(),
+                revoked_reason.map_or(serde_json::Value::Null, serde_json::Value::String),
+            );
+        }
+
+        Ok(serde_json::Value::Object(record))
+    }
+
+    /// Convert database row to `AdminToken`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database row cannot be converted to an `AdminToken`
     fn row_to_admin_token(
-        &self,
-        row: sqlx::sqlite::SqliteRow,
+        row: &sqlx::sqlite::SqliteRow,
     ) -> Result<crate::admin::models::AdminToken> {
         use crate::admin::models::{AdminPermissions, AdminToken};
         use sqlx::Row;
@@ -967,14 +981,17 @@ impl SqliteDatabase {
             expires_at: row.try_get("expires_at")?,
             last_used_at: row.try_get("last_used_at")?,
             last_used_ip: row.try_get("last_used_ip")?,
-            usage_count: row.try_get::<i64, _>("usage_count")? as u64,
+            usage_count: u64::try_from(row.try_get::<i64, _>("usage_count")?)?,
         })
     }
 
-    /// Convert database row to AdminTokenUsage
+    /// Convert database row to `AdminTokenUsage`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database row cannot be converted to an `AdminTokenUsage`
     fn row_to_admin_token_usage(
-        &self,
-        row: sqlx::sqlite::SqliteRow,
+        row: &sqlx::sqlite::SqliteRow,
     ) -> Result<crate::admin::models::AdminTokenUsage> {
         use crate::admin::models::{AdminAction, AdminTokenUsage};
         use sqlx::Row;
@@ -994,12 +1011,12 @@ impl SqliteDatabase {
             user_agent: row.try_get("user_agent")?,
             request_size_bytes: row
                 .try_get::<Option<i32>, _>("request_size_bytes")?
-                .map(|v| v as u32),
+                .and_then(|v| u32::try_from(v).ok()),
             success: row.try_get("success")?,
             error_message: row.try_get("error_message")?,
             response_time_ms: row
                 .try_get::<Option<i32>, _>("response_time_ms")?
-                .map(|v| v as u32),
+                .and_then(|v| u32::try_from(v).ok()),
         })
     }
 }

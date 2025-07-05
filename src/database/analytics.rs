@@ -127,6 +127,10 @@ impl Database {
     }
 
     /// Record JWT usage for rate limiting
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails.
     pub async fn record_jwt_usage(&self, usage: &JwtUsage) -> Result<()> {
         sqlx::query(
             r"
@@ -141,10 +145,22 @@ impl Database {
         .bind(usage.timestamp)
         .bind(&usage.endpoint)
         .bind(&usage.method)
-        .bind(usage.status_code as i32)
-        .bind(usage.response_time_ms.map(|t| t as i32))
-        .bind(usage.request_size_bytes.map(|s| s as i32))
-        .bind(usage.response_size_bytes.map(|s| s as i32))
+        .bind(i32::from(usage.status_code))
+        .bind(
+            usage
+                .response_time_ms
+                .map(|t| i32::try_from(t).unwrap_or(i32::MAX)),
+        )
+        .bind(
+            usage
+                .request_size_bytes
+                .map(|s| i32::try_from(s).unwrap_or(i32::MAX)),
+        )
+        .bind(
+            usage
+                .response_size_bytes
+                .map(|s| i32::try_from(s).unwrap_or(i32::MAX)),
+        )
         .bind(&usage.ip_address)
         .bind(&usage.user_agent)
         .execute(&self.pool)
@@ -154,6 +170,10 @@ impl Database {
     }
 
     /// Get current JWT usage count for a user (for rate limiting)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails.
     pub async fn get_jwt_current_usage(&self, user_id: Uuid) -> Result<u32> {
         let window_start = Utc::now() - Duration::hours(1); // 1 hour window
 
@@ -168,10 +188,14 @@ impl Database {
         .fetch_one(&self.pool)
         .await?;
 
-        Ok(count as u32)
+        Ok(u32::try_from(count).unwrap_or(0))
     }
 
     /// Create a goal for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails or if JSON serialization fails.
     pub async fn create_goal(&self, user_id: Uuid, goal_data: serde_json::Value) -> Result<String> {
         let goal_id = Uuid::new_v4().to_string();
         let goal_json = serde_json::to_string(&goal_data)?;
@@ -192,6 +216,10 @@ impl Database {
     }
 
     /// Get all goals for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails or if JSON deserialization fails.
     pub async fn get_user_goals(&self, user_id: Uuid) -> Result<Vec<serde_json::Value>> {
         let rows = sqlx::query(
             r"
@@ -222,6 +250,10 @@ impl Database {
     }
 
     /// Update goal progress
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails or if JSON operations fail.
     pub async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> Result<()> {
         // Get the current goal data
         let row = sqlx::query(
@@ -254,7 +286,7 @@ impl Database {
             );
 
             // Calculate progress percentage if target_value exists
-            if let Some(target) = obj.get("target_value").and_then(|v| v.as_f64()) {
+            if let Some(target) = obj.get("target_value").and_then(serde_json::Value::as_f64) {
                 if target > 0.0 {
                     let progress_percentage = (current_value / target * 100.0).clamp(0.0, 100.0);
                     obj.insert(
@@ -291,6 +323,10 @@ impl Database {
     }
 
     /// Store an insight for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails or if JSON serialization fails.
     pub async fn store_insight(
         &self,
         user_id: Uuid,
@@ -319,6 +355,10 @@ impl Database {
     }
 
     /// Get recent insights for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails or if JSON deserialization fails.
     pub async fn get_user_insights(
         &self,
         user_id: Uuid,
@@ -348,6 +388,10 @@ impl Database {
     }
 
     /// Get request logs with filtering
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails or if UUID parsing fails.
     pub async fn get_request_logs(
         &self,
         user_id: Option<Uuid>,
@@ -407,10 +451,10 @@ impl Database {
                 timestamp: row.get("timestamp"),
                 method: row.get("method"),
                 endpoint: row.get("endpoint"),
-                status_code: row.get::<i32, _>("status_code") as u16,
+                status_code: u16::try_from(row.get::<i32, _>("status_code")).unwrap_or(0),
                 response_time_ms: row
                     .get::<Option<i32>, _>("response_time_ms")
-                    .map(|t| t as u32),
+                    .and_then(|t| u32::try_from(t).ok()),
                 error_message: row.get("error_message"),
             });
         }
@@ -419,6 +463,10 @@ impl Database {
     }
 
     /// Get system-wide statistics
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails.
     pub async fn get_system_stats(&self) -> Result<(u64, u64)> {
         // Get total users
         let user_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
@@ -430,7 +478,10 @@ impl Database {
             .fetch_one(&self.pool)
             .await?;
 
-        Ok((user_count as u64, api_key_count as u64))
+        Ok((
+            u64::try_from(user_count).unwrap_or(0),
+            u64::try_from(api_key_count).unwrap_or(0),
+        ))
     }
 }
 

@@ -250,7 +250,7 @@ pub struct ConfigurationRoutes {
 
 impl ConfigurationRoutes {
     /// Create a new configuration routes handler
-    pub fn new(database: Database, auth_manager: AuthManager) -> Self {
+    pub const fn new(database: Database, auth_manager: AuthManager) -> Self {
         Self {
             database,
             auth_manager,
@@ -258,7 +258,15 @@ impl ConfigurationRoutes {
     }
 
     /// Authenticate `JWT` token and extract user `ID`
-    async fn authenticate_user(&self, auth_header: Option<&str>) -> Result<Uuid> {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The authorization header is missing
+    /// - The authorization header format is invalid
+    /// - The token validation fails
+    /// - The user ID cannot be parsed as a UUID
+    fn authenticate_user(&self, auth_header: Option<&str>) -> Result<Uuid> {
         let auth_str =
             auth_header.ok_or_else(|| anyhow::anyhow!("Missing authorization header"))?;
 
@@ -275,7 +283,7 @@ impl ConfigurationRoutes {
     fn create_metadata(processing_start: std::time::Instant) -> ResponseMetadata {
         ResponseMetadata {
             timestamp: chrono::Utc::now(),
-            processing_time_ms: Some(processing_start.elapsed().as_millis() as u64),
+            processing_time_ms: u64::try_from(processing_start.elapsed().as_millis()).ok(),
             api_version: "1.0.0".into(),
         }
     }
@@ -285,7 +293,12 @@ impl ConfigurationRoutes {
     // ================================================================================================
 
     /// GET /api/configuration/catalog - Get the complete configuration catalog
-    pub async fn get_configuration_catalog(
+    ///
+    /// # Errors
+    ///
+    /// Currently this function does not return errors, but the Result type
+    /// is maintained for consistency with other endpoints.
+    pub fn get_configuration_catalog(
         &self,
         _auth_header: Option<&str>,
     ) -> Result<ConfigurationCatalogResponse> {
@@ -300,7 +313,12 @@ impl ConfigurationRoutes {
     }
 
     /// GET /api/configuration/profiles - Get available configuration profiles
-    pub async fn get_configuration_profiles(
+    ///
+    /// # Errors
+    ///
+    /// Currently this function does not return errors, but the Result type
+    /// is maintained for consistency with other endpoints.
+    pub fn get_configuration_profiles(
         &self,
         _auth_header: Option<&str>,
     ) -> Result<ConfigurationProfilesResponse> {
@@ -331,7 +349,7 @@ impl ConfigurationRoutes {
                         "Medical/rehabilitation with conservative limits".into()
                     }
                     ConfigProfile::SportSpecific { sport, .. } => {
-                        format!("Sport-specific optimization for {}", sport)
+                        format!("Sport-specific optimization for {sport}")
                     }
                     ConfigProfile::Custom { description, .. } => description.clone(),
                 };
@@ -355,12 +373,18 @@ impl ConfigurationRoutes {
     }
 
     /// GET /api/configuration/user - Get current user's configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - User authentication fails
+    /// - Database operations fail
     pub async fn get_user_configuration(
         &self,
         auth_header: Option<&str>,
     ) -> Result<UserConfigurationResponse> {
         let processing_start = std::time::Instant::now();
-        let user_id = self.authenticate_user(auth_header).await?;
+        let user_id = self.authenticate_user(auth_header)?;
 
         // Log database access attempt for future implementation
         if let Err(e) = self.database.get_user(user_id).await {
@@ -385,13 +409,21 @@ impl ConfigurationRoutes {
     }
 
     /// PUT /api/configuration/user - Update user's configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - User authentication fails
+    /// - Configuration validation fails
+    /// - Unknown profile name is provided
+    /// - Database operations fail
     pub async fn update_user_configuration(
         &self,
         auth_header: Option<&str>,
         request: UpdateConfigurationRequest,
     ) -> Result<UpdateConfigurationResponse> {
         let processing_start = std::time::Instant::now();
-        let user_id = self.authenticate_user(auth_header).await?;
+        let user_id = self.authenticate_user(auth_header)?;
 
         let parameter_overrides = request.parameters.unwrap_or_default();
         let parameter_count = parameter_overrides.len();
@@ -402,16 +434,29 @@ impl ConfigurationRoutes {
             let overrides_map: HashMap<String, ConfigValue> = parameter_overrides
                 .iter()
                 .filter_map(|(k, v)| {
-                    if let Some(float_val) = v.as_f64() {
-                        Some((k.clone(), ConfigValue::Float(float_val)))
-                    } else if let Some(int_val) = v.as_i64() {
-                        Some((k.clone(), ConfigValue::Integer(int_val)))
-                    } else if let Some(bool_val) = v.as_bool() {
-                        Some((k.clone(), ConfigValue::Boolean(bool_val)))
-                    } else {
-                        v.as_str()
-                            .map(|str_val| (k.clone(), ConfigValue::String(str_val.to_string())))
-                    }
+                    v.as_f64().map_or_else(
+                        || {
+                            v.as_i64().map_or_else(
+                                || {
+                                    v.as_bool().map_or_else(
+                                        || {
+                                            v.as_str().map(|str_val| {
+                                                (
+                                                    k.clone(),
+                                                    ConfigValue::String(str_val.to_string()),
+                                                )
+                                            })
+                                        },
+                                        |bool_val| {
+                                            Some((k.clone(), ConfigValue::Boolean(bool_val)))
+                                        },
+                                    )
+                                },
+                                |int_val| Some((k.clone(), ConfigValue::Integer(int_val))),
+                            )
+                        },
+                        |float_val| Some((k.clone(), ConfigValue::Float(float_val))),
+                    )
                 })
                 .collect();
 
@@ -466,19 +511,26 @@ impl ConfigurationRoutes {
                 applied_overrides: config.get_session_overrides().len(),
                 last_modified: chrono::Utc::now(),
             },
-            changes_applied: parameter_count + if request.profile.is_some() { 1 } else { 0 },
+            changes_applied: parameter_count + usize::from(request.profile.is_some()),
             metadata: Self::create_metadata(processing_start),
         })
     }
 
     /// POST /api/configuration/zones - Calculate personalized training zones
-    pub async fn calculate_personalized_zones(
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - User authentication fails
+    /// - VO2 max calculation fails
+    /// - Zone calculation fails
+    pub fn calculate_personalized_zones(
         &self,
         auth_header: Option<&str>,
-        request: PersonalizedZonesRequest,
+        request: &PersonalizedZonesRequest,
     ) -> Result<PersonalizedZonesResponse> {
         let processing_start = std::time::Instant::now();
-        let user_id = self.authenticate_user(auth_header).await?;
+        let user_id = self.authenticate_user(auth_header)?;
 
         // Log personalized zones request
         tracing::debug!("Generating personalized zones for user {}", user_id);
@@ -527,10 +579,16 @@ impl ConfigurationRoutes {
     }
 
     /// POST /api/configuration/validate - Validate configuration parameters
-    pub async fn validate_configuration(
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - No valid parameters are provided for validation
+    /// - Parameter conversion fails
+    pub fn validate_configuration(
         &self,
         _auth_header: Option<&str>,
-        request: ValidateConfigurationRequest,
+        request: &ValidateConfigurationRequest,
     ) -> Result<ValidationResponse> {
         let processing_start = std::time::Instant::now();
 
@@ -539,16 +597,24 @@ impl ConfigurationRoutes {
             .parameters
             .iter()
             .filter_map(|(k, v)| {
-                if let Some(float_val) = v.as_f64() {
-                    Some((k.clone(), ConfigValue::Float(float_val)))
-                } else if let Some(int_val) = v.as_i64() {
-                    Some((k.clone(), ConfigValue::Integer(int_val)))
-                } else if let Some(bool_val) = v.as_bool() {
-                    Some((k.clone(), ConfigValue::Boolean(bool_val)))
-                } else {
-                    v.as_str()
-                        .map(|str_val| (k.clone(), ConfigValue::String(str_val.to_string())))
-                }
+                v.as_f64().map_or_else(
+                    || {
+                        v.as_i64().map_or_else(
+                            || {
+                                v.as_bool().map_or_else(
+                                    || {
+                                        v.as_str().map(|str_val| {
+                                            (k.clone(), ConfigValue::String(str_val.to_string()))
+                                        })
+                                    },
+                                    |bool_val| Some((k.clone(), ConfigValue::Boolean(bool_val))),
+                                )
+                            },
+                            |int_val| Some((k.clone(), ConfigValue::Integer(int_val))),
+                        )
+                    },
+                    |float_val| Some((k.clone(), ConfigValue::Float(float_val))),
+                )
             })
             .collect();
 

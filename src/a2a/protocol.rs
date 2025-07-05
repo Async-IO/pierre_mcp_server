@@ -94,7 +94,7 @@ pub struct A2ATask {
 }
 
 /// Task status enumeration
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum TaskStatus {
     Pending,
@@ -107,11 +107,11 @@ pub enum TaskStatus {
 impl std::fmt::Display for TaskStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TaskStatus::Pending => write!(f, "pending"),
-            TaskStatus::Running => write!(f, "running"),
-            TaskStatus::Completed => write!(f, "completed"),
-            TaskStatus::Failed => write!(f, "failed"),
-            TaskStatus::Cancelled => write!(f, "cancelled"),
+            Self::Pending => write!(f, "pending"),
+            Self::Running => write!(f, "running"),
+            Self::Completed => write!(f, "completed"),
+            Self::Failed => write!(f, "failed"),
+            Self::Cancelled => write!(f, "cancelled"),
         }
     }
 }
@@ -125,6 +125,7 @@ pub struct A2AServer {
 }
 
 impl A2AServer {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             version: crate::a2a::A2A_VERSION.to_string(),
@@ -134,6 +135,7 @@ impl A2AServer {
         }
     }
 
+    #[must_use]
     pub fn new_with_dependencies(
         database: std::sync::Arc<crate::database_plugins::factory::Database>,
         intelligence: std::sync::Arc<crate::intelligence::ActivityIntelligence>,
@@ -146,6 +148,7 @@ impl A2AServer {
         }
     }
 
+    #[must_use]
     pub fn new_with_full_dependencies(
         database: std::sync::Arc<crate::database_plugins::factory::Database>,
         intelligence: std::sync::Arc<crate::intelligence::ActivityIntelligence>,
@@ -162,30 +165,21 @@ impl A2AServer {
     /// Handle incoming A2A request
     pub async fn handle_request(&self, request: A2ARequest) -> A2AResponse {
         match request.method.as_str() {
-            "a2a/initialize" => self.handle_initialize(request).await,
-            "message/send" => self.handle_message_send(request).await,
-            "message/stream" => self.handle_message_stream(request).await,
-            "tasks/create" => self.handle_task_create(request).await,
-            "tasks/get" => self.handle_task_get(request).await,
-            "tasks/cancel" => self.handle_task_cancel(request).await,
-            "tasks/pushNotificationConfig/set" => {
-                self.handle_push_notification_config(request).await
-            }
-            "tools/list" => self.handle_tools_list(request).await,
-            "tools/call" => self.handle_tool_call(request).await,
-            // Legacy A2A prefix support (backwards compatibility)
-            "a2a/message/send" => self.handle_message_send(request).await,
-            "a2a/message/stream" => self.handle_message_stream(request).await,
-            "a2a/tasks/create" => self.handle_task_create(request).await,
-            "a2a/tasks/get" => self.handle_task_get(request).await,
-            "a2a/tasks/list" => self.handle_task_list(request).await,
-            "a2a/tools/list" => self.handle_tools_list(request).await,
-            "a2a/tools/call" => self.handle_tool_call(request).await,
-            _ => self.handle_unknown_method(request).await,
+            "a2a/initialize" => self.handle_initialize(request),
+            "message/send" | "a2a/message/send" => Self::handle_message_send(request),
+            "message/stream" | "a2a/message/stream" => Self::handle_message_stream(request),
+            "tasks/create" | "a2a/tasks/create" => Self::handle_task_create(request),
+            "tasks/get" | "a2a/tasks/get" => self.handle_task_get(request),
+            "tasks/cancel" => Self::handle_task_cancel(request),
+            "tasks/pushNotificationConfig/set" => Self::handle_push_notification_config(request),
+            "a2a/tasks/list" => self.handle_task_list(request),
+            "tools/list" | "a2a/tools/list" => Self::handle_tools_list(request),
+            "tools/call" | "a2a/tools/call" => self.handle_tool_call(request).await,
+            _ => Self::handle_unknown_method(request),
         }
     }
 
-    async fn handle_initialize(&self, request: A2ARequest) -> A2AResponse {
+    fn handle_initialize(&self, request: A2ARequest) -> A2AResponse {
         let result = serde_json::json!({
             "version": self.version,
             "capabilities": [
@@ -213,7 +207,7 @@ impl A2AServer {
         }
     }
 
-    async fn handle_message_send(&self, request: A2ARequest) -> A2AResponse {
+    fn handle_message_send(request: A2ARequest) -> A2AResponse {
         // Message sending would forward requests to appropriate handlers
         A2AResponse {
             jsonrpc: "2.0".into(),
@@ -223,7 +217,7 @@ impl A2AServer {
         }
     }
 
-    async fn handle_message_stream(&self, request: A2ARequest) -> A2AResponse {
+    fn handle_message_stream(request: A2ARequest) -> A2AResponse {
         // Message streaming is intentionally not supported in this implementation
         // A2A protocol uses stateless request-response pattern for reliability
         A2AResponse {
@@ -239,7 +233,7 @@ impl A2AServer {
         }
     }
 
-    async fn handle_task_create(&self, request: A2ARequest) -> A2AResponse {
+    fn handle_task_create(request: A2ARequest) -> A2AResponse {
         let task_id = Uuid::new_v4().to_string();
 
         // Extract client_id and task_type from request parameters
@@ -257,7 +251,7 @@ impl A2AServer {
             .to_string();
 
         let task = A2ATask {
-            id: task_id.clone(),
+            id: task_id,
             status: TaskStatus::Pending,
             created_at: chrono::Utc::now(),
             completed_at: None,
@@ -279,7 +273,7 @@ impl A2AServer {
         }
     }
 
-    async fn handle_task_get(&self, request: A2ARequest) -> A2AResponse {
+    fn handle_task_get(&self, request: A2ARequest) -> A2AResponse {
         // Validate task ID parameter
         if let Some(params) = request.params.as_ref() {
             if let Some(serde_json::Value::String(_task_id)) = params.get("task_id") {
@@ -338,7 +332,7 @@ impl A2AServer {
         }
     }
 
-    async fn handle_task_list(&self, request: A2ARequest) -> A2AResponse {
+    fn handle_task_list(&self, request: A2ARequest) -> A2AResponse {
         // Validate parameters exist
         if let Some(params) = request.params.as_ref() {
             // Parameters were provided, validate them
@@ -372,7 +366,7 @@ impl A2AServer {
         }
     }
 
-    async fn handle_tools_list(&self, request: A2ARequest) -> A2AResponse {
+    fn handle_tools_list(request: A2ARequest) -> A2AResponse {
         // Available tools would be sourced from the universal tool executor
         let tools = serde_json::json!([
             {
@@ -404,6 +398,108 @@ impl A2AServer {
             result: Some(tools),
             error: None,
             id: request.id,
+        }
+    }
+
+    /// Create a default server config for A2A protocol
+    fn get_or_create_config(&self) -> std::sync::Arc<crate::config::environment::ServerConfig> {
+        self.config.as_ref().map_or_else(
+            || {
+                // Create a minimal fallback config if none provided
+                std::sync::Arc::new(
+                    crate::config::environment::ServerConfig::from_env()
+                        .unwrap_or_else(|_| Self::create_minimal_fallback_config()),
+                )
+            },
+            std::clone::Clone::clone,
+        )
+    }
+
+    /// Create minimal fallback config for A2A protocol
+    fn create_minimal_fallback_config() -> crate::config::environment::ServerConfig {
+        crate::config::environment::ServerConfig {
+            mcp_port: 3000,
+            http_port: 4000,
+            log_level: crate::config::environment::LogLevel::Info,
+            database: crate::config::environment::DatabaseConfig {
+                url: crate::config::environment::DatabaseUrl::default(),
+                encryption_key_path: std::path::PathBuf::from("data/encryption.key"),
+                auto_migrate: true,
+                backup: crate::config::environment::BackupConfig {
+                    enabled: false,
+                    interval_seconds: 3600,
+                    retention_count: 7,
+                    directory: std::path::PathBuf::from("data/backups"),
+                },
+            },
+            auth: crate::config::environment::AuthConfig {
+                jwt_secret_path: std::path::PathBuf::from("data/jwt.secret"),
+                jwt_expiry_hours: 24,
+                enable_refresh_tokens: false,
+            },
+            oauth: crate::config::environment::OAuthConfig {
+                strava: crate::config::environment::OAuthProviderConfig {
+                    client_id: std::env::var("STRAVA_CLIENT_ID").ok(),
+                    client_secret: std::env::var("STRAVA_CLIENT_SECRET").ok(),
+                    redirect_uri: std::env::var("STRAVA_REDIRECT_URI").ok(),
+                    scopes: vec!["read".into(), "activity:read_all".into()],
+                    enabled: true,
+                },
+                fitbit: crate::config::environment::OAuthProviderConfig {
+                    client_id: std::env::var("FITBIT_CLIENT_ID").ok(),
+                    client_secret: std::env::var("FITBIT_CLIENT_SECRET").ok(),
+                    redirect_uri: std::env::var("FITBIT_REDIRECT_URI").ok(),
+                    scopes: vec!["activity".into(), "profile".into()],
+                    enabled: true,
+                },
+            },
+            security: crate::config::environment::SecurityConfig {
+                cors_origins: vec!["*".into()],
+                rate_limit: crate::config::environment::RateLimitConfig {
+                    enabled: false,
+                    requests_per_window: 100,
+                    window_seconds: 60,
+                },
+                tls: crate::config::environment::TlsConfig {
+                    enabled: false,
+                    cert_path: None,
+                    key_path: None,
+                },
+                headers: crate::config::environment::SecurityHeadersConfig {
+                    environment: crate::config::environment::Environment::Development,
+                },
+            },
+            external_services: crate::config::environment::ExternalServicesConfig {
+                weather: crate::config::environment::WeatherServiceConfig {
+                    api_key: std::env::var("OPENWEATHER_API_KEY").ok(),
+                    base_url: "https://api.openweathermap.org/data/2.5".into(),
+                    enabled: false,
+                },
+                geocoding: crate::config::environment::GeocodingServiceConfig {
+                    base_url: "https://nominatim.openstreetmap.org".into(),
+                    enabled: true,
+                },
+                strava_api: crate::config::environment::StravaApiConfig {
+                    base_url: "https://www.strava.com/api/v3".into(),
+                    auth_url: "https://www.strava.com/oauth/authorize".into(),
+                    token_url: "https://www.strava.com/oauth/token".into(),
+                },
+                fitbit_api: crate::config::environment::FitbitApiConfig {
+                    base_url: "https://api.fitbit.com".into(),
+                    auth_url: "https://www.fitbit.com/oauth2/authorize".into(),
+                    token_url: "https://api.fitbit.com/oauth2/token".into(),
+                },
+            },
+            app_behavior: crate::config::environment::AppBehaviorConfig {
+                max_activities_fetch: 100,
+                default_activities_limit: 20,
+                ci_mode: false,
+                protocol: crate::config::environment::ProtocolConfig {
+                    mcp_version: "2024-11-05".into(),
+                    server_name: "pierre-mcp-server".into(),
+                    server_version: env!("CARGO_PKG_VERSION").to_string(),
+                },
+            },
         }
     }
 
@@ -448,105 +544,7 @@ impl A2AServer {
             }
         };
 
-        // Use provided config or create a fallback config for A2A protocol
-        let server_config = match &self.config {
-            Some(config) => config.clone(),
-            None => {
-                // Create a minimal fallback config if none provided
-                std::sync::Arc::new(
-                    crate::config::environment::ServerConfig::from_env().unwrap_or_else(|_| {
-                        // Create a minimal fallback config
-                        crate::config::environment::ServerConfig {
-                            mcp_port: 3000,
-                            http_port: 4000,
-                            log_level: crate::config::environment::LogLevel::Info,
-                            database: crate::config::environment::DatabaseConfig {
-                                url: crate::config::environment::DatabaseUrl::default(),
-                                encryption_key_path: std::path::PathBuf::from(
-                                    "data/encryption.key",
-                                ),
-                                auto_migrate: true,
-                                backup: crate::config::environment::BackupConfig {
-                                    enabled: false,
-                                    interval_seconds: 3600,
-                                    retention_count: 7,
-                                    directory: std::path::PathBuf::from("data/backups"),
-                                },
-                            },
-                            auth: crate::config::environment::AuthConfig {
-                                jwt_secret_path: std::path::PathBuf::from("data/jwt.secret"),
-                                jwt_expiry_hours: 24,
-                                enable_refresh_tokens: false,
-                            },
-                            oauth: crate::config::environment::OAuthConfig {
-                                strava: crate::config::environment::OAuthProviderConfig {
-                                    client_id: std::env::var("STRAVA_CLIENT_ID").ok(),
-                                    client_secret: std::env::var("STRAVA_CLIENT_SECRET").ok(),
-                                    redirect_uri: std::env::var("STRAVA_REDIRECT_URI").ok(),
-                                    scopes: vec!["read".into(), "activity:read_all".into()],
-                                    enabled: true,
-                                },
-                                fitbit: crate::config::environment::OAuthProviderConfig {
-                                    client_id: std::env::var("FITBIT_CLIENT_ID").ok(),
-                                    client_secret: std::env::var("FITBIT_CLIENT_SECRET").ok(),
-                                    redirect_uri: std::env::var("FITBIT_REDIRECT_URI").ok(),
-                                    scopes: vec!["activity".into(), "profile".into()],
-                                    enabled: true,
-                                },
-                            },
-                            security: crate::config::environment::SecurityConfig {
-                                cors_origins: vec!["*".into()],
-                                rate_limit: crate::config::environment::RateLimitConfig {
-                                    enabled: false,
-                                    requests_per_window: 100,
-                                    window_seconds: 60,
-                                },
-                                tls: crate::config::environment::TlsConfig {
-                                    enabled: false,
-                                    cert_path: None,
-                                    key_path: None,
-                                },
-                                headers: crate::config::environment::SecurityHeadersConfig {
-                                    environment:
-                                        crate::config::environment::Environment::Development,
-                                },
-                            },
-                            external_services: crate::config::environment::ExternalServicesConfig {
-                                weather: crate::config::environment::WeatherServiceConfig {
-                                    api_key: std::env::var("OPENWEATHER_API_KEY").ok(),
-                                    base_url: "https://api.openweathermap.org/data/2.5".into(),
-                                    enabled: false,
-                                },
-                                geocoding: crate::config::environment::GeocodingServiceConfig {
-                                    base_url: "https://nominatim.openstreetmap.org".into(),
-                                    enabled: true,
-                                },
-                                strava_api: crate::config::environment::StravaApiConfig {
-                                    base_url: "https://www.strava.com/api/v3".into(),
-                                    auth_url: "https://www.strava.com/oauth/authorize".into(),
-                                    token_url: "https://www.strava.com/oauth/token".into(),
-                                },
-                                fitbit_api: crate::config::environment::FitbitApiConfig {
-                                    base_url: "https://api.fitbit.com".into(),
-                                    auth_url: "https://www.fitbit.com/oauth2/authorize".into(),
-                                    token_url: "https://api.fitbit.com/oauth2/token".into(),
-                                },
-                            },
-                            app_behavior: crate::config::environment::AppBehaviorConfig {
-                                max_activities_fetch: 100,
-                                default_activities_limit: 20,
-                                ci_mode: false,
-                                protocol: crate::config::environment::ProtocolConfig {
-                                    mcp_version: "2024-11-05".into(),
-                                    server_name: "pierre-mcp-server".into(),
-                                    server_version: env!("CARGO_PKG_VERSION").to_string(),
-                                },
-                            },
-                        }
-                    }),
-                )
-            }
-        };
+        let server_config = self.get_or_create_config();
 
         let executor = crate::protocols::universal::UniversalToolExecutor::new(
             database,
@@ -566,7 +564,7 @@ impl A2AServer {
                 result: None,
                 error: Some(A2AError {
                     code: -32000,
-                    message: format!("Tool execution failed: {}", e),
+                    message: format!("Tool execution failed: {e}"),
                     data: None,
                 }),
                 id: request.id,
@@ -574,7 +572,7 @@ impl A2AServer {
         }
     }
 
-    async fn handle_task_cancel(&self, request: A2ARequest) -> A2AResponse {
+    fn handle_task_cancel(request: A2ARequest) -> A2AResponse {
         let params = request.params.unwrap_or_default();
         let task_id = params
             .get("task_id")
@@ -595,7 +593,7 @@ impl A2AServer {
         }
     }
 
-    async fn handle_push_notification_config(&self, request: A2ARequest) -> A2AResponse {
+    fn handle_push_notification_config(request: A2ARequest) -> A2AResponse {
         let params = request.params.unwrap_or_default();
 
         // Extract notification configuration from params
@@ -614,7 +612,7 @@ impl A2AServer {
         }
     }
 
-    async fn handle_unknown_method(&self, request: A2ARequest) -> A2AResponse {
+    fn handle_unknown_method(request: A2ARequest) -> A2AResponse {
         let error = A2AError {
             code: -32601,
             message: format!("Method not found: {}", request.method),

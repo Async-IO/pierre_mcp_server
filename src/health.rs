@@ -16,7 +16,7 @@ use tokio::sync::RwLock;
 use tracing::{error, info};
 
 /// Overall health status
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum HealthStatus {
     Healthy,
@@ -85,6 +85,7 @@ pub struct HealthChecker {
 
 impl HealthChecker {
     /// Create a new health checker
+    #[must_use]
     pub fn new(database: Database) -> Self {
         let health_checker = Self {
             start_time: Instant::now(),
@@ -123,7 +124,8 @@ impl HealthChecker {
     }
 
     /// Perform a basic health check (fast, suitable for load balancer probes)
-    pub async fn basic_health(&self) -> HealthResponse {
+    #[must_use]
+    pub fn basic_health(&self) -> HealthResponse {
         let start = Instant::now();
 
         // Basic service info
@@ -132,8 +134,8 @@ impl HealthChecker {
             version: env!("CARGO_PKG_VERSION").to_string(),
             environment: std::env::var("ENVIRONMENT").unwrap_or_else(|_| "unknown".into()),
             uptime_seconds: self.start_time.elapsed().as_secs(),
-            build_time: option_env!("BUILD_TIME").map(|s| s.to_string()),
-            git_commit: option_env!("GIT_COMMIT").map(|s| s.to_string()),
+            build_time: option_env!("BUILD_TIME").map(std::string::ToString::to_string),
+            git_commit: option_env!("GIT_COMMIT").map(std::string::ToString::to_string),
         };
 
         // Basic checks
@@ -153,7 +155,7 @@ impl HealthChecker {
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs(),
-            response_time_ms: start.elapsed().as_millis() as u64,
+            response_time_ms: u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX),
         }
     }
 
@@ -179,8 +181,8 @@ impl HealthChecker {
             version: env!("CARGO_PKG_VERSION").to_string(),
             environment: std::env::var("ENVIRONMENT").unwrap_or_else(|_| "unknown".into()),
             uptime_seconds: self.start_time.elapsed().as_secs(),
-            build_time: option_env!("BUILD_TIME").map(|s| s.to_string()),
-            git_commit: option_env!("GIT_COMMIT").map(|s| s.to_string()),
+            build_time: option_env!("BUILD_TIME").map(std::string::ToString::to_string),
+            git_commit: option_env!("GIT_COMMIT").map(std::string::ToString::to_string),
         };
 
         // Perform all checks
@@ -190,10 +192,10 @@ impl HealthChecker {
         checks.push(self.check_database().await);
 
         // Memory usage check
-        checks.push(self.check_memory().await);
+        checks.push(self.check_memory());
 
         // Disk space check
-        checks.push(self.check_disk_space().await);
+        checks.push(self.check_disk_space());
 
         // External API connectivity
         checks.push(self.check_external_apis().await);
@@ -215,7 +217,7 @@ impl HealthChecker {
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs(),
-            response_time_ms: start.elapsed().as_millis() as u64,
+            response_time_ms: u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX),
         };
 
         // Cache the response
@@ -236,7 +238,7 @@ impl HealthChecker {
                 name: "database".into(),
                 status: HealthStatus::Healthy,
                 message: "Database is accessible and responsive".into(),
-                duration_ms: start.elapsed().as_millis() as u64,
+                duration_ms: u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX),
                 metadata: Some(metadata),
             },
             Err(e) => {
@@ -244,8 +246,8 @@ impl HealthChecker {
                 ComponentHealth {
                     name: "database".into(),
                     status: HealthStatus::Unhealthy,
-                    message: format!("Database check failed: {}", e),
-                    duration_ms: start.elapsed().as_millis() as u64,
+                    message: format!("Database check failed: {e}"),
+                    duration_ms: u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX),
                     metadata: None,
                 }
             }
@@ -253,11 +255,20 @@ impl HealthChecker {
     }
 
     /// Check memory usage
-    async fn check_memory(&self) -> ComponentHealth {
+    fn check_memory(&self) -> ComponentHealth {
         let start = Instant::now();
 
-        let (status, message, metadata) = match self.get_memory_info() {
-            Ok(memory_info) => {
+        let (status, message, metadata) = self.get_memory_info().map_or_else(
+            |_| {
+                (
+                    HealthStatus::Unhealthy,
+                    "Memory information unavailable".into(),
+                    Some(serde_json::json!({
+                        "note": "Unable to retrieve system memory information"
+                    })),
+                )
+            },
+            |memory_info| {
                 let memory_usage_percent = memory_info.used_percent;
                 let status = if memory_usage_percent > 90.0 {
                     HealthStatus::Unhealthy
@@ -267,7 +278,7 @@ impl HealthChecker {
                     HealthStatus::Healthy
                 };
 
-                let message = format!("Memory usage: {:.1}%", memory_usage_percent);
+                let message = format!("Memory usage: {memory_usage_percent:.1}%");
                 let metadata = serde_json::json!({
                     "used_percent": memory_usage_percent,
                     "used_mb": memory_info.used_mb,
@@ -276,27 +287,20 @@ impl HealthChecker {
                 });
 
                 (status, message, Some(metadata))
-            }
-            Err(_) => (
-                HealthStatus::Unhealthy,
-                "Memory information unavailable".into(),
-                Some(serde_json::json!({
-                    "note": "Unable to retrieve system memory information"
-                })),
-            ),
-        };
+            },
+        );
 
         ComponentHealth {
             name: "memory".into(),
             status,
             message,
-            duration_ms: start.elapsed().as_millis() as u64,
+            duration_ms: u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX),
             metadata,
         }
     }
 
     /// Check available disk space
-    async fn check_disk_space(&self) -> ComponentHealth {
+    fn check_disk_space(&self) -> ComponentHealth {
         let start = Instant::now();
 
         let (status, message, metadata) = match self.get_disk_info() {
@@ -310,7 +314,7 @@ impl HealthChecker {
                     HealthStatus::Healthy
                 };
 
-                let message = format!("Disk usage: {:.1}%", usage_percent);
+                let message = format!("Disk usage: {usage_percent:.1}%");
                 let metadata = serde_json::json!({
                     "used_percent": usage_percent,
                     "used_gb": disk_info.used_gb,
@@ -334,7 +338,7 @@ impl HealthChecker {
             name: "disk".into(),
             status,
             message,
-            duration_ms: start.elapsed().as_millis() as u64,
+            duration_ms: u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX),
             metadata,
         }
     }
@@ -354,8 +358,8 @@ impl HealthChecker {
                 return ComponentHealth {
                     name: "external_apis".into(),
                     status: HealthStatus::Unhealthy,
-                    message: format!("Failed to create HTTP client: {}", e),
-                    duration_ms: start.elapsed().as_millis() as u64,
+                    message: format!("Failed to create HTTP client: {e}"),
+                    duration_ms: u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX),
                     metadata: None,
                 };
             }
@@ -385,13 +389,13 @@ impl HealthChecker {
             HealthStatus::Unhealthy
         };
 
-        let message = format!("{}/{} external APIs accessible", healthy_apis, total_apis);
+        let message = format!("{healthy_apis}/{total_apis} external APIs accessible");
 
         ComponentHealth {
             name: "external_apis".into(),
             status,
             message,
-            duration_ms: start.elapsed().as_millis() as u64,
+            duration_ms: u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX),
             metadata: Some(serde_json::json!({
                 "apis_checked": total_apis,
                 "apis_healthy": healthy_apis
@@ -407,7 +411,7 @@ impl HealthChecker {
         // Perform an actual database connectivity test
         let user_count = self.database.get_user_count().await?;
 
-        let query_duration = start.elapsed().as_millis() as u64;
+        let query_duration = u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX);
 
         Ok(serde_json::json!({
             "backend": format!("{:?}", self.database.database_type()),
@@ -421,7 +425,7 @@ impl HealthChecker {
     /// Get readiness status (for Kubernetes readiness probes)
     pub async fn readiness(&self) -> HealthResponse {
         // For readiness, we check if the service can handle requests
-        let mut response = self.basic_health().await;
+        let mut response = self.basic_health();
 
         // Add readiness-specific checks
         let db_check = self.check_database().await;
@@ -438,9 +442,10 @@ impl HealthChecker {
     }
 
     /// Get liveness status (for Kubernetes liveness probes)
-    pub async fn liveness(&self) -> HealthResponse {
+    #[must_use]
+    pub fn liveness(&self) -> HealthResponse {
         // For liveness, we just check if the service is running
-        self.basic_health().await
+        self.basic_health()
     }
 
     /// Get system memory information
@@ -452,11 +457,11 @@ impl HealthChecker {
         }
         #[cfg(target_os = "macos")]
         {
-            self.get_memory_info_macos()
+            Self::get_memory_info_macos(self)
         }
         #[cfg(target_os = "windows")]
         {
-            self.get_memory_info_windows()
+            Self::get_memory_info_windows(self)
         }
         #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
         {
@@ -470,11 +475,11 @@ impl HealthChecker {
 
         #[cfg(unix)]
         {
-            self.get_disk_info_unix(&current_dir)
+            Self::get_disk_info_unix(self, &current_dir)
         }
         #[cfg(windows)]
         {
-            self.get_disk_info_windows(&current_dir)
+            Self::get_disk_info_windows(self, &current_dir)
         }
         #[cfg(not(any(unix, windows)))]
         {
@@ -522,7 +527,7 @@ impl HealthChecker {
     }
 
     #[cfg(target_os = "macos")]
-    fn get_memory_info_macos(&self) -> Result<MemoryInfo, Box<dyn std::error::Error>> {
+    fn get_memory_info_macos(_: &Self) -> Result<MemoryInfo, Box<dyn std::error::Error>> {
         // Use sysctl for macOS memory information
         use std::process::Command;
 
@@ -536,9 +541,15 @@ impl HealthChecker {
 
         let total_mb = total_bytes / (1024 * 1024);
         // For simplicity, estimate used memory as 70% (would need vm_stat for precision)
-        let used_mb = (total_mb as f64 * 0.7) as u64;
-        let available_mb = total_mb - used_mb;
-        let used_percent = (used_mb as f64 / total_mb as f64) * 100.0;
+        let used_mb = total_mb.saturating_mul(7) / 10;
+        let available_mb = total_mb.saturating_sub(used_mb);
+        let used_percent = if total_mb > 0 {
+            (f64::from(u32::try_from(used_mb).unwrap_or(u32::MAX))
+                / f64::from(u32::try_from(total_mb).unwrap_or(u32::MAX)))
+                * 100.0
+        } else {
+            0.0
+        };
 
         Ok(MemoryInfo {
             total_mb,
@@ -549,7 +560,7 @@ impl HealthChecker {
     }
 
     #[cfg(target_os = "windows")]
-    fn get_memory_info_windows(&self) -> Result<MemoryInfo, Box<dyn std::error::Error>> {
+    fn get_memory_info_windows(_: &Self) -> Result<MemoryInfo, Box<dyn std::error::Error>> {
         // For Windows, we'd use WinAPI, but for simplicity return estimated values
         let total_mb = 8192; // Estimate 8GB
         let used_mb = 4096; // Estimate 50% usage
@@ -566,7 +577,7 @@ impl HealthChecker {
 
     #[cfg(unix)]
     fn get_disk_info_unix(
-        &self,
+        _: &Self,
         path: &std::path::Path,
     ) -> Result<DiskInfo, Box<dyn std::error::Error>> {
         use std::process::Command;
@@ -581,10 +592,10 @@ impl HealthChecker {
         if lines.len() >= 2 {
             let fields: Vec<&str> = lines[1].split_whitespace().collect();
             if fields.len() >= 5 {
-                let total_str = fields[1].trim_end_matches("G");
-                let used_str = fields[2].trim_end_matches("G");
-                let available_str = fields[3].trim_end_matches("G");
-                let used_percent_str = fields[4].trim_end_matches("%");
+                let total_str = fields[1].trim_end_matches('G');
+                let used_str = fields[2].trim_end_matches('G');
+                let available_str = fields[3].trim_end_matches('G');
+                let used_percent_str = fields[4].trim_end_matches('%');
 
                 let total_gb = total_str.parse::<f64>().unwrap_or(100.0);
                 let used_gb = used_str.parse::<f64>().unwrap_or(50.0);
@@ -613,7 +624,7 @@ impl HealthChecker {
 
     #[cfg(windows)]
     fn get_disk_info_windows(
-        &self,
+        _: &Self,
         path: &std::path::Path,
     ) -> Result<DiskInfo, Box<dyn std::error::Error>> {
         // For Windows, we'd use WinAPI, but for simplicity return estimated values
@@ -646,7 +657,7 @@ struct DiskInfo {
 
 /// Health check middleware for HTTP endpoints
 pub mod middleware {
-    use super::*;
+    use super::{HealthChecker, HealthStatus};
     use warp::{Filter, Reply};
 
     /// Create health check routes
@@ -685,8 +696,7 @@ pub mod middleware {
     ) -> Result<impl Reply, warp::Rejection> {
         let response = health_checker.comprehensive_health().await;
         let status_code = match response.status {
-            HealthStatus::Healthy => warp::http::StatusCode::OK,
-            HealthStatus::Degraded => warp::http::StatusCode::OK, // Still return 200 for degraded
+            HealthStatus::Healthy | HealthStatus::Degraded => warp::http::StatusCode::OK,
             HealthStatus::Unhealthy => warp::http::StatusCode::SERVICE_UNAVAILABLE,
         };
 
@@ -714,7 +724,7 @@ pub mod middleware {
     async fn liveness_handler(
         health_checker: std::sync::Arc<HealthChecker>,
     ) -> Result<impl Reply, warp::Rejection> {
-        let response = health_checker.liveness().await;
+        let response = health_checker.liveness();
         Ok(warp::reply::json(&response))
     }
 }
@@ -732,7 +742,7 @@ mod tests {
             .unwrap();
         let health_checker = HealthChecker::new(database);
 
-        let response = health_checker.basic_health().await;
+        let response = health_checker.basic_health();
 
         assert_eq!(response.status, HealthStatus::Healthy);
         assert_eq!(response.service.name, "pierre-mcp-server");

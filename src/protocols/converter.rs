@@ -16,7 +16,7 @@ use crate::protocols::universal::{UniversalRequest, UniversalResponse};
 use serde_json::Value;
 
 /// Supported protocol types
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProtocolType {
     MCP,
     A2A,
@@ -27,8 +27,12 @@ pub struct ProtocolConverter;
 
 impl ProtocolConverter {
     /// Convert A2A request to universal format
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the A2A request has an unsupported method or if the tool name is not found in the parameters.
     pub fn a2a_to_universal(
-        request: A2ARequest,
+        request: &A2ARequest,
         user_id: &str,
     ) -> Result<UniversalRequest, crate::protocols::ProtocolError> {
         // Extract tool name from A2A method
@@ -49,8 +53,7 @@ impl ProtocolConverter {
             }
             method => {
                 return Err(crate::protocols::ProtocolError::ConversionFailed(format!(
-                    "Unsupported A2A method: {}",
-                    method
+                    "Unsupported A2A method: {method}"
                 )));
             }
         };
@@ -61,7 +64,7 @@ impl ProtocolConverter {
             .as_ref()
             .and_then(|p| p.get("arguments"))
             .cloned()
-            .unwrap_or(Value::Object(serde_json::Map::new()));
+            .unwrap_or_else(|| Value::Object(serde_json::Map::new()));
 
         Ok(UniversalRequest {
             tool_name,
@@ -72,6 +75,7 @@ impl ProtocolConverter {
     }
 
     /// Convert universal response to A2A format
+    #[must_use]
     pub fn universal_to_a2a(response: UniversalResponse, request_id: Option<Value>) -> A2AResponse {
         if response.success {
             A2AResponse {
@@ -86,7 +90,7 @@ impl ProtocolConverter {
                 result: None,
                 error: Some(crate::a2a::protocol::A2AError {
                     code: -32603,
-                    message: response.error.unwrap_or("Internal error".into()),
+                    message: response.error.unwrap_or_else(|| "Internal error".into()),
                     data: None,
                 }),
                 id: request_id,
@@ -95,23 +99,25 @@ impl ProtocolConverter {
     }
 
     /// Convert MCP tool call to universal format
+    #[must_use]
     pub fn mcp_to_universal(tool_call: ToolCall, user_id: &str) -> UniversalRequest {
         UniversalRequest {
             tool_name: tool_call.name,
             parameters: tool_call
                 .arguments
-                .unwrap_or(Value::Object(serde_json::Map::new())),
+                .unwrap_or_else(|| Value::Object(serde_json::Map::new())),
             user_id: user_id.to_string(),
             protocol: "mcp".into(),
         }
     }
 
     /// Convert universal response to MCP format
+    #[must_use]
     pub fn universal_to_mcp(response: UniversalResponse) -> ToolResponse {
         if response.success {
             let result_text =
                 serde_json::to_string_pretty(&response.result.as_ref().unwrap_or(&Value::Null))
-                    .unwrap_or("{}".into());
+                    .unwrap_or_else(|_| "{}".into());
 
             ToolResponse {
                 content: vec![crate::mcp::schema::Content::Text { text: result_text }],
@@ -123,7 +129,7 @@ impl ProtocolConverter {
                 content: vec![crate::mcp::schema::Content::Text {
                     text: format!(
                         "Error: {}",
-                        response.error.unwrap_or("Unknown error".into())
+                        response.error.unwrap_or_else(|| "Unknown error".into())
                     ),
                 }],
                 is_error: true,
@@ -133,6 +139,10 @@ impl ProtocolConverter {
     }
 
     /// Detect protocol type from request format
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request data is not valid JSON or if the protocol type cannot be determined.
     pub fn detect_protocol(
         request_data: &str,
     ) -> Result<ProtocolType, crate::protocols::ProtocolError> {
@@ -165,6 +175,7 @@ impl ProtocolConverter {
     }
 
     /// Convert tool definition to A2A format
+    #[must_use]
     pub fn tool_to_a2a_format(tool: &crate::protocols::universal::UniversalTool) -> Value {
         serde_json::json!({
             "name": tool.name,
@@ -178,6 +189,7 @@ impl ProtocolConverter {
     }
 
     /// Convert tool definition to MCP format
+    #[must_use]
     pub fn tool_to_mcp_format(
         tool: &crate::protocols::universal::UniversalTool,
     ) -> crate::mcp::schema::Tool {
@@ -211,7 +223,7 @@ mod tests {
             id: Some(Value::Number(1.into())),
         };
 
-        let universal = ProtocolConverter::a2a_to_universal(a2a_request, "test_user").unwrap();
+        let universal = ProtocolConverter::a2a_to_universal(&a2a_request, "test_user").unwrap();
 
         assert_eq!(universal.tool_name, "get_activities");
         assert_eq!(universal.user_id, "test_user");

@@ -68,15 +68,16 @@ impl Default for SecurityConfig {
 
 impl SecurityConfig {
     /// Create security configuration based on environment string
+    #[must_use]
     pub fn from_environment(env: &str) -> Self {
         match env.to_lowercase().as_str() {
             "production" | "prod" => Self::production(),
-            "development" | "dev" => Self::development(),
             _ => Self::development(),
         }
     }
 
     /// Create a development-friendly security configuration
+    #[must_use]
     pub fn development() -> Self {
         Self {
             // More relaxed CSP for development (allows hot reload, dev tools)
@@ -93,6 +94,7 @@ impl SecurityConfig {
     }
 
     /// Create a production security configuration
+    #[must_use]
     pub fn production() -> Self {
         Self {
             // Strict production CSP
@@ -109,6 +111,7 @@ impl SecurityConfig {
     }
 
     /// Convert to header map for easy application
+    #[must_use]
     pub fn to_headers(&self) -> HashMap<&'static str, String> {
         let mut headers = HashMap::new();
 
@@ -130,6 +133,7 @@ impl SecurityConfig {
 }
 
 /// Apply security headers to a warp reply
+#[must_use]
 pub fn with_security_headers(
     config: SecurityConfig,
 ) -> impl Filter<Extract = (SecurityConfig,), Error = std::convert::Infallible> + Clone {
@@ -137,6 +141,7 @@ pub fn with_security_headers(
 }
 
 /// Security headers middleware filter
+#[must_use]
 pub fn security_headers(
     config: SecurityConfig,
 ) -> impl Filter<Extract = (impl Reply,), Error = std::convert::Infallible> + Clone {
@@ -175,7 +180,8 @@ pub struct SecurityAudit {
 }
 
 /// Audit security headers on a response
-pub fn audit_security_headers(headers: &HashMap<String, String>) -> SecurityAudit {
+#[must_use]
+pub fn audit_security_headers<S: ::std::hash::BuildHasher>(headers: &HashMap<String, String, S>) -> SecurityAudit {
     let mut missing_headers = Vec::new();
     let mut warnings = Vec::new();
     let mut score = 100u8;
@@ -190,7 +196,7 @@ pub fn audit_security_headers(headers: &HashMap<String, String>) -> SecurityAudi
 
     for header in &critical_headers {
         if !headers.contains_key(*header) {
-            missing_headers.push(header.to_string());
+            missing_headers.push((*header).to_string());
             score = score.saturating_sub(20);
         }
     }
@@ -201,7 +207,7 @@ pub fn audit_security_headers(headers: &HashMap<String, String>) -> SecurityAudi
             warnings.push("CSP allows 'unsafe-eval' which can enable XSS attacks".into());
             score = score.saturating_sub(10);
         }
-        if csp.contains("*") && !csp.contains("'self'") {
+        if csp.contains('*') && !csp.contains("'self'") {
             warnings.push("CSP uses wildcard (*) without 'self' restriction".into());
             score = score.saturating_sub(15);
         }

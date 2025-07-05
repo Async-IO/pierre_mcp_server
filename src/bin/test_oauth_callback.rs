@@ -57,7 +57,7 @@ async fn main() -> Result<()> {
     println!("   User ID: {}", login_response.user.user_id);
 
     // 4. Test OAuth authorization URL generation
-    let auth_url_response = oauth_routes.get_auth_url(user_id, "strava").await?;
+    let auth_url_response = oauth_routes.get_auth_url(user_id, "strava")?;
     println!("✅ Strava OAuth authorization URL generated:");
     println!("   URL: {}", auth_url_response.authorization_url);
     println!("   State: {}", auth_url_response.state);

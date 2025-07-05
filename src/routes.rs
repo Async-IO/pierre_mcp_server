@@ -125,7 +125,8 @@ pub struct AuthRoutes {
 }
 
 impl AuthRoutes {
-    pub fn new(database: Database, auth_manager: AuthManager) -> Self {
+    #[must_use]
+    pub const fn new(database: Database, auth_manager: AuthManager) -> Self {
         Self {
             database,
             auth_manager,
@@ -133,16 +134,24 @@ impl AuthRoutes {
     }
 
     /// Handle user registration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Email format is invalid
+    /// - Password is too weak
+    /// - User already exists
+    /// - Database operation fails
     pub async fn register(&self, request: RegisterRequest) -> Result<RegisterResponse> {
         info!("User registration attempt for email: {}", request.email);
 
         // Validate email format
-        if !self.is_valid_email(&request.email) {
+        if !Self::is_valid_email(&request.email) {
             return Err(anyhow::anyhow!("Invalid email format"));
         }
 
         // Validate password strength
-        if !self.is_valid_password(&request.password) {
+        if !Self::is_valid_password(&request.password) {
             return Err(anyhow::anyhow!(
                 "Password must be at least 8 characters long"
             ));
@@ -174,6 +183,14 @@ impl AuthRoutes {
     }
 
     /// Handle user login
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - User does not exist
+    /// - Password verification fails
+    /// - Database operation fails
+    /// - JWT token generation fails
     pub async fn login(&self, request: LoginRequest) -> Result<LoginResponse> {
         info!("User login attempt for email: {}", request.email);
 
@@ -214,6 +231,15 @@ impl AuthRoutes {
     }
 
     /// Handle token refresh
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - User ID format is invalid
+    /// - User does not exist
+    /// - Token validation fails
+    /// - Database operation fails
+    /// - JWT token generation fails
     pub async fn refresh_token(&self, request: RefreshTokenRequest) -> Result<LoginResponse> {
         info!("Token refresh attempt for user: {}", request.user_id);
 
@@ -249,14 +275,13 @@ impl AuthRoutes {
     }
 
     /// Validate email format
-    fn is_valid_email(&self, email: &str) -> bool {
+    fn is_valid_email(email: &str) -> bool {
         // Simple email validation
         if email.len() <= 5 {
             return false;
         }
-        let at_pos = match email.find('@') {
-            Some(pos) => pos,
-            None => return false,
+        let Some(at_pos) = email.find('@') else {
+            return false;
         };
         if at_pos == 0 || at_pos == email.len() - 1 {
             return false; // @ at start or end
@@ -266,7 +291,7 @@ impl AuthRoutes {
     }
 
     /// Validate password strength
-    fn is_valid_password(&self, password: &str) -> bool {
+    const fn is_valid_password(password: &str) -> bool {
         password.len() >= 8
     }
 }
@@ -278,19 +303,26 @@ pub struct OAuthRoutes {
 }
 
 impl OAuthRoutes {
-    pub fn new(database: Database) -> Self {
+    #[must_use]
+    pub const fn new(database: Database) -> Self {
         Self { database }
     }
 
     /// Get OAuth authorization URL for a provider with real configuration
-    pub async fn get_auth_url(
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Provider is not supported
+    /// - Database operation fails when storing OAuth state
+    pub fn get_auth_url(
         &self,
         user_id: uuid::Uuid,
         provider: &str,
     ) -> Result<OAuthAuthorizationResponse> {
         // Store state in database for CSRF protection
         let state = format!("{}:{}", user_id, uuid::Uuid::new_v4());
-        self.store_oauth_state(user_id, provider, &state).await?;
+        Self::store_oauth_state(user_id, provider, &state);
 
         match provider {
             "strava" => {
@@ -319,7 +351,7 @@ impl OAuthRoutes {
 
                 Ok(OAuthAuthorizationResponse {
                     authorization_url: auth_url,
-                    state: state.clone(),
+                    state,
                     instructions: "Visit the URL above to authorize access to your Strava account. You'll be redirected back after authorization.".into(),
                     expires_in_minutes: 10,
                 })
@@ -350,7 +382,7 @@ impl OAuthRoutes {
 
                 Ok(OAuthAuthorizationResponse {
                     authorization_url: auth_url,
-                    state: state.clone(),
+                    state,
                     instructions: "Visit the URL above to authorize access to your Fitbit account. You'll be redirected back after authorization.".into(),
                     expires_in_minutes: 10,
                 })
@@ -360,12 +392,7 @@ impl OAuthRoutes {
     }
 
     /// Store OAuth state for CSRF protection
-    async fn store_oauth_state(
-        &self,
-        user_id: uuid::Uuid,
-        provider: &str,
-        state: &str,
-    ) -> Result<()> {
+    fn store_oauth_state(user_id: uuid::Uuid, provider: &str, state: &str) {
         // Store state with expiration (10 minutes)
         let expires_at = chrono::Utc::now() + chrono::Duration::minutes(10);
 
@@ -378,10 +405,18 @@ impl OAuthRoutes {
         );
 
         // State storage using secure random state parameter for OAuth PKCE
-        Ok(())
     }
 
     /// Handle OAuth callback and store tokens
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - State parameter is invalid
+    /// - User ID cannot be parsed
+    /// - Provider is not supported
+    /// - Token exchange with provider fails
+    /// - Database operation fails
     pub async fn handle_callback(
         &self,
         code: &str,
@@ -570,13 +605,12 @@ impl OAuthRoutes {
             ("code", code),
         ];
 
-        let auth_header =
-            general_purpose::STANDARD.encode(format!("{}:{}", client_id, client_secret));
+        let auth_header = general_purpose::STANDARD.encode(format!("{client_id}:{client_secret}"));
 
         let client = reqwest::Client::new();
         let response = client
             .post("https://api.fitbit.com/oauth2/token")
-            .header("Authorization", format!("Basic {}", auth_header))
+            .header("Authorization", format!("Basic {auth_header}"))
             .header("Content-Type", "application/x-www-form-urlencoded")
             .form(&params)
             .send()
@@ -597,6 +631,11 @@ impl OAuthRoutes {
     }
 
     /// Get connection status for all providers for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database operation fails
     pub async fn get_connection_status(&self, user_id: Uuid) -> Result<Vec<ConnectionStatus>> {
         let mut statuses = Vec::new();
 
@@ -638,7 +677,12 @@ impl OAuthRoutes {
     }
 
     /// Disconnect a provider by removing stored tokens
-    pub async fn disconnect_provider(&self, user_id: Uuid, provider: &str) -> Result<()> {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Provider is not supported
+    pub fn disconnect_provider(&self, user_id: Uuid, provider: &str) -> Result<()> {
         match provider {
             "strava" => {
                 // Token revocation would clear stored tokens from database
@@ -662,27 +706,41 @@ impl OAuthRoutes {
 pub struct A2ARoutes;
 
 impl A2ARoutes {
-    pub fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self
     }
 
     /// Serve the A2A Agent Card at /.well-known/agent.json
-    pub async fn get_agent_card() -> Result<impl warp::Reply, warp::Rejection> {
+    ///
+    /// # Errors
+    ///
+    /// Returns a rejection if:
+    /// - Agent card serialization fails
+    pub fn get_agent_card() -> Result<impl warp::Reply, warp::Rejection> {
         let agent_card = crate::a2a::AgentCard::new();
 
-        match agent_card.to_json() {
-            Ok(json) => Ok(warp::reply::with_header(
-                json,
-                "content-type",
-                "application/json",
-            )),
-            Err(_) => Err(warp::reject::custom(crate::a2a::A2AError::InternalError(
-                "Failed to serialize agent card".into(),
-            ))),
-        }
+        agent_card.to_json().map_or_else(
+            |_| {
+                Err(warp::reject::custom(crate::a2a::A2AError::InternalError(
+                    "Failed to serialize agent card".into(),
+                )))
+            },
+            |json| {
+                Ok(warp::reply::with_header(
+                    json,
+                    "content-type",
+                    "application/json",
+                ))
+            },
+        )
     }
 
     /// Handle A2A protocol requests
+    ///
+    /// # Errors
+    ///
+    /// This function does not return errors as it wraps responses in JSON
     pub async fn handle_a2a_request(
         request: crate::a2a::A2ARequest,
         _auth_result: crate::auth::AuthResult,
@@ -694,6 +752,12 @@ impl A2ARoutes {
     }
 
     /// Handle A2A client registration
+    ///
+    /// # Errors
+    ///
+    /// Returns a rejection if:
+    /// - Client registration fails
+    /// - Database operation fails
     pub async fn register_client(
         request: crate::a2a::client::ClientRegistrationRequest,
         database: std::sync::Arc<crate::database_plugins::factory::Database>,
@@ -782,29 +846,21 @@ mod tests {
             .await
             .unwrap();
         let auth_manager = AuthManager::new(vec![0u8; 64], 24);
-        let routes = AuthRoutes::new(database, auth_manager);
-
-        assert!(routes.is_valid_email("test@example.com"));
-        assert!(routes.is_valid_email("user.name+tag@domain.co.uk"));
-        assert!(!routes.is_valid_email("invalid-email"));
-        assert!(!routes.is_valid_email("@domain.com"));
-        assert!(!routes.is_valid_email("user@"));
+        // Email and password validation functions are now static, no need for routes instance
+        assert!(AuthRoutes::is_valid_email("test@example.com"));
+        assert!(AuthRoutes::is_valid_email("user.name+tag@domain.co.uk"));
+        assert!(!AuthRoutes::is_valid_email("invalid-email"));
+        assert!(!AuthRoutes::is_valid_email("@domain.com"));
+        assert!(!AuthRoutes::is_valid_email("user@"));
     }
 
     #[tokio::test]
     async fn test_password_validation() {
-        let temp_dir = TempDir::new().unwrap();
-        let db_path = temp_dir.path().join("test.db");
-        let database = Database::new(&format!("sqlite:{}", db_path.display()), vec![0u8; 32])
-            .await
-            .unwrap();
-        let auth_manager = AuthManager::new(vec![0u8; 64], 24);
-        let routes = AuthRoutes::new(database, auth_manager);
-
-        assert!(routes.is_valid_password("password123"));
-        assert!(routes.is_valid_password("verylongpassword"));
-        assert!(!routes.is_valid_password("short"));
-        assert!(!routes.is_valid_password("1234567"));
+        // Password validation function is now static, no need for database setup
+        assert!(AuthRoutes::is_valid_password("password123"));
+        assert!(AuthRoutes::is_valid_password("verylongpassword"));
+        assert!(!AuthRoutes::is_valid_password("short"));
+        assert!(!AuthRoutes::is_valid_password("1234567"));
     }
 
     #[tokio::test]

@@ -21,7 +21,7 @@ use crate::{
         client::{A2AClientManager, ClientRegistrationRequest},
         A2AError,
     },
-    constants::demo_data::*,
+    constants::demo_data::{DEMO_CONSISTENCY_SCORE, DEMO_EFFICIENCY_SCORE},
 };
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -102,7 +102,8 @@ impl A2ARoutes {
             })
     }
 
-    /// Create standard A2A ActivityIntelligence instance
+    /// Create standard A2A `ActivityIntelligence` instance
+    #[must_use]
     fn create_a2a_intelligence() -> Arc<ActivityIntelligence> {
         Arc::new(ActivityIntelligence::new(
             "A2A Intelligence".into(),
@@ -111,11 +112,13 @@ impl A2ARoutes {
                 relative_effort: Some(7.5),
                 zone_distribution: None,
                 personal_records: vec![],
+                #[allow(clippy::cast_possible_truncation)]
                 efficiency_score: Some(DEMO_EFFICIENCY_SCORE as f32),
                 trend_indicators: crate::intelligence::TrendIndicators {
                     pace_trend: crate::intelligence::TrendDirection::Stable,
                     effort_trend: crate::intelligence::TrendDirection::Improving,
                     distance_trend: crate::intelligence::TrendDirection::Stable,
+                    #[allow(clippy::cast_possible_truncation)]
                     consistency_score: DEMO_CONSISTENCY_SCORE as f32,
                 },
             },
@@ -129,6 +132,7 @@ impl A2ARoutes {
         ))
     }
 
+    #[must_use]
     pub fn new(
         database: Arc<Database>,
         auth_manager: Arc<AuthManager>,
@@ -156,11 +160,22 @@ impl A2ARoutes {
     }
 
     /// Get A2A agent card
+    ///
+    /// # Errors
+    ///
+    /// Returns `A2AError` if the agent card cannot be created
+    #[allow(clippy::unused_async)]
     pub async fn get_agent_card(&self) -> Result<AgentCard, A2AError> {
         Ok(AgentCard::new())
     }
 
     /// Get A2A dashboard overview
+    ///
+    /// # Errors
+    ///
+    /// Returns `A2AError` if:
+    /// - Database operations fail
+    /// - Client list cannot be retrieved
     pub async fn get_dashboard_overview(
         &self,
         _auth_header: Option<&str>,
@@ -172,7 +187,9 @@ impl A2ARoutes {
             .await
             .map_err(|e| A2AError::DatabaseError(e.to_string()))?;
 
+        #[allow(clippy::cast_possible_truncation)]
         let total_clients = clients.len() as u32;
+        #[allow(clippy::cast_possible_truncation)]
         let active_clients = clients.iter().filter(|c| c.is_active).count() as u32;
 
         // Sessions and usage stats based on database queries
@@ -212,6 +229,12 @@ impl A2ARoutes {
     }
 
     /// Register new A2A client
+    ///
+    /// # Errors
+    ///
+    /// Returns `A2AError` if:
+    /// - Client registration fails
+    /// - Database operations fail
     pub async fn register_client(
         &self,
         _auth_header: Option<&str>,
@@ -229,6 +252,12 @@ impl A2ARoutes {
     }
 
     /// List A2A clients
+    ///
+    /// # Errors
+    ///
+    /// Returns `A2AError` if:
+    /// - Database operations fail
+    /// - Client list cannot be retrieved
     pub async fn list_clients(
         &self,
         _auth_header: Option<&str>,
@@ -237,6 +266,12 @@ impl A2ARoutes {
     }
 
     /// Get A2A client usage statistics
+    ///
+    /// # Errors
+    ///
+    /// Returns `A2AError` if:
+    /// - Client does not exist
+    /// - Database operations fail
     pub async fn get_client_usage(
         &self,
         _auth_header: Option<&str>,
@@ -246,6 +281,12 @@ impl A2ARoutes {
     }
 
     /// Get A2A client rate limit status
+    ///
+    /// # Errors
+    ///
+    /// Returns `A2AError` if:
+    /// - Client does not exist
+    /// - Database operations fail
     pub async fn get_client_rate_limit(
         &self,
         _auth_header: Option<&str>,
@@ -257,6 +298,12 @@ impl A2ARoutes {
     }
 
     /// Deactivate A2A client
+    ///
+    /// # Errors
+    ///
+    /// Returns `A2AError` if:
+    /// - Client does not exist
+    /// - Database operations fail
     pub async fn deactivate_client(
         &self,
         _auth_header: Option<&str>,
@@ -266,6 +313,13 @@ impl A2ARoutes {
     }
 
     /// Authenticate A2A request
+    ///
+    /// # Errors
+    ///
+    /// Returns `A2AError` if:
+    /// - Required fields are missing from the request
+    /// - Client authentication fails
+    /// - Session creation fails
     pub async fn authenticate(
         &self,
         request: serde_json::Value,
@@ -284,13 +338,15 @@ impl A2ARoutes {
         let scopes = request
             .get("scopes")
             .and_then(|v| v.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str())
-                    .map(|s| s.to_string())
-                    .collect::<Vec<String>>()
-            })
-            .unwrap_or_else(|| vec!["read".into()]);
+            .map_or_else(
+                || vec!["read".into()],
+                |arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str())
+                        .map(std::string::ToString::to_string)
+                        .collect::<Vec<String>>()
+                },
+            );
 
         // Verify client exists and credentials are valid
         let client = self
@@ -324,7 +380,7 @@ impl A2ARoutes {
             .database
             .create_a2a_session(client_id, None, &scopes, 24)
             .await
-            .map_err(|e| A2AError::InternalError(format!("Failed to create session: {}", e)))?;
+            .map_err(|e| A2AError::InternalError(format!("Failed to create session: {e}")))?;
 
         Ok(serde_json::json!({
             "status": "authenticated",
@@ -335,7 +391,176 @@ impl A2ARoutes {
         }))
     }
 
+    /// Handle tool execution method
+    async fn handle_tools_execute(
+        &self,
+        auth_header: Option<&str>,
+        params: &serde_json::Value,
+        id: &serde_json::Value,
+    ) -> Result<serde_json::Value, A2AError> {
+        let tool_name = params
+            .get("tool_name")
+            .and_then(|t| t.as_str())
+            .ok_or_else(|| A2AError::InvalidRequest("Missing tool_name in params".into()))?;
+
+        let parameters = params
+            .get("parameters")
+            .cloned()
+            .unwrap_or_else(|| serde_json::json!({}));
+
+        // Extract and validate JWT token
+        let token = match Self::extract_jwt_token(auth_header) {
+            Ok(token) => token,
+            Err(error) => {
+                return Ok(serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "error": error
+                }));
+            }
+        };
+
+        let user_id = match self.validate_jwt_and_get_user_id(&token) {
+            Ok(user_id) => user_id,
+            Err(error) => {
+                return Ok(serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "error": error
+                }));
+            }
+        };
+
+        // Create universal request
+        let universal_request = UniversalRequest {
+            tool_name: tool_name.to_string(),
+            parameters,
+            user_id,
+            protocol: "a2a".into(),
+        };
+
+        // Execute the tool
+        match self.tool_executor.execute_tool(universal_request).await {
+            Ok(universal_response) => {
+                let response = serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "result": universal_response.result.unwrap_or_else(|| serde_json::json!({}))
+                });
+                Ok(response)
+            }
+            Err(e) => {
+                let error_response = serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "error": {
+                        "code": -32000,
+                        "message": format!("Tool execution failed: {e}"),
+                        "data": null
+                    }
+                });
+                Ok(error_response)
+            }
+        }
+    }
+
+    /// Handle client info method
+    fn handle_client_info(id: &serde_json::Value) -> serde_json::Value {
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": {
+                "name": "Pierre Fitness AI",
+                "version": "1.0.0",
+                "capabilities": [
+                    "fitness-data-analysis",
+                    "goal-management",
+                    "activity-insights",
+                    "performance-metrics"
+                ],
+                "protocols": ["A2A", "MCP"],
+                "description": "AI-powered fitness data analysis and insights platform"
+            }
+        })
+    }
+
+    /// Handle session heartbeat method
+    async fn handle_session_heartbeat(
+        &self,
+        auth_header: Option<&str>,
+        id: &serde_json::Value,
+    ) -> Result<serde_json::Value, A2AError> {
+        let token = match Self::extract_jwt_token(auth_header) {
+            Ok(token) => token,
+            Err(error) => {
+                return Ok(serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "error": error
+                }));
+            }
+        };
+
+        match self.database.update_a2a_session_activity(&token).await {
+            Ok(()) => Ok(serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "result": {
+                    "status": "alive",
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                }
+            })),
+            Err(e) => Ok(serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "error": {
+                    "code": -32000,
+                    "message": format!("Failed to update session: {e}")
+                }
+            })),
+        }
+    }
+
+    /// Handle capabilities list method
+    fn handle_capabilities_list(id: &serde_json::Value) -> serde_json::Value {
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": {
+                "capabilities": [
+                    {
+                        "name": "fitness-data-analysis",
+                        "description": "Analyze fitness and activity data for insights",
+                        "version": "1.0.0"
+                    },
+                    {
+                        "name": "goal-management",
+                        "description": "Create and track fitness goals",
+                        "version": "1.0.0"
+                    },
+                    {
+                        "name": "activity-insights",
+                        "description": "Generate insights from activity patterns",
+                        "version": "1.0.0"
+                    },
+                    {
+                        "name": "performance-metrics",
+                        "description": "Calculate performance metrics and trends",
+                        "version": "1.0.0"
+                    }
+                ]
+            }
+        })
+    }
+
     /// Execute A2A tool
+    ///
+    /// # Errors
+    ///
+    /// Returns `A2AError` if:
+    /// - Request is malformed or missing required fields
+    /// - Authentication fails
+    /// - Tool execution fails
     pub async fn execute_tool(
         &self,
         auth_header: Option<&str>,
@@ -351,179 +576,32 @@ impl A2ARoutes {
             .get("params")
             .ok_or_else(|| A2AError::InvalidRequest("Missing params field".into()))?;
 
-        let id = request.get("id").cloned().unwrap_or(serde_json::json!(1));
+        let id = request
+            .get("id")
+            .cloned()
+            .unwrap_or_else(|| serde_json::json!(1));
 
-        // Handle tool execution requests
-        if method == "tools.execute" {
-            let tool_name = params
-                .get("tool_name")
-                .and_then(|t| t.as_str())
-                .ok_or_else(|| A2AError::InvalidRequest("Missing tool_name in params".into()))?;
-
-            let parameters = params
-                .get("parameters")
-                .cloned()
-                .unwrap_or(serde_json::json!({}));
-
-            // Extract and validate JWT token
-            let token = match Self::extract_jwt_token(auth_header) {
-                Ok(token) => token,
-                Err(error) => {
-                    return Ok(serde_json::json!({
-                        "jsonrpc": "2.0",
-                        "id": id,
-                        "error": error
-                    }));
-                }
-            };
-
-            let user_id = match self.validate_jwt_and_get_user_id(&token) {
-                Ok(user_id) => user_id,
-                Err(error) => {
-                    return Ok(serde_json::json!({
-                        "jsonrpc": "2.0",
-                        "id": id,
-                        "error": error
-                    }));
-                }
-            };
-
-            // Create universal request
-            let universal_request = UniversalRequest {
-                tool_name: tool_name.to_string(),
-                parameters,
-                user_id,
-                protocol: "a2a".into(),
-            };
-
-            // Execute the tool
-            match self.tool_executor.execute_tool(universal_request).await {
-                Ok(universal_response) => {
-                    let response = serde_json::json!({
-                        "jsonrpc": "2.0",
-                        "id": id,
-                        "result": universal_response.result.unwrap_or(serde_json::json!({}))
-                    });
-                    Ok(response)
-                }
-                Err(e) => {
-                    let error_response = serde_json::json!({
-                        "jsonrpc": "2.0",
-                        "id": id,
-                        "error": {
-                            "code": -32000,
-                            "message": format!("Tool execution failed: {}", e),
-                            "data": null
-                        }
-                    });
-                    Ok(error_response)
-                }
-            }
-        } else {
-            // Handle other A2A protocol methods
-            match method {
-                "client.info" => {
-                    // Return client information
-                    Ok(serde_json::json!({
-                        "jsonrpc": "2.0",
-                        "id": id,
-                        "result": {
-                            "name": "Pierre Fitness AI",
-                            "version": "1.0.0",
-                            "capabilities": [
-                                "fitness-data-analysis",
-                                "goal-management",
-                                "activity-insights",
-                                "performance-metrics"
-                            ],
-                            "protocols": ["A2A", "MCP"],
-                            "description": "AI-powered fitness data analysis and insights platform"
-                        }
-                    }))
-                }
-                "session.heartbeat" => {
-                    // Keep session alive
-                    let token = match Self::extract_jwt_token(auth_header) {
-                        Ok(token) => token,
-                        Err(error) => {
-                            return Ok(serde_json::json!({
-                                "jsonrpc": "2.0",
-                                "id": id,
-                                "error": error
-                            }));
-                        }
-                    };
-
-                    match self.database.update_a2a_session_activity(&token).await {
-                        Ok(_) => Ok(serde_json::json!({
-                            "jsonrpc": "2.0",
-                            "id": id,
-                            "result": {
-                                "status": "alive",
-                                "timestamp": chrono::Utc::now().to_rfc3339()
-                            }
-                        })),
-                        Err(e) => Ok(serde_json::json!({
-                            "jsonrpc": "2.0",
-                            "id": id,
-                            "error": {
-                                "code": -32000,
-                                "message": format!("Failed to update session: {}", e)
-                            }
-                        })),
+        match method {
+            "tools.execute" => self.handle_tools_execute(auth_header, params, &id).await,
+            "client.info" => Ok(Self::handle_client_info(&id)),
+            "session.heartbeat" => self.handle_session_heartbeat(auth_header, &id).await,
+            "capabilities.list" => Ok(Self::handle_capabilities_list(&id)),
+            _ => Ok(serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "error": {
+                    "code": -32601,
+                    "message": format!("Method '{method}' not found"),
+                    "data": {
+                        "available_methods": [
+                            "tools.execute",
+                            "client.info",
+                            "session.heartbeat",
+                            "capabilities.list"
+                        ]
                     }
                 }
-                "capabilities.list" => {
-                    // List available capabilities
-                    Ok(serde_json::json!({
-                        "jsonrpc": "2.0",
-                        "id": id,
-                        "result": {
-                            "capabilities": [
-                                {
-                                    "name": "fitness-data-analysis",
-                                    "description": "Analyze fitness and activity data for insights",
-                                    "version": "1.0.0"
-                                },
-                                {
-                                    "name": "goal-management",
-                                    "description": "Create and track fitness goals",
-                                    "version": "1.0.0"
-                                },
-                                {
-                                    "name": "activity-insights",
-                                    "description": "Generate insights from activity patterns",
-                                    "version": "1.0.0"
-                                },
-                                {
-                                    "name": "performance-metrics",
-                                    "description": "Calculate performance metrics and trends",
-                                    "version": "1.0.0"
-                                }
-                            ]
-                        }
-                    }))
-                }
-                _ => {
-                    // Unknown method
-                    Ok(serde_json::json!({
-                        "jsonrpc": "2.0",
-                        "id": id,
-                        "error": {
-                            "code": -32601,
-                            "message": format!("Method '{}' not found", method),
-                            "data": {
-                                "available_methods": [
-                                    "tools.execute",
-                                    "client.info",
-                                    "session.heartbeat",
-                                    "capabilities.list"
-                                ]
-                            }
-                        }
-                    }))
-                }
-            }
+            })),
         }
     }
 }

@@ -9,7 +9,7 @@
 //! A2A Authentication Implementation
 //!
 //! Implements authentication and authorization for A2A protocol,
-//! supporting API keys and OAuth2 for agent-to-agent communication.
+//! supporting API keys and `OAuth2` for agent-to-agent communication.
 
 use crate::auth::{AuthMethod, AuthResult};
 use crate::database_plugins::{factory::Database, DatabaseProvider};
@@ -53,11 +53,11 @@ fn default_permissions() -> Vec<String> {
     vec!["read_activities".into()]
 }
 
-fn default_rate_limit_requests() -> u32 {
+const fn default_rate_limit_requests() -> u32 {
     1000
 }
 
-fn default_rate_limit_window() -> u32 {
+const fn default_rate_limit_window() -> u32 {
     3600
 }
 
@@ -68,6 +68,7 @@ pub struct A2AAuthenticator {
 }
 
 impl A2AAuthenticator {
+    #[must_use]
     pub fn new(database: Arc<Database>, jwt_secret: Vec<u8>) -> Self {
         Self {
             database,
@@ -76,6 +77,13 @@ impl A2AAuthenticator {
     }
 
     /// Authenticate an A2A request using API key
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The API key format is invalid
+    /// - Authentication fails
+    /// - Rate limits are exceeded
     pub async fn authenticate_api_key(&self, api_key: &str) -> Result<AuthResult, anyhow::Error> {
         // Check if it's an A2A-specific API key (with a2a_ prefix)
         if api_key.starts_with("a2a_") {
@@ -123,8 +131,7 @@ impl A2AAuthenticator {
                         rate_limit_status.limit.unwrap_or(0),
                         rate_limit_status
                             .reset_at
-                            .map(|dt| dt.to_rfc3339())
-                            .unwrap_or("unknown".into())
+                            .map_or_else(|| "unknown".into(), |dt| dt.to_rfc3339())
                     ));
                 }
 
@@ -157,13 +164,24 @@ impl A2AAuthenticator {
         // Query database for A2A client by API key
         // Use client iteration until direct query method is available
         // This is not efficient but works for the implementation
-
-        // Note: get_a2a_client_by_api_key_id method would need to be added to Database
+        //
+        // Note: `get_a2a_client_by_api_key_id` method would need to be added to Database
         // Return None when client not found
         Ok(None)
     }
 
-    /// Authenticate using OAuth2 token
+    /// Authenticate using `OAuth2` token
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Token validation fails
+    /// - Token does not contain valid A2A client identifier
+    /// - A2A client not found or is deactivated
+    ///
+    /// # Panics
+    ///
+    /// Panics if the token subject has `a2a_client_` prefix but cannot be stripped (should never happen)
     pub async fn authenticate_oauth2(&self, token: &str) -> Result<AuthResult, anyhow::Error> {
         // OAuth2 token validation for A2A using JWT tokens
 
@@ -177,7 +195,7 @@ impl A2AAuthenticator {
             token_claims
                 .sub
                 .strip_prefix("a2a_client_")
-                .unwrap()
+                .expect("strip_prefix should succeed after starts_with check")
                 .to_string()
         } else {
             // Try to extract from custom claims if available
@@ -203,7 +221,7 @@ impl A2AAuthenticator {
         Ok(AuthResult {
             user_id: uuid::Uuid::new_v4(), // A2A clients don't have regular user IDs
             auth_method: AuthMethod::ApiKey {
-                key_id: format!("oauth2_a2a_{}", client_id),
+                key_id: format!("oauth2_a2a_{client_id}"),
                 tier: "A2A-OAuth2".into(),
             },
             rate_limit: crate::rate_limiting::UnifiedRateLimitInfo {
@@ -218,6 +236,10 @@ impl A2AAuthenticator {
     }
 
     /// Register a new A2A client
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if client registration fails
     pub async fn register_client(&self, client: A2AClient) -> Result<String, crate::a2a::A2AError> {
         // Use the client manager to handle registration
         let client_manager = crate::a2a::A2AClientManager::new(self.database.clone());
@@ -235,16 +257,21 @@ impl A2AAuthenticator {
     }
 
     /// Get client by ID
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database query fails
     pub async fn get_client(
         &self,
         client_id: &str,
     ) -> Result<Option<A2AClient>, crate::a2a::A2AError> {
         self.database.get_a2a_client(client_id).await.map_err(|e| {
-            crate::a2a::A2AError::InternalError(format!("Failed to get A2A client: {}", e))
+            crate::a2a::A2AError::InternalError(format!("Failed to get A2A client: {e}"))
         })
     }
 
     /// Validate client capabilities
+    #[must_use]
     pub fn validate_capabilities(&self, client: &A2AClient, requested_capability: &str) -> bool {
         client
             .capabilities
@@ -252,6 +279,7 @@ impl A2AAuthenticator {
     }
 
     /// Create A2A token for authenticated client
+    #[must_use]
     pub fn create_token(&self, client_id: &str, user_id: &str, scopes: Vec<String>) -> A2AToken {
         A2AToken {
             client_id: client_id.to_string(),
@@ -263,7 +291,11 @@ impl A2AAuthenticator {
     }
 
     /// Validate A2A token
-    pub async fn validate_token(&self, token: &A2AToken) -> Result<bool, crate::a2a::A2AError> {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if token validation fails
+    pub fn validate_token(&self, token: &A2AToken) -> Result<bool, crate::a2a::A2AError> {
         // Check if token is expired
         if token.expires_at < chrono::Utc::now() {
             return Ok(false);
@@ -275,13 +307,14 @@ impl A2AAuthenticator {
     }
 
     /// Check if client has required scope
+    #[must_use]
     pub fn check_scope(&self, token: &A2AToken, required_scope: &str) -> bool {
         token.scopes.contains(&required_scope.to_string()) || token.scopes.contains(&"*".into())
-        // Wildcard scope
     }
 }
 
 /// A2A Authentication middleware for warp
+#[must_use]
 pub fn with_a2a_auth(
     authenticator: Arc<A2AAuthenticator>,
 ) -> impl warp::Filter<Extract = (AuthResult,), Error = warp::Rejection> + Clone {
@@ -390,7 +423,7 @@ mod tests {
         let token =
             authenticator.create_token("test_client", "test_user", vec!["fitness:read".into()]);
 
-        let is_valid = authenticator.validate_token(&token).await.unwrap();
+        let is_valid = authenticator.validate_token(&token).unwrap();
         assert!(is_valid);
     }
 
@@ -405,7 +438,7 @@ mod tests {
         // Set token as expired
         token.expires_at = chrono::Utc::now() - chrono::Duration::hours(1);
 
-        let is_valid = authenticator.validate_token(&token).await.unwrap();
+        let is_valid = authenticator.validate_token(&token).unwrap();
         assert!(!is_valid);
     }
 
@@ -593,13 +626,13 @@ mod tests {
             authenticator.create_token("test_client", "test_user", vec!["fitness:read".into()]);
         token.expires_at = chrono::Utc::now() + chrono::Duration::seconds(1);
 
-        let is_valid = authenticator.validate_token(&token).await.unwrap();
+        let is_valid = authenticator.validate_token(&token).unwrap();
         assert!(is_valid);
 
         // Wait for expiration
         tokio::time::sleep(std::time::Duration::from_secs(2)).await;
 
-        let is_valid = authenticator.validate_token(&token).await.unwrap();
+        let is_valid = authenticator.validate_token(&token).unwrap();
         assert!(!is_valid);
     }
 

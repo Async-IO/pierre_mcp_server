@@ -9,6 +9,13 @@ use uuid::Uuid;
 
 impl Database {
     /// Create users and profiles tables
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The database schema migration fails
+    /// - Table creation fails
+    /// - Index creation fails
     pub(super) async fn migrate_users(&self) -> Result<()> {
         // Create users table
         sqlx::query(
@@ -67,6 +74,13 @@ impl Database {
     }
 
     /// Create or update a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The email is already in use by another user
+    /// - Database operation fails
+    #[allow(clippy::too_many_lines)]
     pub async fn create_user(&self, user: &User) -> Result<Uuid> {
         // Check if user exists by email
         let existing = self.get_user_by_email(&user.email).await?;
@@ -75,8 +89,10 @@ impl Database {
                 return Err(anyhow!("Email already in use by another user"));
             }
             // Update existing user (including tokens)
-            let (strava_access, strava_refresh, strava_expires, strava_scope, strava_nonce) =
-                if let Some(ref token) = user.strava_token {
+            let (strava_access, strava_refresh, strava_expires, strava_scope, strava_nonce) = user
+                .strava_token
+                .as_ref()
+                .map_or((None, None, None, None, None), |token| {
                     (
                         Some(&token.access_token),
                         Some(&token.refresh_token),
@@ -84,12 +100,12 @@ impl Database {
                         Some(&token.scope),
                         Some(&token.nonce),
                     )
-                } else {
-                    (None, None, None, None, None)
-                };
+                });
 
-            let (fitbit_access, fitbit_refresh, fitbit_expires, fitbit_scope, fitbit_nonce) =
-                if let Some(ref token) = user.fitbit_token {
+            let (fitbit_access, fitbit_refresh, fitbit_expires, fitbit_scope, fitbit_nonce) = user
+                .fitbit_token
+                .as_ref()
+                .map_or((None, None, None, None, None), |token| {
                     (
                         Some(&token.access_token),
                         Some(&token.refresh_token),
@@ -97,9 +113,7 @@ impl Database {
                         Some(&token.scope),
                         Some(&token.nonce),
                     )
-                } else {
-                    (None, None, None, None, None)
-                };
+                });
 
             sqlx::query(
                 r"
@@ -141,8 +155,10 @@ impl Database {
             .await?;
         } else {
             // Insert new user (including tokens)
-            let (strava_access, strava_refresh, strava_expires, strava_scope, strava_nonce) =
-                if let Some(ref token) = user.strava_token {
+            let (strava_access, strava_refresh, strava_expires, strava_scope, strava_nonce) = user
+                .strava_token
+                .as_ref()
+                .map_or((None, None, None, None, None), |token| {
                     (
                         Some(&token.access_token),
                         Some(&token.refresh_token),
@@ -150,12 +166,12 @@ impl Database {
                         Some(&token.scope),
                         Some(&token.nonce),
                     )
-                } else {
-                    (None, None, None, None, None)
-                };
+                });
 
-            let (fitbit_access, fitbit_refresh, fitbit_expires, fitbit_scope, fitbit_nonce) =
-                if let Some(ref token) = user.fitbit_token {
+            let (fitbit_access, fitbit_refresh, fitbit_expires, fitbit_scope, fitbit_nonce) = user
+                .fitbit_token
+                .as_ref()
+                .map_or((None, None, None, None, None), |token| {
                     (
                         Some(&token.access_token),
                         Some(&token.refresh_token),
@@ -163,9 +179,7 @@ impl Database {
                         Some(&token.scope),
                         Some(&token.nonce),
                     )
-                } else {
-                    (None, None, None, None, None)
-                };
+                });
 
             sqlx::query(
                 r"
@@ -203,25 +217,43 @@ impl Database {
     }
 
     /// Get a user by ID
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
     pub async fn get_user(&self, user_id: Uuid) -> Result<Option<User>> {
         self.get_user_impl("id", &user_id.to_string()).await
     }
 
     /// Get a user by ID (alias for compatibility)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
     pub async fn get_user_by_id(&self, user_id: Uuid) -> Result<Option<User>> {
         self.get_user(user_id).await
     }
 
     /// Get a user by email
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
     pub async fn get_user_by_email(&self, email: &str) -> Result<Option<User>> {
         self.get_user_impl("email", email).await
     }
 
     /// Get a user by email, returning an error if not found
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The database query fails
+    /// - The user is not found
     pub async fn get_user_by_email_required(&self, email: &str) -> Result<User> {
         self.get_user_by_email(email)
             .await?
-            .ok_or_else(|| anyhow!("User not found with email: {}", email))
+            .ok_or_else(|| anyhow!("User not found with email: {email}"))
     }
 
     /// Internal implementation for getting a user
@@ -232,9 +264,8 @@ impl Database {
                    strava_access_token, strava_refresh_token, strava_expires_at, strava_scope, strava_nonce,
                    fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope, fitbit_nonce,
                    is_active, created_at, last_active
-            FROM users WHERE {} = $1
-            ",
-            field
+            FROM users WHERE {field} = $1
+            "
         );
 
         let row = sqlx::query(&query)
@@ -243,7 +274,7 @@ impl Database {
             .await?;
 
         if let Some(row) = row {
-            let user = self.row_to_user(row)?;
+            let user = Self::row_to_user(&row)?;
             Ok(Some(user))
         } else {
             Ok(None)
@@ -251,7 +282,7 @@ impl Database {
     }
 
     /// Convert a database row to a User struct
-    fn row_to_user(&self, row: sqlx::sqlite::SqliteRow) -> Result<User> {
+    fn row_to_user(row: &sqlx::sqlite::SqliteRow) -> Result<User> {
         let id: String = row.get("id");
         let email: String = row.get("email");
         let display_name: Option<String> = row.get("display_name");
@@ -316,6 +347,10 @@ impl Database {
     }
 
     /// Update user's last active timestamp
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
     pub async fn update_last_active(&self, user_id: Uuid) -> Result<()> {
         sqlx::query("UPDATE users SET last_active = CURRENT_TIMESTAMP WHERE id = $1")
             .bind(user_id.to_string())
@@ -325,6 +360,10 @@ impl Database {
     }
 
     /// Get total user count
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
     pub async fn get_user_count(&self) -> Result<i64> {
         let count = sqlx::query_scalar("SELECT COUNT(*) FROM users")
             .fetch_one(&self.pool)
@@ -333,6 +372,12 @@ impl Database {
     }
 
     /// Update or insert user profile data
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The database query fails
+    /// - JSON serialization fails
     pub async fn upsert_user_profile(
         &self,
         user_id: Uuid,
@@ -358,6 +403,12 @@ impl Database {
     }
 
     /// Get user profile data
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The database query fails
+    /// - JSON deserialization fails
     pub async fn get_user_profile(&self, user_id: Uuid) -> Result<Option<serde_json::Value>> {
         let row = sqlx::query(
             r"
@@ -378,45 +429,56 @@ impl Database {
     }
 
     /// Get user fitness profile with proper typing
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
     pub async fn get_user_fitness_profile(
         &self,
         user_id: Uuid,
     ) -> Result<Option<crate::intelligence::UserFitnessProfile>> {
-        if let Some(profile_data) = self.get_user_profile(user_id).await? {
-            // Try to deserialize as UserFitnessProfile
-            match serde_json::from_value(profile_data) {
-                Ok(fitness_profile) => Ok(Some(fitness_profile)),
-                Err(_) => {
-                    // If profile data doesn't match UserFitnessProfile structure,
-                    // create a default profile with user_id
-                    Ok(Some(crate::intelligence::UserFitnessProfile {
-                        user_id: user_id.to_string(),
-                        age: None,
-                        gender: None,
-                        weight: None,
-                        height: None,
-                        fitness_level: crate::intelligence::FitnessLevel::Beginner,
-                        primary_sports: vec![],
-                        training_history_months: 0,
-                        preferences: crate::intelligence::UserPreferences {
-                            preferred_units: "metric".into(),
-                            training_focus: vec![],
-                            injury_history: vec![],
-                            time_availability: crate::intelligence::TimeAvailability {
-                                hours_per_week: 3.0,
-                                preferred_days: vec![],
-                                preferred_duration_minutes: Some(30),
+        self.get_user_profile(user_id).await?.map_or_else(
+            || Ok(None),
+            |profile_data| {
+                // Try to deserialize as UserFitnessProfile
+                serde_json::from_value(profile_data).map_or_else(
+                    |_| {
+                        // If profile data doesn't match UserFitnessProfile structure,
+                        // create a default profile with user_id
+                        Ok(Some(crate::intelligence::UserFitnessProfile {
+                            user_id: user_id.to_string(),
+                            age: None,
+                            gender: None,
+                            weight: None,
+                            height: None,
+                            fitness_level: crate::intelligence::FitnessLevel::Beginner,
+                            primary_sports: vec![],
+                            training_history_months: 0,
+                            preferences: crate::intelligence::UserPreferences {
+                                preferred_units: "metric".into(),
+                                training_focus: vec![],
+                                injury_history: vec![],
+                                time_availability: crate::intelligence::TimeAvailability {
+                                    hours_per_week: 3.0,
+                                    preferred_days: vec![],
+                                    preferred_duration_minutes: Some(30),
+                                },
                             },
-                        },
-                    }))
-                }
-            }
-        } else {
-            Ok(None)
-        }
+                        }))
+                    },
+                    |fitness_profile| Ok(Some(fitness_profile)),
+                )
+            },
+        )
     }
 
     /// Update user fitness profile
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - JSON serialization fails
+    /// - The database operation fails
     pub async fn update_user_fitness_profile(
         &self,
         user_id: Uuid,
@@ -427,6 +489,12 @@ impl Database {
     }
 
     /// Get last sync timestamp for a provider
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The provider is not supported
+    /// - The database query fails
     pub async fn get_provider_last_sync(
         &self,
         user_id: Uuid,
@@ -435,10 +503,10 @@ impl Database {
         let column = match provider {
             "strava" => "strava_last_sync",
             "fitbit" => "fitbit_last_sync",
-            _ => return Err(anyhow!("Unsupported provider: {}", provider)),
+            _ => return Err(anyhow!("Unsupported provider: {provider}")),
         };
 
-        let query = format!("SELECT {} FROM users WHERE id = $1", column);
+        let query = format!("SELECT {column} FROM users WHERE id = $1");
         let last_sync: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar(&query)
             .bind(user_id.to_string())
             .fetch_optional(&self.pool)
@@ -448,6 +516,12 @@ impl Database {
     }
 
     /// Update last sync timestamp for a provider
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The provider is not supported
+    /// - The database query fails
     pub async fn update_provider_last_sync(
         &self,
         user_id: Uuid,
@@ -457,10 +531,10 @@ impl Database {
         let column = match provider {
             "strava" => "strava_last_sync",
             "fitbit" => "fitbit_last_sync",
-            _ => return Err(anyhow!("Unsupported provider: {}", provider)),
+            _ => return Err(anyhow!("Unsupported provider: {provider}")),
         };
 
-        let query = format!("UPDATE users SET {} = $1 WHERE id = $2", column);
+        let query = format!("UPDATE users SET {column} = $1 WHERE id = $2");
         sqlx::query(&query)
             .bind(sync_time)
             .bind(user_id.to_string())

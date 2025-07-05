@@ -288,7 +288,7 @@ impl MultiTenantMcpServer {
                     let oauth_routes = oauth_routes.clone();
                     async move {
                         if let Ok(user_id) = Uuid::parse_str(&user_id_str) {
-                            match oauth_routes.get_auth_url(user_id, &provider).await {
+                            match oauth_routes.get_auth_url(user_id, &provider) {
                                 Ok(auth_response) => Ok(warp::reply::json(&auth_response)),
                                 Err(e) => {
                                     let error = serde_json::json!({"error": e.to_string()});
@@ -871,9 +871,7 @@ impl MultiTenantMcpServer {
                 move |auth_header: Option<String>| {
                     let config_routes_inner = config_routes.clone();
                     async move {
-                        match config_routes_inner
-                            .get_configuration_catalog(auth_header.as_deref())
-                            .await
+                        match config_routes_inner.get_configuration_catalog(auth_header.as_deref())
                         {
                             Ok(response) => Ok(warp::reply::json(&response)),
                             Err(e) => {
@@ -895,9 +893,7 @@ impl MultiTenantMcpServer {
                 move |auth_header: Option<String>| {
                     let config_routes_inner = config_routes.clone();
                     async move {
-                        match config_routes_inner
-                            .get_configuration_profiles(auth_header.as_deref())
-                            .await
+                        match config_routes_inner.get_configuration_profiles(auth_header.as_deref())
                         {
                             Ok(response) => Ok(warp::reply::json(&response)),
                             Err(e) => {
@@ -970,8 +966,7 @@ impl MultiTenantMcpServer {
                     let config_routes = config_routes.clone();
                     async move {
                         match config_routes
-                            .calculate_personalized_zones(auth_header.as_deref(), request)
-                            .await
+                            .calculate_personalized_zones(auth_header.as_deref(), &request)
                         {
                             Ok(response) => Ok(warp::reply::json(&response)),
                             Err(e) => {
@@ -995,8 +990,7 @@ impl MultiTenantMcpServer {
                     let config_routes = config_routes.clone();
                     async move {
                         match config_routes
-                            .validate_configuration(auth_header.as_deref(), request)
-                            .await
+                            .validate_configuration(auth_header.as_deref(), &request)
                         {
                             Ok(response) => Ok(warp::reply::json(&response)),
                             Err(e) => {
@@ -1257,7 +1251,7 @@ impl MultiTenantMcpServer {
         let params = request.params.unwrap_or_default();
 
         if let Ok(auth_request) = serde_json::from_value::<AuthRequest>(params) {
-            let auth_response = auth_manager.authenticate(auth_request);
+            let auth_response = auth_manager.authenticate(&auth_request);
 
             McpResponse {
                 jsonrpc: JSONRPC_VERSION.to_string(),
@@ -1515,7 +1509,7 @@ impl MultiTenantMcpServer {
     ) -> McpResponse {
         let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
 
-        match oauth_routes.get_auth_url(user_id, "strava").await {
+        match oauth_routes.get_auth_url(user_id, "strava") {
             Ok(auth_response) => McpResponse {
                 jsonrpc: JSONRPC_VERSION.to_string(),
                 result: serde_json::to_value(&auth_response).ok(),
@@ -1543,7 +1537,7 @@ impl MultiTenantMcpServer {
     ) -> McpResponse {
         let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
 
-        match oauth_routes.get_auth_url(user_id, "fitbit").await {
+        match oauth_routes.get_auth_url(user_id, "fitbit") {
             Ok(auth_response) => McpResponse {
                 jsonrpc: JSONRPC_VERSION.to_string(),
                 result: serde_json::to_value(&auth_response).ok(),
@@ -1600,7 +1594,7 @@ impl MultiTenantMcpServer {
     ) -> McpResponse {
         let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
 
-        match oauth_routes.disconnect_provider(user_id, provider).await {
+        match oauth_routes.disconnect_provider(user_id, provider) {
             Ok(()) => {
                 let response = serde_json::json!({
                     "success": true,
