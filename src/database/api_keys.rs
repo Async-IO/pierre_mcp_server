@@ -87,6 +87,13 @@ impl Database {
     ///
     /// Returns an error if the database operation fails
     pub async fn create_api_key(&self, api_key: &ApiKey) -> Result<()> {
+        // Handle enterprise tier unlimited requests by storing NULL
+        let rate_limit_requests = if api_key.tier == crate::api_keys::ApiKeyTier::Enterprise {
+            None
+        } else {
+            Some(i32::try_from(api_key.rate_limit_requests)?)
+        };
+
         sqlx::query(
             r"
             INSERT INTO api_keys (
@@ -105,7 +112,7 @@ impl Database {
         .bind(&api_key.key_hash)
         .bind(&api_key.key_prefix)
         .bind(api_key.tier.as_str())
-        .bind(i32::try_from(api_key.rate_limit_requests)?)
+        .bind(rate_limit_requests)
         .bind(i32::try_from(api_key.rate_limit_window_seconds)?)
         .bind(api_key.is_active)
         .bind(api_key.expires_at)
@@ -455,6 +462,13 @@ impl Database {
         let tier_str: String = row.get("tier");
         let tier = tier_str.parse::<ApiKeyTier>()?;
 
+        // Handle enterprise tier with unlimited requests (stored as NULL)
+        let rate_limit_requests = if tier == crate::api_keys::ApiKeyTier::Enterprise {
+            u32::MAX // Unlimited for enterprise
+        } else {
+            u32::try_from(row.get::<i32, _>("rate_limit_requests"))?
+        };
+
         Ok(ApiKey {
             id: row.get("id"),
             user_id: Uuid::parse_str(row.get::<String, _>("user_id").as_str())?,
@@ -463,7 +477,7 @@ impl Database {
             key_hash: row.get("key_hash"),
             key_prefix: row.get("key_prefix"),
             tier,
-            rate_limit_requests: u32::try_from(row.get::<i32, _>("rate_limit_requests"))?,
+            rate_limit_requests,
             rate_limit_window_seconds: u32::try_from(
                 row.get::<i32, _>("rate_limit_window_seconds"),
             )?,

@@ -1,8 +1,8 @@
 // ABOUTME: PostgreSQL database implementation for cloud and production deployments
 // ABOUTME: Provides enterprise-grade database support with connection pooling and scalability
-//! PostgreSQL database implementation
+//! `PostgreSQL` database implementation
 //!
-//! This module provides PostgreSQL support for cloud deployments,
+//! This module provides `PostgreSQL` support for cloud deployments,
 //! implementing the same interface as the SQLite version.
 
 use super::DatabaseProvider;
@@ -818,6 +818,20 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     async fn get_user_configuration(&self, user_id: &str) -> Result<Option<String>> {
+        // First ensure the user_configurations table exists
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS user_configurations (
+                user_id TEXT PRIMARY KEY,
+                config_data TEXT NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
         let query = "SELECT config_data FROM user_configurations WHERE user_id = $1";
 
         let row = sqlx::query(query)

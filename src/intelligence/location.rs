@@ -552,7 +552,7 @@ mod tests {
                 osm_id: 1,
                 lat: "45.0".into(),
                 lon: "-73.0".into(),
-                display_name: format!("{}, Test City, Test Region, Test Country", road_name),
+                display_name: format!("{road_name}, Test City, Test Region, Test Country"),
                 address: NominatimAddress {
                     house_number: None,
                     road: Some(road_name.to_string()),
@@ -579,14 +579,12 @@ mod tests {
                 assert_eq!(
                     location.trail_name,
                     Some(road_name.to_string()),
-                    "Expected '{}' to be detected as a trail",
-                    road_name
+                    "Expected '{road_name}' to be detected as a trail"
                 );
             } else {
                 assert_eq!(
                     location.trail_name, None,
-                    "Expected '{}' to NOT be detected as a trail",
-                    road_name
+                    "Expected '{road_name}' to NOT be detected as a trail"
                 );
             }
         }

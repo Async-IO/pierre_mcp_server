@@ -332,7 +332,7 @@ impl ApiKeyManager {
 
         // Use custom rate limits
         let rate_limit_requests = if request.rate_limit_requests == 0 {
-            u32::MAX // Unlimited
+            1_000_000_000 // Effectively unlimited but fits in database constraints
         } else {
             request.rate_limit_requests
         };
@@ -392,9 +392,10 @@ impl ApiKeyManager {
         };
 
         // Get rate limits - use custom if provided, otherwise use tier defaults
+        // For enterprise tier, use a high value that fits in database constraints
         let rate_limit_requests = request
             .rate_limit_requests
-            .unwrap_or_else(|| request.tier.monthly_limit().unwrap_or(u32::MAX));
+            .unwrap_or_else(|| request.tier.monthly_limit().unwrap_or(1_000_000_000));
         let rate_limit_window = request.tier.rate_limit_window();
 
         // Create the API key record
@@ -619,7 +620,7 @@ mod tests {
             key_hash: "hash".into(),
             description: None,
             tier: ApiKeyTier::Enterprise,
-            rate_limit_requests: u32::MAX,
+            rate_limit_requests: 1_000_000_000,
             rate_limit_window_seconds: 30 * 24 * 60 * 60,
             is_active: true,
             last_used_at: None,

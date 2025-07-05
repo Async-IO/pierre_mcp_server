@@ -222,7 +222,7 @@ async fn test_oauth_state_csrf_protection() {
     let user_id = uuid::Uuid::new_v4();
 
     // Generate OAuth URL and get state
-    let auth_response = oauth_routes.get_auth_url(user_id, "strava").await.unwrap();
+    let auth_response = oauth_routes.get_auth_url(user_id, "strava").unwrap();
 
     // Verify state contains user ID
     assert!(auth_response.state.contains(&user_id.to_string()));
@@ -234,7 +234,7 @@ async fn test_oauth_state_csrf_protection() {
     assert!(uuid::Uuid::parse_str(state_parts[1]).is_ok());
 
     // Verify each request generates unique state
-    let auth_response2 = oauth_routes.get_auth_url(user_id, "strava").await.unwrap();
+    let auth_response2 = oauth_routes.get_auth_url(user_id, "strava").unwrap();
     assert_ne!(auth_response.state, auth_response2.state);
 }
 

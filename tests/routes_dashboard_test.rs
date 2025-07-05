@@ -70,7 +70,7 @@ impl DashboardTestSetup {
         };
 
         let manager = pierre_mcp_server::api_keys::ApiKeyManager::new();
-        let (pro_key, _) = manager.create_api_key(user_id, request_pro).await?;
+        let (pro_key, _) = manager.create_api_key(user_id, request_pro)?;
         database.create_api_key(&pro_key).await?;
         api_keys.push(pro_key);
 
@@ -83,7 +83,7 @@ impl DashboardTestSetup {
             expires_in_days: Some(365),
         };
 
-        let (enterprise_key, _) = manager.create_api_key(user_id, request_enterprise).await?;
+        let (enterprise_key, _) = manager.create_api_key(user_id, request_enterprise)?;
         database.create_api_key(&enterprise_key).await?;
         api_keys.push(enterprise_key);
 

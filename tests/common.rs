@@ -110,7 +110,7 @@ pub async fn create_test_api_key(
     };
 
     let manager = ApiKeyManager::new();
-    let (_, api_key_string) = manager.create_api_key(user_id, request).await?;
+    let (_, api_key_string) = manager.create_api_key(user_id, request)?;
     Ok(api_key_string)
 }
 
@@ -129,7 +129,7 @@ pub async fn create_and_store_test_api_key(
     };
 
     let manager = ApiKeyManager::new();
-    let (api_key, _) = manager.create_api_key(user_id, request).await?;
+    let (api_key, _) = manager.create_api_key(user_id, request)?;
     database.create_api_key(&api_key).await?;
     Ok(api_key)
 }

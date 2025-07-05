@@ -845,7 +845,12 @@ mod tests {
         let database = Database::new(&format!("sqlite:{}", db_path.display()), vec![0u8; 32])
             .await
             .unwrap();
+        tracing::trace!("Created test database: {:?}", std::ptr::addr_of!(database));
         let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+        tracing::trace!(
+            "Created test auth manager: {:?}",
+            std::ptr::addr_of!(auth_manager)
+        );
         // Email and password validation functions are now static, no need for routes instance
         assert!(AuthRoutes::is_valid_email("test@example.com"));
         assert!(AuthRoutes::is_valid_email("user.name+tag@domain.co.uk"));

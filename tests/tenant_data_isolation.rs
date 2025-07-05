@@ -162,9 +162,8 @@ async fn test_cross_tenant_api_key_access_blocked() -> Result<()> {
         rate_limit_requests: None,
     };
 
-    let (user1_api_key, _user1_key_string) = api_key_manager
-        .create_api_key(user1_id, create_request)
-        .await?;
+    let (user1_api_key, _user1_key_string) =
+        api_key_manager.create_api_key(user1_id, create_request)?;
 
     // Store the API key in database
     database.create_api_key(&user1_api_key).await?;
@@ -278,12 +277,8 @@ async fn test_admin_cross_tenant_access_prevention() -> Result<()> {
         rate_limit_requests: None,
     };
 
-    let (key1, _) = api_key_manager
-        .create_api_key(user1_id, create_request1)
-        .await?;
-    let (key2, _) = api_key_manager
-        .create_api_key(user2_id, create_request2)
-        .await?;
+    let (key1, _) = api_key_manager.create_api_key(user1_id, create_request1)?;
+    let (key2, _) = api_key_manager.create_api_key(user2_id, create_request2)?;
 
     database.create_api_key(&key1).await?;
     database.create_api_key(&key2).await?;
@@ -339,7 +334,7 @@ async fn test_concurrent_tenant_isolation() -> Result<()> {
                 rate_limit_requests: None,
             };
 
-            let (api_key, _) = manager.create_api_key(user_id, create_request).await?;
+            let (api_key, _) = manager.create_api_key(user_id, create_request)?;
             db.create_api_key(&api_key).await?;
 
             // Return user_id and key_id for verification

@@ -117,7 +117,7 @@ async fn test_activity_analysis_through_universal_tools() -> Result<()> {
         location: None,
         recent_activities: None,
     };
-    let intelligence = analyzer.analyze_activity(&activity, Some(context)).await?;
+    let intelligence = analyzer.analyze_activity(&activity, Some(context))?;
 
     // Verify intelligence analysis results
     assert!(!intelligence.summary.is_empty());
@@ -167,7 +167,7 @@ async fn test_activity_analysis_through_universal_tools() -> Result<()> {
         location: None,
         recent_activities: None,
     };
-    let analysis_result = analyzer.analyze_activity(&activity, Some(context2)).await?;
+    let analysis_result = analyzer.analyze_activity(&activity, Some(context2))?;
 
     // Verify the analysis includes all expected components
     assert!(!analysis_result.summary.is_empty());
@@ -287,7 +287,7 @@ async fn test_recommendation_engine_integration() -> Result<()> {
         location: None,
         recent_activities: None,
     };
-    let intelligence = analyzer.analyze_activity(&activity, Some(context)).await?;
+    let intelligence = analyzer.analyze_activity(&activity, Some(context))?;
 
     // Verify analysis is generated
     assert!(!intelligence.summary.is_empty());
@@ -397,9 +397,7 @@ async fn test_goal_tracking_integration() -> Result<()> {
         location: None,
         recent_activities: None,
     };
-    let intelligence = analyzer
-        .analyze_activity(&activities[0], Some(context))
-        .await?;
+    let intelligence = analyzer.analyze_activity(&activities[0], Some(context))?;
 
     // Verify analysis is generated and includes relevant insights
     assert!(!intelligence.summary.is_empty());

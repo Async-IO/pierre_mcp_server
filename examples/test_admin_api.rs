@@ -163,9 +163,7 @@ async fn main() -> anyhow::Result<()> {
         rate_limit_requests: None,
     };
 
-    let (api_key, api_key_string) = api_key_manager
-        .create_api_key(user_id, create_request)
-        .await?;
+    let (api_key, api_key_string) = api_key_manager.create_api_key(user_id, create_request)?;
     database.create_api_key(&api_key).await?;
 
     println!("✅ API key provisioned:");

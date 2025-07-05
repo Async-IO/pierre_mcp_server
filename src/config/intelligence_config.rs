@@ -751,9 +751,9 @@ mod tests {
     #[test]
     fn test_conservative_strategy() {
         let strategy = ConservativeStrategy::new();
-        assert_eq!(
-            strategy.recommendation_thresholds().low_weekly_distance_km,
-            15.0
+        assert!(
+            (strategy.recommendation_thresholds().low_weekly_distance_km - 15.0).abs()
+                < f64::EPSILON
         );
         assert!(strategy.should_recommend_volume_increase(10.0));
         assert!(!strategy.should_recommend_volume_increase(20.0));
@@ -762,9 +762,9 @@ mod tests {
     #[test]
     fn test_aggressive_strategy() {
         let strategy = AggressiveStrategy::new();
-        assert_eq!(
-            strategy.recommendation_thresholds().low_weekly_distance_km,
-            40.0
+        assert!(
+            (strategy.recommendation_thresholds().low_weekly_distance_km - 40.0).abs()
+                < f64::EPSILON
         );
         assert!(strategy.should_recommend_volume_increase(30.0));
         assert!(!strategy.should_recommend_volume_increase(50.0));

@@ -860,7 +860,8 @@ mod tests {
                 backup: BackupConfig {
                     enabled: false,
                     interval_seconds: limits::DEFAULT_BACKUP_INTERVAL_SECS,
-                    retention_count: limits::DEFAULT_BACKUP_RETENTION_COUNT as u32,
+                    retention_count: u32::try_from(limits::DEFAULT_BACKUP_RETENTION_COUNT)
+                        .unwrap_or(10),
                     directory: PathBuf::from(defaults::DEFAULT_BACKUP_DIR),
                 },
             },

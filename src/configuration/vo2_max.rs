@@ -353,8 +353,8 @@ mod tests {
     #[test]
     fn test_vo2_max_calculator_creation() {
         let calc = VO2MaxCalculator::new(50.0, 50, 180, 0.85, 1.0);
-        assert_eq!(calc.vo2_max, 50.0);
-        assert_eq!(calc.lactate_threshold, 0.85);
+        assert!((calc.vo2_max - 50.0).abs() < f64::EPSILON);
+        assert!((calc.lactate_threshold - 0.85).abs() < f64::EPSILON);
     }
 
     #[test]

@@ -63,7 +63,7 @@ async fn test_intelligence_analysis_integration() -> Result<()> {
     };
 
     // Analyze the activity
-    let analysis = analyzer.analyze_activity(&activity, None).await?;
+    let analysis = analyzer.analyze_activity(&activity, None)?;
 
     // Verify analysis results
     assert!(!analysis.summary.is_empty());
@@ -220,7 +220,7 @@ async fn test_concurrent_analysis() -> Result<()> {
             };
 
             let analyzer_local = ActivityAnalyzer::new();
-            analyzer_local.analyze_activity(&activity, None).await
+            analyzer_local.analyze_activity(&activity, None)
         });
 
         handles.push(handle);

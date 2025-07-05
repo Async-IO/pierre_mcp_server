@@ -418,7 +418,7 @@ mod tests {
             performance_factor, ..
         } = profile
         {
-            assert_eq!(performance_factor, 1.15);
+            assert!((performance_factor - 1.15).abs() < f64::EPSILON);
         } else {
             panic!("Expected Elite profile");
         }

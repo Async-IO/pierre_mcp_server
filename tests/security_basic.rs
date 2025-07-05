@@ -76,9 +76,8 @@ async fn test_api_key_user_isolation() -> Result<()> {
         rate_limit_requests: None,
     };
 
-    let (user1_api_key, _user1_key_string) = api_key_manager
-        .create_api_key(user1_id, create_request)
-        .await?;
+    let (user1_api_key, _user1_key_string) =
+        api_key_manager.create_api_key(user1_id, create_request)?;
 
     database.create_api_key(&user1_api_key).await?;
 
@@ -117,9 +116,7 @@ async fn test_basic_input_validation() -> Result<()> {
         rate_limit_requests: None,
     };
 
-    let result = api_key_manager
-        .create_api_key(user_id, create_request)
-        .await;
+    let result = api_key_manager.create_api_key(user_id, create_request);
 
     match result {
         Ok((api_key, _)) => {
@@ -243,9 +240,7 @@ async fn test_api_key_uniqueness() -> Result<()> {
             rate_limit_requests: None,
         };
 
-        let (_, api_key_string) = api_key_manager
-            .create_api_key(user_id, create_request)
-            .await?;
+        let (_, api_key_string) = api_key_manager.create_api_key(user_id, create_request)?;
         assert!(
             api_key_strings.insert(api_key_string),
             "API keys should be unique"

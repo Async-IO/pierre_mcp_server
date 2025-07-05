@@ -5,13 +5,8 @@ use pierre_mcp_server::config::fitness_config::WeatherApiConfig;
 use pierre_mcp_server::intelligence::weather::WeatherService;
 use pierre_mcp_server::models::{Activity, SportType};
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("🌦️  Testing Weather Integration");
-    println!("================================");
-
-    // Create test activity with GPS coordinates (Montreal)
-    let activity = Activity {
+fn create_test_activity() -> Activity {
+    Activity {
         id: "test_weather".into(),
         name: "Test Weather Integration".into(),
         sport_type: SportType::Run,
@@ -59,8 +54,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         country: None,
         trail_name: None,
         provider: "test".into(),
-    };
+    }
+}
 
+#[allow(clippy::too_many_lines)]
+async fn test_weather_service(activity: &Activity) -> Result<(), Box<dyn std::error::Error>> {
     // Test with default configuration (will use mock weather)
     println!(
         "\n📍 Activity Location: Montreal, Canada ({}, {})",
@@ -135,6 +133,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   1. Set OPENWEATHER_API_KEY environment variable for real weather");
     println!("   2. Test with real Strava activities using: cargo run --bin test-with-data");
     println!("   3. Check activity intelligence includes weather context");
+
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!("🌦️  Testing Weather Integration");
+    println!("================================");
+
+    let activity = create_test_activity();
+    test_weather_service(&activity).await?;
 
     Ok(())
 }

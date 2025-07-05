@@ -433,7 +433,7 @@ mod tests {
 
         // Verify override takes precedence
         if let Some(ConfigValue::Float(value)) = config.get_value(&key) {
-            assert_eq!(value, 90.0);
+            assert!((value - 90.0).abs() < f64::EPSILON);
         } else {
             panic!("Expected float value");
         }

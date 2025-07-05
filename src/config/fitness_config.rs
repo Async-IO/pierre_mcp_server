@@ -293,9 +293,9 @@ mod tests {
         let config = FitnessConfig::default();
         let thresholds = &config.intelligence.effort_thresholds;
 
-        assert_eq!(thresholds.light_max, 3.0);
-        assert_eq!(thresholds.moderate_max, 5.0);
-        assert_eq!(thresholds.hard_max, 7.0);
+        assert!((thresholds.light_max - 3.0).abs() < f32::EPSILON);
+        assert!((thresholds.moderate_max - 5.0).abs() < f32::EPSILON);
+        assert!((thresholds.hard_max - 7.0).abs() < f32::EPSILON);
     }
 
     #[test]
@@ -303,10 +303,10 @@ mod tests {
         let config = FitnessConfig::default();
         let zones = &config.intelligence.zone_thresholds;
 
-        assert_eq!(zones.recovery_max, 60.0);
-        assert_eq!(zones.endurance_max, 70.0);
-        assert_eq!(zones.tempo_max, 80.0);
-        assert_eq!(zones.threshold_max, 90.0);
+        assert!((zones.recovery_max - 60.0).abs() < f32::EPSILON);
+        assert!((zones.endurance_max - 70.0).abs() < f32::EPSILON);
+        assert!((zones.tempo_max - 80.0).abs() < f32::EPSILON);
+        assert!((zones.threshold_max - 90.0).abs() < f32::EPSILON);
     }
 
     #[test]
@@ -316,7 +316,7 @@ mod tests {
 
         assert!(weather.rain_keywords.contains(&"rain".into()));
         assert!(weather.snow_keywords.contains(&"snow".into()));
-        assert_eq!(weather.wind_threshold, 15.0);
+        assert!((weather.wind_threshold - 15.0).abs() < f32::EPSILON);
     }
 
     #[test]
@@ -359,15 +359,17 @@ time_pr_types = ["fastest_test"]
         assert_eq!(config.map_sport_type("TestRide"), Some("test_ride"));
 
         // Test custom thresholds
-        assert_eq!(config.intelligence.effort_thresholds.light_max, 2.5);
-        assert_eq!(config.intelligence.zone_thresholds.recovery_max, 55.0);
-        assert_eq!(config.intelligence.weather_mapping.wind_threshold, 20.0);
-        assert_eq!(
-            config
+        assert!((config.intelligence.effort_thresholds.light_max - 2.5).abs() < f32::EPSILON);
+        assert!((config.intelligence.zone_thresholds.recovery_max - 55.0).abs() < f32::EPSILON);
+        assert!((config.intelligence.weather_mapping.wind_threshold - 20.0).abs() < f32::EPSILON);
+        assert!(
+            (config
                 .intelligence
                 .personal_records
-                .pace_improvement_threshold,
-            3.0
+                .pace_improvement_threshold
+                - 3.0)
+                .abs()
+                < f32::EPSILON
         );
 
         Ok(())

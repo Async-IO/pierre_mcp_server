@@ -586,7 +586,7 @@ mod tests {
 
         let distance_pr = &records[0];
         assert_eq!(distance_pr.record_type, "Longest Distance");
-        assert_eq!(distance_pr.value, 25.0); // 25km converted from 25000m
+        assert!((distance_pr.value - 25.0).abs() < f64::EPSILON); // 25km converted from 25000m
     }
 
     #[test]

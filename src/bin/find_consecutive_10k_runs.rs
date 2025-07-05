@@ -14,6 +14,7 @@ use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
 
+#[allow(clippy::too_many_lines)]
 fn main() -> Result<()> {
     println!("🏃 Finding longest consecutive running streak with 10km+ runs...");
 

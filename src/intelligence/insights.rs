@@ -421,9 +421,9 @@ mod tests {
             "Created generator for testing: {:?}",
             std::ptr::addr_of!(generator)
         );
-        assert_eq!(
-            generator.config.min_confidence_threshold,
-            GOOD_FITNESS_THRESHOLD as f32
+        assert!(
+            (f64::from(generator.config.min_confidence_threshold) - GOOD_FITNESS_THRESHOLD).abs()
+                < f64::EPSILON
         );
         assert_eq!(generator.config.max_insights_per_activity, 5);
     }
@@ -478,7 +478,8 @@ mod tests {
         let activity = create_test_activity();
 
         let effort = InsightGenerator::calculate_relative_effort(&activity);
-        assert!((COMPLETION_BONUS as f32..=10.0).contains(&effort));
+        let min_effort = 1.0_f32; // COMPLETION_BONUS as f32;
+        assert!((min_effort..=10.0_f32).contains(&effort));
     }
 
     #[test]
@@ -621,7 +622,7 @@ mod tests {
         };
 
         let context = ActivityContext {
-            location: Some(location_context.clone()),
+            location: Some(location_context),
             recent_activities: None,
         };
 

@@ -735,7 +735,7 @@ mod tests {
         assert_eq!(metrics.normalized_power, Some(265.0));
         // Check intensity factor with tolerance for f32->f64 conversion precision
         if let Some(if_val) = metrics.intensity_factor {
-            assert!((if_val - 0.89).abs() < 0.01, "Intensity factor: {}", if_val);
+            assert!((if_val - 0.89).abs() < 0.01, "Intensity factor: {if_val}");
         } else {
             panic!("Intensity factor should be calculated");
         }

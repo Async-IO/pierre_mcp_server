@@ -67,10 +67,7 @@ async fn test_end_to_end_api_key_workflow() {
         rate_limit_requests: None,
     };
 
-    let (api_key, full_key) = api_key_manager
-        .create_api_key(user.id, request)
-        .await
-        .unwrap();
+    let (api_key, full_key) = api_key_manager.create_api_key(user.id, request).unwrap();
     database.create_api_key(&api_key).await.unwrap();
 
     // Step 2: Authenticate using the API key
@@ -150,10 +147,7 @@ async fn test_api_key_rate_limiting() {
         rate_limit_requests: None,
     };
 
-    let (mut api_key, full_key) = api_key_manager
-        .create_api_key(user.id, request)
-        .await
-        .unwrap();
+    let (mut api_key, full_key) = api_key_manager.create_api_key(user.id, request).unwrap();
 
     // Override rate limit for testing (simulate a very low limit)
     api_key.rate_limit_requests = 2;
@@ -217,10 +211,7 @@ async fn test_enterprise_tier_unlimited_usage() {
         rate_limit_requests: None,
     };
 
-    let (api_key, full_key) = api_key_manager
-        .create_api_key(user.id, request)
-        .await
-        .unwrap();
+    let (api_key, full_key) = api_key_manager.create_api_key(user.id, request).unwrap();
     database.create_api_key(&api_key).await.unwrap();
 
     // Record high usage
@@ -277,10 +268,7 @@ async fn test_api_key_expiration() {
         rate_limit_requests: None,
     };
 
-    let (mut api_key, full_key) = api_key_manager
-        .create_api_key(user.id, request)
-        .await
-        .unwrap();
+    let (mut api_key, full_key) = api_key_manager.create_api_key(user.id, request).unwrap();
 
     // Manually set expiration to past date
     api_key.expires_at = Some(Utc::now() - Duration::days(1));
@@ -307,10 +295,7 @@ async fn test_deactivated_api_key() {
         rate_limit_requests: None,
     };
 
-    let (api_key, full_key) = api_key_manager
-        .create_api_key(user.id, request)
-        .await
-        .unwrap();
+    let (api_key, full_key) = api_key_manager.create_api_key(user.id, request).unwrap();
     database.create_api_key(&api_key).await.unwrap();
 
     // Verify it works initially
@@ -376,10 +361,7 @@ async fn test_concurrent_api_key_usage() {
         rate_limit_requests: None,
     };
 
-    let (api_key, full_key) = api_key_manager
-        .create_api_key(user.id, request)
-        .await
-        .unwrap();
+    let (api_key, full_key) = api_key_manager.create_api_key(user.id, request).unwrap();
     database.create_api_key(&api_key).await.unwrap();
 
     // Simulate concurrent requests
@@ -454,10 +436,7 @@ async fn test_usage_analytics() {
         rate_limit_requests: None,
     };
 
-    let (api_key, _full_key) = api_key_manager
-        .create_api_key(user.id, request)
-        .await
-        .unwrap();
+    let (api_key, _full_key) = api_key_manager.create_api_key(user.id, request).unwrap();
     database.create_api_key(&api_key).await.unwrap();
 
     // Record diverse usage patterns

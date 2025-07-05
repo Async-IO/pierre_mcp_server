@@ -541,7 +541,7 @@ mod tests {
             zone5_vo2max: 0.0,
         };
 
-        assert_eq!(zones.zone2_endurance, 65.0);
+        assert!((zones.zone2_endurance - 65.0).abs() < f32::EPSILON);
 
         // Total should be 100%
         let total = zones.zone1_recovery
@@ -549,6 +549,6 @@ mod tests {
             + zones.zone3_tempo
             + zones.zone4_threshold
             + zones.zone5_vo2max;
-        assert_eq!(total, 100.0);
+        assert!((total - 100.0).abs() < f32::EPSILON);
     }
 }

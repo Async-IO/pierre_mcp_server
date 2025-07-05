@@ -143,6 +143,20 @@ impl DatabaseProvider for SqliteDatabase {
     }
 
     async fn get_user_configuration(&self, user_id: &str) -> Result<Option<String>> {
+        // First ensure the user_configurations table exists
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS user_configurations (
+                user_id TEXT PRIMARY KEY,
+                config_data TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(self.inner.pool())
+        .await?;
+
         let query = "SELECT config_data FROM user_configurations WHERE user_id = ?";
 
         let row = sqlx::query(query)

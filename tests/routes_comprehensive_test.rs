@@ -340,7 +340,7 @@ async fn test_oauth_get_auth_url_strava() -> Result<()> {
     let oauth_routes = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
-    let response = oauth_routes.get_auth_url(user_id, "strava").await?;
+    let response = oauth_routes.get_auth_url(user_id, "strava")?;
 
     assert!(response.authorization_url.contains("strava.com"));
     assert!(response.authorization_url.contains("authorize"));
@@ -356,7 +356,7 @@ async fn test_oauth_get_auth_url_fitbit() -> Result<()> {
     let oauth_routes = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
-    let response = oauth_routes.get_auth_url(user_id, "fitbit").await?;
+    let response = oauth_routes.get_auth_url(user_id, "fitbit")?;
 
     assert!(response.authorization_url.contains("fitbit.com"));
     assert!(response.authorization_url.contains("authorize"));
@@ -372,9 +372,7 @@ async fn test_oauth_get_auth_url_unsupported_provider() -> Result<()> {
     let oauth_routes = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
-    let result = oauth_routes
-        .get_auth_url(user_id, "unsupported_provider")
-        .await;
+    let result = oauth_routes.get_auth_url(user_id, "unsupported_provider");
 
     assert!(result.is_err());
     assert!(result
@@ -410,7 +408,7 @@ async fn test_oauth_disconnect_provider_success() -> Result<()> {
     let user_id = Uuid::new_v4();
 
     // Disconnecting a provider that wasn't connected should succeed (idempotent)
-    let result = oauth_routes.disconnect_provider(user_id, "strava").await;
+    let result = oauth_routes.disconnect_provider(user_id, "strava");
 
     assert!(result.is_ok());
 
@@ -422,9 +420,7 @@ async fn test_oauth_disconnect_invalid_provider() -> Result<()> {
     let oauth_routes = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
-    let result = oauth_routes
-        .disconnect_provider(user_id, "invalid_provider")
-        .await;
+    let result = oauth_routes.disconnect_provider(user_id, "invalid_provider");
 
     assert!(result.is_err());
     assert!(result
@@ -560,7 +556,7 @@ async fn test_complete_auth_flow() -> Result<()> {
     let connections = oauth_routes.get_connection_status(user_id).await?;
 
     // 5. Get OAuth authorization URL
-    let auth_url = oauth_routes.get_auth_url(user_id, "strava").await?;
+    let auth_url = oauth_routes.get_auth_url(user_id, "strava")?;
 
     // Verify everything worked
     assert!(!register_response.user_id.is_empty());

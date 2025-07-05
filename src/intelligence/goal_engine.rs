@@ -835,7 +835,7 @@ mod tests {
         assert!(result.is_ok());
 
         let progress = result.unwrap();
-        assert_eq!(progress.progress_percentage, 30.0); // 30km out of 100km
+        assert!((progress.progress_percentage - 30.0).abs() < f64::EPSILON); // 30km out of 100km
         assert!(progress.milestones_achieved[0].achieved); // 25% milestone
     }
 }
