@@ -172,7 +172,7 @@ impl UniversalToolExecutor {
                     "activity_id": activity_id,
                     "analysis_type": "error",
                     "timestamp": chrono::Utc::now().to_rfc3339(),
-                    "error": format!("Could not retrieve activity data: {}", e),
+                    "error": format!("Could not retrieve activity data: {e}"),
                     "intelligence": {
                         "summary": "Analysis failed - activity data not available",
                         "insights": [],

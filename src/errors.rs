@@ -287,9 +287,10 @@ impl AppError {
     /// Resource not found
     #[must_use]
     pub fn not_found(resource: impl Into<String>) -> Self {
+        let resource_str = resource.into();
         Self::new(
             ErrorCode::ResourceNotFound,
-            format!("{} not found", resource.into()),
+            format!("{resource_str} not found"),
         )
     }
 
@@ -320,9 +321,11 @@ impl AppError {
     /// External service error
     #[must_use]
     pub fn external_service(service: impl Into<String>, message: impl Into<String>) -> Self {
+        let service_str = service.into();
+        let message_str = message.into();
         Self::new(
             ErrorCode::ExternalServiceError,
-            format!("{}: {}", service.into(), message.into()),
+            format!("{service_str}: {message_str}"),
         )
     }
 }

@@ -166,7 +166,8 @@ impl AdminJwtManager {
     /// Generate token prefix for identification
     #[must_use]
     pub fn generate_token_prefix(token: &str) -> String {
-        format!("admin_jwt_{}", &token[..8])
+        let token_prefix = &token[..8];
+        format!("admin_jwt_{token_prefix}")
     }
 
     /// Hash token for storage (bcrypt-compatible)

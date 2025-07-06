@@ -3,7 +3,7 @@
 //! `PostgreSQL` database implementation
 //!
 //! This module provides `PostgreSQL` support for cloud deployments,
-//! implementing the same interface as the SQLite version.
+//! implementing the same interface as the `SQLite` version.
 
 use super::DatabaseProvider;
 use crate::a2a::auth::A2AClient;
@@ -18,9 +18,10 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 use sqlx::{PgPool, Pool, Postgres, Row};
+use std::fmt::Write;
 use uuid::Uuid;
 
-/// PostgreSQL database implementation
+/// `PostgreSQL` database implementation
 #[derive(Clone)]
 pub struct PostgresDatabase {
     pool: Pool<Postgres>,
@@ -64,360 +65,15 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     async fn migrate(&self) -> Result<()> {
-        // Create users table with PostgreSQL-specific syntax
-        sqlx::query(
-            r"
-            CREATE TABLE IF NOT EXISTS users (
-                id UUID PRIMARY KEY,
-                email TEXT UNIQUE NOT NULL,
-                display_name TEXT,
-                password_hash TEXT NOT NULL,
-                tier TEXT NOT NULL DEFAULT 'starter' CHECK (tier IN ('starter', 'professional', 'enterprise')),
-                strava_access_token TEXT,
-                strava_refresh_token TEXT,
-                strava_expires_at TIMESTAMPTZ,
-                strava_scope TEXT,
-                strava_nonce TEXT,
-                fitbit_access_token TEXT,
-                fitbit_refresh_token TEXT,
-                fitbit_expires_at TIMESTAMPTZ,
-                fitbit_scope TEXT,
-                fitbit_nonce TEXT,
-                is_active BOOLEAN NOT NULL DEFAULT true,
-                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-                last_active TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-            )
-            ",
-        )
-        .execute(&self.pool)
-        .await?;
-
-        // Create user_profiles table
-        sqlx::query(
-            r"
-            CREATE TABLE IF NOT EXISTS user_profiles (
-                user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-                profile_data JSONB NOT NULL,
-                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-            )
-            ",
-        )
-        .execute(&self.pool)
-        .await?;
-
-        // Create goals table
-        sqlx::query(
-            r"
-            CREATE TABLE IF NOT EXISTS goals (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                goal_data JSONB NOT NULL,
-                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-            )
-            ",
-        )
-        .execute(&self.pool)
-        .await?;
-
-        // Create insights table
-        sqlx::query(
-            r"
-            CREATE TABLE IF NOT EXISTS insights (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                insight_type TEXT NOT NULL,
-                content JSONB NOT NULL,
-                metadata JSONB,
-                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-            )
-            ",
-        )
-        .execute(&self.pool)
-        .await?;
-
-        // Create api_keys table
-        sqlx::query(
-            r"
-            CREATE TABLE IF NOT EXISTS api_keys (
-                id TEXT PRIMARY KEY,
-                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                name TEXT NOT NULL,
-                key_prefix TEXT NOT NULL,
-                key_hash TEXT NOT NULL,
-                description TEXT,
-                tier TEXT NOT NULL CHECK (tier IN ('trial', 'starter', 'professional', 'enterprise')),
-                is_active BOOLEAN NOT NULL DEFAULT true,
-                rate_limit_requests INTEGER NOT NULL,
-                rate_limit_window_seconds INTEGER NOT NULL,
-                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-                expires_at TIMESTAMPTZ,
-                last_used_at TIMESTAMPTZ,
-                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-            )
-            ",
-        )
-        .execute(&self.pool)
-        .await?;
-
-        // Create api_key_usage table
-        sqlx::query(
-            r"
-            CREATE TABLE IF NOT EXISTS api_key_usage (
-                id SERIAL PRIMARY KEY,
-                api_key_id TEXT NOT NULL REFERENCES api_keys(id) ON DELETE CASCADE,
-                timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                endpoint TEXT NOT NULL,
-                response_time_ms INTEGER,
-                status_code SMALLINT NOT NULL,
-                method TEXT,
-                request_size_bytes INTEGER,
-                response_size_bytes INTEGER,
-                ip_address INET,
-                user_agent TEXT
-            )
-            ",
-        )
-        .execute(&self.pool)
-        .await?;
-
-        // Create A2A tables
-        sqlx::query(
-            r"
-            CREATE TABLE IF NOT EXISTS a2a_clients (
-                client_id TEXT PRIMARY KEY,
-                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                name TEXT NOT NULL,
-                description TEXT,
-                client_secret_hash TEXT NOT NULL,
-                api_key_hash TEXT NOT NULL,
-                capabilities TEXT[] NOT NULL DEFAULT '{}',
-                redirect_uris TEXT[] NOT NULL DEFAULT '{}',
-                contact_email TEXT,
-                is_active BOOLEAN NOT NULL DEFAULT true,
-                rate_limit_per_minute INTEGER NOT NULL DEFAULT 100,
-                rate_limit_per_day INTEGER DEFAULT 10000,
-                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-            )
-            ",
-        )
-        .execute(&self.pool)
-        .await?;
-
-        sqlx::query(
-            r"
-            CREATE TABLE IF NOT EXISTS a2a_sessions (
-                session_token TEXT PRIMARY KEY,
-                client_id TEXT NOT NULL REFERENCES a2a_clients(client_id) ON DELETE CASCADE,
-                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                granted_scopes TEXT[] NOT NULL DEFAULT '{}',
-                is_active BOOLEAN NOT NULL DEFAULT true,
-                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-                expires_at TIMESTAMPTZ NOT NULL,
-                last_active_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-            )
-            ",
-        )
-        .execute(&self.pool)
-        .await?;
-
-        sqlx::query(
-            r"
-            CREATE TABLE IF NOT EXISTS a2a_tasks (
-                task_id TEXT PRIMARY KEY,
-                session_token TEXT NOT NULL REFERENCES a2a_sessions(session_token) ON DELETE CASCADE,
-                task_type TEXT NOT NULL,
-                parameters JSONB NOT NULL,
-                status TEXT NOT NULL DEFAULT 'pending',
-                result JSONB,
-                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-            )
-            ",
-        )
-        .execute(&self.pool)
-        .await?;
-
-        sqlx::query(
-            r"
-            CREATE TABLE IF NOT EXISTS a2a_usage (
-                id SERIAL PRIMARY KEY,
-                client_id TEXT NOT NULL REFERENCES a2a_clients(client_id) ON DELETE CASCADE,
-                session_token TEXT REFERENCES a2a_sessions(session_token) ON DELETE SET NULL,
-                timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                endpoint TEXT NOT NULL,
-                response_time_ms INTEGER,
-                status_code SMALLINT NOT NULL,
-                method TEXT,
-                request_size_bytes INTEGER,
-                response_size_bytes INTEGER,
-                ip_address INET,
-                user_agent TEXT,
-                protocol_version TEXT NOT NULL DEFAULT 'v1',
-                client_capabilities TEXT[] DEFAULT '{}',
-                granted_scopes TEXT[] DEFAULT '{}'
-            )
-            ",
-        )
-        .execute(&self.pool)
-        .await?;
-
-        // Create indexes for better performance
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
-            .execute(&self.pool)
-            .await?;
-
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON api_keys(user_id)")
-            .execute(&self.pool)
-            .await?;
-
-        sqlx::query(
-            "CREATE INDEX IF NOT EXISTS idx_api_key_usage_api_key_id ON api_key_usage(api_key_id)",
-        )
-        .execute(&self.pool)
-        .await?;
-
-        sqlx::query(
-            "CREATE INDEX IF NOT EXISTS idx_api_key_usage_timestamp ON api_key_usage(timestamp)",
-        )
-        .execute(&self.pool)
-        .await?;
-
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_a2a_clients_user_id ON a2a_clients(user_id)")
-            .execute(&self.pool)
-            .await?;
-
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_a2a_usage_client_id ON a2a_usage(client_id)")
-            .execute(&self.pool)
-            .await?;
-
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_a2a_usage_timestamp ON a2a_usage(timestamp)")
-            .execute(&self.pool)
-            .await?;
-
-        // Create admin tokens tables
-        sqlx::query(
-            r"
-            CREATE TABLE IF NOT EXISTS admin_tokens (
-                id TEXT PRIMARY KEY,
-                service_name TEXT NOT NULL,
-                service_description TEXT,
-                token_hash TEXT NOT NULL,
-                token_prefix TEXT NOT NULL,
-                jwt_secret_hash TEXT NOT NULL,
-                permissions TEXT NOT NULL DEFAULT '[]',
-                is_super_admin BOOLEAN NOT NULL DEFAULT false,
-                is_active BOOLEAN NOT NULL DEFAULT true,
-                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-                expires_at TIMESTAMPTZ,
-                last_used_at TIMESTAMPTZ,
-                last_used_ip INET,
-                usage_count BIGINT NOT NULL DEFAULT 0
-            )
-            ",
-        )
-        .execute(&self.pool)
-        .await?;
-
-        sqlx::query(
-            r"
-            CREATE TABLE IF NOT EXISTS admin_token_usage (
-                id SERIAL PRIMARY KEY,
-                admin_token_id TEXT NOT NULL REFERENCES admin_tokens(id) ON DELETE CASCADE,
-                timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                action TEXT NOT NULL,
-                target_resource TEXT,
-                ip_address INET,
-                user_agent TEXT,
-                request_size_bytes INTEGER,
-                success BOOLEAN NOT NULL,
-                method TEXT,
-                response_time_ms INTEGER
-            )
-            ",
-        )
-        .execute(&self.pool)
-        .await?;
-
-        sqlx::query(
-            r"
-            CREATE TABLE IF NOT EXISTS admin_provisioned_keys (
-                id SERIAL PRIMARY KEY,
-                admin_token_id TEXT NOT NULL REFERENCES admin_tokens(id) ON DELETE CASCADE,
-                api_key_id TEXT NOT NULL,
-                user_email TEXT NOT NULL,
-                requested_tier TEXT NOT NULL,
-                provisioned_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                provisioned_by_service TEXT NOT NULL,
-                rate_limit_requests INTEGER NOT NULL,
-                rate_limit_period TEXT NOT NULL,
-                key_status TEXT NOT NULL DEFAULT 'active',
-                revoked_at TIMESTAMPTZ,
-                revoked_reason TEXT
-            )
-            ",
-        )
-        .execute(&self.pool)
-        .await?;
-
-        // Create indexes for admin tables
-        sqlx::query(
-            "CREATE INDEX IF NOT EXISTS idx_admin_tokens_service ON admin_tokens(service_name)",
-        )
-        .execute(&self.pool)
-        .await?;
-
-        sqlx::query(
-            "CREATE INDEX IF NOT EXISTS idx_admin_tokens_prefix ON admin_tokens(token_prefix)",
-        )
-        .execute(&self.pool)
-        .await?;
-
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_admin_usage_token_id ON admin_token_usage(admin_token_id)")
-            .execute(&self.pool)
-            .await?;
-
-        sqlx::query(
-            "CREATE INDEX IF NOT EXISTS idx_admin_usage_timestamp ON admin_token_usage(timestamp)",
-        )
-        .execute(&self.pool)
-        .await?;
-
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_admin_provisioned_token ON admin_provisioned_keys(admin_token_id)")
-            .execute(&self.pool)
-            .await?;
-
-        // Create jwt_usage table for JWT token tracking
-        sqlx::query(
-            r"
-            CREATE TABLE IF NOT EXISTS jwt_usage (
-                id SERIAL PRIMARY KEY,
-                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                endpoint TEXT NOT NULL,
-                response_time_ms INTEGER,
-                status_code INTEGER NOT NULL,
-                method TEXT,
-                request_size_bytes INTEGER,
-                response_size_bytes INTEGER,
-                ip_address INET,
-                user_agent TEXT
-            )
-            ",
-        )
-        .execute(&self.pool)
-        .await?;
-
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_jwt_usage_user_id ON jwt_usage(user_id)")
-            .execute(&self.pool)
-            .await?;
-
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_jwt_usage_timestamp ON jwt_usage(timestamp)")
-            .execute(&self.pool)
-            .await?;
-
+        self.create_users_table().await?;
+        self.create_user_profiles_table().await?;
+        self.create_goals_table().await?;
+        self.create_insights_table().await?;
+        self.create_api_keys_tables().await?;
+        self.create_a2a_tables().await?;
+        self.create_admin_tables().await?;
+        self.create_jwt_usage_table().await?;
+        self.create_indexes().await?;
         Ok(())
     }
 
@@ -460,29 +116,30 @@ impl DatabaseProvider for PostgresDatabase {
         .fetch_optional(&self.pool)
         .await?;
 
-        if let Some(row) = row {
-            Ok(Some(User {
-                id: row.get("id"),
-                email: row.get("email"),
-                display_name: row.get("display_name"),
-                password_hash: row.get("password_hash"),
-                tier: {
-                    let tier_str: String = row.get("tier");
-                    match tier_str.as_str() {
-                        "professional" => UserTier::Professional,
-                        "enterprise" => UserTier::Enterprise,
-                        _ => UserTier::Starter,
-                    }
-                },
-                strava_token: None, // Tokens are loaded separately
-                fitbit_token: None, // Tokens are loaded separately
-                created_at: row.get("created_at"),
-                last_active: row.get("last_active"),
-                is_active: row.get("is_active"),
-            }))
-        } else {
-            Ok(None)
-        }
+        row.map_or_else(
+            || Ok(None),
+            |row| {
+                Ok(Some(User {
+                    id: row.get("id"),
+                    email: row.get("email"),
+                    display_name: row.get("display_name"),
+                    password_hash: row.get("password_hash"),
+                    tier: {
+                        let tier_str: String = row.get("tier");
+                        match tier_str.as_str() {
+                            "professional" => UserTier::Professional,
+                            "enterprise" => UserTier::Enterprise,
+                            _ => UserTier::Starter,
+                        }
+                    },
+                    strava_token: None, // Tokens are loaded separately
+                    fitbit_token: None, // Tokens are loaded separately
+                    created_at: row.get("created_at"),
+                    last_active: row.get("last_active"),
+                    is_active: row.get("is_active"),
+                }))
+            },
+        )
     }
 
     async fn get_user_by_email(&self, email: &str) -> Result<Option<User>> {
@@ -497,29 +154,30 @@ impl DatabaseProvider for PostgresDatabase {
         .fetch_optional(&self.pool)
         .await?;
 
-        if let Some(row) = row {
-            Ok(Some(User {
-                id: row.get("id"),
-                email: row.get("email"),
-                display_name: row.get("display_name"),
-                password_hash: row.get("password_hash"),
-                tier: {
-                    let tier_str: String = row.get("tier");
-                    match tier_str.as_str() {
-                        "professional" => UserTier::Professional,
-                        "enterprise" => UserTier::Enterprise,
-                        _ => UserTier::Starter,
-                    }
-                },
-                strava_token: None, // Tokens are loaded separately
-                fitbit_token: None, // Tokens are loaded separately
-                created_at: row.get("created_at"),
-                last_active: row.get("last_active"),
-                is_active: row.get("is_active"),
-            }))
-        } else {
-            Ok(None)
-        }
+        row.map_or_else(
+            || Ok(None),
+            |row| {
+                Ok(Some(User {
+                    id: row.get("id"),
+                    email: row.get("email"),
+                    display_name: row.get("display_name"),
+                    password_hash: row.get("password_hash"),
+                    tier: {
+                        let tier_str: String = row.get("tier");
+                        match tier_str.as_str() {
+                            "professional" => UserTier::Professional,
+                            "enterprise" => UserTier::Enterprise,
+                            _ => UserTier::Starter,
+                        }
+                    },
+                    strava_token: None, // Tokens are loaded separately
+                    fitbit_token: None, // Tokens are loaded separately
+                    created_at: row.get("created_at"),
+                    last_active: row.get("last_active"),
+                    is_active: row.get("is_active"),
+                }))
+            },
+        )
     }
 
     async fn get_user_by_email_required(&self, email: &str) -> Result<User> {
@@ -602,23 +260,24 @@ impl DatabaseProvider for PostgresDatabase {
         .fetch_optional(&self.pool)
         .await?;
 
-        if let Some(row) = row {
-            let encrypted = EncryptedToken {
-                access_token: row.get("strava_access_token"),
-                refresh_token: row.get("strava_refresh_token"),
-                expires_at: row.get("strava_expires_at"),
-                scope: row.get("strava_scope"),
-                nonce: row.get("strava_nonce"),
-            };
+        row.map_or_else(
+            || Ok(None),
+            |row| {
+                let encrypted = EncryptedToken {
+                    access_token: row.get("strava_access_token"),
+                    refresh_token: row.get("strava_refresh_token"),
+                    expires_at: row.get("strava_expires_at"),
+                    scope: row.get("strava_scope"),
+                    nonce: row.get("strava_nonce"),
+                };
 
-            let mut decrypted = self.decrypt_token(&encrypted)?;
-            decrypted.expires_at = row.get("strava_expires_at");
-            decrypted.scope = row.get("strava_scope");
+                let mut decrypted = self.decrypt_token(&encrypted)?;
+                decrypted.expires_at = row.get("strava_expires_at");
+                decrypted.scope = row.get("strava_scope");
 
-            Ok(Some(decrypted))
-        } else {
-            Ok(None)
-        }
+                Ok(Some(decrypted))
+            },
+        )
     }
 
     async fn update_fitbit_token(
@@ -758,11 +417,7 @@ impl DatabaseProvider for PostgresDatabase {
         .fetch_optional(&self.pool)
         .await?;
 
-        if let Some(row) = row {
-            Ok(Some(row.get("profile_data")))
-        } else {
-            Ok(None)
-        }
+        row.map_or_else(|| Ok(None), |row| Ok(Some(row.get("profile_data"))))
     }
 
     async fn create_goal(&self, user_id: Uuid, goal_data: Value) -> Result<String> {
@@ -801,16 +456,19 @@ impl DatabaseProvider for PostgresDatabase {
 
     async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> Result<()> {
         // This would need to update the JSONB field - simplified implementation
+        // Use const to avoid clippy warning about format-like strings
+        const JSON_PATH: &str = "{current_value}";
         sqlx::query(
             r"
             UPDATE goals
-            SET goal_data = jsonb_set(goal_data, '{current_value}', $1::text::jsonb),
+            SET goal_data = jsonb_set(goal_data, $3::text, $1::text::jsonb),
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $2
             ",
         )
         .bind(current_value)
         .bind(goal_id)
+        .bind(JSON_PATH)
         .execute(&self.pool)
         .await?;
 
@@ -919,7 +577,7 @@ impl DatabaseProvider for PostgresDatabase {
             )
             .bind(user_id)
             .bind(insight_type)
-            .bind(limit as i64)
+            .bind(i64::from(limit))
             .fetch_all(&self.pool)
             .await?
         } else {
@@ -933,7 +591,7 @@ impl DatabaseProvider for PostgresDatabase {
                 ",
             )
             .bind(user_id)
-            .bind(limit as i64)
+            .bind(i64::from(limit))
             .fetch_all(&self.pool)
             .await?
         };
@@ -956,8 +614,8 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(&api_key.description)
         .bind(format!("{:?}", api_key.tier).to_lowercase())
         .bind(api_key.is_active)
-        .bind(api_key.rate_limit_requests as i32)
-        .bind(api_key.rate_limit_window_seconds as i32)
+        .bind(i32::try_from(api_key.rate_limit_requests).unwrap_or(i32::MAX))
+        .bind(i32::try_from(api_key.rate_limit_window_seconds).unwrap_or(i32::MAX))
         .bind(api_key.expires_at)
         .execute(&self.pool)
         .await?;
@@ -974,36 +632,42 @@ impl DatabaseProvider for PostgresDatabase {
             WHERE id LIKE $1 AND key_hash = $2 AND is_active = true
             ",
         )
-        .bind(format!("{}%", prefix))
+        .bind(format!("{prefix}%"))
         .bind(hash)
         .fetch_optional(&self.pool)
         .await?;
 
-        if let Some(row) = row {
-            Ok(Some(ApiKey {
-                id: row.get("id"),
-                user_id: row.get("user_id"),
-                name: row.get("name"),
-                key_prefix: row.get("key_prefix"),
-                key_hash: row.get("key_hash"),
-                description: row.get("description"),
-                tier: match row.get::<String, _>("tier").to_lowercase().as_str() {
-                    "trial" => crate::api_keys::ApiKeyTier::Trial,
-                    "starter" => crate::api_keys::ApiKeyTier::Starter,
-                    "professional" => crate::api_keys::ApiKeyTier::Professional,
-                    "enterprise" => crate::api_keys::ApiKeyTier::Enterprise,
-                    _ => crate::api_keys::ApiKeyTier::Trial,
-                },
-                is_active: row.get("is_active"),
-                rate_limit_requests: row.get::<i32, _>("rate_limit_requests") as u32,
-                rate_limit_window_seconds: row.get::<i32, _>("rate_limit_window_seconds") as u32,
-                created_at: row.get("created_at"),
-                expires_at: row.get("expires_at"),
-                last_used_at: row.get("last_used_at"),
-            }))
-        } else {
-            Ok(None)
-        }
+        row.map_or_else(
+            || Ok(None),
+            |row| {
+                Ok(Some(ApiKey {
+                    id: row.get("id"),
+                    user_id: row.get("user_id"),
+                    name: row.get("name"),
+                    key_prefix: row.get("key_prefix"),
+                    key_hash: row.get("key_hash"),
+                    description: row.get("description"),
+                    tier: match row.get::<String, _>("tier").to_lowercase().as_str() {
+                        "trial" | "starter" => crate::api_keys::ApiKeyTier::Starter,
+                        "professional" => crate::api_keys::ApiKeyTier::Professional,
+                        "enterprise" => crate::api_keys::ApiKeyTier::Enterprise,
+                        _ => crate::api_keys::ApiKeyTier::Trial,
+                    },
+                    is_active: row.get("is_active"),
+                    rate_limit_requests: u32::try_from(
+                        row.get::<i32, _>("rate_limit_requests").max(0),
+                    )
+                    .unwrap_or(0),
+                    rate_limit_window_seconds: u32::try_from(
+                        row.get::<i32, _>("rate_limit_window_seconds").max(0),
+                    )
+                    .unwrap_or(0),
+                    created_at: row.get("created_at"),
+                    expires_at: row.get("expires_at"),
+                    last_used_at: row.get("last_used_at"),
+                }))
+            },
+        )
     }
 
     // Remaining database methods follow the same PostgreSQL implementation pattern
@@ -1032,15 +696,18 @@ impl DatabaseProvider for PostgresDatabase {
                 key_hash: row.get("key_hash"),
                 description: row.get("description"),
                 tier: match row.get::<String, _>("tier").to_lowercase().as_str() {
-                    "trial" => crate::api_keys::ApiKeyTier::Trial,
-                    "starter" => crate::api_keys::ApiKeyTier::Starter,
+                    "trial" | "starter" => crate::api_keys::ApiKeyTier::Starter,
                     "professional" => crate::api_keys::ApiKeyTier::Professional,
                     "enterprise" => crate::api_keys::ApiKeyTier::Enterprise,
                     _ => crate::api_keys::ApiKeyTier::Trial,
                 },
                 is_active: row.get("is_active"),
-                rate_limit_requests: row.get::<i32, _>("rate_limit_requests") as u32,
-                rate_limit_window_seconds: row.get::<i32, _>("rate_limit_window_seconds") as u32,
+                rate_limit_requests: u32::try_from(row.get::<i32, _>("rate_limit_requests").max(0))
+                    .unwrap_or(0),
+                rate_limit_window_seconds: u32::try_from(
+                    row.get::<i32, _>("rate_limit_window_seconds").max(0),
+                )
+                .unwrap_or(0),
                 created_at: row.get("created_at"),
                 expires_at: row.get("expires_at"),
                 last_used_at: row.get("last_used_at"),
@@ -1093,16 +760,16 @@ impl DatabaseProvider for PostgresDatabase {
         .fetch_optional(&self.pool)
         .await?;
 
-        match row {
-            Some(row) => {
+        row.map_or_else(
+            || Ok(None),
+            |row| {
                 use sqlx::Row;
                 let tier_str: String = row.get("tier");
                 let tier = match tier_str.as_str() {
-                    "trial" => crate::api_keys::ApiKeyTier::Trial,
                     "starter" => crate::api_keys::ApiKeyTier::Starter,
                     "professional" => crate::api_keys::ApiKeyTier::Professional,
                     "enterprise" => crate::api_keys::ApiKeyTier::Enterprise,
-                    _ => crate::api_keys::ApiKeyTier::Starter,
+                    _ => crate::api_keys::ApiKeyTier::Trial, // Default to trial for unknown values (including "trial")
                 };
 
                 Ok(Some(ApiKey {
@@ -1113,17 +780,21 @@ impl DatabaseProvider for PostgresDatabase {
                     description: row.get("description"),
                     key_hash: row.get("key_hash"),
                     tier,
-                    rate_limit_requests: row.get::<i32, _>("rate_limit_requests") as u32,
-                    rate_limit_window_seconds: row.get::<i32, _>("rate_limit_window_seconds")
-                        as u32,
+                    rate_limit_requests: u32::try_from(
+                        row.get::<i32, _>("rate_limit_requests").max(0),
+                    )
+                    .unwrap_or(0),
+                    rate_limit_window_seconds: u32::try_from(
+                        row.get::<i32, _>("rate_limit_window_seconds").max(0),
+                    )
+                    .unwrap_or(0),
                     is_active: row.get("is_active"),
                     created_at: row.get("created_at"),
                     last_used_at: row.get("last_used_at"),
                     expires_at: row.get("expires_at"),
                 }))
-            }
-            None => Ok(None),
-        }
+            },
+        )
     }
 
     async fn get_api_keys_filtered(
@@ -1141,7 +812,7 @@ impl DatabaseProvider for PostgresDatabase {
         if user_email.is_some() {
             query.push_str(" JOIN users u ON ak.user_id = u.id");
             param_count += 1;
-            conditions.push(format!("u.email = ${}", param_count));
+            conditions.push(format!("u.email = ${param_count}"));
         }
 
         if active_only {
@@ -1157,10 +828,12 @@ impl DatabaseProvider for PostgresDatabase {
 
         if let Some(_limit) = limit {
             param_count += 1;
-            query.push_str(&format!(" LIMIT ${}", param_count));
+            write!(&mut query, " LIMIT ${param_count}")
+                .expect("Writing to string should never fail");
             if let Some(_offset) = offset {
                 param_count += 1;
-                query.push_str(&format!(" OFFSET ${}", param_count));
+                write!(&mut query, " OFFSET ${param_count}")
+                    .expect("Writing to string should never fail");
             }
         }
 
@@ -1183,11 +856,10 @@ impl DatabaseProvider for PostgresDatabase {
         for row in rows {
             let tier_str: String = row.get("tier");
             let tier = match tier_str.as_str() {
-                "trial" => crate::api_keys::ApiKeyTier::Trial,
                 "starter" => crate::api_keys::ApiKeyTier::Starter,
                 "professional" => crate::api_keys::ApiKeyTier::Professional,
                 "enterprise" => crate::api_keys::ApiKeyTier::Enterprise,
-                _ => crate::api_keys::ApiKeyTier::Starter,
+                _ => crate::api_keys::ApiKeyTier::Trial, // Default to trial for unknown values (including "trial")
             };
 
             api_keys.push(ApiKey {
@@ -1198,8 +870,12 @@ impl DatabaseProvider for PostgresDatabase {
                 description: row.get("description"),
                 key_hash: row.get("key_hash"),
                 tier,
-                rate_limit_requests: row.get::<i32, _>("rate_limit_requests") as u32,
-                rate_limit_window_seconds: row.get::<i32, _>("rate_limit_window_seconds") as u32,
+                rate_limit_requests: u32::try_from(row.get::<i32, _>("rate_limit_requests").max(0))
+                    .unwrap_or(0),
+                rate_limit_window_seconds: u32::try_from(
+                    row.get::<i32, _>("rate_limit_window_seconds").max(0),
+                )
+                .unwrap_or(0),
                 is_active: row.get("is_active"),
                 created_at: row.get("created_at"),
                 last_used_at: row.get("last_used_at"),
@@ -1247,15 +923,18 @@ impl DatabaseProvider for PostgresDatabase {
                 key_hash: row.get("key_hash"),
                 description: row.get("description"),
                 tier: match row.get::<String, _>("tier").to_lowercase().as_str() {
-                    "trial" => crate::api_keys::ApiKeyTier::Trial,
-                    "starter" => crate::api_keys::ApiKeyTier::Starter,
+                    "trial" | "starter" => crate::api_keys::ApiKeyTier::Starter,
                     "professional" => crate::api_keys::ApiKeyTier::Professional,
                     "enterprise" => crate::api_keys::ApiKeyTier::Enterprise,
                     _ => crate::api_keys::ApiKeyTier::Trial,
                 },
                 is_active: row.get("is_active"),
-                rate_limit_requests: row.get::<i32, _>("rate_limit_requests") as u32,
-                rate_limit_window_seconds: row.get::<i32, _>("rate_limit_window_seconds") as u32,
+                rate_limit_requests: u32::try_from(row.get::<i32, _>("rate_limit_requests").max(0))
+                    .unwrap_or(0),
+                rate_limit_window_seconds: u32::try_from(
+                    row.get::<i32, _>("rate_limit_window_seconds").max(0),
+                )
+                .unwrap_or(0),
                 created_at: row.get("created_at"),
                 expires_at: row.get("expires_at"),
                 last_used_at: row.get("last_used_at"),
@@ -1274,11 +953,11 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(&usage.api_key_id)
         .bind(usage.timestamp)
         .bind(&usage.tool_name)
-        .bind(usage.response_time_ms.map(|x| x as i32))
-        .bind(usage.status_code as i16)
+        .bind(usage.response_time_ms.map(|x| i32::try_from(x).unwrap_or(i32::MAX)))
+        .bind(i16::try_from(usage.status_code).unwrap_or(i16::MAX))
         .bind(None::<String>)
-        .bind(usage.request_size_bytes.map(|x| x as i32))
-        .bind(usage.response_size_bytes.map(|x| x as i32))
+        .bind(usage.request_size_bytes.map(|x| i32::try_from(x).unwrap_or(i32::MAX)))
+        .bind(usage.response_size_bytes.map(|x| i32::try_from(x).unwrap_or(i32::MAX)))
         .bind(&usage.ip_address)
         .bind(&usage.user_agent)
         .execute(&self.pool)
@@ -1299,7 +978,7 @@ impl DatabaseProvider for PostgresDatabase {
         .fetch_one(&self.pool)
         .await?;
 
-        Ok(row.get::<i64, _>("count") as u32)
+        Ok(u32::try_from(row.get::<i64, _>("count").max(0)).unwrap_or(0))
     }
 
     async fn get_api_key_usage_stats(
@@ -1359,7 +1038,9 @@ impl DatabaseProvider for PostgresDatabase {
                     "count": tool_count,
                     "success_count": success_count,
                     "avg_response_time_ms": avg_response_time.unwrap_or(0.0),
-                    "success_rate": if tool_count > 0 { success_count as f64 / tool_count as f64 } else { 0.0 }
+                    "success_rate": if tool_count > 0 { 
+                        f64::from(u32::try_from(success_count).unwrap_or(0)) / f64::from(u32::try_from(tool_count).unwrap_or(1))
+                    } else { 0.0 }
                 }),
             );
         }
@@ -1368,12 +1049,14 @@ impl DatabaseProvider for PostgresDatabase {
             api_key_id: api_key_id.to_string(),
             period_start: start_date,
             period_end: end_date,
-            total_requests: row.get::<i64, _>("total_requests") as u32,
-            successful_requests: row.get::<i64, _>("successful_requests") as u32,
-            failed_requests: row.get::<i64, _>("failed_requests") as u32,
+            total_requests: u32::try_from(row.get::<i64, _>("total_requests").max(0)).unwrap_or(0),
+            successful_requests: u32::try_from(row.get::<i64, _>("successful_requests").max(0))
+                .unwrap_or(0),
+            failed_requests: u32::try_from(row.get::<i64, _>("failed_requests").max(0))
+                .unwrap_or(0),
             total_response_time_ms: row
                 .get::<Option<i64>, _>("total_response_time")
-                .unwrap_or(0) as u64,
+                .map_or(0u64, |v| u64::try_from(v.max(0)).unwrap_or(0)),
             tool_usage: serde_json::Value::Object(tool_usage),
         })
     }
@@ -1391,11 +1074,23 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(usage.user_id)
         .bind(usage.timestamp)
         .bind(&usage.endpoint)
-        .bind(usage.response_time_ms.map(|t| t as i32))
-        .bind(usage.status_code as i32)
+        .bind(
+            usage
+                .response_time_ms
+                .map(|t| i32::try_from(t).unwrap_or(i32::MAX)),
+        )
+        .bind(i32::from(usage.status_code))
         .bind(&usage.method)
-        .bind(usage.request_size_bytes.map(|s| s as i32))
-        .bind(usage.response_size_bytes.map(|s| s as i32))
+        .bind(
+            usage
+                .request_size_bytes
+                .map(|s| i32::try_from(s).unwrap_or(i32::MAX)),
+        )
+        .bind(
+            usage
+                .response_size_bytes
+                .map(|s| i32::try_from(s).unwrap_or(i32::MAX)),
+        )
         .bind(&usage.ip_address)
         .bind(&usage.user_agent)
         .execute(&self.pool)
@@ -1416,7 +1111,7 @@ impl DatabaseProvider for PostgresDatabase {
         .fetch_one(&self.pool)
         .await?;
 
-        Ok(row.get::<i64, _>("count") as u32)
+        Ok(u32::try_from(row.get::<i64, _>("count").max(0)).unwrap_or(0))
     }
 
     async fn get_request_logs(
@@ -1449,27 +1144,27 @@ impl DatabaseProvider for PostgresDatabase {
         let mut param_count = 0;
         if api_key_id.is_some() {
             param_count += 1;
-            let condition = format!(" AND api_key_id = ${}", param_count);
+            let condition = format!(" AND api_key_id = ${param_count}");
             condition_strings.push(condition);
         }
         if start_time.is_some() {
             param_count += 1;
-            let condition = format!(" AND timestamp >= ${}", param_count);
+            let condition = format!(" AND timestamp >= ${param_count}");
             condition_strings.push(condition);
         }
         if end_time.is_some() {
             param_count += 1;
-            let condition = format!(" AND timestamp <= ${}", param_count);
+            let condition = format!(" AND timestamp <= ${param_count}");
             condition_strings.push(condition);
         }
         if status_filter.is_some() {
             param_count += 1;
-            let condition = format!(" AND status_code::text LIKE ${}", param_count);
+            let condition = format!(" AND status_code::text LIKE ${param_count}");
             condition_strings.push(condition);
         }
         if tool_filter.is_some() {
             param_count += 1;
-            let condition = format!(" AND endpoint ILIKE ${}", param_count);
+            let condition = format!(" AND endpoint ILIKE ${param_count}");
             condition_strings.push(condition);
         }
 
@@ -1493,10 +1188,10 @@ impl DatabaseProvider for PostgresDatabase {
             query_builder = query_builder.bind(end);
         }
         if let Some(status) = status_filter {
-            query_builder = query_builder.bind(format!("{}%", status));
+            query_builder = query_builder.bind(format!("{status}%"));
         }
         if let Some(tool) = tool_filter {
-            query_builder = query_builder.bind(format!("%{}%", tool));
+            query_builder = query_builder.bind(format!("%{tool}%"));
         }
 
         let results = query_builder.fetch_all(&self.pool).await?;
@@ -1513,8 +1208,9 @@ impl DatabaseProvider for PostgresDatabase {
                 .fetch_one(&self.pool)
                 .await?;
 
-        let user_count = user_count_row.get::<i64, _>("count") as u64;
-        let api_key_count = api_key_count_row.get::<i64, _>("count") as u64;
+        let user_count = u64::try_from(user_count_row.get::<i64, _>("count").max(0)).unwrap_or(0);
+        let api_key_count =
+            u64::try_from(api_key_count_row.get::<i64, _>("count").max(0)).unwrap_or(0);
 
         Ok((user_count, api_key_count))
     }
@@ -1565,24 +1261,28 @@ impl DatabaseProvider for PostgresDatabase {
         .fetch_optional(&self.pool)
         .await?;
 
-        if let Some(row) = row {
-            Ok(Some(A2AClient {
-                id: row.get("client_id"),
-                name: row.get("name"),
-                description: row.get("description"),
-                public_key: row.get("client_secret_hash"), // Map client_secret_hash to public_key
-                capabilities: row.get("capabilities"),
-                redirect_uris: row.get("redirect_uris"),
-                is_active: row.get("is_active"),
-                created_at: row.get("created_at"),
-                permissions: vec!["read_activities".into()], // Default permission
-                rate_limit_requests: row.get::<i32, _>("rate_limit_per_minute") as u32,
-                rate_limit_window_seconds: 60, // 1 minute in seconds
-                updated_at: row.get("updated_at"),
-            }))
-        } else {
-            Ok(None)
-        }
+        row.map_or_else(
+            || Ok(None),
+            |row| {
+                Ok(Some(A2AClient {
+                    id: row.get("client_id"),
+                    name: row.get("name"),
+                    description: row.get("description"),
+                    public_key: row.get("client_secret_hash"), // Map client_secret_hash to public_key
+                    capabilities: row.get("capabilities"),
+                    redirect_uris: row.get("redirect_uris"),
+                    is_active: row.get("is_active"),
+                    created_at: row.get("created_at"),
+                    permissions: vec!["read_activities".into()], // Default permission
+                    rate_limit_requests: u32::try_from(
+                        row.get::<i32, _>("rate_limit_per_minute").max(0),
+                    )
+                    .unwrap_or(0),
+                    rate_limit_window_seconds: 60, // 1 minute in seconds
+                    updated_at: row.get("updated_at"),
+                }))
+            },
+        )
     }
 
     async fn get_a2a_client_by_name(&self, name: &str) -> Result<Option<A2AClient>> {
@@ -1599,24 +1299,28 @@ impl DatabaseProvider for PostgresDatabase {
         .fetch_optional(&self.pool)
         .await?;
 
-        if let Some(row) = row {
-            Ok(Some(A2AClient {
-                id: row.get("client_id"),
-                name: row.get("name"),
-                description: row.get("description"),
-                public_key: row.get("client_secret_hash"), // Map client_secret_hash to public_key
-                capabilities: row.get("capabilities"),
-                redirect_uris: row.get("redirect_uris"),
-                is_active: row.get("is_active"),
-                created_at: row.get("created_at"),
-                permissions: vec!["read_activities".into()], // Default permission
-                rate_limit_requests: row.get::<i32, _>("rate_limit_per_minute") as u32,
-                rate_limit_window_seconds: 60, // 1 minute in seconds
-                updated_at: row.get("updated_at"),
-            }))
-        } else {
-            Ok(None)
-        }
+        row.map_or_else(
+            || Ok(None),
+            |row| {
+                Ok(Some(A2AClient {
+                    id: row.get("client_id"),
+                    name: row.get("name"),
+                    description: row.get("description"),
+                    public_key: row.get("client_secret_hash"), // Map client_secret_hash to public_key
+                    capabilities: row.get("capabilities"),
+                    redirect_uris: row.get("redirect_uris"),
+                    is_active: row.get("is_active"),
+                    created_at: row.get("created_at"),
+                    permissions: vec!["read_activities".into()], // Default permission
+                    rate_limit_requests: u32::try_from(
+                        row.get::<i32, _>("rate_limit_per_minute").max(0),
+                    )
+                    .unwrap_or(0),
+                    rate_limit_window_seconds: 60, // 1 minute in seconds
+                    updated_at: row.get("updated_at"),
+                }))
+            },
+        )
     }
 
     async fn list_a2a_clients(&self, user_id: &Uuid) -> Result<Vec<A2AClient>> {
@@ -1646,7 +1350,10 @@ impl DatabaseProvider for PostgresDatabase {
                 is_active: row.get("is_active"),
                 created_at: row.get("created_at"),
                 permissions: vec!["read_activities".into()], // Default permission
-                rate_limit_requests: row.get::<i32, _>("rate_limit_per_minute") as u32,
+                rate_limit_requests: u32::try_from(
+                    row.get::<i32, _>("rate_limit_per_minute").max(0),
+                )
+                .unwrap_or(0),
                 rate_limit_window_seconds: 60, // 1 minute in seconds
                 updated_at: row.get("updated_at"),
             });
@@ -1682,13 +1389,14 @@ impl DatabaseProvider for PostgresDatabase {
             .fetch_optional(&self.pool)
             .await?;
 
-        if let Some(row) = row {
-            let id: String = row.get("client_id");
-            let secret: String = row.get("client_secret_hash");
-            Ok(Some((id, secret)))
-        } else {
-            Ok(None)
-        }
+        row.map_or_else(
+            || Ok(None),
+            |row| {
+                let id: String = row.get("client_id");
+                let secret: String = row.get("client_secret_hash");
+                Ok(Some((id, secret)))
+            },
+        )
     }
 
     async fn invalidate_a2a_client_sessions(&self, client_id: &str) -> Result<()> {
@@ -1811,7 +1519,7 @@ impl DatabaseProvider for PostgresDatabase {
             let granted_scopes_str: String = row.get("granted_scopes");
             let granted_scopes = granted_scopes_str
                 .split(',')
-                .map(|s| s.to_string())
+                .map(std::string::ToString::to_string)
                 .collect();
 
             sessions.push(A2ASession {
@@ -1822,7 +1530,8 @@ impl DatabaseProvider for PostgresDatabase {
                 created_at: row.get("created_at"),
                 expires_at: row.get("expires_at"),
                 last_activity: row.get("last_activity"),
-                requests_count: row.get::<i32, _>("requests_count") as u64,
+                requests_count: u64::try_from(row.get::<i32, _>("requests_count").max(0))
+                    .unwrap_or(0),
             });
         }
 
@@ -1838,7 +1547,8 @@ impl DatabaseProvider for PostgresDatabase {
     ) -> Result<String> {
         use uuid::Uuid;
 
-        let task_id = format!("task_{}", Uuid::new_v4().simple());
+        let uuid = Uuid::new_v4().simple();
+        let task_id = format!("task_{uuid}");
         let input_json = serde_json::to_string(input_data)?;
 
         sqlx::query(
@@ -1886,21 +1596,19 @@ impl DatabaseProvider for PostgresDatabase {
                 );
             }
 
-            let result_data =
-                if let Ok(result_str) = row.try_get::<Option<String>, _>("result_data") {
+            let result_data = row
+                .try_get::<Option<String>, _>("result_data")
+                .map_or(None, |result_str| {
                     result_str.and_then(|s| serde_json::from_str(&s).ok())
-                } else {
-                    None
-                };
+                });
 
             let status_str: String = row.try_get("status")?;
             let status = match status_str.as_str() {
-                "pending" => TaskStatus::Pending,
                 "running" => TaskStatus::Running,
                 "completed" => TaskStatus::Completed,
                 "failed" => TaskStatus::Failed,
                 "cancelled" => TaskStatus::Cancelled,
-                _ => TaskStatus::Pending,
+                _ => TaskStatus::Pending, // Default for unknown values (including "pending")
             };
 
             Ok(Some(A2ATask {
@@ -1971,10 +1679,22 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(&usage.client_id)
         .bind(&usage.session_token)
         .bind(&usage.tool_name)
-        .bind(usage.status_code as i32)
-        .bind(usage.response_time_ms.map(|x| x as i32))
-        .bind(usage.request_size_bytes.map(|x| x as i32))
-        .bind(usage.response_size_bytes.map(|x| x as i32))
+        .bind(i32::from(usage.status_code))
+        .bind(
+            usage
+                .response_time_ms
+                .map(|x| i32::try_from(x).unwrap_or(i32::MAX)),
+        )
+        .bind(
+            usage
+                .request_size_bytes
+                .map(|x| i32::try_from(x).unwrap_or(i32::MAX)),
+        )
+        .bind(
+            usage
+                .response_size_bytes
+                .map(|x| i32::try_from(x).unwrap_or(i32::MAX)),
+        )
         .bind(usage.timestamp)
         .bind(None::<String>)
         .bind(&usage.ip_address)
@@ -1999,7 +1719,7 @@ impl DatabaseProvider for PostgresDatabase {
         .await?;
 
         let count: i64 = row.try_get("usage_count")?;
-        Ok(count as u32)
+        Ok(u32::try_from(count.max(0)).unwrap_or(0))
     }
 
     async fn get_a2a_usage_stats(
@@ -2049,12 +1769,22 @@ impl DatabaseProvider for PostgresDatabase {
             client_id: client_id.to_string(),
             period_start: start_date,
             period_end: end_date,
-            total_requests: total_requests as u32,
-            successful_requests: successful_requests as u32,
-            failed_requests: failed_requests as u32,
-            avg_response_time_ms: avg_response_time.map(|t| t as u32),
-            total_request_bytes: total_request_bytes.map(|b| b as u64),
-            total_response_bytes: total_response_bytes.map(|b| b as u64),
+            total_requests: u32::try_from(total_requests.max(0)).unwrap_or(0),
+            successful_requests: u32::try_from(successful_requests.max(0)).unwrap_or(0),
+            failed_requests: u32::try_from(failed_requests.max(0)).unwrap_or(0),
+            avg_response_time_ms: avg_response_time.map(|t| {
+                if t >= 0.0 && t <= f64::from(u32::MAX) {
+                    let rounded = t.round();
+                    u32::try_from(rounded as u64).unwrap_or(0)
+                } else if t > f64::from(u32::MAX) {
+                    u32::MAX
+                } else {
+                    0
+                }
+            }),
+            total_request_bytes: total_request_bytes.map(|b| u64::try_from(b.max(0)).unwrap_or(0)),
+            total_response_bytes: total_response_bytes
+                .map(|b| u64::try_from(b.max(0)).unwrap_or(0)),
         })
     }
 
@@ -2077,7 +1807,7 @@ impl DatabaseProvider for PostgresDatabase {
             ",
         )
         .bind(client_id)
-        .bind(days as i32)
+        .bind(i32::try_from(days).unwrap_or(i32::MAX))
         .fetch_all(&self.pool)
         .await?;
 
@@ -2088,7 +1818,11 @@ impl DatabaseProvider for PostgresDatabase {
             let success_count: i64 = row.try_get("success_count")?;
             let error_count: i64 = row.try_get("error_count")?;
 
-            result.push((day, success_count as u32, error_count as u32));
+            result.push((
+                day,
+                u32::try_from(success_count.max(0)).unwrap_or(0),
+                u32::try_from(error_count.max(0)).unwrap_or(0),
+            ));
         }
 
         Ok(result)
@@ -2132,7 +1866,8 @@ impl DatabaseProvider for PostgresDatabase {
 
             // Log error rate for monitoring
             if error_count > 0 {
-                let error_rate = (error_count as f64) / (usage_count as f64);
+                let error_rate = f64::from(u32::try_from(error_count.max(0)).unwrap_or(0))
+                    / f64::from(u32::try_from(usage_count.max(1)).unwrap_or(1));
                 if error_rate > 0.1 {
                     tracing::warn!(
                         "High error rate for endpoint {}: {:.2}% ({} errors out of {} requests)",
@@ -2146,9 +1881,10 @@ impl DatabaseProvider for PostgresDatabase {
 
             tool_usage.push(crate::dashboard_routes::ToolUsage {
                 tool_name: endpoint,
-                request_count: usage_count as u64,
+                request_count: u64::try_from(usage_count.max(0)).unwrap_or(0),
                 success_rate: if usage_count > 0 {
-                    (success_count as f64) / (usage_count as f64)
+                    f64::from(u32::try_from(success_count.max(0)).unwrap_or(0))
+                        / f64::from(u32::try_from(usage_count.max(1)).unwrap_or(1))
                 } else {
                     0.0
                 },
@@ -2174,28 +1910,29 @@ impl DatabaseProvider for PostgresDatabase {
         use uuid::Uuid;
 
         // Generate unique token ID
-        let token_id = format!("admin_{}", Uuid::new_v4().simple());
+        let uuid = Uuid::new_v4().simple();
+        let token_id = format!("admin_{uuid}");
 
         // Generate JWT secret and manager
         let jwt_secret = AdminJwtManager::generate_jwt_secret();
         let jwt_manager = AdminJwtManager::with_secret(&jwt_secret);
 
         // Get permissions
-        let permissions = match &request.permissions {
-            Some(perms) => AdminPermissions::new(perms.clone()),
-            None => {
+        let permissions = request.permissions.as_ref().map_or_else(
+            || {
                 if request.is_super_admin {
                     AdminPermissions::super_admin()
                 } else {
                     AdminPermissions::default_admin()
                 }
-            }
-        };
+            },
+            |perms| AdminPermissions::new(perms.clone()),
+        );
 
         // Calculate expiration
-        let expires_at = request
-            .expires_in_days
-            .map(|days| chrono::Utc::now() + chrono::Duration::days(days as i64));
+        let expires_at = request.expires_in_days.map(|days| {
+            chrono::Utc::now() + chrono::Duration::days(i64::try_from(days).unwrap_or(365))
+        });
 
         // Generate JWT token
         let jwt_token = jwt_manager.generate_token(
@@ -2268,7 +2005,7 @@ impl DatabaseProvider for PostgresDatabase {
             .await?;
 
         if let Some(row) = row {
-            Ok(Some(self.row_to_admin_token(row)?))
+            Ok(Some(Self::row_to_admin_token(&row)?))
         } else {
             Ok(None)
         }
@@ -2291,7 +2028,7 @@ impl DatabaseProvider for PostgresDatabase {
             .await?;
 
         if let Some(row) = row {
-            Ok(Some(self.row_to_admin_token(row)?))
+            Ok(Some(Self::row_to_admin_token(&row)?))
         } else {
             Ok(None)
         }
@@ -2321,7 +2058,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         let mut tokens = Vec::new();
         for row in rows {
-            tokens.push(self.row_to_admin_token(row)?);
+            tokens.push(Self::row_to_admin_token(&row)?);
         }
 
         Ok(tokens)
@@ -2377,10 +2114,18 @@ impl DatabaseProvider for PostgresDatabase {
             .bind(&usage.target_resource)
             .bind(&usage.ip_address)
             .bind(&usage.user_agent)
-            .bind(usage.request_size_bytes.map(|x| x as i32))
+            .bind(
+                usage
+                    .request_size_bytes
+                    .map(|x| i32::try_from(x).unwrap_or(i32::MAX)),
+            )
             .bind(usage.success)
             .bind(None::<String>)
-            .bind(usage.response_time_ms.map(|x| x as i32))
+            .bind(
+                usage
+                    .response_time_ms
+                    .map(|x| i32::try_from(x).unwrap_or(i32::MAX)),
+            )
             .execute(&self.pool)
             .await?;
 
@@ -2411,7 +2156,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         let mut usage_history = Vec::new();
         for row in rows {
-            usage_history.push(self.row_to_admin_token_usage(row)?);
+            usage_history.push(Self::row_to_admin_token_usage(&row)?);
         }
 
         Ok(usage_history)
@@ -2448,7 +2193,7 @@ impl DatabaseProvider for PostgresDatabase {
             .bind(tier)
             .bind(chrono::Utc::now())
             .bind(service_name)
-            .bind(rate_limit_requests as i32)
+            .bind(i32::try_from(rate_limit_requests).unwrap_or(i32::MAX))
             .bind(rate_limit_period)
             .bind("active")
             .execute(&self.pool)
@@ -2540,11 +2285,8 @@ impl DatabaseProvider for PostgresDatabase {
 }
 
 impl PostgresDatabase {
-    /// Convert database row to AdminToken
-    fn row_to_admin_token(
-        &self,
-        row: sqlx::postgres::PgRow,
-    ) -> Result<crate::admin::models::AdminToken> {
+    /// Convert database row to `AdminToken`
+    fn row_to_admin_token(row: &sqlx::postgres::PgRow) -> Result<crate::admin::models::AdminToken> {
         use crate::admin::models::{AdminPermissions, AdminToken};
         use sqlx::Row;
 
@@ -2565,14 +2307,13 @@ impl PostgresDatabase {
             expires_at: row.try_get("expires_at")?,
             last_used_at: row.try_get("last_used_at")?,
             last_used_ip: row.try_get("last_used_ip")?,
-            usage_count: row.try_get::<i64, _>("usage_count")? as u64,
+            usage_count: u64::try_from(row.try_get::<i64, _>("usage_count")?.max(0)).unwrap_or(0),
         })
     }
 
-    /// Convert database row to AdminTokenUsage
+    /// Convert database row to `AdminTokenUsage`
     fn row_to_admin_token_usage(
-        &self,
-        row: sqlx::postgres::PgRow,
+        row: &sqlx::postgres::PgRow,
     ) -> Result<crate::admin::models::AdminTokenUsage> {
         use crate::admin::models::{AdminAction, AdminTokenUsage};
         use sqlx::Row;
@@ -2592,12 +2333,390 @@ impl PostgresDatabase {
             user_agent: row.try_get("user_agent")?,
             request_size_bytes: row
                 .try_get::<Option<i32>, _>("request_size_bytes")?
-                .map(|v| v as u32),
+                .map(|v| u32::try_from(v.max(0)).unwrap_or(0)),
             success: row.try_get("success")?,
             error_message: None, // Add the missing field
             response_time_ms: row
                 .try_get::<Option<i32>, _>("response_time_ms")?
-                .map(|v| v as u32),
+                .map(|v| u32::try_from(v.max(0)).unwrap_or(0)),
         })
+    }
+
+    async fn create_users_table(&self) -> Result<()> {
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS users (
+                id UUID PRIMARY KEY,
+                email TEXT UNIQUE NOT NULL,
+                display_name TEXT,
+                password_hash TEXT NOT NULL,
+                tier TEXT NOT NULL DEFAULT 'starter' CHECK (tier IN ('starter', 'professional', 'enterprise')),
+                strava_access_token TEXT,
+                strava_refresh_token TEXT,
+                strava_expires_at TIMESTAMPTZ,
+                strava_scope TEXT,
+                strava_nonce TEXT,
+                fitbit_access_token TEXT,
+                fitbit_refresh_token TEXT,
+                fitbit_expires_at TIMESTAMPTZ,
+                fitbit_scope TEXT,
+                fitbit_nonce TEXT,
+                is_active BOOLEAN NOT NULL DEFAULT true,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                last_active TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn create_user_profiles_table(&self) -> Result<()> {
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS user_profiles (
+                user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+                profile_data JSONB NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn create_goals_table(&self) -> Result<()> {
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS goals (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                goal_data JSONB NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn create_insights_table(&self) -> Result<()> {
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS insights (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                insight_type TEXT NOT NULL,
+                content JSONB NOT NULL,
+                metadata JSONB,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn create_api_keys_tables(&self) -> Result<()> {
+        // Create api_keys table
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS api_keys (
+                id TEXT PRIMARY KEY,
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                key_prefix TEXT NOT NULL,
+                key_hash TEXT NOT NULL,
+                description TEXT,
+                tier TEXT NOT NULL CHECK (tier IN ('trial', 'starter', 'professional', 'enterprise')),
+                is_active BOOLEAN NOT NULL DEFAULT true,
+                rate_limit_requests INTEGER NOT NULL,
+                rate_limit_window_seconds INTEGER NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMPTZ,
+                last_used_at TIMESTAMPTZ,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create api_key_usage table
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS api_key_usage (
+                id SERIAL PRIMARY KEY,
+                api_key_id TEXT NOT NULL REFERENCES api_keys(id) ON DELETE CASCADE,
+                timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                endpoint TEXT NOT NULL,
+                response_time_ms INTEGER,
+                status_code SMALLINT NOT NULL,
+                method TEXT,
+                request_size_bytes INTEGER,
+                response_size_bytes INTEGER,
+                ip_address INET,
+                user_agent TEXT
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn create_a2a_tables(&self) -> Result<()> {
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS a2a_clients (
+                client_id TEXT PRIMARY KEY,
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                description TEXT,
+                client_secret_hash TEXT NOT NULL,
+                api_key_hash TEXT NOT NULL,
+                capabilities TEXT[] NOT NULL DEFAULT '{}',
+                redirect_uris TEXT[] NOT NULL DEFAULT '{}',
+                contact_email TEXT,
+                is_active BOOLEAN NOT NULL DEFAULT true,
+                rate_limit_per_minute INTEGER NOT NULL DEFAULT 100,
+                rate_limit_per_day INTEGER DEFAULT 10000,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS a2a_sessions (
+                session_token TEXT PRIMARY KEY,
+                client_id TEXT NOT NULL REFERENCES a2a_clients(client_id) ON DELETE CASCADE,
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                granted_scopes TEXT[] NOT NULL DEFAULT '{}',
+                is_active BOOLEAN NOT NULL DEFAULT true,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMPTZ NOT NULL,
+                last_active_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS a2a_tasks (
+                task_id TEXT PRIMARY KEY,
+                session_token TEXT NOT NULL REFERENCES a2a_sessions(session_token) ON DELETE CASCADE,
+                task_type TEXT NOT NULL,
+                parameters JSONB NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                result JSONB,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS a2a_usage (
+                id SERIAL PRIMARY KEY,
+                client_id TEXT NOT NULL REFERENCES a2a_clients(client_id) ON DELETE CASCADE,
+                session_token TEXT REFERENCES a2a_sessions(session_token) ON DELETE SET NULL,
+                timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                endpoint TEXT NOT NULL,
+                response_time_ms INTEGER,
+                status_code SMALLINT NOT NULL,
+                method TEXT,
+                request_size_bytes INTEGER,
+                response_size_bytes INTEGER,
+                ip_address INET,
+                user_agent TEXT,
+                protocol_version TEXT NOT NULL DEFAULT 'v1',
+                client_capabilities TEXT[] DEFAULT '{}',
+                granted_scopes TEXT[] DEFAULT '{}'
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn create_admin_tables(&self) -> Result<()> {
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS admin_tokens (
+                id TEXT PRIMARY KEY,
+                service_name TEXT NOT NULL,
+                service_description TEXT,
+                token_hash TEXT NOT NULL,
+                token_prefix TEXT NOT NULL,
+                jwt_secret_hash TEXT NOT NULL,
+                permissions TEXT NOT NULL DEFAULT '[]',
+                is_super_admin BOOLEAN NOT NULL DEFAULT false,
+                is_active BOOLEAN NOT NULL DEFAULT true,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMPTZ,
+                last_used_at TIMESTAMPTZ,
+                last_used_ip INET,
+                usage_count BIGINT NOT NULL DEFAULT 0
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS admin_token_usage (
+                id SERIAL PRIMARY KEY,
+                admin_token_id TEXT NOT NULL REFERENCES admin_tokens(id) ON DELETE CASCADE,
+                timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                action TEXT NOT NULL,
+                target_resource TEXT,
+                ip_address INET,
+                user_agent TEXT,
+                request_size_bytes INTEGER,
+                success BOOLEAN NOT NULL,
+                method TEXT,
+                response_time_ms INTEGER
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS admin_provisioned_keys (
+                id SERIAL PRIMARY KEY,
+                admin_token_id TEXT NOT NULL REFERENCES admin_tokens(id) ON DELETE CASCADE,
+                api_key_id TEXT NOT NULL,
+                user_email TEXT NOT NULL,
+                requested_tier TEXT NOT NULL,
+                provisioned_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                provisioned_by_service TEXT NOT NULL,
+                rate_limit_requests INTEGER NOT NULL,
+                rate_limit_period TEXT NOT NULL,
+                key_status TEXT NOT NULL DEFAULT 'active',
+                revoked_at TIMESTAMPTZ,
+                revoked_reason TEXT
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn create_jwt_usage_table(&self) -> Result<()> {
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS jwt_usage (
+                id SERIAL PRIMARY KEY,
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                endpoint TEXT NOT NULL,
+                response_time_ms INTEGER,
+                status_code INTEGER NOT NULL,
+                method TEXT,
+                request_size_bytes INTEGER,
+                response_size_bytes INTEGER,
+                ip_address INET,
+                user_agent TEXT
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn create_indexes(&self) -> Result<()> {
+        // User and profile indexes
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
+            .execute(&self.pool)
+            .await?;
+
+        // API key indexes
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON api_keys(user_id)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_api_key_usage_api_key_id ON api_key_usage(api_key_id)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_api_key_usage_timestamp ON api_key_usage(timestamp)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // A2A indexes
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_a2a_clients_user_id ON a2a_clients(user_id)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_a2a_usage_client_id ON a2a_usage(client_id)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_a2a_usage_timestamp ON a2a_usage(timestamp)")
+            .execute(&self.pool)
+            .await?;
+
+        // Admin token indexes
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_admin_tokens_service ON admin_tokens(service_name)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_admin_tokens_prefix ON admin_tokens(token_prefix)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_admin_usage_token_id ON admin_token_usage(admin_token_id)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_admin_usage_timestamp ON admin_token_usage(timestamp)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_admin_provisioned_token ON admin_provisioned_keys(admin_token_id)")
+            .execute(&self.pool)
+            .await?;
+
+        // JWT usage indexes
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_jwt_usage_user_id ON jwt_usage(user_id)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_jwt_usage_timestamp ON jwt_usage(timestamp)")
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
     }
 }

@@ -834,7 +834,7 @@ mod tests {
 
         // Invalid request - empty name
         let invalid_request = ClientRegistrationRequest {
-            name: "".into(),
+            name: String::new(),
             description: "A test client".into(),
             capabilities: vec!["fitness-data-analysis".into()],
             redirect_uris: vec![],

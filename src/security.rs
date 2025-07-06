@@ -374,7 +374,7 @@ mod tests {
     #[test]
     fn test_config_cloning() {
         let config1 = SecurityConfig::default();
-        let config2 = config1.clone();
+        let config2 = &config1;
 
         assert_eq!(config1.csp, config2.csp);
         assert_eq!(config1.frame_options, config2.frame_options);
@@ -423,7 +423,7 @@ mod tests {
                 // HSTS is optional based on config
                 continue;
             }
-            assert!(headers.contains_key(*header), "Missing header: {}", header);
+            assert!(headers.contains_key(*header), "Missing header: {header}");
         }
     }
 }

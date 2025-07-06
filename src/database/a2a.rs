@@ -1030,9 +1030,9 @@ mod tests {
         let test_user_id = Uuid::new_v4();
         let user = crate::models::User {
             id: test_user_id,
-            email: format!("test_{}@example.com", unique_id),
-            display_name: Some(format!("Test User {}", unique_id)),
-            password_hash: format!("test_hash_{}", unique_id),
+            email: format!("test_{unique_id}@example.com"),
+            display_name: Some(format!("Test User {unique_id}")),
+            password_hash: format!("test_hash_{unique_id}"),
             tier: crate::models::UserTier::Professional,
             strava_token: None,
             fitbit_token: None,
@@ -1046,12 +1046,12 @@ mod tests {
 
         // Create a test API key for the user
         let api_key = crate::api_keys::ApiKey {
-            id: format!("test_api_key_{}", unique_id),
+            id: format!("test_api_key_{unique_id}"),
             user_id: test_user_id,
-            name: format!("Test API Key {}", unique_id),
+            name: format!("Test API Key {unique_id}"),
             description: Some("Test API key for A2A client".into()),
             key_prefix: format!("pk_test_{}", &unique_id.to_string()[0..8]),
-            key_hash: format!("test_key_hash_{}", unique_id),
+            key_hash: format!("test_key_hash_{unique_id}"),
             tier: crate::api_keys::ApiKeyTier::Professional,
             rate_limit_requests: 1000,
             rate_limit_window_seconds: 3600,
@@ -1065,10 +1065,10 @@ mod tests {
             .expect("Failed to create test API key");
 
         let client = A2AClient {
-            id: format!("test_client_{}", unique_id),
-            name: format!("Test Client {}", unique_id),
-            description: format!("Test A2A client {}", unique_id),
-            public_key: format!("test_public_key_{}", unique_id), // Make unique
+            id: format!("test_client_{unique_id}"),
+            name: format!("Test Client {unique_id}"),
+            description: format!("Test A2A client {unique_id}"),
+            public_key: format!("test_public_key_{unique_id}"), // Make unique
             capabilities: vec!["fitness-data-analysis".into()],
             redirect_uris: vec!["https://test.example.com".into()],
             permissions: vec!["read_activities".into(), "write_goals".into()],

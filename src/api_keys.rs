@@ -877,7 +877,7 @@ mod tests {
         assert!(manager.is_key_valid(&expired_key).is_err());
 
         // Test key expiring in future (should be valid)
-        let mut future_expiry_key = active_key.clone();
+        let mut future_expiry_key = active_key;
         future_expiry_key.expires_at = Some(Utc::now() + Duration::days(1));
 
         assert!(manager.is_key_valid(&future_expiry_key).is_ok());

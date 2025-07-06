@@ -498,7 +498,10 @@ mod tests {
     async fn create_test_user(db: &Database) -> User {
         let user = User {
             id: Uuid::new_v4(),
-            email: format!("test_{}@example.com", Uuid::new_v4()),
+            email: {
+                let uuid = Uuid::new_v4();
+                format!("test_{uuid}@example.com")
+            },
             display_name: Some("Test User".into()),
             password_hash: "hashed".into(),
             tier: UserTier::Professional,
@@ -630,12 +633,15 @@ mod tests {
         // Create expired API key - use a clearly expired timestamp
         let unique_id = Uuid::new_v4();
         let api_key = ApiKey {
-            id: format!("test_{}", unique_id),
+            id: format!("test_{unique_id}"),
             user_id: user.id,
-            name: format!("Expired Key {}", unique_id),
+            name: format!("Expired Key {unique_id}"),
             description: None,
-            key_hash: format!("expired_hash_{}", unique_id),
-            key_prefix: format!("exp_{}_", unique_id.simple()),
+            key_hash: format!("expired_hash_{unique_id}"),
+            key_prefix: {
+                let simple_id = unique_id.simple();
+                format!("exp_{simple_id}_")
+            },
             tier: ApiKeyTier::Trial,
             rate_limit_requests: 10,
             rate_limit_window_seconds: 3600,

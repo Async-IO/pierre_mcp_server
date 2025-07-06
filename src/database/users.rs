@@ -601,7 +601,7 @@ mod tests {
         let user_id = Uuid::new_v4();
         let user = User {
             id: user_id,
-            email: format!("active_{}@example.com", user_id),
+            email: format!("active_{user_id}@example.com"),
             display_name: None,
             password_hash: "hashed".into(),
             tier: UserTier::Starter,

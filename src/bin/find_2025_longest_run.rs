@@ -37,7 +37,7 @@ fn main() -> Result<()> {
         }
     });
 
-    writeln!(stream, "{}", init_request)?;
+    writeln!(stream, "{init_request}")?;
 
     // Read initialize response
     let mut response = String::new();

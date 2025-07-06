@@ -229,7 +229,7 @@ pub fn generate_encryption_key() -> [u8; 32] {
 mod tests {
     use super::*;
 
-    pub(crate) async fn create_test_db() -> Result<Database> {
+    pub async fn create_test_db() -> Result<Database> {
         // Use a simple in-memory database - each connection gets its own isolated instance
         let database_url = "sqlite::memory:";
         Database::new(database_url, vec![0u8; 32]).await

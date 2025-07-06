@@ -493,13 +493,21 @@ async fn handle_provision_api_key(
         match create_and_store_api_key(&context, &user, &request, &tier, &admin_token).await {
             Ok((key, key_string)) => (key, key_string),
             Err(error_msg) => {
+                // Check if this is a validation error or server error
+                let status_code = if error_msg.contains("Invalid rate limit period") 
+                    || error_msg.contains("Invalid tier") {
+                    StatusCode::BAD_REQUEST
+                } else {
+                    StatusCode::INTERNAL_SERVER_ERROR
+                };
+                
                 return Ok(with_status(
                     json(&AdminResponse {
                         success: false,
                         message: error_msg,
                         data: None,
                     }),
-                    StatusCode::INTERNAL_SERVER_ERROR,
+                    status_code,
                 ));
             }
         };

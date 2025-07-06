@@ -779,7 +779,7 @@ mod tests {
         for i in 0..10 {
             let activity = Activity {
                 sport_type: crate::models::SportType::Run,
-                average_speed: Some(3.0 + (9 - i) as f64 * 0.1), // Improving speed over time
+                average_speed: Some((9.0 - f64::from(u8::try_from(i).unwrap())).mul_add(0.1, 3.0)), // Improving speed over time
                 start_date: Utc::now() - chrono::Duration::days(i * 7),
                 ..Activity::default()
             };

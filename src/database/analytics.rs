@@ -625,7 +625,7 @@ mod tests {
         for i in 0..3 {
             let user = User {
                 id: Uuid::new_v4(),
-                email: format!("stats_user_{}@example.com", i),
+                email: format!("stats_user_{i}@example.com"),
                 display_name: None,
                 password_hash: "hashed".into(),
                 tier: UserTier::Starter,

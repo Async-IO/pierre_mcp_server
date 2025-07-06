@@ -321,7 +321,8 @@ impl OAuthRoutes {
         provider: &str,
     ) -> Result<OAuthAuthorizationResponse> {
         // Store state in database for CSRF protection
-        let state = format!("{}:{}", user_id, uuid::Uuid::new_v4());
+        let new_uuid = uuid::Uuid::new_v4();
+        let state = format!("{user_id}:{new_uuid}");
         Self::store_oauth_state(user_id, provider, &state);
 
         match provider {
@@ -814,7 +815,7 @@ impl A2ARoutes {
                 let error_response = serde_json::json!({
                     "success": false,
                     "error": "registration_failed",
-                    "error_description": format!("Failed to register A2A client: {}", e),
+                    "error_description": format!("Failed to register A2A client: {e}"),
                     "details": e.to_string()
                 });
 
@@ -842,7 +843,8 @@ mod tests {
     async fn test_email_validation() {
         let temp_dir = TempDir::new().unwrap();
         let db_path = temp_dir.path().join("test.db");
-        let database = Database::new(&format!("sqlite:{}", db_path.display()), vec![0u8; 32])
+        let db_path_str = db_path.display();
+        let database = Database::new(&format!("sqlite:{db_path_str}"), vec![0u8; 32])
             .await
             .unwrap();
         tracing::trace!("Created test database: {:?}", std::ptr::addr_of!(database));
@@ -872,7 +874,8 @@ mod tests {
     async fn test_register_user() {
         let temp_dir = TempDir::new().unwrap();
         let db_path = temp_dir.path().join("test.db");
-        let database = Database::new(&format!("sqlite:{}", db_path.display()), vec![0u8; 32])
+        let db_path_str = db_path.display();
+        let database = Database::new(&format!("sqlite:{db_path_str}"), vec![0u8; 32])
             .await
             .unwrap();
         let auth_manager = AuthManager::new(vec![0u8; 64], 24);
@@ -893,7 +896,8 @@ mod tests {
     async fn test_register_duplicate_user() {
         let temp_dir = TempDir::new().unwrap();
         let db_path = temp_dir.path().join("test.db");
-        let database = Database::new(&format!("sqlite:{}", db_path.display()), vec![0u8; 32])
+        let db_path_str = db_path.display();
+        let database = Database::new(&format!("sqlite:{db_path_str}"), vec![0u8; 32])
             .await
             .unwrap();
         let auth_manager = AuthManager::new(vec![0u8; 64], 24);

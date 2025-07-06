@@ -633,7 +633,7 @@ impl McpAuthMiddleware {
             .database
             .get_api_key_by_prefix(&key_prefix, &key_hash)
             .await?
-            .with_context(|| format!("API key not found or invalid: {}", &key_prefix))?;
+            .with_context(|| format!("API key not found or invalid: {key_prefix}"))?;
 
         // Validate key status
         self.api_key_manager.is_key_valid(&db_key)?;
@@ -858,7 +858,7 @@ mod tests {
         let middleware = McpAuthMiddleware::new(auth_manager, database);
 
         let token = middleware.auth_manager.generate_token(&user).unwrap();
-        let auth_header = format!("Bearer {}", token);
+        let auth_header = format!("Bearer {token}");
 
         let auth_result = middleware
             .authenticate_request(Some(&auth_header))
@@ -942,7 +942,7 @@ mod tests {
 
         // Create an auth manager with very short expiry for testing
         let secret = generate_jwt_secret().to_vec();
-        let short_expiry_auth_manager = AuthManager::new(secret.clone(), -1); // Expired 1 hour ago
+        let short_expiry_auth_manager = AuthManager::new(secret, -1); // Expired 1 hour ago
 
         let expired_token = short_expiry_auth_manager.generate_token(&user).unwrap();
 
@@ -960,7 +960,7 @@ mod tests {
             } => {
                 assert!(current_time > expired_at);
             }
-            other => panic!("Expected TokenExpired error, got: {:?}", other),
+            other => panic!("Expected TokenExpired error, got: {other:?}"),
         }
     }
 
