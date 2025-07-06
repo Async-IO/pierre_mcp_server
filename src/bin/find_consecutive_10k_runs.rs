@@ -39,7 +39,7 @@ fn main() -> Result<()> {
         }
     });
 
-    writeln!(stream, "{}", init_request)?;
+    writeln!(stream, "{init_request}")?;
 
     // Read initialize response
     let mut response = String::new();
@@ -52,7 +52,7 @@ fn main() -> Result<()> {
         "method": "notifications/initialized"
     });
 
-    writeln!(stream, "{}", initialized)?;
+    writeln!(stream, "{initialized}")?;
 
     // Request all activities with aggressive pagination to get full history
     let mut all_activities = Vec::new();
@@ -76,7 +76,7 @@ fn main() -> Result<()> {
             }
         });
 
-        writeln!(stream, "{}", activities_request)?;
+        writeln!(stream, "{activities_request}")?;
 
         // Read activities response
         let mut response = String::new();
@@ -100,15 +100,12 @@ fn main() -> Result<()> {
             };
 
             if activities.is_empty() {
-                println!("📄 No more activities found on page {}", page);
+                println!("📄 No more activities found on page {page}");
                 break;
             }
 
             let activities_count = activities.len();
-            println!(
-                "📄 Retrieved {} activities on page {}",
-                activities_count, page
-            );
+            println!("📄 Retrieved {activities_count} activities on page {page}");
             all_activities.extend(activities);
 
             if activities_count < per_page {
@@ -124,7 +121,7 @@ fn main() -> Result<()> {
                 break;
             }
         } else {
-            println!("❌ Failed to get activities: {}", response);
+            println!("❌ Failed to get activities: {response}");
             break;
         }
     }
@@ -245,7 +242,7 @@ fn main() -> Result<()> {
 
     // Display results
     println!("\n🏆 LONGEST CONSECUTIVE 10KM+ RUNNING STREAK:");
-    println!("   📈 Streak Length: {} days", longest_streak);
+    println!("   📈 Streak Length: {longest_streak} days");
 
     if let (Some(start), Some(end)) = (longest_streak_start, longest_streak_end) {
         println!(

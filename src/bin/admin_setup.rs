@@ -352,7 +352,7 @@ async fn list_tokens_command(
         println!("🔑 Token ID: {}", token.id);
         println!("   Service: {}", token.service_name);
         if let Some(desc) = &token.service_description {
-            println!("   Description: {}", desc);
+            println!("   Description: {desc}");
         }
         println!(
             "   Status: {}",
@@ -393,7 +393,7 @@ async fn list_tokens_command(
             println!("   Permissions: {:?}", token.permissions.to_vec());
             println!("   Prefix: {}", token.token_prefix);
             if let Some(ip) = &token.last_used_ip {
-                println!("   Last IP: {}", ip);
+                println!("   Last IP: {ip}");
             }
         }
 
@@ -422,7 +422,7 @@ async fn revoke_token_command(database: &Database, token_id: String) -> Result<(
     database.deactivate_admin_token(&token_id).await?;
 
     println!("✅ Admin token revoked successfully!");
-    println!("   Token ID: {}", token_id);
+    println!("   Token ID: {token_id}");
     println!("   Service: {}", token.service_name);
     println!("   ⚠️  The JWT token is now invalid and cannot be used");
 
@@ -467,7 +467,7 @@ async fn rotate_token_command(
     database.deactivate_admin_token(&token_id).await?;
 
     println!("🔄 Token rotation completed successfully!");
-    println!("   Old Token: {} (revoked)", token_id);
+    println!("   Old Token: {token_id} (revoked)");
     println!("   New Token: {} (active)", new_token.token_id);
     println!();
 
@@ -494,14 +494,11 @@ async fn token_stats_command(
                 .await?;
 
             if usage_history.is_empty() {
-                println!(
-                    "No usage data found for token {} in the last {} days",
-                    id, days
-                );
+                println!("No usage data found for token {id} in the last {days} days");
                 return Ok(());
             }
 
-            println!("\n📊 Usage Statistics for Token: {}", id);
+            println!("\n📊 Usage Statistics for Token: {id}");
             println!("{}", "=".repeat(60));
             println!(
                 "Period: {} to {}",
@@ -532,7 +529,7 @@ async fn token_stats_command(
 
             println!("\nActions:");
             for (action, count) in action_counts {
-                println!("  {}: {}", action, count);
+                println!("  {action}: {count}");
             }
         }
         None => {
@@ -553,7 +550,7 @@ async fn token_stats_command(
             );
 
             let total_usage: u64 = tokens.iter().map(|t| t.usage_count).sum();
-            println!("Total Usage Count: {}", total_usage);
+            println!("Total Usage Count: {total_usage}");
         }
     }
 
@@ -625,15 +622,15 @@ async fn create_admin_user_command(
     println!("\n✅ Admin User Created Successfully!");
     println!("{}", "=".repeat(50));
     println!("👤 USER DETAILS:");
-    println!("   Email: {}", email);
-    println!("   Name: {}", name);
+    println!("   Email: {email}");
+    println!("   Name: {name}");
     println!("   Tier: Enterprise (Full access)");
     println!("   Status: Active");
 
     println!("\n🔑 LOGIN CREDENTIALS:");
     println!("{}", "=".repeat(50));
-    println!("   Email: {}", email);
-    println!("   Password: {}", password);
+    println!("   Email: {email}");
+    println!("   Password: {password}");
 
     println!("\n🚨 IMPORTANT SECURITY NOTES:");
     println!("• Change the default password in production!");

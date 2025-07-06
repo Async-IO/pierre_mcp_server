@@ -11,30 +11,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let api_key = check_api_key()?;
     let client = Client::new();
-    
+
     test_current_weather(&client, &api_key).await?;
     test_historical_weather(&client, &api_key).await?;
     test_error_conditions(&client, &api_key).await?;
-    
+
     println!("\n✅ All diagnostics completed successfully!");
     Ok(())
 }
 
 fn check_api_key() -> Result<String, Box<dyn std::error::Error>> {
-    std::env::var("OPENWEATHER_API_KEY").map_or_else(|_| {
-        println!("❌ No OPENWEATHER_API_KEY environment variable found");
-        Err("Missing API key".into())
-    }, |key| {
-        println!(
-            "✅ API Key Found: {}...{}",
-            &key[..8],
-            &key[key.len() - 4..]
-        );
-        Ok(key)
-    })
+    std::env::var("OPENWEATHER_API_KEY").map_or_else(
+        |_| {
+            println!("❌ No OPENWEATHER_API_KEY environment variable found");
+            Err("Missing API key".into())
+        },
+        |key| {
+            println!(
+                "✅ API Key Found: {}...{}",
+                &key[..8],
+                &key[key.len() - 4..]
+            );
+            Ok(key)
+        },
+    )
 }
 
-async fn test_current_weather(client: &Client, api_key: &str) -> Result<(), Box<dyn std::error::Error>> {
+async fn test_current_weather(
+    client: &Client,
+    api_key: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     let lat = 45.5017; // Montreal
     let lon = -73.5673;
 
@@ -79,7 +85,10 @@ async fn test_current_weather(client: &Client, api_key: &str) -> Result<(), Box<
     Ok(())
 }
 
-async fn test_historical_weather(client: &Client, api_key: &str) -> Result<(), Box<dyn std::error::Error>> {
+async fn test_historical_weather(
+    client: &Client,
+    api_key: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     let lat = 45.5017; // Montreal
     let lon = -73.5673;
 
@@ -128,7 +137,10 @@ async fn test_historical_weather(client: &Client, api_key: &str) -> Result<(), B
     Ok(())
 }
 
-async fn test_error_conditions(client: &Client, api_key: &str) -> Result<(), Box<dyn std::error::Error>> {
+async fn test_error_conditions(
+    client: &Client,
+    api_key: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("\n🔍 Test 3: Error Condition Tests");
     println!("=================================");
 
@@ -149,7 +161,7 @@ async fn test_error_conditions(client: &Client, api_key: &str) -> Result<(), Box
     }
 
     // Test with invalid API key
-    let bad_key_url = "https://api.openweathermap.org/data/2.5/weather?lat=45.5017&lon=-73.5673&appid=invalid_key&units=metric";
+    let bad_key_url = "https://api.openweathermap.org/data/2.5/weather?lat=45.5017&lon=-73.5673&appid=invalid_key&units=metric".to_string();
 
     println!("🧪 Testing invalid API key...");
     match client.get(&bad_key_url).send().await {
@@ -171,15 +183,15 @@ fn analyze_error_status(status: reqwest::StatusCode) {
             println!("   💡 This usually means:");
             println!("      • API key is invalid");
             println!("      • Historical data requires One Call API 3.0 subscription");
-        },
+        }
         403 => {
             println!("   💡 This usually means:");
             println!("      • Historical data not included in your plan");
             println!("      • Upgrade to One Call API 3.0 required");
-        },
+        }
         429 => {
             println!("   💡 Rate limit exceeded (1000/day on free tier)");
-        },
+        }
         _ => {
             println!("   💡 Unexpected error code: {status}");
         }

@@ -11,13 +11,13 @@ fn main() -> Result<()> {
 
     let (mut stream, mut reader) = connect_to_mcp_server()?;
     initialize_mcp_connection(&mut stream, &mut reader)?;
-    
+
     let all_activities = retrieve_all_activities(&mut stream, &mut reader)?;
     let longest_run = find_longest_2025_run(&all_activities)?;
-    
+
     display_run_info(&longest_run);
     generate_and_display_intelligence(&mut stream, &mut reader, &longest_run)?;
-    
+
     Ok(())
 }
 
@@ -27,7 +27,10 @@ fn connect_to_mcp_server() -> Result<(TcpStream, BufReader<TcpStream>)> {
     Ok((stream, reader))
 }
 
-fn initialize_mcp_connection(stream: &mut TcpStream, reader: &mut BufReader<TcpStream>) -> Result<()> {
+fn initialize_mcp_connection(
+    stream: &mut TcpStream,
+    reader: &mut BufReader<TcpStream>,
+) -> Result<()> {
     let init_request = json!({
         "jsonrpc": "2.0",
         "id": 1,
@@ -62,11 +65,14 @@ fn initialize_mcp_connection(stream: &mut TcpStream, reader: &mut BufReader<TcpS
             }
         }
     }
-    
+
     Ok(())
 }
 
-fn retrieve_all_activities(stream: &mut TcpStream, reader: &mut BufReader<TcpStream>) -> Result<Vec<Value>> {
+fn retrieve_all_activities(
+    stream: &mut TcpStream,
+    reader: &mut BufReader<TcpStream>,
+) -> Result<Vec<Value>> {
     println!("\n📊 Retrieving activities to find longest 2025 run...");
 
     let mut all_activities: Vec<Value> = Vec::new();
@@ -121,7 +127,7 @@ fn retrieve_all_activities(stream: &mut TcpStream, reader: &mut BufReader<TcpStr
     }
 
     println!("📊 Total activities retrieved: {}", all_activities.len());
-    
+
     Ok(all_activities)
 }
 
@@ -154,7 +160,9 @@ fn find_longest_2025_run(all_activities: &[Value]) -> Result<Value> {
                 .get("distance_meters")
                 .and_then(Value::as_f64)
                 .unwrap_or(0.0);
-            dist_a.partial_cmp(&dist_b).unwrap_or(std::cmp::Ordering::Equal)
+            dist_a
+                .partial_cmp(&dist_b)
+                .unwrap_or(std::cmp::Ordering::Equal)
         })
         .ok_or_else(|| anyhow::anyhow!("No longest run found"))?;
 
@@ -188,7 +196,11 @@ fn display_run_info(longest_run: &Value) {
     println!("   📅 Date: {start_date}");
 }
 
-fn generate_and_display_intelligence(stream: &mut TcpStream, reader: &mut BufReader<TcpStream>, longest_run: &Value) -> Result<()> {
+fn generate_and_display_intelligence(
+    stream: &mut TcpStream,
+    reader: &mut BufReader<TcpStream>,
+    longest_run: &Value,
+) -> Result<()> {
     let activity_id = longest_run
         .get("id")
         .and_then(|id| id.as_str())

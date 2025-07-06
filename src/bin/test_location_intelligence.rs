@@ -27,23 +27,23 @@ async fn main() -> Result<()> {
             println!("✅ Location data retrieved:");
             println!("   📍 Display Name: {}", location_data.display_name);
             if let Some(city) = &location_data.city {
-                println!("   🏙️  City: {}", city);
+                println!("   🏙️  City: {city}");
             }
             if let Some(region) = &location_data.region {
-                println!("   🗺️  Region: {}", region);
+                println!("   🗺️  Region: {region}");
             }
             if let Some(country) = &location_data.country {
-                println!("   🌍 Country: {}", country);
+                println!("   🌍 Country: {country}");
             }
             if let Some(trail_name) = &location_data.trail_name {
-                println!("   🥾 Trail: {}", trail_name);
+                println!("   🥾 Trail: {trail_name}");
             }
             if let Some(natural) = &location_data.natural {
-                println!("   🌲 Natural Feature: {}", natural);
+                println!("   🌲 Natural Feature: {natural}");
             }
         }
         Err(e) => {
-            println!("❌ Failed to get location data: {}", e);
+            println!("❌ Failed to get location data: {e}");
             println!("   This might be due to network issues or API rate limiting");
         }
     }
@@ -73,7 +73,7 @@ async fn main() -> Result<()> {
                 }
             });
 
-            writeln!(stream, "{}", init_request)?;
+            writeln!(stream, "{init_request}")?;
 
             let mut line = String::new();
             reader.read_line(&mut line)?;
@@ -84,10 +84,10 @@ async fn main() -> Result<()> {
             if let Some(result) = init_response.get("result") {
                 if let Some(server_info) = result.get("serverInfo") {
                     if let Some(name) = server_info.get("name") {
-                        println!("   Server: {}", name);
+                        println!("   Server: {name}");
                     }
                     if let Some(version) = server_info.get("version") {
-                        println!("   Version: {}", version);
+                        println!("   Version: {version}");
                     }
                 }
             }
@@ -109,7 +109,7 @@ async fn main() -> Result<()> {
                 "id": 2
             });
 
-            writeln!(stream, "{}", activities_request)?;
+            writeln!(stream, "{activities_request}")?;
             let mut line = String::new();
             reader.read_line(&mut line)?;
             let response: Value = serde_json::from_str(&line)?;
@@ -140,9 +140,9 @@ async fn main() -> Result<()> {
                         .unwrap_or(0.0);
 
                     println!("🎯 Found activity with GPS:");
-                    println!("   📛 Name: {}", name);
-                    println!("   🆔 ID: {}", activity_id);
-                    println!("   📍 Coordinates: {:.4}, {:.4}", lat, lon);
+                    println!("   📛 Name: {name}");
+                    println!("   🆔 ID: {activity_id}");
+                    println!("   📍 Coordinates: {lat:.4}, {lon:.4}");
 
                     // Test Activity Intelligence with location context
                     println!("\n🧠 Generating Activity Intelligence with Location Context...");
@@ -162,7 +162,7 @@ async fn main() -> Result<()> {
                         "id": 3
                     });
 
-                    writeln!(stream, "{}", intelligence_request)?;
+                    writeln!(stream, "{intelligence_request}")?;
                     let mut line = String::new();
                     reader.read_line(&mut line)?;
                     let response: Value = serde_json::from_str(&line)?;
@@ -173,7 +173,7 @@ async fn main() -> Result<()> {
 
                         // Display the summary
                         if let Some(summary) = result.get("summary").and_then(|s| s.as_str()) {
-                            println!("📝 Summary: {}", summary);
+                            println!("📝 Summary: {summary}");
                         }
 
                         // Display location context if available
@@ -184,23 +184,23 @@ async fn main() -> Result<()> {
                                 if let Some(display_name) =
                                     location.get("display_name").and_then(|d| d.as_str())
                                 {
-                                    println!("   📍 Location: {}", display_name);
+                                    println!("   📍 Location: {display_name}");
                                 }
 
                                 if let Some(city) = location.get("city").and_then(|c| c.as_str()) {
-                                    println!("   🏙️  City: {}", city);
+                                    println!("   🏙️  City: {city}");
                                 }
 
                                 if let Some(region) =
                                     location.get("region").and_then(|r| r.as_str())
                                 {
-                                    println!("   🗺️  Region: {}", region);
+                                    println!("   🗺️  Region: {region}");
                                 }
 
                                 if let Some(trail_name) =
                                     location.get("trail_name").and_then(|t| t.as_str())
                                 {
-                                    println!("   🥾 Trail: {}", trail_name);
+                                    println!("   🥾 Trail: {trail_name}");
                                 }
                             }
                         }
@@ -226,13 +226,13 @@ async fn main() -> Result<()> {
                                     if let Some(message) =
                                         insight.get("message").and_then(|m| m.as_str())
                                     {
-                                        println!("   • {}", message);
+                                        println!("   • {message}");
                                     }
                                 }
                             }
                         }
                     } else {
-                        println!("❌ Error generating intelligence: {:?}", response);
+                        println!("❌ Error generating intelligence: {response:?}");
                     }
                 } else {
                     println!("❌ No activities found with GPS coordinates");
@@ -241,11 +241,11 @@ async fn main() -> Result<()> {
                     );
                 }
             } else {
-                println!("❌ Failed to get activities: {:?}", response);
+                println!("❌ Failed to get activities: {response:?}");
             }
         }
         Err(e) => {
-            println!("❌ Failed to connect to MCP server: {}", e);
+            println!("❌ Failed to connect to MCP server: {e}");
             println!("   Make sure the server is running with: cargo run --bin pierre-mcp-server");
         }
     }
@@ -261,10 +261,7 @@ async fn main() -> Result<()> {
     ];
 
     for (lat, lon, description) in test_coordinates {
-        println!(
-            "\n📍 Testing location detection for {}: {:.4}, {:.4}",
-            description, lat, lon
-        );
+        println!("\n📍 Testing location detection for {description}: {lat:.4}, {lon:.4}");
 
         match location_service
             .get_location_from_coordinates(lat, lon)
@@ -290,16 +287,16 @@ async fn main() -> Result<()> {
 
                 // Check for trail detection
                 if let Some(trail_name) = &location_data.trail_name {
-                    println!("   🥾 Trail detected: {}", trail_name);
+                    println!("   🥾 Trail detected: {trail_name}");
                 }
 
                 // Check for natural features
                 if let Some(natural) = &location_data.natural {
-                    println!("   🌲 Natural feature: {}", natural);
+                    println!("   🌲 Natural feature: {natural}");
                 }
             }
             Err(e) => {
-                println!("   ❌ Failed to detect location: {}", e);
+                println!("   ❌ Failed to detect location: {e}");
             }
         }
     }

@@ -55,7 +55,7 @@ async fn main() -> Result<()> {
     let args = match Args::try_parse() {
         Ok(args) => args,
         Err(e) => {
-            eprintln!("Argument parsing failed: {}", e);
+            eprintln!("Argument parsing failed: {e}");
             eprintln!("Using default configuration for production mode");
             // Default to production mode if argument parsing fails
             Args {
@@ -323,8 +323,7 @@ async fn handle_oauth_callback(
         std::fs::read(&key_path).map_err(|e| {
             tracing::error!("Failed to read encryption key from {}: {}", key_path, e);
             warp::reject::custom(OAuthCallbackError::ServerError(format!(
-                "Key read error: {}",
-                e
+                "Key read error: {e}"
             )))
         })?
     } else {
@@ -333,8 +332,7 @@ async fn handle_oauth_callback(
             std::fs::read(key_path).map_err(|e| {
                 tracing::error!("Failed to read encryption key from {}: {}", key_path, e);
                 warp::reject::custom(OAuthCallbackError::ServerError(format!(
-                    "Key read error: {}",
-                    e
+                    "Key read error: {e}"
                 )))
             })?
         } else {
@@ -342,15 +340,13 @@ async fn handle_oauth_callback(
             if let Some(parent) = std::path::Path::new(key_path).parent() {
                 std::fs::create_dir_all(parent).map_err(|e| {
                     warp::reject::custom(OAuthCallbackError::ServerError(format!(
-                        "Directory creation error: {}",
-                        e
+                        "Directory creation error: {e}"
                     )))
                 })?;
             }
             std::fs::write(key_path, key).map_err(|e| {
                 warp::reject::custom(OAuthCallbackError::ServerError(format!(
-                    "Key write error: {}",
-                    e
+                    "Key write error: {e}"
                 )))
             })?;
             key.to_vec()
@@ -363,8 +359,7 @@ async fn handle_oauth_callback(
             .map_err(|e| {
                 tracing::error!("Failed to create database: {}", e);
                 warp::reject::custom(OAuthCallbackError::ServerError(format!(
-                    "Database error: {}",
-                    e
+                    "Database error: {e}"
                 )))
             })?,
     );
@@ -405,8 +400,7 @@ async fn handle_oauth_callback(
                     .map_err(|e| {
                         tracing::error!("Failed to create Strava provider: {}", e);
                         warp::reject::custom(OAuthCallbackError::ServerError(format!(
-                            "Provider error: {}",
-                            e
+                            "Provider error: {e}"
                         )))
                     })?;
             oauth_manager.register_provider(Box::new(strava_provider));
@@ -448,8 +442,7 @@ async fn handle_oauth_callback(
                     .map_err(|e| {
                         tracing::error!("Failed to create Fitbit provider: {}", e);
                         warp::reject::custom(OAuthCallbackError::ServerError(format!(
-                            "Provider error: {}",
-                            e
+                            "Provider error: {e}"
                         )))
                     })?;
             oauth_manager.register_provider(Box::new(fitbit_provider));
@@ -532,13 +525,12 @@ async fn handle_oauth_callback(
     <h1 class="error">❌ OAuth Authorization Failed</h1>
     <div class="details">
         <h3>Error Details:</h3>
-        <p><strong>Provider:</strong> {}</p>
-        <p><strong>Error:</strong> {}</p>
+        <p><strong>Provider:</strong> {provider}</p>
+        <p><strong>Error:</strong> {e}</p>
         <p>Please try the authorization process again.</p>
     </div>
 </body>
-</html>"#,
-                provider, e
+</html>"#
             );
 
             Ok(warp::reply::html(error_html))
@@ -557,14 +549,14 @@ enum OAuthCallbackError {
 impl std::fmt::Display for OAuthCallbackError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OAuthCallbackError::MissingParameter(param) => {
-                write!(f, "Missing required parameter: {}", param)
+            Self::MissingParameter(param) => {
+                write!(f, "Missing required parameter: {param}")
             }
-            OAuthCallbackError::UnsupportedProvider(provider) => {
-                write!(f, "Unsupported OAuth provider: {}", provider)
+            Self::UnsupportedProvider(provider) => {
+                write!(f, "Unsupported OAuth provider: {provider}")
             }
-            OAuthCallbackError::ServerError(error) => {
-                write!(f, "OAuth server error: {}", error)
+            Self::ServerError(error) => {
+                write!(f, "OAuth server error: {error}")
             }
         }
     }

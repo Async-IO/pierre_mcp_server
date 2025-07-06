@@ -122,7 +122,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn create_swagger_ui_html() -> String {
-    format!("{}{}{}{}", 
+    format!(
+        "{}{}{}{}",
         get_html_head(),
         get_html_header(),
         get_html_body(),

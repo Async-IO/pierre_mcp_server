@@ -96,11 +96,11 @@ async fn test_weather_service(activity: &Activity) -> Result<(), Box<dyn std::er
             println!("   Conditions: {}", weather.conditions);
 
             if let Some(humidity) = weather.humidity_percentage {
-                println!("   Humidity: {:.1}%", humidity);
+                println!("   Humidity: {humidity:.1}%");
             }
 
             if let Some(wind_speed) = weather.wind_speed_kmh {
-                println!("   Wind Speed: {:.1} km/h", wind_speed);
+                println!("   Wind Speed: {wind_speed:.1} km/h");
             }
 
             // Test weather impact analysis
@@ -115,7 +115,7 @@ async fn test_weather_service(activity: &Activity) -> Result<(), Box<dyn std::er
             if !impact.impact_factors.is_empty() {
                 println!("   Impact Factors:");
                 for factor in &impact.impact_factors {
-                    println!("     • {}", factor);
+                    println!("     • {factor}");
                 }
             }
         }
@@ -123,7 +123,7 @@ async fn test_weather_service(activity: &Activity) -> Result<(), Box<dyn std::er
             println!("ℹ️  No weather data available (missing GPS coordinates)");
         }
         Err(e) => {
-            println!("⚠️  Weather fetch failed: {}", e);
+            println!("⚠️  Weather fetch failed: {e}");
             println!("   This is expected if OPENWEATHER_API_KEY is not set or API is disabled");
         }
     }
