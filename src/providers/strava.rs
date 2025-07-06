@@ -639,16 +639,22 @@ impl From<StravaActivity> for Activity {
             duration_seconds: strava.elapsed_time,
             distance_meters: strava.distance,
             elevation_gain: strava.total_elevation_gain,
-            average_heart_rate: strava.average_heartrate.map(|hr| {
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                {
-                    hr.round().max(0.0) as u32
+            average_heart_rate: strava.average_heartrate.and_then(|hr| {
+                if hr.is_finite() && (0.0..=300.0).contains(&hr) {
+                    let rounded = hr.round();
+                    let hr_string = format!("{rounded:.0}");
+                    hr_string.parse::<u32>().ok()
+                } else {
+                    None
                 }
             }),
-            max_heart_rate: strava.max_heartrate.map(|hr| {
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                {
-                    hr.round().max(0.0) as u32
+            max_heart_rate: strava.max_heartrate.and_then(|hr| {
+                if hr.is_finite() && (0.0..=300.0).contains(&hr) {
+                    let rounded = hr.round();
+                    let hr_string = format!("{rounded:.0}");
+                    hr_string.parse::<u32>().ok()
+                } else {
+                    None
                 }
             }),
             average_speed: strava.average_speed,

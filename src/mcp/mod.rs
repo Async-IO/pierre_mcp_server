@@ -105,7 +105,6 @@ impl McpServer {
 }
 
 /// Create a tool executor for MCP server with proper configuration
-#[allow(clippy::too_many_lines)]
 async fn create_tool_executor() -> Result<Arc<UniversalToolExecutor>> {
     // Use environment variables for database configuration in production
     let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "data/pierre.db".into());

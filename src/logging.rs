@@ -301,7 +301,6 @@ impl AppLogger {
     }
 
     /// Log performance metrics
-    #[allow(clippy::or_fun_call)]
     pub fn log_performance_metric(
         metric_name: &str,
         value: f64,

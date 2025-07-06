@@ -195,8 +195,8 @@ impl AdvancedActivityAnalyzer {
         // Heart rate insights
         if let Some(avg_hr) = activity.average_heart_rate {
             if let Some(max_hr) = activity.max_heart_rate {
-                #[allow(clippy::cast_precision_loss)]
-                let hr_reserve_used = (avg_hr as f32 / max_hr as f32) * 100.0;
+                // Heart rates are small values (30-220), safe to cast to f32
+                let hr_reserve_used = ((avg_hr as f32) / (max_hr as f32)) * 100.0;
 
                 let (message, confidence) = if hr_reserve_used > ANAEROBIC_THRESHOLD_PERCENTAGE {
                     (
@@ -483,7 +483,6 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
 
         // Base load on duration
         let duration = activity.duration_seconds;
-        #[allow(clippy::cast_precision_loss)]
         {
             load += duration as f64 / 60.0; // Minutes as base
         }
@@ -514,7 +513,6 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
     /// - Activity comparison calculations fail
     /// - Statistical analysis fails
     /// - Data aggregation errors occur
-    #[allow(clippy::too_many_lines)]
     async fn compare_to_history(
         &self,
         activity: &Activity,
@@ -537,32 +535,31 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
             let historical_speeds: Vec<f32> = same_sport_activities
                 .iter()
                 .filter_map(|a| {
-                    a.average_speed.map(|s| {
-                        #[allow(clippy::cast_possible_truncation)]
-                        {
-                            s as f32
-                        }
-                    })
+                    a.average_speed
+                        .map(|s| s.clamp(f64::from(f32::MIN), f64::from(f32::MAX)) as f32)
                 })
                 .collect();
 
             if !historical_speeds.is_empty() {
                 let avg_historical_speed = {
-                    #[allow(clippy::cast_precision_loss)]
                     {
-                        historical_speeds.iter().sum::<f32>() / historical_speeds.len() as f32
+                        // Length of historical data is small, safe to cast to f32
+                        historical_speeds.iter().sum::<f32>() / (historical_speeds.len() as f32)
                     }
                 };
                 let improvement = {
-                    #[allow(clippy::cast_possible_truncation)]
                     {
-                        ((current_speed as f32 - avg_historical_speed) / avg_historical_speed)
+                        (((current_speed.clamp(f64::from(f32::MIN), f64::from(f32::MAX)) as f32)
+                            - avg_historical_speed)
+                            / avg_historical_speed)
                             * 100.0
                     }
                 };
 
-                #[allow(clippy::cast_possible_truncation)]
-                if improvement > PACE_IMPROVEMENT_THRESHOLD as f32 {
+                if improvement
+                    > PACE_IMPROVEMENT_THRESHOLD.clamp(f64::from(f32::MIN), f64::from(f32::MAX))
+                        as f32
+                {
                     let mut metadata = HashMap::new();
                     metadata.insert(
                         "improvement_percentage".into(),
@@ -586,26 +583,26 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
                         severity: InsightSeverity::Info,
                         metadata,
                     });
-                } else {
-                    #[allow(clippy::cast_possible_truncation)]
-                    if improvement < -(PACE_IMPROVEMENT_THRESHOLD as f32) {
-                        let mut metadata = HashMap::new();
-                        metadata.insert(
-                            "decline_percentage".into(),
-                            serde_json::Value::from(-improvement),
-                        );
+                } else if improvement
+                    < -(PACE_IMPROVEMENT_THRESHOLD.clamp(f64::from(f32::MIN), f64::from(f32::MAX))
+                        as f32)
+                {
+                    let mut metadata = HashMap::new();
+                    metadata.insert(
+                        "decline_percentage".into(),
+                        serde_json::Value::from(-improvement),
+                    );
 
-                        insights.push(AdvancedInsight {
-                            insight_type: "pace_decline".into(),
-                            message: {
-                                let decline = -improvement;
-                                format!("Pace was {decline:.1}% slower than recent average")
-                            },
-                            confidence: Confidence::Medium,
-                            severity: InsightSeverity::Warning,
-                            metadata,
-                        });
-                    }
+                    insights.push(AdvancedInsight {
+                        insight_type: "pace_decline".into(),
+                        message: {
+                            let decline = -improvement;
+                            format!("Pace was {decline:.1}% slower than recent average")
+                        },
+                        confidence: Confidence::Medium,
+                        severity: InsightSeverity::Warning,
+                        metadata,
+                    });
                 }
             }
         }
@@ -620,9 +617,12 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
                 .iter()
                 .filter_map(|a| {
                     if let (Some(hr), Some(speed)) = (a.average_heart_rate, a.average_speed) {
-                        #[allow(clippy::cast_possible_truncation)]
                         {
-                            Some((speed / f64::from(hr)) as f32)
+                            Some(
+                                (speed / f64::from(hr))
+                                    .clamp(f64::from(f32::MIN), f64::from(f32::MAX))
+                                    as f32,
+                            )
                         }
                     } else {
                         None
@@ -632,8 +632,8 @@ impl ActivityAnalyzerTrait for AdvancedActivityAnalyzer {
 
             if !historical_efficiencies.is_empty() {
                 let avg_efficiency = historical_efficiencies.iter().sum::<f32>() / {
-                    #[allow(clippy::cast_precision_loss)]
                     {
+                        // Length of historical data is small, safe to cast to f32
                         historical_efficiencies.len() as f32
                     }
                 };

@@ -162,7 +162,7 @@ fn print_debug_info(all_activities: &[Activity]) {
 
 fn print_longest_run_details(longest_run: &Activity) {
     let distance_km = longest_run.distance_meters.unwrap_or(0.0) / 1000.0;
-    let duration_hours = longest_run.duration_seconds as f64 / 3600.0;
+    let duration_hours = (longest_run.duration_seconds.min(u32::MAX as u64) as f64) / 3600.0;
 
     println!("\n🎯 LONGEST RUN IN 2025:");
     println!("   📛 Name: {}", longest_run.name);

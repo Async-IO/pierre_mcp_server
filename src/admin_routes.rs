@@ -103,7 +103,6 @@ pub struct AdminTokenInfoResponse {
 }
 
 /// Create admin routes filter
-#[allow(clippy::needless_pass_by_value)]
 pub fn admin_routes(
     context: AdminApiContext,
 ) -> impl Filter<Extract = impl Reply, Error = std::convert::Infallible> + Clone {
@@ -141,7 +140,6 @@ pub fn admin_routes(
 
 /// Create admin routes filter without recovery (maintains Rejection error type)
 /// This is used for embedding in other servers that handle rejections differently
-#[allow(clippy::needless_pass_by_value)]
 pub fn admin_routes_with_rejection(
     context: AdminApiContext,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
@@ -417,7 +415,6 @@ fn with_context(
 }
 
 /// Handle API key provisioning
-#[allow(clippy::too_many_lines)]
 async fn handle_provision_api_key(
     admin_token: crate::admin::models::ValidatedAdminToken,
     request: ProvisionApiKeyRequest,

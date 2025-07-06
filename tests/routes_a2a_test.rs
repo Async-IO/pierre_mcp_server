@@ -122,7 +122,7 @@ impl A2ATestSetup {
 async fn test_get_agent_card_success() {
     let setup = A2ATestSetup::new().await;
 
-    let result = setup.routes.get_agent_card().await;
+    let result = setup.routes.get_agent_card();
     assert!(result.is_ok());
 
     let agent_card = result.unwrap();
@@ -137,7 +137,7 @@ async fn test_get_agent_card_success() {
 async fn test_agent_card_structure_compliance() {
     let setup = A2ATestSetup::new().await;
 
-    let agent_card = setup.routes.get_agent_card().await.unwrap();
+    let agent_card = setup.routes.get_agent_card().unwrap();
 
     // Test required fields are present
     assert_eq!(agent_card.name, "Pierre Fitness AI");

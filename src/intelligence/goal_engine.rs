@@ -126,7 +126,6 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
     }
 
     /// Calculate goal difficulty based on user's current performance
-    #[allow(clippy::cast_precision_loss)]
     fn calculate_goal_difficulty(goal: &Goal, activities: &[Activity]) -> GoalDifficulty {
         let similar_activities: Vec<_> = activities
             .iter()
@@ -208,15 +207,14 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
     }
 
     /// Generate progress insights based on current status
-    #[allow(clippy::cast_precision_loss)]
     fn generate_progress_insights(goal: &Goal, progress: &ProgressReport) -> Vec<AdvancedInsight> {
         let mut insights = Vec::new();
 
         // Progress rate insight
-        #[allow(clippy::cast_precision_loss)]
-        let days_elapsed = (Utc::now() - goal.created_at).num_days() as f64;
-        #[allow(clippy::cast_precision_loss)]
-        let days_total = (goal.target_date - goal.created_at).num_days() as f64;
+        let days_elapsed =
+            f64::from(i32::try_from((Utc::now() - goal.created_at).num_days()).unwrap_or(0));
+        let days_total =
+            f64::from(i32::try_from((goal.target_date - goal.created_at).num_days()).unwrap_or(1));
         let time_progress = days_elapsed / days_total;
 
         if progress.progress_percentage
@@ -399,7 +397,6 @@ impl<S: IntelligenceStrategy> GoalEngineTrait for AdvancedGoalEngine<S> {
             // Frequency goal suggestions
             let current_frequency = stats.activity_count as f64 / GOAL_ANALYSIS_WEEKS as f64;
             if current_frequency < MAX_WEEKLY_FREQUENCY {
-                #[allow(clippy::cast_possible_truncation)]
                 let target_frequency = (current_frequency + 1.0).min(MAX_WEEKLY_FREQUENCY) as i32;
                 suggestions.push(GoalSuggestion {
                     goal_type: GoalType::Frequency {
@@ -552,9 +549,7 @@ impl<S: IntelligenceStrategy> GoalEngineTrait for AdvancedGoalEngine<S> {
         };
 
         // Determine if on track
-        #[allow(clippy::cast_precision_loss)]
         let days_elapsed = (Utc::now() - goal.created_at).num_days() as f64;
-        #[allow(clippy::cast_precision_loss)]
         let days_total = (goal.target_date - goal.created_at).num_days() as f64;
         let expected_progress = if days_total > 0.0 {
             days_elapsed.mul_add(100.0 / days_total, 0.0)
@@ -593,7 +588,6 @@ impl<S: IntelligenceStrategy> GoalEngineTrait for AdvancedGoalEngine<S> {
         Ok(final_report)
     }
 
-    #[allow(clippy::cast_precision_loss)]
     async fn adjust_goal(
         &self,
         goal: &Goal,

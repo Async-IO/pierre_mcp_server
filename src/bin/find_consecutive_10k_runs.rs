@@ -14,7 +14,6 @@ use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
 
-#[allow(clippy::too_many_lines)]
 fn main() -> Result<()> {
     println!("🏃 Finding longest consecutive running streak with 10km+ runs...");
 
@@ -263,16 +262,19 @@ fn main() -> Result<()> {
             .sum();
 
         println!("   📏 Total Distance: {:.2} km", total_distance / 1000.0);
-        println!("   ⏱️  Total Time: {:.2} hours", total_time as f64 / 3600.0);
+        println!(
+            "   ⏱️  Total Time: {:.2} hours",
+            (total_time.min(u32::MAX as u64) as f64) / 3600.0
+        );
         println!(
             "   📊 Average Distance: {:.2} km/day",
-            (total_distance / 1000.0) / longest_streak as f64
+            (total_distance / 1000.0) / (longest_streak as f64)
         );
 
         println!("\n📋 Streak Details:");
         for (i, activity) in longest_streak_activities.iter().enumerate() {
             let distance_km = activity.distance_meters.unwrap_or(0.0) / 1000.0;
-            let duration_hours = activity.duration_seconds as f64 / 3600.0;
+            let duration_hours = (activity.duration_seconds.min(u32::MAX as u64) as f64) / 3600.0;
 
             println!(
                 "   Day {}: {} - {:.2}km in {:.2}h - \"{}\"",

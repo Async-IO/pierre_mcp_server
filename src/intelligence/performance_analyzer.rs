@@ -126,22 +126,25 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
         }
 
         // Simple linear regression to calculate R-squared
-        #[allow(clippy::cast_precision_loss)]
-        let n = data_points.len() as f64;
-        #[allow(clippy::cast_precision_loss)]
-        let sum_x: f64 = (0..data_points.len()).map(|i| i as f64).sum();
+        let n = f64::from(u32::try_from(data_points.len()).unwrap_or(u32::MAX));
+        let sum_x: f64 = (0..data_points.len())
+            .map(|i| f64::from(u32::try_from(i).unwrap_or(u32::MAX)))
+            .sum();
         let sum_y: f64 = data_points.iter().map(|p| p.value).sum();
         let sum_x_y: f64 = data_points
             .iter()
             .enumerate()
             .map(|(i, p)| {
-                #[allow(clippy::cast_precision_loss)]
-                let i_f64 = i as f64;
+                let i_f64 = f64::from(u32::try_from(i).unwrap_or(u32::MAX));
                 i_f64 * p.value
             })
             .sum();
-        #[allow(clippy::cast_precision_loss)]
-        let sum_x_squared: f64 = (0..data_points.len()).map(|i| (i as f64).powi(2)).sum();
+        let sum_x_squared: f64 = (0..data_points.len())
+            .map(|i| {
+                let i_f64 = f64::from(u32::try_from(i).unwrap_or(u32::MAX));
+                i_f64.powi(2)
+            })
+            .sum();
         let sum_values_squared: f64 = data_points.iter().map(|p| p.value.powi(2)).sum();
 
         let numerator = n.mul_add(sum_x_y, -(sum_x * sum_y));
@@ -168,7 +171,6 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
             let end = std::cmp::min(start + window_size, data_points.len());
 
             let window_sum: f64 = data_points[start..end].iter().map(|p| p.value).sum();
-            #[allow(clippy::cast_precision_loss)]
             let window_avg = window_sum / (end - start) as f64;
 
             data_points[i].smoothed_value = Some(window_avg);
@@ -279,7 +281,6 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
 
 #[async_trait::async_trait]
 impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
-    #[allow(clippy::cast_precision_loss)]
     async fn analyze_trends(
         &self,
         activities: &[Activity],
@@ -314,11 +315,7 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
                 "pace" | "speed" => activity.average_speed,
                 "heart_rate" => activity.average_heart_rate.map(f64::from),
                 "distance" => activity.distance_meters,
-                "duration" =>
-                {
-                    #[allow(clippy::cast_precision_loss)]
-                    Some(activity.duration_seconds as f64)
-                }
+                "duration" => Some(activity.duration_seconds as f64),
                 "elevation" => activity.elevation_gain,
                 _ => None,
             };
@@ -426,7 +423,6 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
 
         // Calculate weekly activity frequency
         let weeks = 6;
-        #[allow(clippy::cast_precision_loss)]
         let activities_per_week = recent_activities.len() as f64 / f64::from(weeks);
         let consistency = (activities_per_week / TARGET_WEEKLY_ACTIVITIES)
             .min(self.config.statistical.confidence_level)
@@ -441,10 +437,8 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
                 let duration = activity.duration_seconds;
                 if hr > RECOVERY_HR_THRESHOLD && duration > MIN_AEROBIC_DURATION {
                     // Above aerobic threshold with sufficient duration
-                    aerobic_score += (f64::from(hr) - f64::from(RECOVERY_HR_THRESHOLD)) * {
-                        #[allow(clippy::cast_precision_loss)]
-                        (duration as f64 / 3600.0)
-                    };
+                    aerobic_score += (f64::from(hr) - f64::from(RECOVERY_HR_THRESHOLD))
+                        * (duration as f64 / 3600.0);
                     aerobic_count += 1;
                 }
             }
@@ -468,13 +462,11 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
                 // High intensity workouts contribute to strength endurance
                 if hr > HIGH_INTENSITY_HR_THRESHOLD {
                     // Weight by duration - longer high-intensity efforts indicate better strength endurance
-                    #[allow(clippy::cast_precision_loss)]
                     let duration_weight = (duration as f64 / 3600.0).min(2.0); // Cap at 2 hours
                     strength_score += f64::from(hr) * duration_weight;
                     strength_count += 1;
                 } else if hr > MODERATE_HR_THRESHOLD {
                     // Moderate intensity also contributes, but less
-                    #[allow(clippy::cast_precision_loss)]
                     let duration_weight = (duration as f64 / 3600.0).min(1.5);
                     strength_score += (f64::from(hr) * 0.6) * duration_weight;
                     strength_count += 1;
@@ -515,7 +507,6 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
         })
     }
 
-    #[allow(clippy::cast_precision_loss)]
     async fn predict_performance(
         &self,
         activities: &[Activity],
@@ -545,9 +536,7 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
                 });
 
         // Training adaptation factors based on volume
-        #[allow(clippy::cast_precision_loss)]
         let training_days = similar_activities.len() as f64;
-        #[allow(clippy::cast_precision_loss)]
         let min_data_points_f64 = (self.config.trend_analysis.min_data_points * 2) as f64;
 
         let improvement_factor = if training_days > 20.0 {
@@ -586,11 +575,6 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
         })
     }
 
-    #[allow(
-        clippy::cast_precision_loss,
-        clippy::cast_possible_truncation,
-        clippy::cast_possible_wrap
-    )]
     async fn analyze_training_load(&self, activities: &[Activity]) -> Result<TrainingLoadAnalysis> {
         // Analyze training load over recent weeks
         let weeks = 4;
@@ -632,6 +616,7 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
                 activity_count: week_activities.len() as i32,
                 intensity_score: week_activities
                     .iter()
+                    // Heart rates are small values (30-220), safe to cast to f32
                     .filter_map(|a| a.average_heart_rate.map(|hr| hr as f32))
                     .map(f64::from)
                     .sum::<f64>()

@@ -75,8 +75,9 @@ pub struct InsightConfig {
 impl Default for InsightConfig {
     fn default() -> Self {
         Self {
-            #[allow(clippy::cast_possible_truncation)]
-            min_confidence_threshold: GOOD_FITNESS_THRESHOLD as f32,
+            min_confidence_threshold: GOOD_FITNESS_THRESHOLD
+                .clamp(f64::from(f32::MIN), f64::from(f32::MAX))
+                as f32,
             max_insights_per_activity: 5,
         }
     }
@@ -170,7 +171,7 @@ impl InsightGenerator {
         // Analyze heart rate zones if available
         if let (Some(avg_hr), Some(max_hr)) = (activity.average_heart_rate, activity.max_heart_rate)
         {
-            #[allow(clippy::cast_precision_loss)]
+            // Heart rates are small values (30-220), safe to cast to f32
             let hr_intensity = (avg_hr as f32) / (max_hr as f32);
 
             let (zone_description, confidence) = match hr_intensity {
@@ -205,11 +206,22 @@ impl InsightGenerator {
         let duration = activity.duration_seconds;
         let effort_score = Self::calculate_relative_effort(activity);
 
-        #[allow(clippy::cast_possible_truncation)]
         let effort_description = match effort_score {
-            x if x < (BASE_ACTIVITY_SCORE * 0.6) as f32 => ("light", "perfect for recovery"),
-            x if x < BASE_ACTIVITY_SCORE as f32 => ("moderate", "good training stimulus"),
-            x if x < (BASE_ACTIVITY_SCORE * 1.4) as f32 => ("hard", "excellent workout intensity"),
+            x if x
+                < (BASE_ACTIVITY_SCORE * 0.6).clamp(f64::from(f32::MIN), f64::from(f32::MAX))
+                    as f32 =>
+            {
+                ("light", "perfect for recovery")
+            }
+            x if x < BASE_ACTIVITY_SCORE.clamp(f64::from(f32::MIN), f64::from(f32::MAX)) as f32 => {
+                ("moderate", "good training stimulus")
+            }
+            x if x
+                < (BASE_ACTIVITY_SCORE * 1.4).clamp(f64::from(f32::MIN), f64::from(f32::MAX))
+                    as f32 =>
+            {
+                ("hard", "excellent workout intensity")
+            }
             x if x < 9.0 => ("very hard", "high training load"),
             _ => ("maximum", "peak effort achieved"),
         };
@@ -235,35 +247,35 @@ impl InsightGenerator {
 
     /// Calculate relative effort score (1-10 scale)
     fn calculate_relative_effort(activity: &Activity) -> f32 {
-        #[allow(clippy::cast_possible_truncation)]
-        let mut effort_score = COMPLETION_BONUS as f32;
+        let mut effort_score =
+            COMPLETION_BONUS.clamp(f64::from(f32::MIN), f64::from(f32::MAX)) as f32;
 
         // Factor in duration
         let duration = activity.duration_seconds;
-        #[allow(clippy::cast_precision_loss)]
-        let duration_f32 = duration as f32;
-        #[allow(clippy::cast_possible_truncation)]
+        let duration_f32 = duration.min(f32::MAX as u64) as f32;
         {
-            effort_score += (duration_f32 / 3600.0) * (COMPLETION_BONUS as f32 * 2.0);
+            effort_score += (duration_f32 / 3600.0)
+                * (COMPLETION_BONUS.clamp(f64::from(f32::MIN), f64::from(f32::MAX)) as f32 * 2.0);
             // +2 per hour
         }
 
         // Factor in heart rate intensity
         if let (Some(avg_hr), Some(max_hr)) = (activity.average_heart_rate, activity.max_heart_rate)
         {
-            #[allow(clippy::cast_precision_loss)]
+            // Heart rates are small values (30-220), safe to cast to f32
             let hr_intensity = (avg_hr as f32) / (max_hr as f32);
-            #[allow(clippy::cast_possible_truncation)]
             {
-                effort_score += hr_intensity * (BASE_ACTIVITY_SCORE as f32);
+                effort_score += hr_intensity
+                    * BASE_ACTIVITY_SCORE.clamp(f64::from(f32::MIN), f64::from(f32::MAX)) as f32;
             }
         }
 
         // Factor in elevation gain
         if let Some(elevation) = activity.elevation_gain {
-            #[allow(clippy::cast_possible_truncation)]
             {
-                effort_score += (elevation / 100.0) as f32 * (STANDARD_BONUS as f32);
+                effort_score += (elevation / 100.0).clamp(f64::from(f32::MIN), f64::from(f32::MAX))
+                    as f32
+                    * STANDARD_BONUS.clamp(f64::from(f32::MIN), f64::from(f32::MAX)) as f32;
                 // +0.5 per 100m
             }
         }

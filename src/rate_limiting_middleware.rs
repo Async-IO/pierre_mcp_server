@@ -107,7 +107,6 @@ pub fn create_rate_limit_error_json(rate_limit_info: &UnifiedRateLimitInfo) -> i
 /// # Errors
 ///
 /// Returns an error if the rate limit has been exceeded
-#[allow(clippy::result_large_err)]
 pub fn check_rate_limit_and_respond(
     rate_limit_info: &UnifiedRateLimitInfo,
 ) -> Result<(), AppError> {

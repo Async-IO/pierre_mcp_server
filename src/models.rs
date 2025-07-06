@@ -405,14 +405,14 @@ impl SleepSession {
             .filter(|s| matches!(s.stage_type, SleepStageType::Deep))
             .map(|s| s.duration_minutes)
             .sum::<u32>();
-        #[allow(clippy::cast_precision_loss)]
-        let deep_sleep_minutes = deep_sleep_total as f32;
+        let deep_sleep_minutes =
+            f32::from(u16::try_from(deep_sleep_total.min(u32::from(u16::MAX))).unwrap_or(u16::MAX));
 
         if self.total_sleep_time > 0 {
-            #[allow(clippy::cast_precision_loss)]
-            {
-                (deep_sleep_minutes / (self.total_sleep_time as f32)) * 100.0
-            }
+            let total_sleep_f32 = f32::from(
+                u16::try_from(self.total_sleep_time.min(u32::from(u16::MAX))).unwrap_or(u16::MAX),
+            );
+            (deep_sleep_minutes / total_sleep_f32) * 100.0
         } else {
             0.0
         }
@@ -427,14 +427,14 @@ impl SleepSession {
             .filter(|s| matches!(s.stage_type, SleepStageType::Rem))
             .map(|s| s.duration_minutes)
             .sum::<u32>();
-        #[allow(clippy::cast_precision_loss)]
-        let rem_sleep_minutes = rem_sleep_total as f32;
+        let rem_sleep_minutes =
+            f32::from(u16::try_from(rem_sleep_total.min(u32::from(u16::MAX))).unwrap_or(u16::MAX));
 
         if self.total_sleep_time > 0 {
-            #[allow(clippy::cast_precision_loss)]
-            {
-                (rem_sleep_minutes / (self.total_sleep_time as f32)) * 100.0
-            }
+            let total_sleep_f32 = f32::from(
+                u16::try_from(self.total_sleep_time.min(u32::from(u16::MAX))).unwrap_or(u16::MAX),
+            );
+            (rem_sleep_minutes / total_sleep_f32) * 100.0
         } else {
             0.0
         }
@@ -477,8 +477,7 @@ impl RecoveryMetrics {
         }
 
         if factor_count > 0 {
-            #[allow(clippy::cast_precision_loss)]
-            Some(total_score / (factor_count as f32))
+            Some(total_score / f32::from(u8::try_from(factor_count).unwrap_or(u8::MAX)))
         } else {
             None
         }
@@ -959,9 +958,18 @@ impl UserPhysiologicalProfile {
         self.max_hr.or_else(|| {
             self.age.map(|age| {
                 // Use Tanaka formula: 208 - (0.7 × age)
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
                 {
-                    0.7f64.mul_add(-f64::from(age), 208.0) as u16
+                    let hr = 0.7f64.mul_add(-f64::from(age), 208.0);
+                    // Ensure result is within u16 bounds (heart rate should be 0-300)
+                    if hr.is_finite() && hr >= 0.0 && hr <= f64::from(u16::MAX) {
+                        let rounded = hr.round();
+                        let hr_string = format!("{rounded:.0}");
+                        hr_string
+                            .parse::<u16>()
+                            .unwrap_or_else(|_| 220_u16.saturating_sub(age))
+                    } else {
+                        220_u16.saturating_sub(age)
+                    }
                 }
             })
         })
@@ -1371,10 +1379,9 @@ mod tests {
         };
 
         assert_eq!(stats.total_activities, 150);
-        #[allow(clippy::float_cmp)]
         {
-            assert_eq!(stats.total_distance, 1_500_000.0);
-            assert_eq!(stats.total_elevation_gain, 25000.0);
+            assert!((stats.total_distance - 1_500_000.0).abs() < f64::EPSILON);
+            assert!((stats.total_elevation_gain - 25000.0).abs() < f64::EPSILON);
         }
         assert_eq!(stats.total_duration, 540_000);
     }

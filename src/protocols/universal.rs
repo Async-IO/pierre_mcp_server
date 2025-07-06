@@ -210,7 +210,6 @@ impl UniversalToolExecutor {
     }
 
     /// Get activity data from providers or database
-    #[allow(clippy::too_many_lines)]
     async fn get_activity_data(
         &self,
         activity_id: &str,
@@ -380,7 +379,6 @@ impl UniversalToolExecutor {
 
     /// List available tools
     #[must_use]
-    #[allow(clippy::too_many_lines)]
     pub fn list_tools(&self) -> Vec<UniversalTool> {
         vec![
             UniversalTool {
@@ -533,7 +531,6 @@ impl UniversalToolExecutor {
     }
 
     /// Handle `get_activities` with async Strava `API` calls
-    #[allow(clippy::too_many_lines)]
     async fn handle_get_activities_async(
         &self,
         request: UniversalRequest,
@@ -809,8 +806,8 @@ impl UniversalToolExecutor {
                 let efficiency_score = if let Some(distance) = activity.distance_meters {
                     if activity.duration_seconds > 0 && distance > f64::from(MIN_VALID_DISTANCE) {
                         // Simple efficiency calculation: distance/time ratio normalized
-                        #[allow(clippy::cast_precision_loss)]
-                        let speed_ms = distance / (activity.duration_seconds as f64);
+                        let duration_f64 = activity.duration_seconds.min(u32::MAX as u64) as f64;
+                        let speed_ms = distance / duration_f64;
                         (speed_ms * f64::from(MAX_SCORE))
                             .clamp(f64::from(MIN_SCORE), f64::from(MAX_SCORE))
                     } else {
@@ -1315,23 +1312,23 @@ impl UniversalToolExecutor {
         let heart_rate = activity
             .get("average_heart_rate")
             .and_then(|v| v.as_u64())
-            .map(|hr| hr as u32);
+            .and_then(|v| u32::try_from(v).ok());
 
         // Calculate metrics
         let pace = if distance > 0.0 && duration > 0 {
-            (duration as f64) / (distance / 1000.0)
+            (duration.min(u32::MAX as u64) as f64) / (distance / 1000.0)
         } else {
             0.0
         };
 
         let speed = if duration > 0 {
-            (distance / duration as f64) * MS_TO_KMH_FACTOR
+            (distance / (duration.min(u32::MAX as u64) as f64)) * MS_TO_KMH_FACTOR
         } else {
             0.0
         };
 
         let intensity_score = heart_rate
-            .map(|hr| (hr as f64 / ASSUMED_MAX_HR) * 100.0)
+            .map(|hr| (f64::from(hr) / ASSUMED_MAX_HR) * 100.0)
             .unwrap_or(DEFAULT_EFFICIENCY_SCORE);
 
         let efficiency_score = if distance > 0.0 && elevation_gain > 0.0 {
@@ -1560,7 +1557,7 @@ impl UniversalToolExecutor {
                 "name": act1.name,
                 "distance": act1.distance_meters,
                 "duration": act1.duration_seconds,
-                "pace": act1.distance_meters.map(|d| act1.duration_seconds as f64 / (d / 1000.0)),
+                "pace": act1.distance_meters.map(|d| (act1.duration_seconds.min(u32::MAX as u64) as f64) / (d / 1000.0)),
                 "elevation_gain": act1.elevation_gain,
                 "average_heart_rate": act1.average_heart_rate
             },
@@ -1569,16 +1566,16 @@ impl UniversalToolExecutor {
                 "name": act2.name,
                 "distance": act2.distance_meters,
                 "duration": act2.duration_seconds,
-                "pace": act2.distance_meters.map(|d| act2.duration_seconds as f64 / (d / 1000.0)),
+                "pace": act2.distance_meters.map(|d| (act2.duration_seconds.min(u32::MAX as u64) as f64) / (d / 1000.0)),
                 "elevation_gain": act2.elevation_gain,
                 "average_heart_rate": act2.average_heart_rate
             },
             "differences": {
                 "distance_diff": act2.distance_meters.unwrap_or(0.0) - act1.distance_meters.unwrap_or(0.0),
-                "duration_diff": act2.duration_seconds as i64 - act1.duration_seconds as i64,
+                "duration_diff": i64::try_from(act2.duration_seconds).unwrap_or(i64::MAX) - i64::try_from(act1.duration_seconds).unwrap_or(0),
                 "pace_improvement": if let (Some(d1), Some(d2)) = (act1.distance_meters, act2.distance_meters) {
-                    let pace1 = act1.duration_seconds as f64 / (d1 / 1000.0);
-                    let pace2 = act2.duration_seconds as f64 / (d2 / 1000.0);
+                    let pace1 = (act1.duration_seconds.min(u32::MAX as u64) as f64) / (d1 / 1000.0);
+                    let pace2 = (act2.duration_seconds.min(u32::MAX as u64) as f64) / (d2 / 1000.0);
                     Some(((pace1 - pace2) / pace1) * 100.0)
                 } else {
                     None
@@ -1917,7 +1914,8 @@ impl UniversalToolExecutor {
             .parameters
             .get("timeframe_days")
             .and_then(|v| v.as_u64())
-            .unwrap_or(90) as u32;
+            .and_then(|v| u32::try_from(v).ok())
+            .unwrap_or(90);
 
         // Validate timeframe is reasonable
         if timeframe_days > 365 {
@@ -2222,26 +2220,26 @@ impl UniversalToolExecutor {
         let total_duration: u64 = activities.iter().map(|a| a.duration_seconds).sum();
 
         let avg_pace = if total_distance > 0.0 {
-            (total_duration as f64 / 60.0) / total_distance
+            ((total_duration.min(u32::MAX as u64) as f64) / 60.0) / total_distance
         } else {
             0.0
         };
 
         let activity_frequency = if let Some(last_activity) = activities.last() {
             activities.len() as f64
-                / (chrono::Utc::now() - last_activity.start_date)
+                / ((chrono::Utc::now() - last_activity.start_date)
                     .num_days()
-                    .max(1) as f64
+                    .max(1) as f64)
                 * 7.0 // Activities per week
         } else {
             0.0
         };
 
         // Calculate composite fitness score (0-100)
-        let distance_score =
-            (total_distance / DISTANCE_SCORE_DIVISOR as f64).min(1.0) * MAX_DISTANCE_SCORE as f64; // Max distance points
-        let frequency_score = (activity_frequency / DURATION_SCORE_FACTOR as f64).min(1.0)
-            * MAX_DISTANCE_SCORE as f64; // Max frequency points
+        let distance_score = (total_distance / f64::from(DISTANCE_SCORE_DIVISOR)).min(1.0)
+            * f64::from(MAX_DISTANCE_SCORE); // Max distance points
+        let frequency_score = (activity_frequency / f64::from(DURATION_SCORE_FACTOR)).min(1.0)
+            * f64::from(MAX_DISTANCE_SCORE); // Max frequency points
         let pace_score = if avg_pace > 0.0 {
             ((PACE_SCORING_BASE / avg_pace) * PACE_SCORING_MULTIPLIER).min(MAX_PACE_SCORE)
         // Pace scoring with constants
@@ -2262,7 +2260,7 @@ impl UniversalToolExecutor {
                 },
                 "fitness_metrics": {
                     "total_distance_km": total_distance,
-                    "total_duration_hours": total_duration as f64 / 3600.0,
+                    "total_duration_hours": (total_duration.min(u32::MAX as u64) as f64) / 3600.0,
                     "average_pace_min_per_km": avg_pace,
                     "activities_per_week": activity_frequency,
                     "total_activities": activities.len()
@@ -2394,7 +2392,7 @@ impl UniversalToolExecutor {
         let total_duration: u64 = relevant_activities.iter().map(|a| a.duration_seconds).sum();
 
         let avg_pace = if total_distance > 0.0 {
-            (total_duration as f64 / 60.0) / total_distance
+            ((total_duration.min(u32::MAX as u64) as f64) / 60.0) / total_distance
         } else {
             6.0 // Default 6 min/km
         };
@@ -2410,7 +2408,7 @@ impl UniversalToolExecutor {
         // Calculate confidence based on data availability
         let confidence = (relevant_activities.len() as f64 / CONFIDENCE_BASE_DIVISOR)
             .min(MAX_CONFIDENCE_RATIO)
-            * MAX_SCORE as f64;
+            * f64::from(MAX_SCORE);
 
         Ok(UniversalResponse {
             success: true,
@@ -2418,8 +2416,8 @@ impl UniversalToolExecutor {
                 "predicted_time": {
                     "minutes": adjusted_time,
                     "formatted": format!("{}:{:02}",
-                        u32::try_from(adjusted_time.max(0.0) as i64).unwrap_or(0),
-                        u32::try_from(((adjusted_time % 1.0) * 60.0).max(0.0) as i64).unwrap_or(0)
+                        u32::try_from(adjusted_time.round() as i64).unwrap_or(0),
+                        u32::try_from(((adjusted_time % 1.0) * 60.0).round() as i64).unwrap_or(0)
                     )
                 },
                 "predicted_pace": {
@@ -2511,7 +2509,7 @@ impl UniversalToolExecutor {
             )
             .unwrap_or(0);
             if weeks_ago < 4 {
-                let load = activity.duration_seconds as f64 / 60.0; // Simple duration-based load
+                let load = (activity.duration_seconds.min(u32::MAX as u64) as f64) / 60.0; // Simple duration-based load
                 weekly_loads[3 - weeks_ago] += load;
             }
         }
@@ -2958,13 +2956,15 @@ impl UniversalToolExecutor {
             .parameters
             .get("resting_hr")
             .and_then(|v| v.as_u64())
-            .unwrap_or(60) as u16;
+            .and_then(|v| u16::try_from(v).ok())
+            .unwrap_or(60);
 
         let max_hr = request
             .parameters
             .get("max_hr")
             .and_then(|v| v.as_u64())
-            .unwrap_or(190) as u16;
+            .and_then(|v| u16::try_from(v).ok())
+            .unwrap_or(190);
 
         let lactate_threshold = request
             .parameters

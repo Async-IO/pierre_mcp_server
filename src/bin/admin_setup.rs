@@ -482,7 +482,7 @@ async fn token_stats_command(
     token_id: Option<String>,
     days: u32,
 ) -> Result<()> {
-    let start_date = chrono::Utc::now() - chrono::Duration::days(days as i64);
+    let start_date = chrono::Utc::now() - chrono::Duration::days(i64::from(days));
     let end_date = chrono::Utc::now();
 
     match token_id {
@@ -513,12 +513,12 @@ async fn token_stats_command(
             println!(
                 "Successful: {} ({}%)",
                 successful,
-                (successful as f64 / usage_history.len() as f64 * 100.0) as u32
+                ((successful as f64 / usage_history.len() as f64 * 100.0).round() as u32)
             );
             println!(
                 "Failed: {} ({}%)",
                 failed,
-                (failed as f64 / usage_history.len() as f64 * 100.0) as u32
+                ((failed as f64 / usage_history.len() as f64 * 100.0).round() as u32)
             );
 
             // Group by action

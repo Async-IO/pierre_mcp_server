@@ -112,9 +112,11 @@ pub struct PersonalizedPowerZones {
 
 impl VO2MaxCalculator {
     /// Helper function to safely convert HR calculations to u16
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     fn hr_calc_to_u16(base_hr: u16, reserve: f64, percentage: f64) -> u16 {
-        base_hr + (reserve * percentage) as u16
+        let addition = (reserve * percentage).round();
+        u16::try_from(addition as i32)
+            .map(|add| base_hr.saturating_add(add))
+            .unwrap_or(base_hr)
     }
     /// Create a new VO2 max calculator
     #[must_use]

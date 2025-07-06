@@ -201,7 +201,6 @@ impl DashboardRoutes {
                 key_count,
                 total_requests,
                 average_requests_per_key: if key_count > 0 {
-                    #[allow(clippy::cast_precision_loss)]
                     {
                         (total_requests as f64) / f64::from(key_count)
                     }
@@ -275,7 +274,6 @@ impl DashboardRoutes {
                 request_count: total_requests,
                 error_count: total_errors,
                 average_response_time: if response_count > 0 {
-                    #[allow(clippy::cast_precision_loss)]
                     {
                         (total_response_time as f64) / (response_count as f64)
                     }
@@ -293,7 +291,6 @@ impl DashboardRoutes {
         // Overall metrics
         let total_requests: u64 = time_series.iter().map(|d| d.request_count).sum();
         let total_errors: u64 = time_series.iter().map(|d| d.error_count).sum();
-        #[allow(clippy::cast_precision_loss)]
         let error_rate = if total_requests > 0 {
             ((total_errors as f64) / (total_requests as f64)) * 100.0
         } else {
@@ -308,7 +305,6 @@ impl DashboardRoutes {
                 .map(|d| d.average_response_time)
                 .sum::<f64>()
                 / {
-                    #[allow(clippy::cast_precision_loss)]
                     {
                         time_series.len() as f64
                     }
@@ -358,9 +354,8 @@ impl DashboardRoutes {
 
             let usage_percentage = limit.map_or(0.0, |limit_val| {
                 if limit_val > 0 {
-                    #[allow(clippy::cast_precision_loss)]
                     {
-                        (f64::from(current_usage) / (limit_val as f64)) * 100.0
+                        ((current_usage as f64) / (limit_val as f64)) * 100.0
                     }
                 } else {
                     0.0
@@ -509,14 +504,12 @@ impl DashboardRoutes {
             .into_iter()
             .map(
                 |(tool_name, (total_requests, successful_requests, total_response_time))| {
-                    #[allow(clippy::cast_precision_loss)]
                     let success_rate = if total_requests > 0 {
                         ((successful_requests as f64) / (total_requests as f64)) * 100.0
                     } else {
                         0.0
                     };
 
-                    #[allow(clippy::cast_precision_loss)]
                     let average_response_time = if total_requests > 0 {
                         (total_response_time as f64) / (total_requests as f64)
                     } else {
@@ -651,17 +644,14 @@ impl DashboardRoutes {
             total_response_time += stats.total_response_time_ms;
         }
 
-        #[allow(clippy::cast_precision_loss)]
         let average_response_time = if total_requests > 0 {
             (total_response_time as f64) / (total_requests as f64)
         } else {
             0.0
         };
 
-        #[allow(clippy::cast_precision_loss)]
         let requests_per_minute = (total_requests as f64) / duration_minutes;
 
-        #[allow(clippy::cast_precision_loss)]
         let error_rate = if total_requests > 0 {
             ((failed_requests as f64) / (total_requests as f64)) * 100.0
         } else {

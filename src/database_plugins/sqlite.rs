@@ -509,7 +509,6 @@ impl DatabaseProvider for SqliteDatabase {
 
             // Log error rate for monitoring
             if error_count > 0 {
-                #[allow(clippy::cast_precision_loss)]
                 let error_rate = (error_count as f64) / (usage_count as f64);
                 if error_rate > 0.1 {
                     tracing::warn!(
@@ -526,7 +525,6 @@ impl DatabaseProvider for SqliteDatabase {
                 tool_name,
                 request_count: u64::try_from(usage_count)?,
                 success_rate: if usage_count > 0 {
-                    #[allow(clippy::cast_precision_loss)]
                     {
                         (success_count as f64) / (usage_count as f64)
                     }
@@ -898,7 +896,6 @@ impl DatabaseProvider for SqliteDatabase {
 
 impl SqliteDatabase {
     /// Convert database row to JSON for provisioned keys
-    #[allow(clippy::unnecessary_wraps)]
     fn row_to_provisioned_key_json(row: &sqlx::sqlite::SqliteRow) -> Result<serde_json::Value> {
         use sqlx::Row;
         let mut record = serde_json::Map::new();

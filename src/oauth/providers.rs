@@ -111,7 +111,6 @@ impl OAuthProvider for StravaOAuthProvider {
     /// - URL encoding fails for any parameter
     /// - Base authorization URL is malformed
     /// - State parameter is invalid
-    #[allow(clippy::unused_async)]
     async fn generate_auth_url(
         &self,
         _user_id: Uuid,
@@ -334,7 +333,6 @@ impl OAuthProvider for FitbitOAuthProvider {
         "fitbit"
     }
 
-    #[allow(clippy::unused_async)]
     async fn generate_auth_url(
         &self,
         _user_id: Uuid,

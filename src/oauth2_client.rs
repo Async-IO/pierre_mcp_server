@@ -166,7 +166,7 @@ impl OAuth2Client {
             .json()
             .await?;
 
-        Ok(self.token_from_response(response))
+        Ok(Self::token_from_response(response))
     }
 
     /// Exchange authorization code with `PKCE` support
@@ -200,7 +200,7 @@ impl OAuth2Client {
             .json()
             .await?;
 
-        Ok(self.token_from_response(response))
+        Ok(Self::token_from_response(response))
     }
 
     /// Refresh an expired access token
@@ -225,12 +225,11 @@ impl OAuth2Client {
             .json()
             .await?;
 
-        Ok(self.token_from_response(response))
+        Ok(Self::token_from_response(response))
     }
 
     #[must_use]
-    #[allow(clippy::unused_self)]
-    fn token_from_response(&self, response: TokenResponse) -> OAuth2Token {
+    fn token_from_response(response: TokenResponse) -> OAuth2Token {
         let expires_at = response
             .expires_in
             .map(|seconds| Utc::now() + Duration::seconds(i64::try_from(seconds).unwrap_or(3600)));

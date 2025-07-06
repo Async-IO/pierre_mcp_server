@@ -202,7 +202,6 @@ impl WeatherService {
     }
 
     /// Fetch weather from `OpenWeatherMap` Historical API
-    #[allow(clippy::cast_possible_truncation)]
     async fn fetch_from_openweather(
         &self,
         latitude: f64,
@@ -262,11 +261,16 @@ impl WeatherService {
             },
         );
         Ok(WeatherConditions {
-            temperature_celsius: closest_data.temp as f32,
-            humidity_percentage: closest_data.humidity.map(|h| h as f32),
-            wind_speed_kmh: closest_data
-                .wind_speed
-                .map(|ws| (ws * MS_TO_KMH_FACTOR) as f32), // Convert m/s to km/h
+            temperature_celsius: closest_data
+                .temp
+                .clamp(f64::from(f32::MIN), f64::from(f32::MAX))
+                as f32,
+            humidity_percentage: closest_data
+                .humidity
+                .map(|h| h.clamp(f64::from(f32::MIN), f64::from(f32::MAX)) as f32),
+            wind_speed_kmh: closest_data.wind_speed.map(|ws| {
+                (ws * MS_TO_KMH_FACTOR).clamp(f64::from(f32::MIN), f64::from(f32::MAX)) as f32
+            }), // Convert m/s to km/h
             conditions,
         })
     }
@@ -295,7 +299,6 @@ impl WeatherService {
 
     /// Analyze weather impact on performance
     #[must_use]
-    #[allow(clippy::cast_possible_truncation)]
     pub fn analyze_weather_impact(&self, weather: &WeatherConditions) -> WeatherImpact {
         let mut impact_factors = Vec::new();
         let mut overall_difficulty = 0.0;
@@ -367,7 +370,9 @@ impl WeatherService {
         WeatherImpact {
             difficulty_level,
             impact_factors,
-            performance_adjustment: (-overall_difficulty * 2.0) as f32, // Negative adjustment for difficulty
+            performance_adjustment: (-overall_difficulty * 2.0)
+                .clamp(f64::from(f32::MIN), f64::from(f32::MAX))
+                as f32, // Negative adjustment for difficulty
         }
     }
 }

@@ -112,14 +112,16 @@ impl A2ARoutes {
                 relative_effort: Some(7.5),
                 zone_distribution: None,
                 personal_records: vec![],
-                #[allow(clippy::cast_possible_truncation)]
-                efficiency_score: Some(DEMO_EFFICIENCY_SCORE as f32),
+                efficiency_score: Some(
+                    DEMO_EFFICIENCY_SCORE.clamp(f64::from(f32::MIN), f64::from(f32::MAX)) as f32,
+                ),
                 trend_indicators: crate::intelligence::TrendIndicators {
                     pace_trend: crate::intelligence::TrendDirection::Stable,
                     effort_trend: crate::intelligence::TrendDirection::Improving,
                     distance_trend: crate::intelligence::TrendDirection::Stable,
-                    #[allow(clippy::cast_possible_truncation)]
-                    consistency_score: DEMO_CONSISTENCY_SCORE as f32,
+                    consistency_score: DEMO_CONSISTENCY_SCORE
+                        .clamp(f64::from(f32::MIN), f64::from(f32::MAX))
+                        as f32,
                 },
             },
             crate::intelligence::ContextualFactors {
@@ -164,8 +166,7 @@ impl A2ARoutes {
     /// # Errors
     ///
     /// Returns `A2AError` if the agent card cannot be created
-    #[allow(clippy::unused_async)]
-    pub async fn get_agent_card(&self) -> Result<AgentCard, A2AError> {
+    pub fn get_agent_card(&self) -> Result<AgentCard, A2AError> {
         Ok(AgentCard::new())
     }
 
@@ -187,10 +188,9 @@ impl A2ARoutes {
             .await
             .map_err(|e| A2AError::DatabaseError(e.to_string()))?;
 
-        #[allow(clippy::cast_possible_truncation)]
-        let total_clients = clients.len() as u32;
-        #[allow(clippy::cast_possible_truncation)]
-        let active_clients = clients.iter().filter(|c| c.is_active).count() as u32;
+        let total_clients = u32::try_from(clients.len()).unwrap_or(u32::MAX);
+        let active_clients =
+            u32::try_from(clients.iter().filter(|c| c.is_active).count()).unwrap_or(0);
 
         // Sessions and usage stats based on database queries
         // These would need proper session tracking implementation

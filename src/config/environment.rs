@@ -391,171 +391,19 @@ impl ServerConfig {
     /// # Errors
     ///
     /// Returns an error if environment variables contain invalid values or required configuration is missing
-    #[allow(clippy::too_many_lines)]
     pub fn from_env() -> Result<Self> {
-        info!("Loading configuration from environment variables");
-
-        // Load .env file if it exists
-        if let Err(e) = dotenvy::dotenv() {
-            warn!("No .env file found or failed to load: {}", e);
-        }
+        Self::initialize_environment();
 
         let config = Self {
             mcp_port: env_config::mcp_port(),
             http_port: env_config::http_port(),
             log_level: LogLevel::from_str_or_default(&env_config::log_level()),
-
-            database: DatabaseConfig {
-                url: DatabaseUrl::parse_url(&env_config::database_url())
-                    .unwrap_or_else(|_| DatabaseUrl::default()),
-                encryption_key_path: PathBuf::from(env_config::encryption_key_path()),
-                auto_migrate: env_var_or("AUTO_MIGRATE", "true")
-                    .parse()
-                    .context("Invalid AUTO_MIGRATE value")?,
-                backup: BackupConfig {
-                    enabled: env_var_or("BACKUP_ENABLED", "true")
-                        .parse()
-                        .context("Invalid BACKUP_ENABLED value")?,
-                    interval_seconds: env_var_or(
-                        "BACKUP_INTERVAL",
-                        &limits::DEFAULT_BACKUP_INTERVAL_SECS.to_string(),
-                    )
-                    .parse()
-                    .context("Invalid BACKUP_INTERVAL value")?,
-                    retention_count: env_var_or(
-                        "BACKUP_RETENTION",
-                        &limits::DEFAULT_BACKUP_RETENTION_COUNT.to_string(),
-                    )
-                    .parse()
-                    .context("Invalid BACKUP_RETENTION value")?,
-                    directory: PathBuf::from(env_var_or(
-                        "BACKUP_DIRECTORY",
-                        defaults::DEFAULT_BACKUP_DIR,
-                    )),
-                },
-            },
-
-            auth: AuthConfig {
-                jwt_secret_path: PathBuf::from(env_config::jwt_secret_path()),
-                jwt_expiry_hours: u64::try_from(env_config::jwt_expiry_hours().max(0))
-                    .unwrap_or(24),
-                enable_refresh_tokens: env_var_or("ENABLE_REFRESH_TOKENS", "false")
-                    .parse()
-                    .context("Invalid ENABLE_REFRESH_TOKENS value")?,
-            },
-
-            oauth: OAuthConfig {
-                strava: OAuthProviderConfig {
-                    client_id: env_config::strava_client_id(),
-                    client_secret: env_config::strava_client_secret(),
-                    redirect_uri: Some(env_config::strava_redirect_uri()),
-                    scopes: parse_scopes(oauth::STRAVA_DEFAULT_SCOPES),
-                    enabled: env_var_or("STRAVA_ENABLED", "true")
-                        .parse()
-                        .context("Invalid STRAVA_ENABLED value")?,
-                },
-                fitbit: OAuthProviderConfig {
-                    client_id: env::var("FITBIT_CLIENT_ID").ok(),
-                    client_secret: env::var("FITBIT_CLIENT_SECRET").ok(),
-                    redirect_uri: env::var("FITBIT_REDIRECT_URI").ok(),
-                    scopes: parse_scopes(oauth::FITBIT_DEFAULT_SCOPES),
-                    enabled: env_var_or("FITBIT_ENABLED", "true")
-                        .parse()
-                        .context("Invalid FITBIT_ENABLED value")?,
-                },
-            },
-
-            security: SecurityConfig {
-                cors_origins: parse_origins(&env_var_or("CORS_ORIGINS", "*")),
-                rate_limit: RateLimitConfig {
-                    enabled: env_var_or("RATE_LIMIT_ENABLED", "true")
-                        .parse()
-                        .context("Invalid RATE_LIMIT_ENABLED value")?,
-                    requests_per_window: env_var_or(
-                        "RATE_LIMIT_REQUESTS",
-                        &limits::DEFAULT_RATE_LIMIT_REQUESTS.to_string(),
-                    )
-                    .parse()
-                    .context("Invalid RATE_LIMIT_REQUESTS value")?,
-                    window_seconds: env_var_or(
-                        "RATE_LIMIT_WINDOW",
-                        &limits::DEFAULT_RATE_LIMIT_WINDOW_SECS.to_string(),
-                    )
-                    .parse()
-                    .context("Invalid RATE_LIMIT_WINDOW value")?,
-                },
-                tls: TlsConfig {
-                    enabled: env_var_or("TLS_ENABLED", "false")
-                        .parse()
-                        .context("Invalid TLS_ENABLED value")?,
-                    cert_path: env::var("TLS_CERT_PATH").ok().map(PathBuf::from),
-                    key_path: env::var("TLS_KEY_PATH").ok().map(PathBuf::from),
-                },
-                headers: SecurityHeadersConfig {
-                    environment: Environment::from_str_or_default(&env_var_or(
-                        "SECURITY_HEADERS_ENV",
-                        "development",
-                    )),
-                },
-            },
-
-            external_services: ExternalServicesConfig {
-                weather: WeatherServiceConfig {
-                    api_key: env::var("OPENWEATHER_API_KEY").ok(),
-                    base_url: env_var_or(
-                        "OPENWEATHER_BASE_URL",
-                        "https://api.openweathermap.org/data/2.5",
-                    ),
-                    enabled: env_var_or("WEATHER_SERVICE_ENABLED", "true")
-                        .parse()
-                        .context("Invalid WEATHER_SERVICE_ENABLED value")?,
-                },
-                geocoding: GeocodingServiceConfig {
-                    base_url: env_var_or(
-                        "GEOCODING_BASE_URL",
-                        "https://nominatim.openstreetmap.org",
-                    ),
-                    enabled: env_var_or("GEOCODING_SERVICE_ENABLED", "true")
-                        .parse()
-                        .context("Invalid GEOCODING_SERVICE_ENABLED value")?,
-                },
-                strava_api: StravaApiConfig {
-                    base_url: env_var_or("STRAVA_API_BASE", "https://www.strava.com/api/v3"),
-                    auth_url: env_var_or(
-                        "STRAVA_AUTH_URL",
-                        "https://www.strava.com/oauth/authorize",
-                    ),
-                    token_url: env_var_or("STRAVA_TOKEN_URL", "https://www.strava.com/oauth/token"),
-                },
-                fitbit_api: FitbitApiConfig {
-                    base_url: env_var_or("FITBIT_API_BASE", "https://api.fitbit.com"),
-                    auth_url: env_var_or(
-                        "FITBIT_AUTH_URL",
-                        "https://www.fitbit.com/oauth2/authorize",
-                    ),
-                    token_url: env_var_or(
-                        "FITBIT_TOKEN_URL",
-                        "https://api.fitbit.com/oauth2/token",
-                    ),
-                },
-            },
-
-            app_behavior: AppBehaviorConfig {
-                max_activities_fetch: env_var_or("MAX_ACTIVITIES_FETCH", "100")
-                    .parse()
-                    .context("Invalid MAX_ACTIVITIES_FETCH value")?,
-                default_activities_limit: env_var_or("DEFAULT_ACTIVITIES_LIMIT", "20")
-                    .parse()
-                    .context("Invalid DEFAULT_ACTIVITIES_LIMIT value")?,
-                ci_mode: env_var_or("CI", "false")
-                    .parse()
-                    .context("Invalid CI value")?,
-                protocol: ProtocolConfig {
-                    mcp_version: env_var_or("MCP_PROTOCOL_VERSION", "2024-11-05"),
-                    server_name: env_var_or("SERVER_NAME", "pierre-mcp-server"),
-                    server_version: env!("CARGO_PKG_VERSION").to_string(),
-                },
-            },
+            database: Self::load_database_config()?,
+            auth: Self::load_auth_config()?,
+            oauth: Self::load_oauth_config()?,
+            security: Self::load_security_config()?,
+            external_services: Self::load_external_services_config()?,
+            app_behavior: Self::load_app_behavior_config()?,
         };
 
         config.validate()?;
@@ -721,6 +569,279 @@ impl ServerConfig {
             self.app_behavior.max_activities_fetch,
             self.app_behavior.default_activities_limit,
         )
+    }
+}
+
+impl ServerConfig {
+    /// Initialize environment by loading .env file and logging
+    fn initialize_environment() {
+        info!("Loading configuration from environment variables");
+
+        // Load .env file if it exists
+        if let Err(e) = dotenvy::dotenv() {
+            warn!("No .env file found or failed to load: {}", e);
+        }
+    }
+
+    /// Load database configuration from environment
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database environment variables are invalid
+    fn load_database_config() -> Result<DatabaseConfig> {
+        Ok(DatabaseConfig {
+            url: DatabaseUrl::parse_url(&env_config::database_url())
+                .unwrap_or_else(|_| DatabaseUrl::default()),
+            encryption_key_path: PathBuf::from(env_config::encryption_key_path()),
+            auto_migrate: env_var_or("AUTO_MIGRATE", "true")
+                .parse()
+                .context("Invalid AUTO_MIGRATE value")?,
+            backup: Self::load_backup_config()?,
+        })
+    }
+
+    /// Load backup configuration from environment
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if backup environment variables are invalid
+    fn load_backup_config() -> Result<BackupConfig> {
+        Ok(BackupConfig {
+            enabled: env_var_or("BACKUP_ENABLED", "true")
+                .parse()
+                .context("Invalid BACKUP_ENABLED value")?,
+            interval_seconds: env_var_or(
+                "BACKUP_INTERVAL",
+                &limits::DEFAULT_BACKUP_INTERVAL_SECS.to_string(),
+            )
+            .parse()
+            .context("Invalid BACKUP_INTERVAL value")?,
+            retention_count: env_var_or(
+                "BACKUP_RETENTION",
+                &limits::DEFAULT_BACKUP_RETENTION_COUNT.to_string(),
+            )
+            .parse()
+            .context("Invalid BACKUP_RETENTION value")?,
+            directory: PathBuf::from(env_var_or("BACKUP_DIRECTORY", defaults::DEFAULT_BACKUP_DIR)),
+        })
+    }
+
+    /// Load authentication configuration from environment
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if auth environment variables are invalid
+    fn load_auth_config() -> Result<AuthConfig> {
+        Ok(AuthConfig {
+            jwt_secret_path: PathBuf::from(env_config::jwt_secret_path()),
+            jwt_expiry_hours: u64::try_from(env_config::jwt_expiry_hours().max(0)).unwrap_or(24),
+            enable_refresh_tokens: env_var_or("ENABLE_REFRESH_TOKENS", "false")
+                .parse()
+                .context("Invalid ENABLE_REFRESH_TOKENS value")?,
+        })
+    }
+
+    /// Load OAuth configuration from environment
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if OAuth environment variables are invalid
+    fn load_oauth_config() -> Result<OAuthConfig> {
+        Ok(OAuthConfig {
+            strava: Self::load_strava_oauth_config()?,
+            fitbit: Self::load_fitbit_oauth_config()?,
+        })
+    }
+
+    /// Load Strava OAuth configuration from environment
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if Strava OAuth environment variables are invalid
+    fn load_strava_oauth_config() -> Result<OAuthProviderConfig> {
+        Ok(OAuthProviderConfig {
+            client_id: env_config::strava_client_id(),
+            client_secret: env_config::strava_client_secret(),
+            redirect_uri: Some(env_config::strava_redirect_uri()),
+            scopes: parse_scopes(oauth::STRAVA_DEFAULT_SCOPES),
+            enabled: env_var_or("STRAVA_ENABLED", "true")
+                .parse()
+                .context("Invalid STRAVA_ENABLED value")?,
+        })
+    }
+
+    /// Load Fitbit OAuth configuration from environment
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if Fitbit OAuth environment variables are invalid
+    fn load_fitbit_oauth_config() -> Result<OAuthProviderConfig> {
+        Ok(OAuthProviderConfig {
+            client_id: env::var("FITBIT_CLIENT_ID").ok(),
+            client_secret: env::var("FITBIT_CLIENT_SECRET").ok(),
+            redirect_uri: env::var("FITBIT_REDIRECT_URI").ok(),
+            scopes: parse_scopes(oauth::FITBIT_DEFAULT_SCOPES),
+            enabled: env_var_or("FITBIT_ENABLED", "true")
+                .parse()
+                .context("Invalid FITBIT_ENABLED value")?,
+        })
+    }
+
+    /// Load security configuration from environment
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if security environment variables are invalid
+    fn load_security_config() -> Result<SecurityConfig> {
+        Ok(SecurityConfig {
+            cors_origins: parse_origins(&env_var_or("CORS_ORIGINS", "*")),
+            rate_limit: Self::load_rate_limit_config()?,
+            tls: Self::load_tls_config()?,
+            headers: Self::load_security_headers_config(),
+        })
+    }
+
+    /// Load rate limiting configuration from environment
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if rate limit environment variables are invalid
+    fn load_rate_limit_config() -> Result<RateLimitConfig> {
+        Ok(RateLimitConfig {
+            enabled: env_var_or("RATE_LIMIT_ENABLED", "true")
+                .parse()
+                .context("Invalid RATE_LIMIT_ENABLED value")?,
+            requests_per_window: env_var_or(
+                "RATE_LIMIT_REQUESTS",
+                &limits::DEFAULT_RATE_LIMIT_REQUESTS.to_string(),
+            )
+            .parse()
+            .context("Invalid RATE_LIMIT_REQUESTS value")?,
+            window_seconds: env_var_or(
+                "RATE_LIMIT_WINDOW",
+                &limits::DEFAULT_RATE_LIMIT_WINDOW_SECS.to_string(),
+            )
+            .parse()
+            .context("Invalid RATE_LIMIT_WINDOW value")?,
+        })
+    }
+
+    /// Load TLS configuration from environment
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if TLS environment variables are invalid
+    fn load_tls_config() -> Result<TlsConfig> {
+        Ok(TlsConfig {
+            enabled: env_var_or("TLS_ENABLED", "false")
+                .parse()
+                .context("Invalid TLS_ENABLED value")?,
+            cert_path: env::var("TLS_CERT_PATH").ok().map(PathBuf::from),
+            key_path: env::var("TLS_KEY_PATH").ok().map(PathBuf::from),
+        })
+    }
+
+    /// Load security headers configuration from environment
+    fn load_security_headers_config() -> SecurityHeadersConfig {
+        SecurityHeadersConfig {
+            environment: Environment::from_str_or_default(&env_var_or(
+                "SECURITY_HEADERS_ENV",
+                "development",
+            )),
+        }
+    }
+
+    /// Load external services configuration from environment
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if external services environment variables are invalid
+    fn load_external_services_config() -> Result<ExternalServicesConfig> {
+        Ok(ExternalServicesConfig {
+            weather: Self::load_weather_service_config()?,
+            geocoding: Self::load_geocoding_service_config()?,
+            strava_api: Self::load_strava_api_config(),
+            fitbit_api: Self::load_fitbit_api_config(),
+        })
+    }
+
+    /// Load weather service configuration from environment
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if weather service environment variables are invalid
+    fn load_weather_service_config() -> Result<WeatherServiceConfig> {
+        Ok(WeatherServiceConfig {
+            api_key: env::var("OPENWEATHER_API_KEY").ok(),
+            base_url: env_var_or(
+                "OPENWEATHER_BASE_URL",
+                "https://api.openweathermap.org/data/2.5",
+            ),
+            enabled: env_var_or("WEATHER_SERVICE_ENABLED", "true")
+                .parse()
+                .context("Invalid WEATHER_SERVICE_ENABLED value")?,
+        })
+    }
+
+    /// Load geocoding service configuration from environment
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if geocoding service environment variables are invalid
+    fn load_geocoding_service_config() -> Result<GeocodingServiceConfig> {
+        Ok(GeocodingServiceConfig {
+            base_url: env_var_or("GEOCODING_BASE_URL", "https://nominatim.openstreetmap.org"),
+            enabled: env_var_or("GEOCODING_SERVICE_ENABLED", "true")
+                .parse()
+                .context("Invalid GEOCODING_SERVICE_ENABLED value")?,
+        })
+    }
+
+    /// Load Strava API configuration from environment
+    fn load_strava_api_config() -> StravaApiConfig {
+        StravaApiConfig {
+            base_url: env_var_or("STRAVA_API_BASE", "https://www.strava.com/api/v3"),
+            auth_url: env_var_or("STRAVA_AUTH_URL", "https://www.strava.com/oauth/authorize"),
+            token_url: env_var_or("STRAVA_TOKEN_URL", "https://www.strava.com/oauth/token"),
+        }
+    }
+
+    /// Load Fitbit API configuration from environment
+    fn load_fitbit_api_config() -> FitbitApiConfig {
+        FitbitApiConfig {
+            base_url: env_var_or("FITBIT_API_BASE", "https://api.fitbit.com"),
+            auth_url: env_var_or("FITBIT_AUTH_URL", "https://www.fitbit.com/oauth2/authorize"),
+            token_url: env_var_or("FITBIT_TOKEN_URL", "https://api.fitbit.com/oauth2/token"),
+        }
+    }
+
+    /// Load application behavior configuration from environment
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if application behavior environment variables are invalid
+    fn load_app_behavior_config() -> Result<AppBehaviorConfig> {
+        Ok(AppBehaviorConfig {
+            max_activities_fetch: env_var_or("MAX_ACTIVITIES_FETCH", "100")
+                .parse()
+                .context("Invalid MAX_ACTIVITIES_FETCH value")?,
+            default_activities_limit: env_var_or("DEFAULT_ACTIVITIES_LIMIT", "20")
+                .parse()
+                .context("Invalid DEFAULT_ACTIVITIES_LIMIT value")?,
+            ci_mode: env_var_or("CI", "false")
+                .parse()
+                .context("Invalid CI value")?,
+            protocol: Self::load_protocol_config(),
+        })
+    }
+
+    /// Load protocol configuration from environment
+    fn load_protocol_config() -> ProtocolConfig {
+        ProtocolConfig {
+            mcp_version: env_var_or("MCP_PROTOCOL_VERSION", "2024-11-05"),
+            server_name: env_var_or("SERVER_NAME", "pierre-mcp-server"),
+            server_version: env!("CARGO_PKG_VERSION").to_string(),
+        }
     }
 }
 

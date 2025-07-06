@@ -113,7 +113,6 @@ impl AgentCard {
     }
 
     /// Create tool definitions for the agent card
-    #[allow(clippy::too_many_lines)]
     fn create_tool_definitions() -> Vec<ToolDefinition> {
         vec![
             ToolDefinition {

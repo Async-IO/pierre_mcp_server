@@ -77,7 +77,6 @@ pub trait ConfigAware {
             .get_value(key)
             .and_then(|v| match v {
                 ConfigValue::Float(f) => Some(f),
-                #[allow(clippy::cast_precision_loss)]
                 ConfigValue::Integer(i) => Some(i as f64), // Cast needed for interface compatibility
                 _ => None,
             })

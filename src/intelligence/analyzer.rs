@@ -55,7 +55,6 @@ impl ActivityAnalyzer {
     /// # Errors
     ///
     /// Returns an error if analysis fails due to invalid data or computation errors
-    #[allow(clippy::needless_pass_by_value)]
     pub fn analyze_activity(
         &self,
         activity: &Activity,
@@ -107,14 +106,14 @@ impl ActivityAnalyzer {
 
         // Base effort from duration
         let duration = activity.duration_seconds;
-        #[allow(clippy::cast_precision_loss)]
-        let duration_f32 = duration as f32;
+        // Clamp to avoid precision loss for very large durations
+        let duration_f32 = u64::min(duration, u64::from(f32::MAX as u32)) as f32;
         effort += (duration_f32 / 3600.0) * EFFORT_HOUR_FACTOR; // Duration-based effort
 
         // Heart rate intensity
         if let (Some(avg_hr), Some(max_hr)) = (activity.average_heart_rate, activity.max_heart_rate)
         {
-            #[allow(clippy::cast_precision_loss)]
+            // Heart rates are typically in range 30-220, safe to cast to f32
             let hr_intensity = (avg_hr as f32) / (max_hr as f32);
             effort += hr_intensity * HR_INTENSITY_EFFORT_FACTOR;
         }
@@ -124,36 +123,32 @@ impl ActivityAnalyzer {
             let distance_km = distance_m / 1000.0;
             match activity.sport_type {
                 SportType::Run => {
-                    #[allow(clippy::cast_possible_truncation)]
-                    {
-                        effort += (distance_km / f64::from(RUN_DISTANCE_DIVISOR)) as f32
-                            * RUN_EFFORT_MULTIPLIER;
-                    }
+                    let distance_factor = (distance_km / f64::from(RUN_DISTANCE_DIVISOR))
+                        .clamp(f64::from(f32::MIN), f64::from(f32::MAX))
+                        as f32;
+                    effort += distance_factor * RUN_EFFORT_MULTIPLIER;
                 }
                 SportType::Ride => {
-                    #[allow(clippy::cast_possible_truncation)]
-                    {
-                        effort += (distance_km / f64::from(BIKE_DISTANCE_DIVISOR)) as f32
-                            * BIKE_EFFORT_MULTIPLIER;
-                    }
+                    let distance_factor = (distance_km / f64::from(BIKE_DISTANCE_DIVISOR))
+                        .clamp(f64::from(f32::MIN), f64::from(f32::MAX))
+                        as f32;
+                    effort += distance_factor * BIKE_EFFORT_MULTIPLIER;
                 }
                 _ => {
-                    #[allow(clippy::cast_possible_truncation)]
-                    {
-                        effort += (distance_km / f64::from(SWIM_DISTANCE_DIVISOR)) as f32
-                            * SWIM_EFFORT_MULTIPLIER;
-                    }
+                    let distance_factor = (distance_km / f64::from(SWIM_DISTANCE_DIVISOR))
+                        .clamp(f64::from(f32::MIN), f64::from(f32::MAX))
+                        as f32;
+                    effort += distance_factor * SWIM_EFFORT_MULTIPLIER;
                 }
             }
         }
 
         // Elevation factor
         if let Some(elevation) = activity.elevation_gain {
-            #[allow(clippy::cast_possible_truncation)]
-            {
-                effort += (elevation / f64::from(ELEVATION_EFFORT_DIVISOR)) as f32
-                    * ELEVATION_EFFORT_FACTOR;
-            }
+            let elevation_factor = (elevation / f64::from(ELEVATION_EFFORT_DIVISOR))
+                .clamp(f64::from(f32::MIN), f64::from(f32::MAX))
+                as f32;
+            effort += elevation_factor * ELEVATION_EFFORT_FACTOR;
         }
 
         effort.clamp(MIN_EFFORT_SCORE, MAX_EFFORT_SCORE)
@@ -165,8 +160,9 @@ impl ActivityAnalyzer {
         if let (Some(avg_hr), Some(max_hr)) = (activity.average_heart_rate, activity.max_heart_rate)
         {
             let hr_reserve = max_hr - ASSUMED_RESTING_HR; // Using configured resting HR
-            #[allow(clippy::cast_precision_loss)]
-            let intensity = ((avg_hr - ASSUMED_RESTING_HR) as f32) / (hr_reserve as f32);
+            let hr_diff = avg_hr.saturating_sub(ASSUMED_RESTING_HR);
+            // Heart rate differences are small, safe to cast to f32
+            let intensity = (hr_diff as f32) / (hr_reserve as f32);
 
             // Estimated distribution based on average intensity using defined thresholds
             let zones = match intensity {
@@ -228,9 +224,10 @@ impl ActivityAnalyzer {
                     value: distance_km,
                     unit: "km".into(),
                     previous_best: Some(PREVIOUS_BEST),
-                    #[allow(clippy::cast_possible_truncation)]
                     improvement_percentage: Some(
-                        ((distance_km - PREVIOUS_BEST) / PREVIOUS_BEST * 100.0) as f32,
+                        ((distance_km - PREVIOUS_BEST) / PREVIOUS_BEST * 100.0)
+                            .clamp(f64::from(f32::MIN), f64::from(f32::MAX))
+                            as f32,
                     ),
                 });
             }
@@ -246,9 +243,10 @@ impl ActivityAnalyzer {
                     value: pace_per_km,
                     unit: "seconds/km".into(),
                     previous_best: Some(PREVIOUS_BEST_PACE),
-                    #[allow(clippy::cast_possible_truncation)]
                     improvement_percentage: Some(
-                        ((PREVIOUS_BEST_PACE - pace_per_km) / PREVIOUS_BEST_PACE * 100.0) as f32,
+                        ((PREVIOUS_BEST_PACE - pace_per_km) / PREVIOUS_BEST_PACE * 100.0)
+                            .clamp(f64::from(f32::MIN), f64::from(f32::MAX))
+                            as f32,
                     ),
                 });
             }
@@ -265,18 +263,20 @@ impl ActivityAnalyzer {
         if let (Some(avg_hr), Some(avg_speed)) =
             (activity.average_heart_rate, activity.average_speed)
         {
-            #[allow(clippy::cast_possible_truncation)]
-            let pace_per_km = PACE_PER_KM_FACTOR / avg_speed as f32;
-            #[allow(clippy::cast_precision_loss)]
-            let hr_efficiency = HR_EFFICIENCY_FACTOR / (avg_hr as f32 * pace_per_km);
+            let pace_per_km = PACE_PER_KM_FACTOR
+                / (avg_speed.clamp(f64::from(f32::MIN), f64::from(f32::MAX)) as f32);
+            // Heart rates are small values, safe to cast to f32
+            let hr_efficiency = HR_EFFICIENCY_FACTOR / ((avg_hr as f32) * pace_per_km);
             efficiency += hr_efficiency * HR_EFFICIENCY_MULTIPLIER;
         }
 
         // Consistency factor calculation
         if let (Some(avg_speed), Some(max_speed)) = (activity.average_speed, activity.max_speed) {
             let speed_variance = max_speed - avg_speed;
-            #[allow(clippy::cast_possible_truncation)]
-            let consistency = 1.0 - (speed_variance / max_speed).min(1.0) as f32;
+            let consistency = 1.0
+                - ((speed_variance / max_speed)
+                    .min(1.0)
+                    .clamp(f64::from(f32::MIN), f64::from(f32::MAX)) as f32);
             efficiency += consistency * CONSISTENCY_MULTIPLIER;
         }
 
@@ -417,12 +417,9 @@ impl ActivityAnalyzer {
         // Add detailed insights
         if let Some(distance) = activity.distance_meters {
             let distance_km = distance / 1000.0;
-            #[allow(clippy::format_push_string)]
-            {
-                summary.push_str(". During this ");
-                summary.push_str(&format!("{distance_km:.1}"));
-                summary.push_str(" km session");
-            }
+            summary.push_str(". During this ");
+            summary.push_str(&format!("{distance_km:.1}"));
+            summary.push_str(" km session");
         }
 
         // Add primary insight from analysis

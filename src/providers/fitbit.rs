@@ -512,8 +512,15 @@ impl From<FitbitActivity> for Activity {
             max_heart_rate: None, // Not directly available in Fitbit API
             average_speed: fitbit.distance.and_then(|d| {
                 if fitbit.duration > 0 {
-                    #[allow(clippy::cast_precision_loss)]
-                    Some((d * 1000.0) / (fitbit.duration as f64 / 1000.0)) // m/s
+                    let duration_seconds =
+                        f64::from(u32::try_from(fitbit.duration / 1000).unwrap_or_else(|_| {
+                            tracing::warn!(
+                                "Duration too large for conversion: {}",
+                                fitbit.duration
+                            );
+                            u32::MAX
+                        }));
+                    Some((d * 1000.0) / duration_seconds) // m/s
                 } else {
                     None
                 }

@@ -231,7 +231,6 @@ impl FitnessLevel {
 
     /// Create from VO2 max value
     #[must_use]
-    #[allow(clippy::items_after_statements)]
     pub fn from_vo2_max(vo2_max: f64, age: Option<u16>, gender: Option<&str>) -> Self {
         // Adjust for age if provided
         let age_adjusted_vo2 = age.map_or(vo2_max, |age| {

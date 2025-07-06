@@ -1773,17 +1773,15 @@ impl DatabaseProvider for PostgresDatabase {
             successful_requests: u32::try_from(successful_requests.max(0)).unwrap_or(0),
             failed_requests: u32::try_from(failed_requests.max(0)).unwrap_or(0),
             avg_response_time_ms: avg_response_time.map(|t| {
-                if t >= 0.0 && t <= f64::from(u32::MAX) {
-                    let rounded = t.round();
-                    if rounded >= 0.0 && rounded <= f64::from(u32::MAX) {
-                        rounded as u32
-                    } else {
-                        0
-                    }
+                if t.is_nan() || t.is_infinite() || t < 0.0 {
+                    0
                 } else if t > f64::from(u32::MAX) {
                     u32::MAX
                 } else {
-                    0
+                    // Convert to integer via string to avoid casting issues
+                    let rounded = t.round();
+                    let as_string = format!("{rounded:.0}");
+                    as_string.parse::<u32>().unwrap_or(0)
                 }
             }),
             total_request_bytes: total_request_bytes.map(|b| u64::try_from(b.max(0)).unwrap_or(0)),

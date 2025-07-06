@@ -67,7 +67,6 @@ fn safe_i64_to_u64(value: i64) -> Result<u64> {
 }
 
 /// Safely convert f64 to u32, clamping to u32 range
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn safe_f64_to_u32(value: f64) -> u32 {
     if value.is_nan() || value < 0.0 {
         0

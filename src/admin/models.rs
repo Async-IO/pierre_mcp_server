@@ -183,8 +183,7 @@ pub struct CreateAdminTokenRequest {
 impl CreateAdminTokenRequest {
     /// Create request for regular admin token
     #[must_use]
-    #[allow(clippy::missing_const_for_fn)]
-    pub fn new(service_name: String) -> Self {
+    pub const fn new(service_name: String) -> Self {
         Self {
             service_name,
             service_description: None,
