@@ -1775,7 +1775,11 @@ impl DatabaseProvider for PostgresDatabase {
             avg_response_time_ms: avg_response_time.map(|t| {
                 if t >= 0.0 && t <= f64::from(u32::MAX) {
                     let rounded = t.round();
-                    u32::try_from(rounded as u64).unwrap_or(0)
+                    if rounded >= 0.0 && rounded <= f64::from(u32::MAX) {
+                        rounded as u32
+                    } else {
+                        0
+                    }
                 } else if t > f64::from(u32::MAX) {
                     u32::MAX
                 } else {
