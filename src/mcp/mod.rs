@@ -11,7 +11,7 @@ pub mod schema;
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -93,9 +93,27 @@ impl McpServer {
                         let response =
                             handle_request(request, &providers, &config, tool_executor.as_ref())
                                 .await;
-                        let response_str = serde_json::to_string(&response).unwrap();
-                        writer.write_all(response_str.as_bytes()).await.ok();
-                        writer.write_all(b"\n").await.ok();
+                        match serde_json::to_string(&response) {
+                            Ok(response_str) => {
+                                writer.write_all(response_str.as_bytes()).await.ok();
+                                writer.write_all(b"\n").await.ok();
+                            }
+                            Err(e) => {
+                                tracing::error!("Failed to serialize MCP response: {}", e);
+                                // Send error response
+                                let error_response = json!({
+                                    "jsonrpc": "2.0",
+                                    "error": {
+                                        "code": -32603,
+                                        "message": "Internal error: Failed to serialize response"
+                                    }
+                                });
+                                if let Ok(error_str) = serde_json::to_string(&error_response) {
+                                    writer.write_all(error_str.as_bytes()).await.ok();
+                                    writer.write_all(b"\n").await.ok();
+                                }
+                            }
+                        }
                     }
                     line.clear();
                 }

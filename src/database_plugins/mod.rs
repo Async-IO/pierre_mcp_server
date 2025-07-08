@@ -307,6 +307,25 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     ) -> Result<Vec<(DateTime<Utc>, u32, u32)>>;
 
     // ================================
+    // Provider Sync Tracking
+    // ================================
+
+    /// Get last sync timestamp for a provider
+    async fn get_provider_last_sync(
+        &self,
+        user_id: Uuid,
+        provider: &str,
+    ) -> Result<Option<DateTime<Utc>>>;
+
+    /// Update last sync timestamp for a provider
+    async fn update_provider_last_sync(
+        &self,
+        user_id: Uuid,
+        provider: &str,
+        sync_time: DateTime<Utc>,
+    ) -> Result<()>;
+
+    // ================================
     // Analytics & Intelligence
     // ================================
 

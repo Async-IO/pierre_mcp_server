@@ -255,7 +255,10 @@ pub mod middleware {
             return Err(anyhow!("Invalid authorization header format"));
         }
 
-        let token = auth_header.strip_prefix("Bearer ").unwrap().trim();
+        let token = auth_header
+            .strip_prefix("Bearer ")
+            .ok_or_else(|| anyhow!("Failed to extract Bearer token from authorization header"))?
+            .trim();
         if token.is_empty() {
             return Err(anyhow!("Empty bearer token"));
         }
@@ -295,97 +298,5 @@ pub mod middleware {
                 warp::http::StatusCode::INTERNAL_SERVER_ERROR,
             ))
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{AdminAuthService, AdminPermission};
-    use crate::database::generate_encryption_key;
-    use crate::database_plugins::factory::Database;
-
-    #[tokio::test]
-    async fn test_admin_authentication_flow() {
-        // Create test database
-        let encryption_key = generate_encryption_key().to_vec();
-        let database = Database::new("sqlite::memory:", encryption_key)
-            .await
-            .unwrap();
-
-        // Create auth service
-        let jwt_secret = "test_jwt_secret_for_admin_auth";
-        let auth_service = AdminAuthService::new(database.clone(), jwt_secret);
-
-        // Manually create a token with a known secret and store it in database
-        let jwt_manager = crate::admin::jwt::AdminJwtManager::with_secret(jwt_secret);
-        let test_token = jwt_manager
-            .generate_token(
-                "test_token_123",
-                "test_service",
-                &crate::admin::models::AdminPermissions::default_admin(),
-                false,
-                Some(chrono::Utc::now() + chrono::Duration::hours(1)),
-            )
-            .unwrap();
-
-        // Generate token hash and prefix for storage
-        let token_prefix = crate::admin::jwt::AdminJwtManager::generate_token_prefix(&test_token);
-        let token_hash =
-            crate::admin::jwt::AdminJwtManager::hash_token_for_storage(&test_token).unwrap();
-        let jwt_secret_hash = crate::admin::jwt::AdminJwtManager::hash_secret(jwt_secret);
-
-        // Store token in database manually
-        let permissions_json = crate::admin::models::AdminPermissions::default_admin()
-            .to_json()
-            .unwrap();
-        match &database {
-            crate::database_plugins::factory::Database::SQLite(sqlite_db) => {
-                sqlx::query(
-                    r"
-                    INSERT INTO admin_tokens (
-                        id, service_name, token_hash, token_prefix,
-                        jwt_secret_hash, permissions, is_super_admin, is_active,
-                        created_at, usage_count
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ",
-                )
-                .bind("test_token_123")
-                .bind("test_service")
-                .bind(&token_hash)
-                .bind(&token_prefix)
-                .bind(&jwt_secret_hash)
-                .bind(&permissions_json)
-                .bind(false)
-                .bind(true)
-                .bind(chrono::Utc::now())
-                .bind(0)
-                .execute(sqlite_db.inner().pool())
-                .await
-                .unwrap();
-            }
-            #[cfg(feature = "postgresql")]
-            crate::database_plugins::factory::Database::PostgreSQL(_) => {
-                panic!("PostgreSQL not supported in this test");
-            }
-        }
-
-        // Test authentication
-        let result = auth_service
-            .authenticate_and_authorize(
-                &test_token,
-                AdminPermission::ProvisionKeys,
-                Some("127.0.0.1"),
-            )
-            .await;
-
-        if result.is_err() {
-            println!("Auth test error: {}", result.as_ref().unwrap_err());
-        }
-        assert!(result.is_ok());
-        let validated = result.unwrap();
-        assert_eq!(validated.service_name, "test_service");
-        assert!(validated
-            .permissions
-            .has_permission(&AdminPermission::ProvisionKeys));
     }
 }

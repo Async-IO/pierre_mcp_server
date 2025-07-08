@@ -829,11 +829,11 @@ impl DatabaseProvider for PostgresDatabase {
         if let Some(_limit) = limit {
             param_count += 1;
             write!(&mut query, " LIMIT ${param_count}")
-                .expect("Writing to string should never fail");
+                .map_err(|e| anyhow::anyhow!("Failed to write LIMIT clause: {}", e))?;
             if let Some(_offset) = offset {
                 param_count += 1;
                 write!(&mut query, " OFFSET ${param_count}")
-                    .expect("Writing to string should never fail");
+                    .map_err(|e| anyhow::anyhow!("Failed to write OFFSET clause: {}", e))?;
             }
         }
 
@@ -1828,6 +1828,48 @@ impl DatabaseProvider for PostgresDatabase {
         }
 
         Ok(result)
+    }
+
+    async fn get_provider_last_sync(
+        &self,
+        user_id: Uuid,
+        provider: &str,
+    ) -> Result<Option<DateTime<Utc>>> {
+        let column = match provider {
+            "strava" => "strava_last_sync",
+            "fitbit" => "fitbit_last_sync",
+            _ => return Err(anyhow!("Unsupported provider: {provider}")),
+        };
+
+        let query = format!("SELECT {column} FROM users WHERE id = $1");
+        let last_sync: Option<DateTime<Utc>> = sqlx::query_scalar(&query)
+            .bind(user_id)
+            .fetch_optional(&self.pool)
+            .await?;
+
+        Ok(last_sync)
+    }
+
+    async fn update_provider_last_sync(
+        &self,
+        user_id: Uuid,
+        provider: &str,
+        sync_time: DateTime<Utc>,
+    ) -> Result<()> {
+        let column = match provider {
+            "strava" => "strava_last_sync",
+            "fitbit" => "fitbit_last_sync",
+            _ => return Err(anyhow!("Unsupported provider: {provider}")),
+        };
+
+        let query = format!("UPDATE users SET {column} = $1 WHERE id = $2");
+        sqlx::query(&query)
+            .bind(sync_time)
+            .bind(user_id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
     }
 
     async fn get_top_tools_analysis(

@@ -54,14 +54,6 @@ impl StravaConfig {
     pub fn global() -> &'static Self {
         STRAVA_CONFIG.get_or_init(Self::default)
     }
-
-    /// Reset the global configuration (used for testing)
-    #[cfg(test)]
-    pub const fn reset_global() {
-        // For tests, we need to recreate the config to pick up new env vars
-        // This is a bit of a hack since OnceLock doesn't support reset
-        // In practice, we'll use with_config in tests
-    }
 }
 
 pub struct StravaProvider {

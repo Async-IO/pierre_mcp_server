@@ -2,6 +2,7 @@
 // ABOUTME: Standardizes provider operations across single-tenant and multi-tenant implementations
 
 use crate::database_plugins::factory::Database;
+use crate::database_plugins::DatabaseProvider;
 use crate::errors::AppError;
 use crate::models::DecryptedToken;
 use crate::providers::create_provider;
@@ -11,7 +12,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 /// Supported fitness providers
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum ProviderType {
     Strava,
     Fitbit,
@@ -20,20 +21,22 @@ pub enum ProviderType {
 impl std::fmt::Display for ProviderType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ProviderType::Strava => write!(f, "strava"),
-            ProviderType::Fitbit => write!(f, "fitbit"),
+            Self::Strava => write!(f, "strava"),
+            Self::Fitbit => write!(f, "fitbit"),
         }
     }
 }
 
 impl std::str::FromStr for ProviderType {
     type Err = AppError;
-    
+
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "strava" => Ok(ProviderType::Strava),
-            "fitbit" => Ok(ProviderType::Fitbit),
-            _ => Err(AppError::invalid_input(format!("Unsupported provider: {}", s))),
+            "strava" => Ok(Self::Strava),
+            "fitbit" => Ok(Self::Fitbit),
+            _ => Err(AppError::invalid_input(format!(
+                "Unsupported provider: {s}"
+            ))),
         }
     }
 }
@@ -68,15 +71,20 @@ pub struct ProviderInfo {
     pub data_available: bool,
 }
 
+/// Type alias for complex provider cache type
+type ProviderCache =
+    tokio::sync::RwLock<HashMap<(Uuid, ProviderType), Arc<Box<dyn FitnessProvider>>>>;
+
 /// Unified provider manager
 pub struct ProviderManager {
     database: Arc<Database>,
     /// Cache of authenticated providers per user
-    provider_cache: tokio::sync::RwLock<HashMap<(Uuid, ProviderType), Arc<Box<dyn FitnessProvider>>>>,
+    provider_cache: ProviderCache,
 }
 
 impl ProviderManager {
     /// Create a new provider manager
+    #[must_use]
     pub fn new(database: Arc<Database>) -> Self {
         Self {
             database,
@@ -85,6 +93,9 @@ impl ProviderManager {
     }
 
     /// Get all provider information for a user
+    /// # Errors
+    ///
+    /// Returns an error if database operations fail
     pub async fn get_user_providers(&self, user_id: Uuid) -> Result<Vec<ProviderInfo>, AppError> {
         let mut providers = Vec::new();
 
@@ -102,7 +113,14 @@ impl ProviderManager {
     }
 
     /// Get provider information for a specific provider
-    pub async fn get_provider_info(&self, user_id: Uuid, provider_type: ProviderType) -> Result<ProviderInfo, AppError> {
+    /// # Errors
+    ///
+    /// Returns an error if database operations fail
+    pub async fn get_provider_info(
+        &self,
+        user_id: Uuid,
+        provider_type: ProviderType,
+    ) -> Result<ProviderInfo, AppError> {
         let token = match provider_type {
             ProviderType::Strava => self.database.get_strava_token(user_id).await?,
             ProviderType::Fitbit => self.database.get_fitbit_token(user_id).await?,
@@ -113,7 +131,11 @@ impl ProviderManager {
                 if token_data.expires_at > chrono::Utc::now() {
                     ConnectionStatus::Connected {
                         expires_at: token_data.expires_at,
-                        scopes: token_data.scope.split(',').map(|s| s.trim().to_string()).collect(),
+                        scopes: token_data
+                            .scope
+                            .split(',')
+                            .map(|s| s.trim().to_string())
+                            .collect(),
                     }
                 } else {
                     ConnectionStatus::TokenExpired {
@@ -131,15 +153,23 @@ impl ProviderManager {
             .await
             .unwrap_or(None);
 
+        let data_available = matches!(status, ConnectionStatus::Connected { .. });
+
         Ok(ProviderInfo {
             provider_type,
             status,
             last_sync,
-            data_available: matches!(status, ConnectionStatus::Connected { .. }),
+            data_available,
         })
     }
 
     /// Get an authenticated provider instance
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Token is not found or expired
+    /// - Provider creation fails
+    /// - Authentication fails
     pub async fn get_authenticated_provider(
         &self,
         user_id: Uuid,
@@ -158,22 +188,25 @@ impl ProviderManager {
             ProviderType::Strava => self.database.get_strava_token(user_id).await?,
             ProviderType::Fitbit => self.database.get_fitbit_token(user_id).await?,
         }
-        .ok_or_else(|| AppError::not_found(format!("{} token for user", provider_type)))?;
+        .ok_or_else(|| AppError::not_found(format!("{provider_type} token for user")))?;
 
         // Check if token is expired and attempt refresh if needed
         let token = if token.expires_at <= chrono::Utc::now() {
-            self.refresh_token(user_id, provider_type.clone(), &token).await?
+            self.refresh_token(user_id, provider_type.clone(), &token)
+                .await?
         } else {
             token
         };
 
         // Create and authenticate provider
-        let mut provider = create_provider(&provider_type.to_string())
-            .map_err(|e| AppError::config(format!("Failed to create {} provider: {}", provider_type, e)))?;
+        let mut provider = create_provider(&provider_type.to_string()).map_err(|e| {
+            AppError::config(format!("Failed to create {provider_type} provider: {e}"))
+        })?;
 
-        let auth_data = self.create_auth_data(&provider_type, &token)?;
-        provider.authenticate(auth_data).await
-            .map_err(|e| AppError::auth_invalid(format!("{} authentication failed: {}", provider_type, e)))?;
+        let auth_data = Self::create_auth_data(&provider_type, &token)?;
+        provider.authenticate(auth_data).await.map_err(|e| {
+            AppError::auth_invalid(format!("{provider_type} authentication failed: {e}"))
+        })?;
 
         let provider = Arc::new(provider);
 
@@ -187,7 +220,14 @@ impl ProviderManager {
     }
 
     /// Disconnect a provider for a user
-    pub async fn disconnect_provider(&self, user_id: Uuid, provider_type: ProviderType) -> Result<(), AppError> {
+    /// # Errors
+    ///
+    /// Returns an error if database operations fail
+    pub async fn disconnect_provider(
+        &self,
+        user_id: Uuid,
+        provider_type: ProviderType,
+    ) -> Result<(), AppError> {
         // Remove from database
         match provider_type {
             ProviderType::Strava => self.database.clear_strava_token(user_id).await?,
@@ -204,26 +244,34 @@ impl ProviderManager {
     }
 
     /// Check connection status for all providers
-    pub async fn check_all_connections(&self, user_id: Uuid) -> Result<Vec<ProviderInfo>, AppError> {
+    /// # Errors
+    ///
+    /// Returns an error if database operations fail
+    pub async fn check_all_connections(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<ProviderInfo>, AppError> {
         self.get_user_providers(user_id).await
     }
 
     /// Refresh an expired token
     async fn refresh_token(
         &self,
-        user_id: Uuid,
+        _user_id: Uuid,
         provider_type: ProviderType,
         current_token: &DecryptedToken,
     ) -> Result<DecryptedToken, AppError> {
         // Create provider for token refresh
-        let mut provider = create_provider(&provider_type.to_string())
-            .map_err(|e| AppError::config(format!("Failed to create {} provider: {}", provider_type, e)))?;
+        let mut provider = create_provider(&provider_type.to_string()).map_err(|e| {
+            AppError::config(format!("Failed to create {provider_type} provider: {e}"))
+        })?;
 
-        let auth_data = self.create_auth_data(&provider_type, current_token)?;
-        
+        let auth_data = Self::create_auth_data(&provider_type, current_token)?;
+
         // Attempt to refresh the token
-        provider.authenticate(auth_data).await
-            .map_err(|e| AppError::auth_invalid(format!("Token refresh failed for {}: {}", provider_type, e)))?;
+        provider.authenticate(auth_data).await.map_err(|e| {
+            AppError::auth_invalid(format!("Token refresh failed for {provider_type}: {e}"))
+        })?;
 
         // Get the refreshed token data
         // Note: This would need to be implemented in the provider trait
@@ -232,16 +280,19 @@ impl ProviderManager {
     }
 
     /// Create auth data for a provider
-    fn create_auth_data(&self, provider_type: &ProviderType, token: &DecryptedToken) -> Result<AuthData, AppError> {
+    fn create_auth_data(
+        provider_type: &ProviderType,
+        token: &DecryptedToken,
+    ) -> Result<AuthData, AppError> {
         let (client_id_env, client_secret_env) = match provider_type {
             ProviderType::Strava => ("STRAVA_CLIENT_ID", "STRAVA_CLIENT_SECRET"),
             ProviderType::Fitbit => ("FITBIT_CLIENT_ID", "FITBIT_CLIENT_SECRET"),
         };
 
         let client_id = std::env::var(client_id_env)
-            .map_err(|_| AppError::config(format!("{} not configured", client_id_env)))?;
+            .map_err(|_| AppError::config(format!("{client_id_env} not configured")))?;
         let client_secret = std::env::var(client_secret_env)
-            .map_err(|_| AppError::config(format!("{} not configured", client_secret_env)))?;
+            .map_err(|_| AppError::config(format!("{client_secret_env} not configured")))?;
 
         Ok(AuthData::OAuth2 {
             client_id,
@@ -264,14 +315,22 @@ impl ProviderManager {
     }
 
     /// Get connection summary for a user
-    pub async fn get_connection_summary(&self, user_id: Uuid) -> Result<serde_json::Value, AppError> {
+    /// # Errors
+    ///
+    /// Returns an error if database operations fail
+    pub async fn get_connection_summary(
+        &self,
+        user_id: Uuid,
+    ) -> Result<serde_json::Value, AppError> {
         let providers = self.get_user_providers(user_id).await?;
-        
-        let connected_count = providers.iter()
+
+        let connected_count = providers
+            .iter()
             .filter(|p| matches!(p.status, ConnectionStatus::Connected { .. }))
             .count();
-        
-        let expired_count = providers.iter()
+
+        let expired_count = providers
+            .iter()
             .filter(|p| matches!(p.status, ConnectionStatus::TokenExpired { .. }))
             .count();
 
@@ -285,6 +344,9 @@ impl ProviderManager {
     }
 
     /// Update sync timestamp for a provider after successful data fetch
+    /// # Errors
+    ///
+    /// Returns an error if database operations fail
     pub async fn update_sync_timestamp(
         &self,
         user_id: Uuid,
@@ -294,7 +356,7 @@ impl ProviderManager {
         self.database
             .update_provider_last_sync(user_id, &provider_type.to_string(), sync_time)
             .await
-            .map_err(|e| AppError::internal_error(format!("Failed to update sync timestamp: {}", e)))?;
+            .map_err(|e| AppError::internal(format!("Failed to update sync timestamp: {e}")))?;
         Ok(())
     }
 }
@@ -313,15 +375,23 @@ impl GlobalProviderManager {
     }
 
     /// Initialize the global provider manager
-    pub async fn init(&self, database: Arc<Database>) -> Result<(), AppError> {
-        self.inner.set(ProviderManager::new(database))
+    /// # Errors
+    ///
+    /// Returns an error if provider manager is already initialized
+    pub fn init(&self, database: Arc<Database>) -> Result<(), AppError> {
+        self.inner
+            .set(ProviderManager::new(database))
             .map_err(|_| AppError::internal("Provider manager already initialized"))?;
         Ok(())
     }
 
     /// Get the global provider manager instance
+    /// # Errors
+    ///
+    /// Returns an error if provider manager is not initialized
     pub fn get(&self) -> Result<&ProviderManager, AppError> {
-        self.inner.get()
+        self.inner
+            .get()
             .ok_or_else(|| AppError::internal("Provider manager not initialized"))
     }
 }

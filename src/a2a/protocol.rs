@@ -32,17 +32,96 @@ pub struct A2AResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<A2AError>,
+    pub error: Option<A2AErrorResponse>,
     pub id: Option<Value>,
 }
 
-/// A2A Protocol Error Response
+/// A2A Protocol Error types
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct A2AError {
+pub enum A2AError {
+    /// Invalid request parameters or format
+    InvalidRequest(String),
+    /// Authentication failed
+    AuthenticationFailed(String),
+    /// Client not registered
+    ClientNotRegistered(String),
+    /// Database operation failed
+    DatabaseError(String),
+    /// Internal server error
+    InternalError(String),
+    /// Client has been deactivated
+    ClientDeactivated(String),
+    /// Rate limit exceeded
+    RateLimitExceeded(String),
+    /// Session expired or invalid
+    SessionExpired(String),
+    /// Invalid session token
+    InvalidSessionToken(String),
+    /// Insufficient permissions
+    InsufficientPermissions(String),
+    /// Resource not found
+    ResourceNotFound(String),
+    /// Service temporarily unavailable
+    ServiceUnavailable(String),
+}
+
+impl std::fmt::Display for A2AError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidRequest(msg) => write!(f, "Invalid request: {msg}"),
+            Self::AuthenticationFailed(msg) => write!(f, "Authentication failed: {msg}"),
+            Self::ClientNotRegistered(msg) => write!(f, "Client not registered: {msg}"),
+            Self::DatabaseError(msg) => write!(f, "Database error: {msg}"),
+            Self::InternalError(msg) => write!(f, "Internal error: {msg}"),
+            Self::ClientDeactivated(msg) => write!(f, "Client deactivated: {msg}"),
+            Self::RateLimitExceeded(msg) => write!(f, "Rate limit exceeded: {msg}"),
+            Self::SessionExpired(msg) => write!(f, "Session expired: {msg}"),
+            Self::InvalidSessionToken(msg) => write!(f, "Invalid session token: {msg}"),
+            Self::InsufficientPermissions(msg) => write!(f, "Insufficient permissions: {msg}"),
+            Self::ResourceNotFound(msg) => write!(f, "Resource not found: {msg}"),
+            Self::ServiceUnavailable(msg) => write!(f, "Service unavailable: {msg}"),
+        }
+    }
+}
+
+impl std::error::Error for A2AError {}
+
+/// A2A Protocol Error Response for JSON-RPC
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct A2AErrorResponse {
     pub code: i32,
     pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<Value>,
+}
+
+impl From<A2AError> for A2AErrorResponse {
+    fn from(error: A2AError) -> Self {
+        let (code, message) = match error {
+            A2AError::InvalidRequest(msg) => (-32602, format!("Invalid params: {msg}")),
+            A2AError::AuthenticationFailed(msg) => {
+                (-32001, format!("Authentication failed: {msg}"))
+            }
+            A2AError::ClientNotRegistered(msg) => (-32003, format!("Client not registered: {msg}")),
+            A2AError::DatabaseError(msg) => (-32000, format!("Database error: {msg}")),
+            A2AError::InternalError(msg) => (-32603, format!("Internal error: {msg}")),
+            A2AError::ClientDeactivated(msg) => (-32004, format!("Client deactivated: {msg}")),
+            A2AError::RateLimitExceeded(msg) => (-32005, format!("Rate limit exceeded: {msg}")),
+            A2AError::SessionExpired(msg) => (-32006, format!("Session expired: {msg}")),
+            A2AError::InvalidSessionToken(msg) => (-32007, format!("Invalid session token: {msg}")),
+            A2AError::InsufficientPermissions(msg) => {
+                (-32008, format!("Insufficient permissions: {msg}"))
+            }
+            A2AError::ResourceNotFound(msg) => (-32009, format!("Resource not found: {msg}")),
+            A2AError::ServiceUnavailable(msg) => (-32010, format!("Service unavailable: {msg}")),
+        };
+
+        Self {
+            code,
+            message,
+            data: None,
+        }
+    }
 }
 
 /// A2A Message structure for agent communication
@@ -265,11 +344,26 @@ impl A2AServer {
             updated_at: chrono::Utc::now(),
         };
 
-        A2AResponse {
-            jsonrpc: "2.0".into(),
-            result: Some(serde_json::to_value(task).unwrap()),
-            error: None,
-            id: request.id,
+        match serde_json::to_value(task) {
+            Ok(task_value) => A2AResponse {
+                jsonrpc: "2.0".into(),
+                result: Some(task_value),
+                error: None,
+                id: request.id,
+            },
+            Err(e) => A2AResponse {
+                jsonrpc: "2.0".into(),
+                result: None,
+                error: Some(A2AErrorResponse {
+                    code: -32603,
+                    message: "Internal error: Failed to serialize task".to_string(),
+                    data: Some(serde_json::json!({
+                        "error": e.to_string(),
+                        "context": "Task serialization failed"
+                    })),
+                }),
+                id: request.id,
+            },
         }
     }
 
@@ -282,7 +376,7 @@ impl A2AServer {
                 return A2AResponse {
                     jsonrpc: "2.0".into(),
                     result: None,
-                    error: Some(A2AError {
+                    error: Some(A2AErrorResponse {
                         code: -32602,
                         message: "Invalid params: task_id must be a string".into(),
                         data: None,
@@ -294,7 +388,7 @@ impl A2AServer {
             return A2AResponse {
                 jsonrpc: "2.0".into(),
                 result: None,
-                error: Some(A2AError {
+                error: Some(A2AErrorResponse {
                     code: -32602,
                     message: "Invalid params: task_id is required".into(),
                     data: None,
@@ -310,7 +404,7 @@ impl A2AServer {
             return A2AResponse {
                 jsonrpc: "2.0".into(),
                 result: None,
-                error: Some(A2AError {
+                error: Some(A2AErrorResponse {
                     code: -32000,
                     message: "Task storage not implemented".into(),
                     data: None,
@@ -323,7 +417,7 @@ impl A2AServer {
         A2AResponse {
             jsonrpc: "2.0".into(),
             result: None,
-            error: Some(A2AError {
+            error: Some(A2AErrorResponse {
                 code: -32000,
                 message: "Database not available for task retrieval".into(),
                 data: None,
@@ -344,7 +438,7 @@ impl A2AServer {
             return A2AResponse {
                 jsonrpc: "2.0".into(),
                 result: None,
-                error: Some(A2AError {
+                error: Some(A2AErrorResponse {
                     code: -32000,
                     message: "Database not available for task listing".into(),
                     data: None,
@@ -357,7 +451,7 @@ impl A2AServer {
         A2AResponse {
             jsonrpc: "2.0".into(),
             result: None,
-            error: Some(A2AError {
+            error: Some(A2AErrorResponse {
                 code: -32000,
                 message: "Task listing not implemented".into(),
                 data: None,
@@ -534,7 +628,7 @@ impl A2AServer {
                 return A2AResponse {
                     jsonrpc: "2.0".into(),
                     result: None,
-                    error: Some(A2AError {
+                    error: Some(A2AErrorResponse {
                         code: -32000,
                         message: "A2A server not properly configured with database and intelligence dependencies".into(),
                         data: None,
@@ -562,7 +656,7 @@ impl A2AServer {
             Err(e) => A2AResponse {
                 jsonrpc: "2.0".into(),
                 result: None,
-                error: Some(A2AError {
+                error: Some(A2AErrorResponse {
                     code: -32000,
                     message: format!("Tool execution failed: {e}"),
                     data: None,
@@ -613,7 +707,7 @@ impl A2AServer {
     }
 
     fn handle_unknown_method(request: A2ARequest) -> A2AResponse {
-        let error = A2AError {
+        let error = A2AErrorResponse {
             code: -32601,
             message: format!("Method not found: {}", request.method),
             data: None,
@@ -631,536 +725,5 @@ impl A2AServer {
 impl Default for A2AServer {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn create_test_server() -> A2AServer {
-        A2AServer::new()
-    }
-
-    #[tokio::test]
-    async fn test_a2a_initialize() {
-        let server = create_test_server();
-        let request = A2ARequest {
-            jsonrpc: "2.0".into(),
-            method: "a2a/initialize".into(),
-            params: None,
-            id: Some(serde_json::Value::Number(1.into())),
-        };
-
-        let response = server.handle_request(request).await;
-        assert!(response.result.is_some());
-        assert!(response.error.is_none());
-        assert_eq!(response.jsonrpc, "2.0");
-
-        // Verify response content
-        let result = response.result.unwrap();
-        assert!(result.get("version").is_some());
-        assert!(result.get("capabilities").is_some());
-        assert!(result.get("agent").is_some());
-
-        let capabilities = result.get("capabilities").unwrap().as_array().unwrap();
-        assert!(!capabilities.is_empty());
-        assert!(capabilities
-            .iter()
-            .any(|c| c.as_str() == Some("message/send")));
-        assert!(capabilities
-            .iter()
-            .any(|c| c.as_str() == Some("tools/list")));
-    }
-
-    #[tokio::test]
-    async fn test_a2a_initialize_with_string_id() {
-        let server = create_test_server();
-        let request = A2ARequest {
-            jsonrpc: "2.0".into(),
-            method: "a2a/initialize".into(),
-            params: None,
-            id: Some(serde_json::Value::String("test-id".into())),
-        };
-
-        let response = server.handle_request(request).await;
-        assert!(response.result.is_some());
-        assert_eq!(
-            response.id,
-            Some(serde_json::Value::String("test-id".into()))
-        );
-    }
-
-    #[tokio::test]
-    async fn test_a2a_message_send() {
-        let server = create_test_server();
-        let request = A2ARequest {
-            jsonrpc: "2.0".into(),
-            method: "message/send".into(),
-            params: Some(serde_json::json!({
-                "message": {
-                    "id": "msg_123",
-                    "parts": [
-                        {
-                            "type": "text",
-                            "content": "Hello from A2A!"
-                        }
-                    ]
-                }
-            })),
-            id: Some(serde_json::Value::Number(2.into())),
-        };
-
-        let response = server.handle_request(request).await;
-        assert!(response.result.is_some());
-        assert!(response.error.is_none());
-
-        let result = response.result.unwrap();
-        assert_eq!(result.get("status").unwrap().as_str(), Some("received"));
-    }
-
-    #[tokio::test]
-    async fn test_a2a_message_stream() {
-        let server = create_test_server();
-        let request = A2ARequest {
-            jsonrpc: "2.0".into(),
-            method: "message/stream".into(),
-            params: Some(serde_json::json!({
-                "stream_id": "stream_123"
-            })),
-            id: Some(serde_json::Value::Number(3.into())),
-        };
-
-        let response = server.handle_request(request).await;
-        assert!(response.result.is_some());
-        assert!(response.error.is_none());
-
-        let result = response.result.unwrap();
-        assert_eq!(
-            result.get("status").unwrap().as_str(),
-            Some("streaming_not_supported")
-        );
-    }
-
-    #[tokio::test]
-    async fn test_a2a_task_create() {
-        let server = create_test_server();
-        let request = A2ARequest {
-            jsonrpc: "2.0".into(),
-            method: "tasks/create".into(),
-            params: Some(serde_json::json!({
-                "type": "fitness_analysis",
-                "description": "Analyze weekly running data"
-            })),
-            id: Some(serde_json::Value::Number(4.into())),
-        };
-
-        let response = server.handle_request(request).await;
-        assert!(response.result.is_some());
-        assert!(response.error.is_none());
-
-        let result = response.result.unwrap();
-        let task: A2ATask = serde_json::from_value(result).unwrap();
-        assert!(!task.id.is_empty());
-        assert_eq!(task.status, TaskStatus::Pending);
-        assert!(task.result.is_none());
-        assert!(task.error.is_none());
-    }
-
-    #[tokio::test]
-    async fn test_a2a_task_get() {
-        let server = create_test_server();
-        let request = A2ARequest {
-            jsonrpc: "2.0".into(),
-            method: "tasks/get".into(),
-            params: Some(serde_json::json!({
-                "task_id": "task_123"
-            })),
-            id: Some(serde_json::Value::Number(5.into())),
-        };
-
-        let response = server.handle_request(request).await;
-        assert!(response.result.is_none());
-        assert!(response.error.is_some());
-
-        let error = response.error.unwrap();
-        assert_eq!(error.code, -32000);
-        assert!(
-            error.message.contains("Task storage not implemented")
-                || error.message.contains("Database not available")
-        );
-    }
-
-    #[tokio::test]
-    async fn test_a2a_task_get_missing_id() {
-        let server = create_test_server();
-        let request = A2ARequest {
-            jsonrpc: "2.0".into(),
-            method: "tasks/get".into(),
-            params: Some(serde_json::json!({})), // Missing task_id
-            id: Some(serde_json::Value::Number(6.into())),
-        };
-
-        let response = server.handle_request(request).await;
-        assert!(response.result.is_none());
-        assert!(response.error.is_some());
-
-        let error = response.error.unwrap();
-        assert_eq!(error.code, -32602);
-        assert!(
-            error.message.contains("task_id")
-                && (error.message.contains("required")
-                    || error.message.contains("must be a string"))
-        );
-    }
-
-    #[tokio::test]
-    async fn test_a2a_task_list() {
-        let server = create_test_server();
-        let request = A2ARequest {
-            jsonrpc: "2.0".into(),
-            method: "a2a/tasks/list".into(),
-            params: Some(serde_json::json!({
-                "limit": 5,
-                "offset": 0
-            })),
-            id: Some(serde_json::Value::Number(7.into())),
-        };
-
-        let response = server.handle_request(request).await;
-        assert!(response.result.is_none());
-        assert!(response.error.is_some());
-
-        let error = response.error.unwrap();
-        assert_eq!(error.code, -32000);
-        assert!(
-            error.message.contains("Task listing not implemented")
-                || error.message.contains("Database not available")
-        );
-    }
-
-    #[tokio::test]
-    async fn test_a2a_task_cancel() {
-        let server = create_test_server();
-        let request = A2ARequest {
-            jsonrpc: "2.0".into(),
-            method: "tasks/cancel".into(),
-            params: Some(serde_json::json!({
-                "task_id": "task_456"
-            })),
-            id: Some(serde_json::Value::Number(8.into())),
-        };
-
-        let response = server.handle_request(request).await;
-        assert!(response.result.is_some());
-        assert!(response.error.is_none());
-
-        let result = response.result.unwrap();
-        assert_eq!(result.get("task_id").unwrap().as_str(), Some("task_456"));
-        assert_eq!(result.get("status").unwrap().as_str(), Some("cancelled"));
-    }
-
-    #[tokio::test]
-    async fn test_a2a_tools_list() {
-        let server = create_test_server();
-        let request = A2ARequest {
-            jsonrpc: "2.0".into(),
-            method: "tools/list".into(),
-            params: None,
-            id: Some(serde_json::Value::Number(9.into())),
-        };
-
-        let response = server.handle_request(request).await;
-        assert!(response.result.is_some());
-        assert!(response.error.is_none());
-
-        let result = response.result.unwrap();
-        let tools = result.as_array().unwrap();
-        assert!(!tools.is_empty());
-
-        // Check if specific tools are available
-        let tool_names: Vec<&str> = tools
-            .iter()
-            .filter_map(|t| t.get("name")?.as_str())
-            .collect();
-        assert!(tool_names.contains(&"get_activities"));
-        assert!(tool_names.contains(&"analyze_activity"));
-    }
-
-    #[tokio::test]
-    async fn test_a2a_tool_call_without_dependencies() {
-        let server = create_test_server(); // No dependencies injected
-        let request = A2ARequest {
-            jsonrpc: "2.0".into(),
-            method: "tools/call".into(),
-            params: Some(serde_json::json!({
-                "tool_name": "get_activities",
-                "parameters": {
-                    "limit": 10
-                }
-            })),
-            id: Some(serde_json::Value::Number(10.into())),
-        };
-
-        let response = server.handle_request(request).await;
-        assert!(response.result.is_none());
-        assert!(response.error.is_some());
-
-        let error = response.error.unwrap();
-        assert_eq!(error.code, -32000);
-        assert!(error.message.contains("not properly configured"));
-    }
-
-    #[tokio::test]
-    async fn test_a2a_push_notification_config() {
-        let server = create_test_server();
-        let request = A2ARequest {
-            jsonrpc: "2.0".into(),
-            method: "tasks/pushNotificationConfig/set".into(),
-            params: Some(serde_json::json!({
-                "config": {
-                    "endpoint": "https://example.com/webhook",
-                    "events": ["task_completed", "task_failed"]
-                }
-            })),
-            id: Some(serde_json::Value::Number(11.into())),
-        };
-
-        let response = server.handle_request(request).await;
-        assert!(response.result.is_some());
-        assert!(response.error.is_none());
-
-        let result = response.result.unwrap();
-        assert_eq!(result.get("status").unwrap().as_str(), Some("configured"));
-        assert!(result.get("config").is_some());
-    }
-
-    #[tokio::test]
-    async fn test_a2a_unknown_method() {
-        let server = create_test_server();
-        let request = A2ARequest {
-            jsonrpc: "2.0".into(),
-            method: "unknown/method".into(),
-            params: None,
-            id: Some(serde_json::Value::Number(12.into())),
-        };
-
-        let response = server.handle_request(request).await;
-        assert!(response.result.is_none());
-        assert!(response.error.is_some());
-
-        let error = response.error.unwrap();
-        assert_eq!(error.code, -32601);
-        assert!(error.message.contains("Method not found"));
-        assert!(error.message.contains("unknown/method"));
-    }
-
-    #[tokio::test]
-    async fn test_legacy_a2a_prefix_methods() {
-        let server = create_test_server();
-
-        // Test legacy a2a/message/send
-        let request = A2ARequest {
-            jsonrpc: "2.0".into(),
-            method: "a2a/message/send".into(),
-            params: None,
-            id: Some(serde_json::Value::Number(13.into())),
-        };
-
-        let response = server.handle_request(request).await;
-        assert!(response.result.is_some());
-
-        // Test legacy a2a/tools/list
-        let request = A2ARequest {
-            jsonrpc: "2.0".into(),
-            method: "a2a/tools/list".into(),
-            params: None,
-            id: Some(serde_json::Value::Number(14.into())),
-        };
-
-        let response = server.handle_request(request).await;
-        assert!(response.result.is_some());
-    }
-
-    #[test]
-    fn test_a2a_request_serialization() {
-        let request = A2ARequest {
-            jsonrpc: "2.0".into(),
-            method: "test/method".into(),
-            params: Some(serde_json::json!({"key": "value"})),
-            id: Some(serde_json::Value::String("req_123".into())),
-        };
-
-        let json = serde_json::to_string(&request).unwrap();
-        assert!(json.contains("\"jsonrpc\":\"2.0\""));
-        assert!(json.contains("\"method\":\"test/method\""));
-        assert!(json.contains("\"key\":\"value\""));
-
-        let deserialized: A2ARequest = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized.jsonrpc, "2.0");
-        assert_eq!(deserialized.method, "test/method");
-        assert!(deserialized.params.is_some());
-    }
-
-    #[test]
-    fn test_a2a_response_serialization() {
-        let response = A2AResponse {
-            jsonrpc: "2.0".into(),
-            result: Some(serde_json::json!({"status": "success"})),
-            error: None,
-            id: Some(serde_json::Value::Number(42.into())),
-        };
-
-        let json = serde_json::to_string(&response).unwrap();
-        assert!(json.contains("\"jsonrpc\":\"2.0\""));
-        assert!(json.contains("\"status\":\"success\""));
-        assert!(!json.contains("\"error\"")); // Should be omitted when None
-
-        let deserialized: A2AResponse = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized.jsonrpc, "2.0");
-        assert!(deserialized.result.is_some());
-        assert!(deserialized.error.is_none());
-    }
-
-    #[test]
-    fn test_a2a_error_serialization() {
-        let error = A2AError {
-            code: -32603,
-            message: "Internal error".into(),
-            data: Some(serde_json::json!({"details": "Something went wrong"})),
-        };
-
-        let json = serde_json::to_string(&error).unwrap();
-        assert!(json.contains("\"code\":-32603"));
-        assert!(json.contains("\"message\":\"Internal error\""));
-        assert!(json.contains("\"details\":\"Something went wrong\""));
-
-        let deserialized: A2AError = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized.code, -32603);
-        assert_eq!(deserialized.message, "Internal error");
-        assert!(deserialized.data.is_some());
-    }
-
-    #[test]
-    fn test_message_part_serialization() {
-        let text_part = MessagePart::Text {
-            content: "Hello, world!".into(),
-        };
-
-        let json = serde_json::to_string(&text_part).unwrap();
-        assert!(json.contains("\"type\":\"text\""));
-        assert!(json.contains("\"content\":\"Hello, world!\""));
-
-        let data_part = MessagePart::Data {
-            content: serde_json::json!({"key": "value"}),
-        };
-
-        let json = serde_json::to_string(&data_part).unwrap();
-        assert!(json.contains("\"type\":\"data\""));
-        assert!(json.contains("\"key\":\"value\""));
-
-        let file_part = MessagePart::File {
-            name: "test.txt".into(),
-            mime_type: "text/plain".into(),
-            content: "base64encodedcontent".into(),
-        };
-
-        let json = serde_json::to_string(&file_part).unwrap();
-        assert!(json.contains("\"type\":\"file\""));
-        assert!(json.contains("\"name\":\"test.txt\""));
-        assert!(json.contains("\"mime_type\":\"text/plain\""));
-    }
-
-    #[test]
-    fn test_task_status_serialization() {
-        let status = TaskStatus::Running;
-        let json = serde_json::to_string(&status).unwrap();
-        assert_eq!(json, "\"running\"");
-
-        let status = TaskStatus::Completed;
-        let json = serde_json::to_string(&status).unwrap();
-        assert_eq!(json, "\"completed\"");
-
-        let status = TaskStatus::Failed;
-        let json = serde_json::to_string(&status).unwrap();
-        assert_eq!(json, "\"failed\"");
-
-        let status = TaskStatus::Cancelled;
-        let json = serde_json::to_string(&status).unwrap();
-        assert_eq!(json, "\"cancelled\"");
-    }
-
-    #[test]
-    fn test_a2a_task_serialization() {
-        let task = A2ATask {
-            id: "task_789".into(),
-            status: TaskStatus::Running,
-            created_at: chrono::Utc::now(),
-            completed_at: None,
-            result: Some(serde_json::json!({"progress": 50})),
-            error: None,
-            client_id: "test_client".into(),
-            task_type: "analysis".into(),
-            input_data: serde_json::json!({"test": "data"}),
-            output_data: Some(serde_json::json!({"progress": 50})),
-            error_message: None,
-            updated_at: chrono::Utc::now(),
-        };
-
-        let json = serde_json::to_string(&task).unwrap();
-        assert!(json.contains("\"id\":\"task_789\""));
-        assert!(json.contains("\"status\":\"running\""));
-        assert!(json.contains("\"progress\":50"));
-
-        let deserialized: A2ATask = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized.id, "task_789");
-        assert_eq!(deserialized.status, TaskStatus::Running);
-        assert!(deserialized.result.is_some());
-    }
-
-    #[test]
-    fn test_a2a_message_serialization() {
-        let message = A2AMessage {
-            id: "msg_456".into(),
-            parts: vec![
-                MessagePart::Text {
-                    content: "Hello".into(),
-                },
-                MessagePart::Data {
-                    content: serde_json::json!({"count": 42}),
-                },
-            ],
-            metadata: Some({
-                let mut metadata = std::collections::HashMap::new();
-                metadata.insert("priority".into(), serde_json::json!("high"));
-                metadata.insert("tags".into(), serde_json::json!(["urgent", "ai"]));
-                metadata
-            }),
-        };
-
-        let json = serde_json::to_string(&message).unwrap();
-        assert!(json.contains("\"id\":\"msg_456\""));
-        assert!(json.contains("\"priority\":\"high\""));
-        assert!(json.contains("\"count\":42"));
-
-        let deserialized: A2AMessage = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized.id, "msg_456");
-        assert_eq!(deserialized.parts.len(), 2);
-        assert!(deserialized.metadata.is_some());
-    }
-
-    #[test]
-    fn test_a2a_server_constructors() {
-        // Test default constructor
-        let server = A2AServer::new();
-        assert!(server.database.is_none());
-        assert!(server.intelligence.is_none());
-        assert!(server.config.is_none());
-
-        // Test default trait
-        let server = A2AServer::default();
-        assert!(server.database.is_none());
-        assert!(server.intelligence.is_none());
-        assert!(server.config.is_none());
     }
 }

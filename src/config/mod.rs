@@ -12,7 +12,7 @@ pub mod intelligence_config;
 
 // Re-export main configuration types
 pub use environment::ServerConfig;
-pub use fitness_config::FitnessConfig;
+pub use fitness_config::{FitnessConfig, WeatherApiConfig};
 pub use intelligence_config::{
     AggressiveStrategy, ConfigError, ConservativeStrategy, DefaultStrategy, IntelligenceConfig,
     IntelligenceStrategy,

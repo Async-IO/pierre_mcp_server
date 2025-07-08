@@ -48,7 +48,10 @@ async fn test_weather_functionality() -> Result<(), Box<dyn std::error::Error>> 
     let longitude = -73.5673;
 
     println!("Location Location: Montreal, Canada ({latitude}, {longitude})");
-    println!("Date Date: {}", historical_date.format("%Y-%m-%d %H:%M UTC"));
+    println!(
+        "Date Date: {}",
+        historical_date.format("%Y-%m-%d %H:%M UTC")
+    );
 
     println!("\nWeather  Fetching Historical Weather...");
 
@@ -74,7 +77,10 @@ async fn display_weather_results(
     historical_date: chrono::DateTime<chrono::Utc>,
 ) {
     println!("Success Real Weather Data Retrieved:");
-    println!("   Temperature  Temperature: {:.1}°C", weather.temperature_celsius);
+    println!(
+        "   Temperature  Temperature: {:.1}°C",
+        weather.temperature_celsius
+    );
     println!("   Weather  Conditions: {}", weather.conditions);
 
     if let Some(humidity) = weather.humidity_percentage {

@@ -155,3 +155,6 @@ pub mod rate_limiting_middleware;
 
 /// Unified error handling system with standard error codes and HTTP responses
 pub mod errors;
+
+/// Unified tool execution engine for fitness analysis and data processing
+pub mod tools;

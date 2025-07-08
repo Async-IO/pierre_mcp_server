@@ -92,7 +92,11 @@ fn fetch_all_activities(
             } else if let Some(content) = result.get("content") {
                 // Old format: wrapped in content
                 if let Some(activities_json) = content.get(0).and_then(|c| c.get("text")) {
-                    serde_json::from_str(activities_json.as_str().unwrap())?
+                    serde_json::from_str(
+                        activities_json
+                            .as_str()
+                            .ok_or_else(|| anyhow::anyhow!("Activities JSON is not a string"))?,
+                    )?
                 } else {
                     println!("Error Unexpected content format: {response}");
                     break;
@@ -230,7 +234,7 @@ fn main() -> Result<()> {
                 .partial_cmp(&dist_b)
                 .unwrap_or(std::cmp::Ordering::Equal)
         })
-        .unwrap();
+        .ok_or_else(|| anyhow::anyhow!("No activities found to find maximum"))?;
 
     print_longest_run_details(longest_run);
 

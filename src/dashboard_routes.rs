@@ -372,20 +372,21 @@ impl DashboardRoutes {
             let now = Utc::now();
             let reset_date = if now.month() == 12 {
                 now.with_year(now.year() + 1)
-                    .unwrap()
+                    .ok_or_else(|| anyhow::anyhow!("Failed to set year for next month"))?
                     .with_month(1)
-                    .unwrap()
+                    .ok_or_else(|| anyhow::anyhow!("Failed to set month to January"))?
             } else {
-                now.with_month(now.month() + 1).unwrap()
+                now.with_month(now.month() + 1)
+                    .ok_or_else(|| anyhow::anyhow!("Failed to increment month"))?
             }
             .with_day(1)
-            .unwrap()
+            .ok_or_else(|| anyhow::anyhow!("Failed to set day to 1st"))?
             .with_hour(0)
-            .unwrap()
+            .ok_or_else(|| anyhow::anyhow!("Failed to set hour to 0"))?
             .with_minute(0)
-            .unwrap()
+            .ok_or_else(|| anyhow::anyhow!("Failed to set minute to 0"))?
             .with_second(0)
-            .unwrap();
+            .ok_or_else(|| anyhow::anyhow!("Failed to set second to 0"))?;
 
             overview.push(RateLimitOverview {
                 api_key_id: api_key.id,
