@@ -163,7 +163,6 @@ curl -X POST http://localhost:8081/api/admin/api-keys \\
   -d '{
     "name": "Production Integration",
     "description": "API key for production fitness app",
-    "tier": "professional",
     "expires_in_days": 365
   }'
 ```

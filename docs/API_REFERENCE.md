@@ -14,7 +14,7 @@ Complete API documentation for the Pierre Fitness API platform, including MCP to
 
 Pierre Fitness API exposes **21 comprehensive tools** organized into categories for complete fitness data analysis and management.
 
-### 🏃 Core Data Access Tools
+### Core Data Access Tools
 
 #### `get_activities`
 Fetch fitness activities with pagination support
@@ -35,7 +35,7 @@ Get aggregated fitness statistics and lifetime metrics
 - **Parameters**: `provider` (required)
 - **Returns**: Total distance, activities, elevation, achievements
 
-### 🧠 Activity Intelligence & Analysis
+### Activity Intelligence & Analysis
 
 #### `get_activity_intelligence`
 AI-powered activity analysis with full context
@@ -60,7 +60,7 @@ Advanced fitness calculations (TRIMP, power ratios, efficiency)
   - `metrics` (optional): Specific metrics to calculate (e.g., ['trimp', 'power_to_weight', 'efficiency'])
 - **Returns**: Scientific fitness metrics and performance indicators
 
-### 📊 Performance & Trend Analysis
+### Performance & Trend Analysis
 
 #### `get_performance_trends`
 Analyze performance trends over time periods
@@ -77,7 +77,7 @@ Calculate comprehensive fitness score based on activities
 - **Parameters**: `provider`, `timeframe` (optional)
 - **Returns**: Fitness score (0-100), contributing factors, recommendations
 
-### 🎯 Goal Management
+### Goal Management
 
 #### `get_goals`
 Retrieve and manage fitness goals
@@ -94,7 +94,7 @@ Update progress on existing goal
 - **Parameters**: `goal_id`, progress data
 - **Returns**: Updated goal status and recommendations
 
-### 🌍 Location & Environment
+### Location & Environment
 
 #### `get_location_intelligence`
 Analyze activity locations and routes
@@ -106,7 +106,7 @@ Get weather correlation with performance
 - **Parameters**: `provider`, `activity_id`
 - **Returns**: Weather data and performance impact analysis
 
-### 📈 Advanced Analytics
+### Advanced Analytics
 
 #### `get_training_recommendations`
 Get personalized training recommendations
@@ -123,7 +123,7 @@ Analyze recovery patterns and recommendations
 - **Parameters**: `provider`, `recent_activities_count` (optional)
 - **Returns**: Recovery status and recommendations
 
-### 🔧 Utility Tools
+### Utility Tools
 
 #### `validate_oauth_connection`
 Test OAuth connection status for providers
@@ -147,24 +147,22 @@ Export fitness data in various formats
 
 ## HTTP API Endpoints
 
-### B2B API Platform Features
+### API Platform Features
 
-#### 🔑 API Key Management
-- **Tiered Access**: Trial (1K/month), Starter (10K/month), Professional (100K/month), Enterprise (Unlimited)
-- **Trial Keys**: 14-day auto-expiring trial keys with one-per-user limit
-- **Rate Limiting**: Automatic monthly rate limiting with real-time tracking
+#### API Key Management
+- **Rate Limiting**: Configurable rate limiting with real-time tracking
 - **Usage Analytics**: Detailed usage statistics per tool and time period
 - **Secure Storage**: SHA-256 hashed keys with prefix-based identification
 
-#### 📊 Developer Dashboard
+#### Developer Dashboard
 - **Real-time Monitoring**: WebSocket-based live updates
 - **Usage Analytics**: Tool-specific usage breakdown and trends
 - **Rate Limit Status**: Visual indicators and warnings
 - **API Key Management**: Create, list, and deactivate keys
 
-#### 🔐 Enterprise Security
+#### Security
 - **JWT Authentication**: 24-hour tokens with detailed error messages
-- **API Key Authentication**: Production (`pk_live_`) and trial (`pk_trial_`) keys
+- **API Key Authentication**: Production API keys
 - **Encrypted Storage**: AES-256-GCM for OAuth tokens at rest
 - **CORS Support**: Full cross-origin resource sharing configuration
 - **User Isolation**: Complete data separation between tenants
@@ -222,7 +220,6 @@ GET /admin/list-api-keys?user_email=user@example.com&active_only=true&limit=50&o
         "user_id": "user_def456",
         "name": "Production Key",
         "description": "Main API key",
-        "tier": "professional",
         "rate_limit": {
           "requests": 100000,
           "window": 2592000
@@ -328,7 +325,7 @@ A2A errors follow JSON-RPC format with specific error codes:
 **Problem**: `Permission denied` error
 **Solution**:
 1. Verify user has required permissions
-2. Check API key tier limits
+2. Check API key rate limits
 3. Confirm admin token permissions for admin endpoints
 
 #### Rate Limiting
@@ -336,7 +333,7 @@ A2A errors follow JSON-RPC format with specific error codes:
 **Problem**: `Rate limit exceeded` error
 **Solution**:
 1. Check current usage via `/admin/list-api-keys`
-2. Upgrade API key tier if needed
+2. Review API key rate limits
 3. Implement backoff and retry logic
 
 #### Provider Issues
@@ -446,7 +443,7 @@ export OPENWEATHER_API_BASE_URL=https://api.openweathermap.org
 #### Getting an API Key
 
 1. Sign up at [OpenWeatherMap](https://openweathermap.org/api)
-2. Choose a plan (free tier available with 60 calls/minute)
+2. Choose a plan (free plan available with 60 calls/minute)
 3. Get your API key from the dashboard
 4. Set the `OPENWEATHER_API_KEY` environment variable
 

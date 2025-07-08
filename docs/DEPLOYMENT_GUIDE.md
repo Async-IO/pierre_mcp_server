@@ -1,17 +1,16 @@
 # Deployment Guide
 
-Complete guide for production deployment, architecture, testing, and B2B customer provisioning.
+Complete guide for production deployment, architecture, and testing.
 
 ## Table of Contents
 
 1. [Production Deployment](#production-deployment)
 2. [Architecture Overview](#architecture-overview)
 3. [Testing & Development](#testing--development)
-4. [B2B Customer Provisioning](#b2b-customer-provisioning)
 
 ## Production Deployment
 
-### SaaS Platform (Multi-Tenant)
+### Docker Compose Deployment
 
 ```yaml
 # docker-compose.yml
@@ -32,7 +31,6 @@ services:
       - ./data:/app/data
     depends_on:
       - db
-      - redis
     restart: unless-stopped
 
   db:
@@ -43,10 +41,6 @@ services:
       - POSTGRES_PASSWORD=${DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    restart: unless-stopped
-
-  redis:
-    image: redis:7-alpine
     restart: unless-stopped
 
   nginx:
@@ -65,28 +59,28 @@ volumes:
   postgres_data:
 ```
 
-### Enterprise Self-Hosted
+### Single Command Deployment
 
 ```bash
-# Single command deployment
-docker run -d \\
-  -p 8080:8080 -p 8081:8081 \\
-  -e STRAVA_CLIENT_ID=your_client_id \\
-  -e STRAVA_CLIENT_SECRET=your_client_secret \\
-  -e DATABASE_URL=sqlite:./data/enterprise.db \\
-  -e JWT_SECRET=your_jwt_secret_here \\
-  --name pierre-fitness \\
-  --volume pierre-data:/app/data \\
+# Docker deployment with SQLite
+docker run -d \
+  -p 8080:8080 -p 8081:8081 \
+  -e STRAVA_CLIENT_ID=your_client_id \
+  -e STRAVA_CLIENT_SECRET=your_client_secret \
+  -e DATABASE_URL=sqlite:./data/pierre.db \
+  -e JWT_SECRET=your_jwt_secret_here \
+  --name pierre-fitness \
+  --volume pierre-data:/app/data \
   pierre-mcp-server:latest
 ```
 
-### Personal Instance (Single-Tenant)
+### Local Development
 
 ```bash
 # For individual users running locally
-cargo run --bin pierre-mcp-server -- \\
-  --port 8080 \\
-  --http-port 8081 \\
+cargo run --bin pierre-mcp-server -- \
+  --port 8080 \
+  --http-port 8081 \
   --database-url sqlite:./my-fitness.db
 ```
 
@@ -158,6 +152,8 @@ MCP_PORT=8080
 HTTP_PORT=8081
 HOST=0.0.0.0
 DATABASE_URL=postgresql://user:pass@localhost:5432/pierre
+# OR for SQLite
+DATABASE_URL=sqlite:./data/pierre.db
 
 # Security (Required)
 JWT_SECRET=your_very_secure_jwt_secret_minimum_32_chars
@@ -218,14 +214,14 @@ Pierre MCP Server follows a modular, plugin-based architecture designed for scal
 │  └─────────────┘  └─────────────┘  └─────────────┘          │
 ├─────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
-│  │  Database   │  │    Cache    │  │   Crypto    │          │
-│  │  Plugins    │  │   Manager   │  │   Manager   │          │
+│  │  Database   │  │   Config    │  │   Crypto    │          │
+│  │  Plugins    │  │  Manager    │  │   Manager   │          │
 │  └─────────────┘  └─────────────┘  └─────────────┘          │
 └─────────────────────────────────────────────────────────────┘
            │                    │                    │
     ┌──────▼──────┐    ┌────────▼────────┐    ┌─────▼─────┐
-    │  SQLite/    │    │     Redis       │    │   File    │
-    │ PostgreSQL  │    │     Cache       │    │  Storage  │
+    │  SQLite/    │    │  Configuration  │    │   File    │
+    │ PostgreSQL  │    │     Storage     │    │  Storage  │
     └─────────────┘    └─────────────────┘    └───────────┘
 ```
 
@@ -233,8 +229,8 @@ Pierre MCP Server follows a modular, plugin-based architecture designed for scal
 
 The system uses a plugin-based database architecture supporting multiple backends:
 
-- **SQLite**: For development and single-tenant deployments
-- **PostgreSQL**: For production multi-tenant deployments
+- **SQLite**: For development and single-user deployments
+- **PostgreSQL**: For production multi-user deployments
 - **Plugin System**: Extensible to support additional databases
 
 #### Security Architecture
@@ -250,7 +246,7 @@ The system uses a plugin-based database architecture supporting multiple backend
 ├─────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
 │  │ Rate Limit  │  │ Encryption  │  │    CORS     │          │
-│  │  (Tiered)   │  │ (AES-256)   │  │   Policy    │          │
+│  │  Manager    │  │ (AES-256)   │  │   Policy    │          │
 │  └─────────────┘  └─────────────┘  └─────────────┘          │
 ├─────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
@@ -287,7 +283,6 @@ The system uses a plugin-based database architecture supporting multiple backend
 - **Stateless Design**: All services are stateless for easy horizontal scaling
 - **Database Sharding**: Support for database sharding by user/tenant
 - **Load Balancing**: Standard HTTP load balancing with session affinity
-- **Caching Strategy**: Redis for session management and data caching
 
 #### Performance Optimization
 
@@ -417,190 +412,4 @@ jobs:
       run: docker push pierre-mcp-server:${{ github.sha }}
 ```
 
-## B2B Customer Provisioning
-
-### Customer Onboarding Workflow
-
-#### 1. Initial Customer Setup
-
-```bash
-# Create new customer tenant
-cargo run --bin admin-setup -- create-tenant \\
-  --name "Acme Fitness Co" \\
-  --contact-email "admin@acmefitness.com" \\
-  --tier "enterprise"
-```
-
-#### 2. API Key Provisioning
-
-```bash
-# Generate production API key
-curl -X POST http://localhost:8081/admin/provision-api-key \\
-  -H "Authorization: Bearer $ADMIN_JWT" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "user_email": "admin@acmefitness.com",
-    "name": "Acme Production Key",
-    "tier": "enterprise",
-    "expires_in_days": 365,
-    "description": "Production API key for Acme Fitness integration"
-  }'
-```
-
-#### 3. OAuth Provider Setup
-
-Customers need to configure their own OAuth applications:
-
-**Strava Setup:**
-1. Create application at https://www.strava.com/settings/api
-2. Set redirect URI: `https://customer-domain.com/oauth/callback/strava`
-3. Provide client ID/secret to customer
-
-**Fitbit Setup:**
-1. Create application at https://dev.fitbit.com/apps
-2. Set redirect URI: `https://customer-domain.com/oauth/callback/fitbit`
-3. Provide client ID/secret to customer
-
-#### 4. Custom Domain Configuration
-
-```nginx
-# nginx configuration for customer subdomain
-server {
-    listen 443 ssl;
-    server_name acme.pierre-fitness.com;
-    
-    ssl_certificate /etc/ssl/certs/acme.pierre-fitness.com.crt;
-    ssl_certificate_key /etc/ssl/private/acme.pierre-fitness.com.key;
-    
-    location / {
-        proxy_pass http://pierre-backend;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Customer-ID "acme-fitness";
-    }
-}
-```
-
-### Enterprise Integration Support
-
-#### White-Label Deployment
-
-```yaml
-# Customer-specific deployment
-version: '3.8'
-services:
-  pierre-server:
-    image: pierre-mcp-server:enterprise
-    environment:
-      - CUSTOMER_ID=acme-fitness
-      - BRANDING_LOGO_URL=https://acmefitness.com/logo.png
-      - BRANDING_THEME_COLOR=#FF6B35
-      - CUSTOM_DOMAIN=fitness-api.acmefitness.com
-    volumes:
-      - ./customer-config:/app/config
-```
-
-#### SSO Integration
-
-```bash
-# Configure SAML SSO for enterprise customer
-cargo run --bin admin-setup -- configure-sso \\
-  --customer-id acme-fitness \\
-  --sso-provider saml \\
-  --metadata-url "https://acmefitness.okta.com/metadata" \\
-  --entity-id "acme-fitness-pierre"
-```
-
-#### Monitoring & Analytics
-
-```yaml
-# Customer-specific monitoring
-services:
-  pierre-server:
-    environment:
-      - CUSTOMER_ANALYTICS_ENABLED=true
-      - CUSTOMER_DASHBOARD_URL=https://dashboard.acmefitness.com
-      - WEBHOOK_URL=https://acmefitness.com/webhooks/pierre
-```
-
-### Billing & Usage Tracking
-
-#### Usage Monitoring
-
-```sql
--- Customer usage query
-SELECT 
-  date_trunc('month', created_at) as month,
-  count(*) as api_calls,
-  customer_id
-FROM api_usage_logs 
-WHERE customer_id = 'acme-fitness'
-  AND created_at >= date_trunc('month', CURRENT_DATE - interval '12 months')
-GROUP BY month, customer_id
-ORDER BY month DESC;
-```
-
-#### Automated Billing Integration
-
-```python
-# Example billing webhook handler
-@app.route('/billing/usage-report', methods=['POST'])
-def usage_report():
-    customer_id = request.json.get('customer_id')
-    month = request.json.get('month')
-    
-    usage = get_customer_usage(customer_id, month)
-    
-    # Send to billing system
-    billing_client.record_usage(
-        customer_id=customer_id,
-        month=month,
-        api_calls=usage['total_calls'],
-        premium_features=usage['premium_usage']
-    )
-    
-    return {'status': 'recorded'}
-```
-
-### Support & Maintenance
-
-#### Customer Support Tools
-
-```bash
-# Debug customer issues
-cargo run --bin admin-setup -- debug \\
-  --customer-id acme-fitness \\
-  --api-key pk_live_acme123... \\
-  --check-all
-
-# Generate support report
-cargo run --bin admin-setup -- support-report \\
-  --customer-id acme-fitness \\
-  --days 7
-```
-
-#### Health Monitoring
-
-```bash
-# Customer-specific health checks
-curl -H "X-Customer-ID: acme-fitness" \\
-  http://localhost:8081/health/customer
-
-# Response
-{
-  "status": "healthy",
-  "customer_id": "acme-fitness",
-  "api_key_status": "active",
-  "oauth_connections": {
-    "strava": "connected",
-    "fitbit": "expired"
-  },
-  "usage_status": {
-    "current_month": 45230,
-    "limit": 100000,
-    "percentage": 45.23
-  }
-}
-```
-
-This completes the comprehensive deployment guide covering all aspects of production deployment, architecture, testing, and B2B customer provisioning for the Pierre Fitness API platform.
+This deployment guide provides comprehensive instructions for deploying Pierre MCP Server in various environments, from local development to production Kubernetes clusters.
