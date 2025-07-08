@@ -5,7 +5,7 @@
 
 **Active Development** - This project is under active development and not yet ready for production use. We welcome feedback, contributions, and early testing from the community. Please report issues and share your experiences.
 
-An open source multi-protocol fitness data API providing secure access to fitness data from multiple providers (Strava, Fitbit) through the [Model Context Protocol](https://modelcontextprotocol.io/specification/draft) (MCP), [A2A](https://github.com/google-a2a/A2A) (Agent-to-Agent) Protocol, and REST APIs. Built for LLMs and AI applications with comprehensive API key management, tiered rate limiting, OAuth integration, and real-time analytics. Technical architecture details are available on [DeepWiki](https://deepwiki.com/Async-IO/pierre_mcp_server).
+An open source multi-protocol fitness data API providing secure access to fitness data from multiple providers (Strava, Fitbit) through the [Model Context Protocol](https://modelcontextprotocol.io/specification/draft) (MCP), [A2A](https://github.com/google-a2a/A2A) (Agent-to-Agent) Protocol, and REST APIs. Built for LLMs and AI applications with comprehensive API key management, rate limiting, OAuth integration, and real-time analytics.
 
 ## Fitness Data Analysis
 
@@ -97,13 +97,13 @@ curl -X POST https://your-pierre-server.com/a2a/execute \
 
 | Guide | Description | Key Topics |
 |-------|-------------|------------|
-| **[📚 Documentation Index](docs/README.md)** | **Complete doc guide** | **All documentation organized by use case** |
+| **[Documentation Index](docs/README.md)** | **Complete doc guide** | **All documentation organized by use case** |
 | **[Setup & Installation](docs/SETUP.md)** | Get started quickly | Local setup, OAuth config, Docker deployment |
 | **[Authentication Guide](docs/AUTHENTICATION.md)** | **Auth methods** | **JWT, API keys, A2A protocol flows** |
 | **[OpenAPI Specification](docs/openapi.yaml)** | **Complete API reference** | **Interactive spec with examples** |
 | **[Error Handling](docs/ERROR_HANDLING.md)** | **Troubleshooting** | **Error codes and solutions** |
 | **[MCP Tools Reference](docs/TOOLS.md)** | All 21 fitness tools | Data access, intelligence, goals, analytics |
-| **[Business Provisioning](docs/PROVISIONING.md)** | B2B deployment guide | API key provisioning, multi-tenant setup |
+| **[API Key Management](docs/PROVISIONING.md)** | API key management | API key provisioning, multi-tenant setup |
 | **[Deployment Guide](docs/DEPLOYMENT.md)** | Production deployment | Docker, Kubernetes, cloud platforms |
 | **[Architecture Guide](docs/ARCHITECTURE.md)** | Technical deep-dive | System design, extensibility, contribution areas |
 
