@@ -98,14 +98,11 @@ curl -X POST https://your-pierre-server.com/a2a/execute \
 | Guide | Description | Key Topics |
 |-------|-------------|------------|
 | **[Documentation Index](docs/README.md)** | **Complete doc guide** | **All documentation organized by use case** |
-| **[Setup & Installation](docs/SETUP.md)** | Get started quickly | Local setup, OAuth config, Docker deployment |
-| **[Authentication Guide](docs/AUTHENTICATION.md)** | **Auth methods** | **JWT, API keys, A2A protocol flows** |
-| **[OpenAPI Specification](docs/openapi.yaml)** | **Complete API reference** | **Interactive spec with examples** |
-| **[Error Handling](docs/ERROR_HANDLING.md)** | **Troubleshooting** | **Error codes and solutions** |
-| **[MCP Tools Reference](docs/TOOLS.md)** | All 21 fitness tools | Data access, intelligence, goals, analytics |
-| **[API Key Management](docs/PROVISIONING.md)** | API key management | API key provisioning, multi-tenant setup |
-| **[Deployment Guide](docs/DEPLOYMENT.md)** | Production deployment | Docker, Kubernetes, cloud platforms |
-| **[Architecture Guide](docs/ARCHITECTURE.md)** | Technical deep-dive | System design, extensibility, contribution areas |
+| **[Getting Started](docs/GETTING_STARTED.md)** | Setup and configuration | Local setup, OAuth config, Docker deployment |
+| **[API Reference](docs/API_REFERENCE.md)** | **Complete API documentation** | **MCP tools, HTTP endpoints, error handling** |
+| **[OpenAPI Specification](docs/openapi.yaml)** | **Interactive API reference** | **Complete API spec with examples** |
+| **[Database Guide](docs/DATABASE_GUIDE.md)** | Database setup | SQLite/PostgreSQL setup and database plugins |
+| **[Deployment Guide](docs/DEPLOYMENT_GUIDE.md)** | Production deployment | Docker, Kubernetes, cloud platforms |
 
 ## Key Features
 
