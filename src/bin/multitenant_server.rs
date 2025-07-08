@@ -83,10 +83,10 @@ async fn main() -> Result<()> {
             .unwrap_or_else(|| env_config::mcp_port() + HTTP_PORT_OFFSET);
 
         info!(
-            "🚀 Single-tenant MCP server starting on port {} (MCP) and {} (HTTP)",
+            "Single-tenant MCP server starting on port {} (MCP) and {} (HTTP)",
             mcp_port, http_port
         );
-        info!("📊 Ready to serve fitness data with OAuth support!");
+        info!("Ready to serve fitness data with OAuth support!");
 
         // Run both MCP server and OAuth HTTP server concurrently
         if let Err(e) = run_single_tenant_server(server, mcp_port, http_port).await {
@@ -110,7 +110,7 @@ async fn main() -> Result<()> {
         // Initialize production logging
         logging::init_from_env()?;
 
-        info!("🚀 Starting Pierre Fitness API - Production Mode");
+        info!("Starting Pierre Fitness API - Production Mode");
         info!("{}", config.summary());
 
         // Load or generate encryption key
@@ -159,10 +159,10 @@ async fn main() -> Result<()> {
         let server = MultiTenantMcpServer::new(database, auth_manager, Arc::new(config.clone()));
 
         info!(
-            "🚀 Multi-tenant MCP server starting on ports {} (MCP) and {} (HTTP)",
+            "Multi-tenant MCP server starting on ports {} (MCP) and {} (HTTP)",
             config.mcp_port, config.http_port
         );
-        info!("📊 Ready to serve fitness data with user authentication!");
+        info!("Ready to serve fitness data with user authentication!");
 
         // Run server with health check integration
         if let Err(e) = run_production_server(server, config, health_checker).await {
@@ -199,8 +199,8 @@ async fn run_production_server(
     // Combine all routes
     let routes = health_routes.or(admin_routes);
 
-    info!("🔧 Admin API enabled at /admin/* endpoints");
-    info!("📋 Available admin endpoints:");
+    info!("Admin API enabled at /admin/* endpoints");
+    info!("Available admin endpoints:");
     info!("  POST /admin/provision-api-key - Provision API keys for users");
     info!("  POST /admin/revoke-api-key - Revoke existing API keys");
     info!("  GET  /admin/list-api-keys - List API keys (with filters)");
@@ -482,7 +482,7 @@ async fn handle_oauth_callback(
     </style>
 </head>
 <body>
-    <h1 class="success">✅ OAuth Authorization Successful!</h1>
+    <h1 class="success">Success OAuth Authorization Successful!</h1>
     <div class="info">
         <p>Your {} account has been successfully connected to Pierre Fitness API.</p>
         <p>You can now close this browser window and return to your MCP client.</p>
@@ -527,7 +527,7 @@ async fn handle_oauth_callback(
     </style>
 </head>
 <body>
-    <h1 class="error">❌ OAuth Authorization Failed</h1>
+    <h1 class="error">Error OAuth Authorization Failed</h1>
     <div class="details">
         <h3>Error Details:</h3>
         <p><strong>Provider:</strong> {provider}</p>

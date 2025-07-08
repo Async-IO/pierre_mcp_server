@@ -81,7 +81,7 @@ use tokio::net::TcpStream;
 /// # Example Output
 ///
 /// ```text
-/// 🏆 LONGEST RUN IN 2024:
+/// Record LONGEST RUN IN 2024:
 ///    Distance: 46.97 km
 ///    Name: Beluga Ultra Trail 45 km 🕺
 ///    Date: 2024-09-14T10:04:01Z
@@ -100,7 +100,7 @@ async fn main() -> Result<()> {
     let all_activities = fetch_activities_data(&mut reader, &mut writer).await?;
 
     if all_activities.is_empty() {
-        println!("❌ Failed to get activities");
+        println!("Error Failed to get activities");
     } else {
         analyze_activities(&all_activities);
     }
@@ -131,7 +131,7 @@ async fn establish_mcp_connection() -> Result<(
         .await?;
     let mut line = String::new();
     reader.read_line(&mut line).await?;
-    println!("✅ Connected to MCP server");
+    println!("Success Connected to MCP server");
 
     Ok((reader, writer))
 }
@@ -176,13 +176,13 @@ async fn fetch_activities_data(
                 all_activities.push(activity.clone());
             }
             println!(
-                "📄 Got page {}: {} activities (total: {})",
+                "Page Got page {}: {} activities (total: {})",
                 page,
                 activities.len(),
                 all_activities.len()
             );
         } else {
-            println!("❌ Failed to get page {page}");
+            println!("Error Failed to get page {page}");
             break;
         }
     }
@@ -192,7 +192,7 @@ async fn fetch_activities_data(
 
 /// Analyze activities to find longest 2024 run and display statistics
 fn analyze_activities(all_activities: &[Value]) {
-    println!("📊 Analyzing {} activities...", all_activities.len());
+    println!("Data Analyzing {} activities...", all_activities.len());
 
     let mut longest_run_2024: Option<&Value> = None;
     let mut longest_distance_2024 = 0.0;
@@ -226,7 +226,7 @@ fn analyze_activities(all_activities: &[Value]) {
     if let Some(run) = longest_run_2024 {
         display_longest_run_details(run, longest_distance_2024);
     } else {
-        println!("\n❌ No runs found in 2024 activities");
+        println!("\nError No runs found in 2024 activities");
     }
 
     display_other_runs_sample(all_activities);
@@ -234,7 +234,7 @@ fn analyze_activities(all_activities: &[Value]) {
 
 /// Display overall 2024 run statistics
 fn display_run_statistics(total_runs: i32, total_distance: f64) {
-    println!("\n🏃 2024 Run Statistics:");
+    println!("\nRun 2024 Run Statistics:");
     println!("   Total runs in 2024: {total_runs}");
     println!(
         "   Total run distance in 2024: {:.2} km",
@@ -244,7 +244,7 @@ fn display_run_statistics(total_runs: i32, total_distance: f64) {
 
 /// Display detailed information about the longest run
 fn display_longest_run_details(run: &Value, distance: f64) {
-    println!("\n🏆 LONGEST RUN IN 2024:");
+    println!("\nRecord LONGEST RUN IN 2024:");
     println!("   Distance: {:.2} km", distance / 1000.0);
 
     if let Some(name) = run["name"].as_str() {
@@ -288,7 +288,7 @@ fn display_duration_and_pace(duration: u64, distance: f64) {
 
 /// Display a sample of other 2024 runs for context
 fn display_other_runs_sample(all_activities: &[Value]) {
-    println!("\n📋 Other 2024 runs:");
+    println!("\nList Other 2024 runs:");
     let mut run_count = 0;
     for activity in all_activities {
         if let Some(date_str) = activity["start_date"].as_str() {

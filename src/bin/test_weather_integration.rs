@@ -60,7 +60,7 @@ fn create_test_activity() -> Activity {
 async fn test_weather_service(activity: &Activity) -> Result<(), Box<dyn std::error::Error>> {
     // Test with default configuration (will use mock weather)
     println!(
-        "\n📍 Activity Location: Montreal, Canada ({}, {})",
+        "\nLocation Activity Location: Montreal, Canada ({}, {})",
         activity.start_latitude.unwrap(),
         activity.start_longitude.unwrap()
     );
@@ -70,7 +70,7 @@ async fn test_weather_service(activity: &Activity) -> Result<(), Box<dyn std::er
     let mut weather_service =
         WeatherService::new(config, std::env::var("OPENWEATHER_API_KEY").ok());
 
-    println!("\n🔧 Weather Service Configuration:");
+    println!("\nTool Weather Service Configuration:");
     println!("   Provider: {}", weather_service.get_config().provider);
     println!("   Enabled: {}", weather_service.get_config().enabled);
     println!(
@@ -79,7 +79,7 @@ async fn test_weather_service(activity: &Activity) -> Result<(), Box<dyn std::er
     );
 
     // Test weather retrieval
-    println!("\n🌤️  Fetching Weather Data...");
+    println!("\nWeather  Fetching Weather Data...");
 
     match weather_service
         .get_weather_for_activity(
@@ -90,7 +90,7 @@ async fn test_weather_service(activity: &Activity) -> Result<(), Box<dyn std::er
         .await
     {
         Ok(Some(weather)) => {
-            println!("✅ Weather Data Retrieved:");
+            println!("Success Weather Data Retrieved:");
             println!("   Temperature: {:.1}°C", weather.temperature_celsius);
             println!("   Conditions: {}", weather.conditions);
 
@@ -103,7 +103,7 @@ async fn test_weather_service(activity: &Activity) -> Result<(), Box<dyn std::er
             }
 
             // Test weather impact analysis
-            println!("\n📊 Weather Impact Analysis:");
+            println!("\nData Weather Impact Analysis:");
             let impact = weather_service.analyze_weather_impact(&weather);
             println!("   Difficulty Level: {:?}", impact.difficulty_level);
             println!(
@@ -119,16 +119,16 @@ async fn test_weather_service(activity: &Activity) -> Result<(), Box<dyn std::er
             }
         }
         Ok(None) => {
-            println!("ℹ️  No weather data available (missing GPS coordinates)");
+            println!("Info  No weather data available (missing GPS coordinates)");
         }
         Err(e) => {
-            println!("⚠️  Weather fetch failed: {e}");
+            println!("Warning  Weather fetch failed: {e}");
             println!("   This is expected if OPENWEATHER_API_KEY is not set or API is disabled");
         }
     }
 
-    println!("\n✅ Weather Integration Test Complete!");
-    println!("\n📝 Next Steps:");
+    println!("\nSuccess Weather Integration Test Complete!");
+    println!("\nSummary Next Steps:");
     println!("   1. Set OPENWEATHER_API_KEY environment variable for real weather");
     println!("   2. Test with real Strava activities using: cargo run --bin test-with-data");
     println!("   3. Check activity intelligence includes weather context");
@@ -138,7 +138,7 @@ async fn test_weather_service(activity: &Activity) -> Result<(), Box<dyn std::er
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("🌦️  Testing Weather Integration");
+    println!("Weather  Testing Weather Integration");
     println!("================================");
 
     let activity = create_test_activity();

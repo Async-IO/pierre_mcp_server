@@ -135,12 +135,12 @@ async fn setup_strava_auth(client_id: String, client_secret: String, port: u16) 
 
         // In the new config system, authentication is handled via environment variables
         // Store credentials securely in environment or recommend .env file usage
-        println!("✅ Authentication successful!");
+        println!("Success Authentication successful!");
         println!("Access token: {access_token}");
         println!("Refresh token: {refresh_token}");
 
         // Provide instructions for environment variable setup
-        println!("\n📝 To complete setup, add these environment variables:");
+        println!("\nSummary To complete setup, add these environment variables:");
         println!("STRAVA_CLIENT_ID=your_client_id");
         println!("STRAVA_CLIENT_SECRET=your_client_secret");
         println!("STRAVA_ACCESS_TOKEN={access_token}");
@@ -151,7 +151,7 @@ async fn setup_strava_auth(client_id: String, client_secret: String, port: u16) 
         let config_toml = toml::to_string(&config)?;
         std::fs::write("fitness_config.toml", config_toml)?;
 
-        println!("\n✅ Strava authentication successful!");
+        println!("\nSuccess Strava authentication successful!");
         println!("Basic fitness configuration saved. You can now run the MCP server.");
     } else {
         error!("No authorization code received within timeout");

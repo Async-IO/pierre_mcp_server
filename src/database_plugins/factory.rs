@@ -85,27 +85,27 @@ impl Database {
     pub async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
         debug!("Detecting database type from URL: {}", database_url);
         let db_type = detect_database_type(database_url)?;
-        info!("🗄️  Detected database type: {:?}", db_type);
+        info!("Detected database type: {:?}", db_type);
 
         match db_type {
             DatabaseType::SQLite => {
-                info!("📁 Initializing SQLite database");
+                info!("Initializing SQLite database");
                 let db = SqliteDatabase::new(database_url, encryption_key).await?;
-                info!("✅ SQLite database initialized successfully");
+                info!("SQLite database initialized successfully");
                 Ok(Self::SQLite(db))
             }
             #[cfg(feature = "postgresql")]
             DatabaseType::PostgreSQL => {
-                info!("🐘 Initializing PostgreSQL database");
+                info!("Initializing PostgreSQL database");
                 let db = PostgresDatabase::new(database_url, encryption_key).await?;
-                info!("✅ PostgreSQL database initialized successfully");
+                info!("PostgreSQL database initialized successfully");
                 Ok(Self::PostgreSQL(db))
             }
             #[cfg(not(feature = "postgresql"))]
             DatabaseType::PostgreSQL => {
                 let err_msg =
                     "PostgreSQL support not enabled. Enable the 'postgresql' feature flag.";
-                tracing::error!("❌ {}", err_msg);
+                tracing::error!("{}", err_msg);
                 Err(anyhow!(err_msg))
             }
         }

@@ -479,7 +479,7 @@ async fn handle_provision_api_key(
     context: AdminApiContext,
 ) -> Result<impl Reply, Rejection> {
     info!(
-        "🔑 Provisioning API key for user: {} by service: {}",
+        "Key Provisioning API key for user: {} by service: {}",
         request.user_email, admin_token.service_name
     );
 
@@ -569,7 +569,7 @@ async fn handle_revoke_api_key(
     context: AdminApiContext,
 ) -> Result<impl Reply, Rejection> {
     info!(
-        "🗑️ Revoking API key: {} by service: {}",
+        "Revoking API key: {} by service: {}",
         request.api_key_id, admin_token.service_name
     );
 
@@ -645,7 +645,7 @@ async fn handle_list_api_keys(
     context: AdminApiContext,
 ) -> Result<impl Reply, Rejection> {
     info!(
-        "📋 Listing API keys by service: {}",
+        "List Listing API keys by service: {}",
         admin_token.service_name
     );
 
@@ -731,7 +731,7 @@ async fn handle_token_info(
     context: AdminApiContext,
 ) -> Result<impl Reply, Rejection> {
     info!(
-        "ℹ️ Getting token info for service: {}",
+        "Getting token info for service: {}",
         admin_token.service_name
     );
 
@@ -998,7 +998,7 @@ async fn handle_admin_tokens_list(
     query_params: std::collections::HashMap<String, String>,
     context: AdminApiContext,
 ) -> Result<impl Reply, Rejection> {
-    info!("📋 Listing admin tokens");
+    info!("List Listing admin tokens");
 
     let include_inactive = query_params
         .get("include_inactive")
@@ -1040,7 +1040,7 @@ async fn handle_admin_tokens_create(
     context: AdminApiContext,
 ) -> Result<impl Reply, Rejection> {
     info!(
-        "🔑 Creating admin token for service: {}",
+        "Key Creating admin token for service: {}",
         request.service_name
     );
 
@@ -1160,7 +1160,7 @@ async fn handle_admin_tokens_revoke(
     _admin_token: crate::admin::models::ValidatedAdminToken,
     context: AdminApiContext,
 ) -> Result<impl Reply, Rejection> {
-    info!("🗑️ Revoking admin token: {}", token_id);
+    info!("Revoking admin token: {}", token_id);
 
     match context.database.deactivate_admin_token(&token_id).await {
         Ok(()) => {

@@ -150,7 +150,7 @@ async fn main() -> Result<()> {
     let log_level = if args.verbose { "debug" } else { "info" };
     tracing_subscriber::fmt().with_env_filter(log_level).init();
 
-    info!("🔧 Pierre MCP Server Admin Token Setup");
+    info!("Pierre MCP Server Admin Token Setup");
 
     // Load configuration
     let database_url = args
@@ -237,7 +237,7 @@ async fn generate_token_command(
     super_admin: bool,
     permissions: Option<String>,
 ) -> Result<()> {
-    info!("🔑 Generating admin token for service: {}", service);
+    info!("Key Generating admin token for service: {}", service);
 
     // Check if service already has an active token
     if let Ok(existing_tokens) = database.list_admin_tokens(false).await {
@@ -246,10 +246,10 @@ async fn generate_token_command(
             .any(|t| t.service_name == service && t.is_active)
         {
             error!(
-                "❌ Service '{}' already has an active admin token!",
+                "Error Service '{}' already has an active admin token!",
                 service
             );
-            info!("💡 Use 'rotate-token' command to replace the existing token");
+            info!("Use 'rotate-token' command to replace the existing token");
             return Err(anyhow!("Service already has an active token"));
         }
     } else {
@@ -276,9 +276,9 @@ async fn generate_token_command(
     // Parse custom permissions if provided
     if let Some(permissions_str) = permissions {
         if super_admin {
-            warn!("⚠️ Custom permissions ignored for super admin tokens (has all permissions)");
+            warn!("Custom permissions ignored for super admin tokens (has all permissions)");
         } else {
-            info!("📋 Parsing custom permissions: {}", permissions_str);
+            info!("List Parsing custom permissions: {}", permissions_str);
             let mut parsed_permissions = Vec::new();
 
             for perm_str in permissions_str.split(',') {
@@ -286,11 +286,11 @@ async fn generate_token_command(
                 if let Ok(permission) =
                     trimmed.parse::<pierre_mcp_server::admin::models::AdminPermission>()
                 {
-                    info!("  ✅ Added permission: {}", permission);
+                    info!("  Success Added permission: {}", permission);
                     parsed_permissions.push(permission);
                 } else {
-                    error!("❌ Invalid permission: '{}'", trimmed);
-                    info!("💡 Valid permissions are:");
+                    error!("Error Invalid permission: '{}'", trimmed);
+                    info!("Valid permissions are:");
                     info!("   - provision_keys");
                     info!("   - list_keys");
                     info!("   - revoke_keys");
@@ -305,7 +305,7 @@ async fn generate_token_command(
             if !parsed_permissions.is_empty() {
                 request.permissions = Some(parsed_permissions);
                 info!(
-                    "✅ Applied {} custom permissions",
+                    "Success Applied {} custom permissions",
                     request.permissions.as_ref().unwrap().len()
                 );
             }
@@ -328,7 +328,7 @@ async fn list_tokens_command(
     detailed: bool,
 ) -> Result<()> {
     info!(
-        "📋 Listing admin tokens (include_inactive: {})",
+        "List Listing admin tokens (include_inactive: {})",
         include_inactive
     );
 
@@ -336,15 +336,15 @@ async fn list_tokens_command(
 
     if tokens.is_empty() {
         println!("No admin tokens found.");
-        println!("💡 Generate your first token with: cargo run --bin admin-setup -- generate-token --service your_service");
+        println!("Generate your first token with: cargo run --bin admin-setup -- generate-token --service your_service");
         return Ok(());
     }
 
-    println!("\n📋 Admin Tokens:");
+    println!("\nList Admin Tokens:");
     println!("{}", "=".repeat(80));
 
     for token in tokens {
-        println!("🔑 Token ID: {}", token.id);
+        println!("Key Token ID: {}", token.id);
         println!("   Service: {}", token.service_name);
         if let Some(desc) = &token.service_description {
             println!("   Description: {desc}");
@@ -352,17 +352,17 @@ async fn list_tokens_command(
         println!(
             "   Status: {}",
             if token.is_active {
-                "🟢 Active"
+                "Active Active"
             } else {
-                "🔴 Inactive"
+                "Inactive Inactive"
             }
         );
         println!(
             "   Super Admin: {}",
             if token.is_super_admin {
-                "✅ Yes"
+                "Success Yes"
             } else {
-                "❌ No"
+                "Error No"
             }
         );
         println!(
@@ -400,7 +400,7 @@ async fn list_tokens_command(
 
 /// Revoke an admin token
 async fn revoke_token_command(database: &Database, token_id: String) -> Result<()> {
-    info!("🗑️ Revoking admin token: {}", token_id);
+    info!("Revoking admin token: {}", token_id);
 
     // Check if token exists
     let token = database
@@ -409,17 +409,17 @@ async fn revoke_token_command(database: &Database, token_id: String) -> Result<(
         .ok_or_else(|| anyhow!("Admin token not found: {}", token_id))?;
 
     if !token.is_active {
-        warn!("⚠️ Token is already inactive");
+        warn!("Token is already inactive");
         return Ok(());
     }
 
     // Revoke token
     database.deactivate_admin_token(&token_id).await?;
 
-    println!("✅ Admin token revoked successfully!");
+    println!("Success Admin token revoked successfully!");
     println!("   Token ID: {token_id}");
     println!("   Service: {}", token.service_name);
-    println!("   ⚠️  The JWT token is now invalid and cannot be used");
+    println!("   The JWT token is now invalid and cannot be used");
 
     Ok(())
 }
@@ -481,7 +481,7 @@ async fn token_stats_command(
     let end_date = chrono::Utc::now();
 
     if let Some(id) = token_id {
-        info!("📊 Token usage statistics for: {} ({} days)", id, days);
+        info!("Token usage statistics for: {} ({} days)", id, days);
 
         let usage_history = database
             .get_admin_token_usage_history(&id, start_date, end_date)
@@ -492,7 +492,7 @@ async fn token_stats_command(
             return Ok(());
         }
 
-        println!("\n📊 Usage Statistics for Token: {id}");
+        println!("\nUsage Statistics for Token: {id}");
         println!("{}", "=".repeat(60));
         println!(
             "Period: {} to {}",
@@ -536,11 +536,11 @@ async fn token_stats_command(
             println!("  {action}: {count}");
         }
     } else {
-        info!("📊 Overall admin token statistics ({} days)", days);
+        info!("Overall admin token statistics ({} days)", days);
 
         let tokens = database.list_admin_tokens(true).await?;
 
-        println!("\n📊 Admin Token Overview");
+        println!("\nAdmin Token Overview");
         println!("{}", "=".repeat(60));
         println!("Total Tokens: {}", tokens.len());
         println!(
@@ -567,13 +567,13 @@ async fn create_admin_user_command(
     name: String,
     force: bool,
 ) -> Result<()> {
-    info!("👤 Creating admin user: {}", email);
+    info!("User Creating admin user: {}", email);
 
     // Check if user already exists
     if let Ok(Some(existing_user)) = database.get_user_by_email(&email).await {
         if !force {
-            error!("❌ User '{}' already exists!", email);
-            info!("💡 Use --force flag to update existing user");
+            error!("Error User '{}' already exists!", email);
+            info!("Use --force flag to update existing user");
             info!("   Current user details:");
             info!("   - Email: {}", existing_user.email);
             info!("   - Name: {:?}", existing_user.display_name);
@@ -621,50 +621,50 @@ async fn create_admin_user_command(
         database.create_user(&new_user).await?;
     }
 
-    println!("\n✅ Admin User Created Successfully!");
+    println!("\nSuccess Admin User Created Successfully!");
     println!("{}", "=".repeat(50));
-    println!("👤 USER DETAILS:");
+    println!("User USER DETAILS:");
     println!("   Email: {email}");
     println!("   Name: {name}");
     println!("   Tier: Enterprise (Full access)");
     println!("   Status: Active");
 
-    println!("\n🔑 LOGIN CREDENTIALS:");
+    println!("\nKey LOGIN CREDENTIALS:");
     println!("{}", "=".repeat(50));
     println!("   Email: {email}");
     println!("   Password: {password}");
 
-    println!("\n🚨 IMPORTANT SECURITY NOTES:");
+    println!("\nWARNING IMPORTANT SECURITY NOTES:");
     println!("• Change the default password in production!");
     println!("• This user has full access to the admin interface");
     println!("• Use strong passwords and enable 2FA if available");
     println!("• Consider creating additional admin users with limited permissions");
 
-    println!("\n📖 NEXT STEPS:");
+    println!("\nDocs NEXT STEPS:");
     println!("1. Start the Pierre MCP Server:");
     println!("   cargo run --bin pierre-mcp-server");
     println!("2. Open the frontend interface (usually http://localhost:8080)");
     println!("3. Login with the credentials above");
     println!("4. Generate your first admin token for API key provisioning");
 
-    println!("\n✅ Admin user is ready to use!");
+    println!("\nSuccess Admin user is ready to use!");
 
     Ok(())
 }
 
 /// Display a generated token with important security warnings
 fn display_generated_token(token: &GeneratedAdminToken) {
-    println!("\n🎉 Admin Token Generated Successfully!");
+    println!("\nComplete Admin Token Generated Successfully!");
     println!("{}", "=".repeat(80));
-    println!("🔑 TOKEN DETAILS:");
+    println!("Key TOKEN DETAILS:");
     println!("   Service: {}", token.service_name);
     println!("   Token ID: {}", token.token_id);
     println!(
         "   Super Admin: {}",
         if token.is_super_admin {
-            "✅ Yes"
+            "Success Yes"
         } else {
-            "❌ No"
+            "Error No"
         }
     );
 
@@ -674,12 +674,12 @@ fn display_generated_token(token: &GeneratedAdminToken) {
         println!("   Expires: Never");
     }
 
-    println!("\n🔑 YOUR JWT TOKEN (SAVE THIS NOW):");
+    println!("\nKey YOUR JWT TOKEN (SAVE THIS NOW):");
     println!("{}", "=".repeat(80));
     println!("{}", token.jwt_token);
     println!("{}", "=".repeat(80));
 
-    println!("\n🚨 CRITICAL SECURITY NOTES:");
+    println!("\nWARNING CRITICAL SECURITY NOTES:");
     println!("• This token is shown ONLY ONCE - save it now!");
     println!("• Store it securely in your admin service environment:");
     println!("  export PIERRE_MCP_ADMIN_TOKEN=\"{}\"", token.jwt_token);
@@ -694,7 +694,7 @@ fn display_generated_token(token: &GeneratedAdminToken) {
         }
     );
 
-    println!("\n📖 NEXT STEPS:");
+    println!("\nDocs NEXT STEPS:");
     println!("1. Save the token to your admin service environment");
     println!("2. Configure your admin service to use this token");
     println!("3. Test the connection with your admin service");
@@ -703,10 +703,10 @@ fn display_generated_token(token: &GeneratedAdminToken) {
         println!("4. For super admin access, use --super-admin flag");
     }
 
-    println!("\n💡 USAGE EXAMPLE:");
+    println!("\nUSAGE EXAMPLE:");
     println!("curl -H \"Authorization: Bearer {}\" \\", token.jwt_token);
     println!("     -X POST http://localhost:8080/admin/provision-api-key \\");
     println!("     -d '{{\"user_email\":\"user@example.com\",\"tier\":\"starter\"}}'");
 
-    println!("\n✅ Token is ready to use!");
+    println!("\nSuccess Token is ready to use!");
 }

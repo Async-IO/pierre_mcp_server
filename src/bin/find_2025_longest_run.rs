@@ -94,25 +94,25 @@ fn fetch_all_activities(
                 if let Some(activities_json) = content.get(0).and_then(|c| c.get("text")) {
                     serde_json::from_str(activities_json.as_str().unwrap())?
                 } else {
-                    println!("❌ Unexpected content format: {response}");
+                    println!("Error Unexpected content format: {response}");
                     break;
                 }
             } else {
-                println!("❌ Unexpected result format: {response}");
+                println!("Error Unexpected result format: {response}");
                 break;
             };
 
             if activities.is_empty() {
-                println!("📄 No more activities found on page {page}");
+                println!("Page No more activities found on page {page}");
                 break;
             }
 
             let activities_count = activities.len();
-            println!("📄 Found {activities_count} activities on page {page}");
+            println!("Page Found {activities_count} activities on page {page}");
             all_activities.extend(activities);
 
             if activities_count < per_page {
-                println!("📄 Reached end of activities (partial page)");
+                println!("Page Reached end of activities (partial page)");
                 break;
             }
 
@@ -120,16 +120,16 @@ fn fetch_all_activities(
 
             // Limit to reasonable number of pages to avoid rate limits
             if page > 10 {
-                println!("📄 Limiting to first 10 pages to avoid rate limits");
+                println!("Page Limiting to first 10 pages to avoid rate limits");
                 break;
             }
         } else {
-            println!("❌ Failed to get activities: {response}");
+            println!("Error Failed to get activities: {response}");
             break;
         }
     }
 
-    println!("📊 Total activities retrieved: {}", all_activities.len());
+    println!("Data Total activities retrieved: {}", all_activities.len());
     Ok(all_activities)
 }
 
@@ -152,7 +152,7 @@ fn print_debug_info(all_activities: &[Activity]) {
         *years.entry(activity.start_date.year()).or_insert(0) += 1;
     }
 
-    println!("\n📅 Activities by year:");
+    println!("\nDate Activities by year:");
     let mut sorted_years: Vec<_> = years.into_iter().collect();
     sorted_years.sort_by_key(|&(year, _)| year);
     for (year, count) in sorted_years {
@@ -169,23 +169,23 @@ fn print_longest_run_details(longest_run: &Activity) {
         }
     };
 
-    println!("\n🎯 LONGEST RUN IN 2025:");
-    println!("   📛 Name: {}", longest_run.name);
-    println!("   📏 Distance: {distance_km:.2} km");
-    println!("   ⏱️  Duration: {duration_hours:.2} hours");
+    println!("\nTarget LONGEST RUN IN 2025:");
+    println!("   Name Name: {}", longest_run.name);
+    println!("   Distance Distance: {distance_km:.2} km");
+    println!("   Time  Duration: {duration_hours:.2} hours");
     println!(
-        "   📅 Date: {}",
+        "   Date Date: {}",
         longest_run.start_date.format("%Y-%m-%d %H:%M:%S UTC")
     );
-    println!("   🏃 Type: {:?}", longest_run.sport_type);
+    println!("   Run Type: {:?}", longest_run.sport_type);
 
     if let Some(elevation) = longest_run.elevation_gain {
-        println!("   ⛰️  Elevation Gain: {elevation:.0} m");
+        println!("   Terrain  Elevation Gain: {elevation:.0} m");
     }
 
     if let Some(avg_speed) = longest_run.average_speed {
         let pace_min_per_km = 1000.0 / (avg_speed * 60.0);
-        println!("   🏃 Average Pace: {pace_min_per_km:.2} min/km");
+        println!("   Run Average Pace: {pace_min_per_km:.2} min/km");
     }
 }
 
@@ -212,10 +212,10 @@ fn main() -> Result<()> {
         })
         .collect();
 
-    println!("🏃 Found {} runs in 2025", year_2025_runs.len());
+    println!("Run Found {} runs in 2025", year_2025_runs.len());
 
     if year_2025_runs.is_empty() {
-        println!("❌ No runs found in 2025");
+        println!("Error No runs found in 2025");
         print_debug_info(&all_activities);
         return Ok(());
     }
@@ -234,7 +234,7 @@ fn main() -> Result<()> {
 
     print_longest_run_details(longest_run);
 
-    println!("\n✅ Test completed successfully!");
+    println!("\nSuccess Test completed successfully!");
 
     Ok(())
 }

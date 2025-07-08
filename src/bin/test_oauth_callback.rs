@@ -20,7 +20,7 @@ async fn setup_test_environment() -> Result<(AuthRoutes, OAuthRoutes, Uuid)> {
     let auth_routes = AuthRoutes::new(database.clone(), auth_manager.clone());
     let oauth_routes = OAuthRoutes::new(database.clone());
 
-    println!("✅ Test environment initialized");
+    println!("Success Test environment initialized");
 
     // Test user registration
     let test_email = "testuser@example.com";
@@ -34,7 +34,7 @@ async fn setup_test_environment() -> Result<(AuthRoutes, OAuthRoutes, Uuid)> {
 
     let register_response = auth_routes.register(register_request).await?;
     let user_id = Uuid::parse_str(&register_response.user_id)?;
-    println!("✅ User registered: {user_id}");
+    println!("Success User registered: {user_id}");
 
     Ok((auth_routes, oauth_routes, user_id))
 }
@@ -49,7 +49,7 @@ async fn test_user_login(auth_routes: &AuthRoutes) -> Result<()> {
     };
 
     let login_response = auth_routes.login(login_request).await?;
-    println!("✅ User logged in, JWT token generated");
+    println!("Success User logged in, JWT token generated");
     println!("   Token expires at: {}", login_response.expires_at);
     println!("   User ID: {}", login_response.user.user_id);
 
@@ -58,17 +58,17 @@ async fn test_user_login(auth_routes: &AuthRoutes) -> Result<()> {
 
 async fn test_oauth_flows(oauth_routes: &OAuthRoutes, user_id: Uuid) -> Result<()> {
     // Test OAuth authorization URL generation
-    println!("\n🔗 Testing OAuth authorization URLs...");
+    println!("\nMulti Testing OAuth authorization URLs...");
 
     // Test Strava OAuth
     let strava_auth = oauth_routes.get_auth_url(user_id, "strava")?;
-    println!("✅ Strava OAuth URL generated");
+    println!("Success Strava OAuth URL generated");
     println!("   URL: {}", strava_auth.authorization_url);
     println!("   State: {}", strava_auth.state);
 
     // Test Fitbit OAuth
     let fitbit_auth = oauth_routes.get_auth_url(user_id, "fitbit")?;
-    println!("✅ Fitbit OAuth URL generated");
+    println!("Success Fitbit OAuth URL generated");
     println!("   URL: {}", fitbit_auth.authorization_url);
 
     // Test OAuth callback with mock data
@@ -80,14 +80,14 @@ async fn test_oauth_flows(oauth_routes: &OAuthRoutes, user_id: Uuid) -> Result<(
         .handle_callback(mock_code, &mock_state, "strava")
         .await
     {
-        Ok(_) => println!("✅ OAuth callback successful (unexpected in test mode)"),
+        Ok(_) => println!("Success OAuth callback successful (unexpected in test mode)"),
         Err(e) => {
-            println!("⚠️  OAuth callback failed (expected with mock data): {e}");
+            println!("Warning  OAuth callback failed (expected with mock data): {e}");
 
             // Check if it's the expected error
             match e.to_string() {
                 err_str if err_str.contains("token exchange") || err_str.contains("network") => {
-                    println!("✅ Expected network/token error in test environment");
+                    println!("Success Expected network/token error in test environment");
                 }
                 _ => {
                     println!("🔍 Unexpected error type: {e}");
@@ -101,7 +101,7 @@ async fn test_oauth_flows(oauth_routes: &OAuthRoutes, user_id: Uuid) -> Result<(
 
 async fn test_connection_status(oauth_routes: &OAuthRoutes, user_id: Uuid) -> Result<()> {
     // Test connection status
-    println!("\n📊 Testing connection status...");
+    println!("\nData Testing connection status...");
     let statuses = oauth_routes.get_connection_status(user_id).await?;
 
     for status in statuses {
@@ -125,13 +125,13 @@ fn test_provider_disconnection(oauth_routes: &OAuthRoutes, user_id: Uuid) {
     println!("\n🔌 Testing provider disconnection...");
 
     match oauth_routes.disconnect_provider(user_id, "strava") {
-        Ok(()) => println!("✅ Strava disconnection successful"),
-        Err(e) => println!("⚠️  Strava disconnection failed: {e}"),
+        Ok(()) => println!("Success Strava disconnection successful"),
+        Err(e) => println!("Warning  Strava disconnection failed: {e}"),
     }
 
     match oauth_routes.disconnect_provider(user_id, "fitbit") {
-        Ok(()) => println!("✅ Fitbit disconnection successful"),
-        Err(e) => println!("⚠️  Fitbit disconnection failed: {e}"),
+        Ok(()) => println!("Success Fitbit disconnection successful"),
+        Err(e) => println!("Warning  Fitbit disconnection failed: {e}"),
     }
 }
 
@@ -148,8 +148,8 @@ async fn main() -> Result<()> {
     test_connection_status(&oauth_routes, user_id).await?;
     test_provider_disconnection(&oauth_routes, user_id);
 
-    println!("\n✅ All OAuth callback tests completed successfully!");
-    println!("🎯 Ready for production use with real OAuth provider credentials");
+    println!("\nSuccess All OAuth callback tests completed successfully!");
+    println!("Target Ready for production use with real OAuth provider credentials");
 
     Ok(())
 }

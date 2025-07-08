@@ -6,7 +6,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
 
 fn initialize_connection() -> Result<(TcpStream, BufReader<TcpStream>)> {
-    println!("🗺️  Checking GPS Coordinates for Longest Run");
+    println!("Location  Checking GPS Coordinates for Longest Run");
     println!("============================================");
 
     // Connect to MCP server
@@ -35,7 +35,7 @@ fn initialize_connection() -> Result<(TcpStream, BufReader<TcpStream>)> {
     let mut line = String::new();
     reader.read_line(&mut line)?;
     let init_response: Value = serde_json::from_str(&line)?;
-    println!("✅ MCP connection initialized");
+    println!("Success MCP connection initialized");
 
     // Validate initialization response
     if let Some(result) = init_response.get("result") {
@@ -56,7 +56,7 @@ fn fetch_activities(
     stream: &mut TcpStream,
     reader: &mut BufReader<TcpStream>,
 ) -> Result<Vec<Value>> {
-    println!("\n📊 Retrieving activities...");
+    println!("\nData Retrieving activities...");
 
     let mut all_activities: Vec<Value> = Vec::new();
     let mut page = 1;
@@ -91,7 +91,7 @@ fn fetch_activities(
                 }
                 all_activities.extend(activities.clone());
                 println!(
-                    "📄 Retrieved page {page} with {} activities",
+                    "Page Retrieved page {page} with {} activities",
                     activities.len()
                 );
                 page += 1;
@@ -99,7 +99,7 @@ fn fetch_activities(
                 break;
             }
         } else {
-            println!("❌ Error retrieving activities: {response:?}");
+            println!("Error Error retrieving activities: {response:?}");
             return Ok(all_activities);
         }
     }
@@ -120,7 +120,7 @@ fn find_longest_2025_run(all_activities: &[Value]) -> Option<&Value> {
         }
     }
 
-    println!("\n🏃 Found {} runs in 2025", runs_2025.len());
+    println!("\nRun Found {} runs in 2025", runs_2025.len());
 
     // Find the longest run
     runs_2025
@@ -140,7 +140,7 @@ fn find_longest_2025_run(all_activities: &[Value]) -> Option<&Value> {
 }
 
 async fn test_location_service(lat: f64, lon: f64) -> Result<()> {
-    println!("\n🧪 Testing Location Service...");
+    println!("\nTest Testing Location Service...");
     let mut location_service = pierre_mcp_server::intelligence::location::LocationService::new();
 
     match location_service
@@ -148,23 +148,23 @@ async fn test_location_service(lat: f64, lon: f64) -> Result<()> {
         .await
     {
         Ok(location_data) => {
-            println!("✅ Location data retrieved:");
-            println!("   📍 Display Name: {}", location_data.display_name);
+            println!("Success Location data retrieved:");
+            println!("   Location Display Name: {}", location_data.display_name);
             if let Some(city) = &location_data.city {
-                println!("   🏙️  City: {city}");
+                println!("   City  City: {city}");
             }
             if let Some(region) = &location_data.region {
-                println!("   🗺️  Region: {region}");
+                println!("   Location  Region: {region}");
             }
             if let Some(country) = &location_data.country {
-                println!("   🌍 Country: {country}");
+                println!("   Country Country: {country}");
             }
             if let Some(trail_name) = &location_data.trail_name {
-                println!("   🥾 Trail: {trail_name}");
+                println!("   Trail Trail: {trail_name}");
             }
         }
         Err(e) => {
-            println!("❌ Failed to get location data: {e}");
+            println!("Error Failed to get location data: {e}");
             println!("   This could be due to API rate limiting or network issues");
         }
     }
@@ -183,7 +183,7 @@ async fn main() -> Result<()> {
     let longest_run = find_longest_2025_run(&all_activities);
 
     let Some(longest_run) = longest_run else {
-        println!("❌ No runs found in 2025");
+        println!("Error No runs found in 2025");
         return Ok(());
     };
 
@@ -202,10 +202,10 @@ async fn main() -> Result<()> {
         .and_then(|n| n.as_str())
         .unwrap_or("");
 
-    println!("\n🎯 LONGEST RUN IN 2025:");
-    println!("   📛 Name: {name}");
-    println!("   📏 Distance: {distance_km:.2} km");
-    println!("   🆔 Activity ID: {activity_id}");
+    println!("\nTarget LONGEST RUN IN 2025:");
+    println!("   Name Name: {name}");
+    println!("   Distance Distance: {distance_km:.2} km");
+    println!("   ID Activity ID: {activity_id}");
 
     // Check GPS coordinates
     let start_lat = longest_run
@@ -216,14 +216,14 @@ async fn main() -> Result<()> {
         .and_then(serde_json::Value::as_f64);
 
     if let (Some(lat), Some(lon)) = (start_lat, start_lon) {
-        println!("   📍 GPS Coordinates: {lat:.6}, {lon:.6}");
-        println!("   ✅ Activity HAS GPS coordinates - location intelligence should work!");
+        println!("   Location GPS Coordinates: {lat:.6}, {lon:.6}");
+        println!("   Success Activity HAS GPS coordinates - location intelligence should work!");
 
         test_location_service(lat, lon).await?;
     } else {
-        println!("   ❌ No GPS coordinates available for this activity");
+        println!("   Error No GPS coordinates available for this activity");
         println!(
-            "   📝 Raw activity data: {}",
+            "   Summary Raw activity data: {}",
             serde_json::to_string_pretty(longest_run)?
         );
     }

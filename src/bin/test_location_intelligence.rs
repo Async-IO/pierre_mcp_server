@@ -9,11 +9,11 @@ use std::net::TcpStream;
 #[tokio::main]
 #[allow(clippy::too_many_lines)]
 async fn main() -> Result<()> {
-    println!("🗺️  Testing Location Intelligence Integration");
+    println!("Location  Testing Location Intelligence Integration");
     println!("=============================================");
 
     // Test 1: Direct location service test
-    println!("\n🧪 Test 1: Direct Location Service");
+    println!("\nTest Test 1: Direct Location Service");
     let mut location_service = LocationService::new();
 
     // Test with Montreal coordinates (Saint-Hippolyte area)
@@ -25,32 +25,32 @@ async fn main() -> Result<()> {
         .await
     {
         Ok(location_data) => {
-            println!("✅ Location data retrieved:");
-            println!("   📍 Display Name: {}", location_data.display_name);
+            println!("Success Location data retrieved:");
+            println!("   Location Display Name: {}", location_data.display_name);
             if let Some(city) = &location_data.city {
-                println!("   🏙️  City: {city}");
+                println!("   City  City: {city}");
             }
             if let Some(region) = &location_data.region {
-                println!("   🗺️  Region: {region}");
+                println!("   Location  Region: {region}");
             }
             if let Some(country) = &location_data.country {
-                println!("   🌍 Country: {country}");
+                println!("   Country Country: {country}");
             }
             if let Some(trail_name) = &location_data.trail_name {
-                println!("   🥾 Trail: {trail_name}");
+                println!("   Trail Trail: {trail_name}");
             }
             if let Some(natural) = &location_data.natural {
-                println!("   🌲 Natural Feature: {natural}");
+                println!("   Natural Natural Feature: {natural}");
             }
         }
         Err(e) => {
-            println!("❌ Failed to get location data: {e}");
+            println!("Error Failed to get location data: {e}");
             println!("   This might be due to network issues or API rate limiting");
         }
     }
 
     // Test 2: MCP Server Integration Test
-    println!("\n🧪 Test 2: MCP Server Location Intelligence");
+    println!("\nTest Test 2: MCP Server Location Intelligence");
 
     // Connect to MCP server
     match TcpStream::connect("127.0.0.1:8080") {
@@ -79,7 +79,7 @@ async fn main() -> Result<()> {
             let mut line = String::new();
             reader.read_line(&mut line)?;
             let init_response: Value = serde_json::from_str(&line)?;
-            println!("✅ MCP connection initialized");
+            println!("Success MCP connection initialized");
 
             // Validate initialization response
             if let Some(result) = init_response.get("result") {
@@ -94,7 +94,7 @@ async fn main() -> Result<()> {
             }
 
             // Get a recent activity with GPS coordinates
-            println!("\n📊 Retrieving recent activities...");
+            println!("\nData Retrieving recent activities...");
 
             let activities_request = json!({
                 "jsonrpc": "2.0",
@@ -140,13 +140,13 @@ async fn main() -> Result<()> {
                         .and_then(serde_json::Value::as_f64)
                         .unwrap_or(0.0);
 
-                    println!("🎯 Found activity with GPS:");
-                    println!("   📛 Name: {name}");
-                    println!("   🆔 ID: {activity_id}");
-                    println!("   📍 Coordinates: {lat:.4}, {lon:.4}");
+                    println!("Target Found activity with GPS:");
+                    println!("   Name Name: {name}");
+                    println!("   ID ID: {activity_id}");
+                    println!("   Location Coordinates: {lat:.4}, {lon:.4}");
 
                     // Test Activity Intelligence with location context
-                    println!("\n🧠 Generating Activity Intelligence with Location Context...");
+                    println!("\nAI Generating Activity Intelligence with Location Context...");
 
                     let intelligence_request = json!({
                         "jsonrpc": "2.0",
@@ -169,39 +169,39 @@ async fn main() -> Result<()> {
                     let response: Value = serde_json::from_str(&line)?;
 
                     if let Some(result) = response.get("result") {
-                        println!("✅ Activity Intelligence with Location Generated!");
+                        println!("Success Activity Intelligence with Location Generated!");
                         println!("{}", "=".repeat(50));
 
                         // Display the summary
                         if let Some(summary) = result.get("summary").and_then(|s| s.as_str()) {
-                            println!("📝 Summary: {summary}");
+                            println!("Summary Summary: {summary}");
                         }
 
                         // Display location context if available
                         if let Some(context) = result.get("contextual_factors") {
                             if let Some(location) = context.get("location") {
-                                println!("\n🗺️  Location Context:");
+                                println!("\nLocation  Location Context:");
 
                                 if let Some(display_name) =
                                     location.get("display_name").and_then(|d| d.as_str())
                                 {
-                                    println!("   📍 Location: {display_name}");
+                                    println!("   Location Location: {display_name}");
                                 }
 
                                 if let Some(city) = location.get("city").and_then(|c| c.as_str()) {
-                                    println!("   🏙️  City: {city}");
+                                    println!("   City  City: {city}");
                                 }
 
                                 if let Some(region) =
                                     location.get("region").and_then(|r| r.as_str())
                                 {
-                                    println!("   🗺️  Region: {region}");
+                                    println!("   Location  Region: {region}");
                                 }
 
                                 if let Some(trail_name) =
                                     location.get("trail_name").and_then(|t| t.as_str())
                                 {
-                                    println!("   🥾 Trail: {trail_name}");
+                                    println!("   Trail Trail: {trail_name}");
                                 }
                             }
                         }
@@ -221,7 +221,7 @@ async fn main() -> Result<()> {
                                 .collect();
 
                             if !location_insights.is_empty() {
-                                println!("\n🗺️  Location Insights:");
+                                println!("\nLocation  Location Insights:");
                                 for insight in location_insights {
                                     if let Some(message) =
                                         insight.get("message").and_then(|m| m.as_str())
@@ -232,26 +232,26 @@ async fn main() -> Result<()> {
                             }
                         }
                     } else {
-                        println!("❌ Error generating intelligence: {response:?}");
+                        println!("Error Error generating intelligence: {response:?}");
                     }
                 } else {
-                    println!("❌ No activities found with GPS coordinates");
+                    println!("Error No activities found with GPS coordinates");
                     println!(
                         "   Activities without GPS can't be used for location intelligence testing"
                     );
                 }
             } else {
-                println!("❌ Failed to get activities: {response:?}");
+                println!("Error Failed to get activities: {response:?}");
             }
         }
         Err(e) => {
-            println!("❌ Failed to connect to MCP server: {e}");
+            println!("Error Failed to connect to MCP server: {e}");
             println!("   Make sure the server is running with: cargo run --bin pierre-mcp-server");
         }
     }
 
     // Test 3: Comprehensive Location Intelligence Validation
-    println!("\n🧪 Test 3: Comprehensive Location Intelligence Validation");
+    println!("\nTest Test 3: Comprehensive Location Intelligence Validation");
 
     // Test various coordinates to ensure robust location detection
     let test_coordinates = vec![
@@ -261,7 +261,7 @@ async fn main() -> Result<()> {
     ];
 
     for (lat, lon, description) in test_coordinates {
-        println!("\n📍 Testing location detection for {description}: {lat:.4}, {lon:.4}");
+        println!("\nLocation Testing location detection for {description}: {lat:.4}, {lon:.4}");
 
         match location_service
             .get_location_from_coordinates(lat, lon)
@@ -269,7 +269,7 @@ async fn main() -> Result<()> {
         {
             Ok(location_data) => {
                 println!(
-                    "   ✅ Successfully detected: {}",
+                    "   Success Successfully detected: {}",
                     location_data.display_name
                 );
 
@@ -279,35 +279,35 @@ async fn main() -> Result<()> {
                 let has_country = location_data.country.is_some();
 
                 println!(
-                    "   📊 Data completeness: City: {}, Region: {}, Country: {}",
-                    if has_city { "✅" } else { "❌" },
-                    if has_region { "✅" } else { "❌" },
-                    if has_country { "✅" } else { "❌" }
+                    "   Data Data completeness: City: {}, Region: {}, Country: {}",
+                    if has_city { "Success" } else { "Error" },
+                    if has_region { "Success" } else { "Error" },
+                    if has_country { "Success" } else { "Error" }
                 );
 
                 // Check for trail detection
                 if let Some(trail_name) = &location_data.trail_name {
-                    println!("   🥾 Trail detected: {trail_name}");
+                    println!("   Trail Trail detected: {trail_name}");
                 }
 
                 // Check for natural features
                 if let Some(natural) = &location_data.natural {
-                    println!("   🌲 Natural feature: {natural}");
+                    println!("   Natural Natural feature: {natural}");
                 }
             }
             Err(e) => {
-                println!("   ❌ Failed to detect location: {e}");
+                println!("   Error Failed to detect location: {e}");
             }
         }
     }
 
-    println!("\n🎉 Location Intelligence Testing Complete!");
-    println!("   ✅ Reverse geocoding API integration validated");
-    println!("   ✅ Location context extraction confirmed");
-    println!("   ✅ Trail/route detection tested");
-    println!("   ✅ MCP server integration verified");
-    println!("   ✅ End-to-end location intelligence working");
-    println!("\n📈 This implementation provides Strava-level location intelligence");
+    println!("\nComplete Location Intelligence Testing Complete!");
+    println!("   Success Reverse geocoding API integration validated");
+    println!("   Success Location context extraction confirmed");
+    println!("   Success Trail/route detection tested");
+    println!("   Success MCP server integration verified");
+    println!("   Success End-to-end location intelligence working");
+    println!("\nPerformance This implementation provides Strava-level location intelligence");
     println!("   for enhanced activity summaries with regional and trail context!");
 
     Ok(())
