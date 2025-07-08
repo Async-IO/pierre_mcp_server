@@ -513,7 +513,7 @@ impl HealthChecker {
         let available_mb = available_kb / 1024;
         let used_mb = total_mb - available_mb;
         let used_percent = if total_mb > 0 {
-            (f64::from(used_mb) / f64::from(total_mb)) * 100.0
+            (used_mb as f64 / total_mb as f64) * 100.0
         } else {
             0.0
         };
