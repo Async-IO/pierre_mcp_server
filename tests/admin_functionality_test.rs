@@ -1,3 +1,5 @@
+// ABOUTME: Comprehensive integration tests for admin system functionality
+// ABOUTME: Tests admin tokens, JWT auth, API endpoints, and security features
 //! Comprehensive tests for admin functionality
 //!
 //! This module tests the complete admin system including:

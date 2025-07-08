@@ -36,6 +36,7 @@ pub struct AdminPermissions {
 
 impl AdminPermissions {
     /// Create new permissions set
+    #[must_use]
     pub fn new(permissions: Vec<AdminPermission>) -> Self {
         Self {
             permissions: permissions.into_iter().collect(),
@@ -43,6 +44,7 @@ impl AdminPermissions {
     }
 
     /// Create default permissions for regular admin
+    #[must_use]
     pub fn default_admin() -> Self {
         Self::new(vec![
             AdminPermission::ProvisionKeys,
@@ -53,6 +55,7 @@ impl AdminPermissions {
     }
 
     /// Create super admin permissions (all permissions)
+    #[must_use]
     pub fn super_admin() -> Self {
         Self::new(vec![
             AdminPermission::ProvisionKeys,
@@ -66,33 +69,46 @@ impl AdminPermissions {
     }
 
     /// Check if permission is granted
+    #[must_use]
     pub fn has_permission(&self, permission: &AdminPermission) -> bool {
         self.permissions.contains(permission)
     }
 
     /// Add permission
-    pub fn add_permission(&mut self, permission: AdminPermission) {
-        self.permissions.insert(permission);
+    pub fn add_permission(&mut self, permission: AdminPermission) -> bool {
+        self.permissions.insert(permission)
     }
 
     /// Remove permission
-    pub fn remove_permission(&mut self, permission: &AdminPermission) {
-        self.permissions.remove(permission);
+    pub fn remove_permission(&mut self, permission: &AdminPermission) -> bool {
+        self.permissions.remove(permission)
     }
 
     /// Get all permissions as vector
+    #[must_use]
     pub fn to_vec(&self) -> Vec<AdminPermission> {
         self.permissions.iter().cloned().collect()
     }
 
     /// Convert to JSON string for database storage
+    ///
+    /// # Errors
+    ///
+    /// Returns `serde_json::Error` if serialization fails
     pub fn to_json(&self) -> Result<String, serde_json::Error> {
-        let permission_strings: Vec<String> =
-            self.permissions.iter().map(|p| p.to_string()).collect();
+        let permission_strings: Vec<String> = self
+            .permissions
+            .iter()
+            .map(std::string::ToString::to_string)
+            .collect();
         serde_json::to_string(&permission_strings)
     }
 
     /// Create from JSON string from database
+    ///
+    /// # Errors
+    ///
+    /// Returns `serde_json::Error` if deserialization fails
     pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {
         let permission_strings: Vec<String> = serde_json::from_str(json)?;
         let permissions = permission_strings
@@ -126,13 +142,13 @@ pub enum AdminPermission {
 impl std::fmt::Display for AdminPermission {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AdminPermission::ProvisionKeys => write!(f, "provision_keys"),
-            AdminPermission::ListKeys => write!(f, "list_keys"),
-            AdminPermission::RevokeKeys => write!(f, "revoke_keys"),
-            AdminPermission::UpdateKeyLimits => write!(f, "update_key_limits"),
-            AdminPermission::ManageAdminTokens => write!(f, "manage_admin_tokens"),
-            AdminPermission::ViewAuditLogs => write!(f, "view_audit_logs"),
-            AdminPermission::ManageUsers => write!(f, "manage_users"),
+            Self::ProvisionKeys => write!(f, "provision_keys"),
+            Self::ListKeys => write!(f, "list_keys"),
+            Self::RevokeKeys => write!(f, "revoke_keys"),
+            Self::UpdateKeyLimits => write!(f, "update_key_limits"),
+            Self::ManageAdminTokens => write!(f, "manage_admin_tokens"),
+            Self::ViewAuditLogs => write!(f, "view_audit_logs"),
+            Self::ManageUsers => write!(f, "manage_users"),
         }
     }
 }
@@ -142,14 +158,14 @@ impl std::str::FromStr for AdminPermission {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "provision_keys" => Ok(AdminPermission::ProvisionKeys),
-            "list_keys" => Ok(AdminPermission::ListKeys),
-            "revoke_keys" => Ok(AdminPermission::RevokeKeys),
-            "update_key_limits" => Ok(AdminPermission::UpdateKeyLimits),
-            "manage_admin_tokens" => Ok(AdminPermission::ManageAdminTokens),
-            "view_audit_logs" => Ok(AdminPermission::ViewAuditLogs),
-            "manage_users" => Ok(AdminPermission::ManageUsers),
-            _ => Err(format!("Unknown permission: {}", s)),
+            "provision_keys" => Ok(Self::ProvisionKeys),
+            "list_keys" => Ok(Self::ListKeys),
+            "revoke_keys" => Ok(Self::RevokeKeys),
+            "update_key_limits" => Ok(Self::UpdateKeyLimits),
+            "manage_admin_tokens" => Ok(Self::ManageAdminTokens),
+            "view_audit_logs" => Ok(Self::ViewAuditLogs),
+            "manage_users" => Ok(Self::ManageUsers),
+            _ => Err(format!("Unknown permission: {s}")),
         }
     }
 }
@@ -166,7 +182,8 @@ pub struct CreateAdminTokenRequest {
 
 impl CreateAdminTokenRequest {
     /// Create request for regular admin token
-    pub fn new(service_name: String) -> Self {
+    #[must_use]
+    pub const fn new(service_name: String) -> Self {
         Self {
             service_name,
             service_description: None,
@@ -177,10 +194,11 @@ impl CreateAdminTokenRequest {
     }
 
     /// Create request for super admin token
+    #[must_use]
     pub fn super_admin(service_name: String) -> Self {
         Self {
             service_name,
-            service_description: Some("Super Admin Token".to_string()),
+            service_description: Some("Super Admin Token".into()),
             permissions: None,     // Will use super admin permissions
             expires_in_days: None, // Never expires
             is_super_admin: true,
@@ -234,14 +252,14 @@ pub enum AdminAction {
 impl std::fmt::Display for AdminAction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AdminAction::ProvisionKey => write!(f, "provision_key"),
-            AdminAction::RevokeKey => write!(f, "revoke_key"),
-            AdminAction::ListKeys => write!(f, "list_keys"),
-            AdminAction::UpdateKeyLimits => write!(f, "update_key_limits"),
-            AdminAction::ListAdminTokens => write!(f, "list_admin_tokens"),
-            AdminAction::RevokeAdminToken => write!(f, "revoke_admin_token"),
-            AdminAction::ViewAuditLogs => write!(f, "view_audit_logs"),
-            AdminAction::ManageUser => write!(f, "manage_user"),
+            Self::ProvisionKey => write!(f, "provision_key"),
+            Self::RevokeKey => write!(f, "revoke_key"),
+            Self::ListKeys => write!(f, "list_keys"),
+            Self::UpdateKeyLimits => write!(f, "update_key_limits"),
+            Self::ListAdminTokens => write!(f, "list_admin_tokens"),
+            Self::RevokeAdminToken => write!(f, "revoke_admin_token"),
+            Self::ViewAuditLogs => write!(f, "view_audit_logs"),
+            Self::ManageUser => write!(f, "manage_user"),
         }
     }
 }
@@ -251,15 +269,15 @@ impl std::str::FromStr for AdminAction {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "provision_key" => Ok(AdminAction::ProvisionKey),
-            "revoke_key" => Ok(AdminAction::RevokeKey),
-            "list_keys" => Ok(AdminAction::ListKeys),
-            "update_key_limits" => Ok(AdminAction::UpdateKeyLimits),
-            "list_admin_tokens" => Ok(AdminAction::ListAdminTokens),
-            "revoke_admin_token" => Ok(AdminAction::RevokeAdminToken),
-            "view_audit_logs" => Ok(AdminAction::ViewAuditLogs),
-            "manage_user" => Ok(AdminAction::ManageUser),
-            _ => Err(format!("Unknown admin action: {}", s)),
+            "provision_key" => Ok(Self::ProvisionKey),
+            "revoke_key" => Ok(Self::RevokeKey),
+            "list_keys" => Ok(Self::ListKeys),
+            "update_key_limits" => Ok(Self::UpdateKeyLimits),
+            "list_admin_tokens" => Ok(Self::ListAdminTokens),
+            "revoke_admin_token" => Ok(Self::RevokeAdminToken),
+            "view_audit_logs" => Ok(Self::ViewAuditLogs),
+            "manage_user" => Ok(Self::ManageUser),
+            _ => Err(format!("Unknown admin action: {s}")),
         }
     }
 }
@@ -288,20 +306,21 @@ pub enum RateLimitPeriod {
 impl std::fmt::Display for RateLimitPeriod {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RateLimitPeriod::Hour => write!(f, "hour"),
-            RateLimitPeriod::Day => write!(f, "day"),
-            RateLimitPeriod::Month => write!(f, "month"),
+            Self::Hour => write!(f, "hour"),
+            Self::Day => write!(f, "day"),
+            Self::Month => write!(f, "month"),
         }
     }
 }
 
 impl RateLimitPeriod {
     /// Get the window duration in seconds
-    pub fn window_seconds(&self) -> u64 {
+    #[must_use]
+    pub const fn window_seconds(&self) -> u64 {
         match self {
-            RateLimitPeriod::Hour => 3600,
-            RateLimitPeriod::Day => 86400,
-            RateLimitPeriod::Month => 2_592_000, // 30 days
+            Self::Hour => 3_600,
+            Self::Day => 86_400,
+            Self::Month => 2_592_000, // 30 days
         }
     }
 }
@@ -332,7 +351,7 @@ pub struct ValidatedAdminToken {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{AdminPermission, AdminPermissions, RateLimitPeriod};
 
     #[test]
     fn test_admin_permissions_serialization() {

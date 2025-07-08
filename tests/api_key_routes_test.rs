@@ -1,3 +1,5 @@
+// ABOUTME: Unit tests for API key route handlers and endpoints
+// ABOUTME: Tests CRUD operations for API keys via HTTP routes
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -56,7 +58,7 @@ async fn test_create_api_key_success() {
         rate_limit_requests: None,
     };
 
-    let auth_header = format!("Bearer {}", jwt_token);
+    let auth_header = format!("Bearer {jwt_token}");
     let response = api_key_routes
         .create_api_key(Some(&auth_header), request)
         .await
@@ -123,7 +125,7 @@ async fn test_list_api_keys() {
         rate_limit_requests: None,
     };
 
-    let auth_header = format!("Bearer {}", jwt_token);
+    let auth_header = format!("Bearer {jwt_token}");
 
     // Create the keys
     api_key_routes
@@ -180,7 +182,7 @@ async fn test_deactivate_api_key() {
         rate_limit_requests: None,
     };
 
-    let auth_header = format!("Bearer {}", jwt_token);
+    let auth_header = format!("Bearer {jwt_token}");
     let create_response = api_key_routes
         .create_api_key(Some(&auth_header), request)
         .await
@@ -216,7 +218,7 @@ async fn test_deactivate_api_key() {
 async fn test_deactivate_nonexistent_key() {
     let (api_key_routes, _user_id, jwt_token) = create_test_setup().await;
 
-    let auth_header = format!("Bearer {}", jwt_token);
+    let auth_header = format!("Bearer {jwt_token}");
     let fake_key_id = "nonexistent_key_id";
 
     let result = api_key_routes
@@ -240,7 +242,7 @@ async fn test_get_api_key_usage_stats() {
         rate_limit_requests: None,
     };
 
-    let auth_header = format!("Bearer {}", jwt_token);
+    let auth_header = format!("Bearer {jwt_token}");
     let create_response = api_key_routes
         .create_api_key(Some(&auth_header), request)
         .await
@@ -269,7 +271,7 @@ async fn test_get_usage_stats_unauthorized_key() {
     let (api_key_routes, _user_id, jwt_token) = create_test_setup().await;
 
     // Try to access usage stats for a key that doesn't belong to the user
-    let auth_header = format!("Bearer {}", jwt_token);
+    let auth_header = format!("Bearer {jwt_token}");
     let fake_key_id = "some_other_users_key";
 
     let start_date = Utc::now() - Duration::days(30);
@@ -290,7 +292,7 @@ async fn test_get_usage_stats_unauthorized_key() {
 async fn test_api_key_tiers() {
     let (api_key_routes, _user_id, jwt_token) = create_test_setup().await;
 
-    let auth_header = format!("Bearer {}", jwt_token);
+    let auth_header = format!("Bearer {jwt_token}");
 
     // Test all tiers
     for (tier, tier_name) in [
@@ -299,8 +301,8 @@ async fn test_api_key_tiers() {
         (ApiKeyTier::Enterprise, "Enterprise"),
     ] {
         let request = CreateApiKeyRequest {
-            name: format!("{} Key", tier_name),
-            description: Some(format!("Test {} tier", tier_name)),
+            name: format!("{tier_name} Key"),
+            description: Some(format!("Test {tier_name} tier")),
             tier: tier.clone(),
             expires_in_days: None,
             rate_limit_requests: None,
@@ -312,7 +314,7 @@ async fn test_api_key_tiers() {
             .unwrap();
 
         assert_eq!(response.key_info.tier, tier);
-        assert_eq!(response.key_info.name, format!("{} Key", tier_name));
+        assert_eq!(response.key_info.name, format!("{tier_name} Key"));
     }
 }
 
@@ -320,7 +322,7 @@ async fn test_api_key_tiers() {
 async fn test_api_key_expiration() {
     let (api_key_routes, _user_id, jwt_token) = create_test_setup().await;
 
-    let auth_header = format!("Bearer {}", jwt_token);
+    let auth_header = format!("Bearer {jwt_token}");
 
     // Test key with expiration
     let request = CreateApiKeyRequest {
@@ -366,7 +368,7 @@ async fn test_authentication_with_different_users() {
     // In a real scenario, we'd use the same database instance
 
     // For now, let's verify that each user can only access their own keys
-    let auth_header1 = format!("Bearer {}", jwt_token1);
+    let auth_header1 = format!("Bearer {jwt_token1}");
 
     // Create key for user 1
     let request = CreateApiKeyRequest {

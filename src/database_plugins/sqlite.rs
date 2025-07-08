@@ -1,9 +1,9 @@
 // ABOUTME: SQLite database implementation for local development and single-user deployments
 // ABOUTME: Provides embedded database support with encryption and file-based storage
-//! SQLite database implementation
+//! `SQLite` database implementation
 //!
-//! This module wraps the existing SQLite database functionality
-//! to implement the DatabaseProvider trait.
+//! This module wraps the existing `SQLite` database functionality
+//! to implement the `DatabaseProvider` trait.
 
 use super::DatabaseProvider;
 use crate::a2a::auth::A2AClient;
@@ -17,9 +17,21 @@ use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
+use sqlx::Row;
 use uuid::Uuid;
 
-/// SQLite database implementation
+/// Safe cast from i64 to f64 with precision awareness
+#[inline]
+const fn safe_i64_to_f64(value: i64) -> f64 {
+    // i64 to f64 conversion can lose precision for very large values
+    // but for database counts/usage statistics, this is acceptable
+    #[allow(clippy::cast_precision_loss)]
+    {
+        value as f64
+    }
+}
+
+/// `SQLite` database implementation
 #[derive(Clone)]
 pub struct SqliteDatabase {
     /// The underlying database instance
@@ -28,7 +40,8 @@ pub struct SqliteDatabase {
 
 impl SqliteDatabase {
     /// Get a reference to the inner database for methods not yet migrated
-    pub fn inner(&self) -> &crate::database::Database {
+    #[must_use]
+    pub const fn inner(&self) -> &crate::database::Database {
         &self.inner
     }
 }
@@ -140,6 +153,68 @@ impl DatabaseProvider for SqliteDatabase {
             .await
     }
 
+    async fn get_user_configuration(&self, user_id: &str) -> Result<Option<String>> {
+        // First ensure the user_configurations table exists
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS user_configurations (
+                user_id TEXT PRIMARY KEY,
+                config_data TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(self.inner.pool())
+        .await?;
+
+        let query = "SELECT config_data FROM user_configurations WHERE user_id = ?";
+
+        let row = sqlx::query(query)
+            .bind(user_id)
+            .fetch_optional(self.inner.pool())
+            .await?;
+
+        if let Some(row) = row {
+            Ok(Some(row.try_get("config_data")?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn save_user_configuration(&self, user_id: &str, config_json: &str) -> Result<()> {
+        // First ensure the user_configurations table exists
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS user_configurations (
+                user_id TEXT PRIMARY KEY,
+                config_data TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(self.inner.pool())
+        .await?;
+
+        // Insert or update configuration
+        let query = r"
+            INSERT INTO user_configurations (user_id, config_data, updated_at) 
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(user_id) DO UPDATE SET 
+                config_data = excluded.config_data,
+                updated_at = CURRENT_TIMESTAMP
+        ";
+
+        sqlx::query(query)
+            .bind(user_id)
+            .bind(config_json)
+            .execute(self.inner.pool())
+            .await?;
+
+        Ok(())
+    }
+
     async fn store_insight(&self, user_id: Uuid, insight_data: Value) -> Result<String> {
         self.inner
             .store_insight(user_id, None, "general", insight_data)
@@ -154,7 +229,7 @@ impl DatabaseProvider for SqliteDatabase {
     ) -> Result<Vec<Value>> {
         let insights = self
             .inner
-            .get_user_insights(user_id, limit.unwrap_or(10) as i32)
+            .get_user_insights(user_id, i32::try_from(limit.unwrap_or(10))?)
             .await?;
 
         // Filter by insight_type if specified
@@ -265,10 +340,10 @@ impl DatabaseProvider for SqliteDatabase {
                 id: log.id.to_string(),
                 timestamp: log.timestamp,
                 api_key_id: log.api_key_id.unwrap_or_default(),
-                api_key_name: "Unknown".to_string(),
-                tool_name: "Unknown".to_string(),
-                status_code: log.status_code,
-                response_time_ms: log.response_time_ms,
+                api_key_name: "Unknown".into(),
+                tool_name: "Unknown".into(),
+                status_code: i32::from(log.status_code),
+                response_time_ms: log.response_time_ms.and_then(|ms| i32::try_from(ms).ok()),
                 error_message: log.error_message,
                 request_size_bytes: None,
                 response_size_bytes: None,
@@ -411,7 +486,7 @@ impl DatabaseProvider for SqliteDatabase {
         end_time: DateTime<Utc>,
     ) -> Result<Vec<crate::dashboard_routes::ToolUsage>> {
         // Query API key usage for this user within the time range
-        let query = r#"
+        let query = r"
             SELECT tool_name, COUNT(*) as usage_count,
                    AVG(response_time_ms) as avg_response_time,
                    SUM(CASE WHEN status_code < 400 THEN 1 ELSE 0 END) as success_count,
@@ -422,7 +497,7 @@ impl DatabaseProvider for SqliteDatabase {
             GROUP BY tool_name
             ORDER BY usage_count DESC
             LIMIT 10
-        "#;
+        ";
 
         let rows = sqlx::query(query)
             .bind(user_id)
@@ -437,17 +512,33 @@ impl DatabaseProvider for SqliteDatabase {
 
             let tool_name: String = row
                 .try_get("tool_name")
-                .unwrap_or_else(|_| "unknown".to_string());
+                .unwrap_or_else(|_| "unknown".into());
             let usage_count: i64 = row.try_get("usage_count").unwrap_or(0);
             let avg_response_time: Option<f64> = row.try_get("avg_response_time").ok();
             let success_count: i64 = row.try_get("success_count").unwrap_or(0);
-            let _error_count: i64 = row.try_get("error_count").unwrap_or(0);
+            let error_count: i64 = row.try_get("error_count").unwrap_or(0);
+
+            // Log error rate for monitoring
+            if error_count > 0 {
+                let error_rate = safe_i64_to_f64(error_count) / safe_i64_to_f64(usage_count);
+                if error_rate > 0.1 {
+                    tracing::warn!(
+                        "High error rate for tool {}: {:.2}% ({} errors out of {} requests)",
+                        tool_name,
+                        error_rate * 100.0,
+                        error_count,
+                        usage_count
+                    );
+                }
+            }
 
             tool_usage.push(crate::dashboard_routes::ToolUsage {
                 tool_name,
-                request_count: usage_count as u64,
+                request_count: u64::try_from(usage_count)?,
                 success_rate: if usage_count > 0 {
-                    (success_count as f64) / (usage_count as f64)
+                    {
+                        safe_i64_to_f64(success_count) / safe_i64_to_f64(usage_count)
+                    }
                 } else {
                     0.0
                 },
@@ -480,21 +571,23 @@ impl DatabaseProvider for SqliteDatabase {
         let jwt_manager = AdminJwtManager::with_secret(&jwt_secret);
 
         // Get permissions
-        let permissions = match &request.permissions {
-            Some(perms) => AdminPermissions::new(perms.clone()),
-            None => {
+        let permissions = request.permissions.as_ref().map_or_else(
+            || {
                 if request.is_super_admin {
                     AdminPermissions::super_admin()
                 } else {
                     AdminPermissions::default_admin()
                 }
-            }
-        };
+            },
+            |perms| AdminPermissions::new(perms.clone()),
+        );
 
         // Calculate expiration
-        let expires_at = request
-            .expires_in_days
-            .map(|days| chrono::Utc::now() + chrono::Duration::days(days as i64));
+        let expires_at = request.expires_in_days.and_then(|days| {
+            i64::try_from(days)
+                .ok()
+                .map(|d| chrono::Utc::now() + chrono::Duration::days(d))
+        });
 
         // Generate JWT token
         let jwt_token = jwt_manager.generate_token(
@@ -511,13 +604,13 @@ impl DatabaseProvider for SqliteDatabase {
         let jwt_secret_hash = AdminJwtManager::hash_secret(&jwt_secret);
 
         // Store in database
-        let query = r#"
+        let query = r"
             INSERT INTO admin_tokens (
                 id, service_name, service_description, token_hash, token_prefix,
                 jwt_secret_hash, permissions, is_super_admin, is_active,
                 created_at, expires_at, usage_count
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        "#;
+        ";
 
         let permissions_json = permissions.to_json()?;
         let created_at = chrono::Utc::now();
@@ -554,12 +647,12 @@ impl DatabaseProvider for SqliteDatabase {
         &self,
         token_id: &str,
     ) -> Result<Option<crate::admin::models::AdminToken>> {
-        let query = r#"
+        let query = r"
             SELECT id, service_name, service_description, token_hash, token_prefix,
                    jwt_secret_hash, permissions, is_super_admin, is_active,
                    created_at, expires_at, last_used_at, last_used_ip, usage_count
             FROM admin_tokens WHERE id = ?
-        "#;
+        ";
 
         let row = sqlx::query(query)
             .bind(token_id)
@@ -567,7 +660,7 @@ impl DatabaseProvider for SqliteDatabase {
             .await?;
 
         if let Some(row) = row {
-            Ok(Some(self.row_to_admin_token(row)?))
+            Ok(Some(Self::row_to_admin_token(&row)?))
         } else {
             Ok(None)
         }
@@ -577,12 +670,12 @@ impl DatabaseProvider for SqliteDatabase {
         &self,
         token_prefix: &str,
     ) -> Result<Option<crate::admin::models::AdminToken>> {
-        let query = r#"
+        let query = r"
             SELECT id, service_name, service_description, token_hash, token_prefix,
                    jwt_secret_hash, permissions, is_super_admin, is_active,
                    created_at, expires_at, last_used_at, last_used_ip, usage_count
             FROM admin_tokens WHERE token_prefix = ?
-        "#;
+        ";
 
         let row = sqlx::query(query)
             .bind(token_prefix)
@@ -590,7 +683,7 @@ impl DatabaseProvider for SqliteDatabase {
             .await?;
 
         if let Some(row) = row {
-            Ok(Some(self.row_to_admin_token(row)?))
+            Ok(Some(Self::row_to_admin_token(&row)?))
         } else {
             Ok(None)
         }
@@ -601,26 +694,26 @@ impl DatabaseProvider for SqliteDatabase {
         include_inactive: bool,
     ) -> Result<Vec<crate::admin::models::AdminToken>> {
         let query = if include_inactive {
-            r#"
+            r"
                 SELECT id, service_name, service_description, token_hash, token_prefix,
                        jwt_secret_hash, permissions, is_super_admin, is_active,
                        created_at, expires_at, last_used_at, last_used_ip, usage_count
                 FROM admin_tokens ORDER BY created_at DESC
-            "#
+            "
         } else {
-            r#"
+            r"
                 SELECT id, service_name, service_description, token_hash, token_prefix,
                        jwt_secret_hash, permissions, is_super_admin, is_active,
                        created_at, expires_at, last_used_at, last_used_ip, usage_count
                 FROM admin_tokens WHERE is_active = 1 ORDER BY created_at DESC
-            "#
+            "
         };
 
         let rows = sqlx::query(query).fetch_all(self.inner.pool()).await?;
 
         let mut tokens = Vec::new();
         for row in rows {
-            tokens.push(self.row_to_admin_token(row)?);
+            tokens.push(Self::row_to_admin_token(&row)?);
         }
 
         Ok(tokens)
@@ -642,11 +735,11 @@ impl DatabaseProvider for SqliteDatabase {
         token_id: &str,
         ip_address: Option<&str>,
     ) -> Result<()> {
-        let query = r#"
+        let query = r"
             UPDATE admin_tokens 
             SET last_used_at = ?, last_used_ip = ?, usage_count = usage_count + 1
             WHERE id = ?
-        "#;
+        ";
 
         sqlx::query(query)
             .bind(chrono::Utc::now())
@@ -662,13 +755,13 @@ impl DatabaseProvider for SqliteDatabase {
         &self,
         usage: &crate::admin::models::AdminTokenUsage,
     ) -> Result<()> {
-        let query = r#"
+        let query = r"
             INSERT INTO admin_token_usage (
                 admin_token_id, timestamp, action, target_resource,
                 ip_address, user_agent, request_size_bytes, success,
                 error_message, response_time_ms
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        "#;
+        ";
 
         sqlx::query(query)
             .bind(&usage.admin_token_id)
@@ -693,14 +786,14 @@ impl DatabaseProvider for SqliteDatabase {
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
     ) -> Result<Vec<crate::admin::models::AdminTokenUsage>> {
-        let query = r#"
+        let query = r"
             SELECT id, admin_token_id, timestamp, action, target_resource,
                    ip_address, user_agent, request_size_bytes, success,
                    error_message, response_time_ms
             FROM admin_token_usage 
             WHERE admin_token_id = ? AND timestamp BETWEEN ? AND ?
             ORDER BY timestamp DESC
-        "#;
+        ";
 
         let rows = sqlx::query(query)
             .bind(token_id)
@@ -711,7 +804,7 @@ impl DatabaseProvider for SqliteDatabase {
 
         let mut usage_history = Vec::new();
         for row in rows {
-            usage_history.push(self.row_to_admin_token_usage(row)?);
+            usage_history.push(Self::row_to_admin_token_usage(&row)?);
         }
 
         Ok(usage_history)
@@ -726,19 +819,19 @@ impl DatabaseProvider for SqliteDatabase {
         rate_limit_requests: u32,
         rate_limit_period: &str,
     ) -> Result<()> {
-        let query = r#"
+        let query = r"
             INSERT INTO admin_provisioned_keys (
                 admin_token_id, api_key_id, user_email, requested_tier,
                 provisioned_at, provisioned_by_service, rate_limit_requests,
                 rate_limit_period, key_status
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        "#;
+        ";
 
         // Get service name from admin token
         let service_name = if let Some(token) = self.get_admin_token_by_id(admin_token_id).await? {
             token.service_name
         } else {
-            "unknown".to_string()
+            "unknown".into()
         };
 
         sqlx::query(query)
@@ -763,37 +856,38 @@ impl DatabaseProvider for SqliteDatabase {
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
     ) -> Result<Vec<serde_json::Value>> {
-        use sqlx::Row;
-
-        let (query, bind_values) = if let Some(token_id) = admin_token_id {
-            (
-                r#"
-                SELECT id, admin_token_id, api_key_id, user_email, requested_tier,
-                       provisioned_at, provisioned_by_service, rate_limit_requests,
-                       rate_limit_period, key_status, revoked_at, revoked_reason
-                FROM admin_provisioned_keys 
-                WHERE admin_token_id = ? AND provisioned_at BETWEEN ? AND ?
-                ORDER BY provisioned_at DESC
-                "#,
-                vec![
-                    token_id.to_string(),
-                    start_date.to_rfc3339(),
-                    end_date.to_rfc3339(),
-                ],
-            )
-        } else {
-            (
-                r#"
+        let (query, bind_values) = admin_token_id.map_or_else(
+            || {
+                (
+                    r"
                 SELECT id, admin_token_id, api_key_id, user_email, requested_tier,
                        provisioned_at, provisioned_by_service, rate_limit_requests,
                        rate_limit_period, key_status, revoked_at, revoked_reason
                 FROM admin_provisioned_keys 
                 WHERE provisioned_at BETWEEN ? AND ?
                 ORDER BY provisioned_at DESC
-                "#,
-                vec![start_date.to_rfc3339(), end_date.to_rfc3339()],
-            )
-        };
+                ",
+                    vec![start_date.to_rfc3339(), end_date.to_rfc3339()],
+                )
+            },
+            |token_id| {
+                (
+                    r"
+                SELECT id, admin_token_id, api_key_id, user_email, requested_tier,
+                       provisioned_at, provisioned_by_service, rate_limit_requests,
+                       rate_limit_period, key_status, revoked_at, revoked_reason
+                FROM admin_provisioned_keys 
+                WHERE admin_token_id = ? AND provisioned_at BETWEEN ? AND ?
+                ORDER BY provisioned_at DESC
+                ",
+                    vec![
+                        token_id.to_string(),
+                        start_date.to_rfc3339(),
+                        end_date.to_rfc3339(),
+                    ],
+                )
+            },
+        );
 
         let mut sqlx_query = sqlx::query(query);
         for value in bind_values {
@@ -802,96 +896,92 @@ impl DatabaseProvider for SqliteDatabase {
 
         let rows = sqlx_query.fetch_all(self.inner.pool()).await?;
 
-        let mut results = Vec::new();
-        for row in rows {
-            let mut record = serde_json::Map::new();
-
-            if let Ok(id) = row.try_get::<i64, _>("id") {
-                record.insert("id".to_string(), serde_json::Value::Number(id.into()));
-            }
-            if let Ok(admin_token_id) = row.try_get::<String, _>("admin_token_id") {
-                record.insert(
-                    "admin_token_id".to_string(),
-                    serde_json::Value::String(admin_token_id),
-                );
-            }
-            if let Ok(api_key_id) = row.try_get::<String, _>("api_key_id") {
-                record.insert(
-                    "api_key_id".to_string(),
-                    serde_json::Value::String(api_key_id),
-                );
-            }
-            if let Ok(user_email) = row.try_get::<String, _>("user_email") {
-                record.insert(
-                    "user_email".to_string(),
-                    serde_json::Value::String(user_email),
-                );
-            }
-            if let Ok(requested_tier) = row.try_get::<String, _>("requested_tier") {
-                record.insert(
-                    "requested_tier".to_string(),
-                    serde_json::Value::String(requested_tier),
-                );
-            }
-            if let Ok(provisioned_at) = row.try_get::<String, _>("provisioned_at") {
-                record.insert(
-                    "provisioned_at".to_string(),
-                    serde_json::Value::String(provisioned_at),
-                );
-            }
-            if let Ok(provisioned_by_service) = row.try_get::<String, _>("provisioned_by_service") {
-                record.insert(
-                    "provisioned_by_service".to_string(),
-                    serde_json::Value::String(provisioned_by_service),
-                );
-            }
-            if let Ok(rate_limit_requests) = row.try_get::<i64, _>("rate_limit_requests") {
-                record.insert(
-                    "rate_limit_requests".to_string(),
-                    serde_json::Value::Number(rate_limit_requests.into()),
-                );
-            }
-            if let Ok(rate_limit_period) = row.try_get::<String, _>("rate_limit_period") {
-                record.insert(
-                    "rate_limit_period".to_string(),
-                    serde_json::Value::String(rate_limit_period),
-                );
-            }
-            if let Ok(key_status) = row.try_get::<String, _>("key_status") {
-                record.insert(
-                    "key_status".to_string(),
-                    serde_json::Value::String(key_status),
-                );
-            }
-            if let Ok(revoked_at) = row.try_get::<Option<String>, _>("revoked_at") {
-                record.insert(
-                    "revoked_at".to_string(),
-                    revoked_at
-                        .map(serde_json::Value::String)
-                        .unwrap_or(serde_json::Value::Null),
-                );
-            }
-            if let Ok(revoked_reason) = row.try_get::<Option<String>, _>("revoked_reason") {
-                record.insert(
-                    "revoked_reason".to_string(),
-                    revoked_reason
-                        .map(serde_json::Value::String)
-                        .unwrap_or(serde_json::Value::Null),
-                );
-            }
-
-            results.push(serde_json::Value::Object(record));
-        }
+        let results = rows
+            .iter()
+            .map(Self::row_to_provisioned_key_json)
+            .collect::<Vec<_>>();
 
         Ok(results)
     }
 }
 
 impl SqliteDatabase {
-    /// Convert database row to AdminToken
+    /// Convert database row to JSON for provisioned keys
+    fn row_to_provisioned_key_json(row: &sqlx::sqlite::SqliteRow) -> serde_json::Value {
+        use sqlx::Row;
+        let mut record = serde_json::Map::new();
+
+        if let Ok(id) = row.try_get::<i64, _>("id") {
+            record.insert("id".into(), serde_json::Value::Number(id.into()));
+        }
+        if let Ok(admin_token_id) = row.try_get::<String, _>("admin_token_id") {
+            record.insert(
+                "admin_token_id".into(),
+                serde_json::Value::String(admin_token_id),
+            );
+        }
+        if let Ok(api_key_id) = row.try_get::<String, _>("api_key_id") {
+            record.insert("api_key_id".into(), serde_json::Value::String(api_key_id));
+        }
+        if let Ok(user_email) = row.try_get::<String, _>("user_email") {
+            record.insert("user_email".into(), serde_json::Value::String(user_email));
+        }
+        if let Ok(requested_tier) = row.try_get::<String, _>("requested_tier") {
+            record.insert(
+                "requested_tier".into(),
+                serde_json::Value::String(requested_tier),
+            );
+        }
+        if let Ok(provisioned_at) = row.try_get::<String, _>("provisioned_at") {
+            record.insert(
+                "provisioned_at".into(),
+                serde_json::Value::String(provisioned_at),
+            );
+        }
+        if let Ok(provisioned_by_service) = row.try_get::<String, _>("provisioned_by_service") {
+            record.insert(
+                "provisioned_by_service".into(),
+                serde_json::Value::String(provisioned_by_service),
+            );
+        }
+        if let Ok(rate_limit_requests) = row.try_get::<i64, _>("rate_limit_requests") {
+            record.insert(
+                "rate_limit_requests".into(),
+                serde_json::Value::Number(rate_limit_requests.into()),
+            );
+        }
+        if let Ok(rate_limit_period) = row.try_get::<String, _>("rate_limit_period") {
+            record.insert(
+                "rate_limit_period".into(),
+                serde_json::Value::String(rate_limit_period),
+            );
+        }
+        if let Ok(key_status) = row.try_get::<String, _>("key_status") {
+            record.insert("key_status".into(), serde_json::Value::String(key_status));
+        }
+        if let Ok(revoked_at) = row.try_get::<Option<String>, _>("revoked_at") {
+            record.insert(
+                "revoked_at".into(),
+                revoked_at.map_or(serde_json::Value::Null, serde_json::Value::String),
+            );
+        }
+        if let Ok(revoked_reason) = row.try_get::<Option<String>, _>("revoked_reason") {
+            record.insert(
+                "revoked_reason".into(),
+                revoked_reason.map_or(serde_json::Value::Null, serde_json::Value::String),
+            );
+        }
+
+        serde_json::Value::Object(record)
+    }
+
+    /// Convert database row to `AdminToken`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database row cannot be converted to an `AdminToken`
     fn row_to_admin_token(
-        &self,
-        row: sqlx::sqlite::SqliteRow,
+        row: &sqlx::sqlite::SqliteRow,
     ) -> Result<crate::admin::models::AdminToken> {
         use crate::admin::models::{AdminPermissions, AdminToken};
         use sqlx::Row;
@@ -913,14 +1003,17 @@ impl SqliteDatabase {
             expires_at: row.try_get("expires_at")?,
             last_used_at: row.try_get("last_used_at")?,
             last_used_ip: row.try_get("last_used_ip")?,
-            usage_count: row.try_get::<i64, _>("usage_count")? as u64,
+            usage_count: u64::try_from(row.try_get::<i64, _>("usage_count")?)?,
         })
     }
 
-    /// Convert database row to AdminTokenUsage
+    /// Convert database row to `AdminTokenUsage`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database row cannot be converted to an `AdminTokenUsage`
     fn row_to_admin_token_usage(
-        &self,
-        row: sqlx::sqlite::SqliteRow,
+        row: &sqlx::sqlite::SqliteRow,
     ) -> Result<crate::admin::models::AdminTokenUsage> {
         use crate::admin::models::{AdminAction, AdminTokenUsage};
         use sqlx::Row;
@@ -940,12 +1033,12 @@ impl SqliteDatabase {
             user_agent: row.try_get("user_agent")?,
             request_size_bytes: row
                 .try_get::<Option<i32>, _>("request_size_bytes")?
-                .map(|v| v as u32),
+                .and_then(|v| u32::try_from(v).ok()),
             success: row.try_get("success")?,
             error_message: row.try_get("error_message")?,
             response_time_ms: row
                 .try_get::<Option<i32>, _>("response_time_ms")?
-                .map(|v| v as u32),
+                .and_then(|v| u32::try_from(v).ok()),
         })
     }
 }

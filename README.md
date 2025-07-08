@@ -3,6 +3,8 @@
 [![CI](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml)
 [![Frontend Tests](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/frontend-tests.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/frontend-tests.yml)
 
+**Active Development** - This project is under active development and not yet ready for production use. We welcome feedback, contributions, and early testing from the community. Please report issues and share your experiences.
+
 An open source multi-protocol fitness data API providing secure access to fitness data from multiple providers (Strava, Fitbit) through the [Model Context Protocol](https://modelcontextprotocol.io/specification/draft) (MCP), [A2A](https://github.com/google-a2a/A2A) (Agent-to-Agent) Protocol, and REST APIs. Built for LLMs and AI applications with comprehensive API key management, tiered rate limiting, OAuth integration, and real-time analytics. Technical architecture details are available on [DeepWiki](https://deepwiki.com/Async-IO/pierre_mcp_server).
 
 ## Fitness Data Analysis

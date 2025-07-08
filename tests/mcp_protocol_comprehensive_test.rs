@@ -1,3 +1,5 @@
+// ABOUTME: Comprehensive tests for MCP protocol handling coverage improvement
+// ABOUTME: Tests error scenarios, edge cases, and protocol handling in multitenant
 //! Comprehensive tests for MCP protocol handling to improve coverage
 //!
 //! This test suite focuses on the low-coverage areas in mcp/multitenant.rs
@@ -15,19 +17,19 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 /// Test helper to create MCP request
-fn create_mcp_request(method: &str, params: Option<Value>, id: Option<Value>) -> Value {
+fn create_mcp_request(method: &str, params: Option<&Value>, id: Option<Value>) -> Value {
     json!({
         "jsonrpc": "2.0",
         "method": method,
         "params": params,
-        "id": id.unwrap_or(json!(1))
+        "id": id.unwrap_or_else(|| json!(1))
     })
 }
 
 /// Test helper to create authenticated MCP request
 fn create_auth_mcp_request(
     method: &str,
-    params: Option<Value>,
+    params: Option<&Value>,
     token: &str,
     id: Option<Value>,
 ) -> Value {
@@ -112,7 +114,7 @@ async fn test_mcp_authenticate_request() -> Result<()> {
         "email": "mcp_auth@example.com",
         "password": "password123"
     });
-    let request = create_mcp_request("authenticate", Some(auth_params), Some(json!("auth-1")));
+    let request = create_mcp_request("authenticate", Some(&auth_params), Some(json!("auth-1")));
 
     assert_eq!(request["method"], "authenticate");
     assert_eq!(request["params"]["email"], "mcp_auth@example.com");
@@ -136,7 +138,7 @@ async fn test_mcp_tools_call_without_auth() -> Result<()> {
             "limit": 10
         }
     });
-    let request = create_mcp_request("tools/call", Some(params), Some(json!("call-1")));
+    let request = create_mcp_request("tools/call", Some(&params), Some(json!("call-1")));
 
     // This should fail without auth_token
     assert!(request.get("auth_token").is_none());
@@ -164,7 +166,7 @@ async fn test_mcp_tools_call_with_expired_token() -> Result<()> {
     });
     let request = create_auth_mcp_request(
         "tools/call",
-        Some(params),
+        Some(&params),
         expired_token,
         Some(json!("call-2")),
     );
@@ -193,7 +195,7 @@ async fn test_mcp_tools_call_malformed_token() -> Result<()> {
     });
     let request = create_auth_mcp_request(
         "tools/call",
-        Some(params),
+        Some(&params),
         malformed_token,
         Some(json!("call-3")),
     );
@@ -244,7 +246,7 @@ async fn test_mcp_oauth_tool_calls() -> Result<()> {
     });
     let connect_request = create_auth_mcp_request(
         "tools/call",
-        Some(connect_params),
+        Some(&connect_params),
         &token,
         Some(json!("oauth-1")),
     );
@@ -257,7 +259,7 @@ async fn test_mcp_oauth_tool_calls() -> Result<()> {
     });
     let fitbit_request = create_auth_mcp_request(
         "tools/call",
-        Some(fitbit_params),
+        Some(&fitbit_params),
         &token,
         Some(json!("oauth-2")),
     );
@@ -270,7 +272,7 @@ async fn test_mcp_oauth_tool_calls() -> Result<()> {
     });
     let status_request = create_auth_mcp_request(
         "tools/call",
-        Some(status_params),
+        Some(&status_params),
         &token,
         Some(json!("oauth-3")),
     );
@@ -285,7 +287,7 @@ async fn test_mcp_oauth_tool_calls() -> Result<()> {
     });
     let disconnect_request = create_auth_mcp_request(
         "tools/call",
-        Some(disconnect_params),
+        Some(&disconnect_params),
         &token,
         Some(json!("oauth-4")),
     );
@@ -336,7 +338,7 @@ async fn test_mcp_intelligence_tool_calls() -> Result<()> {
             "arguments": args
         });
         let request =
-            create_auth_mcp_request("tools/call", Some(params), &token, Some(json!(tool_name)));
+            create_auth_mcp_request("tools/call", Some(&params), &token, Some(json!(tool_name)));
         assert_eq!(request["params"]["name"], tool_name);
     }
 
@@ -393,7 +395,7 @@ async fn test_mcp_provider_required_tools() -> Result<()> {
             "arguments": args
         });
         let request =
-            create_auth_mcp_request("tools/call", Some(params), &token, Some(json!(tool_name)));
+            create_auth_mcp_request("tools/call", Some(&params), &token, Some(json!(tool_name)));
         assert_eq!(request["params"]["name"], tool_name);
         assert!(request["params"]["arguments"]["provider"].is_string());
     }
@@ -425,7 +427,7 @@ async fn test_mcp_unknown_tool() -> Result<()> {
     });
     let request = create_auth_mcp_request(
         "tools/call",
-        Some(params),
+        Some(&params),
         &token,
         Some(json!("unknown-tool")),
     );
@@ -460,7 +462,7 @@ async fn test_mcp_api_key_authentication() -> Result<()> {
     });
     let request = create_auth_mcp_request(
         "tools/call",
-        Some(params),
+        Some(&params),
         &api_key_token,
         Some(json!("api-key-1")),
     );
@@ -513,7 +515,7 @@ async fn test_mcp_error_scenarios() -> Result<()> {
         "name": "get_activities",
         "arguments": {} // Missing provider
     });
-    let request1 = create_mcp_request("tools/call", Some(missing_params), Some(json!("error-1")));
+    let request1 = create_mcp_request("tools/call", Some(&missing_params), Some(json!("error-1")));
     assert!(request1["params"]["arguments"]["provider"].is_null());
 
     // 2. Invalid parameter types
@@ -524,7 +526,7 @@ async fn test_mcp_error_scenarios() -> Result<()> {
             "limit": "ten" // Should be number
         }
     });
-    let request2 = create_mcp_request("tools/call", Some(invalid_params), Some(json!("error-2")));
+    let request2 = create_mcp_request("tools/call", Some(&invalid_params), Some(json!("error-2")));
     assert!(request2["params"]["arguments"]["provider"].is_number());
 
     // 3. Empty method
@@ -567,9 +569,9 @@ async fn test_mcp_concurrent_requests() -> Result<()> {
             });
             let request = create_auth_mcp_request(
                 "tools/call",
-                Some(params),
+                Some(&params),
                 &token_clone,
-                Some(json!(format!("concurrent-{}", i))),
+                Some(json!(format!("concurrent-{i}"))),
             );
             request
         });

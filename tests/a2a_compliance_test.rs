@@ -1,3 +1,5 @@
+// ABOUTME: Integration tests for A2A (Agent-to-Agent) protocol compliance
+// ABOUTME: Validates adherence to Google A2A specification requirements
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -7,7 +9,7 @@
 //! A2A Protocol Compliance Tests
 //!
 //! Tests to ensure our A2A implementation complies with the official
-//! Google A2A specification at https://github.com/google-a2a/A2A
+//! Google A2A specification at <https://github.com/google-a2a/A2A>
 
 use pierre_mcp_server::a2a::protocol::{A2ARequest, A2AServer};
 use serde_json::json;
@@ -57,7 +59,7 @@ async fn test_required_methods_implemented() {
 
         // Should not return "Method not found" error
         if let Some(error) = &response.error {
-            assert_ne!(error.code, -32601, "Method {} not implemented", method);
+            assert_ne!(error.code, -32601, "Method {method} not implemented");
         }
     }
 }

@@ -1,3 +1,5 @@
+// ABOUTME: Multi-tenant data isolation security tests for preventing data breaches
+// ABOUTME: Critical tests verifying users cannot access data from other tenants
 //! Multi-Tenant Data Isolation Security Tests
 //!
 //! Critical security tests to verify that users cannot access data from other tenants.
@@ -15,7 +17,7 @@ use pierre_mcp_server::{
 use std::sync::Arc;
 use uuid::Uuid;
 
-/// Create a test ServerConfig for tenant data isolation tests
+/// Create a test `ServerConfig` for tenant data isolation tests
 fn create_test_server_config(
 ) -> std::sync::Arc<pierre_mcp_server::config::environment::ServerConfig> {
     std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
@@ -120,7 +122,7 @@ async fn create_test_user(
     let user = User {
         id: Uuid::new_v4(),
         email: email.to_string(),
-        display_name: Some(format!("Test User ({})", email)),
+        display_name: Some(format!("Test User ({email})")),
         password_hash: "test_hash".to_string(),
         tier,
         strava_token: None,
@@ -162,9 +164,8 @@ async fn test_cross_tenant_api_key_access_blocked() -> Result<()> {
         rate_limit_requests: None,
     };
 
-    let (user1_api_key, _user1_key_string) = api_key_manager
-        .create_api_key(user1_id, create_request)
-        .await?;
+    let (user1_api_key, _user1_key_string) =
+        api_key_manager.create_api_key(user1_id, create_request)?;
 
     // Store the API key in database
     database.create_api_key(&user1_api_key).await?;
@@ -278,12 +279,8 @@ async fn test_admin_cross_tenant_access_prevention() -> Result<()> {
         rate_limit_requests: None,
     };
 
-    let (key1, _) = api_key_manager
-        .create_api_key(user1_id, create_request1)
-        .await?;
-    let (key2, _) = api_key_manager
-        .create_api_key(user2_id, create_request2)
-        .await?;
+    let (key1, _) = api_key_manager.create_api_key(user1_id, create_request1)?;
+    let (key2, _) = api_key_manager.create_api_key(user2_id, create_request2)?;
 
     database.create_api_key(&key1).await?;
     database.create_api_key(&key2).await?;
@@ -316,7 +313,7 @@ async fn test_concurrent_tenant_isolation() -> Result<()> {
     for i in 0..5 {
         let user_id = create_test_user(
             &database,
-            &format!("concurrent_user{}@example.com", i),
+            &format!("concurrent_user{i}@example.com"),
             pierre_mcp_server::models::UserTier::Professional,
         )
         .await?;
@@ -332,14 +329,14 @@ async fn test_concurrent_tenant_isolation() -> Result<()> {
 
         tokio::spawn(async move {
             let create_request = CreateApiKeyRequest {
-                name: format!("Concurrent Key {}", i),
-                description: Some(format!("Key for user {}", i)),
+                name: format!("Concurrent Key {i}"),
+                description: Some(format!("Key for user {i}")),
                 tier: ApiKeyTier::Professional,
                 expires_in_days: Some(30),
                 rate_limit_requests: None,
             };
 
-            let (api_key, _) = manager.create_api_key(user_id, create_request).await?;
+            let (api_key, _) = manager.create_api_key(user_id, create_request)?;
             db.create_api_key(&api_key).await?;
 
             // Return user_id and key_id for verification

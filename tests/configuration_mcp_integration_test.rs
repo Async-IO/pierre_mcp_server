@@ -1,3 +1,5 @@
+// ABOUTME: Integration tests for configuration system MCP protocol exposure
+// ABOUTME: Verifies configuration tools are properly exposed through MCP schema
 //! Integration test for configuration system MCP protocol exposure
 //!
 //! Verifies that configuration tools are properly exposed through the MCP schema
@@ -40,11 +42,10 @@ fn test_configuration_tools_in_mcp_schema() {
     let total_tools = tools.len();
     assert!(
         total_tools >= 27, // 21 original fitness tools + 6 configuration tools
-        "Expected at least 27 tools (21 fitness + 6 configuration), but found {}",
-        total_tools
+        "Expected at least 27 tools (21 fitness + 6 configuration), but found {total_tools}"
     );
 
-    println!("✅ Total of {} tools available in MCP schema", total_tools);
+    println!("✅ Total of {total_tools} tools available in MCP schema");
 }
 
 #[test]

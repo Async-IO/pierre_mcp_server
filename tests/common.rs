@@ -1,9 +1,21 @@
-//! Shared test utilities for pierre_mcp_server
+// ABOUTME: Shared test utilities and setup functions for integration tests
+// ABOUTME: Provides common database, auth, and user creation helpers
+#![allow(
+    dead_code,
+    clippy::wildcard_in_or_patterns,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::must_use_candidate,
+    clippy::module_name_repetitions,
+    clippy::too_many_lines,
+    clippy::similar_names,
+    clippy::uninlined_format_args,
+    clippy::redundant_closure_for_method_calls
+)]
+//! Shared test utilities for `pierre_mcp_server`
 //!
 //! This module provides common test setup functions to reduce duplication
 //! across integration tests.
-
-#![allow(dead_code)]
 
 use anyhow::Result;
 use pierre_mcp_server::{
@@ -26,9 +38,7 @@ pub fn init_test_logging() {
             Ok("TRACE") => tracing::Level::TRACE,
             Ok("DEBUG") => tracing::Level::DEBUG,
             Ok("INFO") => tracing::Level::INFO,
-            Ok("WARN") => tracing::Level::WARN,
-            Ok("ERROR") => tracing::Level::ERROR,
-            _ => tracing::Level::WARN, // Default to WARN for quiet tests
+            Ok("WARN" | "ERROR") | _ => tracing::Level::WARN, // Default to WARN for quiet tests
         };
 
         tracing_subscriber::fmt()
@@ -63,10 +73,10 @@ pub fn create_test_auth_manager() -> Arc<AuthManager> {
 
 /// Create test authentication middleware
 pub fn create_test_auth_middleware(
-    auth_manager: Arc<AuthManager>,
+    auth_manager: &Arc<AuthManager>,
     database: Arc<Database>,
 ) -> Arc<McpAuthMiddleware> {
-    Arc::new(McpAuthMiddleware::new((*auth_manager).clone(), database))
+    Arc::new(McpAuthMiddleware::new((**auth_manager).clone(), database))
 }
 
 /// Create a standard test user
@@ -96,11 +106,7 @@ pub async fn create_test_user_with_email(database: &Database, email: &str) -> Re
 }
 
 /// Create a test API key for a user (returns API key string)
-pub async fn create_test_api_key(
-    _database: &Database,
-    user_id: Uuid,
-    name: &str,
-) -> Result<String> {
+pub fn create_test_api_key(_database: &Database, user_id: Uuid, name: &str) -> Result<String> {
     let request = CreateApiKeyRequest {
         name: name.to_string(),
         description: Some("Test API key".to_string()),
@@ -110,11 +116,11 @@ pub async fn create_test_api_key(
     };
 
     let manager = ApiKeyManager::new();
-    let (_, api_key_string) = manager.create_api_key(user_id, request).await?;
+    let (_, api_key_string) = manager.create_api_key(user_id, request)?;
     Ok(api_key_string)
 }
 
-/// Create a test API key and store it in the database (returns ApiKey object)
+/// Create a test API key and store it in the database (returns `ApiKey` object)
 pub async fn create_and_store_test_api_key(
     database: &Database,
     user_id: Uuid,
@@ -129,13 +135,13 @@ pub async fn create_and_store_test_api_key(
     };
 
     let manager = ApiKeyManager::new();
-    let (api_key, _) = manager.create_api_key(user_id, request).await?;
+    let (api_key, _) = manager.create_api_key(user_id, request)?;
     database.create_api_key(&api_key).await?;
     Ok(api_key)
 }
 
 /// Complete test environment setup
-/// Returns (database, auth_manager, auth_middleware, user_id, api_key)
+/// Returns (database, `auth_manager`, `auth_middleware`, `user_id`, `api_key`)
 pub async fn setup_test_environment() -> Result<(
     Arc<Database>,
     Arc<AuthManager>,
@@ -145,16 +151,16 @@ pub async fn setup_test_environment() -> Result<(
 )> {
     let database = create_test_database().await?;
     let auth_manager = create_test_auth_manager();
-    let auth_middleware = create_test_auth_middleware(auth_manager.clone(), database.clone());
+    let auth_middleware = create_test_auth_middleware(&auth_manager, database.clone());
 
     let (user_id, _user) = create_test_user(&database).await?;
-    let api_key = create_test_api_key(&database, user_id, "test-key").await?;
+    let api_key = create_test_api_key(&database, user_id, "test-key")?;
 
     Ok((database, auth_manager, auth_middleware, user_id, api_key))
 }
 
 /// Lightweight test environment for simple tests
-/// Returns (database, user_id)
+/// Returns (database, `user_id`)
 pub async fn setup_simple_test_environment() -> Result<(Arc<Database>, Uuid)> {
     let database = create_test_database().await?;
     let (user_id, _user) = create_test_user(&database).await?;

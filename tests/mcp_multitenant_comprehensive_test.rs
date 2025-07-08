@@ -1,3 +1,5 @@
+// ABOUTME: Comprehensive tests for multi-tenant MCP server functionality
+// ABOUTME: Tests tenant isolation, MCP protocol handling, and server operations
 //! Comprehensive tests for mcp/multitenant.rs
 //!
 //! This test suite aims to improve coverage from 38.56% by testing
@@ -475,7 +477,7 @@ async fn test_tools_call_with_valid_authentication() -> Result<()> {
             "arguments": {}
         })),
         id: json!(9),
-        auth_token: Some(format!("Bearer {}", token)),
+        auth_token: Some(format!("Bearer {token}")),
     };
 
     let response = MultiTenantMcpServer::handle_request(
@@ -512,7 +514,7 @@ async fn test_tools_call_with_missing_params() -> Result<()> {
         method: "tools/call".to_string(),
         params: None, // Missing params
         id: json!(10),
-        auth_token: Some(format!("Bearer {}", token)),
+        auth_token: Some(format!("Bearer {token}")),
     };
 
     let response = MultiTenantMcpServer::handle_request(
@@ -552,7 +554,7 @@ async fn test_connect_strava_tool() -> Result<()> {
             "arguments": {}
         })),
         id: json!(11),
-        auth_token: Some(format!("Bearer {}", token)),
+        auth_token: Some(format!("Bearer {token}")),
     };
 
     let response = MultiTenantMcpServer::handle_request(
@@ -591,7 +593,7 @@ async fn test_connect_fitbit_tool() -> Result<()> {
             "arguments": {}
         })),
         id: json!(12),
-        auth_token: Some(format!("Bearer {}", token)),
+        auth_token: Some(format!("Bearer {token}")),
     };
 
     let response = MultiTenantMcpServer::handle_request(
@@ -630,7 +632,7 @@ async fn test_get_connection_status_tool() -> Result<()> {
             "arguments": {}
         })),
         id: json!(13),
-        auth_token: Some(format!("Bearer {}", token)),
+        auth_token: Some(format!("Bearer {token}")),
     };
 
     let response = MultiTenantMcpServer::handle_request(
@@ -671,7 +673,7 @@ async fn test_disconnect_provider_tool() -> Result<()> {
             }
         })),
         id: json!(14),
-        auth_token: Some(format!("Bearer {}", token)),
+        auth_token: Some(format!("Bearer {token}")),
     };
 
     let response = MultiTenantMcpServer::handle_request(
@@ -722,7 +724,7 @@ async fn test_provider_tools_without_connection() -> Result<()> {
                 }
             })),
             id: json!(15 + i),
-            auth_token: Some(format!("Bearer {}", token)),
+            auth_token: Some(format!("Bearer {token}")),
         };
 
         let response = MultiTenantMcpServer::handle_request(
@@ -764,7 +766,7 @@ async fn test_intelligence_tools() -> Result<()> {
         "generate_insights",
     ];
 
-    for tool_name in tools.iter() {
+    for tool_name in &tools {
         let request = McpRequest {
             jsonrpc: "2.0".to_string(),
             method: "tools/call".to_string(),
@@ -776,7 +778,7 @@ async fn test_intelligence_tools() -> Result<()> {
                 }
             })),
             id: json!(20),
-            auth_token: Some(format!("Bearer {}", token)),
+            auth_token: Some(format!("Bearer {token}")),
         };
 
         let response = MultiTenantMcpServer::handle_request(
@@ -891,7 +893,7 @@ async fn test_handle_authenticated_tool_call_edge_cases() -> Result<()> {
             "arguments": {}
         })),
         id: json!(23),
-        auth_token: Some(format!("Bearer {}", token)),
+        auth_token: Some(format!("Bearer {token}")),
     };
 
     let response = MultiTenantMcpServer::handle_request(
@@ -945,9 +947,9 @@ async fn test_concurrent_requests() -> Result<()> {
     for i in 0..2 {
         // Reduce to 2 to avoid pool exhaustion
         let user = User::new(
-            format!("concurrent_user_{}@example.com", i),
+            format!("concurrent_user_{i}@example.com"),
             "password".to_string(),
-            Some(format!("Concurrent User {}", i)),
+            Some(format!("Concurrent User {i}")),
         );
         database.create_user(&user).await?;
         let token = auth_manager.generate_token(&user)?;
@@ -975,7 +977,7 @@ async fn test_concurrent_requests() -> Result<()> {
                     "arguments": {}
                 })),
                 id: json!(100 + i),
-                auth_token: Some(format!("Bearer {}", token)),
+                auth_token: Some(format!("Bearer {token}")),
             };
 
             MultiTenantMcpServer::handle_request(request, &db, &am, &amw, &up).await

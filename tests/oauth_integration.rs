@@ -1,3 +1,5 @@
+// ABOUTME: Integration tests for OAuth flow in multi-tenant mode
+// ABOUTME: Tests OAuth authentication, authorization, and token management
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -24,7 +26,7 @@ async fn test_oauth_authorization_url_generation() {
     let auth_manager = AuthManager::new(vec![0u8; 64], 24);
 
     let auth_routes = AuthRoutes::new(database.clone(), auth_manager.clone());
-    let oauth_routes = OAuthRoutes::new(database.clone());
+    let oauth_routes = OAuthRoutes::new(database);
 
     // Register and login user
     let register_request = RegisterRequest {
@@ -37,7 +39,7 @@ async fn test_oauth_authorization_url_generation() {
     let user_id = Uuid::parse_str(&register_response.user_id).unwrap();
 
     // Test Strava OAuth URL generation
-    let strava_auth = oauth_routes.get_auth_url(user_id, "strava").await.unwrap();
+    let strava_auth = oauth_routes.get_auth_url(user_id, "strava").unwrap();
 
     assert!(strava_auth
         .authorization_url
@@ -51,7 +53,7 @@ async fn test_oauth_authorization_url_generation() {
     assert_eq!(strava_auth.expires_in_minutes, 10);
 
     // Test Fitbit OAuth URL generation
-    let fitbit_auth = oauth_routes.get_auth_url(user_id, "fitbit").await.unwrap();
+    let fitbit_auth = oauth_routes.get_auth_url(user_id, "fitbit").unwrap();
 
     assert!(fitbit_auth
         .authorization_url
@@ -70,12 +72,12 @@ async fn test_oauth_state_validation() {
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
-    let _oauth_routes = OAuthRoutes::new(database.clone());
+    let _oauth_routes = OAuthRoutes::new(database);
 
     // Test valid state format
     let user_id = Uuid::new_v4();
     let state_id = Uuid::new_v4();
-    let valid_state = format!("{}:{}", user_id, state_id);
+    let valid_state = format!("{user_id}:{state_id}");
 
     // This should parse correctly (we can't test the full callback without mocking the HTTP client)
     // But we can verify the state format is what we expect
@@ -92,7 +94,7 @@ async fn test_connection_status_no_providers() {
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
-    let oauth_routes = OAuthRoutes::new(database.clone());
+    let oauth_routes = OAuthRoutes::new(database);
 
     let user_id = Uuid::new_v4();
     let statuses = oauth_routes.get_connection_status(user_id).await.unwrap();
@@ -116,10 +118,10 @@ async fn test_invalid_provider_error() {
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
-    let oauth_routes = OAuthRoutes::new(database.clone());
+    let oauth_routes = OAuthRoutes::new(database);
 
     let user_id = Uuid::new_v4();
-    let result = oauth_routes.get_auth_url(user_id, "invalid_provider").await;
+    let result = oauth_routes.get_auth_url(user_id, "invalid_provider");
 
     assert!(result.is_err());
     assert!(result
@@ -134,16 +136,16 @@ async fn test_disconnect_provider() {
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
-    let oauth_routes = OAuthRoutes::new(database.clone());
+    let oauth_routes = OAuthRoutes::new(database);
 
     let user_id = Uuid::new_v4();
 
     // Test disconnecting Strava (should succeed even if not connected)
-    let result = oauth_routes.disconnect_provider(user_id, "strava").await;
+    let result = oauth_routes.disconnect_provider(user_id, "strava");
     assert!(result.is_ok());
 
     // Test disconnecting invalid provider
-    let result = oauth_routes.disconnect_provider(user_id, "invalid").await;
+    let result = oauth_routes.disconnect_provider(user_id, "invalid");
     assert!(result.is_err());
     assert!(result
         .unwrap_err()
@@ -157,12 +159,12 @@ async fn test_oauth_urls_contain_required_parameters() {
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
-    let oauth_routes = OAuthRoutes::new(database.clone());
+    let oauth_routes = OAuthRoutes::new(database);
 
     let user_id = Uuid::new_v4();
 
     // Test Strava URL parameters
-    let strava_auth = oauth_routes.get_auth_url(user_id, "strava").await.unwrap();
+    let strava_auth = oauth_routes.get_auth_url(user_id, "strava").unwrap();
     let strava_url = url::Url::parse(&strava_auth.authorization_url).unwrap();
     let strava_params: std::collections::HashMap<_, _> = strava_url.query_pairs().collect();
 
@@ -174,7 +176,7 @@ async fn test_oauth_urls_contain_required_parameters() {
     assert!(strava_params.contains_key("state"));
 
     // Test Fitbit URL parameters
-    let fitbit_auth = oauth_routes.get_auth_url(user_id, "fitbit").await.unwrap();
+    let fitbit_auth = oauth_routes.get_auth_url(user_id, "fitbit").unwrap();
     let fitbit_url = url::Url::parse(&fitbit_auth.authorization_url).unwrap();
     let fitbit_params: std::collections::HashMap<_, _> = fitbit_url.query_pairs().collect();
 

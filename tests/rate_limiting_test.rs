@@ -1,3 +1,5 @@
+// ABOUTME: Rate limiting integration tests for API throttling
+// ABOUTME: Tests rate limiting functionality and quota enforcement
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -34,7 +36,7 @@ async fn create_test_setup() -> (Arc<Database>, ApiKeyManager, Arc<McpAuthMiddle
     // Create test user with unique email
     let unique_id = Uuid::new_v4();
     let user = User::new(
-        format!("ratelimit+{}@example.com", unique_id),
+        format!("ratelimit+{unique_id}@example.com"),
         "hashed_password".to_string(),
         Some("Rate Limit Test User".to_string()),
     );
@@ -86,7 +88,7 @@ async fn test_starter_tier_rate_limiting() {
             id: None,
             api_key_id: api_key.id.clone(),
             timestamp: Utc::now(),
-            tool_name: format!("test_tool_{}", i),
+            tool_name: format!("test_tool_{i}"),
             response_time_ms: Some(100),
             status_code: 200,
             error_message: None,
@@ -149,7 +151,7 @@ async fn test_professional_tier_rate_limiting() {
             id: None,
             api_key_id: api_key.id.clone(),
             timestamp: Utc::now(),
-            tool_name: format!("bulk_tool_{}", i),
+            tool_name: format!("bulk_tool_{i}"),
             response_time_ms: Some(50),
             status_code: 200,
             error_message: None,
@@ -216,7 +218,7 @@ async fn test_enterprise_tier_unlimited() {
             id: None,
             api_key_id: api_key.id.clone(),
             timestamp: Utc::now(),
-            tool_name: format!("enterprise_tool_{}", i),
+            tool_name: format!("enterprise_tool_{i}"),
             response_time_ms: Some(25),
             status_code: 200,
             error_message: None,
@@ -353,7 +355,7 @@ async fn test_monthly_usage_calculation() {
             id: None,
             api_key_id: api_key_id.clone(),
             timestamp: current_month - Duration::hours(i),
-            tool_name: format!("current_month_tool_{}", i),
+            tool_name: format!("current_month_tool_{i}"),
             response_time_ms: Some(100),
             status_code: 200,
             error_message: None,
@@ -371,7 +373,7 @@ async fn test_monthly_usage_calculation() {
             id: None,
             api_key_id: api_key_id.clone(),
             timestamp: last_month - Duration::hours(i),
-            tool_name: format!("last_month_tool_{}", i),
+            tool_name: format!("last_month_tool_{i}"),
             response_time_ms: Some(100),
             status_code: 200,
             error_message: None,
@@ -426,7 +428,7 @@ async fn test_rate_limit_edge_cases() {
             id: None,
             api_key_id: api_key.id.clone(),
             timestamp: Utc::now(),
-            tool_name: format!("edge_tool_{}", i),
+            tool_name: format!("edge_tool_{i}"),
             response_time_ms: Some(100),
             status_code: 200,
             error_message: None,
@@ -487,11 +489,11 @@ async fn test_rate_limit_with_mixed_status_codes() {
             id: None,
             api_key_id: api_key.id.clone(),
             timestamp: Utc::now(),
-            tool_name: format!("mixed_tool_{}", i),
+            tool_name: format!("mixed_tool_{i}"),
             response_time_ms: Some(100),
             status_code,
             error_message: if status_code >= 400 {
-                Some(format!("Error {}", status_code))
+                Some(format!("Error {status_code}"))
             } else {
                 None
             },

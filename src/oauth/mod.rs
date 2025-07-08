@@ -1,3 +1,5 @@
+// ABOUTME: OAuth module organizing authentication and provider management
+// ABOUTME: Centralizes OAuth2 flows, token management, and provider integrations
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -105,6 +107,7 @@ pub struct ProviderRegistry {
 }
 
 impl ProviderRegistry {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             providers: HashMap::new(),
@@ -118,13 +121,18 @@ impl ProviderRegistry {
     }
 
     /// Get provider by name
+    #[must_use]
     pub fn get_provider(&self, name: &str) -> Option<&dyn OAuthProvider> {
-        self.providers.get(name).map(|p| p.as_ref())
+        self.providers.get(name).map(std::convert::AsRef::as_ref)
     }
 
     /// List all registered providers
+    #[must_use]
     pub fn list_providers(&self) -> Vec<&str> {
-        self.providers.keys().map(|s| s.as_str()).collect()
+        self.providers
+            .keys()
+            .map(std::string::String::as_str)
+            .collect()
     }
 }
 

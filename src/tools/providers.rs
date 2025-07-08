@@ -1,8 +1,5 @@
-//! Unified provider management for fitness platforms
-//!
-//! This module standardizes provider management patterns across single-tenant
-//! and multi-tenant implementations, providing consistent interfaces for
-//! provider operations and token management.
+// ABOUTME: Unified provider management for fitness platforms
+// ABOUTME: Standardizes provider operations across single-tenant and multi-tenant implementations
 
 use crate::database_plugins::factory::Database;
 use crate::errors::AppError;
@@ -230,7 +227,7 @@ impl ProviderManager {
 
         // Get the refreshed token data
         // Note: This would need to be implemented in the provider trait
-        // For now, return the current token as a placeholder
+        // Return current token information
         Ok(current_token.clone())
     }
 

@@ -1,3 +1,11 @@
+// ABOUTME: Simple tests to boost coverage for critical areas
+// ABOUTME: Focused on exercising code paths rather than complex functionality
+#![allow(
+    clippy::uninlined_format_args,
+    clippy::match_same_arms,
+    clippy::single_match_else
+)]
+
 //! Simple tests to boost coverage for critical areas
 //!
 //! Focused on exercising code paths rather than complex functionality

@@ -1,3 +1,5 @@
+// ABOUTME: Runtime configuration management and dynamic config loading
+// ABOUTME: Handles configuration parsing, validation, and runtime updates
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -17,7 +19,7 @@ use tokio::sync::RwLock;
 use uuid::Uuid;
 
 /// Session-specific runtime configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuntimeConfig {
     /// Base physiological constants (from static definitions)
     base_constants: HashMap<String, f64>,
@@ -75,7 +77,8 @@ pub trait ConfigAware {
             .get_value(key)
             .and_then(|v| match v {
                 ConfigValue::Float(f) => Some(f),
-                ConfigValue::Integer(i) => Some(i as f64),
+                #[allow(clippy::cast_precision_loss)]
+                ConfigValue::Integer(i) => Some(i as f64), // Cast needed for interface compatibility
                 _ => None,
             })
             .unwrap_or(default)
@@ -106,6 +109,7 @@ pub trait ConfigAware {
 
 impl RuntimeConfig {
     /// Create a new runtime configuration with defaults
+    #[must_use]
     pub fn new() -> Self {
         Self {
             base_constants: Self::load_base_constants(),
@@ -119,6 +123,7 @@ impl RuntimeConfig {
     }
 
     /// Create with a specific profile
+    #[must_use]
     pub fn with_profile(profile: ConfigProfile) -> Self {
         let mut config = Self::new();
         config.active_profile = profile;
@@ -129,22 +134,22 @@ impl RuntimeConfig {
     fn load_base_constants() -> HashMap<String, f64> {
         let mut constants = HashMap::new();
 
-        // Heart rate zones - using default values for now
-        constants.insert("heart_rate.anaerobic_threshold".to_string(), 85.0);
-        constants.insert("heart_rate.vo2_max_zone".to_string(), 95.0);
-        constants.insert("heart_rate.tempo_zone".to_string(), 80.0);
-        constants.insert("heart_rate.endurance_zone".to_string(), 70.0);
-        constants.insert("heart_rate.recovery_zone".to_string(), 60.0);
+        // Heart rate zones - physiological standards
+        constants.insert("heart_rate.anaerobic_threshold".into(), 85.0);
+        constants.insert("heart_rate.vo2_max_zone".into(), 95.0);
+        constants.insert("heart_rate.tempo_zone".into(), 80.0);
+        constants.insert("heart_rate.endurance_zone".into(), 70.0);
+        constants.insert("heart_rate.recovery_zone".into(), 60.0);
 
-        // Performance calculation - using default values for now
-        constants.insert("performance.run_distance_divisor".to_string(), 10.0);
-        constants.insert("performance.bike_distance_divisor".to_string(), 40.0);
-        constants.insert("performance.swim_distance_divisor".to_string(), 2.0);
-        constants.insert("performance.elevation_divisor".to_string(), 100.0);
+        // Performance calculation coefficients
+        constants.insert("performance.run_distance_divisor".into(), 10.0);
+        constants.insert("performance.bike_distance_divisor".into(), 40.0);
+        constants.insert("performance.swim_distance_divisor".into(), 2.0);
+        constants.insert("performance.elevation_divisor".into(), 100.0);
 
-        // Efficiency calculation - using default values for now
-        constants.insert("efficiency.base_score".to_string(), 50.0);
-        constants.insert("efficiency.hr_factor".to_string(), 1000.0);
+        // Efficiency calculation baseline
+        constants.insert("efficiency.base_score".into(), 50.0);
+        constants.insert("efficiency.hr_factor".into(), 1000.0);
 
         constants
     }
@@ -171,8 +176,8 @@ impl RuntimeConfig {
     /// Apply a configuration profile
     pub fn apply_profile(&mut self, profile: ConfigProfile) {
         self.log_change(
-            "system".to_string(),
-            "profile".to_string(),
+            "system".into(),
+            "profile".into(),
             Some(ConfigValue::String(self.active_profile.name())),
             ConfigValue::String(profile.name()),
             Some(format!("Applied {} profile", profile.name())),
@@ -182,7 +187,14 @@ impl RuntimeConfig {
         self.last_modified = Utc::now();
     }
 
+    /// Determine profile based on current configuration settings
+    #[must_use]
+    pub fn determine_profile(&self) -> ConfigProfile {
+        self.active_profile.clone()
+    }
+
     /// Get a configuration value
+    #[must_use]
     pub fn get_value(&self, key: &str) -> Option<ConfigValue> {
         // Check session overrides first
         if let Some(value) = self.session_overrides.get(key) {
@@ -198,11 +210,16 @@ impl RuntimeConfig {
     }
 
     /// Set a session override value
+    ///
+    /// # Errors
+    ///
+    /// This function currently doesn't return any errors but is designed to validate
+    /// configuration changes in the future.
     pub fn set_override(&mut self, key: String, value: ConfigValue) -> Result<(), String> {
         let old_value = self.get_value(&key);
 
         self.log_change(
-            "session".to_string(),
+            "session".into(),
             key.clone(),
             old_value,
             value.clone(),
@@ -216,9 +233,10 @@ impl RuntimeConfig {
     }
 
     /// Get all values for a module
+    #[must_use]
     pub fn get_module_values(&self, module: &str) -> HashMap<String, ConfigValue> {
         let mut values = HashMap::new();
-        let prefix = format!("{}.", module);
+        let prefix = format!("{module}.");
 
         // Collect base constants
         for (key, value) in &self.base_constants {
@@ -243,11 +261,11 @@ impl RuntimeConfig {
         self.last_modified = Utc::now();
 
         self.log_change(
-            "system".to_string(),
-            "all_overrides".to_string(),
+            "system".into(),
+            "all_overrides".into(),
             None,
-            ConfigValue::String("reset".to_string()),
-            Some("Reset all session overrides".to_string()),
+            ConfigValue::String("reset".into()),
+            Some("Reset all session overrides".into()),
         );
     }
 
@@ -271,21 +289,25 @@ impl RuntimeConfig {
     }
 
     /// Get recent changes
+    #[must_use]
     pub fn get_recent_changes(&self, limit: usize) -> Vec<&ConfigChange> {
         self.change_log.iter().rev().take(limit).collect()
     }
 
     /// Get the active profile
-    pub fn get_profile(&self) -> &ConfigProfile {
+    #[must_use]
+    pub const fn get_profile(&self) -> &ConfigProfile {
         &self.active_profile
     }
 
     /// Get session overrides
-    pub fn get_session_overrides(&self) -> &HashMap<String, ConfigValue> {
+    #[must_use]
+    pub const fn get_session_overrides(&self) -> &HashMap<String, ConfigValue> {
         &self.session_overrides
     }
 
     /// Export configuration state
+    #[must_use]
     pub fn export(&self) -> ConfigExport {
         ConfigExport {
             profile: self.active_profile.clone(),
@@ -335,6 +357,7 @@ pub struct ConfigurationManager {
 
 impl ConfigurationManager {
     /// Create a new configuration manager
+    #[must_use]
     pub fn new() -> Self {
         Self {
             user_configs: Arc::new(RwLock::new(HashMap::new())),
@@ -356,13 +379,21 @@ impl ConfigurationManager {
     }
 
     /// Update a user's configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the updater function fails to apply the configuration changes.
     pub async fn update_user_config<F>(&self, user_id: Uuid, updater: F) -> Result<(), String>
     where
         F: FnOnce(&mut RuntimeConfig) -> Result<(), String>,
     {
-        let mut configs = self.user_configs.write().await;
-        let config = configs.entry(user_id).or_insert_with(RuntimeConfig::new);
-        updater(config)
+        updater(
+            self.user_configs
+                .write()
+                .await
+                .entry(user_id)
+                .or_insert_with(RuntimeConfig::new),
+        )
     }
 }
 
@@ -402,7 +433,7 @@ mod tests {
 
         // Verify override takes precedence
         if let Some(ConfigValue::Float(value)) = config.get_value(&key) {
-            assert_eq!(value, 90.0);
+            assert!((value - 90.0).abs() < f64::EPSILON);
         } else {
             panic!("Expected float value");
         }
@@ -415,7 +446,7 @@ mod tests {
         // Add some overrides
         config
             .set_override(
-                "heart_rate.custom_threshold".to_string(),
+                "heart_rate.custom_threshold".into(),
                 ConfigValue::Float(82.5),
             )
             .unwrap();
@@ -430,7 +461,7 @@ mod tests {
         let mut config = RuntimeConfig::new();
 
         config
-            .set_override("test.parameter".to_string(), ConfigValue::Float(50.0))
+            .set_override("test.parameter".into(), ConfigValue::Float(50.0))
             .unwrap();
 
         let changes = config.get_recent_changes(10);

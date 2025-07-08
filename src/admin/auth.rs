@@ -12,7 +12,7 @@ use crate::database_plugins::{factory::Database, DatabaseProvider};
 use anyhow::{anyhow, Context, Result};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::{info, warn};
+use tracing::info;
 
 /// Admin authentication service
 #[derive(Clone)]
@@ -25,6 +25,7 @@ pub struct AdminAuthService {
 
 impl AdminAuthService {
     /// Create new admin auth service
+    #[must_use]
     pub fn new(database: Database, jwt_secret: &str) -> Self {
         Self {
             database,
@@ -34,6 +35,15 @@ impl AdminAuthService {
     }
 
     /// Authenticate admin token and check permissions
+    ///
+    /// # Errors
+    /// Returns an error if:
+    /// - Token is invalid or malformed
+    /// - Token is not found in database
+    /// - Token is inactive or expired
+    /// - Token hash verification fails
+    /// - Required permissions are not granted
+    /// - Database operations fail
     pub async fn authenticate_and_authorize(
         &self,
         token: &str,
@@ -74,7 +84,7 @@ impl AdminAuthService {
         if let Some(expires_at) = stored_token.expires_at {
             if chrono::Utc::now() > expires_at {
                 return Err(anyhow!("Authentication failed: Admin token has expired")
-                    .context(format!("Token expired at {}", expires_at)));
+                    .context(format!("Token expired at {expires_at}")));
             }
         }
 
@@ -94,7 +104,7 @@ impl AdminAuthService {
         // Step 6: Log usage
         self.log_token_usage(
             &stored_token.id,
-            &format!("auth_check_{:?}", required_permission),
+            &format!("auth_check_{required_permission:?}"),
             None,
             ip_address,
             true,
@@ -117,6 +127,11 @@ impl AdminAuthService {
     }
 
     /// Fast authentication check using cache
+    ///
+    /// # Errors
+    /// Returns an error if:
+    /// - Token extraction fails
+    /// - Full authentication fails when cache misses
     pub async fn quick_auth_check(
         &self,
         token: &str,
@@ -143,6 +158,9 @@ impl AdminAuthService {
     }
 
     /// Log admin token usage for audit trail
+    ///
+    /// # Errors
+    /// Returns an error if database recording fails
     pub async fn log_token_usage(
         &self,
         admin_token_id: &str,
@@ -159,12 +177,12 @@ impl AdminAuthService {
             action: action
                 .parse()
                 .unwrap_or(crate::admin::models::AdminAction::ProvisionKey),
-            target_resource: target_resource.map(|s| s.to_string()),
-            ip_address: ip_address.map(|s| s.to_string()),
-            user_agent: None, // Can be added later
+            target_resource: target_resource.map(std::string::ToString::to_string),
+            ip_address: ip_address.map(std::string::ToString::to_string),
+            user_agent: None, // Optional user agent information
             request_size_bytes: None,
             success,
-            error_message: error_message.map(|s| s.to_string()),
+            error_message: error_message.map(std::string::ToString::to_string),
             response_time_ms: None,
         };
 
@@ -174,30 +192,38 @@ impl AdminAuthService {
 
     /// Invalidate token cache (call when token is revoked)
     pub async fn invalidate_cache(&self, token_id: &str) {
-        let mut cache = self.token_cache.write().await;
-        cache.remove(token_id);
-        info!("Invalidated admin token cache for: {}", token_id);
+        {
+            let mut cache = self.token_cache.write().await;
+            cache.remove(token_id);
+        }
+        info!("Invalidated admin token cache for: {token_id}");
     }
 
     /// Clear all cached tokens
     pub async fn clear_cache(&self) {
-        let mut cache = self.token_cache.write().await;
-        cache.clear();
+        {
+            let mut cache = self.token_cache.write().await;
+            cache.clear();
+        }
         info!("Cleared admin token cache");
     }
 
     /// Get JWT manager for token operations
-    pub fn jwt_manager(&self) -> &AdminJwtManager {
+    #[must_use]
+    pub const fn jwt_manager(&self) -> &AdminJwtManager {
         &self.jwt_manager
     }
 }
 
 /// Admin authentication middleware for HTTP requests
 pub mod middleware {
-    use super::*;
+    use super::{AdminAuthService, AdminPermission, ValidatedAdminToken};
+    use anyhow::anyhow;
+    use tracing::warn;
     use warp::{Filter, Rejection};
 
     /// Create admin authentication filter
+    #[must_use]
     pub fn admin_auth(
         auth_service: AdminAuthService,
         required_permission: AdminPermission,
@@ -224,7 +250,7 @@ pub mod middleware {
     }
 
     /// Extract Bearer token from Authorization header
-    fn extract_bearer_token(auth_header: &str) -> Result<String> {
+    fn extract_bearer_token(auth_header: &str) -> anyhow::Result<String> {
         if !auth_header.starts_with("Bearer ") {
             return Err(anyhow!("Invalid authorization header format"));
         }
@@ -247,22 +273,25 @@ pub mod middleware {
     impl warp::reject::Reject for AdminAuthError {}
 
     /// Convert admin auth errors to HTTP responses
-    pub async fn handle_admin_auth_rejection(
-        err: Rejection,
+    ///
+    /// # Errors
+    /// This function is infallible and always returns `Ok`
+    pub fn handle_admin_auth_rejection(
+        err: &Rejection,
     ) -> Result<impl warp::Reply, std::convert::Infallible> {
-        if let Some(AdminAuthError::InvalidAuthHeader) = err.find() {
+        if matches!(err.find(), Some(AdminAuthError::InvalidAuthHeader)) {
             Ok(warp::reply::with_status(
-                "Invalid Authorization header".to_string(),
+                "Invalid Authorization header".into(),
                 warp::http::StatusCode::BAD_REQUEST,
             ))
         } else if let Some(AdminAuthError::AuthenticationFailed(msg)) = err.find() {
             Ok(warp::reply::with_status(
-                format!("Authentication failed: {}", msg),
+                format!("Authentication failed: {msg}"),
                 warp::http::StatusCode::UNAUTHORIZED,
             ))
         } else {
             Ok(warp::reply::with_status(
-                "Internal server error".to_string(),
+                "Internal server error".into(),
                 warp::http::StatusCode::INTERNAL_SERVER_ERROR,
             ))
         }
@@ -271,8 +300,9 @@ pub mod middleware {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{AdminAuthService, AdminPermission};
     use crate::database::generate_encryption_key;
+    use crate::database_plugins::factory::Database;
 
     #[tokio::test]
     async fn test_admin_authentication_flow() {
@@ -311,13 +341,13 @@ mod tests {
         match &database {
             crate::database_plugins::factory::Database::SQLite(sqlite_db) => {
                 sqlx::query(
-                    r#"
+                    r"
                     INSERT INTO admin_tokens (
                         id, service_name, token_hash, token_prefix,
                         jwt_secret_hash, permissions, is_super_admin, is_active,
                         created_at, usage_count
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    "#,
+                    ",
                 )
                 .bind("test_token_123")
                 .bind("test_service")

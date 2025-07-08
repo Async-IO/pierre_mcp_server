@@ -1,3 +1,5 @@
+// ABOUTME: Rate limiting middleware for HTTP requests
+// ABOUTME: Enforces request rate limits and prevents API abuse
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -25,7 +27,8 @@ pub mod headers {
     pub const RETRY_AFTER: &str = "Retry-After";
 }
 
-/// Create a HeaderMap with rate limit headers
+/// Create a `HeaderMap` with rate limit headers
+#[must_use]
 pub fn create_rate_limit_headers(rate_limit_info: &UnifiedRateLimitInfo) -> HeaderMap {
     let mut headers = HeaderMap::new();
 
@@ -75,6 +78,7 @@ pub fn create_rate_limit_headers(rate_limit_info: &UnifiedRateLimitInfo) -> Head
 }
 
 /// Create a rate limit exceeded error response with proper headers
+#[must_use]
 pub fn create_rate_limit_error(rate_limit_info: &UnifiedRateLimitInfo) -> AppError {
     let limit = rate_limit_info.limit.unwrap_or(0);
 
@@ -88,6 +92,7 @@ pub fn create_rate_limit_error(rate_limit_info: &UnifiedRateLimitInfo) -> AppErr
 }
 
 /// Create a 429 Too Many Requests JSON error response
+#[must_use]
 pub fn create_rate_limit_error_json(rate_limit_info: &UnifiedRateLimitInfo) -> impl Reply {
     let error = create_rate_limit_error(rate_limit_info);
     let error_response = crate::errors::ErrorResponse::from(error);
@@ -98,7 +103,10 @@ pub fn create_rate_limit_error_json(rate_limit_info: &UnifiedRateLimitInfo) -> i
 }
 
 /// Helper function to check rate limits and return appropriate response
-#[allow(clippy::result_large_err)]
+///
+/// # Errors
+///
+/// Returns an error if the rate limit has been exceeded
 pub fn check_rate_limit_and_respond(
     rate_limit_info: &UnifiedRateLimitInfo,
 ) -> Result<(), AppError> {
@@ -121,8 +129,8 @@ mod tests {
             limit: Some(1000),
             remaining: Some(0),
             reset_at: Some(Utc::now() + chrono::Duration::hours(1)),
-            tier: "professional".to_string(),
-            auth_method: "api_key".to_string(),
+            tier: "professional".into(),
+            auth_method: "api_key".into(),
         };
 
         let error = create_rate_limit_error(&rate_limit_info);
@@ -143,8 +151,8 @@ mod tests {
             limit: Some(1000),
             remaining: Some(500),
             reset_at: None,
-            tier: "starter".to_string(),
-            auth_method: "jwt".to_string(),
+            tier: "starter".into(),
+            auth_method: "jwt".into(),
         };
 
         assert!(check_rate_limit_and_respond(&info).is_ok());
@@ -155,8 +163,8 @@ mod tests {
             limit: Some(1000),
             remaining: Some(0),
             reset_at: Some(Utc::now()),
-            tier: "starter".to_string(),
-            auth_method: "jwt".to_string(),
+            tier: "starter".into(),
+            auth_method: "jwt".into(),
         };
 
         assert!(check_rate_limit_and_respond(&info).is_err());

@@ -1,3 +1,7 @@
+// ABOUTME: Production-critical coverage tests for uncovered code paths
+// ABOUTME: Tests specific uncovered code paths that represent production risks
+#![allow(clippy::uninlined_format_args)]
+
 //! Production-Critical Coverage Tests
 //!
 //! This test suite targets the specific uncovered code paths that represent
@@ -191,7 +195,7 @@ async fn test_mcp_multitenant_request_routing() -> Result<()> {
         let user = User {
             id: user_id,
             email: format!("user{}@example.com", i),
-            display_name: Some(format!("User {}", i)),
+            display_name: Some(format!("User {i}")),
             password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
             tier: if i == 0 {
                 UserTier::Enterprise

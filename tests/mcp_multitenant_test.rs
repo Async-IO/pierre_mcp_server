@@ -1,3 +1,152 @@
+// ABOUTME: Multi-tenant MCP server tests with protocol validation
+// ABOUTME: Tests tenant isolation, MCP protocol handling, and server lifecycle
+#![allow(
+    clippy::uninlined_format_args,
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss,
+    clippy::float_cmp,
+    clippy::significant_drop_tightening,
+    clippy::match_wildcard_for_single_variants,
+    clippy::match_same_arms,
+    clippy::unreadable_literal,
+    clippy::module_name_repetitions,
+    clippy::redundant_closure_for_method_calls,
+    clippy::needless_pass_by_value,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::similar_names,
+    clippy::too_many_lines,
+    clippy::struct_excessive_bools,
+    clippy::missing_const_for_fn,
+    clippy::cognitive_complexity,
+    clippy::items_after_statements,
+    clippy::semicolon_if_nothing_returned,
+    clippy::use_self,
+    clippy::single_match_else,
+    clippy::default_trait_access,
+    clippy::enum_glob_use,
+    clippy::wildcard_imports,
+    clippy::explicit_deref_methods,
+    clippy::explicit_iter_loop,
+    clippy::manual_let_else,
+    clippy::must_use_candidate,
+    clippy::return_self_not_must_use,
+    clippy::unused_self,
+    clippy::used_underscore_binding,
+    clippy::fn_params_excessive_bools,
+    clippy::trivially_copy_pass_by_ref,
+    clippy::option_if_let_else,
+    clippy::unnecessary_wraps,
+    clippy::redundant_else,
+    clippy::map_unwrap_or,
+    clippy::map_err_ignore,
+    clippy::if_not_else,
+    clippy::single_char_lifetime_names,
+    clippy::doc_markdown,
+    clippy::unused_async,
+    clippy::redundant_field_names,
+    clippy::struct_field_names,
+    clippy::ptr_arg,
+    clippy::ref_option_ref,
+    clippy::implicit_clone,
+    clippy::cloned_instead_of_copied,
+    clippy::borrow_as_ptr,
+    clippy::bool_to_int_with_if,
+    clippy::checked_conversions,
+    clippy::copy_iterator,
+    clippy::empty_enum,
+    clippy::enum_variant_names,
+    clippy::expl_impl_clone_on_copy,
+    clippy::fallible_impl_from,
+    clippy::filter_map_next,
+    clippy::flat_map_option,
+    clippy::fn_to_numeric_cast_any,
+    clippy::from_iter_instead_of_collect,
+    clippy::if_let_mutex,
+    clippy::implicit_hasher,
+    clippy::inconsistent_struct_constructor,
+    clippy::inefficient_to_string,
+    clippy::infinite_iter,
+    clippy::into_iter_on_ref,
+    clippy::iter_not_returning_iterator,
+    clippy::iter_on_empty_collections,
+    clippy::iter_on_single_items,
+    clippy::large_digit_groups,
+    clippy::large_stack_arrays,
+    clippy::large_types_passed_by_value,
+    clippy::let_unit_value,
+    clippy::linkedlist,
+    clippy::lossy_float_literal,
+    clippy::macro_use_imports,
+    clippy::manual_assert,
+    clippy::manual_instant_elapsed,
+    clippy::manual_let_else,
+    clippy::manual_ok_or,
+    clippy::manual_string_new,
+    clippy::many_single_char_names,
+    clippy::match_on_vec_items,
+    clippy::match_same_arms,
+    clippy::match_wild_err_arm,
+    clippy::match_wildcard_for_single_variants,
+    clippy::mem_forget,
+    clippy::missing_enforced_import_renames,
+    clippy::missing_inline_in_public_items,
+    clippy::missing_safety_doc,
+    clippy::mut_mut,
+    clippy::mutex_integer,
+    clippy::naive_bytecount,
+    clippy::needless_continue,
+    clippy::needless_for_each,
+    clippy::needless_pass_by_ref_mut,
+    clippy::needless_raw_string_hashes,
+    clippy::no_effect_underscore_binding,
+    clippy::non_ascii_literal,
+    clippy::nonstandard_macro_braces,
+    clippy::option_option,
+    clippy::or_fun_call,
+    clippy::path_buf_push_overwrite,
+    clippy::print_literal,
+    clippy::print_with_newline,
+    clippy::ptr_as_ptr,
+    clippy::range_minus_one,
+    clippy::range_plus_one,
+    clippy::rc_buffer,
+    clippy::rc_mutex,
+    clippy::redundant_allocation,
+    clippy::redundant_pub_crate,
+    clippy::ref_binding_to_reference,
+    clippy::ref_option_ref,
+    clippy::rest_pat_in_fully_bound_structs,
+    clippy::same_functions_in_if_condition,
+    clippy::semicolon_if_nothing_returned,
+    clippy::single_match_else,
+    clippy::str_to_string,
+    clippy::string_add,
+    clippy::string_add_assign,
+    clippy::string_lit_as_bytes,
+    clippy::string_to_string,
+    clippy::trait_duplication_in_bounds,
+    clippy::transmute_ptr_to_ptr,
+    clippy::trivially_copy_pass_by_ref,
+    clippy::tuple_array_conversions,
+    clippy::unchecked_duration_subtraction,
+    clippy::unicode_not_nfc,
+    clippy::unimplemented,
+    clippy::uninlined_format_args,
+    clippy::unnecessary_box_returns,
+    clippy::unnecessary_struct_initialization,
+    clippy::unnecessary_to_owned,
+    clippy::unnecessary_wraps,
+    clippy::unnested_or_patterns,
+    clippy::unused_peekable,
+    clippy::unused_rounding,
+    clippy::useless_let_if_seq,
+    clippy::verbose_bit_mask,
+    clippy::verbose_file_reads,
+    clippy::zero_sized_map_values
+)]
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -56,11 +205,11 @@ async fn create_multiple_test_users(
 
     for i in 0..count {
         let email = format!("user{}@multitenant.test", i);
-        let password = format!("password{}", i);
+        let password = format!("password{i}");
         let user = User::new(
             email.clone(),
-            format!("hashed_{}", password),
-            Some(format!("Test User {}", i)),
+            format!("hashed_{password}"),
+            Some(format!("Test User {i}")),
         );
         let user_id = user.id;
         database.create_user(&user).await?;
@@ -148,7 +297,7 @@ async fn test_authentication_middleware_integration() -> Result<()> {
     let token = auth_manager.generate_token(&user)?;
 
     // Test valid authentication
-    let bearer_token = format!("Bearer {}", token);
+    let bearer_token = format!("Bearer {token}");
     let auth_result = auth_middleware
         .authenticate_request(Some(&bearer_token))
         .await;
@@ -188,8 +337,8 @@ async fn test_tenant_data_isolation() -> Result<()> {
         database
             .update_strava_token(
                 *user_id,
-                &format!("strava_access_{}", i),
-                &format!("strava_refresh_{}", i),
+                &format!("strava_access_{i}"),
+                &format!("strava_refresh_{i}"),
                 expires_at,
                 "read,activity:read_all".to_string(),
             )
@@ -199,8 +348,8 @@ async fn test_tenant_data_isolation() -> Result<()> {
         database
             .update_fitbit_token(
                 *user_id,
-                &format!("fitbit_access_{}", i),
-                &format!("fitbit_refresh_{}", i),
+                &format!("fitbit_access_{i}"),
+                &format!("fitbit_refresh_{i}"),
                 expires_at,
                 "activity heartrate profile".to_string(),
             )
@@ -210,10 +359,10 @@ async fn test_tenant_data_isolation() -> Result<()> {
     // Verify data isolation
     for (i, (user_id, _email, _token)) in users.iter().enumerate() {
         let strava_token = database.get_strava_token(*user_id).await?.unwrap();
-        assert_eq!(strava_token.access_token, format!("strava_access_{}", i));
+        assert_eq!(strava_token.access_token, format!("strava_access_{i}"));
 
         let fitbit_token = database.get_fitbit_token(*user_id).await?.unwrap();
-        assert_eq!(fitbit_token.access_token, format!("fitbit_access_{}", i));
+        assert_eq!(fitbit_token.access_token, format!("fitbit_access_{i}"));
     }
 
     // Verify users cannot access each other's data
@@ -240,8 +389,8 @@ async fn test_concurrent_user_operations() -> Result<()> {
         let handle = tokio::spawn(async move {
             let user = User::new(
                 format!("concurrent_user_{}@test.com", i),
-                format!("hashed_password_{}", i),
-                Some(format!("Concurrent User {}", i)),
+                format!("hashed_password_{i}"),
+                Some(format!("Concurrent User {i}")),
             );
             let user_id = user.id;
 
@@ -259,8 +408,8 @@ async fn test_concurrent_user_operations() -> Result<()> {
             let expires_at = chrono::Utc::now() + chrono::Duration::hours(6);
             db.update_strava_token(
                 user_id,
-                &format!("access_token_{}", i),
-                &format!("refresh_token_{}", i),
+                &format!("access_token_{i}"),
+                &format!("refresh_token_{i}"),
                 expires_at,
                 "read,activity:read_all".to_string(),
             )
@@ -268,7 +417,7 @@ async fn test_concurrent_user_operations() -> Result<()> {
 
             // Retrieve and verify data
             let token_data = db.get_strava_token(user_id).await?.unwrap();
-            assert_eq!(token_data.access_token, format!("access_token_{}", i));
+            assert_eq!(token_data.access_token, format!("access_token_{i}"));
 
             Ok::<_, anyhow::Error>(user_id)
         });
@@ -517,7 +666,7 @@ async fn test_concurrent_authentication_operations() -> Result<()> {
 
         let handle = tokio::spawn(async move {
             // Test authentication
-            let bearer_token = format!("Bearer {}", user_token);
+            let bearer_token = format!("Bearer {user_token}");
             let auth_result = amw.authenticate_request(Some(&bearer_token)).await;
             if auth_result.is_err() {
                 println!(
@@ -570,8 +719,8 @@ async fn test_memory_safety_concurrent_access() -> Result<()> {
             // Create user
             let user = User::new(
                 format!("memory_test_{}@test.com", i),
-                format!("hashed_password_{}", i),
-                Some(format!("Memory Test User {}", i)),
+                format!("hashed_password_{i}"),
+                Some(format!("Memory Test User {i}")),
             );
             let user_id = user.id;
 
@@ -586,15 +735,15 @@ async fn test_memory_safety_concurrent_access() -> Result<()> {
             let expires_at = chrono::Utc::now() + chrono::Duration::hours(6);
             db.update_strava_token(
                 user_id,
-                &format!("access_{}", i),
-                &format!("refresh_{}", i),
+                &format!("access_{i}"),
+                &format!("refresh_{i}"),
                 expires_at,
                 "read,activity:read_all".to_string(),
             )
             .await?;
 
             let token_data = db.get_strava_token(user_id).await?.unwrap();
-            assert_eq!(token_data.access_token, format!("access_{}", i));
+            assert_eq!(token_data.access_token, format!("access_{i}"));
 
             Ok::<_, anyhow::Error>(i)
         });
@@ -631,8 +780,8 @@ async fn test_user_provider_storage_concept() -> Result<()> {
         let mut providers = user_providers.write().await;
         for (user_id, _email, _token) in &users {
             let mut user_map = HashMap::new();
-            user_map.insert("strava".to_string(), format!("strava_provider_{}", user_id));
-            user_map.insert("fitbit".to_string(), format!("fitbit_provider_{}", user_id));
+            user_map.insert("strava".to_string(), format!("strava_provider_{user_id}"));
+            user_map.insert("fitbit".to_string(), format!("fitbit_provider_{user_id}"));
             providers.insert(user_id.to_string(), user_map);
         }
     }
@@ -644,11 +793,11 @@ async fn test_user_provider_storage_concept() -> Result<()> {
             let user_providers_map = providers.get(&user_id.to_string()).unwrap();
             assert_eq!(
                 user_providers_map.get("strava").unwrap(),
-                &format!("strava_provider_{}", user_id)
+                &format!("strava_provider_{user_id}")
             );
             assert_eq!(
                 user_providers_map.get("fitbit").unwrap(),
-                &format!("fitbit_provider_{}", user_id)
+                &format!("fitbit_provider_{user_id}")
             );
         }
     }
@@ -720,15 +869,15 @@ async fn test_large_scale_multitenant_operations() -> Result<()> {
             let expires_at = chrono::Utc::now() + chrono::Duration::hours(6);
             db.update_strava_token(
                 user_id,
-                &format!("access_{}", user_id),
-                &format!("refresh_{}", user_id),
+                &format!("access_{user_id}"),
+                &format!("refresh_{user_id}"),
                 expires_at,
                 "read,activity:read_all".to_string(),
             )
             .await?;
 
             let token_data = db.get_strava_token(user_id).await?.unwrap();
-            assert_eq!(token_data.access_token, format!("access_{}", user_id));
+            assert_eq!(token_data.access_token, format!("access_{user_id}"));
 
             // Update last active
             db.update_last_active(user_id).await?;

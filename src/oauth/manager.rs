@@ -1,3 +1,5 @@
+// ABOUTME: OAuth flow management and token handling
+// ABOUTME: Manages OAuth2 authentication flows and token refresh operations
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -35,6 +37,7 @@ struct StateData {
 
 impl OAuthManager {
     /// Create new OAuth manager
+    #[must_use]
     pub fn new(database: Arc<Database>) -> Self {
         Self {
             database,
@@ -50,6 +53,13 @@ impl OAuthManager {
     }
 
     /// Generate authorization URL for a provider
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The provider is not supported
+    /// - State storage fails
+    /// - Authorization URL generation fails
     pub async fn generate_auth_url(
         &self,
         user_id: Uuid,
@@ -71,6 +81,14 @@ impl OAuthManager {
     }
 
     /// Handle OAuth callback
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - State validation fails
+    /// - Provider is not found
+    /// - Token exchange fails
+    /// - Database operations fail
     pub async fn handle_callback(
         &self,
         code: &str,
@@ -97,8 +115,8 @@ impl OAuthManager {
         self.store_tokens(state_data.user_id, &token_data).await?;
 
         info!(
-            "OAuth callback completed successfully for user {} provider {}",
-            state_data.user_id, provider
+            "OAuth callback completed successfully for user {} provider {provider}",
+            state_data.user_id
         );
 
         Ok(CallbackResponse {
@@ -107,11 +125,15 @@ impl OAuthManager {
             expires_at: token_data.expires_at.to_rfc3339(),
             scopes: token_data.scopes,
             success: true,
-            message: format!("{} connected successfully", provider),
+            message: format!("{provider} connected successfully"),
         })
     }
 
     /// Disconnect provider for user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:\n    /// - The provider is not supported\n    /// - Database operations fail
     pub async fn disconnect_provider(
         &self,
         user_id: Uuid,
@@ -140,15 +162,18 @@ impl OAuthManager {
     }
 
     /// Refresh token if needed
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:\n    /// - Database operations fail\n    /// - The provider is not supported\n    /// - Token refresh fails
     pub async fn ensure_valid_token(
         &self,
         user_id: Uuid,
         provider: &str,
     ) -> Result<Option<TokenData>, OAuthError> {
         // Get current token
-        let token_data = match self.get_token_data(user_id, provider).await? {
-            Some(token) => token,
-            None => return Ok(None), // No token stored
+        let Some(token_data) = self.get_token_data(user_id, provider).await? else {
+            return Ok(None); // No token stored
         };
 
         // Get OAuth provider
@@ -179,6 +204,10 @@ impl OAuthManager {
     }
 
     /// Get connection status for user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operations fail
     pub async fn get_connection_status(
         &self,
         user_id: Uuid,
@@ -208,20 +237,23 @@ impl OAuthManager {
             expires_at: now + chrono::Duration::minutes(10), // 10 minute expiry
         };
 
-        let mut storage = self.state_storage.write().await;
-        storage.insert(state.to_string(), state_data);
+        {
+            let mut storage = self.state_storage.write().await;
+            storage.insert(state.to_string(), state_data);
 
-        // Clean up expired states
-        storage.retain(|_, data| data.expires_at > now);
+            // Clean up expired states
+            storage.retain(|_, data| data.expires_at > now);
+        }
 
         Ok(())
     }
 
     /// Validate and consume OAuth state
     async fn validate_and_consume_state(&self, state: &str) -> Result<StateData, OAuthError> {
-        let mut storage = self.state_storage.write().await;
-
-        let state_data = storage.remove(state).ok_or(OAuthError::InvalidState)?;
+        let state_data = {
+            let mut storage = self.state_storage.write().await;
+            storage.remove(state).ok_or(OAuthError::InvalidState)?
+        };
 
         let now = chrono::Utc::now();
 
@@ -307,7 +339,7 @@ impl OAuthManager {
                     refresh_token: token.refresh_token,
                     expires_at: token.expires_at,
                     scopes: token.scope,
-                    provider: "strava".to_string(),
+                    provider: "strava".into(),
                 })),
                 Ok(None) => Ok(None),
                 Err(e) => Err(OAuthError::DatabaseError(e.to_string())),
@@ -318,7 +350,7 @@ impl OAuthManager {
                     refresh_token: token.refresh_token,
                     expires_at: token.expires_at,
                     scopes: token.scope,
-                    provider: "fitbit".to_string(),
+                    provider: "fitbit".into(),
                 })),
                 Ok(None) => Ok(None),
                 Err(e) => Err(OAuthError::DatabaseError(e.to_string())),

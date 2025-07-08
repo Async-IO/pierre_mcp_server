@@ -1,7 +1,5 @@
-//! Unified response formatting for all APIs
-//!
-//! This module provides consistent response formatting across MCP, A2A, and HTTP APIs
-//! to eliminate formatting duplication and ensure consistent user experience.
+// ABOUTME: Unified response formatting for all APIs
+// ABOUTME: Provides consistent response formatting across MCP, A2A, and HTTP APIs
 
 use crate::errors::AppError;
 use serde::{Deserialize, Serialize};

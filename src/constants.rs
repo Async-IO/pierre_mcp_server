@@ -17,24 +17,28 @@ use std::env;
 pub mod protocol {
     use std::env;
 
-    /// Get MCP Protocol version from environment or default
+    /// Get `MCP` Protocol version from environment or default
+    #[must_use]
     pub fn mcp_protocol_version() -> String {
-        env::var("MCP_PROTOCOL_VERSION").unwrap_or_else(|_| "2025-06-18".to_string())
+        env::var("MCP_PROTOCOL_VERSION").unwrap_or_else(|_| "2025-06-18".into())
     }
 
-    /// JSON-RPC version (standard, not configurable)
+    /// `JSON-RPC` version (standard, not configurable)
     pub const JSONRPC_VERSION: &str = "2.0";
 
     /// Get server name from environment or default
+    #[must_use]
     pub fn server_name() -> String {
-        env::var("SERVER_NAME").unwrap_or_else(|_| "pierre-mcp-server".to_string())
+        env::var("SERVER_NAME").unwrap_or_else(|_| "pierre-mcp-server".into())
     }
 
     /// Get multi-tenant server name variant
+    #[must_use]
     pub fn server_name_multitenant() -> String {
-        env::var("SERVER_NAME")
-            .map(|name| format!("{}-multitenant", name))
-            .unwrap_or_else(|_| "pierre-mcp-server-multitenant".to_string())
+        env::var("SERVER_NAME").map_or_else(
+            |_| "pierre-mcp-server-multitenant".into(),
+            |name| format!("{name}-multitenant"),
+        )
     }
 
     /// Server version from Cargo.toml
@@ -50,7 +54,8 @@ pub mod protocol {
 pub mod env_config {
     use super::env;
 
-    /// Get MCP server port from environment or default
+    /// Get `MCP` server port from environment or default
+    #[must_use]
     pub fn mcp_port() -> u16 {
         env::var("MCP_PORT")
             .unwrap_or_else(|_| crate::constants::ports::DEFAULT_MCP_PORT.to_string())
@@ -58,7 +63,8 @@ pub mod env_config {
             .unwrap_or(crate::constants::ports::DEFAULT_MCP_PORT)
     }
 
-    /// Get HTTP server port from environment or default
+    /// Get `HTTP` server port from environment or default
+    #[must_use]
     pub fn http_port() -> u16 {
         env::var("HTTP_PORT")
             .unwrap_or_else(|_| crate::constants::ports::DEFAULT_HTTP_PORT.to_string())
@@ -66,40 +72,47 @@ pub mod env_config {
             .unwrap_or(crate::constants::ports::DEFAULT_HTTP_PORT)
     }
 
-    /// Get database URL from environment or default
+    /// Get database `URL` from environment or default
+    #[must_use]
     pub fn database_url() -> String {
-        env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:./data/users.db".to_string())
+        env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:./data/users.db".into())
     }
 
     /// Get encryption key path from environment or default
+    #[must_use]
     pub fn encryption_key_path() -> String {
-        env::var("ENCRYPTION_KEY_PATH").unwrap_or_else(|_| "./data/encryption.key".to_string())
+        env::var("ENCRYPTION_KEY_PATH").unwrap_or_else(|_| "./data/encryption.key".into())
     }
 
-    /// Get JWT secret path from environment or default
+    /// Get `JWT` secret path from environment or default
+    #[must_use]
     pub fn jwt_secret_path() -> String {
-        env::var("JWT_SECRET_PATH").unwrap_or_else(|_| "./data/jwt.secret".to_string())
+        env::var("JWT_SECRET_PATH").unwrap_or_else(|_| "./data/jwt.secret".into())
     }
 
-    /// Get JWT expiry hours from environment or default
+    /// Get `JWT` expiry hours from environment or default
+    #[must_use]
     pub fn jwt_expiry_hours() -> i64 {
         env::var("JWT_EXPIRY_HOURS")
-            .unwrap_or_else(|_| "24".to_string())
+            .unwrap_or_else(|_| "24".into())
             .parse()
             .unwrap_or(24)
     }
 
-    /// Get Strava client ID from environment
+    /// Get Strava `client_id` from environment
+    #[must_use]
     pub fn strava_client_id() -> Option<String> {
         env::var("STRAVA_CLIENT_ID").ok()
     }
 
     /// Get Strava client secret from environment
+    #[must_use]
     pub fn strava_client_secret() -> Option<String> {
         env::var("STRAVA_CLIENT_SECRET").ok()
     }
 
-    /// Get Strava redirect URI from environment or default
+    /// Get Strava redirect `URI` from environment or default
+    #[must_use]
     pub fn strava_redirect_uri() -> String {
         env::var("STRAVA_REDIRECT_URI").unwrap_or_else(|_| {
             format!(
@@ -109,17 +122,20 @@ pub mod env_config {
         })
     }
 
-    /// Get Fitbit client ID from environment
+    /// Get Fitbit `client_id` from environment
+    #[must_use]
     pub fn fitbit_client_id() -> Option<String> {
         env::var("FITBIT_CLIENT_ID").ok()
     }
 
     /// Get Fitbit client secret from environment
+    #[must_use]
     pub fn fitbit_client_secret() -> Option<String> {
         env::var("FITBIT_CLIENT_SECRET").ok()
     }
 
-    /// Get Fitbit redirect URI from environment or default
+    /// Get Fitbit redirect `URI` from environment or default
+    #[must_use]
     pub fn fitbit_redirect_uri() -> String {
         env::var("FITBIT_REDIRECT_URI").unwrap_or_else(|_| {
             format!(
@@ -129,81 +145,92 @@ pub mod env_config {
         })
     }
 
-    /// Get OpenWeather API key from environment
+    /// Get `OpenWeather` `API` key from environment
+    #[must_use]
     pub fn openweather_api_key() -> Option<String> {
         env::var("OPENWEATHER_API_KEY").ok()
     }
 
     /// Get log level from environment or default
+    #[must_use]
     pub fn log_level() -> String {
-        env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string())
+        env::var("RUST_LOG").unwrap_or_else(|_| "info".into())
     }
 
-    /// Get Strava API base URL from environment or default
+    /// Get Strava `API` base `URL` from environment or default
+    #[must_use]
     pub fn strava_api_base() -> String {
-        env::var("STRAVA_API_BASE").unwrap_or_else(|_| "https://www.strava.com/api/v3".to_string())
+        env::var("STRAVA_API_BASE").unwrap_or_else(|_| "https://www.strava.com/api/v3".into())
     }
 
-    /// Get Strava auth URL from environment or default
+    /// Get Strava auth `URL` from environment or default
+    #[must_use]
     pub fn strava_auth_url() -> String {
         env::var("STRAVA_AUTH_URL")
-            .unwrap_or_else(|_| "https://www.strava.com/oauth/authorize".to_string())
+            .unwrap_or_else(|_| "https://www.strava.com/oauth/authorize".into())
     }
 
-    /// Get Strava token URL from environment or default
+    /// Get Strava token `URL` from environment or default
+    #[must_use]
     pub fn strava_token_url() -> String {
-        env::var("STRAVA_TOKEN_URL")
-            .unwrap_or_else(|_| "https://www.strava.com/oauth/token".to_string())
+        env::var("STRAVA_TOKEN_URL").unwrap_or_else(|_| "https://www.strava.com/oauth/token".into())
     }
 
     /// Get max activities fetch limit from environment or default
+    #[must_use]
     pub fn max_activities_fetch() -> usize {
         env::var("MAX_ACTIVITIES_FETCH")
-            .unwrap_or_else(|_| "100".to_string())
+            .unwrap_or_else(|_| "100".into())
             .parse()
             .unwrap_or(100)
     }
 
-    /// Get Fitbit auth URL from environment or default
+    /// Get Fitbit auth `URL` from environment or default
+    #[must_use]
     pub fn fitbit_auth_url() -> String {
         env::var("FITBIT_AUTH_URL")
-            .unwrap_or_else(|_| "https://www.fitbit.com/oauth2/authorize".to_string())
+            .unwrap_or_else(|_| "https://www.fitbit.com/oauth2/authorize".into())
     }
 
-    /// Get Fitbit token URL from environment or default
+    /// Get Fitbit token `URL` from environment or default
+    #[must_use]
     pub fn fitbit_token_url() -> String {
         env::var("FITBIT_TOKEN_URL")
-            .unwrap_or_else(|_| "https://api.fitbit.com/oauth2/token".to_string())
+            .unwrap_or_else(|_| "https://api.fitbit.com/oauth2/token".into())
     }
 
-    /// Get Strava deauthorize URL from environment or default
+    /// Get Strava deauthorize `URL` from environment or default
+    #[must_use]
     pub fn strava_deauthorize_url() -> String {
         env::var("STRAVA_DEAUTHORIZE_URL")
-            .unwrap_or_else(|_| "https://www.strava.com/oauth/deauthorize".to_string())
+            .unwrap_or_else(|_| "https://www.strava.com/oauth/deauthorize".into())
     }
 
-    /// Get Fitbit revoke URL from environment or default
+    /// Get Fitbit revoke `URL` from environment or default
+    #[must_use]
     pub fn fitbit_revoke_url() -> String {
         env::var("FITBIT_REVOKE_URL")
-            .unwrap_or_else(|_| "https://api.fitbit.com/oauth2/revoke".to_string())
+            .unwrap_or_else(|_| "https://api.fitbit.com/oauth2/revoke".into())
     }
 
     /// Get default activities limit from environment or default
+    #[must_use]
     pub fn default_activities_limit() -> usize {
         env::var("DEFAULT_ACTIVITIES_LIMIT")
-            .unwrap_or_else(|_| "20".to_string())
+            .unwrap_or_else(|_| "20".into())
             .parse()
             .unwrap_or(20)
     }
 
-    /// Get OpenWeather API base URL from environment or default
+    /// Get `OpenWeather` `API` base `URL` from environment or default
+    #[must_use]
     pub fn openweather_api_base() -> String {
         env::var("OPENWEATHER_API_BASE_URL")
-            .unwrap_or_else(|_| "https://api.openweathermap.org".to_string())
+            .unwrap_or_else(|_| "https://api.openweathermap.org".into())
     }
 }
 
-/// JSON-RPC and MCP error codes
+/// `JSON-RPC` and `MCP` error codes
 pub mod errors {
     /// Method not found
     pub const ERROR_METHOD_NOT_FOUND: i32 = -32601;
@@ -236,14 +263,14 @@ pub mod errors {
     pub const MSG_TOKEN_MALFORMED: &str = "JWT token is malformed";
 }
 
-/// API endpoints and URLs
+/// `API` endpoints and `URLs`
 pub mod endpoints {
-    /// Strava API
+    /// Strava `API`
     pub const STRAVA_API_BASE: &str = "https://www.strava.com/api/v3";
     pub const STRAVA_AUTH_URL: &str = "https://www.strava.com/oauth/authorize";
     pub const STRAVA_TOKEN_URL: &str = "https://www.strava.com/oauth/token";
 
-    /// Fitbit API
+    /// Fitbit `API`
     pub const FITBIT_API_BASE: &str = "https://api.fitbit.com";
     pub const FITBIT_AUTH_URL: &str = "https://www.fitbit.com/oauth2/authorize";
     pub const FITBIT_TOKEN_URL: &str = "https://api.fitbit.com/oauth2/token";
@@ -251,22 +278,22 @@ pub mod endpoints {
 
 /// Default port configurations
 pub mod ports {
-    /// Default MCP server port
+    /// Default `MCP` server port
     pub const DEFAULT_MCP_PORT: u16 = 8080;
-    /// Default HTTP server port  
+    /// Default `HTTP` server port  
     pub const DEFAULT_HTTP_PORT: u16 = 8081;
     /// Default documentation server port
     pub const DEFAULT_DOCS_PORT: u16 = 3000;
 }
 
-/// HTTP routes and paths
+/// `HTTP` routes and paths
 pub mod routes {
     /// Authentication routes
     pub const AUTH_BASE: &str = "auth";
     pub const AUTH_REGISTER: &str = "register";
     pub const AUTH_LOGIN: &str = "login";
 
-    /// OAuth routes
+    /// `OAuth` routes
     pub const OAUTH_BASE: &str = "oauth";
     pub const OAUTH_AUTH: &str = "auth";
     pub const OAUTH_CALLBACK: &str = "callback";
@@ -315,7 +342,7 @@ pub mod timeouts {
     pub const HEALTH_CACHE_TTL_SECS: u64 = 30;
     pub const HEALTH_CHECK_INTERVAL_SECS: u64 = 3600; // 1 hour
 
-    /// OAuth timeouts
+    /// `OAuth` timeouts
     pub const OAUTH_STATE_EXPIRY_MINUTES: i64 = 10;
     pub const TOKEN_REFRESH_BUFFER_MINUTES: i64 = 5;
     pub const TOKEN_EXPIRY_WARNING_MINUTES: i64 = 5;
@@ -333,32 +360,32 @@ pub mod timeouts {
 
 /// Cryptographic and security constants
 pub mod crypto {
-    /// JWT and secret lengths
+    /// `JWT` and secret lengths
     pub const JWT_SECRET_LENGTH: usize = 64;
 
-    /// API key configuration
+    /// `API` key configuration
     pub const API_KEY_RANDOM_LENGTH: usize = 32;
     pub const API_KEY_PREFIX_LENGTH: usize = 12;
     pub const TRIAL_KEY_LENGTH: usize = 41;
     pub const LIVE_KEY_LENGTH: usize = 40;
 
-    /// OAuth and PKCE
+    /// `OAuth` and `PKCE`
     pub const PKCE_CODE_VERIFIER_LENGTH: usize = 128;
 }
 
 /// Security header constants
 pub mod security {
-    /// HSTS max-age values
+    /// `HSTS` max-age values
     pub const HSTS_MAX_AGE_DEV: u32 = 86400; // 1 day in seconds
-    pub const HSTS_MAX_AGE_PROD: u32 = 31536000; // 1 year in seconds
+    pub const HSTS_MAX_AGE_PROD: u32 = 31_536_000; // 1 year in seconds
 }
 
-/// OAuth scopes and provider defaults
+/// `OAuth` scopes and provider defaults
 pub mod oauth {
-    /// Default OAuth scopes for Strava
+    /// Default `OAuth` scopes for Strava
     pub const STRAVA_DEFAULT_SCOPES: &str = "read,activity:read_all";
 
-    /// Default OAuth scopes for Fitbit  
+    /// Default `OAuth` scopes for Fitbit  
     pub const FITBIT_DEFAULT_SCOPES: &str = "activity,profile";
 }
 
@@ -372,6 +399,9 @@ pub mod defaults {
 
     /// Default unit system
     pub const DEFAULT_UNITS: &str = "metric";
+
+    /// Default goal timeframe in days
+    pub const DEFAULT_GOAL_TIMEFRAME_DAYS: i64 = 90;
 }
 
 /// Database schema constants
@@ -429,7 +459,7 @@ pub mod status {
     pub const LOAD_LEVEL_VERY_HIGH: &str = "very_high";
 }
 
-/// MCP tool names
+/// `MCP` tool names
 pub mod tools {
     /// Core tools
     pub const GET_ACTIVITIES: &str = "get_activities";
@@ -463,7 +493,7 @@ pub mod tools {
     pub const ANALYZE_TRAINING_LOAD: &str = "analyze_training_load";
 }
 
-/// Common JSON field names
+/// Common `JSON` field names
 pub mod json_fields {
     /// Request/Response fields
     pub const JSONRPC: &str = "jsonrpc";
@@ -517,7 +547,7 @@ pub mod messages {
 
 /// System configuration constants for rates, limits and thresholds
 pub mod system_config {
-    /// API tier rate limits (requests per month)
+    /// `API` tier rate limits (requests per month)
     pub const TRIAL_MONTHLY_LIMIT: u32 = 1_000;
     pub const STARTER_MONTHLY_LIMIT: u32 = 10_000;
     pub const PROFESSIONAL_MONTHLY_LIMIT: u32 = 100_000;
@@ -551,13 +581,13 @@ pub mod time_constants {
 
 /// Network and protocol configuration
 pub mod network_config {
-    /// Port offset for HTTP server in multitenant mode
+    /// Port offset for `HTTP` server in multitenant mode
     pub const HTTP_PORT_OFFSET: u16 = 1000;
 
     /// Default test port for development
     pub const DEFAULT_TEST_PORT: u16 = 3000;
 
-    /// Default MCP protocol version string
+    /// Default `MCP` protocol version string
     pub const DEFAULT_MCP_VERSION: &str = "2024-11-05";
 }
 

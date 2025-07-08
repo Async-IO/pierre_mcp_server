@@ -1,4 +1,6 @@
-//! Additional specific tests for MultiTenantMcpServer handler methods
+// ABOUTME: Specific tests for MultiTenantMcpServer handler methods
+// ABOUTME: Targets handler methods with low coverage for improved testing
+//! Additional specific tests for `MultiTenantMcpServer` handler methods
 //!
 //! This test suite targets specific handler methods that may have low coverage.
 
@@ -190,7 +192,7 @@ async fn test_rate_limiting_enforcement() -> Result<()> {
     // Test rapid requests to trigger rate limiting
     // This tests the rate limiting middleware
     // This is a stub test - actual implementation would make rapid requests and check for rate limit responses
-    let _token = token; // Use the token to avoid unused variable warning
+    drop(token); // Use the token to avoid unused variable warning
 
     Ok(())
 }

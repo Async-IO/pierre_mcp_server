@@ -1,9 +1,10 @@
+// ABOUTME: Comprehensive tests for intelligence modules to improve coverage
+// ABOUTME: Tests activity analyzer, performance analyzer, and intelligence engines
 //! Comprehensive tests for intelligence modules to improve coverage
 //!
 //! This test suite focuses on intelligence modules (activity analyzer, performance analyzer)
 //! which have 44-57% coverage
 
-use anyhow::Result;
 use chrono::Utc;
 use pierre_mcp_server::intelligence::*;
 use std::collections::HashMap;
@@ -13,7 +14,7 @@ mod common;
 // === ActivityIntelligence Tests ===
 
 #[test]
-fn test_activity_intelligence_creation() -> Result<()> {
+fn test_activity_intelligence_creation() {
     let performance = PerformanceMetrics {
         relative_effort: Some(7.5),
         zone_distribution: Some(ZoneDistribution {
@@ -89,12 +90,10 @@ fn test_activity_intelligence_creation() -> Result<()> {
         _ => panic!("Expected Morning time of day"),
     }
     assert!(intelligence.generated_at <= Utc::now());
-
-    Ok(())
 }
 
 #[test]
-fn test_zone_distribution_calculations() -> Result<()> {
+fn test_zone_distribution_calculations() {
     let zones = ZoneDistribution {
         zone1_recovery: 15.0,
         zone2_endurance: 55.0,
@@ -104,11 +103,11 @@ fn test_zone_distribution_calculations() -> Result<()> {
     };
 
     // Test individual zones
-    assert_eq!(zones.zone1_recovery, 15.0);
-    assert_eq!(zones.zone2_endurance, 55.0);
-    assert_eq!(zones.zone3_tempo, 20.0);
-    assert_eq!(zones.zone4_threshold, 8.0);
-    assert_eq!(zones.zone5_vo2max, 2.0);
+    assert!((zones.zone1_recovery - 15.0).abs() < f32::EPSILON);
+    assert!((zones.zone2_endurance - 55.0).abs() < f32::EPSILON);
+    assert!((zones.zone3_tempo - 20.0).abs() < f32::EPSILON);
+    assert!((zones.zone4_threshold - 8.0).abs() < f32::EPSILON);
+    assert!((zones.zone5_vo2max - 2.0).abs() < f32::EPSILON);
 
     // Test total adds up to 100%
     let total = zones.zone1_recovery
@@ -116,13 +115,11 @@ fn test_zone_distribution_calculations() -> Result<()> {
         + zones.zone3_tempo
         + zones.zone4_threshold
         + zones.zone5_vo2max;
-    assert_eq!(total, 100.0);
-
-    Ok(())
+    assert!((total - 100.0).abs() < f32::EPSILON);
 }
 
 #[test]
-fn test_trend_indicators() -> Result<()> {
+fn test_trend_indicators() {
     let trends = TrendIndicators {
         pace_trend: TrendDirection::Improving,
         effort_trend: TrendDirection::Declining,
@@ -133,13 +130,11 @@ fn test_trend_indicators() -> Result<()> {
     assert_eq!(trends.pace_trend, TrendDirection::Improving);
     assert_eq!(trends.effort_trend, TrendDirection::Declining);
     assert_eq!(trends.distance_trend, TrendDirection::Stable);
-    assert_eq!(trends.consistency_score, 75.5);
-
-    Ok(())
+    assert!((trends.consistency_score - 75.5).abs() < f32::EPSILON);
 }
 
 #[test]
-fn test_personal_record() -> Result<()> {
+fn test_personal_record() {
     let pr = PersonalRecord {
         record_type: "longest_run".to_string(),
         value: 25.0,
@@ -149,18 +144,16 @@ fn test_personal_record() -> Result<()> {
     };
 
     assert_eq!(pr.record_type, "longest_run");
-    assert_eq!(pr.value, 25.0);
+    assert!((pr.value - 25.0).abs() < f64::EPSILON);
     assert_eq!(pr.unit, "km");
-    assert_eq!(pr.previous_best, Some(22.0));
-    assert_eq!(pr.improvement_percentage, Some(13.6));
-
-    Ok(())
+    assert!((pr.previous_best.unwrap() - 22.0).abs() < f64::EPSILON);
+    assert!((pr.improvement_percentage.unwrap() - 13.6).abs() < f32::EPSILON);
 }
 
 // === TimeFrame Tests ===
 
 #[test]
-fn test_timeframe_durations() -> Result<()> {
+fn test_timeframe_durations() {
     assert_eq!(TimeFrame::Week.to_days(), 7);
     assert_eq!(TimeFrame::Month.to_days(), 30);
     assert_eq!(TimeFrame::Quarter.to_days(), 90);
@@ -172,12 +165,10 @@ fn test_timeframe_durations() -> Result<()> {
         end: Utc::now(),
     };
     assert_eq!(custom.to_days(), 14);
-
-    Ok(())
 }
 
 #[test]
-fn test_timeframe_dates() -> Result<()> {
+fn test_timeframe_dates() {
     let now = Utc::now();
 
     // Test start dates are in the past
@@ -199,18 +190,16 @@ fn test_timeframe_dates() -> Result<()> {
     };
     assert_eq!(custom.start_date(), custom_start);
     assert_eq!(custom.end_date(), custom_end);
-
-    Ok(())
 }
 
 // === Confidence Tests ===
 
 #[test]
-fn test_confidence_scores() -> Result<()> {
-    assert_eq!(Confidence::Low.as_score(), 0.25);
-    assert_eq!(Confidence::Medium.as_score(), 0.50);
-    assert_eq!(Confidence::High.as_score(), 0.75);
-    assert_eq!(Confidence::VeryHigh.as_score(), 0.95);
+fn test_confidence_scores() {
+    assert!((Confidence::Low.as_score() - 0.25).abs() < f64::EPSILON);
+    assert!((Confidence::Medium.as_score() - 0.50).abs() < f64::EPSILON);
+    assert!((Confidence::High.as_score() - 0.75).abs() < f64::EPSILON);
+    assert!((Confidence::VeryHigh.as_score() - 0.95).abs() < f64::EPSILON);
 
     // Test conversion back from scores (using match since Confidence doesn't implement PartialEq)
     match Confidence::from_score(0.95) {
@@ -233,14 +222,12 @@ fn test_confidence_scores() -> Result<()> {
         Confidence::Low => (),
         _ => panic!("Expected Low confidence"),
     }
-
-    Ok(())
 }
 
 // === Goal Tests ===
 
 #[test]
-fn test_goal_creation() -> Result<()> {
+fn test_goal_creation() {
     let goal = Goal {
         id: "goal_123".to_string(),
         user_id: "user_456".to_string(),
@@ -260,22 +247,20 @@ fn test_goal_creation() -> Result<()> {
 
     assert_eq!(goal.id, "goal_123");
     assert_eq!(goal.title, "Run 5K in under 25 minutes");
-    assert_eq!(goal.target_value, 25.0);
-    assert_eq!(goal.current_value, 27.5);
+    assert!((goal.target_value - 25.0).abs() < f64::EPSILON);
+    assert!((goal.current_value - 27.5).abs() < f64::EPSILON);
 
     match goal.goal_type {
         GoalType::Time { sport, distance } => {
             assert_eq!(sport, "running");
-            assert_eq!(distance, 5000.0);
+            assert!((distance - 5000.0).abs() < f64::EPSILON);
         }
         _ => panic!("Expected Time goal type"),
     }
-
-    Ok(())
 }
 
 #[test]
-fn test_goal_types() -> Result<()> {
+fn test_goal_types() {
     let distance_goal = GoalType::Distance {
         sport: "cycling".to_string(),
         timeframe: TimeFrame::Month,
@@ -313,7 +298,7 @@ fn test_goal_types() -> Result<()> {
         GoalType::Performance {
             improvement_percent,
             ..
-        } => assert_eq!(improvement_percent, 10.0),
+        } => assert!((improvement_percent - 10.0).abs() < f64::EPSILON),
         _ => panic!("Expected Performance goal"),
     }
 
@@ -321,12 +306,10 @@ fn test_goal_types() -> Result<()> {
         GoalType::Custom { unit, .. } => assert_eq!(unit, "km"),
         _ => panic!("Expected Custom goal"),
     }
-
-    Ok(())
 }
 
 #[test]
-fn test_progress_report() -> Result<()> {
+fn test_progress_report() {
     let milestone1 = Milestone {
         name: "25% Complete".to_string(),
         target_value: 25.0,
@@ -352,19 +335,17 @@ fn test_progress_report() -> Result<()> {
     };
 
     assert_eq!(progress.goal_id, "goal_123");
-    assert_eq!(progress.progress_percentage, 35.0);
+    assert!((progress.progress_percentage - 35.0).abs() < f64::EPSILON);
     assert!(progress.on_track);
     assert_eq!(progress.milestones_achieved.len(), 2);
     assert!(progress.milestones_achieved[0].achieved);
     assert!(!progress.milestones_achieved[1].achieved);
-
-    Ok(())
 }
 
 // === Training Recommendations Tests ===
 
 #[test]
-fn test_training_recommendation() -> Result<()> {
+fn test_training_recommendation() {
     let recommendation = TrainingRecommendation {
         recommendation_type: RecommendationType::Intensity,
         title: "Increase Threshold Training".to_string(),
@@ -389,12 +370,10 @@ fn test_training_recommendation() -> Result<()> {
         RecommendationPriority::High => (),
         _ => panic!("Expected High priority"),
     }
-
-    Ok(())
 }
 
 #[test]
-fn test_recommendation_types() -> Result<()> {
+fn test_recommendation_types() {
     let types = [
         RecommendationType::Intensity,
         RecommendationType::Volume,
@@ -409,14 +388,12 @@ fn test_recommendation_types() -> Result<()> {
     assert!(types.contains(&RecommendationType::Intensity));
     assert!(types.contains(&RecommendationType::Recovery));
     assert!(types.contains(&RecommendationType::Nutrition));
-
-    Ok(())
 }
 
 // === User Fitness Profile Tests ===
 
 #[test]
-fn test_user_fitness_profile() -> Result<()> {
+fn test_user_fitness_profile() {
     let preferences = UserPreferences {
         preferred_units: "metric".to_string(),
         training_focus: vec!["endurance".to_string(), "speed".to_string()],
@@ -454,17 +431,15 @@ fn test_user_fitness_profile() -> Result<()> {
         _ => panic!("Expected Intermediate fitness level"),
     }
 
-    assert_eq!(profile.preferences.time_availability.hours_per_week, 8.0);
+    assert!((profile.preferences.time_availability.hours_per_week - 8.0).abs() < f64::EPSILON);
     assert_eq!(
         profile.preferences.time_availability.preferred_days.len(),
         3
     );
-
-    Ok(())
 }
 
 #[test]
-fn test_fitness_levels() -> Result<()> {
+fn test_fitness_levels() {
     let levels = [
         FitnessLevel::Beginner,
         FitnessLevel::Intermediate,
@@ -485,14 +460,12 @@ fn test_fitness_levels() -> Result<()> {
             }
         }
     }
-
-    Ok(())
 }
 
 // === Advanced Analytics Tests ===
 
 #[test]
-fn test_advanced_insight() -> Result<()> {
+fn test_advanced_insight() {
     let mut metadata = HashMap::new();
     metadata.insert(
         "metric".to_string(),
@@ -523,12 +496,10 @@ fn test_advanced_insight() -> Result<()> {
         InsightSeverity::Info => (),
         _ => panic!("Expected Info severity"),
     }
-
-    Ok(())
 }
 
 #[test]
-fn test_anomaly() -> Result<()> {
+fn test_anomaly() {
     let anomaly = Anomaly {
         anomaly_type: "heart_rate_spike".to_string(),
         description: "Unusual heart rate spike detected during easy run".to_string(),
@@ -547,12 +518,10 @@ fn test_anomaly() -> Result<()> {
         InsightSeverity::Warning => (),
         _ => panic!("Expected Warning severity"),
     }
-
-    Ok(())
 }
 
 #[test]
-fn test_trend_analysis() -> Result<()> {
+fn test_trend_analysis() {
     let data_points = vec![
         TrendDataPoint {
             date: Utc::now() - chrono::Duration::days(30),
@@ -583,17 +552,15 @@ fn test_trend_analysis() -> Result<()> {
 
     assert_eq!(trend.metric, "average_pace");
     assert_eq!(trend.trend_direction, TrendDirection::Improving);
-    assert_eq!(trend.trend_strength, 0.8);
+    assert!((trend.trend_strength - 0.8).abs() < f64::EPSILON);
     assert_eq!(trend.data_points.len(), 3);
     assert!(trend.statistical_significance > 0.9);
-
-    Ok(())
 }
 
 // === Contextual Factors Tests ===
 
 #[test]
-fn test_weather_conditions() -> Result<()> {
+fn test_weather_conditions() {
     let weather = WeatherConditions {
         temperature_celsius: 22.0,
         humidity_percentage: Some(70.0),
@@ -601,15 +568,13 @@ fn test_weather_conditions() -> Result<()> {
         conditions: "light rain".to_string(),
     };
 
-    assert_eq!(weather.temperature_celsius, 22.0);
+    assert!((weather.temperature_celsius - 22.0).abs() < f32::EPSILON);
     assert_eq!(weather.humidity_percentage, Some(70.0));
     assert_eq!(weather.conditions, "light rain");
-
-    Ok(())
 }
 
 #[test]
-fn test_location_context() -> Result<()> {
+fn test_location_context() {
     let location = LocationContext {
         city: Some("San Francisco".to_string()),
         region: Some("CA".to_string()),
@@ -626,12 +591,10 @@ fn test_location_context() -> Result<()> {
     );
     assert_eq!(location.terrain_type, Some("mixed".to_string()));
     assert!(location.display_name.contains("Golden Gate Park"));
-
-    Ok(())
 }
 
 #[test]
-fn test_time_of_day_variants() -> Result<()> {
+fn test_time_of_day_variants() {
     let times = [
         TimeOfDay::EarlyMorning,
         TimeOfDay::Morning,
@@ -653,12 +616,10 @@ fn test_time_of_day_variants() -> Result<()> {
             }
         }
     }
-
-    Ok(())
 }
 
 #[test]
-fn test_weekly_load() -> Result<()> {
+fn test_weekly_load() {
     let load = WeeklyLoad {
         total_distance_km: 50.0,
         total_duration_hours: 5.0,
@@ -666,44 +627,38 @@ fn test_weekly_load() -> Result<()> {
         load_trend: TrendDirection::Improving,
     };
 
-    assert_eq!(load.total_distance_km, 50.0);
-    assert_eq!(load.total_duration_hours, 5.0);
+    assert!((load.total_distance_km - 50.0).abs() < f64::EPSILON);
+    assert!((load.total_duration_hours - 5.0).abs() < f64::EPSILON);
     assert_eq!(load.activity_count, 7);
     assert_eq!(load.load_trend, TrendDirection::Improving);
-
-    Ok(())
 }
 
 // === Activity Analyzer Tests ===
 
 #[tokio::test]
-async fn test_advanced_activity_analyzer_creation() -> Result<()> {
+async fn test_advanced_activity_analyzer_creation() {
     let analyzer = AdvancedActivityAnalyzer::new();
     let _ = analyzer; // Just test creation
 
     let default_analyzer = AdvancedActivityAnalyzer::default();
     let _ = default_analyzer; // Test default creation
-
-    Ok(())
 }
 
 // === Performance Analyzer Tests ===
 
 #[tokio::test]
-async fn test_advanced_performance_analyzer_creation() -> Result<()> {
+async fn test_advanced_performance_analyzer_creation() {
     let analyzer = AdvancedPerformanceAnalyzer::new();
     let _ = analyzer; // Just test creation
 
     let default_analyzer = AdvancedPerformanceAnalyzer::default();
     let _ = default_analyzer; // Test default creation
-
-    Ok(())
 }
 
 // === Integration Tests ===
 
 #[test]
-fn test_activity_insights_serialization() -> Result<()> {
+fn test_activity_insights_serialization() {
     let insights = ActivityInsights {
         activity_id: "activity_123".to_string(),
         overall_score: 8.5,
@@ -717,6 +672,26 @@ fn test_activity_insights_serialization() -> Result<()> {
             variability_index: Some(1.1),
             efficiency_factor: Some(1.2),
             decoupling_percentage: Some(5.5),
+
+            // Enhanced power metrics
+            normalized_power: None,
+            work: None,
+            avg_power_to_weight: None,
+
+            // Running-specific metrics
+            running_effectiveness: None,
+            stride_efficiency: None,
+            ground_contact_balance: None,
+
+            // Recovery and physiological metrics
+            estimated_recovery_time: None,
+            training_load: None,
+            aerobic_contribution: None,
+
+            // Environmental impact metrics
+            temperature_stress: None,
+            altitude_adjustment: None,
+
             custom_metrics: HashMap::new(),
         },
         recommendations: vec!["Focus on consistent pacing".to_string()],
@@ -724,20 +699,19 @@ fn test_activity_insights_serialization() -> Result<()> {
     };
 
     // Test serialization
-    let json = serde_json::to_string(&insights)?;
+    let json = serde_json::to_string(&insights).expect("Serialization should work");
     assert!(json.contains("activity_123"));
     assert!(json.contains("8.5"));
 
     // Test deserialization
-    let deserialized: ActivityInsights = serde_json::from_str(&json)?;
+    let deserialized: ActivityInsights =
+        serde_json::from_str(&json).expect("Deserialization should work");
     assert_eq!(deserialized.activity_id, "activity_123");
-    assert_eq!(deserialized.overall_score, 8.5);
-
-    Ok(())
+    assert!((deserialized.overall_score - 8.5).abs() < f64::EPSILON);
 }
 
 #[test]
-fn test_complete_contextual_factors() -> Result<()> {
+fn test_complete_contextual_factors() {
     let complete_context = ContextualFactors {
         weather: Some(WeatherConditions {
             temperature_celsius: 18.0,
@@ -770,13 +744,11 @@ fn test_complete_contextual_factors() -> Result<()> {
     assert!(complete_context.weekly_load.is_some());
 
     let weather = complete_context.weather.unwrap();
-    assert_eq!(weather.temperature_celsius, 18.0);
+    assert!((weather.temperature_celsius - 18.0).abs() < f32::EPSILON);
 
     let location = complete_context.location.unwrap();
     assert_eq!(location.city, Some("Portland".to_string()));
 
     let load = complete_context.weekly_load.unwrap();
     assert_eq!(load.activity_count, 4);
-
-    Ok(())
 }

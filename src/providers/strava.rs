@@ -1,3 +1,5 @@
+// ABOUTME: Strava API integration and data fetching
+// ABOUTME: Handles Strava authentication, activity retrieval, and data transformation
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -50,12 +52,12 @@ static STRAVA_CONFIG: OnceLock<StravaConfig> = OnceLock::new();
 impl StravaConfig {
     /// Get the global Strava configuration
     pub fn global() -> &'static Self {
-        STRAVA_CONFIG.get_or_init(StravaConfig::default)
+        STRAVA_CONFIG.get_or_init(Self::default)
     }
 
     /// Reset the global configuration (used for testing)
     #[cfg(test)]
-    pub fn reset_global() {
+    pub const fn reset_global() {
         // For tests, we need to recreate the config to pick up new env vars
         // This is a bit of a hack since OnceLock doesn't support reset
         // In practice, we'll use with_config in tests
@@ -76,6 +78,7 @@ impl Default for StravaProvider {
 }
 
 impl StravaProvider {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             client: Client::new(),
@@ -85,6 +88,7 @@ impl StravaProvider {
         }
     }
 
+    #[must_use]
     pub fn with_config(config: &'static StravaConfig) -> Self {
         Self {
             client: Client::new(),
@@ -94,6 +98,14 @@ impl StravaProvider {
         }
     }
 
+    /// Get the authorization URL for Strava OAuth flow
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Client ID is not configured or empty
+    /// - Auth URL is malformed and cannot be parsed
+    /// - URL encoding fails for any parameter
     pub fn get_auth_url(&self, redirect_uri: &str, state: &str) -> Result<String> {
         if self.config.client_id.is_empty() {
             return Err(anyhow::anyhow!("Client ID not configured"));
@@ -111,6 +123,14 @@ impl StravaProvider {
     }
 
     /// Get authorization URL with PKCE support for enhanced security
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Client ID is not configured or empty
+    /// - Auth URL is malformed and cannot be parsed
+    /// - URL encoding fails for any parameter
+    /// - PKCE parameters are invalid
     pub fn get_auth_url_with_pkce(
         &self,
         redirect_uri: &str,
@@ -134,6 +154,16 @@ impl StravaProvider {
         Ok(url.into())
     }
 
+    /// Exchange authorization code for access and refresh tokens
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Client credentials are not configured
+    /// - HTTP request to token endpoint fails
+    /// - Token exchange API returns an error response
+    /// - Response cannot be parsed as JSON
+    /// - Strava API returns invalid token data
     pub async fn exchange_code(&mut self, code: &str) -> Result<(String, String)> {
         if self.config.client_id.is_empty() || self.config.client_secret.is_empty() {
             return Err(anyhow::anyhow!("Client credentials not configured"));
@@ -149,7 +179,7 @@ impl StravaProvider {
 
         // Store tokens without unnecessary cloning
         self.access_token = Some(token.access_token.clone());
-        self.refresh_token = token.refresh_token.clone();
+        self.refresh_token.clone_from(&token.refresh_token);
 
         if let Some(ref athlete) = athlete {
             info!(
@@ -169,6 +199,16 @@ impl StravaProvider {
     }
 
     /// Exchange authorization code with PKCE support for enhanced security
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Client credentials are not configured
+    /// - HTTP request to token endpoint fails
+    /// - Token exchange API returns an error response
+    /// - Response cannot be parsed as JSON
+    /// - PKCE verification fails
+    /// - Strava API returns invalid token data
     pub async fn exchange_code_with_pkce(
         &mut self,
         code: &str,
@@ -188,7 +228,7 @@ impl StravaProvider {
         .await?;
 
         self.access_token = Some(token.access_token.clone());
-        self.refresh_token = token.refresh_token.clone();
+        self.refresh_token.clone_from(&token.refresh_token);
 
         if let Some(ref athlete) = athlete {
             info!(
@@ -207,6 +247,17 @@ impl StravaProvider {
         Ok((token.access_token, refresh_token))
     }
 
+    /// Refresh the access token using the stored refresh token
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - No refresh token is available
+    /// - Client credentials are not configured
+    /// - HTTP request to token endpoint fails
+    /// - Token refresh API returns an error response
+    /// - Response cannot be parsed as JSON
+    /// - Strava API returns invalid token data
     pub async fn refresh_access_token(&mut self) -> Result<(String, String)> {
         let refresh_token = self
             .refresh_token
@@ -226,7 +277,7 @@ impl StravaProvider {
         .await?;
 
         self.access_token = Some(new_token.access_token.clone());
-        self.refresh_token = new_token.refresh_token.clone();
+        self.refresh_token.clone_from(&new_token.refresh_token);
 
         info!("Token refreshed successfully");
 
@@ -242,6 +293,13 @@ impl StravaProvider {
 
 #[async_trait]
 impl FitnessProvider for StravaProvider {
+    /// Authenticate with the provided OAuth2 credentials
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Auth data is not OAuth2 format (Strava requires OAuth2)
+    /// - Token storage fails
     async fn authenticate(&mut self, auth_data: AuthData) -> Result<()> {
         match auth_data {
             AuthData::OAuth2 {
@@ -254,10 +312,20 @@ impl FitnessProvider for StravaProvider {
                 self.refresh_token = refresh_token;
                 Ok(())
             }
-            _ => Err(anyhow::anyhow!("Strava requires OAuth2 authentication")),
+            AuthData::ApiKey(_) => Err(anyhow::anyhow!("Strava requires OAuth2 authentication")),
         }
     }
 
+    /// Get the authenticated athlete's profile information
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Not authenticated (no access token)
+    /// - HTTP request to Strava API fails
+    /// - API returns error response (e.g., 401 Unauthorized)
+    /// - Response cannot be parsed as JSON
+    /// - Strava API returns malformed athlete data
     async fn get_athlete(&self) -> Result<Athlete> {
         let token = self.access_token.as_ref().context("Not authenticated")?;
 
@@ -283,6 +351,17 @@ impl FitnessProvider for StravaProvider {
         })
     }
 
+    /// Get a list of activities from Strava
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Not authenticated (no access token)
+    /// - HTTP request to Strava API fails
+    /// - API returns error response (e.g., 401 Unauthorized, 429 Rate Limited)
+    /// - Response cannot be parsed as JSON
+    /// - Strava API returns malformed activity data
+    /// - Network connection fails
     async fn get_activities(
         &self,
         limit: Option<usize>,
@@ -292,7 +371,7 @@ impl FitnessProvider for StravaProvider {
 
         // Build query parameters without unnecessary allocations
         let per_page = limit.unwrap_or(30);
-        let page = offset.map(|o| o / per_page + 1).unwrap_or(1);
+        let page = offset.map_or(1, |o| o / per_page + 1);
 
         let query = [
             ("per_page", per_page.to_string()),
@@ -373,9 +452,23 @@ impl FitnessProvider for StravaProvider {
             activities.len()
         );
 
-        Ok(activities.into_iter().map(|a| a.into()).collect())
+        Ok(activities
+            .into_iter()
+            .map(std::convert::Into::into)
+            .collect())
     }
 
+    /// Get a specific activity by ID from Strava
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Not authenticated (no access token)
+    /// - HTTP request to Strava API fails
+    /// - API returns error response (e.g., 401 Unauthorized, 404 Not Found)
+    /// - Response cannot be parsed as JSON
+    /// - Strava API returns malformed activity data
+    /// - Activity ID is invalid or inaccessible
     async fn get_activity(&self, id: &str) -> Result<Activity> {
         let token = self.access_token.as_ref().context("Not authenticated")?;
 
@@ -395,6 +488,17 @@ impl FitnessProvider for StravaProvider {
         Ok(response.into())
     }
 
+    /// Get athlete statistics from Strava
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Not authenticated (no access token)
+    /// - HTTP request to Strava API fails
+    /// - API returns error response (e.g., 401 Unauthorized)
+    /// - Response cannot be parsed as JSON
+    /// - Both athlete stats API and activities fallback fail
+    /// - Strava API returns malformed stats data
     async fn get_stats(&self) -> Result<Stats> {
         // Try Strava's athlete stats endpoint first
         if let Ok(strava_stats) = self.get_strava_athlete_stats().await {
@@ -417,6 +521,15 @@ impl FitnessProvider for StravaProvider {
         })
     }
 
+    /// Get personal records from Strava (currently not implemented)
+    ///
+    /// # Errors
+    ///
+    /// This method currently returns an empty vector and does not error.
+    /// Future implementation may return errors for:
+    /// - Authentication failures
+    /// - API communication issues
+    /// - Data parsing errors
     async fn get_personal_records(&self) -> Result<Vec<PersonalRecord>> {
         Ok(vec![])
     }
@@ -427,7 +540,17 @@ impl FitnessProvider for StravaProvider {
 }
 
 impl StravaProvider {
-    // Try to get stats from Strava's athlete stats endpoint
+    /// Try to get stats from Strava's athlete stats endpoint
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Not authenticated (no access token)
+    /// - HTTP request to get athlete profile fails
+    /// - HTTP request to get athlete stats fails
+    /// - API returns error response (e.g., 401 Unauthorized, 403 Forbidden)
+    /// - Response cannot be parsed as JSON
+    /// - Strava API returns malformed athlete or stats data
     async fn get_strava_athlete_stats(&self) -> Result<Stats> {
         let token = self.access_token.as_ref().context("Not authenticated")?;
 
@@ -508,7 +631,7 @@ impl From<StravaActivity> for Activity {
                 }
             });
 
-        Activity {
+        Self {
             id: strava.id.to_string(),
             name: strava.name,
             sport_type: SportType::from_provider_string(&strava.activity_type, &fitness_config),
@@ -516,15 +639,55 @@ impl From<StravaActivity> for Activity {
             duration_seconds: strava.elapsed_time,
             distance_meters: strava.distance,
             elevation_gain: strava.total_elevation_gain,
-            average_heart_rate: strava
-                .average_heartrate
-                .map(|hr| hr.round().max(0.0) as u32),
-            max_heart_rate: strava.max_heartrate.map(|hr| hr.round().max(0.0) as u32),
+            average_heart_rate: strava.average_heartrate.and_then(|hr| {
+                if hr.is_finite() && (0.0..=300.0).contains(&hr) {
+                    let rounded = hr.round();
+                    let hr_string = format!("{rounded:.0}");
+                    hr_string.parse::<u32>().ok()
+                } else {
+                    None
+                }
+            }),
+            max_heart_rate: strava.max_heartrate.and_then(|hr| {
+                if hr.is_finite() && (0.0..=300.0).contains(&hr) {
+                    let rounded = hr.round();
+                    let hr_string = format!("{rounded:.0}");
+                    hr_string.parse::<u32>().ok()
+                } else {
+                    None
+                }
+            }),
             average_speed: strava.average_speed,
             max_speed: strava.max_speed,
             calories: None,
             steps: None,            // Strava doesn't provide step data
             heart_rate_zones: None, // Strava doesn't provide zone breakdown data
+
+            // Advanced metrics - all None for basic Strava data
+            average_power: None,
+            max_power: None,
+            normalized_power: None,
+            power_zones: None,
+            ftp: None,
+            average_cadence: None,
+            max_cadence: None,
+            hrv_score: None,
+            recovery_heart_rate: None,
+            temperature: None,
+            humidity: None,
+            average_altitude: None,
+            wind_speed: None,
+            ground_contact_time: None,
+            vertical_oscillation: None,
+            stride_length: None,
+            running_power: None,
+            breathing_rate: None,
+            spo2: None,
+            training_stress_score: None,
+            intensity_factor: None,
+            suffer_score: None,
+            time_series_data: None,
+
             start_latitude,
             start_longitude,
             city: None,

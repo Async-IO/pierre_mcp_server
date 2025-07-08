@@ -57,108 +57,110 @@ pub struct UnifiedRateLimitCalculator;
 
 impl UnifiedRateLimitCalculator {
     /// Create a new unified rate limit calculator
-    pub fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self
     }
 
     /// Calculate rate limit status for an API key
+    #[must_use]
     pub fn calculate_api_key_rate_limit(
         &self,
         api_key: &ApiKey,
         current_usage: u32,
     ) -> UnifiedRateLimitInfo {
-        match api_key.tier {
-            ApiKeyTier::Enterprise => UnifiedRateLimitInfo {
+        if api_key.tier == ApiKeyTier::Enterprise {
+            UnifiedRateLimitInfo {
                 is_rate_limited: false,
                 limit: None,
                 remaining: None,
                 reset_at: None,
-                tier: "enterprise".to_string(),
-                auth_method: "api_key".to_string(),
-            },
-            _ => {
-                let limit = api_key.rate_limit_requests;
-                let remaining = limit.saturating_sub(current_usage);
-                let is_rate_limited = current_usage >= limit;
+                tier: "enterprise".into(),
+                auth_method: "api_key".into(),
+            }
+        } else {
+            let limit = api_key.rate_limit_requests;
+            let remaining = limit.saturating_sub(current_usage);
+            let is_rate_limited = current_usage >= limit;
 
-                UnifiedRateLimitInfo {
-                    is_rate_limited,
-                    limit: Some(limit),
-                    remaining: Some(remaining),
-                    reset_at: Some(self.calculate_monthly_reset()),
-                    tier: format!("{:?}", api_key.tier).to_lowercase(),
-                    auth_method: "api_key".to_string(),
-                }
+            UnifiedRateLimitInfo {
+                is_rate_limited,
+                limit: Some(limit),
+                remaining: Some(remaining),
+                reset_at: Some(Self::calculate_monthly_reset()),
+                tier: format!("{:?}", api_key.tier).to_lowercase(),
+                auth_method: "api_key".into(),
             }
         }
     }
 
     /// Calculate rate limit status for a JWT token (user)
+    #[must_use]
     pub fn calculate_jwt_rate_limit(
         &self,
         user: &User,
         current_usage: u32,
     ) -> UnifiedRateLimitInfo {
-        match user.tier {
-            UserTier::Enterprise => UnifiedRateLimitInfo {
+        if user.tier == UserTier::Enterprise {
+            UnifiedRateLimitInfo {
                 is_rate_limited: false,
                 limit: None,
                 remaining: None,
                 reset_at: None,
-                tier: "enterprise".to_string(),
-                auth_method: "jwt_token".to_string(),
-            },
-            _ => {
-                let limit = user.tier.monthly_limit().unwrap_or(u32::MAX);
-                let remaining = limit.saturating_sub(current_usage);
-                let is_rate_limited = current_usage >= limit;
+                tier: "enterprise".into(),
+                auth_method: "jwt_token".into(),
+            }
+        } else {
+            let limit = user.tier.monthly_limit().unwrap_or(u32::MAX);
+            let remaining = limit.saturating_sub(current_usage);
+            let is_rate_limited = current_usage >= limit;
 
-                UnifiedRateLimitInfo {
-                    is_rate_limited,
-                    limit: Some(limit),
-                    remaining: Some(remaining),
-                    reset_at: Some(self.calculate_monthly_reset()),
-                    tier: format!("{:?}", user.tier).to_lowercase(),
-                    auth_method: "jwt_token".to_string(),
-                }
+            UnifiedRateLimitInfo {
+                is_rate_limited,
+                limit: Some(limit),
+                remaining: Some(remaining),
+                reset_at: Some(Self::calculate_monthly_reset()),
+                tier: format!("{:?}", user.tier).to_lowercase(),
+                auth_method: "jwt_token".into(),
             }
         }
     }
 
     /// Calculate rate limit status for a user tier (used for JWT tokens)
+    #[must_use]
     pub fn calculate_user_tier_rate_limit(
         &self,
         tier: &UserTier,
         current_usage: u32,
     ) -> UnifiedRateLimitInfo {
-        match tier {
-            UserTier::Enterprise => UnifiedRateLimitInfo {
+        if *tier == UserTier::Enterprise {
+            UnifiedRateLimitInfo {
                 is_rate_limited: false,
                 limit: None,
                 remaining: None,
                 reset_at: None,
-                tier: "enterprise".to_string(),
-                auth_method: "jwt_token".to_string(),
-            },
-            _ => {
-                let limit = tier.monthly_limit().unwrap_or(u32::MAX);
-                let remaining = limit.saturating_sub(current_usage);
-                let is_rate_limited = current_usage >= limit;
+                tier: "enterprise".into(),
+                auth_method: "jwt_token".into(),
+            }
+        } else {
+            let limit = tier.monthly_limit().unwrap_or(u32::MAX);
+            let remaining = limit.saturating_sub(current_usage);
+            let is_rate_limited = current_usage >= limit;
 
-                UnifiedRateLimitInfo {
-                    is_rate_limited,
-                    limit: Some(limit),
-                    remaining: Some(remaining),
-                    reset_at: Some(self.calculate_monthly_reset()),
-                    tier: format!("{:?}", tier).to_lowercase(),
-                    auth_method: "jwt_token".to_string(),
-                }
+            UnifiedRateLimitInfo {
+                is_rate_limited,
+                limit: Some(limit),
+                remaining: Some(remaining),
+                reset_at: Some(Self::calculate_monthly_reset()),
+                tier: format!("{tier:?}").to_lowercase(),
+                auth_method: "jwt_token".into(),
             }
         }
     }
 
-    /// Convert UserTier to equivalent ApiKeyTier for compatibility
-    pub fn user_tier_to_api_key_tier(user_tier: &UserTier) -> ApiKeyTier {
+    /// Convert `UserTier` to equivalent `ApiKeyTier` for compatibility
+    #[must_use]
+    pub const fn user_tier_to_api_key_tier(user_tier: &UserTier) -> ApiKeyTier {
         match user_tier {
             UserTier::Starter => ApiKeyTier::Starter,
             UserTier::Professional => ApiKeyTier::Professional,
@@ -166,42 +168,47 @@ impl UnifiedRateLimitCalculator {
         }
     }
 
-    /// Convert ApiKeyTier to equivalent UserTier for compatibility
-    pub fn api_key_tier_to_user_tier(api_key_tier: &ApiKeyTier) -> UserTier {
+    /// Convert `ApiKeyTier` to equivalent `UserTier` for compatibility
+    #[must_use]
+    pub const fn api_key_tier_to_user_tier(api_key_tier: &ApiKeyTier) -> UserTier {
         match api_key_tier {
-            ApiKeyTier::Trial => UserTier::Starter, // Trial maps to Starter for users
-            ApiKeyTier::Starter => UserTier::Starter,
+            ApiKeyTier::Trial | ApiKeyTier::Starter => UserTier::Starter, // Trial maps to Starter for users
             ApiKeyTier::Professional => UserTier::Professional,
             ApiKeyTier::Enterprise => UserTier::Enterprise,
         }
     }
 
     /// Calculate when the monthly rate limit resets (beginning of next month)
-    fn calculate_monthly_reset(&self) -> DateTime<Utc> {
+    fn calculate_monthly_reset() -> DateTime<Utc> {
         let now = Utc::now();
         let next_month = if now.month() == 12 {
             now.with_year(now.year() + 1)
-                .expect("Failed to set year for next month calculation")
-                .with_month(1)
-                .expect("Failed to set month to January")
+                .and_then(|dt| dt.with_month(1))
+                .unwrap_or_else(|| {
+                    tracing::warn!("Failed to calculate next year/January, using fallback");
+                    now + chrono::Duration::days(31)
+                })
         } else {
-            now.with_month(now.month() + 1)
-                .expect("Failed to increment month")
+            now.with_month(now.month() + 1).unwrap_or_else(|| {
+                tracing::warn!("Failed to increment month, using fallback");
+                now + chrono::Duration::days(31)
+            })
         };
 
         next_month
             .with_day(1)
-            .expect("Failed to set day to 1st of month")
-            .with_hour(0)
-            .expect("Failed to set hour to 0")
-            .with_minute(0)
-            .expect("Failed to set minute to 0")
-            .with_second(0)
-            .expect("Failed to set second to 0")
+            .and_then(|dt| dt.with_hour(0))
+            .and_then(|dt| dt.with_minute(0))
+            .and_then(|dt| dt.with_second(0))
+            .unwrap_or_else(|| {
+                tracing::warn!("Failed to set reset time components, using next month");
+                next_month
+            })
     }
 
-    /// Convert to legacy RateLimitStatus for backward compatibility
-    pub fn to_legacy_rate_limit_status(info: &UnifiedRateLimitInfo) -> RateLimitStatus {
+    /// Convert to legacy `RateLimitStatus` for backward compatibility
+    #[must_use]
+    pub const fn to_legacy_rate_limit_status(info: &UnifiedRateLimitInfo) -> RateLimitStatus {
         RateLimitStatus {
             is_rate_limited: info.is_rate_limited,
             limit: info.limit,
@@ -229,11 +236,11 @@ mod tests {
         let calculator = UnifiedRateLimitCalculator::new();
 
         let api_key = ApiKey {
-            id: "test".to_string(),
+            id: "test".into(),
             user_id: Uuid::new_v4(),
-            name: "Test Key".to_string(),
-            key_prefix: "pk_live_test".to_string(),
-            key_hash: "hash".to_string(),
+            name: "Test Key".into(),
+            key_prefix: "pk_live_test".into(),
+            key_hash: "hash".into(),
             description: None,
             tier: ApiKeyTier::Enterprise,
             rate_limit_requests: u32::MAX,
@@ -258,11 +265,11 @@ mod tests {
         let calculator = UnifiedRateLimitCalculator::new();
 
         let api_key = ApiKey {
-            id: "test".to_string(),
+            id: "test".into(),
             user_id: Uuid::new_v4(),
-            name: "Test Key".to_string(),
-            key_prefix: "pk_live_test".to_string(),
-            key_hash: "hash".to_string(),
+            name: "Test Key".into(),
+            key_prefix: "pk_live_test".into(),
+            key_hash: "hash".into(),
             description: None,
             tier: ApiKeyTier::Starter,
             rate_limit_requests: 10_000,
@@ -297,9 +304,9 @@ mod tests {
 
         let user = User {
             id: Uuid::new_v4(),
-            email: "test@example.com".to_string(),
-            display_name: Some("Test User".to_string()),
-            password_hash: "hash".to_string(),
+            email: "test@example.com".into(),
+            display_name: Some("Test User".into()),
+            password_hash: "hash".into(),
             tier: UserTier::Professional,
             strava_token: None,
             fitbit_token: None,
@@ -354,8 +361,8 @@ mod tests {
 
     #[test]
     fn test_monthly_reset_calculation() {
-        let calculator = UnifiedRateLimitCalculator::new();
-        let reset_at = calculator.calculate_monthly_reset();
+        let _calculator = UnifiedRateLimitCalculator::new();
+        let reset_at = UnifiedRateLimitCalculator::calculate_monthly_reset();
         let now = Utc::now();
 
         // Reset should be in the future
@@ -377,8 +384,8 @@ mod tests {
             limit: Some(10_000),
             remaining: Some(5_000),
             reset_at: Some(Utc::now()),
-            tier: "starter".to_string(),
-            auth_method: "api_key".to_string(),
+            tier: "starter".into(),
+            auth_method: "api_key".into(),
         };
 
         let legacy = UnifiedRateLimitCalculator::to_legacy_rate_limit_status(&info);

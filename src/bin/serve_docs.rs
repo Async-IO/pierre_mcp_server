@@ -1,3 +1,5 @@
+// ABOUTME: Documentation server utility for serving API documentation and project guides
+// ABOUTME: HTTP server for hosting documentation files during development and testing
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -6,7 +8,7 @@
 
 //! Documentation Server
 //!
-//! Serves OpenAPI documentation with Swagger UI for the Pierre MCP Fitness API.
+//! Serves `OpenAPI` documentation with Swagger UI for the Pierre MCP Fitness API.
 //! This provides an interactive interface for developers to explore our 21 fitness tools.
 
 use serde_json::json;
@@ -18,13 +20,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
     let port = std::env::var("DOCS_PORT")
-        .unwrap_or_else(|_| "3000".to_string())
+        .unwrap_or_else(|_| "3000".into())
         .parse::<u16>()
         .unwrap_or(3000);
 
     println!("🚀 Starting Pierre MCP API Documentation Server");
-    println!("📖 Swagger UI: http://localhost:{}", port);
-    println!("📄 OpenAPI Spec: http://localhost:{}/openapi.yaml", port);
+    println!("📖 Swagger UI: http://localhost:{port}");
+    println!("📄 OpenAPI Spec: http://localhost:{port}/openapi.yaml");
 
     // Serve OpenAPI specification
     let openapi_yaml = warp::path("openapi.yaml").and(warp::get()).map(|| {
@@ -111,7 +113,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   • Connections   - 4 provider connection tools");
     println!();
     println!("🔗 Try the API:");
-    println!("   curl http://localhost:{}/info", port);
+    println!("   curl http://localhost:{port}/info");
     println!();
 
     warp::serve(routes).run(([127, 0, 0, 1], port)).await;
@@ -120,8 +122,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn create_swagger_ui_html() -> String {
-    r#"
-<!DOCTYPE html>
+    format!(
+        "{}{}{}{}",
+        get_html_head(),
+        get_html_header(),
+        get_html_body(),
+        get_html_scripts()
+    )
+}
+
+const fn get_html_head() -> &'static str {
+    r#"<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -130,89 +141,29 @@ fn create_swagger_ui_html() -> String {
     <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5.10.3/swagger-ui.css" />
     <link rel="icon" type="image/png" href="https://unpkg.com/swagger-ui-dist@5.10.3/favicon-32x32.png" sizes="32x32" />
     <style>
-        html {{
-            box-sizing: border-box;
-            overflow: -moz-scrollbars-vertical;
-            overflow-y: scroll;
-        }}
-        *, *:before, *:after {{
-            box-sizing: inherit;
-        }}
-        body {{
-            margin:0;
-            background: #fafafa;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        }}
-        .custom-header {{
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 2rem;
-            text-align: center;
-            margin-bottom: 2rem;
-        }}
-        .custom-header h1 {{
-            margin: 0;
-            font-size: 2.5rem;
-            font-weight: 700;
-        }}
-        .custom-header p {{
-            margin: 0.5rem 0 0 0;
-            font-size: 1.2rem;
-            opacity: 0.9;
-        }}
-        .features {{
-            display: flex;
-            justify-content: center;
-            gap: 2rem;
-            margin: 1rem 0;
-            flex-wrap: wrap;
-        }}
-        .feature {{
-            background: rgba(255,255,255,0.1);
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
-            font-size: 0.9rem;
-        }}
-        .stats {{
-            display: flex;
-            justify-content: center;
-            gap: 3rem;
-            margin-top: 1.5rem;
-        }}
-        .stat {{
-            text-align: center;
-        }}
-        .stat-number {{
-            font-size: 2rem;
-            font-weight: bold;
-            display: block;
-        }}
-        .stat-label {{
-            font-size: 0.9rem;
-            opacity: 0.8;
-        }}
-        #swagger-ui {{
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 2rem;
-        }}
-        @media (max-width: 768px) {{
-            .stats {{
-                flex-direction: column;
-                gap: 1rem;
-            }}
-            .features {{
-                flex-direction: column;
-                align-items: center;
-            }}
-        }}
+        html { box-sizing: border-box; overflow: -moz-scrollbars-vertical; overflow-y: scroll; }
+        *, *:before, *:after { box-sizing: inherit; }
+        body { margin:0; background: #fafafa; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        .custom-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 2rem; text-align: center; margin-bottom: 2rem; }
+        .custom-header h1 { margin: 0; font-size: 2.5rem; font-weight: 700; }
+        .custom-header p { margin: 0.5rem 0 0 0; font-size: 1.2rem; opacity: 0.9; }
+        .features { display: flex; justify-content: center; gap: 2rem; margin: 1rem 0; flex-wrap: wrap; }
+        .feature { background: rgba(255,255,255,0.1); padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.9rem; }
+        .stats { display: flex; justify-content: center; gap: 3rem; margin-top: 1.5rem; }
+        .stat { text-align: center; }
+        .stat-number { font-size: 2rem; font-weight: bold; display: block; }
+        .stat-label { font-size: 0.9rem; opacity: 0.8; }
+        #swagger-ui { max-width: 1200px; margin: 0 auto; padding: 0 2rem; }
+        @media (max-width: 768px) { .stats { flex-direction: column; gap: 1rem; } .features { flex-direction: column; align-items: center; } }
     </style>
-</head>
-<body>
+</head>"#
+}
+
+const fn get_html_header() -> &'static str {
+    r#"<body>
     <div class="custom-header">
         <h1>🏃‍♂️ Pierre MCP Fitness API</h1>
         <p>AI-Powered Fitness Data Intelligence Platform</p>
-        
         <div class="features">
             <div class="feature">🔗 Multi-Provider</div>
             <div class="feature">🤖 AI-Ready</div>
@@ -220,71 +171,45 @@ fn create_swagger_ui_html() -> String {
             <div class="feature">🌍 Location Intelligence</div>
             <div class="feature">🎯 Goal Tracking</div>
         </div>
-        
         <div class="stats">
-            <div class="stat">
-                <span class="stat-number">21</span>
-                <span class="stat-label">Fitness Tools</span>
-            </div>
-            <div class="stat">
-                <span class="stat-number">3+</span>
-                <span class="stat-label">Providers</span>
-            </div>
-            <div class="stat">
-                <span class="stat-number">13</span>
-                <span class="stat-label">Analytics Tools</span>
-            </div>
+            <div class="stat"><span class="stat-number">21</span><span class="stat-label">Fitness Tools</span></div>
+            <div class="stat"><span class="stat-number">3+</span><span class="stat-label">Providers</span></div>
+            <div class="stat"><span class="stat-number">13</span><span class="stat-label">Analytics Tools</span></div>
         </div>
-    </div>
+    </div>"#
+}
 
-    <div id="swagger-ui"></div>
-    
+const fn get_html_body() -> &'static str {
+    r#"    <div id="swagger-ui"></div>
     <script src="https://unpkg.com/swagger-ui-dist@5.10.3/swagger-ui-bundle.js"></script>
-    <script src="https://unpkg.com/swagger-ui-dist@5.10.3/swagger-ui-standalone-preset.js"></script>
-    <script>
-        window.onload = function() {{
-            const ui = SwaggerUIBundle({{
+    <script src="https://unpkg.com/swagger-ui-dist@5.10.3/swagger-ui-standalone-preset.js"></script>"#
+}
+
+const fn get_html_scripts() -> &'static str {
+    r#"    <script>
+        window.onload = function() {
+            const ui = SwaggerUIBundle({
                 url: '/openapi.yaml',
                 dom_id: '#swagger-ui',
                 deepLinking: true,
-                presets: [
-                    SwaggerUIBundle.presets.apis,
-                    SwaggerUIStandalonePreset
-                ],
-                plugins: [
-                    SwaggerUIBundle.plugins.DownloadUrl
-                ],
+                presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+                plugins: [SwaggerUIBundle.plugins.DownloadUrl],
                 layout: "StandaloneLayout",
                 defaultModelsExpandDepth: 2,
                 defaultModelExpandDepth: 2,
                 tryItOutEnabled: true,
                 filter: true,
-                requestInterceptor: function(request) {{
-                    // Add custom headers or modify requests here
-                    console.log('API Request:', request);
-                    return request;
-                }},
-                responseInterceptor: function(response) {{
-                    console.log('API Response:', response);
-                    return response;
-                }},
-                onComplete: function() {{
-                    console.log('Pierre MCP API Documentation loaded successfully!');
-                }},
-                validatorUrl: null, // Disable validator
-                docExpansion: 'list', // Show operations
-                operationsSorter: 'alpha', // Sort operations alphabetically
-                tagsSorter: 'alpha' // Sort tags alphabetically
-            }});
-            
-            // Custom styling after load
-            setTimeout(() => {{
-                // Custom branding loaded
-                console.log('Pierre MCP Documentation UI enhanced!');
-            }}, 1000);
-        }};
+                requestInterceptor: function(request) { console.log('API Request:', request); return request; },
+                responseInterceptor: function(response) { console.log('API Response:', response); return response; },
+                onComplete: function() { console.log('Pierre MCP API Documentation loaded successfully!'); },
+                validatorUrl: null,
+                docExpansion: 'list',
+                operationsSorter: 'alpha',
+                tagsSorter: 'alpha'
+            });
+            setTimeout(() => { console.log('Pierre MCP Documentation UI enhanced!'); }, 1000);
+        };
     </script>
 </body>
-</html>
-    "#.to_string()
+</html>"#
 }

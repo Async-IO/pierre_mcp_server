@@ -1,4 +1,5 @@
-//! Analytics and usage tracking database operations
+// ABOUTME: Analytics and usage tracking database operations
+// ABOUTME: Stores and retrieves usage metrics and performance analytics
 
 use super::Database;
 use crate::rate_limiting::JwtUsage;
@@ -26,7 +27,7 @@ impl Database {
     pub(super) async fn migrate_analytics(&self) -> Result<()> {
         // Create JWT usage tracking table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS jwt_usage (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -40,14 +41,14 @@ impl Database {
                 ip_address TEXT,
                 user_agent TEXT
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
 
         // Create goals table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS goals (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -55,14 +56,14 @@ impl Database {
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
 
         // Create insights table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS insights (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -71,14 +72,14 @@ impl Database {
                 insight_data TEXT NOT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
 
         // Create request_logs table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS request_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
@@ -90,7 +91,7 @@ impl Database {
                 response_time_ms INTEGER,
                 error_message TEXT
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
@@ -126,24 +127,40 @@ impl Database {
     }
 
     /// Record JWT usage for rate limiting
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails.
     pub async fn record_jwt_usage(&self, usage: &JwtUsage) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             INSERT INTO jwt_usage (
                 user_id, timestamp, endpoint, method, status_code,
                 response_time_ms, request_size_bytes, response_size_bytes,
                 ip_address, user_agent
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-            "#,
+            ",
         )
         .bind(usage.user_id.to_string())
         .bind(usage.timestamp)
         .bind(&usage.endpoint)
         .bind(&usage.method)
-        .bind(usage.status_code as i32)
-        .bind(usage.response_time_ms.map(|t| t as i32))
-        .bind(usage.request_size_bytes.map(|s| s as i32))
-        .bind(usage.response_size_bytes.map(|s| s as i32))
+        .bind(i32::from(usage.status_code))
+        .bind(
+            usage
+                .response_time_ms
+                .map(|t| i32::try_from(t).unwrap_or(i32::MAX)),
+        )
+        .bind(
+            usage
+                .request_size_bytes
+                .map(|s| i32::try_from(s).unwrap_or(i32::MAX)),
+        )
+        .bind(
+            usage
+                .response_size_bytes
+                .map(|s| i32::try_from(s).unwrap_or(i32::MAX)),
+        )
         .bind(&usage.ip_address)
         .bind(&usage.user_agent)
         .execute(&self.pool)
@@ -153,33 +170,41 @@ impl Database {
     }
 
     /// Get current JWT usage count for a user (for rate limiting)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails.
     pub async fn get_jwt_current_usage(&self, user_id: Uuid) -> Result<u32> {
         let window_start = Utc::now() - Duration::hours(1); // 1 hour window
 
         let count: i32 = sqlx::query_scalar(
-            r#"
+            r"
             SELECT COUNT(*) FROM jwt_usage
             WHERE user_id = $1 AND timestamp > $2
-            "#,
+            ",
         )
         .bind(user_id.to_string())
         .bind(window_start)
         .fetch_one(&self.pool)
         .await?;
 
-        Ok(count as u32)
+        Ok(u32::try_from(count).unwrap_or(0))
     }
 
     /// Create a goal for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails or if JSON serialization fails.
     pub async fn create_goal(&self, user_id: Uuid, goal_data: serde_json::Value) -> Result<String> {
         let goal_id = Uuid::new_v4().to_string();
         let goal_json = serde_json::to_string(&goal_data)?;
 
         sqlx::query(
-            r#"
+            r"
             INSERT INTO goals (id, user_id, goal_data)
             VALUES ($1, $2, $3)
-            "#,
+            ",
         )
         .bind(&goal_id)
         .bind(user_id.to_string())
@@ -191,13 +216,17 @@ impl Database {
     }
 
     /// Get all goals for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails or if JSON deserialization fails.
     pub async fn get_user_goals(&self, user_id: Uuid) -> Result<Vec<serde_json::Value>> {
         let rows = sqlx::query(
-            r#"
+            r"
             SELECT id, goal_data FROM goals
             WHERE user_id = $1
             ORDER BY created_at DESC
-            "#,
+            ",
         )
         .bind(user_id.to_string())
         .fetch_all(&self.pool)
@@ -211,7 +240,7 @@ impl Database {
 
             // Add the goal ID to the JSON object
             if let serde_json::Value::Object(ref mut map) = goal {
-                map.insert("id".to_string(), serde_json::Value::String(goal_id));
+                map.insert("id".into(), serde_json::Value::String(goal_id));
             }
 
             goals.push(goal);
@@ -221,15 +250,71 @@ impl Database {
     }
 
     /// Update goal progress
-    pub async fn update_goal_progress(&self, goal_id: &str, _current_value: f64) -> Result<()> {
-        // This is a simplified version - in reality you'd update the JSON data
-        sqlx::query(
-            r#"
-            UPDATE goals
-            SET updated_at = CURRENT_TIMESTAMP
-            WHERE id = $1
-            "#,
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails or if JSON operations fail.
+    pub async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> Result<()> {
+        // Get the current goal data
+        let row = sqlx::query(
+            r"
+            SELECT goal_data FROM goals WHERE id = $1
+            ",
         )
+        .bind(goal_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        let goal_data_str: String = row.get("goal_data");
+        let mut goal_data: serde_json::Value = serde_json::from_str(&goal_data_str)?;
+
+        // Update the current_value in the JSON
+        if let Some(obj) = goal_data.as_object_mut() {
+            obj.insert(
+                "current_value".into(),
+                serde_json::Value::Number(
+                    serde_json::Number::from_f64(current_value).ok_or_else(|| {
+                        anyhow::anyhow!("Invalid current_value: {}", current_value)
+                    })?,
+                ),
+            );
+
+            // Update last_updated timestamp
+            obj.insert(
+                "last_updated".into(),
+                serde_json::Value::String(chrono::Utc::now().to_rfc3339()),
+            );
+
+            // Calculate progress percentage if target_value exists
+            if let Some(target) = obj.get("target_value").and_then(serde_json::Value::as_f64) {
+                if target > 0.0 {
+                    let progress_percentage = (current_value / target * 100.0).clamp(0.0, 100.0);
+                    obj.insert(
+                        "progress_percentage".into(),
+                        serde_json::Value::Number(
+                            serde_json::Number::from_f64(progress_percentage).ok_or_else(|| {
+                                anyhow::anyhow!(
+                                    "Invalid progress_percentage: {}",
+                                    progress_percentage
+                                )
+                            })?,
+                        ),
+                    );
+                }
+            }
+        }
+
+        // Save the updated goal data back to the database
+        let updated_goal_json = serde_json::to_string(&goal_data)?;
+
+        sqlx::query(
+            r"
+            UPDATE goals
+            SET goal_data = $1, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $2
+            ",
+        )
+        .bind(updated_goal_json)
         .bind(goal_id)
         .execute(&self.pool)
         .await?;
@@ -238,6 +323,10 @@ impl Database {
     }
 
     /// Store an insight for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails or if JSON serialization fails.
     pub async fn store_insight(
         &self,
         user_id: Uuid,
@@ -249,10 +338,10 @@ impl Database {
         let insight_json = serde_json::to_string(&insight_data)?;
 
         sqlx::query(
-            r#"
+            r"
             INSERT INTO insights (id, user_id, activity_id, insight_type, insight_data)
             VALUES ($1, $2, $3, $4, $5)
-            "#,
+            ",
         )
         .bind(&insight_id)
         .bind(user_id.to_string())
@@ -266,18 +355,22 @@ impl Database {
     }
 
     /// Get recent insights for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails or if JSON deserialization fails.
     pub async fn get_user_insights(
         &self,
         user_id: Uuid,
         limit: i32,
     ) -> Result<Vec<serde_json::Value>> {
         let rows = sqlx::query(
-            r#"
+            r"
             SELECT insight_data FROM insights
             WHERE user_id = $1
             ORDER BY created_at DESC
             LIMIT $2
-            "#,
+            ",
         )
         .bind(user_id.to_string())
         .bind(limit)
@@ -295,6 +388,10 @@ impl Database {
     }
 
     /// Get request logs with filtering
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails or if UUID parsing fails.
     pub async fn get_request_logs(
         &self,
         user_id: Option<Uuid>,
@@ -304,12 +401,12 @@ impl Database {
         offset: i32,
     ) -> Result<Vec<RequestLog>> {
         let mut query = String::from(
-            r#"
+            r"
             SELECT id, user_id, api_key_id, timestamp, method, endpoint, 
                    status_code, response_time_ms, error_message
             FROM request_logs
             WHERE 1=1
-            "#,
+            ",
         );
 
         let mut bind_values = vec![];
@@ -354,10 +451,10 @@ impl Database {
                 timestamp: row.get("timestamp"),
                 method: row.get("method"),
                 endpoint: row.get("endpoint"),
-                status_code: row.get::<i32, _>("status_code") as u16,
+                status_code: u16::try_from(row.get::<i32, _>("status_code")).unwrap_or(0),
                 response_time_ms: row
                     .get::<Option<i32>, _>("response_time_ms")
-                    .map(|t| t as u32),
+                    .and_then(|t| u32::try_from(t).ok()),
                 error_message: row.get("error_message"),
             });
         }
@@ -366,6 +463,10 @@ impl Database {
     }
 
     /// Get system-wide statistics
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails.
     pub async fn get_system_stats(&self) -> Result<(u64, u64)> {
         // Get total users
         let user_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
@@ -377,7 +478,10 @@ impl Database {
             .fetch_one(&self.pool)
             .await?;
 
-        Ok((user_count as u64, api_key_count as u64))
+        Ok((
+            u64::try_from(user_count).unwrap_or(0),
+            u64::try_from(api_key_count).unwrap_or(0),
+        ))
     }
 }
 
@@ -390,8 +494,8 @@ mod tests {
         let user = User {
             id: Uuid::new_v4(),
             email: format!("analytics_{}@example.com", Uuid::new_v4()),
-            display_name: Some("Analytics User".to_string()),
-            password_hash: "hashed".to_string(),
+            display_name: Some("Analytics User".into()),
+            password_hash: "hashed".into(),
             tier: UserTier::Professional,
             strava_token: None,
             fitbit_token: None,
@@ -417,14 +521,14 @@ mod tests {
             id: None,
             user_id: user.id,
             timestamp: Utc::now(),
-            endpoint: "/api/v1/profile".to_string(),
-            method: "GET".to_string(),
+            endpoint: "/api/v1/profile".into(),
+            method: "GET".into(),
             status_code: 200,
             response_time_ms: Some(25),
             request_size_bytes: Some(128),
             response_size_bytes: Some(512),
-            ip_address: Some("192.168.1.1".to_string()),
-            user_agent: Some("TestClient/1.0".to_string()),
+            ip_address: Some("192.168.1.1".into()),
+            user_agent: Some("TestClient/1.0".into()),
         };
 
         db.record_jwt_usage(&usage)
@@ -489,15 +593,18 @@ mod tests {
             "severity": "positive"
         });
 
-        let _insight_id = db
+        let insight_id = db
             .store_insight(
                 user.id,
-                Some("activity_123".to_string()),
+                Some("activity_123".into()),
                 "performance",
                 insight_data,
             )
             .await
             .expect("Failed to store insight");
+
+        // Verify the insight was stored with a valid ID
+        assert!(!insight_id.is_empty());
 
         // Get user insights
         let insights = db
@@ -518,9 +625,9 @@ mod tests {
         for i in 0..3 {
             let user = User {
                 id: Uuid::new_v4(),
-                email: format!("stats_user_{}@example.com", i),
+                email: format!("stats_user_{i}@example.com"),
                 display_name: None,
-                password_hash: "hashed".to_string(),
+                password_hash: "hashed".into(),
                 tier: UserTier::Starter,
                 strava_token: None,
                 fitbit_token: None,

@@ -1,3 +1,5 @@
+// ABOUTME: Unit tests for OAuth routes module
+// ABOUTME: Tests OAuth route handlers and endpoint functionality
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -44,8 +46,7 @@ async fn test_email_validation() {
             let err = result.unwrap_err().to_string();
             assert!(
                 !err.contains("Invalid email format"),
-                "Email {} should be valid",
-                email
+                "Email {email} should be valid"
             );
         }
     }
@@ -68,7 +69,7 @@ async fn test_email_validation() {
         };
 
         let result = auth_routes.register(request).await;
-        assert!(result.is_err(), "Email {} should be invalid", email);
+        assert!(result.is_err(), "Email {email} should be invalid");
         assert!(result
             .unwrap_err()
             .to_string()

@@ -1,3 +1,5 @@
+// ABOUTME: Universal protocol edge cases and error path tests
+// ABOUTME: Tests error conditions, edge cases, and untested paths in universal layer
 //! Universal Protocol Edge Cases and Error Path Tests
 //!
 //! Tests for error conditions, edge cases, and untested paths
@@ -20,35 +22,9 @@ use uuid::Uuid;
 
 mod common;
 
-/// Create test executor - duplicated from protocols_universal_test.rs
-async fn create_test_executor() -> Result<UniversalToolExecutor> {
-    let database = common::create_test_database().await?;
-
-    let intelligence = Arc::new(ActivityIntelligence::new(
-        "Test intelligence".to_string(),
-        vec![],
-        PerformanceMetrics {
-            relative_effort: Some(75.0),
-            zone_distribution: None,
-            personal_records: vec![],
-            efficiency_score: Some(80.0),
-            trend_indicators: TrendIndicators {
-                pace_trend: TrendDirection::Stable,
-                effort_trend: TrendDirection::Stable,
-                distance_trend: TrendDirection::Stable,
-                consistency_score: 85.0,
-            },
-        },
-        ContextualFactors {
-            weather: None,
-            location: None,
-            time_of_day: TimeOfDay::Morning,
-            days_since_last_activity: Some(1),
-            weekly_load: None,
-        },
-    ));
-
-    let config = Arc::new(ServerConfig {
+/// Create test configuration
+fn create_test_config() -> Arc<ServerConfig> {
+    Arc::new(ServerConfig {
         mcp_port: 3000,
         http_port: 4000,
         log_level: LogLevel::Info,
@@ -131,8 +107,48 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
                 server_version: "0.1.0".to_string(),
             },
         },
-    });
+    })
+}
 
+/// Create test config without OAuth
+fn create_test_config_no_oauth() -> Arc<ServerConfig> {
+    let mut config = (*create_test_config()).clone();
+    config.oauth.strava.client_id = None;
+    config.oauth.strava.client_secret = None;
+    config.oauth.fitbit.client_id = None;
+    config.oauth.fitbit.client_secret = None;
+    Arc::new(config)
+}
+
+/// Create test executor - duplicated from `protocols_universal_test.rs`
+async fn create_test_executor() -> Result<UniversalToolExecutor> {
+    let database = common::create_test_database().await?;
+
+    let intelligence = Arc::new(ActivityIntelligence::new(
+        "Test intelligence".to_string(),
+        vec![],
+        PerformanceMetrics {
+            relative_effort: Some(75.0),
+            zone_distribution: None,
+            personal_records: vec![],
+            efficiency_score: Some(80.0),
+            trend_indicators: TrendIndicators {
+                pace_trend: TrendDirection::Stable,
+                effort_trend: TrendDirection::Stable,
+                distance_trend: TrendDirection::Stable,
+                consistency_score: 85.0,
+            },
+        },
+        ContextualFactors {
+            weather: None,
+            location: None,
+            time_of_day: TimeOfDay::Morning,
+            days_since_last_activity: Some(1),
+            weekly_load: None,
+        },
+    ));
+
+    let config = create_test_config();
     Ok(UniversalToolExecutor::new(database, intelligence, config))
 }
 
@@ -165,90 +181,7 @@ async fn create_executor_no_oauth() -> Result<UniversalToolExecutor> {
     ));
 
     // Create config without OAuth credentials
-    let config = Arc::new(ServerConfig {
-        mcp_port: 3000,
-        http_port: 4000,
-        log_level: LogLevel::Info,
-        database: DatabaseConfig {
-            url: DatabaseUrl::Memory,
-            encryption_key_path: PathBuf::from("test.key"),
-            auto_migrate: true,
-            backup: BackupConfig {
-                enabled: false,
-                interval_seconds: 3600,
-                retention_count: 7,
-                directory: PathBuf::from("test_backups"),
-            },
-        },
-        auth: AuthConfig {
-            jwt_secret_path: PathBuf::from("test.secret"),
-            jwt_expiry_hours: 24,
-            enable_refresh_tokens: false,
-        },
-        oauth: OAuthConfig {
-            strava: OAuthProviderConfig {
-                client_id: None, // Missing OAuth credentials
-                client_secret: None,
-                redirect_uri: Some("http://localhost:3000/oauth/callback/strava".to_string()),
-                scopes: vec!["read".to_string()],
-                enabled: true,
-            },
-            fitbit: OAuthProviderConfig {
-                client_id: None, // Missing OAuth credentials
-                client_secret: None,
-                redirect_uri: Some("http://localhost:3000/oauth/callback/fitbit".to_string()),
-                scopes: vec!["activity".to_string()],
-                enabled: true,
-            },
-        },
-        security: SecurityConfig {
-            cors_origins: vec!["*".to_string()],
-            rate_limit: RateLimitConfig {
-                enabled: false,
-                requests_per_window: 100,
-                window_seconds: 60,
-            },
-            tls: TlsConfig {
-                enabled: false,
-                cert_path: None,
-                key_path: None,
-            },
-            headers: SecurityHeadersConfig {
-                environment: Environment::Development,
-            },
-        },
-        external_services: ExternalServicesConfig {
-            weather: WeatherServiceConfig {
-                api_key: None,
-                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
-                enabled: false,
-            },
-            strava_api: StravaApiConfig {
-                base_url: "https://www.strava.com/api/v3".to_string(),
-                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                token_url: "https://www.strava.com/oauth/token".to_string(),
-            },
-            fitbit_api: FitbitApiConfig {
-                base_url: "https://api.fitbit.com".to_string(),
-                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
-            },
-            geocoding: GeocodingServiceConfig {
-                base_url: "https://nominatim.openstreetmap.org".to_string(),
-                enabled: true,
-            },
-        },
-        app_behavior: AppBehaviorConfig {
-            max_activities_fetch: 100,
-            default_activities_limit: 20,
-            ci_mode: true,
-            protocol: ProtocolConfig {
-                mcp_version: "2024-11-05".to_string(),
-                server_name: "pierre-mcp-server-test".to_string(),
-                server_version: "0.1.0".to_string(),
-            },
-        },
-    });
+    let config = create_test_config_no_oauth();
 
     Ok(UniversalToolExecutor::new(database, intelligence, config))
 }
@@ -342,7 +275,9 @@ async fn test_invalid_provider_tokens() -> Result<()> {
 
     let response = executor.execute_tool(request).await?;
     // Should either succeed after refresh attempt or fail with OAuth error
-    if !response.success {
+    if response.success {
+        // If successful, continue with any additional checks
+    } else {
         assert!(response.error.is_some());
         let error = response.error.unwrap();
         assert!(
@@ -396,7 +331,9 @@ async fn test_non_existent_user() -> Result<()> {
 
     let response = executor.execute_tool(request).await?;
     // Should handle non-existent user gracefully
-    if !response.success {
+    if response.success {
+        // If successful, continue with any additional checks
+    } else {
         assert!(response.error.is_some());
     }
 
@@ -436,7 +373,9 @@ async fn test_invalid_tool_parameters() -> Result<()> {
 
     let response = executor.execute_tool(request).await?;
     // Should handle invalid parameters gracefully
-    if !response.success {
+    if response.success {
+        // If successful, continue with any additional checks
+    } else {
         assert!(response.error.is_some());
         let error = response.error.unwrap();
         assert!(
@@ -522,7 +461,7 @@ async fn test_concurrent_tool_execution() -> Result<()> {
                 tool_name: "get_connection_status".to_string(),
                 parameters: json!({}),
                 user_id: user_id_str,
-                protocol: format!("test_{}", i),
+                protocol: format!("test_{i}"),
             };
 
             executor_clone.execute_tool(request).await
@@ -652,7 +591,9 @@ async fn test_provider_unavailable() -> Result<()> {
     };
 
     let response = executor.execute_tool(request).await?;
-    if !response.success {
+    if response.success {
+        // If successful, continue with any additional checks
+    } else {
         assert!(response.error.is_some());
         let error = response.error.unwrap();
         assert!(

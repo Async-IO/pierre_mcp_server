@@ -39,26 +39,24 @@
 //!
 //! ```rust,no_run
 //! use pierre_mcp_server::providers::{FitnessProvider, create_provider, AuthData};
-//! use pierre_mcp_server::config::Config;
+//! use pierre_mcp_server::config::environment::ServerConfig;
 //!
 //! #[tokio::main]
 //! async fn main() -> anyhow::Result<()> {
 //!     // Load configuration
-//!     let config = Config::load(None)?;
+//!     let config = ServerConfig::from_env()?;
 //!     
 //!     // Create provider
 //!     let mut provider = create_provider("strava")?;
 //!     
-//!     // Authenticate
-//!     if let Some(strava_config) = config.providers.get("strava") {
-//!         let auth_data = AuthData::OAuth2 {
-//!             client_id: strava_config.client_id.clone().unwrap(),
-//!             client_secret: strava_config.client_secret.clone().unwrap(),
-//!             access_token: strava_config.access_token.clone(),
-//!             refresh_token: strava_config.refresh_token.clone(),
-//!         };
-//!         provider.authenticate(auth_data).await?;
-//!     }
+//!     // Authenticate with OAuth2
+//!     let auth_data = AuthData::OAuth2 {
+//!         client_id: "your_client_id".to_string(),
+//!         client_secret: "your_client_secret".to_string(),
+//!         access_token: Some("access_token".to_string()),
+//!         refresh_token: Some("refresh_token".to_string()),
+//!     };
+//!     provider.authenticate(auth_data).await?;
 //!     
 //!     // Get athlete data
 //!     let athlete = provider.get_athlete().await?;
@@ -80,7 +78,7 @@ pub mod config;
 /// Application constants and configuration values
 pub mod constants;
 
-/// OAuth2 client for secure API authentication
+/// `OAuth2` client for secure `API` authentication
 pub mod oauth2_client;
 
 /// Model Context Protocol server implementation
@@ -92,13 +90,13 @@ pub mod intelligence;
 /// Configuration management and runtime parameter system
 pub mod configuration;
 
-/// HTTP routes for configuration management
+/// `HTTP` routes for configuration management
 pub mod configuration_routes;
 
 /// A2A (Agent-to-Agent) protocol implementation
 pub mod a2a;
 
-/// HTTP routes for A2A protocol endpoints
+/// `HTTP` routes for A2A protocol endpoints
 pub mod a2a_routes;
 
 /// Multi-tenant database management (legacy)
@@ -113,7 +111,7 @@ pub mod auth;
 /// Cryptographic utilities and key management
 pub mod crypto;
 
-/// HTTP routes for user registration and OAuth flows
+/// `HTTP` routes for user registration and `OAuth` flows
 pub mod routes;
 
 /// Production logging and structured output
@@ -122,10 +120,10 @@ pub mod logging;
 /// Health checks and monitoring
 pub mod health;
 
-/// API key management for B2B authentication
+/// `API` key management for B2B authentication
 pub mod api_keys;
 
-/// HTTP routes for API key management
+/// `HTTP` routes for `API` key management
 pub mod api_key_routes;
 
 /// Dashboard routes for frontend consumption
@@ -137,10 +135,10 @@ pub mod websocket;
 /// Security headers and protection middleware
 pub mod security;
 
-/// Admin token authentication and API key provisioning
+/// Admin token authentication and `API` key provisioning
 pub mod admin;
 
-/// Admin REST API routes for external services
+/// Admin REST `API` routes for external services
 pub mod admin_routes;
 
 /// Universal protocol support for MCP and A2A

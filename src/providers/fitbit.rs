@@ -1,3 +1,5 @@
+// ABOUTME: Fitbit API integration and health data fetching
+// ABOUTME: Handles Fitbit authentication, activity retrieval, and health metrics
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -29,7 +31,7 @@ use tracing::info;
 const FITBIT_API_BASE: &str = "https://api.fitbit.com/1";
 const FITBIT_AUTH_URL: &str = "https://www.fitbit.com/oauth2/authorize";
 
-/// Fitbit provider implementation supporting OAuth2 with PKCE
+/// Fitbit provider implementation supporting `OAuth2` with `PKCE`
 pub struct FitbitProvider {
     client: Client,
     access_token: Option<String>,
@@ -46,6 +48,7 @@ impl Default for FitbitProvider {
 
 impl FitbitProvider {
     /// Create a new Fitbit provider instance
+    #[must_use]
     pub fn new() -> Self {
         Self {
             client: Client::new(),
@@ -56,7 +59,7 @@ impl FitbitProvider {
         }
     }
 
-    /// Get OAuth2 authorization URL for Fitbit
+    /// Get `OAuth2` authorization URL for Fitbit
     ///
     /// # Arguments
     /// * `redirect_uri` - The redirect URI registered with your Fitbit app
@@ -67,6 +70,9 @@ impl FitbitProvider {
     /// - `activity` - Access to activities and exercise logs
     /// - `profile` - Access to profile information
     /// - `sleep` - Access to sleep data (for future enhancement)
+    ///
+    /// # Errors
+    /// Returns an error if `client_id` is not configured
     pub fn get_auth_url(&self, redirect_uri: &str, state: &str) -> Result<String> {
         let client_id = self
             .client_id
@@ -84,12 +90,15 @@ impl FitbitProvider {
         Ok(url.to_string())
     }
 
-    /// Get OAuth2 authorization URL with PKCE support for enhanced security
+    /// Get `OAuth2` authorization URL with PKCE support for enhanced security
     ///
     /// # Arguments
     /// * `redirect_uri` - The redirect URI registered with your Fitbit app
     /// * `state` - A unique state parameter for CSRF protection
     /// * `pkce` - PKCE parameters for enhanced security
+    ///
+    /// # Errors
+    /// Returns an error if `client_id` is not configured or URL parsing fails
     pub fn get_auth_url_with_pkce(
         &self,
         redirect_uri: &str,
@@ -114,11 +123,20 @@ impl FitbitProvider {
         Ok(url.to_string())
     }
 
-    /// Exchange authorization code for access tokens
+    /// Exchange authorization code for access and refresh tokens
     ///
     /// # Arguments
     /// * `code` - Authorization code received from Fitbit
     /// * `redirect_uri` - The same redirect URI used in authorization
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Client ID or secret is not configured
+    /// - HTTP request to token endpoint fails
+    /// - Fitbit API returns error response
+    /// - Response cannot be parsed as JSON
+    /// - Token exchange fails
     pub async fn exchange_code(
         &mut self,
         code: &str,
@@ -140,7 +158,7 @@ impl FitbitProvider {
         .await?;
 
         self.access_token = Some(token.access_token.clone());
-        self.refresh_token = token.refresh_token.clone();
+        self.refresh_token.clone_from(&token.refresh_token);
 
         info!("Fitbit authentication successful");
 
@@ -154,6 +172,16 @@ impl FitbitProvider {
     /// * `code` - Authorization code received from Fitbit
     /// * `redirect_uri` - The same redirect URI used in authorization
     /// * `pkce` - PKCE parameters used in authorization
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Client ID or secret is not configured
+    /// - HTTP request to token endpoint fails
+    /// - PKCE verification fails
+    /// - Fitbit API returns error response
+    /// - Response cannot be parsed as JSON
+    /// - Token exchange fails
     pub async fn exchange_code_with_pkce(
         &mut self,
         code: &str,
@@ -177,7 +205,7 @@ impl FitbitProvider {
         .await?;
 
         self.access_token = Some(token.access_token.clone());
-        self.refresh_token = token.refresh_token.clone();
+        self.refresh_token.clone_from(&token.refresh_token);
 
         info!("Fitbit authentication with PKCE successful");
 
@@ -186,6 +214,16 @@ impl FitbitProvider {
     }
 
     /// Refresh access token using refresh token
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - No refresh token is available
+    /// - Client ID or secret is not configured
+    /// - HTTP request to token endpoint fails
+    /// - Fitbit API returns error response
+    /// - Response cannot be parsed as JSON
+    /// - Token refresh fails
     pub async fn refresh_access_token(&mut self) -> Result<(String, String)> {
         let refresh_token = self
             .refresh_token
@@ -207,7 +245,7 @@ impl FitbitProvider {
         .await?;
 
         self.access_token = Some(new_token.access_token.clone());
-        self.refresh_token = new_token.refresh_token.clone();
+        self.refresh_token.clone_from(&new_token.refresh_token);
 
         info!("Fitbit token refreshed successfully");
 
@@ -229,7 +267,7 @@ impl FitbitProvider {
 
         let response: FitbitActivitiesResponse = self
             .client
-            .get(format!("{}/user/-/activities/list.json", FITBIT_API_BASE))
+            .get(format!("{FITBIT_API_BASE}/user/-/activities/list.json"))
             .bearer_auth(token)
             .query(&[
                 ("beforeDate", end_date),
@@ -263,7 +301,7 @@ impl FitnessProvider for FitbitProvider {
                 self.refresh_token = refresh_token;
                 Ok(())
             }
-            _ => Err(anyhow::anyhow!("Fitbit requires OAuth2 authentication")),
+            AuthData::ApiKey(_) => Err(anyhow::anyhow!("Fitbit requires OAuth2 authentication")),
         }
     }
 
@@ -272,7 +310,7 @@ impl FitnessProvider for FitbitProvider {
 
         let response: FitbitUser = self
             .client
-            .get(format!("{}/user/-/profile.json", FITBIT_API_BASE))
+            .get(format!("{FITBIT_API_BASE}/user/-/profile.json"))
             .bearer_auth(token)
             .send()
             .await?
@@ -285,7 +323,7 @@ impl FitnessProvider for FitbitProvider {
             firstname: response.user.first_name,
             lastname: response.user.last_name,
             profile_picture: response.user.avatar,
-            provider: "fitbit".to_string(),
+            provider: "fitbit".into(),
         })
     }
 
@@ -306,7 +344,10 @@ impl FitnessProvider for FitbitProvider {
             )
             .await?;
 
-        let mut result: Vec<Activity> = activities.into_iter().map(|a| a.into()).collect();
+        let mut result: Vec<Activity> = activities
+            .into_iter()
+            .map(std::convert::Into::into)
+            .collect();
 
         // Apply limit if specified
         if let Some(limit) = limit {
@@ -321,7 +362,7 @@ impl FitnessProvider for FitbitProvider {
 
         let response: FitbitActivityDetail = self
             .client
-            .get(format!("{}/user/-/activities/{}.json", FITBIT_API_BASE, id))
+            .get(format!("{FITBIT_API_BASE}/user/-/activities/{id}.json"))
             .bearer_auth(token)
             .send()
             .await?
@@ -337,7 +378,7 @@ impl FitnessProvider for FitbitProvider {
         // Get lifetime stats from Fitbit
         let response: FitbitLifetimeStats = self
             .client
-            .get(format!("{}/user/-/activities.json", FITBIT_API_BASE))
+            .get(format!("{FITBIT_API_BASE}/user/-/activities.json"))
             .bearer_auth(token)
             .send()
             .await?
@@ -438,8 +479,13 @@ impl From<FitbitActivity> for Activity {
     fn from(fitbit: FitbitActivity) -> Self {
         // Parse start time
         let start_date = DateTime::parse_from_rfc3339(&fitbit.start_time)
+            .or_else(|_| DateTime::parse_from_str(&fitbit.start_time, "%Y-%m-%dT%H:%M:%S%.3f"))
             .unwrap_or_else(|_| {
-                DateTime::parse_from_str(&fitbit.start_time, "%Y-%m-%dT%H:%M:%S%.3f").unwrap()
+                tracing::warn!(
+                    "Failed to parse start_time '{}', using current time",
+                    fitbit.start_time
+                );
+                Utc::now().fixed_offset()
             })
             .with_timezone(&Utc);
 
@@ -454,7 +500,7 @@ impl From<FitbitActivity> for Activity {
             _ => SportType::Other(fitbit.activity_name.clone()),
         };
 
-        Activity {
+        Self {
             id: fitbit.activity_id.to_string(),
             name: fitbit.activity_name,
             sport_type,
@@ -466,7 +512,15 @@ impl From<FitbitActivity> for Activity {
             max_heart_rate: None, // Not directly available in Fitbit API
             average_speed: fitbit.distance.and_then(|d| {
                 if fitbit.duration > 0 {
-                    Some((d * 1000.0) / (fitbit.duration as f64 / 1000.0)) // m/s
+                    let duration_seconds =
+                        f64::from(u32::try_from(fitbit.duration / 1000).unwrap_or_else(|_| {
+                            tracing::warn!(
+                                "Duration too large for conversion: {}",
+                                fitbit.duration
+                            );
+                            u32::MAX
+                        }));
+                    Some((d * 1000.0) / duration_seconds) // m/s
                 } else {
                     None
                 }
@@ -485,13 +539,39 @@ impl From<FitbitActivity> for Activity {
                     })
                     .collect()
             }),
+
+            // Advanced metrics - all None for basic Fitbit data
+            average_power: None,
+            max_power: None,
+            normalized_power: None,
+            power_zones: None,
+            ftp: None,
+            average_cadence: None,
+            max_cadence: None,
+            hrv_score: None,
+            recovery_heart_rate: None,
+            temperature: None,
+            humidity: None,
+            average_altitude: None,
+            wind_speed: None,
+            ground_contact_time: None,
+            vertical_oscillation: None,
+            stride_length: None,
+            running_power: None,
+            breathing_rate: None,
+            spo2: None,
+            training_stress_score: None,
+            intensity_factor: None,
+            suffer_score: None,
+            time_series_data: None,
+
             start_latitude: None, // Fitbit API doesn't provide GPS coordinates
             start_longitude: None,
             city: None,
             region: None,
             country: None,
             trail_name: None,
-            provider: "fitbit".to_string(),
+            provider: "fitbit".into(),
         }
     }
 }

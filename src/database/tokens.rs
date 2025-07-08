@@ -1,4 +1,5 @@
-//! OAuth token management database operations
+// ABOUTME: OAuth token management database operations
+// ABOUTME: Handles encryption, storage, and retrieval of OAuth tokens
 
 use super::{Database, EncryptionHelper};
 use crate::models::{DecryptedToken, EncryptedToken};
@@ -15,16 +16,19 @@ pub enum OAuthProvider {
 
 impl OAuthProvider {
     /// Get the column prefix for this provider
-    fn column_prefix(&self) -> &'static str {
+    const fn column_prefix(self) -> &'static str {
         match self {
-            OAuthProvider::Strava => "strava",
-            OAuthProvider::Fitbit => "fitbit",
+            Self::Strava => "strava",
+            Self::Fitbit => "fitbit",
         }
     }
 }
 
 impl Database {
     /// Generic function to update OAuth token for any provider
+    ///
+    /// # Errors
+    /// Returns an error if encryption fails or database update fails
     pub async fn update_oauth_token(
         &self,
         user_id: Uuid,
@@ -41,16 +45,15 @@ impl Database {
 
         let prefix = provider.column_prefix();
         let query = format!(
-            r#"
+            r"
             UPDATE users SET
-                {}_access_token = $2,
-                {}_refresh_token = $3,
-                {}_expires_at = $4,
-                {}_scope = $5,
-                {}_nonce = $6
+                {prefix}_access_token = $2,
+                {prefix}_refresh_token = $3,
+                {prefix}_expires_at = $4,
+                {prefix}_scope = $5,
+                {prefix}_nonce = $6
             WHERE id = $1
-            "#,
-            prefix, prefix, prefix, prefix, prefix
+            "
         );
 
         sqlx::query(&query)
@@ -67,6 +70,9 @@ impl Database {
     }
 
     /// Generic function to get OAuth token for any provider
+    ///
+    /// # Errors
+    /// Returns an error if database query fails or decryption fails
     pub async fn get_oauth_token(
         &self,
         user_id: Uuid,
@@ -74,12 +80,11 @@ impl Database {
     ) -> Result<Option<DecryptedToken>> {
         let prefix = provider.column_prefix();
         let query = format!(
-            r#"
-            SELECT {}_access_token, {}_refresh_token, {}_expires_at, 
-                   {}_scope, {}_nonce
+            r"
+            SELECT {prefix}_access_token, {prefix}_refresh_token, {prefix}_expires_at, 
+                   {prefix}_scope, {prefix}_nonce
             FROM users WHERE id = $1
-            "#,
-            prefix, prefix, prefix, prefix, prefix
+            "
         );
 
         let row = sqlx::query(&query)
@@ -88,11 +93,11 @@ impl Database {
             .await?;
 
         if let Some(row) = row {
-            let access_col = format!("{}_access_token", prefix);
-            let refresh_col = format!("{}_refresh_token", prefix);
-            let expires_col = format!("{}_expires_at", prefix);
-            let scope_col = format!("{}_scope", prefix);
-            let nonce_col = format!("{}_nonce", prefix);
+            let access_col = format!("{prefix}_access_token");
+            let refresh_col = format!("{prefix}_refresh_token");
+            let expires_col = format!("{prefix}_expires_at");
+            let scope_col = format!("{prefix}_scope");
+            let nonce_col = format!("{prefix}_nonce");
 
             if let (Some(access), Some(refresh), Some(expires_at)) = (
                 row.get::<Option<String>, _>(access_col.as_str()),
@@ -105,9 +110,10 @@ impl Database {
                 let encrypted = EncryptedToken {
                     access_token: access,
                     refresh_token: refresh,
-                    expires_at: chrono::DateTime::from_timestamp(expires_at, 0).unwrap_or_default(),
+                    expires_at: chrono::DateTime::from_timestamp(expires_at, 0)
+                        .ok_or_else(|| anyhow::anyhow!("Invalid timestamp: {expires_at}"))?,
                     scope: scope.unwrap_or_default(),
-                    nonce: nonce.unwrap_or_else(|| "legacy".to_string()),
+                    nonce: nonce.unwrap_or_else(|| "legacy".into()),
                 };
 
                 let decrypted = encrypted.decrypt(self.encryption_key())?;
@@ -121,19 +127,21 @@ impl Database {
     }
 
     /// Generic function to clear OAuth token for any provider
+    ///
+    /// # Errors
+    /// Returns an error if database update fails
     pub async fn clear_oauth_token(&self, user_id: Uuid, provider: OAuthProvider) -> Result<()> {
         let prefix = provider.column_prefix();
         let query = format!(
-            r#"
+            r"
             UPDATE users SET
-                {}_access_token = NULL,
-                {}_refresh_token = NULL,
-                {}_expires_at = NULL,
-                {}_scope = NULL,
-                {}_nonce = NULL
+                {prefix}_access_token = NULL,
+                {prefix}_refresh_token = NULL,
+                {prefix}_expires_at = NULL,
+                {prefix}_scope = NULL,
+                {prefix}_nonce = NULL
             WHERE id = $1
-            "#,
-            prefix, prefix, prefix, prefix, prefix
+            "
         );
 
         sqlx::query(&query)
@@ -145,33 +153,51 @@ impl Database {
     }
 
     /// Update Strava OAuth token for a user (legacy wrapper)
+    ///
+    /// # Errors
+    /// Returns an error if the underlying `update_oauth_token` call fails
     pub async fn update_strava_token(&self, user_id: Uuid, token: &DecryptedToken) -> Result<()> {
         self.update_oauth_token(user_id, OAuthProvider::Strava, token)
             .await
     }
 
     /// Get Strava OAuth token for a user (legacy wrapper)
+    ///
+    /// # Errors
+    /// Returns an error if the underlying `get_oauth_token` call fails
     pub async fn get_strava_token(&self, user_id: Uuid) -> Result<Option<DecryptedToken>> {
         self.get_oauth_token(user_id, OAuthProvider::Strava).await
     }
 
     /// Clear Strava OAuth token for a user (legacy wrapper)
+    ///
+    /// # Errors
+    /// Returns an error if the underlying `clear_oauth_token` call fails
     pub async fn clear_strava_token(&self, user_id: Uuid) -> Result<()> {
         self.clear_oauth_token(user_id, OAuthProvider::Strava).await
     }
 
     /// Update Fitbit OAuth token for a user (legacy wrapper)
+    ///
+    /// # Errors
+    /// Returns an error if the underlying `update_oauth_token` call fails
     pub async fn update_fitbit_token(&self, user_id: Uuid, token: &DecryptedToken) -> Result<()> {
         self.update_oauth_token(user_id, OAuthProvider::Fitbit, token)
             .await
     }
 
     /// Get Fitbit OAuth token for a user (legacy wrapper)
+    ///
+    /// # Errors
+    /// Returns an error if the underlying `get_oauth_token` call fails
     pub async fn get_fitbit_token(&self, user_id: Uuid) -> Result<Option<DecryptedToken>> {
         self.get_oauth_token(user_id, OAuthProvider::Fitbit).await
     }
 
     /// Clear Fitbit OAuth token for a user (legacy wrapper)
+    ///
+    /// # Errors
+    /// Returns an error if the underlying `clear_oauth_token` call fails
     pub async fn clear_fitbit_token(&self, user_id: Uuid) -> Result<()> {
         self.clear_oauth_token(user_id, OAuthProvider::Fitbit).await
     }
@@ -193,7 +219,7 @@ mod tests {
             id: Uuid::new_v4(),
             email: format!("strava_{}@example.com", Uuid::new_v4()),
             display_name: None,
-            password_hash: "hashed".to_string(),
+            password_hash: "hashed".into(),
             tier: UserTier::Starter,
             strava_token: None,
             fitbit_token: None,
@@ -207,12 +233,12 @@ mod tests {
         // Create test token with timestamp precision truncated to seconds
         let expires_at = chrono::Utc::now() + chrono::Duration::seconds(3600);
         let expires_at_truncated =
-            chrono::DateTime::from_timestamp(expires_at.timestamp(), 0).unwrap();
+            chrono::DateTime::from_timestamp(expires_at.timestamp(), 0).expect("Valid timestamp");
         let token = DecryptedToken {
-            access_token: "test_access_token".to_string(),
-            refresh_token: "test_refresh_token".to_string(),
+            access_token: "test_access_token".into(),
+            refresh_token: "test_refresh_token".into(),
             expires_at: expires_at_truncated,
-            scope: "read,activity:read_all".to_string(),
+            scope: "read,activity:read_all".into(),
         };
 
         // Store token
@@ -255,9 +281,9 @@ mod tests {
         let user_id = Uuid::new_v4();
         let user = User {
             id: user_id,
-            email: format!("fitbit_{}@example.com", user_id),
+            email: format!("fitbit_{user_id}@example.com"),
             display_name: None,
-            password_hash: "hashed".to_string(),
+            password_hash: "hashed".into(),
             tier: UserTier::Professional,
             strava_token: None,
             fitbit_token: None,
@@ -271,12 +297,12 @@ mod tests {
         // Create test token with timestamp precision truncated to seconds
         let expires_at = chrono::Utc::now() + chrono::Duration::seconds(7200);
         let expires_at_truncated =
-            chrono::DateTime::from_timestamp(expires_at.timestamp(), 0).unwrap();
+            chrono::DateTime::from_timestamp(expires_at.timestamp(), 0).expect("Valid timestamp");
         let token = DecryptedToken {
-            access_token: "fitbit_access_token".to_string(),
-            refresh_token: "fitbit_refresh_token".to_string(),
+            access_token: "fitbit_access_token".into(),
+            refresh_token: "fitbit_refresh_token".into(),
             expires_at: expires_at_truncated,
-            scope: "activity heartrate location".to_string(),
+            scope: "activity heartrate location".into(),
         };
 
         // Store token

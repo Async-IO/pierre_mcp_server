@@ -38,7 +38,7 @@ pub struct AuthenticationInfo {
     pub api_key: Option<ApiKeyInfo>,
 }
 
-/// OAuth2 authentication information
+/// `OAuth2` authentication information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuth2Info {
     pub authorization_url: String,
@@ -75,35 +75,36 @@ pub struct ToolExample {
 
 impl AgentCard {
     /// Create a new Agent Card for Pierre
+    #[must_use]
     pub fn new() -> Self {
         Self {
-            name: "Pierre Fitness AI".to_string(),
-            description: "AI-powered fitness data analysis and insights platform providing comprehensive activity analysis, performance tracking, and intelligent recommendations for athletes and fitness enthusiasts.".to_string(),
-            version: "1.0.0".to_string(),
+            name: "Pierre Fitness AI".into(),
+            description: "AI-powered fitness data analysis and insights platform providing comprehensive activity analysis, performance tracking, and intelligent recommendations for athletes and fitness enthusiasts.".into(),
+            version: "1.0.0".into(),
             capabilities: vec![
-                "fitness-data-analysis".to_string(),
-                "activity-intelligence".to_string(),
-                "goal-management".to_string(),
-                "performance-prediction".to_string(),
-                "training-analytics".to_string(),
-                "provider-integration".to_string(),
+                "fitness-data-analysis".into(),
+                "activity-intelligence".into(),
+                "goal-management".into(),
+                "performance-prediction".into(),
+                "training-analytics".into(),
+                "provider-integration".into(),
             ],
             authentication: AuthenticationInfo {
-                schemes: vec!["api-key".to_string(), "oauth2".to_string()],
+                schemes: vec!["api-key".into(), "oauth2".into()],
                 oauth2: Some(OAuth2Info {
-                    authorization_url: "https://pierre.ai/oauth/authorize".to_string(),
-                    token_url: "https://pierre.ai/oauth/token".to_string(),
+                    authorization_url: "https://pierre.ai/oauth/authorize".into(),
+                    token_url: "https://pierre.ai/oauth/token".into(),
                     scopes: vec![
-                        "fitness:read".to_string(),
-                        "analytics:read".to_string(),
-                        "goals:read".to_string(),
-                        "goals:write".to_string(),
+                        "fitness:read".into(),
+                        "analytics:read".into(),
+                        "goals:read".into(),
+                        "goals:write".into(),
                     ],
                 }),
                 api_key: Some(ApiKeyInfo {
-                    header_name: "Authorization".to_string(),
-                    prefix: Some("Bearer".to_string()),
-                    registration_url: "https://pierre.ai/api/keys/request".to_string(),
+                    header_name: "Authorization".into(),
+                    prefix: Some("Bearer".into()),
+                    registration_url: "https://pierre.ai/api/keys/request".into(),
                 }),
             },
             tools: Self::create_tool_definitions(),
@@ -112,10 +113,11 @@ impl AgentCard {
     }
 
     /// Create tool definitions for the agent card
+    #[allow(clippy::too_many_lines)]
     fn create_tool_definitions() -> Vec<ToolDefinition> {
         vec![
             ToolDefinition {
-                name: "get_activities".to_string(),
+                name: "get_activities".into(),
                 description: "Retrieve user fitness activities from connected providers"
                     .to_string(),
                 input_schema: serde_json::json!({
@@ -162,7 +164,7 @@ impl AgentCard {
                     }
                 }),
                 examples: Some(vec![ToolExample {
-                    description: "Get recent activities".to_string(),
+                    description: "Get recent activities".into(),
                     input: serde_json::json!({"limit": 5}),
                     output: serde_json::json!({
                         "activities": [
@@ -181,8 +183,8 @@ impl AgentCard {
                 }]),
             },
             ToolDefinition {
-                name: "analyze_activity".to_string(),
-                description: "AI-powered analysis of a specific fitness activity".to_string(),
+                name: "analyze_activity".into(),
+                description: "AI-powered analysis of a specific fitness activity".into(),
                 input_schema: serde_json::json!({
                     "type": "object",
                     "properties": {
@@ -216,8 +218,8 @@ impl AgentCard {
                 examples: None,
             },
             ToolDefinition {
-                name: "get_athlete".to_string(),
-                description: "Retrieve athlete profile information".to_string(),
+                name: "get_athlete".into(),
+                description: "Retrieve athlete profile information".into(),
                 input_schema: serde_json::json!({
                     "type": "object",
                     "properties": {}
@@ -236,8 +238,8 @@ impl AgentCard {
                 examples: None,
             },
             ToolDefinition {
-                name: "set_goal".to_string(),
-                description: "Set a fitness goal for the user".to_string(),
+                name: "set_goal".into(),
+                description: "Set a fitness goal for the user".into(),
                 input_schema: serde_json::json!({
                     "type": "object",
                     "properties": {
@@ -281,14 +283,14 @@ impl AgentCard {
         let mut metadata = HashMap::new();
 
         metadata.insert(
-            "supported_providers".to_string(),
+            "supported_providers".into(),
             serde_json::json!(["strava", "fitbit"]),
         );
 
-        metadata.insert("data_retention_days".to_string(), serde_json::json!(365));
+        metadata.insert("data_retention_days".into(), serde_json::json!(365));
 
         metadata.insert(
-            "rate_limits".to_string(),
+            "rate_limits".into(),
             serde_json::json!({
                 "trial": {"requests_per_month": 1000},
                 "starter": {"requests_per_month": 10000},
@@ -298,7 +300,7 @@ impl AgentCard {
         );
 
         metadata.insert(
-            "contact".to_string(),
+            "contact".into(),
             serde_json::json!({
                 "email": "support@pierre.ai",
                 "documentation": "https://docs.pierre.ai/a2a",
@@ -310,11 +312,21 @@ impl AgentCard {
     }
 
     /// Serialize the agent card to JSON
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if serialization fails
     pub fn to_json(&self) -> Result<String, serde_json::Error> {
         serde_json::to_string_pretty(self)
     }
 
     /// Create agent card from JSON
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - JSON parsing fails
+    /// - JSON structure is invalid
     pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {
         serde_json::from_str(json)
     }
@@ -368,14 +380,14 @@ mod tests {
         assert!(analyze_activity.input_schema["required"]
             .as_array()
             .unwrap()
-            .contains(&serde_json::Value::String("activity_id".to_string())));
+            .contains(&serde_json::Value::String("activity_id".into())));
     }
 
     #[test]
     fn test_authentication_info() {
         let card = AgentCard::new();
-        assert!(card.authentication.schemes.contains(&"api-key".to_string()));
-        assert!(card.authentication.schemes.contains(&"oauth2".to_string()));
+        assert!(card.authentication.schemes.contains(&"api-key".into()));
+        assert!(card.authentication.schemes.contains(&"oauth2".into()));
         assert!(card.authentication.oauth2.is_some());
         assert!(card.authentication.api_key.is_some());
     }

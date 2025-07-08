@@ -1,3 +1,5 @@
+// ABOUTME: Final focused coverage tests to boost critical areas
+// ABOUTME: Simplified tests targeting actual API structure and uncovered code paths
 //! Final focused coverage tests to boost critical areas
 //!
 //! Simplified and corrected tests targeting the actual API structure
@@ -297,7 +299,7 @@ async fn test_oauth_manager_operations() -> Result<()> {
                 assert_eq!(auth_response.provider, "strava");
             }
             Err(e) => {
-                println!("Auth URL generation failed: {}", e);
+                println!("Auth URL generation failed: {e}");
             }
         }
 
@@ -306,11 +308,11 @@ async fn test_oauth_manager_operations() -> Result<()> {
         match status_result {
             Ok(status_map) => {
                 for (provider, connected) in status_map {
-                    println!("Provider {} connected: {}", provider, connected);
+                    println!("Provider {provider} connected: {connected}");
                 }
             }
             Err(e) => {
-                println!("Connection status check failed: {}", e);
+                println!("Connection status check failed: {e}");
             }
         }
 
@@ -325,7 +327,7 @@ async fn test_oauth_manager_operations() -> Result<()> {
                 }
             }
             Err(e) => {
-                println!("Token operation failed: {}", e);
+                println!("Token operation failed: {e}");
             }
         }
     }
@@ -413,19 +415,45 @@ async fn test_activity_model_comprehensive() -> Result<()> {
     for sport_type in sport_types {
         let activity = Activity {
             id: Uuid::new_v4().to_string(),
-            name: format!("{:?} Test Activity", sport_type),
+            name: format!("{sport_type:?} Test Activity"),
             sport_type: sport_type.clone(),
             start_date: chrono::Utc::now() - chrono::Duration::hours(2),
-            duration_seconds: 3600,
-            distance_meters: Some(10000.0),
+            duration_seconds: 3_600,
+            distance_meters: Some(10_000.0),
             elevation_gain: Some(200.0),
             average_heart_rate: Some(150),
             max_heart_rate: Some(180),
             average_speed: Some(2.78), // 10 km/h in m/s
-            steps: Some(15000),
+            steps: Some(15_000),
             heart_rate_zones: None,
             max_speed: Some(5.0), // 18 km/h in m/s
             calories: Some(500),
+
+            // Advanced metrics (all None for test)
+            average_power: None,
+            max_power: None,
+            normalized_power: None,
+            power_zones: None,
+            ftp: None,
+            average_cadence: None,
+            max_cadence: None,
+            hrv_score: None,
+            recovery_heart_rate: None,
+            temperature: None,
+            humidity: None,
+            average_altitude: None,
+            wind_speed: None,
+            ground_contact_time: None,
+            vertical_oscillation: None,
+            stride_length: None,
+            running_power: None,
+            breathing_rate: None,
+            spo2: None,
+            training_stress_score: None,
+            intensity_factor: None,
+            suffer_score: None,
+            time_series_data: None,
+
             start_latitude: Some(40.7128),
             start_longitude: Some(-74.0060),
             city: Some("New York".to_string()),
@@ -494,9 +522,9 @@ async fn test_stats_model_scenarios() -> Result<()> {
         },
         Stats {
             total_activities: 100,
-            total_distance: 500000.0,      // 500 km
-            total_duration: 360000,        // 100 hours
-            total_elevation_gain: 10000.0, // 10 km elevation
+            total_distance: 500_000.0,      // 500 km
+            total_duration: 360_000,        // 100 hours
+            total_elevation_gain: 10_000.0, // 10 km elevation
         },
     ];
 
@@ -504,7 +532,7 @@ async fn test_stats_model_scenarios() -> Result<()> {
         let serialized = serde_json::to_string(&stats)?;
         let deserialized: Stats = serde_json::from_str(&serialized)?;
         assert_eq!(stats.total_activities, deserialized.total_activities);
-        assert_eq!(stats.total_distance, deserialized.total_distance);
+        assert!((stats.total_distance - deserialized.total_distance).abs() < f64::EPSILON);
     }
 
     Ok(())
@@ -530,9 +558,9 @@ async fn test_concurrent_operations() -> Result<()> {
 
         let handle = tokio::spawn(async move {
             let user = User::new(
-                format!("concurrent{}@example.com", i),
+                format!("concurrent{i}@example.com"),
                 "hash".to_string(),
-                Some(format!("Concurrent User {}", i)),
+                Some(format!("Concurrent User {i}")),
             );
 
             server_clone.database().create_user(&user).await?;
@@ -550,7 +578,7 @@ async fn test_concurrent_operations() -> Result<()> {
         let (email, sub) = handle.await??;
         assert!(!email.is_empty());
         assert!(!sub.is_empty());
-        println!("Concurrent operation completed for: {}", email);
+        println!("Concurrent operation completed for: {email}");
     }
 
     Ok(())

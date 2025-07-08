@@ -1,3 +1,5 @@
+// ABOUTME: Tests to ensure in-memory databases don't create physical files
+// ABOUTME: Validates SQLite memory database isolation and cleanup behavior
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -28,19 +30,15 @@ async fn test_memory_database_no_physical_files() -> Result<()> {
         let filename_str = filename.to_string_lossy();
 
         // Check for problematic files that shouldn't exist
-        if filename_str.starts_with(":memory:test_") {
-            panic!(
-                "Found physical file that should be in-memory: {}",
-                filename_str
-            );
-        }
+        assert!(
+            !filename_str.starts_with(":memory:test_"),
+            "Found physical file that should be in-memory: {filename_str}"
+        );
 
-        if filename_str.starts_with("sqlite::memory:") {
-            panic!(
-                "Found physical file with memory database URL: {}",
-                filename_str
-            );
-        }
+        assert!(
+            !filename_str.starts_with("sqlite::memory:"),
+            "Found physical file with memory database URL: {filename_str}"
+        );
     }
 
     // Test basic database functionality to ensure it works

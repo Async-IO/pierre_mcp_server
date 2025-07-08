@@ -1,3 +1,5 @@
+// ABOUTME: Authentication setup utility for configuring OAuth providers and API credentials
+// ABOUTME: Interactive command-line tool for initial system authentication configuration
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -28,13 +30,13 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Set up Strava OAuth2 authentication
+    /// Set up Strava `OAuth2` authentication
     Strava {
-        /// OAuth2 client ID
+        /// `OAuth2` client ID
         #[arg(long)]
         client_id: String,
 
-        /// OAuth2 client secret
+        /// `OAuth2` client secret
         #[arg(long)]
         client_secret: String,
 
@@ -77,18 +79,18 @@ async fn setup_strava_auth(client_id: String, client_secret: String, port: u16) 
         })
         .await?;
 
-    let redirect_uri = format!("http://localhost:{}/callback", port);
+    let redirect_uri = format!("http://localhost:{port}/callback");
     let state = uuid::Uuid::new_v4().to_string();
     let auth_url = provider.get_auth_url(&redirect_uri, &state)?;
 
     println!("\nPlease visit this URL to authorize the application:");
-    println!("{}\n", auth_url);
+    println!("{auth_url}\n");
 
     // Start callback server
     let auth_code = Arc::new(Mutex::new(None));
     let auth_code_clone = auth_code.clone();
 
-    let listener = TcpListener::bind(format!("127.0.0.1:{}", port)).await?;
+    let listener = TcpListener::bind(format!("127.0.0.1:{port}")).await?;
     info!("Listening for OAuth callback on port {}", port);
 
     let handle = tokio::spawn(async move {
@@ -100,7 +102,7 @@ async fn setup_strava_auth(client_id: String, client_secret: String, port: u16) 
             if reader.read_line(&mut line).await.unwrap_or(0) > 0 {
                 // Parse the GET request
                 if let Some(path) = line.split_whitespace().nth(1) {
-                    if let Ok(url) = Url::parse(&format!("http://localhost{}", path)) {
+                    if let Ok(url) = Url::parse(&format!("http://localhost{path}")) {
                         let params: std::collections::HashMap<_, _> = url.query_pairs().collect();
 
                         if let Some(code) = params.get("code") {
@@ -125,7 +127,8 @@ async fn setup_strava_auth(client_id: String, client_secret: String, port: u16) 
     tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
     handle.abort();
 
-    if let Some(code) = auth_code.lock().await.take() {
+    let auth_code_value = auth_code.lock().await.take();
+    if let Some(code) = auth_code_value {
         info!("Received authorization code, exchanging for tokens...");
 
         let (access_token, refresh_token) = provider.exchange_code(&code).await?;
@@ -133,15 +136,15 @@ async fn setup_strava_auth(client_id: String, client_secret: String, port: u16) 
         // In the new config system, authentication is handled via environment variables
         // Store credentials securely in environment or recommend .env file usage
         println!("✅ Authentication successful!");
-        println!("Access token: {}", access_token);
-        println!("Refresh token: {}", refresh_token);
+        println!("Access token: {access_token}");
+        println!("Refresh token: {refresh_token}");
 
         // Provide instructions for environment variable setup
         println!("\n📝 To complete setup, add these environment variables:");
         println!("STRAVA_CLIENT_ID=your_client_id");
         println!("STRAVA_CLIENT_SECRET=your_client_secret");
-        println!("STRAVA_ACCESS_TOKEN={}", access_token);
-        println!("STRAVA_REFRESH_TOKEN={}", refresh_token);
+        println!("STRAVA_ACCESS_TOKEN={access_token}");
+        println!("STRAVA_REFRESH_TOKEN={refresh_token}");
 
         // Create or load basic config for non-auth settings
         let config = Config::load(None).unwrap_or_else(|_| Config::default());

@@ -38,8 +38,8 @@ pub struct RecentActivity {
     pub timestamp: chrono::DateTime<Utc>,
     pub api_key_name: String,
     pub tool_name: String,
-    pub status_code: u16,
-    pub response_time_ms: Option<u32>,
+    pub status_code: i32,
+    pub response_time_ms: Option<i32>,
 }
 
 #[derive(Debug, Serialize)]
@@ -77,18 +77,18 @@ pub struct RateLimitOverview {
     pub reset_date: Option<chrono::DateTime<Utc>>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct RequestLog {
     pub id: String,
     pub timestamp: chrono::DateTime<Utc>,
     pub api_key_id: String,
     pub api_key_name: String,
     pub tool_name: String,
-    pub status_code: u16,
-    pub response_time_ms: Option<u32>,
+    pub status_code: i32,
+    pub response_time_ms: Option<i32>,
     pub error_message: Option<String>,
-    pub request_size_bytes: Option<u32>,
-    pub response_size_bytes: Option<u32>,
+    pub request_size_bytes: Option<i32>,
+    pub response_size_bytes: Option<i32>,
 }
 
 #[derive(Debug, Serialize)]
@@ -110,7 +110,7 @@ pub struct DashboardRoutes {
 }
 
 impl DashboardRoutes {
-    pub fn new(database: Database, auth_manager: AuthManager) -> Self {
+    pub const fn new(database: Database, auth_manager: AuthManager) -> Self {
         Self {
             database,
             auth_manager,
@@ -118,6 +118,12 @@ impl DashboardRoutes {
     }
 
     /// Get dashboard overview data
+    ///
+    /// # Errors
+    /// Returns an error if authentication fails, database queries fail, or date parsing fails
+    ///
+    /// # Panics
+    /// Panics if date construction fails with invalid values
     pub async fn get_dashboard_overview(
         &self,
         auth_header: Option<&str>,
@@ -135,8 +141,9 @@ impl DashboardRoutes {
 
         // Get user's API keys
         let api_keys = self.database.get_user_api_keys(user_id).await?;
-        let total_api_keys = api_keys.len() as u32;
-        let active_api_keys = api_keys.iter().filter(|k| k.is_active).count() as u32;
+        let total_api_keys = u32::try_from(api_keys.len()).unwrap_or(0);
+        let active_api_keys =
+            u32::try_from(api_keys.iter().filter(|k| k.is_active).count()).unwrap_or(0);
 
         // Calculate time ranges
         let today_start = Utc::now()
@@ -162,14 +169,14 @@ impl DashboardRoutes {
                 .database
                 .get_api_key_usage_stats(&api_key.id, today_start, Utc::now())
                 .await?;
-            total_requests_today += today_stats.total_requests as u64;
+            total_requests_today += u64::from(today_stats.total_requests);
 
             // This month's usage
             let month_stats = self
                 .database
                 .get_api_key_usage_stats(&api_key.id, month_start, Utc::now())
                 .await?;
-            total_requests_this_month += month_stats.total_requests as u64;
+            total_requests_this_month += u64::from(month_stats.total_requests);
         }
 
         // Group by tier
@@ -184,7 +191,7 @@ impl DashboardRoutes {
 
             let entry = tier_map.entry(tier_name).or_insert((0, 0));
             entry.0 += 1; // key count
-            entry.1 += month_stats.total_requests as u64; // total requests
+            entry.1 += u64::from(month_stats.total_requests); // total requests
         }
 
         let current_month_usage_by_tier: Vec<TierUsage> = tier_map
@@ -194,7 +201,10 @@ impl DashboardRoutes {
                 key_count,
                 total_requests,
                 average_requests_per_key: if key_count > 0 {
-                    total_requests as f64 / key_count as f64
+                    {
+                        f64::from(u32::try_from(total_requests).unwrap_or(u32::MAX))
+                            / f64::from(key_count)
+                    }
                 } else {
                     0.0
                 },
@@ -215,6 +225,9 @@ impl DashboardRoutes {
     }
 
     /// Get usage analytics for charts
+    ///
+    /// # Errors
+    /// Returns an error if authentication fails or database queries fail
     pub async fn get_usage_analytics(
         &self,
         auth_header: Option<&str>,
@@ -232,12 +245,12 @@ impl DashboardRoutes {
         );
 
         let api_keys = self.database.get_user_api_keys(user_id).await?;
-        let start_date = Utc::now() - Duration::days(days as i64);
+        let start_date = Utc::now() - Duration::days(i64::from(days));
 
         // Time series data (daily aggregates)
         let mut time_series = Vec::new();
         for day in 0..days {
-            let day_start = start_date + Duration::days(day as i64);
+            let day_start = start_date + Duration::days(i64::from(day));
             let day_end = day_start + Duration::days(1);
 
             let mut total_requests = 0u64;
@@ -251,10 +264,10 @@ impl DashboardRoutes {
                     .get_api_key_usage_stats(&api_key.id, day_start, day_end)
                     .await?;
 
-                total_requests += stats.total_requests as u64;
-                total_errors += stats.failed_requests as u64;
+                total_requests += u64::from(stats.total_requests);
+                total_errors += u64::from(stats.failed_requests);
                 total_response_time += stats.total_response_time_ms;
-                response_count += stats.total_requests as u64;
+                response_count += u64::from(stats.total_requests);
             }
 
             time_series.push(UsageDataPoint {
@@ -262,7 +275,10 @@ impl DashboardRoutes {
                 request_count: total_requests,
                 error_count: total_errors,
                 average_response_time: if response_count > 0 {
-                    total_response_time as f64 / response_count as f64
+                    {
+                        f64::from(u32::try_from(total_response_time).unwrap_or(u32::MAX))
+                            / f64::from(u32::try_from(response_count).unwrap_or(u32::MAX))
+                    }
                 } else {
                     0.0
                 },
@@ -278,19 +294,25 @@ impl DashboardRoutes {
         let total_requests: u64 = time_series.iter().map(|d| d.request_count).sum();
         let total_errors: u64 = time_series.iter().map(|d| d.error_count).sum();
         let error_rate = if total_requests > 0 {
-            (total_errors as f64 / total_requests as f64) * 100.0
+            (f64::from(u32::try_from(total_errors).unwrap_or(u32::MAX))
+                / f64::from(u32::try_from(total_requests).unwrap_or(u32::MAX)))
+                * 100.0
         } else {
             0.0
         };
 
-        let average_response_time = if !time_series.is_empty() {
+        let average_response_time = if time_series.is_empty() {
+            0.0
+        } else {
             time_series
                 .iter()
                 .map(|d| d.average_response_time)
                 .sum::<f64>()
-                / time_series.len() as f64
-        } else {
-            0.0
+                / {
+                    {
+                        f64::from(u32::try_from(time_series.len()).unwrap_or(u32::MAX))
+                    }
+                }
         };
 
         Ok(UsageAnalytics {
@@ -302,6 +324,12 @@ impl DashboardRoutes {
     }
 
     /// Get rate limit overview for all user's API keys
+    ///
+    /// # Errors
+    /// Returns an error if authentication fails or database queries fail
+    ///
+    /// # Panics
+    /// Panics if date construction fails with invalid values
     pub async fn get_rate_limit_overview(
         &self,
         auth_header: Option<&str>,
@@ -325,18 +353,20 @@ impl DashboardRoutes {
             let limit = if api_key.tier == crate::api_keys::ApiKeyTier::Enterprise {
                 None
             } else {
-                Some(api_key.rate_limit_requests as u64)
+                Some(u64::from(api_key.rate_limit_requests))
             };
 
-            let usage_percentage = if let Some(limit_val) = limit {
+            let usage_percentage = limit.map_or(0.0, |limit_val| {
                 if limit_val > 0 {
-                    (current_usage as f64 / limit_val as f64) * 100.0
+                    {
+                        (f64::from(current_usage)
+                            / f64::from(u32::try_from(limit_val).unwrap_or(u32::MAX)))
+                            * 100.0
+                    }
                 } else {
                     0.0
                 }
-            } else {
-                0.0 // Unlimited
-            };
+            });
 
             // Calculate reset date (first day of next month)
             let now = Utc::now();
@@ -372,36 +402,39 @@ impl DashboardRoutes {
     }
 
     /// Validate authentication header and return claims
+    ///
+    /// # Errors
+    /// Returns an error if the authorization header is missing, malformed, or contains an invalid token
     fn validate_auth_header(&self, auth_header: Option<&str>) -> Result<crate::auth::Claims> {
         tracing::debug!("Dashboard endpoint authentication attempt");
 
-        let auth_str = match auth_header {
-            Some(header) => header,
-            None => {
-                tracing::warn!("Dashboard access denied: Missing authorization header");
-                return Err(anyhow::anyhow!("Missing authorization header"));
-            }
+        let Some(auth_str) = auth_header else {
+            tracing::warn!("Dashboard access denied: Missing authorization header");
+            return Err(anyhow::anyhow!("Missing authorization header"));
         };
 
-        if let Some(token) = auth_str.strip_prefix("Bearer ") {
-            tracing::debug!("Validating JWT token for dashboard access");
-            match self.auth_manager.validate_token(token) {
-                Ok(claims) => {
-                    tracing::info!("Dashboard access granted for user: {}", claims.sub);
-                    Ok(claims)
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        "Dashboard access denied for token validation failure: {}",
-                        e
-                    );
-                    Err(e)
-                }
-            }
-        } else {
-            tracing::warn!("Dashboard access denied: Invalid authorization header format (expected 'Bearer ...')");
-            Err(anyhow::anyhow!("Invalid authorization header format"))
-        }
+        auth_str.strip_prefix("Bearer ").map_or_else(
+            || {
+                tracing::warn!("Dashboard access denied: Invalid authorization header format (expected 'Bearer ...')");
+                Err(anyhow::anyhow!("Invalid authorization header format"))
+            },
+            |token| {
+                tracing::debug!("Validating JWT token for dashboard access");
+                self.auth_manager.validate_token(token).map_or_else(
+                    |e| {
+                        tracing::warn!(
+                            "Dashboard access denied for token validation failure: {}",
+                            e
+                        );
+                        Err(e)
+                    },
+                    |claims| {
+                        tracing::info!("Dashboard access granted for user: {}", claims.sub);
+                        Ok(claims)
+                    },
+                )
+            },
+        )
     }
 
     /// Get recent activity for user
@@ -465,7 +498,7 @@ impl DashboardRoutes {
                     if let Some(count) = count_val.as_u64() {
                         let entry = tool_stats.entry(tool_name.clone()).or_insert((0, 0, 0));
                         entry.0 += count; // total requests
-                        entry.1 += stats.successful_requests as u64; // successful requests
+                        entry.1 += u64::from(stats.successful_requests); // successful requests
                         entry.2 += stats.total_response_time_ms; // total response time
                     }
                 }
@@ -478,13 +511,16 @@ impl DashboardRoutes {
             .map(
                 |(tool_name, (total_requests, successful_requests, total_response_time))| {
                     let success_rate = if total_requests > 0 {
-                        (successful_requests as f64 / total_requests as f64) * 100.0
+                        (f64::from(u32::try_from(successful_requests).unwrap_or(u32::MAX))
+                            / f64::from(u32::try_from(total_requests).unwrap_or(u32::MAX)))
+                            * 100.0
                     } else {
                         0.0
                     };
 
                     let average_response_time = if total_requests > 0 {
-                        total_response_time as f64 / total_requests as f64
+                        f64::from(u32::try_from(total_response_time).unwrap_or(u32::MAX))
+                            / f64::from(u32::try_from(total_requests).unwrap_or(u32::MAX))
                     } else {
                         0.0
                     };
@@ -507,6 +543,9 @@ impl DashboardRoutes {
     }
 
     /// Get request logs with filtering
+    ///
+    /// # Errors
+    /// Returns an error if authentication fails, API key access is denied, or database queries fail
     pub async fn get_request_logs(
         &self,
         auth_header: Option<&str>,
@@ -537,11 +576,10 @@ impl DashboardRoutes {
 
         // Parse time range
         let start_time = match time_range {
-            Some("1h") => Utc::now() - Duration::hours(1),
             Some("24h") => Utc::now() - Duration::hours(24),
             Some("7d") => Utc::now() - Duration::days(7),
             Some("30d") => Utc::now() - Duration::days(30),
-            _ => Utc::now() - Duration::hours(1), // Default to 1 hour
+            _ => Utc::now() - Duration::hours(1), // Default to 1 hour (includes "1h")
         };
 
         // Query real data from the database
@@ -554,6 +592,9 @@ impl DashboardRoutes {
     }
 
     /// Get request statistics
+    ///
+    /// # Errors
+    /// Returns an error if authentication fails, API key access is denied, or database queries fail
     pub async fn get_request_stats(
         &self,
         auth_header: Option<&str>,
@@ -582,11 +623,10 @@ impl DashboardRoutes {
 
         // Parse time range
         let (start_time, duration_minutes) = match time_range {
-            Some("1h") => (Utc::now() - Duration::hours(1), 60.0),
             Some("24h") => (Utc::now() - Duration::hours(24), 1440.0),
             Some("7d") => (Utc::now() - Duration::days(7), 10080.0),
             Some("30d") => (Utc::now() - Duration::days(30), 43200.0),
-            _ => (Utc::now() - Duration::hours(1), 60.0), // Default to 1 hour
+            _ => (Utc::now() - Duration::hours(1), 60.0), // Default to 1 hour (includes "1h")
         };
 
         // Calculate stats from user's API keys
@@ -607,22 +647,26 @@ impl DashboardRoutes {
                 .get_api_key_usage_stats(&api_key.id, start_time, Utc::now())
                 .await?;
 
-            total_requests += stats.total_requests as u64;
-            successful_requests += stats.successful_requests as u64;
-            failed_requests += stats.failed_requests as u64;
+            total_requests += u64::from(stats.total_requests);
+            successful_requests += u64::from(stats.successful_requests);
+            failed_requests += u64::from(stats.failed_requests);
             total_response_time += stats.total_response_time_ms;
         }
 
         let average_response_time = if total_requests > 0 {
-            total_response_time as f64 / total_requests as f64
+            f64::from(u32::try_from(total_response_time).unwrap_or(u32::MAX))
+                / f64::from(u32::try_from(total_requests).unwrap_or(u32::MAX))
         } else {
             0.0
         };
 
-        let requests_per_minute = total_requests as f64 / duration_minutes;
+        let requests_per_minute =
+            f64::from(u32::try_from(total_requests).unwrap_or(u32::MAX)) / duration_minutes;
 
         let error_rate = if total_requests > 0 {
-            (failed_requests as f64 / total_requests as f64) * 100.0
+            (f64::from(u32::try_from(failed_requests).unwrap_or(u32::MAX))
+                / f64::from(u32::try_from(total_requests).unwrap_or(u32::MAX)))
+                * 100.0
         } else {
             0.0
         };
@@ -640,6 +684,9 @@ impl DashboardRoutes {
     }
 
     /// Get tool usage breakdown for analytics
+    ///
+    /// # Errors
+    /// Returns an error if authentication fails or database queries fail
     pub async fn get_tool_usage_breakdown(
         &self,
         auth_header: Option<&str>,
@@ -660,9 +707,8 @@ impl DashboardRoutes {
         let start_time = match time_range {
             Some("1h") => Utc::now() - Duration::hours(1),
             Some("24h") => Utc::now() - Duration::hours(24),
-            Some("7d") => Utc::now() - Duration::days(7),
             Some("30d") => Utc::now() - Duration::days(30),
-            _ => Utc::now() - Duration::days(7), // Default to 7 days
+            _ => Utc::now() - Duration::days(7), // Default to 7 days (includes "7d")
         };
 
         // Get tool usage analysis

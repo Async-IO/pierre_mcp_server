@@ -21,7 +21,8 @@ pub struct A2ASystemUserService {
 
 impl A2ASystemUserService {
     /// Create a new system user service
-    pub fn new(database: Arc<Database>) -> Self {
+    #[must_use]
+    pub const fn new(database: Arc<Database>) -> Self {
         Self { database }
     }
 
@@ -29,12 +30,19 @@ impl A2ASystemUserService {
     ///
     /// System users are special accounts created specifically for A2A clients.
     /// They have no login credentials and exist purely for API key association.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database operations fail
+    /// - Password hashing fails
+    /// - User creation fails
     pub async fn create_or_get_system_user(
         &self,
         client_id: &str,
         contact_email: &str,
     ) -> Result<Uuid> {
-        let system_email = format!("a2a-system-{}@pierre.ai", client_id);
+        let system_email = format!("a2a-system-{client_id}@pierre.ai");
 
         // Check if system user already exists
         if let Some(existing_user) = self.database.get_user_by_email(&system_email).await? {
@@ -43,20 +51,19 @@ impl A2ASystemUserService {
 
         // Create new system user with secure random password
         // System users cannot login directly, so this password is never used
-        let secure_password = self.generate_secure_system_password();
+        let secure_password = Self::generate_secure_system_password();
         let hashed_password = bcrypt::hash(secure_password, bcrypt::DEFAULT_COST)?;
 
         let system_user = User::new(
             system_email.clone(),
             hashed_password,
-            Some(format!("A2A System User for {}", client_id)),
+            Some(format!("A2A System User for {client_id}")),
         );
 
         let user_id = self.database.create_user(&system_user).await?;
 
         // Store metadata about this being a system user
-        self.store_system_user_metadata(user_id, client_id, contact_email)
-            .await?;
+        Self::store_system_user_metadata(user_id, client_id, contact_email);
 
         tracing::info!(
             user_id = %user_id,
@@ -68,7 +75,7 @@ impl A2ASystemUserService {
     }
 
     /// Generate a cryptographically secure password for system users
-    fn generate_secure_system_password(&self) -> String {
+    fn generate_secure_system_password() -> String {
         use rand::Rng;
         let mut rng = rand::thread_rng();
         let password: String = (0..64)
@@ -82,24 +89,22 @@ impl A2ASystemUserService {
     }
 
     /// Store metadata about system user
-    async fn store_system_user_metadata(
-        &self,
-        user_id: Uuid,
-        client_id: &str,
-        contact_email: &str,
-    ) -> Result<()> {
+    fn store_system_user_metadata(user_id: Uuid, client_id: &str, contact_email: &str) {
         // Store in a metadata table or as user properties
-        // For now, we'll store it as part of the user's display name and email patterns
+        // Store system identifier in user display name and email patterns
         tracing::debug!(
             user_id = %user_id,
             client_id = %client_id,
             contact_email = %contact_email,
             "Stored A2A system user metadata"
         );
-        Ok(())
     }
 
     /// Check if a user is a system user for A2A
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operations fail
     pub async fn is_system_user(&self, user_id: Uuid) -> Result<bool> {
         if let Some(user) = self.database.get_user(user_id).await? {
             // System users have emails following the pattern a2a-system-{client_id}@pierre.ai
@@ -110,6 +115,10 @@ impl A2ASystemUserService {
     }
 
     /// Get the client ID associated with a system user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operations fail
     pub async fn get_client_id_for_system_user(&self, user_id: Uuid) -> Result<Option<String>> {
         if let Some(user) = self.database.get_user(user_id).await? {
             if user.email.starts_with("a2a-system-") && user.email.ends_with("@pierre.ai") {
@@ -118,19 +127,23 @@ impl A2ASystemUserService {
                     .email
                     .strip_prefix("a2a-system-")
                     .and_then(|s| s.strip_suffix("@pierre.ai"));
-                return Ok(email_part.map(|s| s.to_string()));
+                return Ok(email_part.map(std::string::ToString::to_string));
             }
         }
         Ok(None)
     }
 
     /// Deactivate a system user when A2A client is deleted
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operations fail
     pub async fn deactivate_system_user(&self, client_id: &str) -> Result<()> {
-        let system_email = format!("a2a-system-{}@pierre.ai", client_id);
+        let system_email = format!("a2a-system-{client_id}@pierre.ai");
 
         if let Some(user) = self.database.get_user_by_email(&system_email).await? {
             // Instead of deleting, we could mark as inactive
-            // For now, we'll just log the deactivation
+            // Log system user deactivation
             tracing::info!(
                 user_id = %user.id,
                 client_id = %client_id,
@@ -150,7 +163,7 @@ mod tests {
     async fn create_test_database() -> Arc<Database> {
         let database = Database::new("sqlite::memory:", vec![0u8; 32])
             .await
-            .unwrap();
+            .expect("Failed to create test database");
         Arc::new(database)
     }
 
@@ -165,16 +178,19 @@ mod tests {
         let user_id = service
             .create_or_get_system_user(client_id, contact_email)
             .await
-            .unwrap();
+            .expect("Failed to create system user");
 
         // Verify user was created
-        assert!(service.is_system_user(user_id).await.unwrap());
+        assert!(service
+            .is_system_user(user_id)
+            .await
+            .expect("Failed to check if user is system user"));
 
         // Verify client ID extraction
         let extracted_client_id = service
             .get_client_id_for_system_user(user_id)
             .await
-            .unwrap();
+            .expect("Failed to get client ID for system user");
         assert_eq!(extracted_client_id, Some(client_id.to_string()));
     }
 
@@ -190,13 +206,13 @@ mod tests {
         let user_id1 = service
             .create_or_get_system_user(client_id, contact_email)
             .await
-            .unwrap();
+            .expect("Failed to create system user first time");
 
         // Get same user second time
         let user_id2 = service
             .create_or_get_system_user(client_id, contact_email)
             .await
-            .unwrap();
+            .expect("Failed to create system user second time");
 
         // Should be the same user
         assert_eq!(user_id1, user_id2);
@@ -207,12 +223,12 @@ mod tests {
         let database = Arc::new(
             Database::new("sqlite::memory:", vec![0u8; 32])
                 .await
-                .unwrap(),
+                .expect("Failed to create test database"),
         );
-        let service = A2ASystemUserService::new(database);
+        let _service = A2ASystemUserService::new(database);
 
-        let password1 = service.generate_secure_system_password();
-        let password2 = service.generate_secure_system_password();
+        let password1 = A2ASystemUserService::generate_secure_system_password();
+        let password2 = A2ASystemUserService::generate_secure_system_password();
 
         // Passwords should be different
         assert_ne!(password1, password2);

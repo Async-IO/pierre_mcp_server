@@ -1,3 +1,5 @@
+// ABOUTME: Unit tests for individual MCP analytics tools
+// ABOUTME: Tests MCP schema tools and tool execution functionality
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -196,16 +198,15 @@ fn test_provider_parameter_consistency() {
         let tool = tools
             .iter()
             .find(|t| t.name == *tool_name)
-            .unwrap_or_else(|| panic!("Tool {} should exist", tool_name));
+            .unwrap_or_else(|| panic!("Tool {tool_name} should exist"));
 
         if let Some(required) = &tool.input_schema.required {
             assert!(
                 required.contains(&"provider".to_string()),
-                "Tool {} should require provider parameter",
-                tool_name
+                "Tool {tool_name} should require provider parameter"
             );
         } else {
-            panic!("Tool {} should have required parameters", tool_name);
+            panic!("Tool {tool_name} should have required parameters");
         }
 
         if let Some(properties) = &tool.input_schema.properties {
@@ -217,7 +218,7 @@ fn test_provider_parameter_consistency() {
                 .unwrap()
                 .contains("provider"));
         } else {
-            panic!("Tool {} should have properties", tool_name);
+            panic!("Tool {tool_name} should have properties");
         }
     }
 }
@@ -233,13 +234,12 @@ fn test_goal_tools_consistency() {
         let tool = tools
             .iter()
             .find(|t| t.name == *tool_name)
-            .unwrap_or_else(|| panic!("Tool {} should exist", tool_name));
+            .unwrap_or_else(|| panic!("Tool {tool_name} should exist"));
 
         // Description should mention goals
         assert!(
             tool.description.to_lowercase().contains("goal"),
-            "Goal tool {} should mention 'goal' in description",
-            tool_name
+            "Goal tool {tool_name} should mention 'goal' in description"
         );
     }
 
@@ -275,8 +275,7 @@ fn test_fitness_report_tools_available() {
     for tool_name in &required_tools {
         assert!(
             tool_names.contains(tool_name),
-            "Required tool '{}' for fitness reporting is missing",
-            tool_name
+            "Required tool '{tool_name}' for fitness reporting is missing"
         );
     }
 

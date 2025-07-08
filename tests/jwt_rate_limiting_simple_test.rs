@@ -1,3 +1,5 @@
+// ABOUTME: Simple test to verify JWT rate limiting works correctly
+// ABOUTME: Tests critical security fix for JWT tokens having unlimited API access
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -43,7 +45,7 @@ async fn test_jwt_tokens_now_have_rate_limiting() {
 
     // Test authentication - should now include rate limiting info
     let auth_result = auth_middleware
-        .authenticate_request(Some(&format!("Bearer {}", token)))
+        .authenticate_request(Some(&format!("Bearer {token}")))
         .await
         .expect("JWT authentication should succeed");
 

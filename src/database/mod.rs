@@ -33,6 +33,15 @@ pub struct Database {
 
 impl Database {
     /// Create a new database connection
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database URL is invalid or malformed
+    /// - Database connection fails
+    /// - `SQLite` file creation fails
+    /// - Migration process fails
+    /// - Encryption key is invalid
     pub async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
         // Ensure SQLite creates the database file if it doesn't exist
         let connection_options = if database_url.starts_with("sqlite:") {
@@ -55,11 +64,20 @@ impl Database {
     }
 
     /// Get a reference to the database pool for advanced operations
-    pub fn pool(&self) -> &Pool<Sqlite> {
+    #[must_use]
+    pub const fn pool(&self) -> &Pool<Sqlite> {
         &self.pool
     }
 
     /// Run database migrations
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Migration SQL statements fail to execute
+    /// - Database schema creation fails
+    /// - Insufficient database permissions
+    /// - Database connection is lost during migration
     pub async fn migrate(&self) -> Result<()> {
         // User tables
         self.migrate_users().await?;
@@ -80,6 +98,14 @@ impl Database {
     }
 
     /// Create admin tables
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Table creation SQL fails
+    /// - Index creation fails
+    /// - Database constraints cannot be applied
+    /// - SQL syntax errors in migration statements
     async fn migrate_admin(&self) -> Result<()> {
         // Create admin_tokens table
         sqlx::query(
@@ -107,7 +133,7 @@ impl Database {
 
         // Create admin_token_usage table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS admin_token_usage (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 admin_token_id TEXT NOT NULL REFERENCES admin_tokens(id) ON DELETE CASCADE,
@@ -121,14 +147,14 @@ impl Database {
                 error_message TEXT,
                 response_time_ms INTEGER
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
 
         // Create admin_provisioned_keys table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS admin_provisioned_keys (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 admin_token_id TEXT NOT NULL REFERENCES admin_tokens(id) ON DELETE CASCADE,
@@ -143,7 +169,7 @@ impl Database {
                 revoked_at DATETIME,
                 revoked_reason TEXT
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
@@ -191,6 +217,7 @@ impl EncryptionHelper for Database {
 }
 
 /// Generate a secure encryption key (32 bytes for AES-256)
+#[must_use]
 pub fn generate_encryption_key() -> [u8; 32] {
     use rand::Rng;
     let mut key = [0u8; 32];
@@ -202,7 +229,7 @@ pub fn generate_encryption_key() -> [u8; 32] {
 mod tests {
     use super::*;
 
-    pub(crate) async fn create_test_db() -> Result<Database> {
+    pub async fn create_test_db() -> Result<Database> {
         // Use a simple in-memory database - each connection gets its own isolated instance
         let database_url = "sqlite::memory:";
         Database::new(database_url, vec![0u8; 32]).await

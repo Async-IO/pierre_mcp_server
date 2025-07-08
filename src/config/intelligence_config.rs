@@ -303,6 +303,10 @@ impl IntelligenceConfig<true> {
     }
 
     /// Load configuration from environment and files
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if environment variables contain invalid values or validation fails
     pub fn load() -> Result<Self, ConfigError> {
         let mut config = Self::default();
 
@@ -380,9 +384,7 @@ impl IntelligenceConfig<true> {
         if let Ok(val) = std::env::var("INTELLIGENCE_RECOMMENDATION_LOW_DISTANCE") {
             self.recommendation_engine.thresholds.low_weekly_distance_km =
                 val.parse().map_err(|_| {
-                    ConfigError::Parse(
-                        "Invalid INTELLIGENCE_RECOMMENDATION_LOW_DISTANCE".to_string(),
-                    )
+                    ConfigError::Parse("Invalid INTELLIGENCE_RECOMMENDATION_LOW_DISTANCE".into())
                 })?;
         }
 
@@ -390,20 +392,20 @@ impl IntelligenceConfig<true> {
             self.recommendation_engine
                 .thresholds
                 .high_weekly_distance_km = val.parse().map_err(|_| {
-                ConfigError::Parse("Invalid INTELLIGENCE_RECOMMENDATION_HIGH_DISTANCE".to_string())
+                ConfigError::Parse("Invalid INTELLIGENCE_RECOMMENDATION_HIGH_DISTANCE".into())
             })?;
         }
 
         // Weather analysis overrides
         if let Ok(val) = std::env::var("INTELLIGENCE_WEATHER_IDEAL_MIN_TEMP") {
             self.weather_analysis.temperature.ideal_min_celsius = val.parse().map_err(|_| {
-                ConfigError::Parse("Invalid INTELLIGENCE_WEATHER_IDEAL_MIN_TEMP".to_string())
+                ConfigError::Parse("Invalid INTELLIGENCE_WEATHER_IDEAL_MIN_TEMP".into())
             })?;
         }
 
         if let Ok(val) = std::env::var("INTELLIGENCE_WEATHER_IDEAL_MAX_TEMP") {
             self.weather_analysis.temperature.ideal_max_celsius = val.parse().map_err(|_| {
-                ConfigError::Parse("Invalid INTELLIGENCE_WEATHER_IDEAL_MAX_TEMP".to_string())
+                ConfigError::Parse("Invalid INTELLIGENCE_WEATHER_IDEAL_MAX_TEMP".into())
             })?;
         }
 
@@ -414,164 +416,314 @@ impl IntelligenceConfig<true> {
 impl Default for IntelligenceConfig<true> {
     fn default() -> Self {
         Self {
-            recommendation_engine: RecommendationEngineConfig {
-                thresholds: RecommendationThresholds {
-                    low_weekly_distance_km: 20.0,
-                    high_weekly_distance_km: 80.0,
-                    low_weekly_frequency: 2,
-                    high_weekly_frequency: 6,
-                    pace_improvement_threshold: 0.05,
-                    consistency_threshold: 0.7,
-                    rest_day_threshold: 1,
-                    volume_increase_threshold: 0.1,
-                    intensity_threshold: 0.8,
-                },
-                weights: RecommendationWeights {
-                    distance_weight: 0.3,
-                    frequency_weight: 0.25,
-                    pace_weight: 0.2,
-                    consistency_weight: 0.15,
-                    recovery_weight: 0.1,
-                },
-                limits: RecommendationLimits {
-                    max_recommendations_per_category: 3,
-                    max_total_recommendations: 10,
-                    min_confidence_threshold: 0.6,
-                },
-                messages: RecommendationMessages {
-                    low_distance: "Consider gradually increasing your weekly distance".to_string(),
-                    high_distance: "You're covering good distance - focus on quality".to_string(),
-                    low_frequency: "Try to add one more training session per week".to_string(),
-                    high_frequency: "You're training frequently - ensure adequate recovery"
-                        .to_string(),
-                    pace_improvement: "Focus on tempo runs to improve your pace".to_string(),
-                    consistency_improvement: "Try to maintain a more consistent training schedule"
-                        .to_string(),
-                    recovery_needed: "Consider adding more recovery time between sessions"
-                        .to_string(),
-                },
-            },
-            performance_analyzer: PerformanceAnalyzerConfig {
-                trend_analysis: TrendAnalysisConfig {
-                    min_data_points: 5,
-                    trend_strength_threshold: 0.3,
-                    significance_threshold: 0.05,
-                    improvement_threshold: 0.02,
-                    decline_threshold: -0.02,
-                },
-                statistical: StatisticalConfig {
-                    confidence_level: 0.95,
-                    outlier_threshold: 2.0,
-                    smoothing_factor: 0.3,
-                },
-                thresholds: PerformanceThresholds {
-                    significant_improvement: 0.05,
-                    significant_decline: -0.05,
-                    pace_variance_threshold: 0.2,
-                    endurance_threshold: 0.8,
-                },
-            },
-            goal_engine: GoalEngineConfig {
-                feasibility: FeasibilityConfig {
-                    min_success_probability: 0.6,
-                    conservative_multiplier: 0.8,
-                    aggressive_multiplier: 1.3,
-                    injury_risk_threshold: 0.3,
-                },
-                suggestion: SuggestionConfig {
-                    max_goals_per_type: 3,
-                    difficulty_distribution: DifficultyDistribution {
-                        easy_percentage: 0.4,
-                        moderate_percentage: 0.4,
-                        hard_percentage: 0.2,
-                    },
-                    timeframe_preferences: TimeframePreferences {
-                        short_term_weeks: 4,
-                        medium_term_weeks: 12,
-                        long_term_weeks: 26,
-                    },
-                },
-                progression: ProgressionConfig {
-                    weekly_increase_limit: 0.1,
-                    monthly_increase_limit: 0.2,
-                    deload_frequency_weeks: 4,
-                },
-            },
-            weather_analysis: WeatherAnalysisConfig {
-                temperature: TemperatureConfig {
-                    ideal_min_celsius: 10.0,
-                    ideal_max_celsius: 20.0,
-                    cold_threshold_celsius: 5.0,
-                    hot_threshold_celsius: 25.0,
-                    extreme_cold_celsius: -5.0,
-                    extreme_hot_celsius: 35.0,
-                },
-                conditions: WeatherConditionsConfig {
-                    high_humidity_threshold: 80.0,
-                    strong_wind_threshold: 20.0,
-                    precipitation_impact_factor: 0.8,
-                },
-                impact: WeatherImpactConfig {
-                    temperature_impact_weight: 0.4,
-                    humidity_impact_weight: 0.3,
-                    wind_impact_weight: 0.2,
-                    precipitation_impact_weight: 0.1,
-                },
-            },
-            activity_analyzer: ActivityAnalyzerConfig {
-                analysis: ActivityAnalysisConfig {
-                    min_duration_seconds: 300, // 5 minutes
-                    max_reasonable_pace: 15.0, // 15 min/km
-                    heart_rate_zones: HeartRateZonesConfig {
-                        zone1_max_percentage: 60.0,
-                        zone2_max_percentage: 70.0,
-                        zone3_max_percentage: 80.0,
-                        zone4_max_percentage: 90.0,
-                        zone5_max_percentage: 100.0,
-                    },
-                    power_zones: PowerZonesConfig {
-                        zone1_max_percentage: 55.0,
-                        zone2_max_percentage: 75.0,
-                        zone3_max_percentage: 90.0,
-                        zone4_max_percentage: 105.0,
-                        zone5_max_percentage: 150.0,
-                    },
-                },
-                scoring: ActivityScoringConfig {
-                    efficiency_weight: 0.3,
-                    intensity_weight: 0.3,
-                    duration_weight: 0.2,
-                    consistency_weight: 0.2,
-                },
-                insights: ActivityInsightsConfig {
-                    min_confidence_threshold: 0.7,
-                    max_insights_per_activity: 5,
-                    severity_thresholds: SeverityThresholds {
-                        info_threshold: 0.3,
-                        warning_threshold: 0.7,
-                        critical_threshold: 0.9,
-                    },
-                },
-            },
-            metrics: MetricsConfig {
-                calculation: MetricsCalculationConfig {
-                    smoothing_window_size: 7,
-                    outlier_detection_threshold: 2.5,
-                    missing_data_interpolation: true,
-                },
-                validation: MetricsValidationConfig {
-                    max_heart_rate: 220,
-                    min_heart_rate: 40,
-                    max_pace_min_per_km: 20.0,
-                    min_pace_min_per_km: 2.0,
-                },
-                aggregation: MetricsAggregationConfig {
-                    weekly_aggregation_method: "average".to_string(),
-                    monthly_aggregation_method: "weighted_average".to_string(),
-                    trend_calculation_method: "linear_regression".to_string(),
-                },
-            },
+            recommendation_engine: Self::default_recommendation_engine_config(),
+            performance_analyzer: Self::default_performance_analyzer_config(),
+            goal_engine: Self::default_goal_engine_config(),
+            weather_analysis: Self::default_weather_analysis_config(),
+            activity_analyzer: Self::default_activity_analyzer_config(),
+            metrics: Self::default_metrics_config(),
             _phantom: PhantomData,
+        }
+    }
+}
+
+impl IntelligenceConfig<true> {
+    /// Create default recommendation engine configuration
+    fn default_recommendation_engine_config() -> RecommendationEngineConfig {
+        RecommendationEngineConfig {
+            thresholds: Self::default_recommendation_thresholds(),
+            weights: Self::default_recommendation_weights(),
+            limits: Self::default_recommendation_limits(),
+            messages: Self::default_recommendation_messages(),
+        }
+    }
+
+    /// Create default recommendation thresholds
+    const fn default_recommendation_thresholds() -> RecommendationThresholds {
+        RecommendationThresholds {
+            low_weekly_distance_km: 20.0,
+            high_weekly_distance_km: 80.0,
+            low_weekly_frequency: 2,
+            high_weekly_frequency: 6,
+            pace_improvement_threshold: 0.05,
+            consistency_threshold: 0.7,
+            rest_day_threshold: 1,
+            volume_increase_threshold: 0.1,
+            intensity_threshold: 0.8,
+        }
+    }
+
+    /// Create default recommendation weights
+    const fn default_recommendation_weights() -> RecommendationWeights {
+        RecommendationWeights {
+            distance_weight: 0.3,
+            frequency_weight: 0.25,
+            pace_weight: 0.2,
+            consistency_weight: 0.15,
+            recovery_weight: 0.1,
+        }
+    }
+
+    /// Create default recommendation limits
+    const fn default_recommendation_limits() -> RecommendationLimits {
+        RecommendationLimits {
+            max_recommendations_per_category: 3,
+            max_total_recommendations: 10,
+            min_confidence_threshold: 0.6,
+        }
+    }
+
+    /// Create default recommendation messages
+    fn default_recommendation_messages() -> RecommendationMessages {
+        RecommendationMessages {
+            low_distance: "Consider gradually increasing your weekly distance".into(),
+            high_distance: "You're covering good distance - focus on quality".into(),
+            low_frequency: "Try to add one more training session per week".into(),
+            high_frequency: "You're training frequently - ensure adequate recovery".to_string(),
+            pace_improvement: "Focus on tempo runs to improve your pace".into(),
+            consistency_improvement: "Try to maintain a more consistent training schedule"
+                .to_string(),
+            recovery_needed: "Consider adding more recovery time between sessions".to_string(),
+        }
+    }
+
+    /// Create default performance analyzer configuration
+    const fn default_performance_analyzer_config() -> PerformanceAnalyzerConfig {
+        PerformanceAnalyzerConfig {
+            trend_analysis: Self::default_trend_analysis_config(),
+            statistical: Self::default_statistical_config(),
+            thresholds: Self::default_performance_thresholds(),
+        }
+    }
+
+    /// Create default trend analysis configuration
+    const fn default_trend_analysis_config() -> TrendAnalysisConfig {
+        TrendAnalysisConfig {
+            min_data_points: 5,
+            trend_strength_threshold: 0.3,
+            significance_threshold: 0.05,
+            improvement_threshold: 0.02,
+            decline_threshold: -0.02,
+        }
+    }
+
+    /// Create default statistical configuration
+    const fn default_statistical_config() -> StatisticalConfig {
+        StatisticalConfig {
+            confidence_level: 0.95,
+            outlier_threshold: 2.0,
+            smoothing_factor: 0.3,
+        }
+    }
+
+    /// Create default performance thresholds
+    const fn default_performance_thresholds() -> PerformanceThresholds {
+        PerformanceThresholds {
+            significant_improvement: 0.05,
+            significant_decline: -0.05,
+            pace_variance_threshold: 0.2,
+            endurance_threshold: 0.8,
+        }
+    }
+
+    /// Create default goal engine configuration
+    const fn default_goal_engine_config() -> GoalEngineConfig {
+        GoalEngineConfig {
+            feasibility: Self::default_feasibility_config(),
+            suggestion: Self::default_suggestion_config(),
+            progression: Self::default_progression_config(),
+        }
+    }
+
+    /// Create default feasibility configuration
+    const fn default_feasibility_config() -> FeasibilityConfig {
+        FeasibilityConfig {
+            min_success_probability: 0.6,
+            conservative_multiplier: 0.8,
+            aggressive_multiplier: 1.3,
+            injury_risk_threshold: 0.3,
+        }
+    }
+
+    /// Create default suggestion configuration
+    const fn default_suggestion_config() -> SuggestionConfig {
+        SuggestionConfig {
+            max_goals_per_type: 3,
+            difficulty_distribution: Self::default_difficulty_distribution(),
+            timeframe_preferences: Self::default_timeframe_preferences(),
+        }
+    }
+
+    /// Create default difficulty distribution
+    const fn default_difficulty_distribution() -> DifficultyDistribution {
+        DifficultyDistribution {
+            easy_percentage: 0.4,
+            moderate_percentage: 0.4,
+            hard_percentage: 0.2,
+        }
+    }
+
+    /// Create default timeframe preferences
+    const fn default_timeframe_preferences() -> TimeframePreferences {
+        TimeframePreferences {
+            short_term_weeks: 4,
+            medium_term_weeks: 12,
+            long_term_weeks: 26,
+        }
+    }
+
+    /// Create default progression configuration
+    const fn default_progression_config() -> ProgressionConfig {
+        ProgressionConfig {
+            weekly_increase_limit: 0.1,
+            monthly_increase_limit: 0.2,
+            deload_frequency_weeks: 4,
+        }
+    }
+
+    /// Create default weather analysis configuration
+    const fn default_weather_analysis_config() -> WeatherAnalysisConfig {
+        WeatherAnalysisConfig {
+            temperature: Self::default_temperature_config(),
+            conditions: Self::default_weather_conditions_config(),
+            impact: Self::default_weather_impact_config(),
+        }
+    }
+
+    /// Create default temperature configuration
+    const fn default_temperature_config() -> TemperatureConfig {
+        TemperatureConfig {
+            ideal_min_celsius: 10.0,
+            ideal_max_celsius: 20.0,
+            cold_threshold_celsius: 5.0,
+            hot_threshold_celsius: 25.0,
+            extreme_cold_celsius: -5.0,
+            extreme_hot_celsius: 35.0,
+        }
+    }
+
+    /// Create default weather conditions configuration
+    const fn default_weather_conditions_config() -> WeatherConditionsConfig {
+        WeatherConditionsConfig {
+            high_humidity_threshold: 80.0,
+            strong_wind_threshold: 20.0,
+            precipitation_impact_factor: 0.8,
+        }
+    }
+
+    /// Create default weather impact configuration
+    const fn default_weather_impact_config() -> WeatherImpactConfig {
+        WeatherImpactConfig {
+            temperature_impact_weight: 0.4,
+            humidity_impact_weight: 0.3,
+            wind_impact_weight: 0.2,
+            precipitation_impact_weight: 0.1,
+        }
+    }
+
+    /// Create default activity analyzer configuration
+    const fn default_activity_analyzer_config() -> ActivityAnalyzerConfig {
+        ActivityAnalyzerConfig {
+            analysis: Self::default_activity_analysis_config(),
+            scoring: Self::default_activity_scoring_config(),
+            insights: Self::default_activity_insights_config(),
+        }
+    }
+
+    /// Create default activity analysis configuration
+    const fn default_activity_analysis_config() -> ActivityAnalysisConfig {
+        ActivityAnalysisConfig {
+            min_duration_seconds: 300, // 5 minutes
+            max_reasonable_pace: 15.0, // 15 min/km
+            heart_rate_zones: Self::default_heart_rate_zones_config(),
+            power_zones: Self::default_power_zones_config(),
+        }
+    }
+
+    /// Create default heart rate zones configuration
+    const fn default_heart_rate_zones_config() -> HeartRateZonesConfig {
+        HeartRateZonesConfig {
+            zone1_max_percentage: 60.0,
+            zone2_max_percentage: 70.0,
+            zone3_max_percentage: 80.0,
+            zone4_max_percentage: 90.0,
+            zone5_max_percentage: 100.0,
+        }
+    }
+
+    /// Create default power zones configuration
+    const fn default_power_zones_config() -> PowerZonesConfig {
+        PowerZonesConfig {
+            zone1_max_percentage: 55.0,
+            zone2_max_percentage: 75.0,
+            zone3_max_percentage: 90.0,
+            zone4_max_percentage: 105.0,
+            zone5_max_percentage: 150.0,
+        }
+    }
+
+    /// Create default activity scoring configuration
+    const fn default_activity_scoring_config() -> ActivityScoringConfig {
+        ActivityScoringConfig {
+            efficiency_weight: 0.3,
+            intensity_weight: 0.3,
+            duration_weight: 0.2,
+            consistency_weight: 0.2,
+        }
+    }
+
+    /// Create default activity insights configuration
+    const fn default_activity_insights_config() -> ActivityInsightsConfig {
+        ActivityInsightsConfig {
+            min_confidence_threshold: 0.7,
+            max_insights_per_activity: 5,
+            severity_thresholds: Self::default_severity_thresholds(),
+        }
+    }
+
+    /// Create default severity thresholds
+    const fn default_severity_thresholds() -> SeverityThresholds {
+        SeverityThresholds {
+            info_threshold: 0.3,
+            warning_threshold: 0.7,
+            critical_threshold: 0.9,
+        }
+    }
+
+    /// Create default metrics configuration
+    fn default_metrics_config() -> MetricsConfig {
+        MetricsConfig {
+            calculation: Self::default_metrics_calculation_config(),
+            validation: Self::default_metrics_validation_config(),
+            aggregation: Self::default_metrics_aggregation_config(),
+        }
+    }
+
+    /// Create default metrics calculation configuration
+    const fn default_metrics_calculation_config() -> MetricsCalculationConfig {
+        MetricsCalculationConfig {
+            smoothing_window_size: 7,
+            outlier_detection_threshold: 2.5,
+            missing_data_interpolation: true,
+        }
+    }
+
+    /// Create default metrics validation configuration
+    const fn default_metrics_validation_config() -> MetricsValidationConfig {
+        MetricsValidationConfig {
+            max_heart_rate: 220,
+            min_heart_rate: 40,
+            max_pace_min_per_km: 20.0,
+            min_pace_min_per_km: 2.0,
+        }
+    }
+
+    /// Create default metrics aggregation configuration
+    fn default_metrics_aggregation_config() -> MetricsAggregationConfig {
+        MetricsAggregationConfig {
+            weekly_aggregation_method: "average".into(),
+            monthly_aggregation_method: "weighted_average".into(),
+            trend_calculation_method: "linear_regression".into(),
         }
     }
 }
@@ -604,6 +756,7 @@ impl Default for ConservativeStrategy {
 }
 
 impl ConservativeStrategy {
+    #[must_use]
     pub fn new() -> Self {
         let mut config = IntelligenceConfig::default();
 
@@ -653,6 +806,7 @@ impl Default for AggressiveStrategy {
 }
 
 impl AggressiveStrategy {
+    #[must_use]
     pub fn new() -> Self {
         let mut config = IntelligenceConfig::default();
 
@@ -746,9 +900,9 @@ mod tests {
     #[test]
     fn test_conservative_strategy() {
         let strategy = ConservativeStrategy::new();
-        assert_eq!(
-            strategy.recommendation_thresholds().low_weekly_distance_km,
-            15.0
+        assert!(
+            (strategy.recommendation_thresholds().low_weekly_distance_km - 15.0).abs()
+                < f64::EPSILON
         );
         assert!(strategy.should_recommend_volume_increase(10.0));
         assert!(!strategy.should_recommend_volume_increase(20.0));
@@ -757,9 +911,9 @@ mod tests {
     #[test]
     fn test_aggressive_strategy() {
         let strategy = AggressiveStrategy::new();
-        assert_eq!(
-            strategy.recommendation_thresholds().low_weekly_distance_km,
-            40.0
+        assert!(
+            (strategy.recommendation_thresholds().low_weekly_distance_km - 40.0).abs()
+                < f64::EPSILON
         );
         assert!(strategy.should_recommend_volume_increase(30.0));
         assert!(!strategy.should_recommend_volume_increase(50.0));

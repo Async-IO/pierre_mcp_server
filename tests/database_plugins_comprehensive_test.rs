@@ -1,3 +1,5 @@
+// ABOUTME: Comprehensive tests for database plugin implementations
+// ABOUTME: Tests SQLite and PostgreSQL database providers with full CRUD operations
 //! Comprehensive tests for database plugins
 //!
 //! This test suite covers the database plugin implementations
@@ -116,9 +118,9 @@ async fn test_user_count() -> Result<()> {
     // Create multiple users
     for i in 0..3 {
         let user = User::new(
-            format!("count_test_{}@example.com", i),
+            format!("count_test_{i}@example.com"),
             "password".to_string(),
-            Some(format!("User {}", i)),
+            Some(format!("User {i}")),
         );
         db.create_user(&user).await?;
     }
@@ -404,9 +406,9 @@ async fn test_concurrent_database_operations() -> Result<()> {
         let db_clone = db.clone();
         handles.push(tokio::spawn(async move {
             let user = User::new(
-                format!("concurrent_{}@example.com", i),
+                format!("concurrent_{i}@example.com"),
                 "password".to_string(),
-                Some(format!("Concurrent User {}", i)),
+                Some(format!("Concurrent User {i}")),
             );
             db_clone.create_user(&user).await
         }));
@@ -551,7 +553,7 @@ async fn test_api_key_usage_aggregation() -> Result<()> {
         let usage = ApiKeyUsage {
             id: None,
             api_key_id: api_key.id.clone(),
-            tool_name: format!("tool_{}", i),
+            tool_name: format!("tool_{i}"),
             status_code: 200,
             response_time_ms: Some(*response_time),
             timestamp: Utc::now(),
@@ -588,9 +590,9 @@ async fn test_user_tier_handling() -> Result<()> {
 
     for (i, tier) in tiers.iter().enumerate() {
         let mut user = User::new(
-            format!("tier_test_{}@example.com", i),
+            format!("tier_test_{i}@example.com"),
             "password".to_string(),
-            Some(format!("Tier Test {}", i)),
+            Some(format!("Tier Test {i}")),
         );
         user.tier = tier.clone();
 
@@ -600,10 +602,10 @@ async fn test_user_tier_handling() -> Result<()> {
         let api_key = ApiKey {
             id: Uuid::new_v4().to_string(),
             user_id,
-            name: format!("Key for {:?}", tier),
-            key_prefix: format!("pk_{}", i),
-            key_hash: format!("hash_{}", i),
-            description: Some(format!("Test key for {:?} tier", tier)),
+            name: format!("Key for {tier:?}"),
+            key_prefix: format!("pk_{i}"),
+            key_hash: format!("hash_{i}"),
+            description: Some(format!("Test key for {tier:?} tier")),
             tier: match tier {
                 UserTier::Starter => ApiKeyTier::Starter,
                 UserTier::Professional => ApiKeyTier::Professional,
@@ -661,8 +663,8 @@ async fn test_database_connection_reuse() -> Result<()> {
         let token_expires = Utc::now() + chrono::Duration::hours(i);
         db.update_strava_token(
             user_id,
-            &format!("token_{}", i),
-            &format!("refresh_{}", i),
+            &format!("token_{i}"),
+            &format!("refresh_{i}"),
             token_expires,
             "read".to_string(),
         )
@@ -670,10 +672,7 @@ async fn test_database_connection_reuse() -> Result<()> {
 
         let retrieved_token = db.get_strava_token(user_id).await?;
         assert!(retrieved_token.is_some());
-        assert_eq!(
-            retrieved_token.unwrap().access_token,
-            format!("token_{}", i)
-        );
+        assert_eq!(retrieved_token.unwrap().access_token, format!("token_{i}"));
     }
 
     Ok(())
