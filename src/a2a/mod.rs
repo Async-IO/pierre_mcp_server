@@ -17,46 +17,12 @@ pub mod client;
 pub mod protocol;
 pub mod system_user;
 
-#[cfg(test)]
-pub mod test_utils;
-
 pub use agent_card::AgentCard;
-pub use auth::A2AClient;
-pub use auth::{A2AAuthenticator, A2AToken};
 pub use client::A2AClientManager;
-pub use protocol::{A2AMessage, A2ARequest, A2AResponse, A2AServer};
-pub use system_user::A2ASystemUserService;
+pub use protocol::{A2AError, A2AErrorResponse, A2ARequest, A2AResponse, A2AServer};
 
-/// A2A protocol version supported by Pierre
-pub const A2A_VERSION: &str = "1.0";
-
-/// A2A content types
-pub const A2A_CONTENT_TYPE: &str = "application/json";
-
-/// A2A protocol errors
-#[derive(Debug, thiserror::Error)]
-pub enum A2AError {
-    #[error("Authentication failed: {0}")]
-    AuthenticationFailed(String),
-
-    #[error("Invalid request format: {0}")]
-    InvalidRequest(String),
-
-    #[error("Tool not found: {0}")]
-    ToolNotFound(String),
-
-    #[error("Client not registered: {0}")]
-    ClientNotRegistered(String),
-
-    #[error("Rate limit exceeded for client: {0}")]
-    RateLimitExceeded(String),
-
-    #[error("Internal server error: {0}")]
-    InternalError(String),
-
-    #[error("Database error: {0}")]
-    DatabaseError(String),
-}
+/// A2A Protocol Version
+pub const A2A_VERSION: &str = "1.0.0";
 
 impl warp::reject::Reject for A2AError {}
 

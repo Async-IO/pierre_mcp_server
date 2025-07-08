@@ -11,15 +11,15 @@
 //! This module provides database functionality for the multi-tenant Pierre MCP Server.
 //! It handles user storage, token encryption, and secure data access patterns.
 
-mod a2a;
+pub mod a2a;
 mod analytics;
 mod api_keys;
 mod tokens;
 mod users;
 
-pub use a2a::*;
-pub use analytics::*;
-pub use tokens::OAuthProvider;
+pub mod tests;
+
+pub use a2a::{A2AUsage, A2AUsageStats};
 
 use anyhow::Result;
 use sqlx::{Pool, Sqlite, SqlitePool};
@@ -223,15 +223,4 @@ pub fn generate_encryption_key() -> [u8; 32] {
     let mut key = [0u8; 32];
     rand::thread_rng().fill(&mut key);
     key
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    pub async fn create_test_db() -> Result<Database> {
-        // Use a simple in-memory database - each connection gets its own isolated instance
-        let database_url = "sqlite::memory:";
-        Database::new(database_url, vec![0u8; 32]).await
-    }
 }

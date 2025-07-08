@@ -1028,6 +1028,37 @@ impl DatabaseProvider for Database {
         }
     }
 
+    async fn get_provider_last_sync(
+        &self,
+        user_id: uuid::Uuid,
+        provider: &str,
+    ) -> Result<Option<chrono::DateTime<chrono::Utc>>> {
+        match self {
+            Self::SQLite(db) => db.get_provider_last_sync(user_id, provider).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_provider_last_sync(user_id, provider).await,
+        }
+    }
+
+    async fn update_provider_last_sync(
+        &self,
+        user_id: uuid::Uuid,
+        provider: &str,
+        sync_time: chrono::DateTime<chrono::Utc>,
+    ) -> Result<()> {
+        match self {
+            Self::SQLite(db) => {
+                db.update_provider_last_sync(user_id, provider, sync_time)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.update_provider_last_sync(user_id, provider, sync_time)
+                    .await
+            }
+        }
+    }
+
     async fn get_top_tools_analysis(
         &self,
         user_id: uuid::Uuid,
@@ -1208,40 +1239,5 @@ impl DatabaseProvider for Database {
                     .await
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_detect_database_type() {
-        // SQLite URLs
-        assert_eq!(
-            detect_database_type("sqlite:./data/test.db").unwrap(),
-            DatabaseType::SQLite
-        );
-        assert_eq!(
-            detect_database_type("sqlite::memory:").unwrap(),
-            DatabaseType::SQLite
-        );
-
-        // PostgreSQL URLs (only test detection, not creation)
-        #[cfg(feature = "postgresql")]
-        {
-            assert_eq!(
-                detect_database_type("postgresql://user:pass@localhost/db").unwrap(),
-                DatabaseType::PostgreSQL
-            );
-            assert_eq!(
-                detect_database_type("postgres://user:pass@localhost/db").unwrap(),
-                DatabaseType::PostgreSQL
-            );
-        }
-
-        // Invalid URLs
-        assert!(detect_database_type("mysql://user:pass@localhost/db").is_err());
-        assert!(detect_database_type("invalid_url").is_err());
     }
 }

@@ -437,11 +437,17 @@ impl A2AClientManager {
         // Get today's usage
         let start_of_day = chrono::Utc::now()
             .with_hour(0)
-            .unwrap()
+            .ok_or_else(|| {
+                crate::a2a::A2AError::InternalError("Failed to set hour to 0".to_string())
+            })?
             .with_minute(0)
-            .unwrap()
+            .ok_or_else(|| {
+                crate::a2a::A2AError::InternalError("Failed to set minute to 0".to_string())
+            })?
             .with_second(0)
-            .unwrap();
+            .ok_or_else(|| {
+                crate::a2a::A2AError::InternalError("Failed to set second to 0".to_string())
+            })?;
         let end_of_day = chrono::Utc::now();
 
         let today_stats = self
@@ -686,7 +692,9 @@ impl A2AClientManager {
             let is_rate_limited = current_usage >= limit;
 
             // Calculate reset time (beginning of next month)
-            let reset_at = Self::calculate_next_month_start();
+            let reset_at = Self::calculate_next_month_start().map_err(|e| {
+                crate::a2a::A2AError::InternalError(format!("Failed to calculate reset time: {e}"))
+            })?;
 
             Ok(A2ARateLimitStatus {
                 is_rate_limited,
@@ -727,29 +735,30 @@ impl A2AClientManager {
     }
 
     /// Calculate the start of next month for rate limit reset
-    fn calculate_next_month_start() -> DateTime<Utc> {
+    fn calculate_next_month_start() -> Result<DateTime<Utc>, anyhow::Error> {
         let now = Utc::now();
 
         let next_month = if now.month() == 12 {
             now.with_year(now.year() + 1)
-                .unwrap()
+                .ok_or_else(|| anyhow::anyhow!("Failed to set year for next month"))?
                 .with_month(1)
-                .unwrap()
+                .ok_or_else(|| anyhow::anyhow!("Failed to set month to January"))?
         } else {
-            now.with_month(now.month() + 1).unwrap()
+            now.with_month(now.month() + 1)
+                .ok_or_else(|| anyhow::anyhow!("Failed to increment month"))?
         };
 
         next_month
             .with_day(1)
-            .unwrap()
+            .ok_or_else(|| anyhow::anyhow!("Failed to set day to 1st"))?
             .with_hour(0)
-            .unwrap()
+            .ok_or_else(|| anyhow::anyhow!("Failed to set hour to 0"))?
             .with_minute(0)
-            .unwrap()
+            .ok_or_else(|| anyhow::anyhow!("Failed to set minute to 0"))?
             .with_second(0)
-            .unwrap()
+            .ok_or_else(|| anyhow::anyhow!("Failed to set second to 0"))?
             .with_nanosecond(0)
-            .unwrap()
+            .ok_or_else(|| anyhow::anyhow!("Failed to set nanosecond to 0"))
     }
 
     /// Get client credentials for authentication
@@ -792,193 +801,5 @@ impl A2AClientManager {
         } else {
             Ok(None)
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::database_plugins::factory::Database;
-
-    async fn create_test_database() -> Arc<Database> {
-        crate::a2a::test_utils::create_test_database().await
-    }
-
-    #[tokio::test]
-    async fn test_client_manager_creation() {
-        let database = create_test_database().await;
-        let manager = A2AClientManager::new(database);
-
-        // Should create without errors - manager created successfully
-        assert!(matches!(
-            manager.database.database_type(),
-            crate::database_plugins::factory::DatabaseType::SQLite
-        ));
-    }
-
-    #[tokio::test]
-    async fn test_validate_registration_request() {
-        let database = create_test_database().await;
-        let _manager = A2AClientManager::new(database);
-
-        // Valid request
-        let valid_request = ClientRegistrationRequest {
-            name: "Test Client".into(),
-            description: "A test client".into(),
-            capabilities: vec!["fitness-data-analysis".into()],
-            redirect_uris: vec!["https://example.com/callback".into()],
-            contact_email: "test@example.com".into(),
-        };
-
-        assert!(A2AClientManager::validate_registration_request(&valid_request).is_ok());
-
-        // Invalid request - empty name
-        let invalid_request = ClientRegistrationRequest {
-            name: String::new(),
-            description: "A test client".into(),
-            capabilities: vec!["fitness-data-analysis".into()],
-            redirect_uris: vec![],
-            contact_email: "test@example.com".into(),
-        };
-
-        assert!(A2AClientManager::validate_registration_request(&invalid_request).is_err());
-
-        // Invalid request - unknown capability
-        let invalid_capability_request = ClientRegistrationRequest {
-            name: "Test Client".into(),
-            description: "A test client".into(),
-            capabilities: vec!["unknown-capability".into()],
-            redirect_uris: vec![],
-            contact_email: "test@example.com".into(),
-        };
-
-        assert!(
-            A2AClientManager::validate_registration_request(&invalid_capability_request).is_err()
-        );
-    }
-
-    #[tokio::test]
-    async fn test_session_management() {
-        let database = create_test_database().await;
-        let manager = A2AClientManager::new(database);
-
-        // First, create a test client
-        let client_request = ClientRegistrationRequest {
-            name: "Test Client".into(),
-            description: "A test client".into(),
-            capabilities: vec!["fitness-data-analysis".into()],
-            redirect_uris: vec![],
-            contact_email: "test@example.com".into(),
-        };
-
-        let credentials = manager.register_client(client_request).await.unwrap();
-
-        // Create session with the actual client ID
-        let session_id = manager
-            .create_session(&credentials.client_id, Some("test_user"))
-            .await
-            .unwrap();
-        assert!(!session_id.is_empty());
-
-        // Update session activity
-        assert!(manager.update_session_activity(&session_id).await.is_ok());
-
-        // Get active sessions
-        let sessions = manager.get_active_sessions(&credentials.client_id).await;
-        assert_eq!(sessions.len(), 1); // Should return the created session from cache
-    }
-
-    #[tokio::test]
-    async fn test_session_cleanup() {
-        let database = create_test_database().await;
-        let manager = A2AClientManager::new(database);
-
-        // First, create a test client
-        let client_request = ClientRegistrationRequest {
-            name: "Test Client 2".into(),
-            description: "Another test client".into(),
-            capabilities: vec!["fitness-data-analysis".into()],
-            redirect_uris: vec![],
-            contact_email: "test2@example.com".into(),
-        };
-
-        let credentials = manager.register_client(client_request).await.unwrap();
-
-        // Create session with the actual client ID
-        let session_id = manager
-            .create_session(&credentials.client_id, Some("test_user"))
-            .await
-            .unwrap();
-
-        // Verify session was created
-        assert!(!session_id.is_empty());
-
-        // Simplified test since we're using database storage now
-
-        // Cleanup expired sessions
-        manager.cleanup_expired_sessions();
-
-        // Session should still be in cache (cleanup doesn't actually remove from cache in current implementation)
-        let active_sessions = manager.get_active_sessions(&credentials.client_id).await;
-        assert_eq!(active_sessions.len(), 1); // Session should still be in memory cache
-    }
-
-    #[tokio::test]
-    async fn test_record_usage() {
-        let database = create_test_database().await;
-        let manager = A2AClientManager::new(database);
-
-        // First, create a test client
-        let client_request = ClientRegistrationRequest {
-            name: "Usage Test Client".into(),
-            description: "A client for testing usage tracking".into(),
-            capabilities: vec!["fitness-data-analysis".into()],
-            redirect_uris: vec![],
-            contact_email: "usage@example.com".into(),
-        };
-
-        let credentials = manager.register_client(client_request).await.unwrap();
-
-        // Now record usage for the actual client
-        assert!(manager
-            .record_usage(&credentials.client_id, "get_activities", true)
-            .await
-            .is_ok());
-
-        // Create a session for more detailed testing
-        let session_token = manager
-            .create_session(&credentials.client_id, Some("test_user"))
-            .await
-            .unwrap();
-
-        // Test detailed usage recording with real session
-        let usage_params = crate::a2a::client::A2AUsageParams {
-            client_id: credentials.client_id.clone(),
-            session_token: Some(session_token),
-            tool_name: "analyze_activity".into(),
-            response_time_ms: Some(150),
-            status_code: 200,
-            error_message: None,
-            request_size_bytes: Some(256),
-            response_size_bytes: Some(512),
-            ip_address: Some("127.0.0.1".into()),
-            user_agent: Some("test-agent/1.0".into()),
-            client_capabilities: vec!["fitness-data-analysis".into()],
-            granted_scopes: vec!["fitness:read".into()],
-        };
-        let result = manager.record_detailed_usage(usage_params).await;
-
-        if let Err(ref e) = result {
-            tracing::error!("Error recording detailed usage: {:?}", e);
-        }
-        assert!(result.is_ok());
-
-        // Test getting usage statistics
-        let usage_stats = manager
-            .get_client_usage(&credentials.client_id)
-            .await
-            .unwrap();
-        assert_eq!(usage_stats.client_id, credentials.client_id);
-        assert_eq!(usage_stats.total_requests, 2); // Two usage records above
     }
 }

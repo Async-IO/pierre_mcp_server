@@ -216,9 +216,7 @@ impl DatabaseProvider for SqliteDatabase {
     }
 
     async fn store_insight(&self, user_id: Uuid, insight_data: Value) -> Result<String> {
-        self.inner
-            .store_insight(user_id, None, "general", insight_data)
-            .await
+        self.inner.store_insight(user_id, insight_data).await
     }
 
     async fn get_user_insights(
@@ -229,7 +227,7 @@ impl DatabaseProvider for SqliteDatabase {
     ) -> Result<Vec<Value>> {
         let insights = self
             .inner
-            .get_user_insights(user_id, i32::try_from(limit.unwrap_or(10))?)
+            .get_user_insights(user_id, insight_type, limit)
             .await?;
 
         // Filter by insight_type if specified
@@ -476,6 +474,25 @@ impl DatabaseProvider for SqliteDatabase {
         // The new database method already returns aggregated data
         self.inner
             .get_a2a_client_usage_history(client_id, days)
+            .await
+    }
+
+    async fn get_provider_last_sync(
+        &self,
+        user_id: Uuid,
+        provider: &str,
+    ) -> Result<Option<DateTime<Utc>>> {
+        self.inner.get_provider_last_sync(user_id, provider).await
+    }
+
+    async fn update_provider_last_sync(
+        &self,
+        user_id: Uuid,
+        provider: &str,
+        sync_time: DateTime<Utc>,
+    ) -> Result<()> {
+        self.inner
+            .update_provider_last_sync(user_id, provider, sync_time)
             .await
     }
 

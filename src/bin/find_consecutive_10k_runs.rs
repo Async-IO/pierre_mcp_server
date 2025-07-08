@@ -261,7 +261,10 @@ fn main() -> Result<()> {
             .map(|a| a.duration_seconds)
             .sum();
 
-        println!("   Distance Total Distance: {:.2} km", total_distance / 1000.0);
+        println!(
+            "   Distance Total Distance: {:.2} km",
+            total_distance / 1000.0
+        );
         println!("   Time  Total Time: {:.2} hours", {
             #[allow(clippy::cast_precision_loss, clippy::cast_lossless)]
             {

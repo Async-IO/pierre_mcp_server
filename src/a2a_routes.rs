@@ -19,7 +19,7 @@ use crate::{
         agent_card::AgentCard,
         auth::A2AAuthenticator,
         client::{A2AClientManager, ClientRegistrationRequest},
-        A2AError,
+        protocol::A2AError,
     },
     constants::demo_data::{DEMO_CONSISTENCY_SCORE, DEMO_EFFICIENCY_SCORE},
 };

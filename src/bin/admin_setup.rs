@@ -303,11 +303,9 @@ async fn generate_token_command(
             }
 
             if !parsed_permissions.is_empty() {
+                let permissions_count = parsed_permissions.len();
                 request.permissions = Some(parsed_permissions);
-                info!(
-                    "Success Applied {} custom permissions",
-                    request.permissions.as_ref().unwrap().len()
-                );
+                info!("Success Applied {} custom permissions", permissions_count);
             }
         }
     }

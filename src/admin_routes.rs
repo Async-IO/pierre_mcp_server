@@ -310,7 +310,13 @@ fn extract_client_ip(
 }
 
 /// Extract Bearer token from Authorization header
-fn extract_bearer_token(auth_header: &str) -> Result<String> {
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Authorization header format is invalid
+/// - Bearer token is empty or missing
+pub fn extract_bearer_token(auth_header: &str) -> Result<String> {
     if !auth_header.starts_with("Bearer ") {
         return Err(anyhow!("Invalid authorization header format"));
     }
@@ -866,41 +872,6 @@ async fn handle_setup_status(context: AdminApiContext) -> Result<impl Reply, Rej
                 StatusCode::INTERNAL_SERVER_ERROR,
             ))
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_extract_bearer_token() {
-        assert_eq!(
-            extract_bearer_token("Bearer test_token").unwrap(),
-            "test_token"
-        );
-        assert_eq!(
-            extract_bearer_token("Bearer   spaced_token   ").unwrap(),
-            "spaced_token"
-        );
-        assert!(extract_bearer_token("Basic test").is_err());
-        assert!(extract_bearer_token("Bearer ").is_err());
-        assert!(extract_bearer_token("").is_err());
-    }
-
-    #[test]
-    fn test_provision_request_validation() {
-        let request = ProvisionApiKeyRequest {
-            user_email: "test@example.com".into(),
-            tier: "starter".into(),
-            description: Some("Test key".into()),
-            expires_in_days: Some(30),
-            rate_limit_requests: Some(100),
-            rate_limit_period: Some("hour".into()),
-        };
-
-        assert_eq!(request.user_email, "test@example.com");
-        assert_eq!(request.tier, "starter");
     }
 }
 

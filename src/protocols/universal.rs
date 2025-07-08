@@ -3148,8 +3148,3 @@ impl UniversalToolExecutor {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    // Currently no tests in this module
-}
