@@ -24,9 +24,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .parse::<u16>()
         .unwrap_or(3000);
 
-    println!("🚀 Starting Pierre MCP API Documentation Server");
-    println!("📖 Swagger UI: http://localhost:{port}");
-    println!("📄 OpenAPI Spec: http://localhost:{port}/openapi.yaml");
+    println!("Starting Pierre MCP API Documentation Server");
+    println!("Swagger UI: http://localhost:{port}");
+    println!("OpenAPI Spec: http://localhost:{port}/openapi.yaml");
 
     // Serve OpenAPI specification
     let openapi_yaml = warp::path("openapi.yaml").and(warp::get()).map(|| {
@@ -97,22 +97,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with(cors)
         .with(warp::log("pierre_mcp_docs"));
 
-    println!("✅ Documentation server ready!");
+    println!("Success Documentation server ready!");
     println!();
-    println!("📚 Available endpoints:");
+    println!("Docs Available endpoints:");
     println!("   • /           - Interactive Swagger UI");
     println!("   • /openapi.yaml - OpenAPI specification (YAML)");
     println!("   • /openapi.json - OpenAPI specification (JSON)");
     println!("   • /info       - API information");
     println!("   • /health     - Health check");
     println!();
-    println!("🔧 Documented tool categories:");
+    println!("Documented tool categories:");
     println!("   • Core Tools    - 8 essential fitness data tools");
     println!("   • Analytics     - 8 advanced analysis tools");
     println!("   • Goals         - 4 goal management tools");
     println!("   • Connections   - 4 provider connection tools");
     println!();
-    println!("🔗 Try the API:");
+    println!("Multi Try the API:");
     println!("   curl http://localhost:{port}/info");
     println!();
 
@@ -162,14 +162,14 @@ const fn get_html_head() -> &'static str {
 const fn get_html_header() -> &'static str {
     r#"<body>
     <div class="custom-header">
-        <h1>🏃‍♂️ Pierre MCP Fitness API</h1>
+        <h1>Pierre MCP Fitness API</h1>
         <p>AI-Powered Fitness Data Intelligence Platform</p>
         <div class="features">
-            <div class="feature">🔗 Multi-Provider</div>
-            <div class="feature">🤖 AI-Ready</div>
-            <div class="feature">⚡ Real-time</div>
-            <div class="feature">🌍 Location Intelligence</div>
-            <div class="feature">🎯 Goal Tracking</div>
+            <div class="feature">Multi Multi-Provider</div>
+            <div class="feature">AI AI-Ready</div>
+            <div class="feature">Real-time</div>
+            <div class="feature">Country Location Intelligence</div>
+            <div class="feature">Goal Tracking</div>
         </div>
         <div class="stats">
             <div class="stat"><span class="stat-number">21</span><span class="stat-label">Fitness Tools</span></div>

@@ -6,7 +6,7 @@ use pierre_mcp_server::intelligence::weather::WeatherService;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("🌍 Testing Real Weather API Integration");
+    println!("Country Testing Real Weather API Integration");
     println!("======================================");
 
     check_api_key_status();
@@ -22,12 +22,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn check_api_key_status() {
     if let Ok(key) = std::env::var("OPENWEATHER_API_KEY") {
         println!(
-            "✅ API Key Found: {}...{}",
+            "Success API Key Found: {}...{}",
             &key[..8],
             &key[key.len() - 4..]
         );
     } else {
-        println!("⚠️  No OPENWEATHER_API_KEY found - will use mock weather");
+        println!("Warning  No OPENWEATHER_API_KEY found - will use mock weather");
         println!("   Set with: export OPENWEATHER_API_KEY=\"your_key_here\"");
     }
 }
@@ -39,7 +39,7 @@ async fn test_weather_functionality() -> Result<(), Box<dyn std::error::Error>> 
     let mut weather_service =
         WeatherService::new(config, std::env::var("OPENWEATHER_API_KEY").ok());
 
-    println!("\n📅 Testing Historical Weather Data");
+    println!("\nDate Testing Historical Weather Data");
     println!("==================================");
 
     // Test historical date (1 week ago) - Montreal coordinates
@@ -47,10 +47,10 @@ async fn test_weather_functionality() -> Result<(), Box<dyn std::error::Error>> 
     let latitude = 45.5017; // Montreal
     let longitude = -73.5673;
 
-    println!("📍 Location: Montreal, Canada ({latitude}, {longitude})");
-    println!("📅 Date: {}", historical_date.format("%Y-%m-%d %H:%M UTC"));
+    println!("Location Location: Montreal, Canada ({latitude}, {longitude})");
+    println!("Date Date: {}", historical_date.format("%Y-%m-%d %H:%M UTC"));
 
-    println!("\n🌤️  Fetching Historical Weather...");
+    println!("\nWeather  Fetching Historical Weather...");
 
     match weather_service
         .get_weather_at_time(latitude, longitude, historical_date)
@@ -73,24 +73,24 @@ async fn display_weather_results(
     weather_service: &mut WeatherService,
     historical_date: chrono::DateTime<chrono::Utc>,
 ) {
-    println!("✅ Real Weather Data Retrieved:");
-    println!("   🌡️  Temperature: {:.1}°C", weather.temperature_celsius);
-    println!("   🌦️  Conditions: {}", weather.conditions);
+    println!("Success Real Weather Data Retrieved:");
+    println!("   Temperature  Temperature: {:.1}°C", weather.temperature_celsius);
+    println!("   Weather  Conditions: {}", weather.conditions);
 
     if let Some(humidity) = weather.humidity_percentage {
-        println!("   💧 Humidity: {humidity:.1}%");
+        println!("   Humidity Humidity: {humidity:.1}%");
     }
 
     if let Some(wind_speed) = weather.wind_speed_kmh {
-        println!("   💨 Wind Speed: {wind_speed:.1} km/h");
+        println!("   Wind Wind Speed: {wind_speed:.1} km/h");
     }
 
     // Analyze weather impact
-    println!("\n📊 Weather Impact Analysis:");
+    println!("\nData Weather Impact Analysis:");
     let impact = weather_service.analyze_weather_impact(weather);
-    println!("   🎯 Difficulty Level: {:?}", impact.difficulty_level);
+    println!("   Target Difficulty Level: {:?}", impact.difficulty_level);
     println!(
-        "   📈 Performance Adjustment: {:.1}%",
+        "   Performance Performance Adjustment: {:.1}%",
         impact.performance_adjustment
     );
 
@@ -119,19 +119,19 @@ async fn test_multiple_locations(
     ];
 
     for (lat, lon, city) in locations {
-        println!("\n📍 Testing: {city}");
+        println!("\nLocation Testing: {city}");
         match weather_service
             .get_weather_at_time(lat, lon, historical_date)
             .await
         {
             Ok(weather) => {
                 println!(
-                    "   🌡️  {:.1}°C, {}",
+                    "   Temperature  {:.1}°C, {}",
                     weather.temperature_celsius, weather.conditions
                 );
             }
             Err(e) => {
-                println!("   ❌ Failed: {e}");
+                println!("   Error Failed: {e}");
             }
         }
     }
@@ -139,7 +139,7 @@ async fn test_multiple_locations(
 
 /// Handle and display weather API errors with troubleshooting guidance
 fn handle_weather_error(e: &pierre_mcp_server::intelligence::weather::WeatherError) {
-    println!("❌ Weather API Error: {e}");
+    println!("Error Weather API Error: {e}");
     println!("\n🔍 Troubleshooting:");
 
     if e.to_string().contains("API key") {
@@ -157,7 +157,7 @@ fn handle_weather_error(e: &pierre_mcp_server::intelligence::weather::WeatherErr
         println!("   • OpenWeatherMap service might be down");
     }
 
-    println!("\n❌ Weather API failed and no fallback available");
+    println!("\nError Weather API failed and no fallback available");
     println!("   Configure weather API properly for production use");
 }
 
@@ -165,7 +165,7 @@ fn handle_weather_error(e: &pierre_mcp_server::intelligence::weather::WeatherErr
 fn display_comparison_summary() {
     println!("\n✨ Real vs Mock Weather Comparison");
     println!("==================================");
-    println!("📊 Real Weather Features:");
+    println!("Data Real Weather Features:");
     println!("   • Actual historical data from weather stations");
     println!("   • Precise temperature, humidity, wind measurements");
     println!("   • Real precipitation and weather conditions");
@@ -177,12 +177,12 @@ fn display_comparison_summary() {
     println!("   • Varied weather conditions");
     println!("   • No API calls or rate limits");
 
-    println!("\n🎯 Recommendation:");
+    println!("\nTarget Recommendation:");
     if std::env::var("OPENWEATHER_API_KEY").is_ok() {
-        println!("   ✅ Use real weather for production (you have API key)");
-        println!("   💡 Monitor API usage: 1000 calls/day free limit");
+        println!("   Success Use real weather for production (you have API key)");
+        println!("   Tip Monitor API usage: 1000 calls/day free limit");
     } else {
         println!("   🎭 Mock weather works great for development");
-        println!("   💡 Get free API key at: https://openweathermap.org/api");
+        println!("   Tip Get free API key at: https://openweathermap.org/api");
     }
 }

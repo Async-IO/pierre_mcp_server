@@ -16,7 +16,7 @@ use std::net::TcpStream;
 
 #[allow(clippy::too_many_lines)]
 fn main() -> Result<()> {
-    println!("🏃 Finding longest consecutive running streak with 10km+ runs...");
+    println!("Run Finding longest consecutive running streak with 10km+ runs...");
 
     // Connect to MCP server
     let mut stream = TcpStream::connect("127.0.0.1:8080")?;
@@ -44,7 +44,7 @@ fn main() -> Result<()> {
     // Read initialize response
     let mut response = String::new();
     reader.read_line(&mut response)?;
-    println!("✅ Connected to MCP server");
+    println!("Success Connected to MCP server");
 
     // Send initialized notification
     let initialized = json!({
@@ -91,25 +91,25 @@ fn main() -> Result<()> {
                 if let Some(activities_json) = content.get(0).and_then(|c| c.get("text")) {
                     serde_json::from_str(activities_json.as_str().unwrap())?
                 } else {
-                    println!("❌ Unexpected content format");
+                    println!("Error Unexpected content format");
                     break;
                 }
             } else {
-                println!("❌ Unexpected result format");
+                println!("Error Unexpected result format");
                 break;
             };
 
             if activities.is_empty() {
-                println!("📄 No more activities found on page {page}");
+                println!("Page No more activities found on page {page}");
                 break;
             }
 
             let activities_count = activities.len();
-            println!("📄 Retrieved {activities_count} activities on page {page}");
+            println!("Page Retrieved {activities_count} activities on page {page}");
             all_activities.extend(activities);
 
             if activities_count < per_page {
-                println!("📄 Reached end of activities");
+                println!("Page Reached end of activities");
                 break;
             }
 
@@ -117,16 +117,16 @@ fn main() -> Result<()> {
 
             // Safety limit to avoid excessive API calls
             if page > 20 {
-                println!("📄 Limiting to first 20 pages to avoid rate limits");
+                println!("Page Limiting to first 20 pages to avoid rate limits");
                 break;
             }
         } else {
-            println!("❌ Failed to get activities: {response}");
+            println!("Error Failed to get activities: {response}");
             break;
         }
     }
 
-    println!("📊 Total activities retrieved: {}", all_activities.len());
+    println!("Data Total activities retrieved: {}", all_activities.len());
 
     // Filter for runs with 10km+ distance
     let qualifying_runs: Vec<&Activity> = all_activities
@@ -144,12 +144,12 @@ fn main() -> Result<()> {
         .collect();
 
     println!(
-        "🏃 Found {} runs with 10km+ distance",
+        "Run Found {} runs with 10km+ distance",
         qualifying_runs.len()
     );
 
     if qualifying_runs.is_empty() {
-        println!("❌ No runs with 10km+ distance found");
+        println!("Error No runs with 10km+ distance found");
         return Ok(());
     }
 
@@ -173,7 +173,7 @@ fn main() -> Result<()> {
     }
 
     println!(
-        "📅 Found {} unique days with 10km+ runs",
+        "Date Found {} unique days with 10km+ runs",
         runs_by_date.len()
     );
 
@@ -240,12 +240,12 @@ fn main() -> Result<()> {
     }
 
     // Display results
-    println!("\n🏆 LONGEST CONSECUTIVE 10KM+ RUNNING STREAK:");
-    println!("   📈 Streak Length: {longest_streak} days");
+    println!("\nRecord LONGEST CONSECUTIVE 10KM+ RUNNING STREAK:");
+    println!("   Performance Streak Length: {longest_streak} days");
 
     if let (Some(start), Some(end)) = (longest_streak_start, longest_streak_end) {
         println!(
-            "   📅 Period: {} to {}",
+            "   Date Period: {} to {}",
             start.format("%Y-%m-%d"),
             end.format("%Y-%m-%d")
         );
@@ -261,21 +261,21 @@ fn main() -> Result<()> {
             .map(|a| a.duration_seconds)
             .sum();
 
-        println!("   📏 Total Distance: {:.2} km", total_distance / 1000.0);
-        println!("   ⏱️  Total Time: {:.2} hours", {
+        println!("   Distance Total Distance: {:.2} km", total_distance / 1000.0);
+        println!("   Time  Total Time: {:.2} hours", {
             #[allow(clippy::cast_precision_loss, clippy::cast_lossless)]
             {
                 (total_time.min(u64::from(u32::MAX)) as f64) / 3600.0
             }
         });
-        println!("   📊 Average Distance: {:.2} km/day", {
+        println!("   Data Average Distance: {:.2} km/day", {
             #[allow(clippy::cast_precision_loss)]
             {
                 (total_distance / 1000.0) / (longest_streak as f64)
             }
         });
 
-        println!("\n📋 Streak Details:");
+        println!("\nList Streak Details:");
         for (i, activity) in longest_streak_activities.iter().enumerate() {
             let distance_km = activity.distance_meters.unwrap_or(0.0) / 1000.0;
             let duration_hours = {
@@ -297,15 +297,15 @@ fn main() -> Result<()> {
     }
 
     if longest_streak == 0 {
-        println!("❌ No consecutive days with 10km+ runs found");
+        println!("Error No consecutive days with 10km+ runs found");
     } else if longest_streak == 1 {
-        println!("ℹ️  Maximum streak is 1 day (no consecutive days found)");
+        println!("Info  Maximum streak is 1 day (no consecutive days found)");
     }
 
     // Show some additional statistics
-    println!("\n📊 Additional Statistics:");
-    println!("   🏃 Total 10km+ runs: {}", qualifying_runs.len());
-    println!("   📅 Total days with 10km+ runs: {}", daily_runs.len());
+    println!("\nData Additional Statistics:");
+    println!("   Run Total 10km+ runs: {}", qualifying_runs.len());
+    println!("   Date Total days with 10km+ runs: {}", daily_runs.len());
 
     // Find the longest single run
     if let Some(longest_run) = qualifying_runs.iter().max_by(|a, b| {
@@ -316,13 +316,13 @@ fn main() -> Result<()> {
             .unwrap_or(std::cmp::Ordering::Equal)
     }) {
         println!(
-            "   🎯 Longest single run: {:.2}km - \"{}\"",
+            "   Target Longest single run: {:.2}km - \"{}\"",
             longest_run.distance_meters.unwrap_or(0.0) / 1000.0,
             longest_run.name
         );
     }
 
-    println!("\n✅ Analysis completed successfully!");
+    println!("\nSuccess Analysis completed successfully!");
 
     Ok(())
 }

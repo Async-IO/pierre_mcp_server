@@ -24,7 +24,7 @@ async fn test_initialize(
     reader.read_line(&mut response).await?;
     let init_response: serde_json::Value = serde_json::from_str(&response)?;
     println!(
-        "✅ Initialized! Available tools: {:?}",
+        "Success Initialized! Available tools: {:?}",
         init_response["result"]["capabilities"]["tools"]
             .as_array()
             .unwrap()
@@ -58,7 +58,7 @@ async fn test_athlete_profile(
     let athlete_response: serde_json::Value = serde_json::from_str(&response)?;
 
     if let Some(result) = athlete_response["result"].as_object() {
-        println!("✅ Athlete Profile:");
+        println!("Success Athlete Profile:");
         println!(
             "   Name: {} {}",
             result["firstname"].as_str().unwrap_or("N/A"),
@@ -73,7 +73,7 @@ async fn test_athlete_profile(
             result["provider"].as_str().unwrap_or("N/A")
         );
     } else {
-        println!("❌ Error getting athlete: {}", athlete_response["error"]);
+        println!("Error Error getting athlete: {}", athlete_response["error"]);
     }
     Ok(())
 }
@@ -104,7 +104,7 @@ async fn test_recent_activities(
     let activities_response: serde_json::Value = serde_json::from_str(&response)?;
 
     if let Some(activities) = activities_response["result"].as_array() {
-        println!("✅ Recent Activities ({} found):", activities.len());
+        println!("Success Recent Activities ({} found):", activities.len());
         for (i, activity) in activities.iter().enumerate() {
             println!(
                 "   {}. {} ({})",
@@ -127,7 +127,7 @@ async fn test_recent_activities(
         }
     } else {
         println!(
-            "❌ Error getting activities: {}",
+            "Error Error getting activities: {}",
             activities_response["error"]
         );
     }
@@ -159,7 +159,7 @@ async fn test_fitness_stats(
     let stats_response: serde_json::Value = serde_json::from_str(&response)?;
 
     if let Some(result) = stats_response["result"].as_object() {
-        println!("✅ Fitness Statistics:");
+        println!("Success Fitness Statistics:");
         println!(
             "   Total Activities: {}",
             result["total_activities"].as_u64().unwrap_or(0)
@@ -177,7 +177,7 @@ async fn test_fitness_stats(
             result["total_elevation_gain"].as_f64().unwrap_or(0.0)
         );
     } else {
-        println!("❌ Error getting stats: {}", stats_response["error"]);
+        println!("Error Error getting stats: {}", stats_response["error"]);
     }
     Ok(())
 }
@@ -197,7 +197,7 @@ async fn main() -> Result<()> {
     test_recent_activities(&mut writer, &mut reader).await?;
     test_fitness_stats(&mut writer, &mut reader).await?;
 
-    println!("\n🎉 MCP Server test completed successfully!");
+    println!("\nComplete MCP Server test completed successfully!");
 
     Ok(())
 }

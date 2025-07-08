@@ -6,7 +6,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
 
 fn main() -> Result<()> {
-    println!("🧠 Testing Activity Intelligence for Longest 2025 Run");
+    println!("AI Testing Activity Intelligence for Longest 2025 Run");
     println!("======================================================");
 
     let (mut stream, mut reader) = connect_to_mcp_server()?;
@@ -52,7 +52,7 @@ fn initialize_mcp_connection(
     let mut line = String::new();
     reader.read_line(&mut line)?;
     let init_response: Value = serde_json::from_str(&line)?;
-    println!("✅ MCP connection initialized");
+    println!("Success MCP connection initialized");
 
     // Validate initialization response
     if let Some(result) = init_response.get("result") {
@@ -73,7 +73,7 @@ fn retrieve_all_activities(
     stream: &mut TcpStream,
     reader: &mut BufReader<TcpStream>,
 ) -> Result<Vec<Value>> {
-    println!("\n📊 Retrieving activities to find longest 2025 run...");
+    println!("\nData Retrieving activities to find longest 2025 run...");
 
     let mut all_activities: Vec<Value> = Vec::new();
     let mut page = 1;
@@ -108,7 +108,7 @@ fn retrieve_all_activities(
                 }
                 all_activities.extend(activities.clone());
                 println!(
-                    "📄 Retrieved page {page} with {} activities",
+                    "Page Retrieved page {page} with {} activities",
                     activities.len()
                 );
                 page += 1;
@@ -121,12 +121,12 @@ fn retrieve_all_activities(
                 break;
             }
         } else {
-            println!("❌ Error retrieving activities: {response:?}");
+            println!("Error Error retrieving activities: {response:?}");
             return Ok(all_activities);
         }
     }
 
-    println!("📊 Total activities retrieved: {}", all_activities.len());
+    println!("Data Total activities retrieved: {}", all_activities.len());
 
     Ok(all_activities)
 }
@@ -143,7 +143,7 @@ fn find_longest_2025_run(all_activities: &[Value]) -> Result<Value> {
         }
     }
 
-    println!("🏃 Found {} runs in 2025", runs_2025.len());
+    println!("Run Found {} runs in 2025", runs_2025.len());
 
     if runs_2025.is_empty() {
         anyhow::bail!("No runs found in 2025");
@@ -189,11 +189,11 @@ fn display_run_info(longest_run: &Value) {
         .and_then(|d| d.as_str())
         .unwrap_or("");
 
-    println!("\n🎯 LONGEST RUN IN 2025:");
-    println!("   📛 Name: {name}");
-    println!("   📏 Distance: {distance_km:.2} km");
-    println!("   🆔 Activity ID: {activity_id}");
-    println!("   📅 Date: {start_date}");
+    println!("\nTarget LONGEST RUN IN 2025:");
+    println!("   Name Name: {name}");
+    println!("   Distance Distance: {distance_km:.2} km");
+    println!("   ID Activity ID: {activity_id}");
+    println!("   Date Date: {start_date}");
 }
 
 fn generate_and_display_intelligence(
@@ -207,7 +207,7 @@ fn generate_and_display_intelligence(
         .unwrap_or("");
 
     // Now get Activity Intelligence for this run
-    println!("\n🧠 Generating Activity Intelligence with Weather and Location Analysis...");
+    println!("\nAI Generating Activity Intelligence with Weather and Location Analysis...");
 
     let intelligence_request = json!({
         "jsonrpc": "2.0",
@@ -230,12 +230,12 @@ fn generate_and_display_intelligence(
     let response: Value = serde_json::from_str(&line)?;
 
     if let Some(result) = response.get("result") {
-        println!("✅ Activity Intelligence Generated!");
+        println!("Success Activity Intelligence Generated!");
         println!("{}", "=".repeat(50));
 
         // Display the intelligence summary
         if let Some(summary) = result.get("summary").and_then(|s| s.as_str()) {
-            println!("📝 Summary: {summary}");
+            println!("Summary Summary: {summary}");
         }
 
         display_performance_indicators(result);
@@ -243,12 +243,12 @@ fn generate_and_display_intelligence(
         display_key_insights(result);
         display_metadata(result);
 
-        println!("\n🎉 Activity Intelligence Complete!");
+        println!("\nComplete Activity Intelligence Complete!");
         println!("   This analysis includes weather context, location intelligence,");
         println!("   performance metrics, heart rate zones, and AI-powered insights");
         println!("   for your longest run in 2025!");
     } else {
-        println!("❌ Error generating intelligence: {response:?}");
+        println!("Error Error generating intelligence: {response:?}");
     }
 
     Ok(())
@@ -256,19 +256,19 @@ fn generate_and_display_intelligence(
 
 fn display_performance_indicators(result: &Value) {
     if let Some(perf) = result.get("performance_indicators") {
-        println!("\n📊 Performance Indicators:");
+        println!("\nData Performance Indicators:");
 
         if let Some(effort) = perf.get("relative_effort").and_then(Value::as_f64) {
-            println!("   🎯 Relative Effort: {effort:.1}/10");
+            println!("   Target Relative Effort: {effort:.1}/10");
         }
 
         if let Some(efficiency) = perf.get("efficiency_score").and_then(Value::as_f64) {
-            println!("   ⚡ Efficiency Score: {efficiency:.1}/100");
+            println!("   Efficiency Efficiency Score: {efficiency:.1}/100");
         }
 
         if let Some(prs) = perf.get("personal_records").and_then(Value::as_array) {
             if !prs.is_empty() {
-                println!("   🏆 Personal Records: {}", prs.len());
+                println!("   Record Personal Records: {}", prs.len());
                 for pr in prs {
                     if let (Some(record_type), Some(value), Some(unit)) = (
                         pr.get("record_type").and_then(|r| r.as_str()),
@@ -282,7 +282,7 @@ fn display_performance_indicators(result: &Value) {
         }
 
         if let Some(zones) = perf.get("zone_distribution") {
-            println!("   📈 Heart Rate Zones:");
+            println!("   Performance Heart Rate Zones:");
             if let Some(z2) = zones.get("zone2_endurance").and_then(Value::as_f64) {
                 println!("     • Endurance Zone: {z2:.1}%");
             }
@@ -295,10 +295,10 @@ fn display_performance_indicators(result: &Value) {
 
 fn display_contextual_factors(result: &Value) {
     if let Some(context) = result.get("contextual_factors") {
-        println!("\n🌍 Contextual Factors:");
+        println!("\nCountry Contextual Factors:");
 
         if let Some(time_of_day) = context.get("time_of_day").and_then(|t| t.as_str()) {
-            println!("   🕐 Time of Day: {time_of_day}");
+            println!("   Time Time of Day: {time_of_day}");
         }
 
         display_weather_info(context);
@@ -308,52 +308,52 @@ fn display_contextual_factors(result: &Value) {
 
 fn display_weather_info(context: &Value) {
     if let Some(weather) = context.get("weather") {
-        println!("   🌦️  Weather:");
+        println!("   Weather  Weather:");
 
         if let Some(temp) = weather.get("temperature_celsius").and_then(Value::as_f64) {
-            println!("     🌡️  Temperature: {temp:.1}°C");
+            println!("     Temperature  Temperature: {temp:.1}°C");
         }
 
         if let Some(conditions) = weather.get("conditions").and_then(Value::as_str) {
-            println!("     ☁️  Conditions: {conditions}");
+            println!("     Conditions  Conditions: {conditions}");
         }
 
         if let Some(humidity) = weather.get("humidity_percentage").and_then(Value::as_f64) {
-            println!("     💧 Humidity: {humidity:.1}%");
+            println!("     Humidity Humidity: {humidity:.1}%");
         }
 
         if let Some(wind) = weather.get("wind_speed_kmh").and_then(Value::as_f64) {
-            println!("     💨 Wind Speed: {wind:.1} km/h");
+            println!("     Wind Wind Speed: {wind:.1} km/h");
         }
     }
 }
 
 fn display_location_info(context: &Value) {
     if let Some(location) = context.get("location") {
-        println!("   🗺️  Location:");
+        println!("   Location  Location:");
 
         if let Some(display_name) = location.get("display_name").and_then(Value::as_str) {
-            println!("     📍 Location: {display_name}");
+            println!("     Location Location: {display_name}");
         }
 
         if let Some(city) = location.get("city").and_then(Value::as_str) {
-            println!("     🏙️  City: {city}");
+            println!("     City  City: {city}");
         }
 
         if let Some(region) = location.get("region").and_then(Value::as_str) {
-            println!("     🗺️  Region: {region}");
+            println!("     Location  Region: {region}");
         }
 
         if let Some(country) = location.get("country").and_then(Value::as_str) {
-            println!("     🌍 Country: {country}");
+            println!("     Country Country: {country}");
         }
 
         if let Some(trail_name) = location.get("trail_name").and_then(Value::as_str) {
-            println!("     🥾 Trail: {trail_name}");
+            println!("     Trail Trail: {trail_name}");
         }
 
         if let Some(terrain_type) = location.get("terrain_type").and_then(Value::as_str) {
-            println!("     ⛰️  Terrain: {terrain_type}");
+            println!("     Terrain  Terrain: {terrain_type}");
         }
     }
 }
@@ -361,7 +361,7 @@ fn display_location_info(context: &Value) {
 fn display_key_insights(result: &Value) {
     if let Some(insights) = result.get("key_insights").and_then(Value::as_array) {
         if !insights.is_empty() {
-            println!("\n💡 Key Insights:");
+            println!("\nTip Key Insights:");
             for insight in insights {
                 if let Some(message) = insight.get("message").and_then(Value::as_str) {
                     println!("   • {message}");
@@ -373,10 +373,10 @@ fn display_key_insights(result: &Value) {
 
 fn display_metadata(result: &Value) {
     if let Some(generated_at) = result.get("generated_at").and_then(Value::as_str) {
-        println!("\n📅 Analysis Generated: {generated_at}");
+        println!("\nDate Analysis Generated: {generated_at}");
     }
 
     if let Some(status) = result.get("status").and_then(Value::as_str) {
-        println!("✅ Status: {status}");
+        println!("Success Status: {status}");
     }
 }

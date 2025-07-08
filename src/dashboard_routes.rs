@@ -149,14 +149,14 @@ impl DashboardRoutes {
         let today_start = Utc::now()
             .date_naive()
             .and_hms_opt(0, 0, 0)
-            .unwrap()
+            .ok_or_else(|| anyhow::anyhow!("Failed to create today start time"))?
             .and_utc();
         let month_start = Utc::now()
             .date_naive()
             .with_day(1)
-            .unwrap()
+            .ok_or_else(|| anyhow::anyhow!("Failed to set month start day"))?
             .and_hms_opt(0, 0, 0)
-            .unwrap()
+            .ok_or_else(|| anyhow::anyhow!("Failed to create month start time"))?
             .and_utc();
 
         // Get usage statistics
