@@ -29,12 +29,14 @@ impl Default for AdminJwtManager {
 
 impl AdminJwtManager {
     /// Create new JWT manager with generated secret
+    #[must_use]
     pub fn new() -> Self {
         let secret = Self::generate_jwt_secret();
         Self::with_secret(&secret)
     }
 
     /// Create JWT manager with provided secret
+    #[must_use]
     pub fn with_secret(secret: &str) -> Self {
         let encoding_key = EncodingKey::from_secret(secret.as_bytes());
         let decoding_key = DecodingKey::from_secret(secret.as_bytes());
@@ -47,6 +49,7 @@ impl AdminJwtManager {
     }
 
     /// Generate a cryptographically secure JWT secret
+    #[must_use]
     pub fn generate_jwt_secret() -> String {
         // Generate 64 character (512-bit) random secret
         rand::thread_rng()
@@ -57,6 +60,7 @@ impl AdminJwtManager {
     }
 
     /// Hash a JWT secret for storage
+    #[must_use]
     pub fn hash_secret(secret: &str) -> String {
         let mut hasher = Sha256::new();
         hasher.update(secret.as_bytes());
@@ -64,6 +68,9 @@ impl AdminJwtManager {
     }
 
     /// Generate JWT token for admin service
+    ///
+    /// # Errors
+    /// Returns an error if JWT encoding fails
     pub fn generate_token(
         &self,
         token_id: &str,
@@ -77,19 +84,19 @@ impl AdminJwtManager {
 
         let claims = AdminTokenClaims {
             // Standard JWT claims
-            iss: "pierre-mcp-server".to_string(),
+            iss: "pierre-mcp-server".into(),
             sub: token_id.to_string(),
-            aud: "admin-api".to_string(),
-            exp: exp.timestamp() as u64,
-            iat: now.timestamp() as u64,
-            nbf: now.timestamp() as u64,
+            aud: "admin-api".into(),
+            exp: u64::try_from(exp.timestamp().max(0)).unwrap_or(0),
+            iat: u64::try_from(now.timestamp().max(0)).unwrap_or(0),
+            nbf: u64::try_from(now.timestamp().max(0)).unwrap_or(0),
             jti: token_id.to_string(),
 
             // Custom claims
             service_name: service_name.to_string(),
             permissions: permissions.to_vec(),
             is_super_admin,
-            token_type: "admin".to_string(),
+            token_type: "admin".into(),
         };
 
         let header = Header::new(self.algorithm);
@@ -98,6 +105,9 @@ impl AdminJwtManager {
     }
 
     /// Validate and decode JWT token
+    ///
+    /// # Errors
+    /// Returns an error if token is invalid, expired, or has wrong format
     pub fn validate_token(&self, token: &str) -> Result<ValidatedAdminToken> {
         let mut validation = Validation::new(self.algorithm);
         validation.set_audience(&["admin-api"]);
@@ -114,7 +124,7 @@ impl AdminJwtManager {
         }
 
         // Check expiration
-        let now = Utc::now().timestamp() as u64;
+        let now = u64::try_from(Utc::now().timestamp().max(0)).unwrap_or(0);
         if claims.exp < now {
             return Err(anyhow!("Token has expired"));
         }
@@ -137,6 +147,9 @@ impl AdminJwtManager {
     }
 
     /// Extract token ID without full validation (for prefix matching)
+    ///
+    /// # Errors
+    /// Returns an error if token cannot be decoded
     pub fn extract_token_id(&self, token: &str) -> Result<String> {
         // Decode without verification for prefix extraction
         let mut validation = Validation::new(self.algorithm);
@@ -151,17 +164,25 @@ impl AdminJwtManager {
     }
 
     /// Generate token prefix for identification
+    #[must_use]
     pub fn generate_token_prefix(token: &str) -> String {
-        format!("admin_jwt_{}", &token[..8])
+        let token_prefix = &token[..8];
+        format!("admin_jwt_{token_prefix}")
     }
 
     /// Hash token for storage (bcrypt-compatible)
+    ///
+    /// # Errors
+    /// Returns an error if bcrypt hashing fails
     pub fn hash_token_for_storage(token: &str) -> Result<String> {
         bcrypt::hash(token, bcrypt::DEFAULT_COST)
             .map_err(|e| anyhow!("Failed to hash token: {}", e))
     }
 
     /// Verify token hash
+    ///
+    /// # Errors
+    /// Returns an error if bcrypt verification fails
     pub fn verify_token_hash(token: &str, hash: &str) -> Result<bool> {
         bcrypt::verify(token, hash).map_err(|e| anyhow!("Failed to verify token hash: {}", e))
     }
@@ -198,6 +219,7 @@ pub struct TokenGenerationConfig {
 
 impl TokenGenerationConfig {
     /// Create config for regular admin token
+    #[must_use]
     pub fn regular_admin(service_name: String) -> Self {
         Self {
             service_name,
@@ -209,10 +231,11 @@ impl TokenGenerationConfig {
     }
 
     /// Create config for super admin token
+    #[must_use]
     pub fn super_admin(service_name: String) -> Self {
         Self {
             service_name,
-            service_description: Some("Super Admin Token".to_string()),
+            service_description: Some("Super Admin Token".into()),
             permissions: Some(AdminPermissions::super_admin()),
             expires_in_days: None, // Never expires
             is_super_admin: true,
@@ -220,23 +243,25 @@ impl TokenGenerationConfig {
     }
 
     /// Get effective permissions
+    #[must_use]
     pub fn get_permissions(&self) -> AdminPermissions {
-        match &self.permissions {
-            Some(perms) => perms.clone(),
-            None => {
+        self.permissions.as_ref().map_or_else(
+            || {
                 if self.is_super_admin {
                     AdminPermissions::super_admin()
                 } else {
                     AdminPermissions::default_admin()
                 }
-            }
-        }
+            },
+            std::clone::Clone::clone,
+        )
     }
 
     /// Get expiration date
+    #[must_use]
     pub fn get_expiration(&self) -> Option<DateTime<Utc>> {
         self.expires_in_days
-            .map(|days| Utc::now() + Duration::days(days as i64))
+            .map(|days| Utc::now() + Duration::days(i64::try_from(days).unwrap_or(365)))
     }
 }
 

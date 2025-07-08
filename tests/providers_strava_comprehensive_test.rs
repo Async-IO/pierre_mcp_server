@@ -1,3 +1,5 @@
+// ABOUTME: Comprehensive tests for Strava provider to improve coverage
+// ABOUTME: Tests providers/strava.rs functionality and API integration
 //! Comprehensive tests for Strava provider to improve coverage
 //!
 //! This test suite focuses on providers/strava.rs which has only 23.36% coverage
@@ -5,6 +7,7 @@
 use anyhow::Result;
 use pierre_mcp_server::{
     models::SportType,
+    oauth2_client::PkceParams,
     providers::{
         strava::{StravaConfig, StravaProvider},
         AuthData, FitnessProvider,
@@ -244,7 +247,7 @@ async fn test_strava_exchange_code_no_client_secret() -> Result<()> {
 
     let auth_data = AuthData::OAuth2 {
         client_id: "client".to_string(),
-        client_secret: "".to_string(), // Empty secret
+        client_secret: String::new(), // Empty secret
         access_token: None,
         refresh_token: None,
     };
@@ -325,7 +328,6 @@ async fn test_strava_pkce_auth_url() -> Result<()> {
     let static_config: &'static StravaConfig = Box::leak(Box::new(test_config));
     let provider = StravaProvider::with_config(static_config);
 
-    use pierre_mcp_server::oauth2_client::PkceParams;
     let pkce = PkceParams {
         code_verifier: "test_verifier".to_string(),
         code_challenge: "test_challenge".to_string(),

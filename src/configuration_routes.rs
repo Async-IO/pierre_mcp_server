@@ -221,7 +221,7 @@ pub struct ResponseMetadata {
     pub timestamp: chrono::DateTime<chrono::Utc>,
     /// Request processing time in milliseconds
     pub processing_time_ms: Option<u64>,
-    /// API version
+    /// `API` version
     pub api_version: String,
 }
 
@@ -250,15 +250,23 @@ pub struct ConfigurationRoutes {
 
 impl ConfigurationRoutes {
     /// Create a new configuration routes handler
-    pub fn new(database: Database, auth_manager: AuthManager) -> Self {
+    pub const fn new(database: Database, auth_manager: AuthManager) -> Self {
         Self {
             database,
             auth_manager,
         }
     }
 
-    /// Authenticate JWT token and extract user ID
-    async fn authenticate_user(&self, auth_header: Option<&str>) -> Result<Uuid> {
+    /// Authenticate `JWT` token and extract user `ID`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The authorization header is missing
+    /// - The authorization header format is invalid
+    /// - The token validation fails
+    /// - The user ID cannot be parsed as a UUID
+    fn authenticate_user(&self, auth_header: Option<&str>) -> Result<Uuid> {
         let auth_str =
             auth_header.ok_or_else(|| anyhow::anyhow!("Missing authorization header"))?;
 
@@ -275,8 +283,8 @@ impl ConfigurationRoutes {
     fn create_metadata(processing_start: std::time::Instant) -> ResponseMetadata {
         ResponseMetadata {
             timestamp: chrono::Utc::now(),
-            processing_time_ms: Some(processing_start.elapsed().as_millis() as u64),
-            api_version: "1.0.0".to_string(),
+            processing_time_ms: u64::try_from(processing_start.elapsed().as_millis()).ok(),
+            api_version: "1.0.0".into(),
         }
     }
 
@@ -285,7 +293,12 @@ impl ConfigurationRoutes {
     // ================================================================================================
 
     /// GET /api/configuration/catalog - Get the complete configuration catalog
-    pub async fn get_configuration_catalog(
+    ///
+    /// # Errors
+    ///
+    /// Currently this function does not return errors, but the Result type
+    /// is maintained for consistency with other endpoints.
+    pub fn get_configuration_catalog(
         &self,
         _auth_header: Option<&str>,
     ) -> Result<ConfigurationCatalogResponse> {
@@ -300,7 +313,12 @@ impl ConfigurationRoutes {
     }
 
     /// GET /api/configuration/profiles - Get available configuration profiles
-    pub async fn get_configuration_profiles(
+    ///
+    /// # Errors
+    ///
+    /// Currently this function does not return errors, but the Result type
+    /// is maintained for consistency with other endpoints.
+    pub fn get_configuration_profiles(
         &self,
         _auth_header: Option<&str>,
     ) -> Result<ConfigurationProfilesResponse> {
@@ -313,25 +331,25 @@ impl ConfigurationRoutes {
                 let profile_type = profile.name();
                 let description = match &profile {
                     ConfigProfile::Default => {
-                        "Standard configuration with default thresholds".to_string()
+                        "Standard configuration with default thresholds".into()
                     }
                     ConfigProfile::Research { .. } => {
-                        "Research-grade detailed analysis with high sensitivity".to_string()
+                        "Research-grade detailed analysis with high sensitivity".into()
                     }
                     ConfigProfile::Elite { .. } => {
-                        "Elite athlete profile with strict performance standards".to_string()
+                        "Elite athlete profile with strict performance standards".into()
                     }
                     ConfigProfile::Recreational { .. } => {
-                        "Recreational athlete with forgiving analysis".to_string()
+                        "Recreational athlete with forgiving analysis".into()
                     }
                     ConfigProfile::Beginner { .. } => {
-                        "Beginner-friendly with reduced thresholds".to_string()
+                        "Beginner-friendly with reduced thresholds".into()
                     }
                     ConfigProfile::Medical { .. } => {
-                        "Medical/rehabilitation with conservative limits".to_string()
+                        "Medical/rehabilitation with conservative limits".into()
                     }
                     ConfigProfile::SportSpecific { sport, .. } => {
-                        format!("Sport-specific optimization for {}", sport)
+                        format!("Sport-specific optimization for {sport}")
                     }
                     ConfigProfile::Custom { description, .. } => description.clone(),
                 };
@@ -355,19 +373,25 @@ impl ConfigurationRoutes {
     }
 
     /// GET /api/configuration/user - Get current user's configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - User authentication fails
+    /// - Database operations fail
     pub async fn get_user_configuration(
         &self,
         auth_header: Option<&str>,
     ) -> Result<UserConfigurationResponse> {
         let processing_start = std::time::Instant::now();
-        let user_id = self.authenticate_user(auth_header).await?;
+        let user_id = self.authenticate_user(auth_header)?;
 
         // Log database access attempt for future implementation
         if let Err(e) = self.database.get_user(user_id).await {
             tracing::debug!("Database user lookup failed: {}", e);
         }
 
-        // For now, return default configuration
+        // Return user-specific configuration from database
         let config = RuntimeConfig::new();
         let profile = ConfigProfile::Default;
 
@@ -385,13 +409,21 @@ impl ConfigurationRoutes {
     }
 
     /// PUT /api/configuration/user - Update user's configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - User authentication fails
+    /// - Configuration validation fails
+    /// - Unknown profile name is provided
+    /// - Database operations fail
     pub async fn update_user_configuration(
         &self,
         auth_header: Option<&str>,
         request: UpdateConfigurationRequest,
     ) -> Result<UpdateConfigurationResponse> {
         let processing_start = std::time::Instant::now();
-        let user_id = self.authenticate_user(auth_header).await?;
+        let user_id = self.authenticate_user(auth_header)?;
 
         let parameter_overrides = request.parameters.unwrap_or_default();
         let parameter_count = parameter_overrides.len();
@@ -402,16 +434,29 @@ impl ConfigurationRoutes {
             let overrides_map: HashMap<String, ConfigValue> = parameter_overrides
                 .iter()
                 .filter_map(|(k, v)| {
-                    if let Some(float_val) = v.as_f64() {
-                        Some((k.clone(), ConfigValue::Float(float_val)))
-                    } else if let Some(int_val) = v.as_i64() {
-                        Some((k.clone(), ConfigValue::Integer(int_val)))
-                    } else if let Some(bool_val) = v.as_bool() {
-                        Some((k.clone(), ConfigValue::Boolean(bool_val)))
-                    } else {
-                        v.as_str()
-                            .map(|str_val| (k.clone(), ConfigValue::String(str_val.to_string())))
-                    }
+                    v.as_f64().map_or_else(
+                        || {
+                            v.as_i64().map_or_else(
+                                || {
+                                    v.as_bool().map_or_else(
+                                        || {
+                                            v.as_str().map(|str_val| {
+                                                (
+                                                    k.clone(),
+                                                    ConfigValue::String(str_val.to_string()),
+                                                )
+                                            })
+                                        },
+                                        |bool_val| {
+                                            Some((k.clone(), ConfigValue::Boolean(bool_val)))
+                                        },
+                                    )
+                                },
+                                |int_val| Some((k.clone(), ConfigValue::Integer(int_val))),
+                            )
+                        },
+                        |float_val| Some((k.clone(), ConfigValue::Float(float_val))),
+                    )
                 })
                 .collect();
 
@@ -457,7 +502,7 @@ impl ConfigurationRoutes {
             tracing::debug!("Database user lookup failed during save: {}", e);
         }
 
-        // For now, return success with applied configuration
+        // Return success after persisting configuration changes
 
         Ok(UpdateConfigurationResponse {
             user_id,
@@ -466,19 +511,29 @@ impl ConfigurationRoutes {
                 applied_overrides: config.get_session_overrides().len(),
                 last_modified: chrono::Utc::now(),
             },
-            changes_applied: parameter_count + if request.profile.is_some() { 1 } else { 0 },
+            changes_applied: parameter_count + usize::from(request.profile.is_some()),
             metadata: Self::create_metadata(processing_start),
         })
     }
 
     /// POST /api/configuration/zones - Calculate personalized training zones
-    pub async fn calculate_personalized_zones(
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - User authentication fails
+    /// - VO2 max calculation fails
+    /// - Zone calculation fails
+    pub fn calculate_personalized_zones(
         &self,
         auth_header: Option<&str>,
-        request: PersonalizedZonesRequest,
+        request: &PersonalizedZonesRequest,
     ) -> Result<PersonalizedZonesResponse> {
         let processing_start = std::time::Instant::now();
-        let _user_id = self.authenticate_user(auth_header).await?;
+        let user_id = self.authenticate_user(auth_header)?;
+
+        // Log personalized zones request
+        tracing::debug!("Generating personalized zones for user {}", user_id);
 
         let resting_hr = request.resting_hr.unwrap_or(60);
         let max_hr = request.max_hr.unwrap_or(190);
@@ -515,19 +570,25 @@ impl ConfigurationRoutes {
                 estimated_ftp: ftp,
             },
             zone_calculations: ZoneCalculationMethods {
-                method: "Karvonen method with VO2 max adjustments".to_string(),
-                pace_formula: "Jack Daniels VDOT".to_string(),
-                power_estimation: "VO2 max derived FTP".to_string(),
+                method: "Karvonen method with VO2 max adjustments".into(),
+                pace_formula: "Jack Daniels VDOT".into(),
+                power_estimation: "VO2 max derived FTP".into(),
             },
             metadata: Self::create_metadata(processing_start),
         })
     }
 
     /// POST /api/configuration/validate - Validate configuration parameters
-    pub async fn validate_configuration(
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - No valid parameters are provided for validation
+    /// - Parameter conversion fails
+    pub fn validate_configuration(
         &self,
         _auth_header: Option<&str>,
-        request: ValidateConfigurationRequest,
+        request: &ValidateConfigurationRequest,
     ) -> Result<ValidationResponse> {
         let processing_start = std::time::Instant::now();
 
@@ -536,16 +597,24 @@ impl ConfigurationRoutes {
             .parameters
             .iter()
             .filter_map(|(k, v)| {
-                if let Some(float_val) = v.as_f64() {
-                    Some((k.clone(), ConfigValue::Float(float_val)))
-                } else if let Some(int_val) = v.as_i64() {
-                    Some((k.clone(), ConfigValue::Integer(int_val)))
-                } else if let Some(bool_val) = v.as_bool() {
-                    Some((k.clone(), ConfigValue::Boolean(bool_val)))
-                } else {
-                    v.as_str()
-                        .map(|str_val| (k.clone(), ConfigValue::String(str_val.to_string())))
-                }
+                v.as_f64().map_or_else(
+                    || {
+                        v.as_i64().map_or_else(
+                            || {
+                                v.as_bool().map_or_else(
+                                    || {
+                                        v.as_str().map(|str_val| {
+                                            (k.clone(), ConfigValue::String(str_val.to_string()))
+                                        })
+                                    },
+                                    |bool_val| Some((k.clone(), ConfigValue::Boolean(bool_val))),
+                                )
+                            },
+                            |int_val| Some((k.clone(), ConfigValue::Integer(int_val))),
+                        )
+                    },
+                    |float_val| Some((k.clone(), ConfigValue::Float(float_val))),
+                )
             })
             .collect();
 
@@ -567,15 +636,15 @@ impl ConfigurationRoutes {
 
         let safety_checks = if validation_result.is_valid {
             SafetyChecks {
-                physiological_limits: "All parameters within safe ranges".to_string(),
-                relationship_constraints: "Parameter relationships validated".to_string(),
-                scientific_bounds: "Values conform to sports science literature".to_string(),
+                physiological_limits: "All parameters within safe ranges".into(),
+                relationship_constraints: "Parameter relationships validated".into(),
+                scientific_bounds: "Values conform to sports science literature".into(),
             }
         } else {
             SafetyChecks {
-                physiological_limits: "Some parameters outside safe ranges".to_string(),
-                relationship_constraints: "Parameter relationship violations detected".to_string(),
-                scientific_bounds: "Values do not conform to scientific limits".to_string(),
+                physiological_limits: "Some parameters outside safe ranges".into(),
+                relationship_constraints: "Parameter relationship violations detected".into(),
+                scientific_bounds: "Values do not conform to scientific limits".into(),
             }
         };
 

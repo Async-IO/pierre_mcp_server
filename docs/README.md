@@ -5,44 +5,33 @@ Complete documentation for the Pierre Fitness API platform.
 ## 📚 Documentation Index
 
 ### **Getting Started**
-- [**Setup Guide**](SETUP.md) - Installation and configuration
-- [**Configuration**](CONFIGURATION.md) - Environment variables and settings
-- [**Authentication**](AUTHENTICATION.md) - JWT, API keys, and A2A authentication
+- [**Getting Started Guide**](GETTING_STARTED.md) - Complete setup, configuration, and authentication guide
 
 ### **API References**
+- [**API Reference**](API_REFERENCE.md) - Complete API documentation including MCP tools, endpoints, error handling, and integration examples
 - [**OpenAPI Specification**](openapi.yaml) - Complete API reference
-- [**Error Handling**](ERROR_HANDLING.md) - Error codes and troubleshooting
-- [**API Reference**](API_REFERENCE.md) - Admin APIs and B2B features
 
-### **Integration Guides**
-- [**MCP Tools**](TOOLS.md) - All 21 fitness tools documentation
-- [**Prompt Examples**](PROMPT_EXAMPLES.md) - 50+ real-world queries
-- [**Weather Integration**](WEATHER.md) - Weather API setup
+### **Deployment & Operations**
+- [**Deployment Guide**](DEPLOYMENT_GUIDE.md) - Production deployment, architecture, testing, and B2B provisioning
 
-### **Enterprise & Deployment**
-- [**Provisioning**](PROVISIONING.md) - B2B customer onboarding
-- [**Architecture**](ARCHITECTURE.md) - Technical architecture
-- [**Deployment**](DEPLOYMENT.md) - Production deployment
-- [**Testing**](TESTING.md) - Testing and development
-
-### **Advanced Topics**
-- [**Database Plugins**](database-plugins.md) - SQLite/PostgreSQL architecture
+### **Database & Storage**
+- [**Database Guide**](DATABASE_GUIDE.md) - SQLite/PostgreSQL setup and database plugins architecture
 
 ## 🚀 Quick Navigation
 
 ### For Developers
-1. **Personal Use**: Start with [Setup Guide](SETUP.md)
-2. **AI Integration**: See [MCP Tools](TOOLS.md) and [Prompt Examples](PROMPT_EXAMPLES.md)
-3. **Web Development**: Check [Authentication](AUTHENTICATION.md) and [API Reference](API_REFERENCE.md)
+1. **Personal Use**: Start with [Getting Started Guide](GETTING_STARTED.md)
+2. **AI Integration**: See [API Reference](API_REFERENCE.md) for MCP tools and prompt examples
+3. **Web Development**: Check [Getting Started Guide](GETTING_STARTED.md) for authentication and [API Reference](API_REFERENCE.md) for endpoints
 
 ### For Enterprise
-1. **Integration Planning**: Review [Architecture](ARCHITECTURE.md)
-2. **Customer Onboarding**: Use [Provisioning](PROVISIONING.md) guide
-3. **Production Deploy**: Follow [Deployment](DEPLOYMENT.md) guide
+1. **Integration Planning**: Review [Deployment Guide](DEPLOYMENT_GUIDE.md) for architecture
+2. **Customer Onboarding**: Use [Deployment Guide](DEPLOYMENT_GUIDE.md) for provisioning
+3. **Production Deploy**: Follow [Deployment Guide](DEPLOYMENT_GUIDE.md)
 
 ### For Support
-1. **Troubleshooting**: Check [Error Handling](ERROR_HANDLING.md)
-2. **Configuration Issues**: See [Configuration](CONFIGURATION.md)
+1. **Troubleshooting**: Check [API Reference](API_REFERENCE.md) for error handling
+2. **Configuration Issues**: See [Getting Started Guide](GETTING_STARTED.md)
 3. **API Problems**: Use [OpenAPI Specification](openapi.yaml)
 
 ## 🔄 What's New

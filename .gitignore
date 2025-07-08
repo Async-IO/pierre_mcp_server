@@ -66,3 +66,8 @@ multitenant_test*.log
 # Frontend build artifacts and coverage
 frontend/coverage/
 frontend/dist/
+
+# Documentation directory
+claude_docs/
+claude_docs/
+CLAUDE.md

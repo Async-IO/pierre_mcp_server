@@ -7,13 +7,15 @@
 
 use crate::{
     admin::{auth::AdminAuthService, models::AdminPermission},
-    api_keys::ApiKeyTier,
+    api_keys::{ApiKey, ApiKeyTier},
     auth::AuthManager,
-    constants::time_constants::*,
+    constants::time_constants::{
+        SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MONTH, SECONDS_PER_WEEK,
+    },
     database_plugins::{factory::Database, DatabaseProvider},
     models::User,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::{info, warn};
@@ -115,7 +117,7 @@ pub fn admin_routes(
     let admin_tokens_create_route = admin_tokens_create_route(context.clone());
     let admin_tokens_details_route = admin_tokens_details_route(context.clone());
     let admin_tokens_revoke_route = admin_tokens_revoke_route(context.clone());
-    let admin_tokens_rotate_route = admin_tokens_rotate_route(context.clone());
+    let admin_tokens_rotate_route = admin_tokens_rotate_route(context);
 
     let health_route = admin_health_route();
 
@@ -152,7 +154,7 @@ pub fn admin_routes_with_rejection(
     let admin_tokens_create_route = admin_tokens_create_route(context.clone());
     let admin_tokens_details_route = admin_tokens_details_route(context.clone());
     let admin_tokens_revoke_route = admin_tokens_revoke_route(context.clone());
-    let admin_tokens_rotate_route = admin_tokens_rotate_route(context.clone());
+    let admin_tokens_rotate_route = admin_tokens_rotate_route(context);
 
     let health_route = admin_health_route();
 
@@ -293,14 +295,18 @@ fn extract_client_ip(
     remote_addr: Option<std::net::SocketAddr>,
 ) -> Option<String> {
     // Priority: X-Forwarded-For > X-Real-IP > Remote Address
-    if let Some(xff) = x_forwarded_for {
-        // X-Forwarded-For can contain multiple IPs, take the first one
-        xff.split(',').next().map(|ip| ip.trim().to_string())
-    } else if let Some(real_ip) = x_real_ip {
-        Some(real_ip.trim().to_string())
-    } else {
-        remote_addr.map(|addr| addr.ip().to_string())
-    }
+    x_forwarded_for.map_or_else(
+        || {
+            x_real_ip.map_or_else(
+                || remote_addr.map(|addr| addr.ip().to_string()),
+                |real_ip| Some(real_ip.trim().to_string()),
+            )
+        },
+        |xff| {
+            // X-Forwarded-For can contain multiple IPs, take the first one
+            xff.split(',').next().map(|ip| ip.trim().to_string())
+        },
+    )
 }
 
 /// Extract Bearer token from Authorization header
@@ -309,7 +315,10 @@ fn extract_bearer_token(auth_header: &str) -> Result<String> {
         return Err(anyhow!("Invalid authorization header format"));
     }
 
-    let token = auth_header.strip_prefix("Bearer ").unwrap().trim();
+    let token = auth_header
+        .strip_prefix("Bearer ")
+        .context("Failed to extract bearer token")?
+        .trim();
     if token.is_empty() {
         return Err(anyhow!("Empty bearer token"));
     }
@@ -330,11 +339,137 @@ fn convert_rate_limit_period(period: &str) -> Result<u32> {
     }
 }
 
+/// Validate API key tier from string
+fn validate_tier(tier_str: &str) -> Result<ApiKeyTier, String> {
+    match tier_str {
+        "trial" => Ok(ApiKeyTier::Trial),
+        "starter" => Ok(ApiKeyTier::Starter),
+        "professional" => Ok(ApiKeyTier::Professional),
+        "enterprise" => Ok(ApiKeyTier::Enterprise),
+        _ => Err(format!(
+            "Invalid tier: {tier_str}. Supported: trial, starter, professional, enterprise"
+        )),
+    }
+}
+
+/// Create and store API key
+async fn create_and_store_api_key(
+    context: &AdminApiContext,
+    user: &User,
+    request: &ProvisionApiKeyRequest,
+    tier: &ApiKeyTier,
+    admin_token: &crate::admin::models::ValidatedAdminToken,
+) -> Result<(crate::api_keys::ApiKey, String), String> {
+    // Generate API key using ApiKeyManager
+    let api_key_manager = crate::api_keys::ApiKeyManager::new();
+    let create_request = crate::api_keys::CreateApiKeyRequest {
+        name: request
+            .description
+            .clone()
+            .unwrap_or_else(|| format!("API Key provisioned by {}", admin_token.service_name)),
+        description: Some(format!(
+            "Provisioned by admin service: {}",
+            admin_token.service_name
+        )),
+        tier: tier.clone(),
+        rate_limit_requests: request.rate_limit_requests,
+        expires_in_days: request.expires_in_days.map(i64::from),
+    };
+
+    let (mut final_api_key, api_key_string) =
+        match api_key_manager.create_api_key(user.id, create_request) {
+            Ok((key, key_string)) => (key, key_string),
+            Err(e) => {
+                return Err(format!("Failed to generate API key: {e}"));
+            }
+        };
+
+    // Apply custom rate limits if provided
+    if let Some(requests) = request.rate_limit_requests {
+        final_api_key.rate_limit_requests = requests;
+        if let Some(ref period) = request.rate_limit_period {
+            match convert_rate_limit_period(period) {
+                Ok(window_seconds) => {
+                    final_api_key.rate_limit_window_seconds = window_seconds;
+                }
+                Err(e) => {
+                    return Err(e.to_string());
+                }
+            }
+        }
+    }
+
+    // Store API key
+    if let Err(e) = context.database.create_api_key(&final_api_key).await {
+        return Err(format!("Failed to create API key: {e}"));
+    }
+
+    Ok((final_api_key, api_key_string))
+}
+
 /// Helper to inject context into filters
 fn with_context(
     context: AdminApiContext,
 ) -> impl Filter<Extract = (AdminApiContext,), Error = std::convert::Infallible> + Clone {
     warp::any().map(move || context.clone())
+}
+
+/// Get or create user for API key provisioning
+async fn get_or_create_user(database: &Database, email: &str) -> Result<User, warp::Rejection> {
+    match database.get_user_by_email(email).await {
+        Ok(Some(user)) => Ok(user),
+        Ok(None) => {
+            // Create new user for API key
+            let new_user = User {
+                id: Uuid::new_v4(),
+                email: email.to_string(),
+                display_name: Some(format!("API User ({email})")),
+                password_hash: "api-key-only".into(), // API-only user
+                tier: crate::models::UserTier::Starter, // Default tier for API users
+                strava_token: None,
+                fitbit_token: None,
+                is_active: true,
+                created_at: chrono::Utc::now(),
+                last_active: chrono::Utc::now(),
+            };
+
+            let user_id = database.create_user(&new_user).await.map_err(|e| {
+                warp::reject::custom(AdminApiError::DatabaseError(format!(
+                    "Failed to create user: {e}"
+                )))
+            })?;
+
+            Ok(User {
+                id: user_id,
+                ..new_user
+            })
+        }
+        Err(e) => Err(warp::reject::custom(AdminApiError::DatabaseError(format!(
+            "Failed to lookup user: {e}"
+        )))),
+    }
+}
+
+/// Create provision response
+fn create_provision_response(
+    api_key: &ApiKey,
+    api_key_string: String,
+    user: &User,
+    tier: &ApiKeyTier,
+    period_name: &str,
+) -> ProvisionApiKeyResponse {
+    ProvisionApiKeyResponse {
+        success: true,
+        api_key_id: api_key.id.clone(),
+        api_key: api_key_string,
+        user_id: user.id.to_string(),
+        tier: format!("{tier:?}").to_lowercase(),
+        expires_at: api_key.expires_at.map(|dt| dt.to_rfc3339()),
+        rate_limit: Some(RateLimitInfo {
+            requests: api_key.rate_limit_requests,
+            period: period_name.to_string(),
+        }),
+    }
 }
 
 /// Handle API key provisioning
@@ -349,19 +484,13 @@ async fn handle_provision_api_key(
     );
 
     // Validate tier
-    let tier = match request.tier.as_str() {
-        "trial" => ApiKeyTier::Trial,
-        "starter" => ApiKeyTier::Starter,
-        "professional" => ApiKeyTier::Professional,
-        "enterprise" => ApiKeyTier::Enterprise,
-        _ => {
+    let tier = match validate_tier(&request.tier) {
+        Ok(t) => t,
+        Err(error_msg) => {
             return Ok(with_status(
                 json(&AdminResponse {
                     success: false,
-                    message: format!(
-                        "Invalid tier: {}. Supported: trial, starter, professional, enterprise",
-                        request.tier
-                    ),
+                    message: error_msg,
                     data: None,
                 }),
                 StatusCode::BAD_REQUEST,
@@ -370,116 +499,41 @@ async fn handle_provision_api_key(
     };
 
     // Get or create user
-    let user = match context
-        .database
-        .get_user_by_email(&request.user_email)
-        .await
-    {
-        Ok(Some(user)) => user,
-        Ok(None) => {
-            // Create new user for API key
-            let new_user = User {
-                id: Uuid::new_v4(),
-                email: request.user_email.clone(),
-                display_name: Some(format!("API User ({})", request.user_email)),
-                password_hash: "api-key-only".to_string(), // API-only user
-                tier: crate::models::UserTier::Starter,    // Default tier for API users
-                strava_token: None,
-                fitbit_token: None,
-                is_active: true,
-                created_at: chrono::Utc::now(),
-                last_active: chrono::Utc::now(),
-            };
-
-            let user_id = context.database.create_user(&new_user).await.map_err(|e| {
-                warp::reject::custom(AdminApiError::DatabaseError(format!(
-                    "Failed to create user: {}",
-                    e
-                )))
-            })?;
-
-            User {
-                id: user_id,
-                ..new_user
-            }
-        }
-        Err(e) => {
-            return Ok(with_status(
-                json(&AdminResponse {
-                    success: false,
-                    message: format!("Failed to lookup user: {}", e),
-                    data: None,
-                }),
-                StatusCode::INTERNAL_SERVER_ERROR,
-            ));
-        }
-    };
-
-    // Generate API key using ApiKeyManager
-    let api_key_manager = crate::api_keys::ApiKeyManager::new();
-    let create_request = crate::api_keys::CreateApiKeyRequest {
-        name: request
-            .description
-            .unwrap_or_else(|| format!("API Key provisioned by {}", admin_token.service_name)),
-        description: Some(format!(
-            "Provisioned by admin service: {}",
-            admin_token.service_name
-        )),
-        tier: tier.clone(),
-        rate_limit_requests: request.rate_limit_requests,
-        expires_in_days: request.expires_in_days.map(|d| d as i64),
-    };
-
-    let (mut final_api_key, api_key_string) = match api_key_manager
-        .create_api_key(user.id, create_request)
-        .await
-    {
-        Ok((key, key_string)) => (key, key_string),
-        Err(e) => {
-            return Ok(with_status(
-                json(&AdminResponse {
-                    success: false,
-                    message: format!("Failed to generate API key: {}", e),
-                    data: None,
-                }),
-                StatusCode::INTERNAL_SERVER_ERROR,
-            ));
-        }
-    };
-
-    // Apply custom rate limits if provided
-    if let Some(requests) = request.rate_limit_requests {
-        final_api_key.rate_limit_requests = requests;
-        if let Some(ref period) = request.rate_limit_period {
-            match convert_rate_limit_period(period) {
-                Ok(window_seconds) => {
-                    final_api_key.rate_limit_window_seconds = window_seconds;
-                }
-                Err(e) => {
-                    return Ok(with_status(
-                        json(&AdminResponse {
-                            success: false,
-                            message: e.to_string(),
-                            data: None,
-                        }),
-                        StatusCode::BAD_REQUEST,
-                    ));
-                }
-            }
-        }
-    }
-
-    // Store API key
-    if let Err(e) = context.database.create_api_key(&final_api_key).await {
+    let Ok(user) = get_or_create_user(&context.database, &request.user_email).await else {
         return Ok(with_status(
             json(&AdminResponse {
                 success: false,
-                message: format!("Failed to create API key: {}", e),
+                message: format!("Failed to lookup user: {}", request.user_email),
                 data: None,
             }),
             StatusCode::INTERNAL_SERVER_ERROR,
         ));
-    }
+    };
+
+    // Create and store API key
+    let (final_api_key, api_key_string) =
+        match create_and_store_api_key(&context, &user, &request, &tier, &admin_token).await {
+            Ok((key, key_string)) => (key, key_string),
+            Err(error_msg) => {
+                // Check if this is a validation error or server error
+                let status_code = if error_msg.contains("Invalid rate limit period")
+                    || error_msg.contains("Invalid tier")
+                {
+                    StatusCode::BAD_REQUEST
+                } else {
+                    StatusCode::INTERNAL_SERVER_ERROR
+                };
+
+                return Ok(with_status(
+                    json(&AdminResponse {
+                        success: false,
+                        message: error_msg,
+                        data: None,
+                    }),
+                    status_code,
+                ));
+            }
+        };
 
     // Record the provisioning action for audit
     let period_name = request.rate_limit_period.as_deref().unwrap_or("month");
@@ -489,7 +543,7 @@ async fn handle_provision_api_key(
             &admin_token.token_id,
             &final_api_key.id,
             &user.email,
-            &format!("{:?}", tier).to_lowercase(),
+            &format!("{tier:?}").to_lowercase(),
             final_api_key.rate_limit_requests,
             period_name,
         )
@@ -498,26 +552,13 @@ async fn handle_provision_api_key(
         warn!("Failed to record admin provisioned key: {}", e);
     }
 
-    // We already have the api_key_string from the creation
-
     info!(
         "✅ API key provisioned successfully: {} for user: {}",
         final_api_key.id, user.email
     );
 
-    let response = ProvisionApiKeyResponse {
-        success: true,
-        api_key_id: final_api_key.id.clone(),
-        api_key: api_key_string,
-        user_id: user.id.to_string(),
-        tier: format!("{:?}", tier).to_lowercase(),
-        expires_at: final_api_key.expires_at.map(|dt| dt.to_rfc3339()),
-        rate_limit: Some(RateLimitInfo {
-            requests: final_api_key.rate_limit_requests,
-            period: period_name.to_string(),
-        }),
-    };
-
+    let response =
+        create_provision_response(&final_api_key, api_key_string, &user, &tier, period_name);
     Ok(with_status(json(&response), StatusCode::CREATED))
 }
 
@@ -550,7 +591,7 @@ async fn handle_revoke_api_key(
         Err(e) => {
             let response = AdminResponse {
                 success: false,
-                message: format!("Failed to lookup API key: {}", e),
+                message: format!("Failed to lookup API key: {e}"),
                 data: None,
             };
             return Ok(with_status(
@@ -574,7 +615,7 @@ async fn handle_revoke_api_key(
                 data: Some(serde_json::json!({
                     "api_key_id": request.api_key_id,
                     "revoked_by": admin_token.service_name,
-                    "reason": request.reason.unwrap_or_else(|| "Admin revocation".to_string())
+                    "reason": request.reason.unwrap_or_else(|| "Admin revocation".into())
                 })),
             };
 
@@ -585,7 +626,7 @@ async fn handle_revoke_api_key(
 
             let response = AdminResponse {
                 success: false,
-                message: format!("Failed to revoke API key: {}", e),
+                message: format!("Failed to revoke API key: {e}"),
                 data: None,
             };
 
@@ -609,7 +650,7 @@ async fn handle_list_api_keys(
     );
 
     // Parse query parameters
-    let user_email = query.get("user_email").map(|s| s.as_str());
+    let user_email = query.get("user_email").map(std::string::String::as_str);
     let active_only = query
         .get("active_only")
         .and_then(|v| v.parse::<bool>().ok())
@@ -673,7 +714,7 @@ async fn handle_list_api_keys(
             warn!("Failed to list API keys: {}", e);
             let response = AdminResponse {
                 success: false,
-                message: format!("Failed to list API keys: {}", e),
+                message: format!("Failed to list API keys: {e}"),
                 data: None,
             };
             Ok(with_status(
@@ -708,7 +749,7 @@ async fn handle_token_info(
                     .permissions
                     .to_vec()
                     .iter()
-                    .map(|p| p.to_string())
+                    .map(std::string::ToString::to_string)
                     .collect(),
                 is_super_admin: token_details.is_super_admin,
                 created_at: token_details.created_at.to_rfc3339(),
@@ -721,7 +762,7 @@ async fn handle_token_info(
         Ok(None) => {
             let response = AdminResponse {
                 success: false,
-                message: "Token not found in database".to_string(),
+                message: "Token not found in database".into(),
                 data: None,
             };
 
@@ -730,7 +771,7 @@ async fn handle_token_info(
         Err(e) => {
             let response = AdminResponse {
                 success: false,
-                message: format!("Failed to retrieve token info: {}", e),
+                message: format!("Failed to retrieve token info: {e}"),
                 data: None,
             };
 
@@ -755,7 +796,7 @@ impl warp::reject::Reject for AdminApiError {}
 
 /// Handle admin API rejections
 async fn handle_admin_rejection(err: Rejection) -> Result<impl Reply, std::convert::Infallible> {
-    let (status, message) = if let Some(AdminApiError::InvalidAuthHeader) = err.find() {
+    let (status, message) = if matches!(err.find(), Some(AdminApiError::InvalidAuthHeader)) {
         (StatusCode::BAD_REQUEST, "Invalid Authorization header")
     } else if let Some(AdminApiError::AuthenticationFailed(msg)) = err.find() {
         (StatusCode::UNAUTHORIZED, msg.as_str())
@@ -818,9 +859,7 @@ async fn handle_setup_status(context: AdminApiContext) -> Result<impl Reply, Rej
             let error_status = crate::routes::SetupStatusResponse {
                 needs_setup: true,
                 admin_user_exists: false,
-                message: Some(
-                    "Error checking setup status. Please contact administrator.".to_string(),
-                ),
+                message: Some("Error checking setup status. Please contact administrator.".into()),
             };
             Ok(with_status(
                 json(&error_status),
@@ -852,12 +891,12 @@ mod tests {
     #[test]
     fn test_provision_request_validation() {
         let request = ProvisionApiKeyRequest {
-            user_email: "test@example.com".to_string(),
-            tier: "starter".to_string(),
-            description: Some("Test key".to_string()),
+            user_email: "test@example.com".into(),
+            tier: "starter".into(),
+            description: Some("Test key".into()),
             expires_in_days: Some(30),
             rate_limit_requests: Some(100),
-            rate_limit_period: Some("hour".to_string()),
+            rate_limit_period: Some("hour".into()),
         };
 
         assert_eq!(request.user_email, "test@example.com");
@@ -983,7 +1022,7 @@ async fn handle_admin_tokens_list(
             warn!("Failed to list admin tokens: {}", e);
             let response = AdminResponse {
                 success: false,
-                message: format!("Failed to list admin tokens: {}", e),
+                message: format!("Failed to list admin tokens: {e}"),
                 data: None,
             };
             Ok(with_status(
@@ -1029,17 +1068,16 @@ async fn handle_admin_tokens_create(
         // Parse permission strings into AdminPermission enum values
         let mut parsed_permissions = Vec::new();
         for perm_str in permission_strings {
-            match perm_str.parse::<AdminPermission>() {
-                Ok(permission) => parsed_permissions.push(permission),
-                Err(_) => {
-                    warn!("Invalid permission string: {}", perm_str);
-                    let response = AdminResponse {
-                        success: false,
-                        message: format!("Invalid permission: {}", perm_str),
-                        data: None,
-                    };
-                    return Ok(with_status(json(&response), StatusCode::BAD_REQUEST));
-                }
+            if let Ok(permission) = perm_str.parse::<AdminPermission>() {
+                parsed_permissions.push(permission);
+            } else {
+                warn!("Invalid permission string: {}", perm_str);
+                let response = AdminResponse {
+                    success: false,
+                    message: format!("Invalid permission: {perm_str}"),
+                    data: None,
+                };
+                return Ok(with_status(json(&response), StatusCode::BAD_REQUEST));
             }
         }
 
@@ -1056,7 +1094,7 @@ async fn handle_admin_tokens_create(
             );
             let response = AdminResponse {
                 success: true,
-                message: "Admin token created successfully".to_string(),
+                message: "Admin token created successfully".into(),
                 data: Some(serde_json::json!(generated_token)),
             };
             Ok(with_status(json(&response), StatusCode::CREATED))
@@ -1065,7 +1103,7 @@ async fn handle_admin_tokens_create(
             warn!("Failed to create admin token: {}", e);
             let response = AdminResponse {
                 success: false,
-                message: format!("Failed to create admin token: {}", e),
+                message: format!("Failed to create admin token: {e}"),
                 data: None,
             };
             Ok(with_status(
@@ -1088,7 +1126,7 @@ async fn handle_admin_tokens_details(
         Ok(Some(token)) => {
             let response = AdminResponse {
                 success: true,
-                message: "Admin token details retrieved".to_string(),
+                message: "Admin token details retrieved".into(),
                 data: Some(serde_json::json!(token)),
             };
             Ok(with_status(json(&response), StatusCode::OK))
@@ -1096,7 +1134,7 @@ async fn handle_admin_tokens_details(
         Ok(None) => {
             let response = AdminResponse {
                 success: false,
-                message: "Admin token not found".to_string(),
+                message: "Admin token not found".into(),
                 data: None,
             };
             Ok(with_status(json(&response), StatusCode::NOT_FOUND))
@@ -1105,7 +1143,7 @@ async fn handle_admin_tokens_details(
             warn!("Failed to get admin token details: {}", e);
             let response = AdminResponse {
                 success: false,
-                message: format!("Failed to get admin token details: {}", e),
+                message: format!("Failed to get admin token details: {e}"),
                 data: None,
             };
             Ok(with_status(
@@ -1125,11 +1163,11 @@ async fn handle_admin_tokens_revoke(
     info!("🗑️ Revoking admin token: {}", token_id);
 
     match context.database.deactivate_admin_token(&token_id).await {
-        Ok(_) => {
+        Ok(()) => {
             info!("✅ Admin token revoked successfully: {}", token_id);
             let response = AdminResponse {
                 success: true,
-                message: "Admin token revoked successfully".to_string(),
+                message: "Admin token revoked successfully".into(),
                 data: Some(serde_json::json!({
                     "token_id": token_id,
                     "status": "revoked"
@@ -1141,7 +1179,7 @@ async fn handle_admin_tokens_revoke(
             warn!("Failed to revoke admin token: {}", e);
             let response = AdminResponse {
                 success: false,
-                message: format!("Failed to revoke admin token: {}", e),
+                message: format!("Failed to revoke admin token: {e}"),
                 data: None,
             };
             Ok(with_status(
@@ -1167,7 +1205,7 @@ async fn handle_admin_tokens_rotate(
         Ok(None) => {
             let response = AdminResponse {
                 success: false,
-                message: "Admin token not found".to_string(),
+                message: "Admin token not found".into(),
                 data: None,
             };
             return Ok(with_status(json(&response), StatusCode::NOT_FOUND));
@@ -1176,7 +1214,7 @@ async fn handle_admin_tokens_rotate(
             warn!("Failed to get admin token for rotation: {}", e);
             let response = AdminResponse {
                 success: false,
-                message: format!("Failed to get admin token: {}", e),
+                message: format!("Failed to get admin token: {e}"),
                 data: None,
             };
             return Ok(with_status(
@@ -1218,7 +1256,7 @@ async fn handle_admin_tokens_rotate(
             );
             let response = AdminResponse {
                 success: true,
-                message: "Admin token rotated successfully".to_string(),
+                message: "Admin token rotated successfully".into(),
                 data: Some(serde_json::json!({
                     "old_token_id": token_id,
                     "new_token": new_token
@@ -1230,7 +1268,7 @@ async fn handle_admin_tokens_rotate(
             warn!("Failed to create new token during rotation: {}", e);
             let response = AdminResponse {
                 success: false,
-                message: format!("Failed to rotate admin token: {}", e),
+                message: format!("Failed to rotate admin token: {e}"),
                 data: None,
             };
             Ok(with_status(

@@ -2,18 +2,82 @@
 // ABOUTME: Tracks fitness improvements, identifies performance patterns, and provides trend analysis
 //! Performance trend analysis and historical comparison engine
 
-use super::*;
+use super::{
+    AdvancedInsight, Confidence, Deserialize, InsightSeverity, Serialize, TimeFrame, TrendAnalysis,
+    TrendDataPoint, TrendDirection, UserFitnessProfile, FITNESS_IMPROVING_THRESHOLD,
+    FITNESS_STABLE_THRESHOLD, MIN_STATISTICAL_SIGNIFICANCE_POINTS, SMALL_DATASET_REDUCTION_FACTOR,
+    STATISTICAL_SIGNIFICANCE_THRESHOLD, STRENGTH_ENDURANCE_DIVISOR,
+};
 use crate::config::intelligence_config::{
     IntelligenceConfig, IntelligenceStrategy, PerformanceAnalyzerConfig,
 };
 use crate::intelligence::physiological_constants::{
-    adaptations::*, duration::*, fitness_weights::*, heart_rate::*, performance::*, statistics::*,
-    training_load::*,
+    adaptations::{
+        HIGH_VOLUME_IMPROVEMENT_FACTOR, LOW_VOLUME_IMPROVEMENT_FACTOR,
+        MODERATE_VOLUME_IMPROVEMENT_FACTOR,
+    },
+    duration::MIN_AEROBIC_DURATION,
+    fitness_weights::{AEROBIC_WEIGHT, CONSISTENCY_WEIGHT, STRENGTH_WEIGHT},
+    heart_rate::{HIGH_INTENSITY_HR_THRESHOLD, MODERATE_HR_THRESHOLD, RECOVERY_HR_THRESHOLD},
+    performance::TARGET_WEEKLY_ACTIVITIES,
+    statistics::STABILITY_THRESHOLD,
+    training_load::{RECOVERY_LOAD_MULTIPLIER, TWO_WEEK_RECOVERY_THRESHOLD},
 };
 use crate::models::Activity;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
+
+/// Safe casting helper functions  
+#[inline]
+fn safe_u32_to_f32(value: u32) -> f32 {
+    // Use f64 intermediate and proper conversion
+    let as_f64 = f64::from(value);
+    safe_f64_to_f32(as_f64)
+}
+
+/// Safe cast from f64 to f32 using `total_cmp` for comparison
+#[inline]
+fn safe_f64_to_f32(value: f64) -> f32 {
+    use std::cmp::Ordering;
+
+    // Handle special cases
+    if value.is_nan() {
+        return 0.0_f32;
+    }
+
+    // Use total_cmp for proper comparison without casting warnings
+    if value.total_cmp(&f64::from(f32::MAX)) == Ordering::Greater {
+        f32::MAX
+    } else if value.total_cmp(&f64::from(f32::MIN)) == Ordering::Less {
+        f32::MIN
+    } else {
+        // Value is within f32 range, use rounding conversion
+        let rounded = value.round();
+        if rounded > f64::from(f32::MAX) {
+            f32::MAX
+        } else if rounded < f64::from(f32::MIN) {
+            f32::MIN
+        } else {
+            // Safe conversion using IEEE 754 standard rounding
+            #[allow(clippy::cast_possible_truncation)]
+            {
+                rounded as f32
+            }
+        }
+    }
+}
+
+/// Safe cast from u64 to f64
+#[inline]
+const fn safe_u64_to_f64(value: u64) -> f64 {
+    // u64 to f64 conversion can lose precision for very large values
+    // but for duration/count statistics, this is acceptable
+    #[allow(clippy::cast_precision_loss)]
+    {
+        value as f64
+    }
+}
 
 /// Trait for analyzing performance trends over time
 #[async_trait::async_trait]
@@ -57,6 +121,7 @@ impl Default for AdvancedPerformanceAnalyzer {
 
 impl AdvancedPerformanceAnalyzer {
     /// Create a new performance analyzer with default strategy
+    #[must_use]
     pub fn new() -> Self {
         let global_config = IntelligenceConfig::global();
         Self {
@@ -69,6 +134,7 @@ impl AdvancedPerformanceAnalyzer {
 
 impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
     /// Create with custom strategy
+    #[must_use]
     pub fn with_strategy(strategy: S) -> Self {
         let global_config = IntelligenceConfig::global();
         Self {
@@ -79,7 +145,8 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
     }
 
     /// Create with custom configuration
-    pub fn with_config(strategy: S, config: PerformanceAnalyzerConfig) -> Self {
+    #[must_use]
+    pub const fn with_config(strategy: S, config: PerformanceAnalyzerConfig) -> Self {
         Self {
             strategy,
             config,
@@ -88,6 +155,7 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
     }
 
     /// Create analyzer with user profile using default strategy
+    #[must_use]
     pub fn with_profile(profile: UserFitnessProfile) -> AdvancedPerformanceAnalyzer {
         let global_config = IntelligenceConfig::global();
         AdvancedPerformanceAnalyzer {
@@ -103,26 +171,37 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
     }
 
     /// Calculate statistical trend strength
-    fn calculate_trend_strength(&self, data_points: &[TrendDataPoint]) -> f64 {
+    fn calculate_trend_strength(data_points: &[TrendDataPoint]) -> f64 {
         if data_points.len() < 2 {
             return 0.0;
         }
 
         // Simple linear regression to calculate R-squared
-        let n = data_points.len() as f64;
-        let sum_x: f64 = (0..data_points.len()).map(|i| i as f64).sum();
+        let n = f64::from(u32::try_from(data_points.len()).unwrap_or(u32::MAX));
+        let sum_x: f64 = (0..data_points.len())
+            .map(|i| f64::from(u32::try_from(i).unwrap_or(u32::MAX)))
+            .sum();
         let sum_y: f64 = data_points.iter().map(|p| p.value).sum();
         let sum_x_y: f64 = data_points
             .iter()
             .enumerate()
-            .map(|(i, p)| i as f64 * p.value)
+            .map(|(i, p)| {
+                let i_f64 = f64::from(u32::try_from(i).unwrap_or(u32::MAX));
+                i_f64 * p.value
+            })
             .sum();
-        let sum_x_squared: f64 = (0..data_points.len()).map(|i| (i as f64).powi(2)).sum();
+        let sum_x_squared: f64 = (0..data_points.len())
+            .map(|i| {
+                let i_f64 = f64::from(u32::try_from(i).unwrap_or(u32::MAX));
+                i_f64.powi(2)
+            })
+            .sum();
         let sum_values_squared: f64 = data_points.iter().map(|p| p.value.powi(2)).sum();
 
-        let numerator = n * sum_x_y - sum_x * sum_y;
-        let denominator =
-            ((n * sum_x_squared - sum_x.powi(2)) * (n * sum_values_squared - sum_y.powi(2))).sqrt();
+        let numerator = n.mul_add(sum_x_y, -(sum_x * sum_y));
+        let denominator = (n.mul_add(sum_x_squared, -sum_x.powi(2))
+            * n.mul_add(sum_values_squared, -sum_y.powi(2)))
+        .sqrt();
 
         if denominator == 0.0 {
             return 0.0;
@@ -133,7 +212,7 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
     }
 
     /// Apply smoothing to data points using moving average
-    fn apply_smoothing(&self, data_points: &mut [TrendDataPoint], window_size: usize) {
+    fn apply_smoothing(data_points: &mut [TrendDataPoint], window_size: usize) {
         if window_size <= 1 || data_points.len() < window_size {
             return;
         }
@@ -143,7 +222,7 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
             let end = std::cmp::min(start + window_size, data_points.len());
 
             let window_sum: f64 = data_points[start..end].iter().map(|p| p.value).sum();
-            let window_avg = window_sum / (end - start) as f64;
+            let window_avg = window_sum / f64::from(u32::try_from(end - start).unwrap_or(u32::MAX));
 
             data_points[i].smoothed_value = Some(window_avg);
         }
@@ -162,44 +241,44 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
             TrendDirection::Improving => {
                 if analysis.trend_strength > strong_trend_threshold {
                     (
-                        "Strong improvement trend detected - excellent progress!".to_string(),
+                        "Strong improvement trend detected - excellent progress!".into(),
                         InsightSeverity::Info,
                     )
                 } else {
                     (
-                        "Gradual improvement trend - keep up the consistent work".to_string(),
+                        "Gradual improvement trend - keep up the consistent work".into(),
                         InsightSeverity::Info,
                     )
                 }
             }
             TrendDirection::Declining => {
                 if analysis.trend_strength > strong_trend_threshold {
-                    ("Significant decline in performance - consider recovery or training adjustments".to_string(), InsightSeverity::Warning)
+                    ("Significant decline in performance - consider recovery or training adjustments".into(), InsightSeverity::Warning)
                 } else {
                     (
-                        "Slight performance decline - may need attention".to_string(),
+                        "Slight performance decline - may need attention".into(),
                         InsightSeverity::Warning,
                     )
                 }
             }
             TrendDirection::Stable => (
-                "Performance is stable - consider progressive overload for improvement".to_string(),
+                "Performance is stable - consider progressive overload for improvement".into(),
                 InsightSeverity::Info,
             ),
         };
 
         let mut metadata = HashMap::new();
         metadata.insert(
-            "trend_strength".to_string(),
+            "trend_strength".into(),
             serde_json::Value::from(analysis.trend_strength),
         );
         metadata.insert(
-            "statistical_significance".to_string(),
+            "statistical_significance".into(),
             serde_json::Value::from(analysis.statistical_significance),
         );
 
         insights.push(AdvancedInsight {
-            insight_type: "performance_trend".to_string(),
+            insight_type: "performance_trend".into(),
             message,
             confidence: {
                 let confidence_level = self.config.statistical.confidence_level;
@@ -225,8 +304,8 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
         // Data quality insight using config min data points
         if analysis.data_points.len() < self.config.trend_analysis.min_data_points {
             insights.push(AdvancedInsight {
-                insight_type: "data_quality".to_string(),
-                message: "Limited data points - trends may not be reliable".to_string(),
+                insight_type: "data_quality".into(),
+                message: "Limited data points - trends may not be reliable".into(),
                 confidence: Confidence::Medium,
                 severity: InsightSeverity::Warning,
                 metadata: HashMap::new(),
@@ -238,8 +317,8 @@ impl<S: IntelligenceStrategy> AdvancedPerformanceAnalyzer<S> {
             let strategy_thresholds = self.strategy.performance_thresholds();
             if analysis.trend_strength > strategy_thresholds.significant_improvement {
                 insights.push(AdvancedInsight {
-                    insight_type: "strategy_validation".to_string(),
-                    message: "Your training strategy is producing excellent results".to_string(),
+                    insight_type: "strategy_validation".into(),
+                    message: "Your training strategy is producing excellent results".into(),
                     confidence: Confidence::High,
                     severity: InsightSeverity::Info,
                     metadata: HashMap::new(),
@@ -285,10 +364,13 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
 
             let value = match metric {
                 "pace" | "speed" => activity.average_speed,
-                "heart_rate" => activity.average_heart_rate.map(|hr| hr as f64),
-                "power" => None, // Power data not available in Activity model
+                "heart_rate" => activity.average_heart_rate.map(f64::from),
                 "distance" => activity.distance_meters,
-                "duration" => Some(activity.duration_seconds as f64),
+                "duration" => Some(if activity.duration_seconds > u64::from(u32::MAX) {
+                    f64::from(u32::MAX)
+                } else {
+                    f64::from(u32::try_from(activity.duration_seconds).unwrap_or(u32::MAX))
+                }),
                 "elevation" => activity.elevation_gain,
                 _ => None,
             };
@@ -313,19 +395,21 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
         data_points.sort_by(|a, b| a.date.cmp(&b.date));
 
         // Apply smoothing
-        self.apply_smoothing(&mut data_points, 3);
+        Self::apply_smoothing(&mut data_points, 3);
 
         // Calculate trend direction
         let first_half_avg = data_points[..data_points.len() / 2]
             .iter()
             .map(|p| p.value)
             .sum::<f64>()
-            / (data_points.len() / 2) as f64;
+            / f64::from(u32::try_from(data_points.len() / 2).unwrap_or(u32::MAX));
         let second_half_avg = data_points[data_points.len() / 2..]
             .iter()
             .map(|p| p.value)
             .sum::<f64>()
-            / (data_points.len() - data_points.len() / 2) as f64;
+            / f64::from(
+                u32::try_from(data_points.len() - data_points.len() / 2).unwrap_or(u32::MAX),
+            );
 
         let trend_direction =
             if (second_half_avg - first_half_avg).abs() < first_half_avg * STABILITY_THRESHOLD {
@@ -345,7 +429,7 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
             };
 
         // Calculate trend strength
-        let trend_strength = self.calculate_trend_strength(&data_points);
+        let trend_strength = Self::calculate_trend_strength(&data_points);
 
         // Calculate statistical significance (simplified)
         let statistical_significance = if data_points.len() > MIN_STATISTICAL_SIGNIFICANCE_POINTS
@@ -396,7 +480,9 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
 
         // Calculate weekly activity frequency
         let weeks = 6;
-        let activities_per_week = recent_activities.len() as f64 / weeks as f64;
+        let activities_per_week =
+            f64::from(u32::try_from(recent_activities.len()).unwrap_or(u32::MAX))
+                / f64::from(weeks);
         let consistency = (activities_per_week / TARGET_WEEKLY_ACTIVITIES)
             .min(self.config.statistical.confidence_level)
             * (self.config.statistical.confidence_level * 100.0);
@@ -410,15 +496,20 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
                 let duration = activity.duration_seconds;
                 if hr > RECOVERY_HR_THRESHOLD && duration > MIN_AEROBIC_DURATION {
                     // Above aerobic threshold with sufficient duration
+                    let duration_hours = if duration > u64::from(u32::MAX) {
+                        f64::from(u32::MAX) / 3600.0
+                    } else {
+                        f64::from(u32::try_from(duration).unwrap_or(u32::MAX)) / 3600.0
+                    };
                     aerobic_score +=
-                        (hr as f64 - RECOVERY_HR_THRESHOLD as f64) * (duration as f64 / 3600.0);
+                        (f64::from(hr) - f64::from(RECOVERY_HR_THRESHOLD)) * duration_hours;
                     aerobic_count += 1;
                 }
             }
         }
 
         let aerobic_fitness = if aerobic_count > 0 {
-            (aerobic_score / aerobic_count as f64).min(100.0)
+            (aerobic_score / f64::from(aerobic_count)).min(100.0)
         } else {
             0.0
         };
@@ -435,28 +526,38 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
                 // High intensity workouts contribute to strength endurance
                 if hr > HIGH_INTENSITY_HR_THRESHOLD {
                     // Weight by duration - longer high-intensity efforts indicate better strength endurance
-                    let duration_weight = (duration as f64 / 3600.0).min(2.0); // Cap at 2 hours
-                    strength_score += hr as f64 * duration_weight;
+                    let duration_weight = if duration > u64::from(u32::MAX) {
+                        (f64::from(u32::MAX) / 3600.0).min(2.0)
+                    } else {
+                        (f64::from(u32::try_from(duration).unwrap_or(u32::MAX)) / 3600.0).min(2.0)
+                    };
+                    strength_score += f64::from(hr) * duration_weight;
                     strength_count += 1;
                 } else if hr > MODERATE_HR_THRESHOLD {
                     // Moderate intensity also contributes, but less
-                    let duration_weight = (duration as f64 / 3600.0).min(1.5);
-                    strength_score += (hr as f64 * 0.6) * duration_weight;
+                    let duration_weight = if duration > u64::from(u32::MAX) {
+                        (f64::from(u32::MAX) / 3600.0).min(1.5)
+                    } else {
+                        (f64::from(u32::try_from(duration).unwrap_or(u32::MAX)) / 3600.0).min(1.5)
+                    };
+                    strength_score += (f64::from(hr) * 0.6) * duration_weight;
                     strength_count += 1;
                 }
             }
         }
 
         let strength_endurance = if strength_count > 0 {
-            (strength_score / strength_count as f64 / STRENGTH_ENDURANCE_DIVISOR).min(100.0)
+            (strength_score / f64::from(strength_count) / STRENGTH_ENDURANCE_DIVISOR).min(100.0)
         } else {
             0.0
         };
 
         // Overall score is weighted average using fitness component weights
-        let overall_score = (aerobic_fitness * AEROBIC_WEIGHT
-            + strength_endurance * STRENGTH_WEIGHT
-            + consistency * CONSISTENCY_WEIGHT)
+        let overall_score = aerobic_fitness
+            .mul_add(
+                AEROBIC_WEIGHT,
+                strength_endurance.mul_add(STRENGTH_WEIGHT, consistency * CONSISTENCY_WEIGHT),
+            )
             .min(100.0);
 
         // Determine trend by comparing with older activities
@@ -496,22 +597,33 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
         }
 
         // Calculate recent average performance
-        let recent_performance = if let Some(last_activity) = similar_activities.last() {
-            match target.metric.as_str() {
-                "distance" => last_activity.distance_meters.unwrap_or(0.0),
-                "time" => last_activity.duration_seconds as f64,
-                "pace" => last_activity.average_speed.unwrap_or(0.0),
-                _ => 0.0,
-            }
-        } else {
-            0.0
-        };
+        let recent_performance =
+            similar_activities
+                .last()
+                .map_or(0.0, |last_activity| match target.metric.as_str() {
+                    "distance" => last_activity.distance_meters.unwrap_or(0.0),
+                    "time" => {
+                        if last_activity.duration_seconds > u64::from(u32::MAX) {
+                            f64::from(u32::MAX)
+                        } else {
+                            f64::from(
+                                u32::try_from(last_activity.duration_seconds).unwrap_or(u32::MAX),
+                            )
+                        }
+                    }
+                    "pace" => last_activity.average_speed.unwrap_or(0.0),
+                    _ => 0.0,
+                });
 
         // Training adaptation factors based on volume
-        let training_days = similar_activities.len() as f64;
+        let training_days = f64::from(u32::try_from(similar_activities.len()).unwrap_or(u32::MAX));
+        let min_data_points_f64 = f64::from(
+            u32::try_from(self.config.trend_analysis.min_data_points * 2).unwrap_or(u32::MAX),
+        );
+
         let improvement_factor = if training_days > 20.0 {
             HIGH_VOLUME_IMPROVEMENT_FACTOR
-        } else if training_days > (self.config.trend_analysis.min_data_points * 2) as f64 {
+        } else if training_days > min_data_points_f64 {
             MODERATE_VOLUME_IMPROVEMENT_FACTOR
         } else {
             LOW_VOLUME_IMPROVEMENT_FACTOR
@@ -521,7 +633,7 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
 
         let confidence = if training_days > 20.0 {
             Confidence::High
-        } else if training_days > (self.config.trend_analysis.min_data_points * 2) as f64 {
+        } else if training_days > min_data_points_f64 {
             Confidence::Medium
         } else {
             Confidence::Low
@@ -532,14 +644,14 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
             predicted_value,
             confidence,
             factors: vec![
-                "Recent training consistency".to_string(),
-                "Historical performance trends".to_string(),
-                "Current fitness level".to_string(),
+                "Recent training consistency".into(),
+                "Historical performance trends".into(),
+                "Current fitness level".into(),
             ],
             recommendations: vec![
-                "Maintain consistent training schedule".to_string(),
-                "Focus on progressive overload".to_string(),
-                "Include recovery sessions".to_string(),
+                "Maintain consistent training schedule".into(),
+                "Focus on progressive overload".into(),
+                "Include recovery sessions".into(),
             ],
             estimated_achievement_date: target.target_date,
         })
@@ -580,16 +692,17 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
                 .sum();
 
             weekly_loads.push(WeeklyLoad {
-                week_number: (week + 1) as i32,
-                total_duration_hours: total_duration as f64 / 3600.0,
+                week_number: i32::try_from(week + 1).unwrap_or(i32::MAX),
+                total_duration_hours: safe_u64_to_f64(total_duration) / 3600.0,
                 total_distance_km: total_distance / 1000.0,
-                activity_count: week_activities.len() as i32,
+                activity_count: i32::try_from(week_activities.len()).unwrap_or(i32::MAX),
                 intensity_score: week_activities
                     .iter()
-                    .filter_map(|a| a.average_heart_rate.map(|hr| hr as f32))
-                    .map(|hr| hr as f64)
+                    // Heart rates are small values (30-220), safe to cast to f32
+                    .filter_map(|a| a.average_heart_rate.map(safe_u32_to_f32))
+                    .map(f64::from)
                     .sum::<f64>()
-                    / week_activities.len().max(1) as f64,
+                    / f64::from(u32::try_from(week_activities.len().max(1)).unwrap_or(u32::MAX)),
             });
         }
 
@@ -598,25 +711,23 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
             .iter()
             .map(|w| w.total_duration_hours)
             .sum::<f64>()
-            / weekly_loads.len() as f64;
+            / f64::from(u32::try_from(weekly_loads.len()).unwrap_or(u32::MAX));
 
         let load_variance = weekly_loads
             .iter()
             .map(|w| (w.total_duration_hours - avg_load).powi(2))
             .sum::<f64>()
-            / weekly_loads.len() as f64;
+            / f64::from(u32::try_from(weekly_loads.len()).unwrap_or(u32::MAX));
 
-        let load_balance_score = (100.0 - (load_variance.sqrt() / avg_load * 100.0)).max(0.0);
+        let load_balance_score = (load_variance.sqrt() / avg_load)
+            .mul_add(-100.0, 100.0)
+            .max(0.0);
 
         // Determine if currently in recovery phase
-        let last_week_load = weekly_loads
-            .last()
-            .map(|w| w.total_duration_hours)
-            .unwrap_or(0.0);
+        let last_week_load = weekly_loads.last().map_or(0.0, |w| w.total_duration_hours);
         let previous_week_load = weekly_loads
             .get(weekly_loads.len().saturating_sub(2))
-            .map(|w| w.total_duration_hours)
-            .unwrap_or(0.0);
+            .map_or(0.0, |w| w.total_duration_hours);
 
         let recovery_needed = last_week_load > avg_load * RECOVERY_LOAD_MULTIPLIER
             || (last_week_load + previous_week_load) > avg_load * TWO_WEEK_RECOVERY_THRESHOLD;
@@ -628,22 +739,23 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
             recovery_needed,
             recommendations: if recovery_needed {
                 let mut recs = vec![
-                    "Consider reducing training volume this week".to_string(),
-                    "Focus on recovery activities".to_string(),
-                    "Ensure adequate sleep and nutrition".to_string(),
+                    "Consider reducing training volume this week".into(),
+                    "Focus on recovery activities".into(),
+                    "Ensure adequate sleep and nutrition".into(),
                 ];
 
                 // Add strategy-based recovery recommendations using the strategy field
+                #[allow(clippy::cast_possible_truncation)]
                 if self.strategy.should_recommend_recovery(weeks as i32) {
-                    recs.push("Your training strategy recommends prioritizing recovery at this load level".to_string());
+                    recs.push("Your training strategy recommends prioritizing recovery at this load level".into());
                 }
 
                 recs
             } else {
                 let mut recs = vec![
-                    "Training load is well balanced".to_string(),
-                    "Continue current training pattern".to_string(),
-                    "Consider gradual load increases".to_string(),
+                    "Training load is well balanced".into(),
+                    "Continue current training pattern".into(),
+                    "Consider gradual load increases".into(),
                 ];
 
                 // Use strategy to determine if volume increase is appropriate
@@ -735,7 +847,7 @@ mod tests {
         for i in 0..10 {
             let activity = Activity {
                 sport_type: crate::models::SportType::Run,
-                average_speed: Some(3.0 + (9 - i) as f64 * 0.1), // Improving speed over time
+                average_speed: Some((9.0 - f64::from(u8::try_from(i).unwrap())).mul_add(0.1, 3.0)), // Improving speed over time
                 start_date: Utc::now() - chrono::Duration::days(i * 7),
                 ..Activity::default()
             };

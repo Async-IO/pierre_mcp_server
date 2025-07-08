@@ -1,4 +1,5 @@
-//! A2A (Agent-to-Agent) database operations
+// ABOUTME: A2A (Agent-to-Agent) database operations
+// ABOUTME: Manages agent client registration and authentication for enterprise APIs
 
 use super::Database;
 use crate::a2a::{
@@ -45,12 +46,60 @@ pub struct A2AUsageStats {
     pub total_response_bytes: Option<u64>,
 }
 
+/// Helper functions for safe type conversions
+fn safe_u32_to_i32(value: u32) -> Result<i32> {
+    i32::try_from(value).map_err(|_| anyhow!("Value {} too large to convert to i32", value))
+}
+
+/// Safely convert i32 to u32, returning an error if negative
+fn safe_i32_to_u32(value: i32) -> Result<u32> {
+    u32::try_from(value).map_err(|_| anyhow!("Cannot convert negative value {} to u32", value))
+}
+
+/// Safely convert i32 to u64, returning an error if negative
+fn safe_i32_to_u64(value: i32) -> Result<u64> {
+    u64::try_from(value).map_err(|_| anyhow!("Cannot convert negative value {} to u64", value))
+}
+
+/// Safely convert i64 to u64, returning an error if negative
+fn safe_i64_to_u64(value: i64) -> Result<u64> {
+    u64::try_from(value).map_err(|_| anyhow!("Cannot convert negative value {} to u64", value))
+}
+
+/// Safely convert f64 to u32, clamping to u32 range
+fn safe_f64_to_u32(value: f64) -> u32 {
+    if value.is_nan() || value < 0.0 {
+        0
+    } else if value > f64::from(u32::MAX) {
+        u32::MAX
+    } else {
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        {
+            value as u32
+        }
+    }
+}
+
 impl Database {
-    /// Create A2A tables
+    /// Create A2A tables and indexes
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail
     pub(super) async fn migrate_a2a(&self) -> Result<()> {
-        // Create a2a_clients table
+        self.create_a2a_clients_table().await?;
+        self.migrate_a2a_clients_columns().await?;
+        self.create_a2a_sessions_table().await?;
+        self.create_a2a_tasks_table().await?;
+        self.create_a2a_usage_table().await?;
+        self.create_a2a_client_api_keys_table().await?;
+        self.create_a2a_indexes().await?;
+        Ok(())
+    }
+
+    /// Create `a2a_clients` table
+    async fn create_a2a_clients_table(&self) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS a2a_clients (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -58,6 +107,8 @@ impl Database {
                 public_key TEXT NOT NULL,
                 client_secret TEXT NOT NULL,
                 permissions TEXT NOT NULL,
+                capabilities TEXT NOT NULL DEFAULT '[]',
+                redirect_uris TEXT NOT NULL DEFAULT '[]',
                 rate_limit_requests INTEGER NOT NULL DEFAULT 1000,
                 rate_limit_window_seconds INTEGER NOT NULL DEFAULT 3600,
                 is_active BOOLEAN NOT NULL DEFAULT 1,
@@ -65,14 +116,42 @@ impl Database {
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(public_key)
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
+        Ok(())
+    }
 
-        // Create a2a_sessions table
+    /// Migrate `a2a_clients` table to add new columns
+    async fn migrate_a2a_clients_columns(&self) -> Result<()> {
+        // Add capabilities column if it doesn't exist (migration)
         sqlx::query(
-            r#"
+            r"
+            ALTER TABLE a2a_clients ADD COLUMN capabilities TEXT DEFAULT '[]'
+            ",
+        )
+        .execute(&self.pool)
+        .await
+        .ok(); // Ignore error if column already exists
+
+        // Add redirect_uris column if it doesn't exist (migration)
+        sqlx::query(
+            r"
+            ALTER TABLE a2a_clients ADD COLUMN redirect_uris TEXT DEFAULT '[]'
+            ",
+        )
+        .execute(&self.pool)
+        .await
+        .ok(); // Ignore error if column already exists
+
+        Ok(())
+    }
+
+    /// Create `a2a_sessions` table
+    async fn create_a2a_sessions_table(&self) -> Result<()> {
+        sqlx::query(
+            r"
             CREATE TABLE IF NOT EXISTS a2a_sessions (
                 session_token TEXT PRIMARY KEY,
                 client_id TEXT NOT NULL REFERENCES a2a_clients(id) ON DELETE CASCADE,
@@ -83,14 +162,17 @@ impl Database {
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 requests_count INTEGER NOT NULL DEFAULT 0
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
+        Ok(())
+    }
 
-        // Create a2a_tasks table
+    /// Create `a2a_tasks` table
+    async fn create_a2a_tasks_table(&self) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS a2a_tasks (
                 id TEXT PRIMARY KEY,
                 client_id TEXT NOT NULL REFERENCES a2a_clients(id) ON DELETE CASCADE,
@@ -103,14 +185,17 @@ impl Database {
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 completed_at DATETIME
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
+        Ok(())
+    }
 
-        // Create a2a_usage table
+    /// Create `a2a_usage` table
+    async fn create_a2a_usage_table(&self) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS a2a_usage (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 client_id TEXT NOT NULL REFERENCES a2a_clients(id) ON DELETE CASCADE,
@@ -128,26 +213,32 @@ impl Database {
                 client_capabilities TEXT NOT NULL DEFAULT '[]',
                 granted_scopes TEXT NOT NULL DEFAULT '[]'
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
+        Ok(())
+    }
 
-        // Create a2a_client_api_keys junction table for API key associations
+    /// Create `a2a_client_api_keys` junction table
+    async fn create_a2a_client_api_keys_table(&self) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS a2a_client_api_keys (
                 client_id TEXT NOT NULL REFERENCES a2a_clients(id) ON DELETE CASCADE,
                 api_key_id TEXT NOT NULL REFERENCES api_keys(id) ON DELETE CASCADE,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (client_id, api_key_id)
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
+        Ok(())
+    }
 
-        // Create indexes
+    /// Create indexes for A2A tables
+    async fn create_a2a_indexes(&self) -> Result<()> {
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_a2a_sessions_client_id ON a2a_sessions(client_id)",
         )
@@ -180,6 +271,9 @@ impl Database {
     }
 
     /// Create a new A2A client
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail or JSON serialization fails
     pub async fn create_a2a_client(
         &self,
         client: &A2AClient,
@@ -187,13 +281,14 @@ impl Database {
         api_key_id: &str,
     ) -> Result<String> {
         sqlx::query(
-            r#"
+            r"
             INSERT INTO a2a_clients (
                 id, name, description, public_key, client_secret, permissions,
+                capabilities, redirect_uris,
                 rate_limit_requests, rate_limit_window_seconds, is_active,
                 created_at, updated_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-            "#,
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            ",
         )
         .bind(&client.id)
         .bind(&client.name)
@@ -201,8 +296,10 @@ impl Database {
         .bind(&client.public_key)
         .bind(client_secret)
         .bind(serde_json::to_string(&client.permissions)?)
-        .bind(client.rate_limit_requests as i32)
-        .bind(client.rate_limit_window_seconds as i32)
+        .bind(serde_json::to_string(&client.capabilities)?)
+        .bind(serde_json::to_string(&client.redirect_uris)?)
+        .bind(safe_u32_to_i32(client.rate_limit_requests)?)
+        .bind(safe_u32_to_i32(client.rate_limit_window_seconds)?)
         .bind(client.is_active)
         .bind(client.created_at)
         .bind(client.updated_at)
@@ -211,10 +308,10 @@ impl Database {
 
         // Associate A2A client with API key
         sqlx::query(
-            r#"
+            r"
             INSERT INTO a2a_client_api_keys (client_id, api_key_id, created_at)
             VALUES ($1, $2, $3)
-            "#,
+            ",
         )
         .bind(&client.id)
         .bind(api_key_id)
@@ -232,15 +329,18 @@ impl Database {
     }
 
     /// Get an A2A client by ID
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail or JSON deserialization fails
     pub async fn get_a2a_client(&self, client_id: &str) -> Result<Option<A2AClient>> {
         let row = sqlx::query(
-            r#"
-            SELECT id, name, description, public_key, permissions,
+            r"
+            SELECT id, name, description, public_key, permissions, capabilities, redirect_uris,
                    rate_limit_requests, rate_limit_window_seconds, is_active,
                    created_at, updated_at
             FROM a2a_clients
             WHERE id = $1
-            "#,
+            ",
         )
         .bind(client_id)
         .fetch_optional(&self.pool)
@@ -250,18 +350,27 @@ impl Database {
             let permissions_json: String = row.get("permissions");
             let permissions = serde_json::from_str(&permissions_json)?;
 
+            let capabilities_json: String = row.get("capabilities");
+            let capabilities = serde_json::from_str(&capabilities_json).unwrap_or_else(|_| vec![]); // Default to empty vec if parsing fails
+
+            let redirect_uris_json: String = row.get("redirect_uris");
+            let redirect_uris =
+                serde_json::from_str(&redirect_uris_json).unwrap_or_else(|_| vec![]); // Default to empty vec if parsing fails
+
             Ok(Some(A2AClient {
                 id: row.get("id"),
                 name: row.get("name"),
                 description: row.get("description"),
                 public_key: row.get("public_key"),
-                capabilities: vec![],  // Map from permissions or set default
-                redirect_uris: vec![], // Set default
+                capabilities,
+                redirect_uris,
                 is_active: row.get("is_active"),
                 created_at: row.get("created_at"),
                 permissions,
-                rate_limit_requests: row.get::<i32, _>("rate_limit_requests") as u32,
-                rate_limit_window_seconds: row.get::<i32, _>("rate_limit_window_seconds") as u32,
+                rate_limit_requests: safe_i32_to_u32(row.get::<i32, _>("rate_limit_requests"))?,
+                rate_limit_window_seconds: safe_i32_to_u32(
+                    row.get::<i32, _>("rate_limit_window_seconds"),
+                )?,
                 updated_at: row.get("updated_at"),
             }))
         } else {
@@ -269,24 +378,27 @@ impl Database {
         }
     }
 
-    /// List all A2A clients for a user (or all clients if user_id is nil)
+    /// List all A2A clients for a user (or all clients if `user_id` is nil)
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail or JSON deserialization fails
     pub async fn list_a2a_clients(&self, user_id: &Uuid) -> Result<Vec<A2AClient>> {
         let rows = if user_id == &Uuid::nil() {
             // Admin/system-wide query - list all active A2A clients
-            let query = r#"
-                SELECT c.id, c.name, c.description, c.public_key, c.permissions,
+            let query = r"
+                SELECT c.id, c.name, c.description, c.public_key, c.permissions, c.capabilities, c.redirect_uris,
                        c.rate_limit_requests, c.rate_limit_window_seconds, c.is_active,
                        c.created_at, c.updated_at
                 FROM a2a_clients c 
                 WHERE c.is_active = 1
                 ORDER BY c.created_at DESC
-            "#;
+            ";
 
             sqlx::query(query).fetch_all(&self.pool).await?
         } else {
             // User-specific query - filter by user_id through their associated API keys
-            let query = r#"
-                SELECT DISTINCT c.id, c.name, c.description, c.public_key, c.permissions,
+            let query = r"
+                SELECT DISTINCT c.id, c.name, c.description, c.public_key, c.permissions, c.capabilities, c.redirect_uris,
                        c.rate_limit_requests, c.rate_limit_window_seconds, c.is_active,
                        c.created_at, c.updated_at
                 FROM a2a_clients c 
@@ -294,7 +406,7 @@ impl Database {
                 INNER JOIN api_keys k ON cak.api_key_id = k.id 
                 WHERE c.is_active = 1 AND k.user_id = ? AND k.is_active = 1
                 ORDER BY c.created_at DESC
-            "#;
+            ";
 
             sqlx::query(query)
                 .bind(user_id.to_string())
@@ -307,18 +419,27 @@ impl Database {
             let permissions_json: String = row.get("permissions");
             let permissions = serde_json::from_str(&permissions_json)?;
 
+            let capabilities_json: String = row.get("capabilities");
+            let capabilities = serde_json::from_str(&capabilities_json).unwrap_or_else(|_| vec![]); // Default to empty vec if parsing fails
+
+            let redirect_uris_json: String = row.get("redirect_uris");
+            let redirect_uris =
+                serde_json::from_str(&redirect_uris_json).unwrap_or_else(|_| vec![]); // Default to empty vec if parsing fails
+
             clients.push(A2AClient {
                 id: row.get("id"),
                 name: row.get("name"),
                 description: row.get("description"),
                 public_key: row.get("public_key"),
-                capabilities: vec![],  // Map from permissions or set default
-                redirect_uris: vec![], // Set default
+                capabilities,
+                redirect_uris,
                 is_active: row.get("is_active"),
                 created_at: row.get("created_at"),
                 permissions,
-                rate_limit_requests: row.get::<i32, _>("rate_limit_requests") as u32,
-                rate_limit_window_seconds: row.get::<i32, _>("rate_limit_window_seconds") as u32,
+                rate_limit_requests: safe_i32_to_u32(row.get::<i32, _>("rate_limit_requests"))?,
+                rate_limit_window_seconds: safe_i32_to_u32(
+                    row.get::<i32, _>("rate_limit_window_seconds"),
+                )?,
                 updated_at: row.get("updated_at"),
             });
         }
@@ -327,6 +448,9 @@ impl Database {
     }
 
     /// Deactivate an A2A client
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail or client not found
     pub async fn deactivate_a2a_client(&self, client_id: &str) -> Result<()> {
         let query = "UPDATE a2a_clients SET is_active = 0, updated_at = ? WHERE id = ?";
         let now = chrono::Utc::now();
@@ -345,6 +469,9 @@ impl Database {
     }
 
     /// Get client credentials for authentication
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail
     pub async fn get_a2a_client_credentials(
         &self,
         client_id: &str,
@@ -356,16 +483,20 @@ impl Database {
             .fetch_optional(&self.pool)
             .await?;
 
-        if let Some(row) = row {
-            let id: String = row.get("id");
-            let secret: String = row.get("client_secret");
-            Ok(Some((id, secret)))
-        } else {
-            Ok(None)
-        }
+        Ok(row.map_or_else(
+            || None,
+            |row| {
+                let id: String = row.get("id");
+                let secret: String = row.get("client_secret");
+                Some((id, secret))
+            },
+        ))
     }
 
     /// Invalidate all active sessions for a client
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail
     pub async fn invalidate_a2a_client_sessions(&self, client_id: &str) -> Result<()> {
         let query =
             "UPDATE a2a_sessions SET expires_at = datetime('now', '-1 hour') WHERE client_id = ?";
@@ -379,6 +510,9 @@ impl Database {
     }
 
     /// Deactivate all API keys associated with a client
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail
     pub async fn deactivate_client_api_keys(&self, client_id: &str) -> Result<()> {
         // Get API keys associated with the client through the a2a_clients table
         let query = "UPDATE api_keys SET is_active = 0 WHERE id IN (SELECT api_key_id FROM a2a_client_api_keys WHERE client_id = ?)";
@@ -392,15 +526,18 @@ impl Database {
     }
 
     /// Get A2A client by name
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail or JSON deserialization fails
     pub async fn get_a2a_client_by_name(&self, name: &str) -> Result<Option<A2AClient>> {
         let row = sqlx::query(
-            r#"
-            SELECT id, name, description, public_key, permissions,
+            r"
+            SELECT id, name, description, public_key, permissions, capabilities, redirect_uris,
                    rate_limit_requests, rate_limit_window_seconds, is_active,
                    created_at, updated_at
             FROM a2a_clients
             WHERE name = $1
-            "#,
+            ",
         )
         .bind(name)
         .fetch_optional(&self.pool)
@@ -410,18 +547,27 @@ impl Database {
             let permissions_json: String = row.get("permissions");
             let permissions = serde_json::from_str(&permissions_json)?;
 
+            let capabilities_json: String = row.get("capabilities");
+            let capabilities = serde_json::from_str(&capabilities_json).unwrap_or_else(|_| vec![]); // Default to empty vec if parsing fails
+
+            let redirect_uris_json: String = row.get("redirect_uris");
+            let redirect_uris =
+                serde_json::from_str(&redirect_uris_json).unwrap_or_else(|_| vec![]); // Default to empty vec if parsing fails
+
             Ok(Some(A2AClient {
                 id: row.get("id"),
                 name: row.get("name"),
                 description: row.get("description"),
                 public_key: row.get("public_key"),
-                capabilities: vec![],  // Map from permissions or set default
-                redirect_uris: vec![], // Set default
+                capabilities,
+                redirect_uris,
                 is_active: row.get("is_active"),
                 created_at: row.get("created_at"),
                 permissions,
-                rate_limit_requests: row.get::<i32, _>("rate_limit_requests") as u32,
-                rate_limit_window_seconds: row.get::<i32, _>("rate_limit_window_seconds") as u32,
+                rate_limit_requests: safe_i32_to_u32(row.get::<i32, _>("rate_limit_requests"))?,
+                rate_limit_window_seconds: safe_i32_to_u32(
+                    row.get::<i32, _>("rate_limit_window_seconds"),
+                )?,
                 updated_at: row.get("updated_at"),
             }))
         } else {
@@ -430,6 +576,9 @@ impl Database {
     }
 
     /// Create a new A2A session
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail
     pub async fn create_a2a_session(
         &self,
         client_id: &str,
@@ -442,16 +591,16 @@ impl Database {
         let expires_at = now + chrono::Duration::hours(expires_in_hours);
 
         sqlx::query(
-            r#"
+            r"
             INSERT INTO a2a_sessions (
                 session_token, client_id, user_id, granted_scopes,
                 expires_at, last_activity, created_at, requests_count
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            "#,
+            ",
         )
         .bind(&session_token)
         .bind(client_id)
-        .bind(user_id.map(|u| u.to_string()))
+        .bind(user_id.map(ToString::to_string))
         .bind(granted_scopes.join(","))
         .bind(expires_at)
         .bind(now)
@@ -464,14 +613,17 @@ impl Database {
     }
 
     /// Get an A2A session by token
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail or UUID parsing fails
     pub async fn get_a2a_session(&self, session_token: &str) -> Result<Option<A2ASession>> {
         let row = sqlx::query(
-            r#"
+            r"
             SELECT session_token, client_id, user_id, granted_scopes, 
                    expires_at, last_activity, created_at, requests_count
             FROM a2a_sessions
             WHERE session_token = $1 AND expires_at > datetime('now')
-            "#,
+            ",
         )
         .bind(session_token)
         .fetch_optional(&self.pool)
@@ -487,7 +639,7 @@ impl Database {
             let granted_scopes_str: String = row.get("granted_scopes");
             let granted_scopes = granted_scopes_str
                 .split(',')
-                .map(|s| s.to_string())
+                .map(ToString::to_string)
                 .collect();
 
             Ok(Some(A2ASession {
@@ -498,7 +650,7 @@ impl Database {
                 created_at: row.get("created_at"),
                 expires_at: row.get("expires_at"),
                 last_activity: row.get("last_activity"),
-                requests_count: row.get::<i32, _>("requests_count") as u64,
+                requests_count: safe_i32_to_u64(row.get::<i32, _>("requests_count"))?,
             }))
         } else {
             Ok(None)
@@ -506,13 +658,16 @@ impl Database {
     }
 
     /// Update A2A session activity timestamp
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail
     pub async fn update_a2a_session_activity(&self, session_token: &str) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             UPDATE a2a_sessions 
             SET last_activity = datetime('now'), requests_count = requests_count + 1
             WHERE session_token = $1
-            "#,
+            ",
         )
         .bind(session_token)
         .execute(&self.pool)
@@ -522,15 +677,18 @@ impl Database {
     }
 
     /// Get active sessions for a specific client
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail or UUID parsing fails
     pub async fn get_active_a2a_sessions(&self, client_id: &str) -> Result<Vec<A2ASession>> {
         let rows = sqlx::query(
-            r#"
+            r"
             SELECT session_token, client_id, user_id, granted_scopes, 
                    expires_at, last_activity, created_at, requests_count
             FROM a2a_sessions
             WHERE client_id = $1 AND expires_at > datetime('now')
             ORDER BY last_activity DESC
-            "#,
+            ",
         )
         .bind(client_id)
         .fetch_all(&self.pool)
@@ -547,7 +705,7 @@ impl Database {
             let granted_scopes_str: String = row.get("granted_scopes");
             let granted_scopes = granted_scopes_str
                 .split(',')
-                .map(|s| s.to_string())
+                .map(ToString::to_string)
                 .collect();
 
             sessions.push(A2ASession {
@@ -558,7 +716,7 @@ impl Database {
                 created_at: row.get("created_at"),
                 expires_at: row.get("expires_at"),
                 last_activity: row.get("last_activity"),
-                requests_count: row.get::<i32, _>("requests_count") as u64,
+                requests_count: safe_i32_to_u64(row.get::<i32, _>("requests_count"))?,
             });
         }
 
@@ -566,6 +724,9 @@ impl Database {
     }
 
     /// Create a new A2A task
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail or JSON serialization fails
     pub async fn create_a2a_task(
         &self,
         client_id: &str,
@@ -577,12 +738,12 @@ impl Database {
         let now = Utc::now();
 
         sqlx::query(
-            r#"
+            r"
             INSERT INTO a2a_tasks (
                 id, client_id, task_type, input_data, output_data,
                 status, error_message, created_at, updated_at, completed_at
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-            "#,
+            ",
         )
         .bind(&task_id)
         .bind(client_id)
@@ -601,14 +762,17 @@ impl Database {
     }
 
     /// Get an A2A task by ID
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail or JSON deserialization fails
     pub async fn get_a2a_task(&self, task_id: &str) -> Result<Option<A2ATask>> {
         let row = sqlx::query(
-            r#"
+            r"
             SELECT id, client_id, task_type, input_data, output_data,
                    status, error_message, created_at, updated_at, completed_at
             FROM a2a_tasks
             WHERE id = $1
-            "#,
+            ",
         )
         .bind(task_id)
         .fetch_optional(&self.pool)
@@ -655,6 +819,9 @@ impl Database {
     }
 
     /// Update A2A task status
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail or JSON serialization fails
     pub async fn update_a2a_task_status(
         &self,
         task_id: &str,
@@ -670,12 +837,12 @@ impl Database {
         };
 
         sqlx::query(
-            r#"
+            r"
             UPDATE a2a_tasks 
             SET status = $2, output_data = $3, error_message = $4,
                 updated_at = datetime('now'), completed_at = $5
             WHERE id = $1
-            "#,
+            ",
         )
         .bind(task_id)
         .bind(status.to_string())
@@ -689,25 +856,28 @@ impl Database {
     }
 
     /// Record A2A usage for rate limiting and analytics
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail or JSON serialization fails
     pub async fn record_a2a_usage(&self, usage: &A2AUsage) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             INSERT INTO a2a_usage (
                 client_id, session_token, timestamp, tool_name, response_time_ms,
                 status_code, error_message, request_size_bytes, response_size_bytes,
                 ip_address, user_agent, protocol_version, client_capabilities, granted_scopes
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-            "#,
+            ",
         )
         .bind(&usage.client_id)
         .bind(&usage.session_token)
         .bind(usage.timestamp)
         .bind(&usage.tool_name)
-        .bind(usage.response_time_ms.map(|t| t as i32))
-        .bind(usage.status_code as i32)
+        .bind(usage.response_time_ms.map(safe_u32_to_i32).transpose()?)
+        .bind(i32::from(usage.status_code))
         .bind(&usage.error_message)
-        .bind(usage.request_size_bytes.map(|s| s as i32))
-        .bind(usage.response_size_bytes.map(|s| s as i32))
+        .bind(usage.request_size_bytes.map(safe_u32_to_i32).transpose()?)
+        .bind(usage.response_size_bytes.map(safe_u32_to_i32).transpose()?)
         .bind(&usage.ip_address)
         .bind(&usage.user_agent)
         .bind(&usage.protocol_version)
@@ -720,6 +890,9 @@ impl Database {
     }
 
     /// Get current usage count for an A2A client (for rate limiting)
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail or client not found
     pub async fn get_a2a_client_current_usage(&self, client_id: &str) -> Result<u32> {
         // Get the client to determine its rate limit window
         let client = self
@@ -728,23 +901,26 @@ impl Database {
             .ok_or_else(|| anyhow!("A2A client not found: {}", client_id))?;
 
         let window_start =
-            Utc::now() - chrono::Duration::seconds(client.rate_limit_window_seconds as i64);
+            Utc::now() - chrono::Duration::seconds(i64::from(client.rate_limit_window_seconds));
 
         let count: i32 = sqlx::query_scalar(
-            r#"
+            r"
             SELECT COUNT(*) FROM a2a_usage
             WHERE client_id = $1 AND timestamp > $2
-            "#,
+            ",
         )
         .bind(client_id)
         .bind(window_start)
         .fetch_one(&self.pool)
         .await?;
 
-        Ok(count as u32)
+        safe_i32_to_u32(count)
     }
 
     /// Get A2A usage statistics for a client
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail
     pub async fn get_a2a_usage_stats(
         &self,
         client_id: &str,
@@ -752,7 +928,7 @@ impl Database {
         end_date: DateTime<Utc>,
     ) -> Result<A2AUsageStats> {
         let stats = sqlx::query(
-            r#"
+            r"
             SELECT 
                 COUNT(*) as total_requests,
                 COUNT(CASE WHEN status_code >= 200 AND status_code < 300 THEN 1 END) as successful_requests,
@@ -762,7 +938,7 @@ impl Database {
                 SUM(response_size_bytes) as total_response_bytes
             FROM a2a_usage
             WHERE client_id = $1 AND timestamp >= $2 AND timestamp <= $3
-            "#,
+            ",
         )
         .bind(client_id)
         .bind(start_date)
@@ -781,25 +957,31 @@ impl Database {
             client_id: client_id.to_string(),
             period_start: start_date,
             period_end: end_date,
-            total_requests: total_requests as u32,
-            successful_requests: successful_requests as u32,
-            failed_requests: failed_requests as u32,
-            avg_response_time_ms: avg_response_time.map(|t| t as u32),
-            total_request_bytes: total_request_bytes.map(|b| b as u64),
-            total_response_bytes: total_response_bytes.map(|b| b as u64),
+            total_requests: safe_i32_to_u32(total_requests)?,
+            successful_requests: safe_i32_to_u32(successful_requests)?,
+            failed_requests: safe_i32_to_u32(failed_requests)?,
+            avg_response_time_ms: avg_response_time.map(safe_f64_to_u32),
+            total_request_bytes: total_request_bytes.map(safe_i64_to_u64).transpose()?,
+            total_response_bytes: total_response_bytes.map(safe_i64_to_u64).transpose()?,
         })
     }
 
     /// Get A2A client usage history (daily aggregates with success/error counts)
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail or date parsing fails
+    ///
+    /// # Panics
+    /// Panics if the date string from database is not in expected YYYY-MM-DD format
     pub async fn get_a2a_client_usage_history(
         &self,
         client_id: &str,
         days: u32,
     ) -> Result<Vec<(DateTime<Utc>, u32, u32)>> {
-        let start_date = Utc::now() - chrono::Duration::days(days as i64);
+        let start_date = Utc::now() - chrono::Duration::days(i64::from(days));
 
         let rows = sqlx::query(
-            r#"
+            r"
             SELECT 
                 date(timestamp) as usage_date,
                 COUNT(CASE WHEN status_code >= 200 AND status_code < 400 THEN 1 END) as success_count,
@@ -808,7 +990,7 @@ impl Database {
             WHERE client_id = $1 AND timestamp >= $2
             GROUP BY date(timestamp)
             ORDER BY usage_date DESC
-            "#,
+            ",
         )
         .bind(client_id)
         .bind(start_date)
@@ -824,10 +1006,14 @@ impl Database {
             // Parse date string (YYYY-MM-DD format from SQLite date())
             let date = chrono::NaiveDate::parse_from_str(&date_str, "%Y-%m-%d")?
                 .and_hms_opt(0, 0, 0)
-                .unwrap()
+                .ok_or_else(|| anyhow!("Failed to create datetime from date {}", date_str))?
                 .and_utc();
 
-            history.push((date, success_count as u32, error_count as u32));
+            history.push((
+                date,
+                safe_i32_to_u32(success_count)?,
+                safe_i32_to_u32(error_count)?,
+            ));
         }
 
         Ok(history)
@@ -837,7 +1023,7 @@ impl Database {
 #[cfg(test)]
 mod tests {
     use super::*;
-    // Note: A2APermission should be defined - using String for now
+    // A2APermission represented as String until enum is defined
 
     async fn create_test_client(db: &Database) -> (A2AClient, Uuid) {
         let unique_id = Uuid::new_v4();
@@ -846,9 +1032,9 @@ mod tests {
         let test_user_id = Uuid::new_v4();
         let user = crate::models::User {
             id: test_user_id,
-            email: format!("test_{}@example.com", unique_id),
-            display_name: Some(format!("Test User {}", unique_id)),
-            password_hash: "dummy_hash".to_string(),
+            email: format!("test_{unique_id}@example.com"),
+            display_name: Some(format!("Test User {unique_id}")),
+            password_hash: format!("test_hash_{unique_id}"),
             tier: crate::models::UserTier::Professional,
             strava_token: None,
             fitbit_token: None,
@@ -862,12 +1048,12 @@ mod tests {
 
         // Create a test API key for the user
         let api_key = crate::api_keys::ApiKey {
-            id: format!("test_api_key_{}", unique_id),
+            id: format!("test_api_key_{unique_id}"),
             user_id: test_user_id,
-            name: format!("Test API Key {}", unique_id),
-            description: Some("Test API key for A2A client".to_string()),
+            name: format!("Test API Key {unique_id}"),
+            description: Some("Test API key for A2A client".into()),
             key_prefix: format!("pk_test_{}", &unique_id.to_string()[0..8]),
-            key_hash: "dummy_hash".to_string(),
+            key_hash: format!("test_key_hash_{unique_id}"),
             tier: crate::api_keys::ApiKeyTier::Professional,
             rate_limit_requests: 1000,
             rate_limit_window_seconds: 3600,
@@ -881,13 +1067,13 @@ mod tests {
             .expect("Failed to create test API key");
 
         let client = A2AClient {
-            id: format!("test_client_{}", unique_id),
-            name: format!("Test Client {}", unique_id),
-            description: format!("Test A2A client {}", unique_id),
-            public_key: format!("test_public_key_{}", unique_id), // Make unique
-            capabilities: vec!["fitness-data-analysis".to_string()],
-            redirect_uris: vec!["https://test.example.com".to_string()],
-            permissions: vec!["read_activities".to_string(), "write_goals".to_string()],
+            id: format!("test_client_{unique_id}"),
+            name: format!("Test Client {unique_id}"),
+            description: format!("Test A2A client {unique_id}"),
+            public_key: format!("test_public_key_{unique_id}"), // Make unique
+            capabilities: vec!["fitness-data-analysis".into()],
+            redirect_uris: vec!["https://test.example.com".into()],
+            permissions: vec!["read_activities".into(), "write_goals".into()],
             rate_limit_requests: 1000,
             rate_limit_window_seconds: 3600,
             is_active: true,
@@ -948,7 +1134,7 @@ mod tests {
             id: format!("session_{}", Uuid::new_v4()),
             client_id: client.id.clone(),
             user_id: None, // No user association for this test
-            granted_scopes: vec!["read".to_string(), "write".to_string()],
+            granted_scopes: vec!["read".into(), "write".into()],
             expires_at: Utc::now() + chrono::Duration::hours(1),
             last_activity: Utc::now(),
             created_at: Utc::now(),
@@ -1004,7 +1190,7 @@ mod tests {
         let task = A2ATask {
             id: format!("task_{}", Uuid::new_v4()),
             client_id: client.id.clone(),
-            task_type: "analysis".to_string(),
+            task_type: "analysis".into(),
             input_data: serde_json::json!({"data": "test"}),
             output_data: None,
             status: TaskStatus::Pending,
@@ -1063,17 +1249,17 @@ mod tests {
             client_id: client.id.clone(),
             session_token: None, // No session for this test
             timestamp: Utc::now(),
-            tool_name: "analyze".to_string(),
+            tool_name: "analyze".into(),
             request_size_bytes: Some(256),
             response_size_bytes: Some(512),
             response_time_ms: Some(100),
             status_code: 200,
             error_message: None,
             ip_address: Some(crate::constants::demo_data::TEST_IP_ADDRESS.to_string()),
-            user_agent: Some("test-agent".to_string()),
-            protocol_version: "1.0".to_string(),
-            client_capabilities: vec!["analysis".to_string()],
-            granted_scopes: vec!["read".to_string()],
+            user_agent: Some("test-agent".into()),
+            protocol_version: "1.0".into(),
+            client_capabilities: vec!["analysis".into()],
+            granted_scopes: vec!["read".into()],
         };
 
         db.record_a2a_usage(&usage)

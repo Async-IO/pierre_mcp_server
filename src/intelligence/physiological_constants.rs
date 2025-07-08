@@ -13,12 +13,16 @@
 /// - <https://www.acsm.org/education-resources/books/guidelines-exercise-testing-prescription>
 pub mod heart_rate {
     /// Anaerobic threshold as percentage of heart rate reserve
+    ///
     /// Above this threshold, the body relies primarily on anaerobic metabolism
+    ///
     /// Reference: ACSM Guidelines, Chapter 6: General Principles of Exercise Prescription
     pub const ANAEROBIC_THRESHOLD_PERCENTAGE: f32 = 85.0;
 
-    /// Aerobic threshold as percentage of heart rate reserve  
+    /// Aerobic threshold as percentage of heart rate reserve
+    ///
     /// Above this threshold marks the transition from moderate to vigorous intensity
+    ///
     /// Reference: ACSM Guidelines, Table 6.3: Classification of Exercise Intensity
     pub const AEROBIC_THRESHOLD_PERCENTAGE: f32 = 70.0;
 
@@ -30,11 +34,13 @@ pub mod heart_rate {
     pub const RECOVERY_HR_THRESHOLD: u32 = 120;
 
     /// Moderate intensity heart rate threshold
+    ///
     /// Reference: ACSM position stand on exercise intensity (2011)
     /// <https://journals.lww.com/acsm-msse/Fulltext/2011/07000/Quantity_and_Quality_of_Exercise_for_Developing.26.aspx>
     pub const MODERATE_HR_THRESHOLD: u32 = 140;
 
     /// High intensity heart rate threshold
+    ///
     /// Reference: Seiler, S. (2010). What is best practice for training intensity distribution?
     /// <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2914523/>
     pub const HIGH_INTENSITY_HR_THRESHOLD: u32 = 160;
@@ -44,7 +50,9 @@ pub mod heart_rate {
     pub const VERY_HIGH_INTENSITY_HR_THRESHOLD: u32 = 180;
 
     /// Maximum realistic heart rate (safety limit)
+    ///
     /// Based on Fox formula upper bound with safety margin
+    ///
     /// Reference: Tanaka, H., Monahan, K.D., & Seals, D.R. (2001). Age-predicted maximal heart rate revisited
     /// <https://pubmed.ncbi.nlm.nih.gov/11153730/>
     pub const MAX_REALISTIC_HEART_RATE: u32 = 220;
@@ -76,7 +84,9 @@ pub mod power {
 /// - <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4213373/>
 pub mod training_load {
     /// Weekly training load increase that triggers recovery need
+    ///
     /// Based on acute:chronic workload ratio research
+    ///
     /// Reference: Gabbett, T.J. (2016). The training-injury prevention paradox
     /// <https://bjsm.bmj.com/content/50/5/273>
     pub const RECOVERY_LOAD_MULTIPLIER: f64 = 1.3;
@@ -102,7 +112,7 @@ pub mod duration {
     pub const MIN_AEROBIC_DURATION: u64 = 1800; // 30 minutes
 
     /// Duration threshold for endurance workouts (seconds)
-    /// Reference: McArdle, W.D., Katch, F.I., & Katch, V.L. (2015). Exercise Physiology
+    /// Reference: `McArdle`, W.D., Katch, F.I., & Katch, V.L. (2015). Exercise Physiology
     pub const ENDURANCE_DURATION_THRESHOLD: u64 = 3600; // 60 minutes
 
     /// Long workout duration threshold (seconds)
@@ -143,8 +153,10 @@ pub mod max_speeds {
     /// Reference: Usain Bolt 9.58s = 10.44 m/s average
     pub const MAX_RUNNING_SPEED: f64 = 12.0;
 
-    /// Maximum realistic cycling speed (m/s)  
+    /// Maximum realistic cycling speed (m/s)
+    ///
     /// Based on professional sprint speeds (~90 km/h)
+    ///
     /// Reference: UCI track cycling sprint records
     pub const MAX_CYCLING_SPEED: f64 = 25.0;
 
@@ -165,7 +177,7 @@ pub mod fitness_weights {
     /// Aerobic component weight in overall fitness score
     pub const AEROBIC_WEIGHT: f64 = 0.4;
 
-    /// Strength/power component weight in overall fitness score  
+    /// Strength/power component weight in overall fitness score
     pub const STRENGTH_WEIGHT: f64 = 0.3;
 
     /// Consistency component weight in overall fitness score
@@ -615,7 +627,7 @@ pub mod api_limits {
     pub const GOAL_ANALYSIS_ACTIVITY_LIMIT: usize = 100;
 }
 
-/// Demo and mock data constants for development
+/// Sample data constants for testing and development
 pub mod demo_data {
     /// Previous best time for demo purposes (minutes)
     pub const DEMO_PREVIOUS_BEST_TIME: f64 = 18.5;
@@ -864,7 +876,7 @@ pub mod zone_distributions {
     pub mod intensity_thresholds {
         /// Threshold between low and moderate-low intensity (HR reserve percentage)
         pub const LOW_TO_MODERATE_LOW: f32 = 0.5;
-        /// Threshold between moderate-low and moderate intensity (HR reserve percentage)  
+        /// Threshold between moderate-low and moderate intensity (HR reserve percentage)
         pub const MODERATE_LOW_TO_MODERATE: f32 = 0.6;
         /// Threshold between moderate and high intensity (HR reserve percentage)
         pub const MODERATE_TO_HIGH: f32 = 0.7;

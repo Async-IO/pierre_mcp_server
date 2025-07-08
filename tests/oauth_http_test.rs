@@ -1,3 +1,6 @@
+// ABOUTME: OAuth HTTP endpoint tests for callback handling
+// ABOUTME: Tests OAuth HTTP callback endpoints in single-tenant mode
+#![allow(clippy::if_not_else, clippy::unused_async)]
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -46,13 +49,13 @@ async fn test_oauth_callback_missing_code() {
         .and(warp::get())
         .and(warp::query::<std::collections::HashMap<String, String>>())
         .map(|params: std::collections::HashMap<String, String>| {
-            if !params.contains_key("code") {
+            if params.contains_key("code") {
+                warp::reply::with_status(warp::reply::html("OK"), StatusCode::OK)
+            } else {
                 warp::reply::with_status(
                     warp::reply::html("Missing code parameter"),
                     StatusCode::BAD_REQUEST,
                 )
-            } else {
-                warp::reply::with_status(warp::reply::html("OK"), StatusCode::OK)
             }
         });
 
@@ -74,13 +77,13 @@ async fn test_oauth_callback_missing_state() {
         .and(warp::get())
         .and(warp::query::<std::collections::HashMap<String, String>>())
         .map(|params: std::collections::HashMap<String, String>| {
-            if !params.contains_key("state") {
+            if params.contains_key("state") {
+                warp::reply::with_status(warp::reply::html("OK"), StatusCode::OK)
+            } else {
                 warp::reply::with_status(
                     warp::reply::html("Missing state parameter"),
                     StatusCode::BAD_REQUEST,
                 )
-            } else {
-                warp::reply::with_status(warp::reply::html("OK"), StatusCode::OK)
             }
         });
 

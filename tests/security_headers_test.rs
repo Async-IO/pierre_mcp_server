@@ -1,3 +1,5 @@
+// ABOUTME: Integration tests for security headers middleware
+// ABOUTME: Tests security header validation and configuration
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -170,11 +172,10 @@ fn test_config_header_conversion() {
     ];
 
     for header in &expected_headers {
-        assert!(headers.contains_key(*header), "Missing header: {}", header);
+        assert!(headers.contains_key(*header), "Missing header: {header}");
         assert!(
             !headers[*header].is_empty(),
-            "Header {} should not be empty",
-            header
+            "Header {header} should not be empty"
         );
     }
 

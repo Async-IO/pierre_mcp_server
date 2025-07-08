@@ -37,4 +37,10 @@ pub enum ProtocolError {
 
     #[error("Conversion failed: {0}")]
     ConversionFailed(String),
+
+    #[error("Serialization failed: {0}")]
+    SerializationError(String),
+
+    #[error("Database operation failed: {0}")]
+    DatabaseError(String),
 }

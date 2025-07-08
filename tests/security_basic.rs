@@ -1,3 +1,5 @@
+// ABOUTME: Basic security tests for authentication and authorization
+// ABOUTME: Tests essential security features and data protection mechanisms
 //! Basic Security Tests
 //!
 //! Essential security tests for authentication, authorization, and data protection.
@@ -76,9 +78,8 @@ async fn test_api_key_user_isolation() -> Result<()> {
         rate_limit_requests: None,
     };
 
-    let (user1_api_key, _user1_key_string) = api_key_manager
-        .create_api_key(user1_id, create_request)
-        .await?;
+    let (user1_api_key, _user1_key_string) =
+        api_key_manager.create_api_key(user1_id, create_request)?;
 
     database.create_api_key(&user1_api_key).await?;
 
@@ -110,16 +111,14 @@ async fn test_basic_input_validation() -> Result<()> {
     // Test very long API key name
     let long_name = "a".repeat(1000);
     let create_request = CreateApiKeyRequest {
-        name: long_name.clone(),
+        name: long_name,
         description: Some("Test description".to_string()),
         tier: ApiKeyTier::Professional,
         expires_in_days: Some(30),
         rate_limit_requests: None,
     };
 
-    let result = api_key_manager
-        .create_api_key(user_id, create_request)
-        .await;
+    let result = api_key_manager.create_api_key(user_id, create_request);
 
     match result {
         Ok((api_key, _)) => {
@@ -205,14 +204,20 @@ async fn test_token_uniqueness() -> Result<()> {
         }
 
         let token = auth_manager.generate_token(&user)?;
-        if !tokens.insert(token.clone()) {
+
+        // Clone token for validation since insert() will move it
+        let token_for_validation = token.clone();
+
+        if tokens.insert(token) {
+            // Token was unique and inserted successfully
+        } else {
             // If tokens are identical due to same timestamp, that's acceptable for this test
             // The important thing is that they validate correctly
             println!("Note: JWT tokens generated with same timestamp, which is acceptable");
         }
 
         // Verify each token validates correctly
-        let claims = auth_manager.validate_token(&token)?;
+        let claims = auth_manager.validate_token(&token_for_validation)?;
         let token_user_id = Uuid::parse_str(&claims.sub)?;
         assert_eq!(token_user_id, user_id);
     }
@@ -236,16 +241,14 @@ async fn test_api_key_uniqueness() -> Result<()> {
 
     for i in 0..10 {
         let create_request = CreateApiKeyRequest {
-            name: format!("Unique Test Key {}", i),
+            name: format!("Unique Test Key {i}"),
             description: Some("Uniqueness test".to_string()),
             tier: ApiKeyTier::Starter,
             expires_in_days: Some(30),
             rate_limit_requests: None,
         };
 
-        let (_, api_key_string) = api_key_manager
-            .create_api_key(user_id, create_request)
-            .await?;
+        let (_, api_key_string) = api_key_manager.create_api_key(user_id, create_request)?;
         assert!(
             api_key_strings.insert(api_key_string),
             "API keys should be unique"

@@ -1,3 +1,5 @@
+// ABOUTME: Integration test demonstrating admin API functionality
+// ABOUTME: Tests admin token generation, authentication, and API key provisioning
 //! Test Admin API Implementation
 //!
 //! This example demonstrates how the admin API works by testing
@@ -15,6 +17,7 @@ use pierre_mcp_server::{
 use uuid::Uuid;
 
 #[tokio::main]
+#[allow(clippy::too_many_lines)]
 async fn main() -> anyhow::Result<()> {
     println!("🔧 Testing Pierre MCP Server Admin API Implementation");
     println!("{}", "=".repeat(60));
@@ -70,13 +73,13 @@ async fn main() -> anyhow::Result<()> {
     match &database {
         pierre_mcp_server::database_plugins::factory::Database::SQLite(sqlite_db) => {
             sqlx::query(
-                r#"
+                r"
                 INSERT INTO admin_tokens (
                     id, service_name, service_description, token_hash, token_prefix,
                     jwt_secret_hash, permissions, is_super_admin, is_active,
                     created_at, expires_at, usage_count
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                "#,
+                ",
             )
             .bind(&admin_token.id)
             .bind(&admin_token.service_name)
@@ -89,7 +92,7 @@ async fn main() -> anyhow::Result<()> {
             .bind(admin_token.is_active)
             .bind(admin_token.created_at)
             .bind(admin_token.expires_at)
-            .bind(admin_token.usage_count as i64)
+            .bind(i64::try_from(admin_token.usage_count).unwrap_or(0))
             .execute(sqlite_db.inner().pool())
             .await?;
         }
@@ -163,9 +166,7 @@ async fn main() -> anyhow::Result<()> {
         rate_limit_requests: None,
     };
 
-    let (api_key, api_key_string) = api_key_manager
-        .create_api_key(user_id, create_request)
-        .await?;
+    let (api_key, api_key_string) = api_key_manager.create_api_key(user_id, create_request)?;
     database.create_api_key(&api_key).await?;
 
     println!("✅ API key provisioned:");

@@ -1,3 +1,152 @@
+// ABOUTME: Tests for dashboard route handlers and endpoints
+// ABOUTME: Tests dashboard routes, user interface, and data presentation
+#![allow(
+    clippy::uninlined_format_args,
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss,
+    clippy::float_cmp,
+    clippy::significant_drop_tightening,
+    clippy::match_wildcard_for_single_variants,
+    clippy::match_same_arms,
+    clippy::unreadable_literal,
+    clippy::module_name_repetitions,
+    clippy::redundant_closure_for_method_calls,
+    clippy::needless_pass_by_value,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::similar_names,
+    clippy::too_many_lines,
+    clippy::struct_excessive_bools,
+    clippy::missing_const_for_fn,
+    clippy::cognitive_complexity,
+    clippy::items_after_statements,
+    clippy::semicolon_if_nothing_returned,
+    clippy::use_self,
+    clippy::single_match_else,
+    clippy::default_trait_access,
+    clippy::enum_glob_use,
+    clippy::wildcard_imports,
+    clippy::explicit_deref_methods,
+    clippy::explicit_iter_loop,
+    clippy::manual_let_else,
+    clippy::must_use_candidate,
+    clippy::return_self_not_must_use,
+    clippy::unused_self,
+    clippy::used_underscore_binding,
+    clippy::fn_params_excessive_bools,
+    clippy::trivially_copy_pass_by_ref,
+    clippy::option_if_let_else,
+    clippy::unnecessary_wraps,
+    clippy::redundant_else,
+    clippy::map_unwrap_or,
+    clippy::map_err_ignore,
+    clippy::if_not_else,
+    clippy::single_char_lifetime_names,
+    clippy::doc_markdown,
+    clippy::unused_async,
+    clippy::redundant_field_names,
+    clippy::struct_field_names,
+    clippy::ptr_arg,
+    clippy::ref_option_ref,
+    clippy::implicit_clone,
+    clippy::cloned_instead_of_copied,
+    clippy::borrow_as_ptr,
+    clippy::bool_to_int_with_if,
+    clippy::checked_conversions,
+    clippy::copy_iterator,
+    clippy::empty_enum,
+    clippy::enum_variant_names,
+    clippy::expl_impl_clone_on_copy,
+    clippy::fallible_impl_from,
+    clippy::filter_map_next,
+    clippy::flat_map_option,
+    clippy::fn_to_numeric_cast_any,
+    clippy::from_iter_instead_of_collect,
+    clippy::if_let_mutex,
+    clippy::implicit_hasher,
+    clippy::inconsistent_struct_constructor,
+    clippy::inefficient_to_string,
+    clippy::infinite_iter,
+    clippy::into_iter_on_ref,
+    clippy::iter_not_returning_iterator,
+    clippy::iter_on_empty_collections,
+    clippy::iter_on_single_items,
+    clippy::large_digit_groups,
+    clippy::large_stack_arrays,
+    clippy::large_types_passed_by_value,
+    clippy::let_unit_value,
+    clippy::linkedlist,
+    clippy::lossy_float_literal,
+    clippy::macro_use_imports,
+    clippy::manual_assert,
+    clippy::manual_instant_elapsed,
+    clippy::manual_let_else,
+    clippy::manual_ok_or,
+    clippy::manual_string_new,
+    clippy::many_single_char_names,
+    clippy::match_on_vec_items,
+    clippy::match_same_arms,
+    clippy::match_wild_err_arm,
+    clippy::match_wildcard_for_single_variants,
+    clippy::mem_forget,
+    clippy::missing_enforced_import_renames,
+    clippy::missing_inline_in_public_items,
+    clippy::missing_safety_doc,
+    clippy::mut_mut,
+    clippy::mutex_integer,
+    clippy::naive_bytecount,
+    clippy::needless_continue,
+    clippy::needless_for_each,
+    clippy::needless_pass_by_ref_mut,
+    clippy::needless_raw_string_hashes,
+    clippy::no_effect_underscore_binding,
+    clippy::non_ascii_literal,
+    clippy::nonstandard_macro_braces,
+    clippy::option_option,
+    clippy::or_fun_call,
+    clippy::path_buf_push_overwrite,
+    clippy::print_literal,
+    clippy::print_with_newline,
+    clippy::ptr_as_ptr,
+    clippy::range_minus_one,
+    clippy::range_plus_one,
+    clippy::rc_buffer,
+    clippy::rc_mutex,
+    clippy::redundant_allocation,
+    clippy::redundant_pub_crate,
+    clippy::ref_binding_to_reference,
+    clippy::ref_option_ref,
+    clippy::rest_pat_in_fully_bound_structs,
+    clippy::same_functions_in_if_condition,
+    clippy::semicolon_if_nothing_returned,
+    clippy::single_match_else,
+    clippy::str_to_string,
+    clippy::string_add,
+    clippy::string_add_assign,
+    clippy::string_lit_as_bytes,
+    clippy::string_to_string,
+    clippy::trait_duplication_in_bounds,
+    clippy::transmute_ptr_to_ptr,
+    clippy::trivially_copy_pass_by_ref,
+    clippy::tuple_array_conversions,
+    clippy::unchecked_duration_subtraction,
+    clippy::unicode_not_nfc,
+    clippy::unimplemented,
+    clippy::uninlined_format_args,
+    clippy::unnecessary_box_returns,
+    clippy::unnecessary_struct_initialization,
+    clippy::unnecessary_to_owned,
+    clippy::unnecessary_wraps,
+    clippy::unnested_or_patterns,
+    clippy::unused_peekable,
+    clippy::unused_rounding,
+    clippy::useless_let_if_seq,
+    clippy::verbose_bit_mask,
+    clippy::verbose_file_reads,
+    clippy::zero_sized_map_values
+)]
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -70,7 +219,7 @@ impl DashboardTestSetup {
         };
 
         let manager = pierre_mcp_server::api_keys::ApiKeyManager::new();
-        let (pro_key, _) = manager.create_api_key(user_id, request_pro).await?;
+        let (pro_key, _) = manager.create_api_key(user_id, request_pro)?;
         database.create_api_key(&pro_key).await?;
         api_keys.push(pro_key);
 
@@ -83,7 +232,7 @@ impl DashboardTestSetup {
             expires_in_days: Some(365),
         };
 
-        let (enterprise_key, _) = manager.create_api_key(user_id, request_enterprise).await?;
+        let (enterprise_key, _) = manager.create_api_key(user_id, request_enterprise)?;
         database.create_api_key(&enterprise_key).await?;
         api_keys.push(enterprise_key);
 
@@ -134,7 +283,7 @@ impl DashboardTestSetup {
                     let usage = ApiKeyUsage {
                         id: None,
                         api_key_id: api_key.id.clone(),
-                        timestamp: timestamp + Duration::minutes(j as i64 * 2),
+                        timestamp: timestamp + Duration::minutes(i64::from(j) * 2),
                         tool_name: match j % 4 {
                             0 => "strava_activities".to_string(),
                             1 => "fitbit_data".to_string(),
@@ -237,7 +386,7 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
 
     let (_user_id, user) = common::create_test_user(&database).await?;
     let jwt_token = auth_manager.generate_token(&user)?;
-    let auth_header = format!("Bearer {}", jwt_token);
+    let auth_header = format!("Bearer {jwt_token}");
 
     // No API keys created - should return empty overview
     let overview = dashboard_routes
@@ -779,7 +928,7 @@ async fn test_dashboard_with_expired_jwt() -> Result<()> {
     let short_auth_manager = AuthManager::new(short_jwt_secret, 0); // 0 hours = immediate expiry
 
     let expired_token = short_auth_manager.generate_token(&expired_user)?;
-    let expired_header = format!("Bearer {}", expired_token);
+    let expired_header = format!("Bearer {expired_token}");
 
     // Wait a moment to ensure token is expired
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
@@ -828,7 +977,7 @@ async fn test_dashboard_with_different_user() -> Result<()> {
     let (_other_user_id, other_user) =
         common::create_test_user_with_email(&setup.database, "other@example.com").await?;
     let other_jwt_token = setup.auth_manager.generate_token(&other_user)?;
-    let other_auth_header = format!("Bearer {}", other_jwt_token);
+    let other_auth_header = format!("Bearer {other_jwt_token}");
 
     // This user should have no API keys and no data
     let overview = setup
@@ -870,7 +1019,7 @@ async fn test_dashboard_concurrent_requests() -> Result<()> {
     let mut all_succeeded = true;
     for handle in handles {
         match handle.await {
-            Ok(Ok(_)) => continue,
+            Ok(Ok(_)) => {}
             _ => all_succeeded = false,
         }
     }

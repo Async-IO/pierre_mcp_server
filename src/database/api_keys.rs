@@ -1,4 +1,5 @@
-//! API key management database operations
+// ABOUTME: API key management database operations
+// ABOUTME: Handles API key generation, validation, and rate limiting storage
 
 use super::Database;
 use crate::api_keys::{ApiKey, ApiKeyTier, ApiKeyUsage, ApiKeyUsageStats};
@@ -8,11 +9,11 @@ use sqlx::Row;
 use uuid::Uuid;
 
 impl Database {
-    /// Create API key tables
+    /// Create `API` key tables
     pub(super) async fn migrate_api_keys(&self) -> Result<()> {
         // Create api_keys table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS api_keys (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -30,14 +31,14 @@ impl Database {
                 UNIQUE(key_hash),
                 UNIQUE(key_prefix)
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
 
         // Create api_key_usage table
         sqlx::query(
-            r#"
+            r"
             CREATE TABLE IF NOT EXISTS api_key_usage (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 api_key_id TEXT NOT NULL REFERENCES api_keys(id) ON DELETE CASCADE,
@@ -51,7 +52,7 @@ impl Database {
                 ip_address TEXT,
                 user_agent TEXT
             )
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
@@ -80,10 +81,21 @@ impl Database {
         Ok(())
     }
 
-    /// Create a new API key
+    /// Create a new `API` key
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails
     pub async fn create_api_key(&self, api_key: &ApiKey) -> Result<()> {
+        // Handle enterprise tier unlimited requests by storing NULL
+        let rate_limit_requests = if api_key.tier == crate::api_keys::ApiKeyTier::Enterprise {
+            None
+        } else {
+            Some(i32::try_from(api_key.rate_limit_requests)?)
+        };
+
         sqlx::query(
-            r#"
+            r"
             INSERT INTO api_keys (
                 id, user_id, name, description, key_hash, key_prefix, tier,
                 rate_limit_requests, rate_limit_window_seconds, is_active,
@@ -91,7 +103,7 @@ impl Database {
             ) VALUES (
                 $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
             )
-            "#,
+            ",
         )
         .bind(&api_key.id)
         .bind(api_key.user_id.to_string())
@@ -100,8 +112,8 @@ impl Database {
         .bind(&api_key.key_hash)
         .bind(&api_key.key_prefix)
         .bind(api_key.tier.as_str())
-        .bind(api_key.rate_limit_requests as i32)
-        .bind(api_key.rate_limit_window_seconds as i32)
+        .bind(rate_limit_requests)
+        .bind(i32::try_from(api_key.rate_limit_window_seconds)?)
         .bind(api_key.is_active)
         .bind(api_key.expires_at)
         .bind(api_key.created_at)
@@ -111,50 +123,62 @@ impl Database {
         Ok(())
     }
 
-    /// Get an API key by its prefix (for validation)
+    /// Get an `API` key by its prefix (for validation)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails
     pub async fn get_api_key_by_prefix(
         &self,
         key_prefix: &str,
         key_hash: &str,
     ) -> Result<Option<ApiKey>> {
         let row = sqlx::query(
-            r#"
+            r"
             SELECT * FROM api_keys
             WHERE key_prefix = $1 AND key_hash = $2 AND is_active = 1
-            "#,
+            ",
         )
         .bind(key_prefix)
         .bind(key_hash)
         .fetch_optional(&self.pool)
         .await?;
 
-        row.map(Self::row_to_api_key).transpose()
+        row.as_ref().map(Self::row_to_api_key).transpose()
     }
 
-    /// Get all API keys for a user
+    /// Get all `API` keys for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails
     pub async fn get_user_api_keys(&self, user_id: Uuid) -> Result<Vec<ApiKey>> {
         let rows = sqlx::query(
-            r#"
+            r"
             SELECT * FROM api_keys
             WHERE user_id = $1
             ORDER BY created_at DESC
-            "#,
+            ",
         )
         .bind(user_id.to_string())
         .fetch_all(&self.pool)
         .await?;
 
-        rows.into_iter().map(Self::row_to_api_key).collect()
+        rows.iter().map(Self::row_to_api_key).collect()
     }
 
-    /// Update API key last used timestamp
+    /// Update `API` key last used timestamp
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails
     pub async fn update_api_key_last_used(&self, api_key_id: &str) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             UPDATE api_keys
             SET last_used_at = CURRENT_TIMESTAMP
             WHERE id = $1
-            "#,
+            ",
         )
         .bind(api_key_id)
         .execute(&self.pool)
@@ -163,14 +187,18 @@ impl Database {
         Ok(())
     }
 
-    /// Deactivate an API key
+    /// Deactivate an `API` key
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails
     pub async fn deactivate_api_key(&self, api_key_id: &str, user_id: Uuid) -> Result<()> {
-        let _result = sqlx::query(
-            r#"
+        sqlx::query(
+            r"
             UPDATE api_keys
             SET is_active = 0
             WHERE id = $1 AND user_id = $2
-            "#,
+            ",
         )
         .bind(api_key_id)
         .bind(user_id.to_string())
@@ -181,21 +209,29 @@ impl Database {
         Ok(())
     }
 
-    /// Get an API key by ID
+    /// Get an `API` key by `ID`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails
     pub async fn get_api_key_by_id(&self, api_key_id: &str) -> Result<Option<ApiKey>> {
         let row = sqlx::query(
-            r#"
+            r"
             SELECT * FROM api_keys WHERE id = $1
-            "#,
+            ",
         )
         .bind(api_key_id)
         .fetch_optional(&self.pool)
         .await?;
 
-        row.map(Self::row_to_api_key).transpose()
+        row.as_ref().map(Self::row_to_api_key).transpose()
     }
 
-    /// Get API keys with filtering
+    /// Get `API` keys with filtering
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails
     pub async fn get_api_keys_filtered(
         &self,
         user_id: Option<Uuid>,
@@ -232,19 +268,23 @@ impl Database {
 
         let rows = sql_query.fetch_all(&self.pool).await?;
 
-        rows.into_iter().map(Self::row_to_api_key).collect()
+        rows.iter().map(Self::row_to_api_key).collect()
     }
 
-    /// Clean up expired API keys
+    /// Clean up expired `API` keys
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails
     pub async fn cleanup_expired_api_keys(&self) -> Result<u64> {
         let result = sqlx::query(
-            r#"
+            r"
             UPDATE api_keys
             SET is_active = 0
             WHERE expires_at IS NOT NULL 
             AND expires_at < CURRENT_TIMESTAMP 
             AND is_active = 1
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
@@ -252,40 +292,48 @@ impl Database {
         Ok(result.rows_affected())
     }
 
-    /// Get expired API keys
+    /// Get expired `API` keys
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails
     pub async fn get_expired_api_keys(&self) -> Result<Vec<ApiKey>> {
         let rows = sqlx::query(
-            r#"
+            r"
             SELECT * FROM api_keys
             WHERE expires_at IS NOT NULL 
             AND expires_at < CURRENT_TIMESTAMP 
             AND is_active = 1
-            "#,
+            ",
         )
         .fetch_all(&self.pool)
         .await?;
 
-        rows.into_iter().map(Self::row_to_api_key).collect()
+        rows.iter().map(Self::row_to_api_key).collect()
     }
 
-    /// Record API key usage
+    /// Record `API` key usage
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails
     pub async fn record_api_key_usage(&self, usage: &ApiKeyUsage) -> Result<()> {
         sqlx::query(
-            r#"
+            r"
             INSERT INTO api_key_usage (
                 api_key_id, timestamp, tool_name, status_code,
                 response_time_ms, request_size_bytes, response_size_bytes,
                 ip_address, user_agent
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            "#,
+            ",
         )
         .bind(&usage.api_key_id)
         .bind(usage.timestamp)
         .bind(&usage.tool_name)
-        .bind(usage.status_code as i32)
-        .bind(usage.response_time_ms.map(|t| t as i32))
-        .bind(usage.request_size_bytes.map(|s| s as i32))
-        .bind(usage.response_size_bytes.map(|s| s as i32))
+        .bind(i32::from(usage.status_code))
+        .bind(usage.response_time_ms.map(i32::try_from).transpose()?)
+        .bind(usage.request_size_bytes.map(i32::try_from).transpose()?)
+        .bind(usage.response_size_bytes.map(i32::try_from).transpose()?)
         .bind(&usage.ip_address)
         .bind(&usage.user_agent)
         .execute(&self.pool)
@@ -294,7 +342,11 @@ impl Database {
         Ok(())
     }
 
-    /// Get current usage count for an API key (for rate limiting)
+    /// Get current usage count for an `API` key (for rate limiting)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails or the API key is not found
     pub async fn get_api_key_current_usage(&self, api_key_id: &str) -> Result<u32> {
         // Get the API key to determine its rate limit window
         let api_key = self
@@ -302,23 +354,28 @@ impl Database {
             .await?
             .ok_or_else(|| anyhow!("API key not found"))?;
 
-        let window_start = Utc::now() - Duration::seconds(api_key.rate_limit_window_seconds as i64);
+        let window_start =
+            Utc::now() - Duration::seconds(i64::from(api_key.rate_limit_window_seconds));
 
         let count: i32 = sqlx::query_scalar(
-            r#"
+            r"
             SELECT COUNT(*) FROM api_key_usage
             WHERE api_key_id = $1 AND timestamp > $2
-            "#,
+            ",
         )
         .bind(api_key_id)
         .bind(window_start)
         .fetch_one(&self.pool)
         .await?;
 
-        Ok(count as u32)
+        Ok(u32::try_from(count)?)
     }
 
-    /// Get API key usage statistics
+    /// Get `API` key usage statistics
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database operation fails
     pub async fn get_api_key_usage_stats(
         &self,
         api_key_id: &str,
@@ -326,7 +383,7 @@ impl Database {
         end_date: DateTime<Utc>,
     ) -> Result<ApiKeyUsageStats> {
         let stats = sqlx::query(
-            r#"
+            r"
             SELECT 
                 COUNT(*) as total_requests,
                 COUNT(CASE WHEN status_code >= 200 AND status_code < 300 THEN 1 END) as successful_requests,
@@ -337,7 +394,7 @@ impl Database {
                 SUM(response_size_bytes) as total_response_bytes
             FROM api_key_usage
             WHERE api_key_id = $1 AND timestamp >= $2 AND timestamp <= $3
-            "#,
+            ",
         )
         .bind(api_key_id)
         .bind(start_date)
@@ -349,13 +406,10 @@ impl Database {
         let successful_requests: i32 = stats.get(1);
         let failed_requests: i32 = stats.get(2);
         let total_response_time: Option<i64> = stats.get(3);
-        let _max_response_time: Option<i32> = stats.get(4);
-        let _total_request_bytes: Option<i64> = stats.get(5);
-        let _total_response_bytes: Option<i64> = stats.get(6);
 
         // Get tool usage aggregation
         let tool_usage_stats = sqlx::query(
-            r#"
+            r"
             SELECT tool_name, 
                    COUNT(*) as tool_count,
                    AVG(response_time_ms) as avg_response_time,
@@ -364,7 +418,7 @@ impl Database {
             WHERE api_key_id = $1 AND timestamp >= $2 AND timestamp <= $3
             GROUP BY tool_name
             ORDER BY tool_count DESC
-            "#,
+            ",
         )
         .bind(api_key_id)
         .bind(start_date)
@@ -385,7 +439,7 @@ impl Database {
                     "count": tool_count,
                     "success_count": success_count,
                     "avg_response_time_ms": avg_response_time.unwrap_or(0.0),
-                    "success_rate": if tool_count > 0 { success_count as f64 / tool_count as f64 } else { 0.0 }
+                    "success_rate": if tool_count > 0 { f64::from(success_count) / f64::from(tool_count) } else { 0.0 }
                 }),
             );
         }
@@ -394,18 +448,26 @@ impl Database {
             api_key_id: api_key_id.to_string(),
             period_start: start_date,
             period_end: end_date,
-            total_requests: total_requests as u32,
-            successful_requests: successful_requests as u32,
-            failed_requests: failed_requests as u32,
-            total_response_time_ms: total_response_time.map(|t| t as u64).unwrap_or(0),
+            total_requests: u32::try_from(total_requests)?,
+            successful_requests: u32::try_from(successful_requests)?,
+            failed_requests: u32::try_from(failed_requests)?,
+            total_response_time_ms: total_response_time
+                .map_or(0, |t| u64::try_from(t).unwrap_or(0)),
             tool_usage: serde_json::Value::Object(tool_usage),
         })
     }
 
-    /// Convert database row to ApiKey
-    fn row_to_api_key(row: sqlx::sqlite::SqliteRow) -> Result<ApiKey> {
+    /// Convert database row to `ApiKey`
+    fn row_to_api_key(row: &sqlx::sqlite::SqliteRow) -> Result<ApiKey> {
         let tier_str: String = row.get("tier");
         let tier = tier_str.parse::<ApiKeyTier>()?;
+
+        // Handle enterprise tier with unlimited requests (stored as NULL)
+        let rate_limit_requests = if tier == crate::api_keys::ApiKeyTier::Enterprise {
+            u32::MAX // Unlimited for enterprise
+        } else {
+            u32::try_from(row.get::<i32, _>("rate_limit_requests"))?
+        };
 
         Ok(ApiKey {
             id: row.get("id"),
@@ -415,8 +477,10 @@ impl Database {
             key_hash: row.get("key_hash"),
             key_prefix: row.get("key_prefix"),
             tier,
-            rate_limit_requests: row.get::<i32, _>("rate_limit_requests") as u32,
-            rate_limit_window_seconds: row.get::<i32, _>("rate_limit_window_seconds") as u32,
+            rate_limit_requests,
+            rate_limit_window_seconds: u32::try_from(
+                row.get::<i32, _>("rate_limit_window_seconds"),
+            )?,
             is_active: row.get("is_active"),
             expires_at: row.get("expires_at"),
             last_used_at: row.get("last_used_at"),
@@ -434,9 +498,12 @@ mod tests {
     async fn create_test_user(db: &Database) -> User {
         let user = User {
             id: Uuid::new_v4(),
-            email: format!("test_{}@example.com", Uuid::new_v4()),
-            display_name: Some("Test User".to_string()),
-            password_hash: "hashed".to_string(),
+            email: {
+                let uuid = Uuid::new_v4();
+                format!("test_{uuid}@example.com")
+            },
+            display_name: Some("Test User".into()),
+            password_hash: "hashed".into(),
             tier: UserTier::Professional,
             strava_token: None,
             fitbit_token: None,
@@ -460,8 +527,8 @@ mod tests {
         // Create API key
         let manager = ApiKeyManager::new();
         let request = crate::api_keys::CreateApiKeyRequest {
-            name: "Test Key".to_string(),
-            description: Some("Test API key".to_string()),
+            name: "Test Key".into(),
+            description: Some("Test API key".into()),
             tier: ApiKeyTier::Professional,
             rate_limit_requests: Some(1000),
             expires_in_days: Some(30),
@@ -469,7 +536,6 @@ mod tests {
 
         let (api_key, _raw_key) = manager
             .create_api_key(user.id, request)
-            .await
             .expect("Failed to create API key");
 
         // Store in database
@@ -500,7 +566,7 @@ mod tests {
         // Create API key
         let manager = ApiKeyManager::new();
         let request = crate::api_keys::CreateApiKeyRequest {
-            name: "Usage Test Key".to_string(),
+            name: "Usage Test Key".into(),
             description: None,
             tier: ApiKeyTier::Starter,
             rate_limit_requests: Some(100),
@@ -509,7 +575,6 @@ mod tests {
 
         let (api_key, _) = manager
             .create_api_key(user.id, request)
-            .await
             .expect("Failed to create API key");
 
         db.create_api_key(&api_key)
@@ -521,13 +586,13 @@ mod tests {
             id: None,
             api_key_id: api_key.id.clone(),
             timestamp: Utc::now(),
-            tool_name: "get_activities".to_string(),
+            tool_name: "get_activities".into(),
             status_code: 200,
             response_time_ms: Some(50),
             request_size_bytes: Some(256),
             response_size_bytes: Some(1024),
             ip_address: Some(crate::constants::demo_data::TEST_IP_ADDRESS.to_string()),
-            user_agent: Some("TestAgent/1.0".to_string()),
+            user_agent: Some("TestAgent/1.0".into()),
             error_message: None,
         };
 
@@ -568,17 +633,20 @@ mod tests {
         // Create expired API key - use a clearly expired timestamp
         let unique_id = Uuid::new_v4();
         let api_key = ApiKey {
-            id: format!("test_{}", unique_id),
+            id: format!("test_{unique_id}"),
             user_id: user.id,
-            name: format!("Expired Key {}", unique_id),
+            name: format!("Expired Key {unique_id}"),
             description: None,
-            key_hash: format!("expired_hash_{}", unique_id),
-            key_prefix: format!("exp_{}_", unique_id.simple()),
+            key_hash: format!("expired_hash_{unique_id}"),
+            key_prefix: {
+                let simple_id = unique_id.simple();
+                format!("exp_{simple_id}_")
+            },
             tier: ApiKeyTier::Trial,
             rate_limit_requests: 10,
             rate_limit_window_seconds: 3600,
             is_active: true,
-            expires_at: Some(DateTime::from_timestamp(1000000000, 0).unwrap()), // Year 2001 - clearly expired
+            expires_at: Some(DateTime::from_timestamp(1_000_000_000, 0).unwrap()), // Year 2001 - clearly expired
             last_used_at: None,
             created_at: Utc::now() - Duration::days(1),
         };

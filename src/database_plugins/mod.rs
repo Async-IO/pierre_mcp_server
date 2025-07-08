@@ -1,7 +1,5 @@
-//! Database abstraction layer for Pierre MCP Server
-//!
-//! This module provides a plugin architecture for database support,
-//! allowing easy switching between SQLite (local) and PostgreSQL (cloud).
+// ABOUTME: Database abstraction layer for Pierre MCP Server
+// ABOUTME: Plugin architecture for database support with SQLite and PostgreSQL backends
 
 use crate::a2a::auth::A2AClient;
 use crate::a2a::client::A2ASession;
@@ -114,6 +112,12 @@ pub trait DatabaseProvider: Send + Sync + Clone {
 
     /// Update progress on a goal
     async fn update_goal_progress(&self, goal_id: &str, current_value: f64) -> Result<()>;
+
+    /// Get user configuration data
+    async fn get_user_configuration(&self, user_id: &str) -> Result<Option<String>>;
+
+    /// Save user configuration data
+    async fn save_user_configuration(&self, user_id: &str, config_json: &str) -> Result<()>;
 
     // ================================
     // Insights & Analytics

@@ -2,13 +2,32 @@
 // ABOUTME: Generates custom workout plans, recovery suggestions, and training adaptations
 //! Training recommendation engine for personalized insights
 
-use super::*;
+use super::{
+    Confidence, FitnessLevel, InsightSeverity, RecommendationPriority, RecommendationType,
+    TrainingRecommendation, UserFitnessProfile,
+};
 use crate::config::intelligence_config::{
     IntelligenceConfig, IntelligenceStrategy, RecommendationEngineConfig,
 };
 use crate::intelligence::physiological_constants::{
-    consistency::*, frequency_targets::*, hr_estimation::*, intensity_balance::*, nutrition::*,
-    time_periods::*, volume_thresholds::*,
+    consistency::CONSISTENCY_SCORE_THRESHOLD,
+    frequency_targets::MAX_WEEKLY_FREQUENCY,
+    hr_estimation::{ASSUMED_MAX_HR, RECOVERY_HR_PERCENTAGE},
+    intensity_balance::{
+        HIGH_INTENSITY_UPPER_LIMIT, LOW_INTENSITY_LOWER_LIMIT, MODERATE_NUTRITION_HR_THRESHOLD,
+    },
+    nutrition::{
+        DURING_EXERCISE_DURATION_THRESHOLD, POST_EXERCISE_DURATION_THRESHOLD,
+        PRE_EXERCISE_DURATION_THRESHOLD,
+    },
+    time_periods::{
+        LONG_TRAINING_GAP_DAYS, MAX_CONSECUTIVE_TRAINING_DAYS, RECOVERY_ANALYSIS_DAYS,
+        SHORT_TRAINING_GAP_DAYS, TRAINING_PATTERN_ANALYSIS_WEEKS,
+    },
+    volume_thresholds::{
+        HIGH_WEEKLY_LOAD_SECONDS, HIGH_WEEKLY_VOLUME_HOURS, MAX_HIGH_INTENSITY_SESSIONS_PER_WEEK,
+        MIN_WEEKLY_VOLUME_HOURS,
+    },
 };
 use crate::models::Activity;
 use anyhow::Result;
@@ -62,6 +81,7 @@ impl Default for AdvancedRecommendationEngine {
 
 impl AdvancedRecommendationEngine {
     /// Create a new recommendation engine with default strategy
+    #[must_use]
     pub fn new() -> Self {
         let global_config = IntelligenceConfig::global();
         Self {
@@ -74,6 +94,7 @@ impl AdvancedRecommendationEngine {
 
 impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
     /// Create a new recommendation engine with custom strategy
+    #[must_use]
     pub fn with_strategy(strategy: S) -> Self {
         let global_config = IntelligenceConfig::global();
         Self {
@@ -84,7 +105,8 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
     }
 
     /// Create with custom configuration
-    pub fn with_config(strategy: S, config: RecommendationEngineConfig) -> Self {
+    #[must_use]
+    pub const fn with_config(strategy: S, config: RecommendationEngineConfig) -> Self {
         Self {
             strategy,
             config,
@@ -93,6 +115,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
     }
 
     /// Create engine with user profile using default strategy
+    #[must_use]
     pub fn with_profile(profile: UserFitnessProfile) -> AdvancedRecommendationEngine {
         let global_config = IntelligenceConfig::global();
         AdvancedRecommendationEngine {
@@ -132,14 +155,25 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
                 .or_insert(0) += 1;
 
             let duration = activity.duration_seconds;
-            weekly_load += duration as f64 / 3600.0; // Hours
+            #[allow(clippy::cast_precision_loss)]
+            {
+                weekly_load += duration as f64 / 3600.0;
+            } // Hours
             _total_duration += duration;
 
             if let Some(avg_hr) = activity.average_heart_rate {
                 // Use configurable heart rate thresholds
                 let hr_config = &self.config.thresholds;
-                let intensity_threshold = (hr_config.intensity_threshold * ASSUMED_MAX_HR) as u32;
-                let recovery_threshold = (RECOVERY_HR_PERCENTAGE * ASSUMED_MAX_HR) as u32;
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                let intensity_threshold = {
+                    u32::try_from((hr_config.intensity_threshold * ASSUMED_MAX_HR) as u64)
+                        .unwrap_or(u32::MAX)
+                };
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                let recovery_threshold = {
+                    u32::try_from((RECOVERY_HR_PERCENTAGE * ASSUMED_MAX_HR) as u64)
+                        .unwrap_or(u32::MAX)
+                };
 
                 if avg_hr > intensity_threshold {
                     high_intensity_count += 1;
@@ -151,19 +185,35 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
 
         weekly_load /= 4.0; // Average per week
 
-        let intensity_balance = if !recent_activities.is_empty() {
-            high_intensity_count as f64 / recent_activities.len() as f64
-        } else {
+        let intensity_balance = if recent_activities.is_empty() {
             0.0
+        } else {
+            #[allow(clippy::cast_precision_loss)]
+            {
+                f64::from(high_intensity_count) / recent_activities.len() as f64
+            }
         };
 
         // Use configurable frequency thresholds for consistency scoring
-        let high_freq = (self.config.thresholds.high_weekly_frequency * 4) as usize; // 4 weeks
-        let low_freq = (self.config.thresholds.low_weekly_frequency * 4) as usize;
-        let ideal_freq = ((self.config.thresholds.high_weekly_frequency
-            + self.config.thresholds.low_weekly_frequency)
-            / 2
-            * 4) as usize;
+        #[allow(clippy::cast_possible_truncation)]
+        let high_freq = usize::try_from(
+            (f64::from(self.config.thresholds.high_weekly_frequency) * 4.0).round() as i64,
+        )
+        .unwrap_or(usize::MAX); // 4 weeks
+        #[allow(clippy::cast_possible_truncation)]
+        let low_freq = usize::try_from(
+            (f64::from(self.config.thresholds.low_weekly_frequency) * 4.0).round() as i64,
+        )
+        .unwrap_or(usize::MAX);
+        #[allow(clippy::cast_possible_truncation)]
+        let ideal_freq = usize::try_from(
+            (f64::midpoint(
+                f64::from(self.config.thresholds.high_weekly_frequency),
+                f64::from(self.config.thresholds.low_weekly_frequency),
+            ) * 4.0)
+                .round() as i64,
+        )
+        .unwrap_or(usize::MAX);
 
         let consistency_score = if recent_activities.len() >= high_freq {
             self.config.thresholds.consistency_threshold
@@ -185,8 +235,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
             primary_sport: sport_frequency
                 .iter()
                 .max_by_key(|(_, &count)| count)
-                .map(|(sport, _)| sport.clone())
-                .unwrap_or_else(|| "Unknown".to_string()),
+                .map_or_else(|| "Unknown".into(), |(sport, _)| sport.clone()),
             training_gaps: self.identify_training_gaps(&owned_activities),
         }
     }
@@ -216,7 +265,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
                 gaps.push(TrainingGap {
                     gap_type: GapType::LongRest,
                     duration_days: gap_days,
-                    description: format!("{} days without training", gap_days),
+                    description: format!("{gap_days} days without training"),
                     severity: if gap_days > LONG_TRAINING_GAP_DAYS {
                         InsightSeverity::Warning
                     } else {
@@ -234,13 +283,12 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
             for primary_sport in &profile.primary_sports {
                 // Convert string to SportType for comparison - this is simplified
                 if sports.is_empty() {
-                    // Just check if sports exist for now
+                    // Check if sports exist in activity history
                     gaps.push(TrainingGap {
                         gap_type: GapType::MissingSport,
                         duration_days: 0,
                         description: format!(
-                            "Missing {} training in recent activities",
-                            primary_sport
+                            "Missing {primary_sport} training in recent activities"
                         ),
                         severity: InsightSeverity::Info,
                     });
@@ -268,35 +316,38 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
         {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Volume,
-                title: "Strategy-Based Volume Increase".to_string(),
-                description: "Your current strategy suggests increasing training volume based on your profile.".to_string(),
+                title: "Strategy-Based Volume Increase".into(),
+                description: "Your current strategy suggests increasing training volume based on your profile.".into(),
                 priority: RecommendationPriority::Medium,
                 confidence: Confidence::High,
-                rationale: "Strategic volume increases are tailored to your current fitness level and goals.".to_string(),
+                rationale: "Strategic volume increases are tailored to your current fitness level and goals.".into(),
                 actionable_steps: vec![
-                    "Follow your strategy's volume progression guidelines".to_string(),
-                    "Increase volume gradually as recommended by your training approach".to_string(),
-                    "Monitor adaptation and adjust based on response".to_string(),
+                    "Follow your strategy's volume progression guidelines".into(),
+                    "Increase volume gradually as recommended by your training approach".into(),
+                    "Monitor adaptation and adjust based on response".into(),
                 ],
             });
         }
 
         // Use strategy frequency thresholds
         // Estimate weekly activities based on intensity threshold
-        let weekly_activities =
-            (analysis.weekly_load_hours / self.config.thresholds.intensity_threshold).ceil() as i32;
+        #[allow(clippy::cast_possible_truncation)]
+        let weekly_activities = i32::try_from(
+            (analysis.weekly_load_hours / self.config.thresholds.intensity_threshold).ceil() as i64,
+        )
+        .unwrap_or(i32::MAX);
         if self.strategy.should_recommend_recovery(weekly_activities) {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Recovery,
-                title: "Strategy-Based Recovery Focus".to_string(),
-                description: "Your training strategy recommends focusing on recovery based on current frequency.".to_string(),
+                title: "Strategy-Based Recovery Focus".into(),
+                description: "Your training strategy recommends focusing on recovery based on current frequency.".into(),
                 priority: RecommendationPriority::High,
                 confidence: Confidence::High,
-                rationale: "Strategic recovery prevents overtraining and optimizes long-term performance gains.".to_string(),
+                rationale: "Strategic recovery prevents overtraining and optimizes long-term performance gains.".into(),
                 actionable_steps: vec![
-                    "Reduce training frequency as per your strategy guidelines".to_string(),
-                    "Include more recovery-focused activities".to_string(),
-                    "Prioritize sleep and stress management".to_string(),
+                    "Reduce training frequency as per your strategy guidelines".into(),
+                    "Include more recovery-focused activities".into(),
+                    "Prioritize sleep and stress management".into(),
                 ],
             });
         }
@@ -304,9 +355,8 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
         recommendations
     }
 
-    /// Generate sport diversity recommendations using sport_diversity and primary_sport fields
+    /// Generate sport diversity recommendations using `sport_diversity` and `primary_sport` fields
     fn generate_sport_diversity_recommendations(
-        &self,
         analysis: &TrainingPatternAnalysis,
     ) -> Vec<TrainingRecommendation> {
         let mut recommendations = Vec::new();
@@ -315,29 +365,29 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
         if analysis.sport_diversity <= 1 {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Strategy,
-                title: "Increase Sport Diversity".to_string(),
+                title: "Increase Sport Diversity".into(),
                 description: format!("You're primarily focused on {}. Consider adding cross-training activities.", analysis.primary_sport),
                 priority: RecommendationPriority::Medium,
                 confidence: Confidence::Medium,
-                rationale: "Sport diversity helps prevent overuse injuries and provides balanced fitness development.".to_string(),
+                rationale: "Sport diversity helps prevent overuse injuries and provides balanced fitness development.".into(),
                 actionable_steps: vec![
-                    "Add one complementary sport to your routine".to_string(),
-                    "Try swimming, cycling, or running as cross-training".to_string(),
-                    "Use different sports for active recovery days".to_string(),
+                    "Add one complementary sport to your routine".into(),
+                    "Try swimming, cycling, or running as cross-training".into(),
+                    "Use different sports for active recovery days".into(),
                 ],
             });
         } else if analysis.sport_diversity >= 4 {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Strategy,
-                title: "Focus Training Specificity".to_string(),
+                title: "Focus Training Specificity".into(),
                 description: format!("You're training in {} different sports. Consider focusing more on your primary sport: {}.", analysis.sport_diversity, analysis.primary_sport),
                 priority: RecommendationPriority::Low,
                 confidence: Confidence::Medium,
-                rationale: "While cross-training is beneficial, too much diversity may limit specific performance gains.".to_string(),
+                rationale: "While cross-training is beneficial, too much diversity may limit specific performance gains.".into(),
                 actionable_steps: vec![
                     format!("Increase focus on {} training sessions", analysis.primary_sport),
-                    "Maintain 1-2 complementary sports for variety".to_string(),
-                    "Ensure primary sport gets 60-70% of training time".to_string(),
+                    "Maintain 1-2 complementary sports for variety".into(),
+                    "Ensure primary sport gets 60-70% of training time".into(),
                 ],
             });
         }
@@ -347,7 +397,6 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
 
     /// Generate intensity-based recommendations
     fn generate_intensity_recommendations(
-        &self,
         analysis: &TrainingPatternAnalysis,
     ) -> Vec<TrainingRecommendation> {
         let mut recommendations = Vec::new();
@@ -355,29 +404,29 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
         if analysis.intensity_balance > HIGH_INTENSITY_UPPER_LIMIT {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Intensity,
-                title: "Add More Easy Training".to_string(),
-                description: "Your training intensity is quite high. Consider adding more low-intensity, base-building sessions.".to_string(),
+                title: "Add More Easy Training".into(),
+                description: "Your training intensity is quite high. Consider adding more low-intensity, base-building sessions.".into(),
                 priority: RecommendationPriority::High,
                 confidence: Confidence::High,
-                rationale: "High-intensity training should typically make up only 20-30% of total training volume for optimal adaptation and recovery.".to_string(),
+                rationale: "High-intensity training should typically make up only 20-30% of total training volume for optimal adaptation and recovery.".into(),
                 actionable_steps: vec![
-                    "Add 1-2 easy-paced sessions per week".to_string(),
-                    "Keep heart rate below aerobic threshold (Zone 2)".to_string(),
-                    "Focus on conversational pace".to_string(),
+                    "Add 1-2 easy-paced sessions per week".into(),
+                    "Keep heart rate below aerobic threshold (Zone 2)".into(),
+                    "Focus on conversational pace".into(),
                 ],
             });
         } else if analysis.intensity_balance < LOW_INTENSITY_LOWER_LIMIT {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Intensity,
-                title: "Increase Training Intensity".to_string(),
-                description: "Your training could benefit from more high-intensity sessions to improve performance.".to_string(),
+                title: "Increase Training Intensity".into(),
+                description: "Your training could benefit from more high-intensity sessions to improve performance.".into(),
                 priority: RecommendationPriority::Medium,
                 confidence: Confidence::Medium,
-                rationale: "Including 20-30% high-intensity training can improve VO2 max, lactate threshold, and overall performance.".to_string(),
+                rationale: "Including 20-30% high-intensity training can improve VO2 max, lactate threshold, and overall performance.".into(),
                 actionable_steps: vec![
-                    "Add 1 interval session per week".to_string(),
-                    "Include tempo runs or threshold workouts".to_string(),
-                    "Ensure proper recovery between hard sessions".to_string(),
+                    "Add 1 interval session per week".into(),
+                    "Include tempo runs or threshold workouts".into(),
+                    "Ensure proper recovery between hard sessions".into(),
                 ],
             });
         }
@@ -387,7 +436,6 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
 
     /// Generate volume-based recommendations
     fn generate_volume_recommendations(
-        &self,
         analysis: &TrainingPatternAnalysis,
     ) -> Vec<TrainingRecommendation> {
         let mut recommendations = Vec::new();
@@ -395,29 +443,29 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
         if analysis.weekly_load_hours < MIN_WEEKLY_VOLUME_HOURS {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Volume,
-                title: "Gradually Increase Training Volume".to_string(),
-                description: "Your current training volume could be increased for better fitness gains.".to_string(),
+                title: "Gradually Increase Training Volume".into(),
+                description: "Your current training volume could be increased for better fitness gains.".into(),
                 priority: RecommendationPriority::Medium,
                 confidence: Confidence::Medium,
-                rationale: "Gradual volume increases of 10% per week can lead to improved fitness while minimizing injury risk.".to_string(),
+                rationale: "Gradual volume increases of 10% per week can lead to improved fitness while minimizing injury risk.".into(),
                 actionable_steps: vec![
-                    "Add 15-20 minutes to your longest session each week".to_string(),
-                    "Include one additional short session per week".to_string(),
-                    "Monitor for signs of overtraining".to_string(),
+                    "Add 15-20 minutes to your longest session each week".into(),
+                    "Include one additional short session per week".into(),
+                    "Monitor for signs of overtraining".into(),
                 ],
             });
         } else if analysis.weekly_load_hours > HIGH_WEEKLY_VOLUME_HOURS {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Volume,
-                title: "Monitor Training Load".to_string(),
-                description: "High training volume detected. Ensure adequate recovery and listen to your body.".to_string(),
+                title: "Monitor Training Load".into(),
+                description: "High training volume detected. Ensure adequate recovery and listen to your body.".into(),
                 priority: RecommendationPriority::High,
                 confidence: Confidence::High,
-                rationale: "Very high training loads increase injury risk and may lead to overtraining if recovery is inadequate.".to_string(),
+                rationale: "Very high training loads increase injury risk and may lead to overtraining if recovery is inadequate.".into(),
                 actionable_steps: vec![
-                    "Schedule regular recovery weeks".to_string(),
-                    "Monitor heart rate variability".to_string(),
-                    "Prioritize sleep and nutrition".to_string(),
+                    "Schedule regular recovery weeks".into(),
+                    "Monitor heart rate variability".into(),
+                    "Prioritize sleep and nutrition".into(),
                 ],
             });
         }
@@ -427,7 +475,6 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
 
     /// Generate consistency recommendations
     fn generate_consistency_recommendations(
-        &self,
         analysis: &TrainingPatternAnalysis,
     ) -> Vec<TrainingRecommendation> {
         let mut recommendations = Vec::new();
@@ -435,16 +482,16 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
         if analysis.consistency_score < CONSISTENCY_SCORE_THRESHOLD {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Strategy,
-                title: "Improve Training Consistency".to_string(),
-                description: "Focus on building a more consistent training routine for better adaptations.".to_string(),
+                title: "Improve Training Consistency".into(),
+                description: "Focus on building a more consistent training routine for better adaptations.".into(),
                 priority: RecommendationPriority::High,
                 confidence: Confidence::High,
-                rationale: "Consistent training stimulus is more effective than sporadic high-intensity efforts for long-term fitness gains.".to_string(),
+                rationale: "Consistent training stimulus is more effective than sporadic high-intensity efforts for long-term fitness gains.".into(),
                 actionable_steps: vec![
-                    "Schedule fixed training days in your calendar".to_string(),
-                    "Start with shorter, manageable sessions".to_string(),
-                    "Find an accountability partner or group".to_string(),
-                    "Track your progress to stay motivated".to_string(),
+                    "Schedule fixed training days in your calendar".into(),
+                    "Start with shorter, manageable sessions".into(),
+                    "Find an accountability partner or group".into(),
+                    "Track your progress to stay motivated".into(),
                 ],
             });
         }
@@ -457,20 +504,20 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
                         let priority = match gap.severity {
                             InsightSeverity::Warning => RecommendationPriority::High,
                             InsightSeverity::Info => RecommendationPriority::Medium,
-                            _ => RecommendationPriority::Low,
+                            InsightSeverity::Critical => RecommendationPriority::Low,
                         };
 
                         recommendations.push(TrainingRecommendation {
                             recommendation_type: RecommendationType::Strategy,
-                            title: "Avoid Long Training Breaks".to_string(),
+                            title: "Avoid Long Training Breaks".into(),
                             description: format!("Recent {} gap detected. Try to maintain more consistent activity.", gap.description),
                             priority,
                             confidence: Confidence::Medium,
-                            rationale: "Training breaks longer than a week can lead to fitness losses and increased injury risk when resuming.".to_string(),
+                            rationale: "Training breaks longer than a week can lead to fitness losses and increased injury risk when resuming.".into(),
                             actionable_steps: vec![
-                                "Aim for at least one activity every 5-7 days".to_string(),
-                                "Use easy sessions to maintain base fitness".to_string(),
-                                "Plan ahead for busy periods".to_string(),
+                                "Aim for at least one activity every 5-7 days".into(),
+                                "Use easy sessions to maintain base fitness".into(),
+                                "Plan ahead for busy periods".into(),
                             ],
                         });
                     }
@@ -479,21 +526,22 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
                     // Use severity field to determine recommendation priority
                     let priority = match gap.severity {
                         InsightSeverity::Warning => RecommendationPriority::Medium,
-                        InsightSeverity::Info => RecommendationPriority::Low,
-                        _ => RecommendationPriority::Low,
+                        InsightSeverity::Info | InsightSeverity::Critical => {
+                            RecommendationPriority::Low
+                        }
                     };
 
                     recommendations.push(TrainingRecommendation {
                         recommendation_type: RecommendationType::Strategy,
-                        title: "Include Cross-Training".to_string(),
+                        title: "Include Cross-Training".into(),
                         description: gap.description.clone(),
                         priority,
                         confidence: Confidence::Medium,
-                        rationale: "Cross-training helps prevent overuse injuries and maintains overall fitness.".to_string(),
+                        rationale: "Cross-training helps prevent overuse injuries and maintains overall fitness.".into(),
                         actionable_steps: vec![
-                            "Add 1 cross-training session per week".to_string(),
-                            "Choose activities that complement your primary sport".to_string(),
-                            "Use cross-training for active recovery".to_string(),
+                            "Add 1 cross-training session per week".into(),
+                            "Choose activities that complement your primary sport".into(),
+                            "Use cross-training for active recovery".into(),
                         ],
                     });
                 }
@@ -517,63 +565,63 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
         let analysis = self.analyze_training_patterns(activities);
 
         // Generate different types of recommendations
-        recommendations.extend(self.generate_intensity_recommendations(&analysis));
-        recommendations.extend(self.generate_volume_recommendations(&analysis));
-        recommendations.extend(self.generate_consistency_recommendations(&analysis));
+        recommendations.extend(Self::generate_intensity_recommendations(&analysis));
+        recommendations.extend(Self::generate_volume_recommendations(&analysis));
+        recommendations.extend(Self::generate_consistency_recommendations(&analysis));
 
         // Add strategy-specific recommendations using the strategy field
         recommendations.extend(self.generate_strategy_based_recommendations(&analysis));
 
         // Add sport diversity recommendations using sport_diversity and primary_sport fields
-        recommendations.extend(self.generate_sport_diversity_recommendations(&analysis));
+        recommendations.extend(Self::generate_sport_diversity_recommendations(&analysis));
 
         // Fitness level specific recommendations
         match user_profile.fitness_level {
             FitnessLevel::Beginner => {
                 recommendations.push(TrainingRecommendation {
                     recommendation_type: RecommendationType::Strategy,
-                    title: "Focus on Building Base Fitness".to_string(),
-                    description: "Prioritize consistency and gradual progression over intensity.".to_string(),
+                    title: "Focus on Building Base Fitness".into(),
+                    description: "Prioritize consistency and gradual progression over intensity.".into(),
                     priority: RecommendationPriority::High,
                     confidence: Confidence::High,
-                    rationale: "Building a strong aerobic base is crucial for beginners to support future training adaptations.".to_string(),
+                    rationale: "Building a strong aerobic base is crucial for beginners to support future training adaptations.".into(),
                     actionable_steps: vec![
-                        "Start with 20-30 minute easy sessions".to_string(),
-                        "Gradually increase duration by 10% each week".to_string(),
-                        "Include rest days between sessions".to_string(),
-                        "Focus on proper form and technique".to_string(),
+                        "Start with 20-30 minute easy sessions".into(),
+                        "Gradually increase duration by 10% each week".into(),
+                        "Include rest days between sessions".into(),
+                        "Focus on proper form and technique".into(),
                     ],
                 });
             }
             FitnessLevel::Intermediate => {
                 recommendations.push(TrainingRecommendation {
                     recommendation_type: RecommendationType::Strategy,
-                    title: "Introduce Structured Training".to_string(),
-                    description: "Add periodization and specific training phases to your routine.".to_string(),
+                    title: "Introduce Structured Training".into(),
+                    description: "Add periodization and specific training phases to your routine.".into(),
                     priority: RecommendationPriority::Medium,
                     confidence: Confidence::High,
-                    rationale: "Structured training helps intermediate athletes break through plateaus and continue improving.".to_string(),
+                    rationale: "Structured training helps intermediate athletes break through plateaus and continue improving.".into(),
                     actionable_steps: vec![
-                        "Plan 4-6 week training blocks".to_string(),
-                        "Include base, build, and peak phases".to_string(),
-                        "Add sport-specific skill work".to_string(),
-                        "Monitor training stress and recovery".to_string(),
+                        "Plan 4-6 week training blocks".into(),
+                        "Include base, build, and peak phases".into(),
+                        "Add sport-specific skill work".into(),
+                        "Monitor training stress and recovery".into(),
                     ],
                 });
             }
             FitnessLevel::Advanced | FitnessLevel::Elite => {
                 recommendations.push(TrainingRecommendation {
                     recommendation_type: RecommendationType::Strategy,
-                    title: "Optimize Training Specificity".to_string(),
-                    description: "Fine-tune training to target specific performance limiters.".to_string(),
+                    title: "Optimize Training Specificity".into(),
+                    description: "Fine-tune training to target specific performance limiters.".into(),
                     priority: RecommendationPriority::Medium,
                     confidence: Confidence::Medium,
-                    rationale: "Advanced athletes benefit from highly specific training targeting individual weaknesses and performance goals.".to_string(),
+                    rationale: "Advanced athletes benefit from highly specific training targeting individual weaknesses and performance goals.".into(),
                     actionable_steps: vec![
-                        "Conduct regular performance testing".to_string(),
-                        "Identify and target limiting factors".to_string(),
-                        "Use advanced training metrics (power, pace zones)".to_string(),
-                        "Include mental training and race tactics".to_string(),
+                        "Conduct regular performance testing".into(),
+                        "Identify and target limiting factors".into(),
+                        "Use advanced training metrics (power, pace zones)".into(),
+                        "Include mental training and race tactics".into(),
                     ],
                 });
             }
@@ -633,36 +681,36 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
             // >5 hours or >3 hard sessions
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Recovery,
-                title: "Prioritize Recovery This Week".to_string(),
-                description: "High training load detected. Focus on recovery activities.".to_string(),
+                title: "Prioritize Recovery This Week".into(),
+                description: "High training load detected. Focus on recovery activities.".into(),
                 priority: RecommendationPriority::High,
                 confidence: Confidence::High,
-                rationale: "Adequate recovery prevents overtraining and allows for training adaptations to occur.".to_string(),
+                rationale: "Adequate recovery prevents overtraining and allows for training adaptations to occur.".into(),
                 actionable_steps: vec![
-                    "Include at least 2 complete rest days".to_string(),
-                    "Add gentle yoga or stretching sessions".to_string(),
-                    "Prioritize 8+ hours of sleep".to_string(),
-                    "Consider massage or foam rolling".to_string(),
-                    "Stay hydrated and eat adequate protein".to_string(),
+                    "Include at least 2 complete rest days".into(),
+                    "Add gentle yoga or stretching sessions".into(),
+                    "Prioritize 8+ hours of sleep".into(),
+                    "Consider massage or foam rolling".into(),
+                    "Stay hydrated and eat adequate protein".into(),
                 ],
             });
         }
 
         // Check for consecutive training days
-        let consecutive_days = self.count_consecutive_training_days(&owned_activities);
+        let consecutive_days = Self::count_consecutive_training_days(&owned_activities);
         if consecutive_days > MAX_CONSECUTIVE_TRAINING_DAYS {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Recovery,
-                title: "Take a Rest Day".to_string(),
-                description: format!("{} consecutive training days detected.", consecutive_days),
+                title: "Take a Rest Day".into(),
+                description: format!("{consecutive_days} consecutive training days detected."),
                 priority: RecommendationPriority::Medium,
                 confidence: Confidence::High,
                 rationale: "Regular rest days are essential for physical and mental recovery."
                     .to_string(),
                 actionable_steps: vec![
-                    "Schedule a complete rest day today".to_string(),
-                    "Focus on nutrition and hydration".to_string(),
-                    "Light walking or gentle stretching only".to_string(),
+                    "Schedule a complete rest day today".into(),
+                    "Focus on nutrition and hydration".into(),
+                    "Light walking or gentle stretching only".into(),
                 ],
             });
         }
@@ -676,6 +724,7 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
     ) -> Result<Vec<TrainingRecommendation>> {
         let mut recommendations = Vec::new();
 
+        #[allow(clippy::cast_precision_loss)]
         let duration_hours = activity.duration_seconds as f64 / 3600.0;
         let high_intensity =
             activity.average_heart_rate.unwrap_or(0) > MODERATE_NUTRITION_HR_THRESHOLD;
@@ -684,16 +733,16 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
         if duration_hours > PRE_EXERCISE_DURATION_THRESHOLD {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Nutrition,
-                title: "Pre-Exercise Fueling".to_string(),
-                description: "Proper pre-exercise nutrition for longer sessions.".to_string(),
+                title: "Pre-Exercise Fueling".into(),
+                description: "Proper pre-exercise nutrition for longer sessions.".into(),
                 priority: RecommendationPriority::Medium,
                 confidence: Confidence::High,
-                rationale: "Adequate carbohydrate intake before longer sessions maintains energy levels and performance.".to_string(),
+                rationale: "Adequate carbohydrate intake before longer sessions maintains energy levels and performance.".into(),
                 actionable_steps: vec![
-                    "Eat 30-60g carbohydrates 1-2 hours before exercise".to_string(),
-                    "Include easily digestible foods (banana, oatmeal, toast)".to_string(),
-                    "Avoid high fiber and fat before training".to_string(),
-                    "Stay hydrated leading up to exercise".to_string(),
+                    "Eat 30-60g carbohydrates 1-2 hours before exercise".into(),
+                    "Include easily digestible foods (banana, oatmeal, toast)".into(),
+                    "Avoid high fiber and fat before training".into(),
+                    "Stay hydrated leading up to exercise".into(),
                 ],
             });
         }
@@ -702,16 +751,16 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
         if duration_hours > DURING_EXERCISE_DURATION_THRESHOLD {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Nutrition,
-                title: "In-Exercise Fueling".to_string(),
-                description: "Maintain energy during long training sessions.".to_string(),
+                title: "In-Exercise Fueling".into(),
+                description: "Maintain energy during long training sessions.".into(),
                 priority: RecommendationPriority::High,
                 confidence: Confidence::High,
-                rationale: "Consuming carbohydrates during exercise >2 hours prevents glycogen depletion and maintains performance.".to_string(),
+                rationale: "Consuming carbohydrates during exercise >2 hours prevents glycogen depletion and maintains performance.".into(),
                 actionable_steps: vec![
-                    "Consume 30-60g carbohydrates per hour after the first hour".to_string(),
-                    "Use sports drinks, gels, or easily digestible snacks".to_string(),
-                    "Drink 150-250ml fluid every 15-20 minutes".to_string(),
-                    "Practice fueling strategy during training".to_string(),
+                    "Consume 30-60g carbohydrates per hour after the first hour".into(),
+                    "Use sports drinks, gels, or easily digestible snacks".into(),
+                    "Drink 150-250ml fluid every 15-20 minutes".into(),
+                    "Practice fueling strategy during training".into(),
                 ],
             });
         }
@@ -720,16 +769,16 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
         if duration_hours > POST_EXERCISE_DURATION_THRESHOLD || high_intensity {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Nutrition,
-                title: "Post-Exercise Recovery Nutrition".to_string(),
-                description: "Optimize recovery with proper post-exercise nutrition.".to_string(),
+                title: "Post-Exercise Recovery Nutrition".into(),
+                description: "Optimize recovery with proper post-exercise nutrition.".into(),
                 priority: RecommendationPriority::Medium,
                 confidence: Confidence::High,
-                rationale: "Post-exercise nutrition within 30-60 minutes optimizes glycogen replenishment and muscle protein synthesis.".to_string(),
+                rationale: "Post-exercise nutrition within 30-60 minutes optimizes glycogen replenishment and muscle protein synthesis.".into(),
                 actionable_steps: vec![
-                    "Consume 1-1.2g carbohydrates per kg body weight within 30 minutes".to_string(),
-                    "Include 20-25g high-quality protein".to_string(),
-                    "Rehydrate with 150% of fluid losses".to_string(),
-                    "Consider chocolate milk, recovery smoothie, or balanced meal".to_string(),
+                    "Consume 1-1.2g carbohydrates per kg body weight within 30 minutes".into(),
+                    "Include 20-25g high-quality protein".into(),
+                    "Rehydrate with 150% of fluid losses".into(),
+                    "Consider chocolate milk, recovery smoothie, or balanced meal".into(),
                 ],
             });
         }
@@ -753,56 +802,59 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
         }
 
         // Running-specific equipment
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         if sport_counts.get("Run").unwrap_or(&0) > &(MAX_WEEKLY_FREQUENCY as usize) {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Equipment,
-                title: "Running Equipment Optimization".to_string(),
-                description: "Optimize your running gear for better performance and injury prevention.".to_string(),
+                title: "Running Equipment Optimization".into(),
+                description: "Optimize your running gear for better performance and injury prevention.".into(),
                 priority: RecommendationPriority::Medium,
                 confidence: Confidence::Medium,
-                rationale: "Proper running equipment reduces injury risk and can improve performance and comfort.".to_string(),
+                rationale: "Proper running equipment reduces injury risk and can improve performance and comfort.".into(),
                 actionable_steps: vec![
-                    "Get professional gait analysis and shoe fitting".to_string(),
-                    "Replace running shoes every 500-800km".to_string(),
-                    "Consider moisture-wicking clothing for longer runs".to_string(),
-                    "Use GPS watch or smartphone app for pacing".to_string(),
+                    "Get professional gait analysis and shoe fitting".into(),
+                    "Replace running shoes every 500-800km".into(),
+                    "Consider moisture-wicking clothing for longer runs".into(),
+                    "Use GPS watch or smartphone app for pacing".into(),
                 ],
             });
         }
 
         // Cycling-specific equipment
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         if sport_counts.get("Ride").unwrap_or(&0) > &(MAX_WEEKLY_FREQUENCY as usize) {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Equipment,
-                title: "Cycling Equipment Optimization".to_string(),
-                description: "Enhance your cycling setup for efficiency and comfort.".to_string(),
+                title: "Cycling Equipment Optimization".into(),
+                description: "Enhance your cycling setup for efficiency and comfort.".into(),
                 priority: RecommendationPriority::Medium,
                 confidence: Confidence::Medium,
-                rationale: "Proper bike fit and equipment can significantly improve cycling efficiency and reduce injury risk.".to_string(),
+                rationale: "Proper bike fit and equipment can significantly improve cycling efficiency and reduce injury risk.".into(),
                 actionable_steps: vec![
-                    "Get professional bike fit assessment".to_string(),
-                    "Ensure proper helmet fit and replacement schedule".to_string(),
-                    "Consider power meter for training precision".to_string(),
-                    "Maintain bike regularly for optimal performance".to_string(),
+                    "Get professional bike fit assessment".into(),
+                    "Ensure proper helmet fit and replacement schedule".into(),
+                    "Consider power meter for training precision".into(),
+                    "Maintain bike regularly for optimal performance".into(),
                 ],
             });
         }
 
         // General monitoring equipment
         let has_hr_data = activities.iter().any(|a| a.average_heart_rate.is_some());
-        if !has_hr_data && activities.len() > MAX_WEEKLY_FREQUENCY as usize {
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        if !has_hr_data && activities.len() > (MAX_WEEKLY_FREQUENCY as usize) {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Equipment,
-                title: "Heart Rate Monitoring".to_string(),
-                description: "Consider adding heart rate monitoring to your training.".to_string(),
+                title: "Heart Rate Monitoring".into(),
+                description: "Consider adding heart rate monitoring to your training.".into(),
                 priority: RecommendationPriority::Low,
                 confidence: Confidence::Medium,
-                rationale: "Heart rate data provides valuable insights into training intensity, recovery, and overall fitness progress.".to_string(),
+                rationale: "Heart rate data provides valuable insights into training intensity, recovery, and overall fitness progress.".into(),
                 actionable_steps: vec![
-                    "Consider chest strap or wrist-based heart rate monitor".to_string(),
-                    "Learn your heart rate zones".to_string(),
-                    "Use HR data to guide training intensity".to_string(),
-                    "Track resting heart rate for recovery monitoring".to_string(),
+                    "Consider chest strap or wrist-based heart rate monitor".into(),
+                    "Learn your heart rate zones".into(),
+                    "Use HR data to guide training intensity".into(),
+                    "Track resting heart rate for recovery monitoring".into(),
                 ],
             });
         }
@@ -813,7 +865,7 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
 
 impl AdvancedRecommendationEngine {
     /// Count consecutive training days
-    fn count_consecutive_training_days(&self, activities: &[Activity]) -> usize {
+    fn count_consecutive_training_days(activities: &[Activity]) -> usize {
         let mut consecutive = 0;
         let mut current_date = Utc::now().date_naive();
 
@@ -872,30 +924,27 @@ enum GapType {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::intelligence::{TimeAvailability, UserPreferences};
     use chrono::Duration;
 
     #[tokio::test]
     async fn test_training_recommendations() {
         let profile = UserFitnessProfile {
-            user_id: "test_user".to_string(),
+            user_id: "test_user".into(),
             age: Some(30),
-            gender: Some("M".to_string()),
+            gender: Some("M".into()),
             weight: Some(70.0),
             height: Some(175.0),
             fitness_level: FitnessLevel::Intermediate,
-            primary_sports: vec!["Run".to_string()],
+            primary_sports: vec!["Run".into()],
             training_history_months: 12,
             preferences: UserPreferences {
-                preferred_units: "metric".to_string(),
-                training_focus: vec!["endurance".to_string()],
+                preferred_units: "metric".into(),
+                training_focus: vec!["endurance".into()],
                 injury_history: vec![],
                 time_availability: TimeAvailability {
                     hours_per_week: 5.0,
-                    preferred_days: vec![
-                        "Monday".to_string(),
-                        "Wednesday".to_string(),
-                        "Friday".to_string(),
-                    ],
+                    preferred_days: vec!["Monday".into(), "Wednesday".into(), "Friday".into()],
                     preferred_duration_minutes: Some(60),
                 },
             },

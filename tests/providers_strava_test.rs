@@ -1,3 +1,5 @@
+// ABOUTME: Strava provider integration tests for fitness data
+// ABOUTME: Tests authentication, API calls, error handling, and data conversion
 //! Strava Provider Integration Tests
 //!
 //! Comprehensive tests for the Strava fitness provider implementation
@@ -40,7 +42,7 @@ fn create_test_provider_no_credentials() -> StravaProvider {
     StravaProvider::with_config(static_config)
 }
 
-/// Create test OAuth2 authentication data
+/// Create test `OAuth2` authentication data
 fn create_test_auth_data() -> AuthData {
     AuthData::OAuth2 {
         client_id: "test_client_id".to_string(),
@@ -183,7 +185,7 @@ async fn test_auth_url_generation_with_client_id() -> Result<()> {
     let auth_url = provider.get_auth_url("http://localhost:3000/callback", "test_state")?;
 
     // Print the URL for debugging
-    println!("Generated auth URL: {}", auth_url);
+    println!("Generated auth URL: {auth_url}");
 
     assert!(auth_url.contains("client_id=test_client_id"));
     assert!(auth_url.contains("redirect_uri="));
@@ -309,8 +311,8 @@ async fn test_empty_authentication_fields() -> Result<()> {
 
     // Test with empty client credentials
     let auth_data = AuthData::OAuth2 {
-        client_id: "".to_string(),
-        client_secret: "".to_string(),
+        client_id: String::new(),
+        client_secret: String::new(),
         access_token: None,
         refresh_token: None,
     };

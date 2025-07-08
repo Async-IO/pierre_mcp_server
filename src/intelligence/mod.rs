@@ -19,7 +19,12 @@
 //! - Advanced metrics calculation
 
 use chrono::{DateTime, Utc};
-use physiological_constants::fitness_score_thresholds::*;
+use physiological_constants::fitness_score_thresholds::{
+    EXCELLENT_PERFORMANCE_THRESHOLD, FITNESS_IMPROVING_THRESHOLD, FITNESS_STABLE_THRESHOLD,
+    GOOD_PERFORMANCE_THRESHOLD, MIN_STATISTICAL_SIGNIFICANCE_POINTS,
+    MODERATE_PERFORMANCE_THRESHOLD, SMALL_DATASET_REDUCTION_FACTOR,
+    STATISTICAL_SIGNIFICANCE_THRESHOLD, STRENGTH_ENDURANCE_DIVISOR,
+};
 use serde::{Deserialize, Serialize};
 
 pub mod analyzer;
@@ -116,7 +121,7 @@ pub struct TrendIndicators {
 }
 
 /// Direction of a trend
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum TrendDirection {
     Improving,
@@ -177,6 +182,7 @@ pub struct WeeklyLoad {
 
 impl ActivityIntelligence {
     /// Create a new activity intelligence analysis
+    #[must_use]
     pub fn new(
         summary: String,
         insights: Vec<Insight>,
@@ -212,6 +218,7 @@ pub enum TimeFrame {
 
 impl TimeFrame {
     /// Get the duration in days
+    #[must_use]
     pub fn to_days(&self) -> i64 {
         match self {
             Self::Week => 7,
@@ -224,6 +231,7 @@ impl TimeFrame {
     }
 
     /// Get start date relative to now
+    #[must_use]
     pub fn start_date(&self) -> DateTime<Utc> {
         match self {
             Self::Week => Utc::now() - chrono::Duration::days(7),
@@ -236,6 +244,7 @@ impl TimeFrame {
     }
 
     /// Get end date
+    #[must_use]
     pub fn end_date(&self) -> DateTime<Utc> {
         match self {
             Self::Custom { end, .. } => *end,
@@ -255,7 +264,8 @@ pub enum Confidence {
 
 impl Confidence {
     /// Convert confidence to a 0-1 score
-    pub fn as_score(&self) -> f64 {
+    #[must_use]
+    pub const fn as_score(&self) -> f64 {
         match self {
             Self::Low => 0.25,
             Self::Medium => 0.50,
@@ -265,6 +275,7 @@ impl Confidence {
     }
 
     /// Create confidence from a 0-1 score
+    #[must_use]
     pub fn from_score(score: f64) -> Self {
         if score >= EXCELLENT_PERFORMANCE_THRESHOLD {
             Self::VeryHigh
@@ -423,7 +434,7 @@ pub struct TrainingRecommendation {
 }
 
 /// Type of training recommendation
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum RecommendationType {
     Intensity,
     Volume,
@@ -490,7 +501,7 @@ mod tests {
     #[test]
     fn test_activity_intelligence_creation() {
         let intelligence = ActivityIntelligence::new(
-            "Great morning run!".to_string(),
+            "Great morning run!".into(),
             vec![],
             PerformanceMetrics {
                 relative_effort: Some(5.0),
@@ -530,7 +541,7 @@ mod tests {
             zone5_vo2max: 0.0,
         };
 
-        assert_eq!(zones.zone2_endurance, 65.0);
+        assert!((zones.zone2_endurance - 65.0).abs() < f32::EPSILON);
 
         // Total should be 100%
         let total = zones.zone1_recovery
@@ -538,6 +549,6 @@ mod tests {
             + zones.zone3_tempo
             + zones.zone4_threshold
             + zones.zone5_vo2max;
-        assert_eq!(total, 100.0);
+        assert!((total - 100.0).abs() < f32::EPSILON);
     }
 }

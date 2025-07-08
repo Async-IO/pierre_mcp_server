@@ -1,3 +1,5 @@
+// ABOUTME: Configuration validation and type checking utilities
+// ABOUTME: Ensures configuration values are valid and within acceptable ranges
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -79,6 +81,7 @@ pub struct RelationshipRule {
 
 impl ConfigValidator {
     /// Create a new configuration validator
+    #[must_use]
     pub fn new() -> Self {
         Self {
             safety_rules: Self::build_safety_rules(),
@@ -87,6 +90,7 @@ impl ConfigValidator {
     }
 
     /// Validate a set of configuration changes
+    #[must_use]
     pub fn validate(
         &self,
         changes: &HashMap<String, ConfigValue>,
@@ -117,7 +121,7 @@ impl ConfigValidator {
         }
 
         // 3. Perform impact analysis
-        result.impact_analysis = Some(self.analyze_impact(changes));
+        result.impact_analysis = Some(Self::analyze_impact(changes));
 
         result
     }
@@ -131,15 +135,15 @@ impl ConfigValidator {
     ) -> Result<(), String> {
         // Check if parameter exists in catalog
         let param_def = CatalogBuilder::get_parameter(key)
-            .ok_or_else(|| format!("Unknown parameter: {}", key))?;
+            .ok_or_else(|| format!("Unknown parameter: {key}"))?;
 
         // Validate data type
         match (&param_def.data_type, value) {
-            (crate::configuration::catalog::ParameterType::Float, ConfigValue::Float(_)) => {}
-            (crate::configuration::catalog::ParameterType::Integer, ConfigValue::Integer(_)) => {}
-            (crate::configuration::catalog::ParameterType::Boolean, ConfigValue::Boolean(_)) => {}
-            (crate::configuration::catalog::ParameterType::String, ConfigValue::String(_)) => {}
-            _ => return Err(format!("Type mismatch for parameter {}", key)),
+            (crate::configuration::catalog::ParameterType::Float, ConfigValue::Float(_))
+            | (crate::configuration::catalog::ParameterType::Integer, ConfigValue::Integer(_))
+            | (crate::configuration::catalog::ParameterType::Boolean, ConfigValue::Boolean(_))
+            | (crate::configuration::catalog::ParameterType::String, ConfigValue::String(_)) => {}
+            _ => return Err(format!("Type mismatch for parameter {key}")),
         }
 
         // Validate range if specified
@@ -148,16 +152,14 @@ impl ConfigValidator {
                 (ConfigValue::Float(v), ConfigValue::FloatRange { min, max }) => {
                     if v < min || v > max {
                         return Err(format!(
-                            "Value {} is outside valid range [{}, {}] for {}",
-                            v, min, max, key
+                            "Value {v} is outside valid range [{min}, {max}] for {key}"
                         ));
                     }
                 }
                 (ConfigValue::Integer(v), ConfigValue::IntegerRange { min, max }) => {
                     if v < min || v > max {
                         return Err(format!(
-                            "Value {} is outside valid range [{}, {}] for {}",
-                            v, min, max, key
+                            "Value {v} is outside valid range [{min}, {max}] for {key}"
                         ));
                     }
                 }
@@ -167,9 +169,9 @@ impl ConfigValidator {
 
         // Check VO2 max requirement
         if param_def.requires_vo2_max
-            && (user_profile.is_none() || user_profile.unwrap().vo2_max.is_none())
+            && (user_profile.is_none() || user_profile.as_ref().is_none_or(|p| p.vo2_max.is_none()))
         {
-            return Err(format!("Parameter {} requires VO2 max data", key));
+            return Err(format!("Parameter {key} requires VO2 max data"));
         }
 
         // Apply safety rules
@@ -183,7 +185,7 @@ impl ConfigValidator {
     }
 
     /// Analyze impact of configuration changes
-    fn analyze_impact(&self, changes: &HashMap<String, ConfigValue>) -> ImpactAnalysis {
+    fn analyze_impact(changes: &HashMap<String, ConfigValue>) -> ImpactAnalysis {
         let mut impact = ImpactAnalysis {
             effort_score_change: 0.0,
             zone_boundary_changes: HashMap::new(),
@@ -227,22 +229,20 @@ impl ConfigValidator {
             if key.starts_with("heart_rate") {
                 impact
                     .affected_components
-                    .push("Heart Rate Analysis".to_string());
+                    .push("Heart Rate Analysis".into());
             }
             if key.starts_with("performance") {
-                impact
-                    .affected_components
-                    .push("Effort Scoring".to_string());
+                impact.affected_components.push("Effort Scoring".into());
             }
             if key.starts_with("efficiency") {
                 impact
                     .affected_components
-                    .push("Efficiency Calculation".to_string());
+                    .push("Efficiency Calculation".into());
             }
             if key.contains("lactate") {
                 impact
                     .affected_components
-                    .push("Lactate Threshold Analysis".to_string());
+                    .push("Lactate Threshold Analysis".into());
             }
         }
 
@@ -265,13 +265,13 @@ impl ConfigValidator {
     fn build_safety_rules() -> Vec<SafetyRule> {
         vec![
             SafetyRule {
-                name: "Heart Rate Safety".to_string(),
-                description: "Ensure heart rate thresholds are physiologically safe".to_string(),
+                name: "Heart Rate Safety".into(),
+                description: "Ensure heart rate thresholds are physiologically safe".into(),
                 validator: |key, value, profile| {
                     if key.contains("heart_rate") && key.contains("percentage") {
                         if let ConfigValue::Float(percentage) = value {
                             if *percentage > 100.0 {
-                                return Err("Heart rate percentage cannot exceed 100%".to_string());
+                                return Err("Heart rate percentage cannot exceed 100%".into());
                             }
                             if *percentage < 30.0 {
                                 return Err(
@@ -283,7 +283,7 @@ impl ConfigValidator {
                             // Age-based safety checks
                             if let Some(profile) = profile {
                                 if let Some(age) = profile.age {
-                                    let estimated_max_hr = 220.0 - age as f64;
+                                    let estimated_max_hr = 220.0 - f64::from(age);
                                     let actual_hr = estimated_max_hr * percentage / 100.0;
 
                                     if age > 65 && actual_hr > 160.0 {
@@ -300,17 +300,17 @@ impl ConfigValidator {
                 },
             },
             SafetyRule {
-                name: "Intensity Limits".to_string(),
-                description: "Prevent dangerously high intensity settings".to_string(),
+                name: "Intensity Limits".into(),
+                description: "Prevent dangerously high intensity settings".into(),
                 validator: |key, value, _profile| {
                     if key.contains("max_intensity") || key.contains("safety") {
                         if let ConfigValue::Float(intensity) = value {
                             if *intensity > 1.0 {
-                                return Err("Maximum intensity cannot exceed 100%".to_string());
+                                return Err("Maximum intensity cannot exceed 100%".into());
                             }
                             if *intensity < 0.3 {
                                 return Err(
-                                    "Maximum intensity too low for effective training".to_string()
+                                    "Maximum intensity too low for effective training".into()
                                 );
                             }
                         }
@@ -319,16 +319,16 @@ impl ConfigValidator {
                 },
             },
             SafetyRule {
-                name: "Divisor Sanity Check".to_string(),
-                description: "Ensure divisors are within reasonable ranges".to_string(),
+                name: "Divisor Sanity Check".into(),
+                description: "Ensure divisors are within reasonable ranges".into(),
                 validator: |key, value, _profile| {
                     if key.contains("divisor") {
                         if let ConfigValue::Float(divisor) = value {
                             if *divisor <= 0.0 {
-                                return Err("Divisor must be positive".to_string());
+                                return Err("Divisor must be positive".into());
                             }
                             if *divisor > 1000.0 {
-                                return Err("Divisor value unreasonably high".to_string());
+                                return Err("Divisor value unreasonably high".into());
                             }
                         }
                     }
@@ -342,13 +342,13 @@ impl ConfigValidator {
     fn build_relationship_rules() -> Vec<RelationshipRule> {
         vec![
             RelationshipRule {
-                name: "Heart Rate Zone Order".to_string(),
+                name: "Heart Rate Zone Order".into(),
                 parameters: vec![
-                    "heart_rate.recovery_zone".to_string(),
-                    "heart_rate.endurance_zone".to_string(),
-                    "heart_rate.tempo_zone".to_string(),
-                    "heart_rate.anaerobic_threshold".to_string(),
-                    "heart_rate.vo2_max_zone".to_string(),
+                    "heart_rate.recovery_zone".into(),
+                    "heart_rate.endurance_zone".into(),
+                    "heart_rate.tempo_zone".into(),
+                    "heart_rate.anaerobic_threshold".into(),
+                    "heart_rate.vo2_max_zone".into(),
                 ],
                 validator: |params| {
                     let zones = [
@@ -375,7 +375,7 @@ impl ConfigValidator {
                     for (name, value_opt) in zones {
                         if let Some(ConfigValue::Float(value)) = value_opt {
                             if *value <= prev_value {
-                                return Err(format!("{} must be higher than previous zone", name));
+                                return Err(format!("{name} must be higher than previous zone"));
                             }
                             prev_value = *value;
                         }
@@ -385,10 +385,10 @@ impl ConfigValidator {
                 },
             },
             RelationshipRule {
-                name: "Lactate Threshold Consistency".to_string(),
+                name: "Lactate Threshold Consistency".into(),
                 parameters: vec![
-                    "lactate.threshold_percentage".to_string(),
-                    "heart_rate.anaerobic_threshold".to_string(),
+                    "lactate.threshold_percentage".into(),
+                    "heart_rate.anaerobic_threshold".into(),
                 ],
                 validator: |params| {
                     if let (
@@ -421,7 +421,8 @@ impl Default for ConfigValidator {
 
 impl ValidationResult {
     /// Create a new validation result
-    pub fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self {
             is_valid: true,
             errors: Vec::new(),
@@ -469,7 +470,7 @@ mod tests {
         let validator = ConfigValidator::new();
         let mut changes = HashMap::new();
         changes.insert(
-            "heart_rate.anaerobic_threshold".to_string(),
+            "heart_rate.anaerobic_threshold".into(),
             ConfigValue::Float(85.0),
         );
 
@@ -483,7 +484,7 @@ mod tests {
         let validator = ConfigValidator::new();
         let mut changes = HashMap::new();
         changes.insert(
-            "heart_rate.anaerobic_threshold".to_string(),
+            "heart_rate.anaerobic_threshold".into(),
             ConfigValue::Float(150.0), // Above valid range
         );
 
@@ -496,12 +497,9 @@ mod tests {
     fn test_zone_order_validation() {
         let validator = ConfigValidator::new();
         let mut changes = HashMap::new();
+        changes.insert("heart_rate.recovery_zone".into(), ConfigValue::Float(80.0));
         changes.insert(
-            "heart_rate.recovery_zone".to_string(),
-            ConfigValue::Float(80.0),
-        );
-        changes.insert(
-            "heart_rate.endurance_zone".to_string(),
+            "heart_rate.endurance_zone".into(),
             ConfigValue::Float(70.0), // Lower than recovery zone
         );
 
@@ -518,7 +516,7 @@ mod tests {
         let validator = ConfigValidator::new();
         let mut changes = HashMap::new();
         changes.insert(
-            "performance.run_distance_divisor".to_string(),
+            "performance.run_distance_divisor".into(),
             ConfigValue::Float(20.0), // Double the default
         );
 
@@ -529,7 +527,7 @@ mod tests {
         assert!(impact.effort_score_change != 0.0);
         assert!(impact
             .affected_components
-            .contains(&"Effort Scoring".to_string()));
+            .contains(&"Effort Scoring".into()));
     }
 
     #[test]
@@ -537,7 +535,7 @@ mod tests {
         let validator = ConfigValidator::new();
         let mut changes = HashMap::new();
         changes.insert(
-            "lactate.threshold_percentage".to_string(),
+            "lactate.threshold_percentage".into(),
             ConfigValue::Float(85.0),
         );
 

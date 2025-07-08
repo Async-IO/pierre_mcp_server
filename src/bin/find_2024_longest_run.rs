@@ -1,3 +1,5 @@
+// ABOUTME: Data analysis utility for finding the longest running activity in 2024 dataset
+// ABOUTME: Fitness data mining tool to identify peak distance achievements from activity records
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -92,54 +94,74 @@ use tokio::net::TcpStream;
 async fn main() -> Result<()> {
     println!("🔍 Finding longest run in 2024 for Strava user...\n");
 
+    let connection_result = establish_mcp_connection().await?;
+    let (mut reader, mut writer) = connection_result;
+
+    let all_activities = fetch_activities_data(&mut reader, &mut writer).await?;
+
+    if all_activities.is_empty() {
+        println!("❌ Failed to get activities");
+    } else {
+        analyze_activities(&all_activities);
+    }
+
+    Ok(())
+}
+
+/// Establish TCP connection and initialize MCP protocol session
+async fn establish_mcp_connection() -> Result<(
+    BufReader<tokio::net::tcp::OwnedReadHalf>,
+    tokio::net::tcp::OwnedWriteHalf,
+)> {
     // Step 1: Establish TCP connection to the MCP server
-    // The Pierre MCP Server listens on localhost:8080 by default
     let stream = TcpStream::connect("127.0.0.1:8080").await?;
     let (reader, mut writer) = stream.into_split();
     let mut reader = BufReader::new(reader);
 
     // Step 2: Initialize MCP protocol session
-    // This is required by the MCP specification to establish capabilities
-    // and protocol version before any tool calls can be made
     let init_request = serde_json::json!({
-        "jsonrpc": "2.0",           // JSON-RPC 2.0 protocol
-        "method": "initialize",     // MCP initialization method
-        "params": {},               // No parameters needed for init
-        "id": 1                     // Request ID for response correlation
+        "jsonrpc": "2.0",
+        "method": "initialize",
+        "params": {},
+        "id": 1
     });
 
     writer
-        .write_all(format!("{}\n", init_request).as_bytes())
+        .write_all(format!("{init_request}\n").as_bytes())
         .await?;
     let mut line = String::new();
     reader.read_line(&mut line).await?;
     println!("✅ Connected to MCP server");
 
-    // Step 3: Retrieve activities data using pagination
-    // Since we're looking for 2024 data, we need to go back in history.
-    // Strava returns activities in reverse chronological order (newest first),
-    // so we need to paginate through multiple pages to find 2024 activities.
+    Ok((reader, writer))
+}
+
+/// Fetch activities data using pagination through MCP server
+async fn fetch_activities_data(
+    reader: &mut BufReader<tokio::net::tcp::OwnedReadHalf>,
+    writer: &mut tokio::net::tcp::OwnedWriteHalf,
+) -> Result<Vec<Value>> {
     let mut all_activities = Vec::new();
+    let mut line = String::new();
 
     // Paginate through multiple pages to get historical data
-    // Each page returns up to 200 activities with an offset
     for page in 1..=3 {
         let activities_request = serde_json::json!({
-            "jsonrpc": "2.0",           // JSON-RPC 2.0 protocol
-            "method": "tools/call",     // MCP tool call method
+            "jsonrpc": "2.0",
+            "method": "tools/call",
             "params": {
-                "name": "get_activities",   // Tool name from server capabilities
+                "name": "get_activities",
                 "arguments": {
-                    "provider": "strava",       // Which fitness provider to use
-                    "limit": 200,               // Max activities per request
-                    "offset": (page - 1) * 200 // Pagination offset
+                    "provider": "strava",
+                    "limit": 200,
+                    "offset": (page - 1) * 200
                 }
             },
-            "id": page + 1              // Unique ID for this request
+            "id": page + 1
         });
 
         writer
-            .write_all(format!("{}\n", activities_request).as_bytes())
+            .write_all(format!("{activities_request}\n").as_bytes())
             .await?;
         line.clear();
         reader.read_line(&mut line).await?;
@@ -148,7 +170,7 @@ async fn main() -> Result<()> {
 
         if let Some(activities) = response["result"].as_array() {
             if activities.is_empty() {
-                break; // No more activities
+                break;
             }
             for activity in activities {
                 all_activities.push(activity.clone());
@@ -160,114 +182,133 @@ async fn main() -> Result<()> {
                 all_activities.len()
             );
         } else {
-            println!("❌ Failed to get page {}", page);
+            println!("❌ Failed to get page {page}");
             break;
         }
     }
 
-    if !all_activities.is_empty() {
-        println!("📊 Analyzing {} activities...", all_activities.len());
+    Ok(all_activities)
+}
 
-        let mut longest_run_2024: Option<&Value> = None;
-        let mut longest_distance_2024 = 0.0;
-        let mut total_runs_2024 = 0;
-        let mut total_run_distance_2024 = 0.0;
+/// Analyze activities to find longest 2024 run and display statistics
+fn analyze_activities(all_activities: &[Value]) {
+    println!("📊 Analyzing {} activities...", all_activities.len());
 
-        for activity in &all_activities {
-            // Check if it's from 2024
-            if let Some(date_str) = activity["start_date"].as_str() {
-                if date_str.starts_with("2024") {
-                    // Check if it's a run
-                    if let Some(sport_type) = activity["sport_type"].as_str() {
-                        if sport_type == "run" {
-                            total_runs_2024 += 1;
+    let mut longest_run_2024: Option<&Value> = None;
+    let mut longest_distance_2024 = 0.0;
+    let mut total_runs_2024 = 0;
+    let mut total_run_distance_2024 = 0.0;
 
-                            if let Some(distance_meters) = activity["distance_meters"].as_f64() {
-                                total_run_distance_2024 += distance_meters;
+    // Find 2024 runs and track statistics
+    for activity in all_activities {
+        if let Some(date_str) = activity["start_date"].as_str() {
+            if date_str.starts_with("2024") {
+                if let Some(sport_type) = activity["sport_type"].as_str() {
+                    if sport_type == "run" {
+                        total_runs_2024 += 1;
 
-                                if distance_meters > longest_distance_2024 {
-                                    longest_distance_2024 = distance_meters;
-                                    longest_run_2024 = Some(activity);
-                                }
+                        if let Some(distance_meters) = activity["distance_meters"].as_f64() {
+                            total_run_distance_2024 += distance_meters;
+
+                            if distance_meters > longest_distance_2024 {
+                                longest_distance_2024 = distance_meters;
+                                longest_run_2024 = Some(activity);
                             }
                         }
                     }
                 }
             }
         }
-
-        println!("\n🏃 2024 Run Statistics:");
-        println!("   Total runs in 2024: {}", total_runs_2024);
-        println!(
-            "   Total run distance in 2024: {:.2} km",
-            total_run_distance_2024 / 1000.0
-        );
-
-        if let Some(run) = longest_run_2024 {
-            println!("\n🏆 LONGEST RUN IN 2024:");
-            println!("   Distance: {:.2} km", longest_distance_2024 / 1000.0);
-
-            if let Some(name) = run["name"].as_str() {
-                println!("   Name: {}", name);
-            }
-
-            if let Some(date) = run["start_date"].as_str() {
-                println!("   Date: {}", date);
-            }
-
-            if let Some(duration) = run["duration_seconds"].as_u64() {
-                let hours = duration / 3600;
-                let minutes = (duration % 3600) / 60;
-                let seconds = duration % 60;
-                println!("   Duration: {}h {}m {}s", hours, minutes, seconds);
-
-                // Calculate pace
-                if longest_distance_2024 > 0.0 {
-                    let pace_per_km = duration as f64 / (longest_distance_2024 / 1000.0);
-                    let pace_minutes = (pace_per_km / 60.0) as u64;
-                    let pace_seconds = (pace_per_km % 60.0) as u64;
-                    println!("   Pace: {}:{:02} min/km", pace_minutes, pace_seconds);
-                }
-            }
-
-            if let Some(elevation) = run["elevation_gain"].as_f64() {
-                println!("   Elevation gain: {:.0} m", elevation);
-            }
-
-            if let Some(avg_hr) = run["average_heart_rate"].as_u64() {
-                println!("   Average heart rate: {} bpm", avg_hr);
-            }
-        } else {
-            println!("\n❌ No runs found in 2024 activities");
-        }
-
-        // Also show some 2024 runs for context
-        println!("\n📋 Other 2024 runs:");
-        let mut run_count = 0;
-        for activity in &all_activities {
-            if let Some(date_str) = activity["start_date"].as_str() {
-                if date_str.starts_with("2024") {
-                    if let Some(sport_type) = activity["sport_type"].as_str() {
-                        if sport_type == "run" && run_count < 5 {
-                            if let Some(distance_meters) = activity["distance_meters"].as_f64() {
-                                if let Some(name) = activity["name"].as_str() {
-                                    println!(
-                                        "   {:.2} km - {} ({})",
-                                        distance_meters / 1000.0,
-                                        name,
-                                        &date_str[0..10]
-                                    );
-                                    run_count += 1;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    } else {
-        println!("❌ Failed to get activities");
     }
 
-    Ok(())
+    display_run_statistics(total_runs_2024, total_run_distance_2024);
+
+    if let Some(run) = longest_run_2024 {
+        display_longest_run_details(run, longest_distance_2024);
+    } else {
+        println!("\n❌ No runs found in 2024 activities");
+    }
+
+    display_other_runs_sample(all_activities);
+}
+
+/// Display overall 2024 run statistics
+fn display_run_statistics(total_runs: i32, total_distance: f64) {
+    println!("\n🏃 2024 Run Statistics:");
+    println!("   Total runs in 2024: {total_runs}");
+    println!(
+        "   Total run distance in 2024: {:.2} km",
+        total_distance / 1000.0
+    );
+}
+
+/// Display detailed information about the longest run
+fn display_longest_run_details(run: &Value, distance: f64) {
+    println!("\n🏆 LONGEST RUN IN 2024:");
+    println!("   Distance: {:.2} km", distance / 1000.0);
+
+    if let Some(name) = run["name"].as_str() {
+        println!("   Name: {name}");
+    }
+
+    if let Some(date) = run["start_date"].as_str() {
+        println!("   Date: {date}");
+    }
+
+    if let Some(duration) = run["duration_seconds"].as_u64() {
+        display_duration_and_pace(duration, distance);
+    }
+
+    if let Some(elevation) = run["elevation_gain"].as_f64() {
+        println!("   Elevation gain: {elevation:.0} m");
+    }
+
+    if let Some(avg_hr) = run["average_heart_rate"].as_u64() {
+        println!("   Average heart rate: {avg_hr} bpm");
+    }
+}
+
+/// Display duration and calculate pace for a run
+fn display_duration_and_pace(duration: u64, distance: f64) {
+    let hours = duration / 3600;
+    let minutes = (duration % 3600) / 60;
+    let seconds = duration % 60;
+    println!("   Duration: {hours}h {minutes}m {seconds}s");
+
+    // Calculate pace
+    if distance > 0.0 {
+        let duration_u32 = u32::try_from(duration).unwrap_or(u32::MAX);
+        let pace_per_km_f64 = f64::from(duration_u32) / (distance / 1000.0);
+        let pace_minutes = (pace_per_km_f64 / 60.0).floor().clamp(0.0, 59.0);
+        let pace_seconds = (pace_per_km_f64 % 60.0).floor().clamp(0.0, 59.0);
+
+        println!("   Pace: {pace_minutes:.0}:{pace_seconds:02.0} min/km");
+    }
+}
+
+/// Display a sample of other 2024 runs for context
+fn display_other_runs_sample(all_activities: &[Value]) {
+    println!("\n📋 Other 2024 runs:");
+    let mut run_count = 0;
+    for activity in all_activities {
+        if let Some(date_str) = activity["start_date"].as_str() {
+            if date_str.starts_with("2024") {
+                if let Some(sport_type) = activity["sport_type"].as_str() {
+                    if sport_type == "run" && run_count < 5 {
+                        if let Some(distance_meters) = activity["distance_meters"].as_f64() {
+                            if let Some(name) = activity["name"].as_str() {
+                                println!(
+                                    "   {:.2} km - {} ({})",
+                                    distance_meters / 1000.0,
+                                    name,
+                                    &date_str[0..10]
+                                );
+                                run_count += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

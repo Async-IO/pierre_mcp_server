@@ -11,7 +11,10 @@
 //! Provides B2B API key generation, validation, and usage tracking
 //! for the Pierre MCP Fitness API platform.
 
-use crate::constants::system_config::*;
+use crate::constants::system_config::{
+    PROFESSIONAL_MONTHLY_LIMIT, RATE_LIMIT_WINDOW_SECONDS, STARTER_MONTHLY_LIMIT,
+    TRIAL_MONTHLY_LIMIT, TRIAL_PERIOD_DAYS,
+};
 use anyhow::Result;
 use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
 use rand::distributions::Alphanumeric;
@@ -21,7 +24,7 @@ use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 /// API Key tiers with rate limits
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum ApiKeyTier {
     Trial,        // 1,000 requests/month, auto-expires in 14 days
@@ -31,39 +34,44 @@ pub enum ApiKeyTier {
 }
 
 impl ApiKeyTier {
-    pub fn monthly_limit(&self) -> Option<u32> {
+    #[must_use]
+    pub const fn monthly_limit(&self) -> Option<u32> {
         match self {
-            ApiKeyTier::Trial => Some(TRIAL_MONTHLY_LIMIT),
-            ApiKeyTier::Starter => Some(STARTER_MONTHLY_LIMIT),
-            ApiKeyTier::Professional => Some(PROFESSIONAL_MONTHLY_LIMIT),
-            ApiKeyTier::Enterprise => None, // Unlimited
+            Self::Trial => Some(TRIAL_MONTHLY_LIMIT),
+            Self::Starter => Some(STARTER_MONTHLY_LIMIT),
+            Self::Professional => Some(PROFESSIONAL_MONTHLY_LIMIT),
+            Self::Enterprise => None, // Unlimited
         }
     }
 
-    pub fn rate_limit_window(&self) -> u32 {
+    #[must_use]
+    pub const fn rate_limit_window(&self) -> u32 {
         RATE_LIMIT_WINDOW_SECONDS // 30 days in seconds
     }
 
     /// Default expiration in days for trial keys
-    pub fn default_trial_days(&self) -> Option<i64> {
+    #[must_use]
+    pub const fn default_trial_days(&self) -> Option<i64> {
         match self {
-            ApiKeyTier::Trial => Some(TRIAL_PERIOD_DAYS as i64), // Trial period
+            Self::Trial => Some(TRIAL_PERIOD_DAYS as i64), // Trial period
             _ => None,
         }
     }
 
     /// Check if this is a trial tier
-    pub fn is_trial(&self) -> bool {
-        matches!(self, ApiKeyTier::Trial)
+    #[must_use]
+    pub const fn is_trial(&self) -> bool {
+        matches!(self, Self::Trial)
     }
 
     /// Get string representation for database storage
-    pub fn as_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
         match self {
-            ApiKeyTier::Trial => "trial",
-            ApiKeyTier::Starter => "starter",
-            ApiKeyTier::Professional => "professional",
-            ApiKeyTier::Enterprise => "enterprise",
+            Self::Trial => "trial",
+            Self::Starter => "starter",
+            Self::Professional => "professional",
+            Self::Enterprise => "enterprise",
         }
     }
 }
@@ -73,10 +81,10 @@ impl std::str::FromStr for ApiKeyTier {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "trial" => Ok(ApiKeyTier::Trial),
-            "starter" => Ok(ApiKeyTier::Starter),
-            "professional" => Ok(ApiKeyTier::Professional),
-            "enterprise" => Ok(ApiKeyTier::Enterprise),
+            "trial" => Ok(Self::Trial),
+            "starter" => Ok(Self::Starter),
+            "professional" => Ok(Self::Professional),
+            "enterprise" => Ok(Self::Enterprise),
             _ => Err(anyhow::anyhow!("Invalid API key tier: {}", s)),
         }
     }
@@ -193,7 +201,8 @@ impl Default for ApiKeyManager {
 
 impl ApiKeyManager {
     /// Create a new API key manager
-    pub fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self {
             key_prefix: "pk_live_", // Production keys
         }
@@ -214,7 +223,7 @@ impl ApiKeyManager {
         } else {
             self.key_prefix
         };
-        let full_key = format!("{}{}", prefix, random_bytes);
+        let full_key = format!("{prefix}{random_bytes}");
 
         // Create key prefix for identification (first 12 chars)
         // More efficient: use string slicing instead of collecting chars
@@ -237,6 +246,10 @@ impl ApiKeyManager {
     }
 
     /// Validate an API key format
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the API key format is invalid or has incorrect length
     pub fn validate_key_format(&self, api_key: &str) -> Result<()> {
         if !api_key.starts_with(self.key_prefix) && !api_key.starts_with("pk_trial_") {
             anyhow::bail!("Invalid API key format");
@@ -256,11 +269,13 @@ impl ApiKeyManager {
     }
 
     /// Extract key prefix from full key
+    #[must_use]
     pub fn extract_key_prefix(&self, api_key: &str) -> String {
         api_key.chars().take(12).collect()
     }
 
     /// Hash an API key for comparison
+    #[must_use]
     pub fn hash_key(&self, api_key: &str) -> String {
         let mut hasher = Sha256::new();
         hasher.update(api_key.as_bytes());
@@ -268,12 +283,17 @@ impl ApiKeyManager {
     }
 
     /// Check if an API key string is a trial key
+    #[must_use]
     pub fn is_trial_key(&self, api_key: &str) -> bool {
         api_key.starts_with("pk_trial_")
     }
 
     /// Create a new API key with simplified request
-    pub async fn create_api_key_simple(
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if key creation fails
+    pub fn create_api_key_simple(
         &self,
         user_id: Uuid,
         request: CreateApiKeyRequestSimple,
@@ -312,7 +332,7 @@ impl ApiKeyManager {
 
         // Use custom rate limits
         let rate_limit_requests = if request.rate_limit_requests == 0 {
-            u32::MAX // Unlimited
+            1_000_000_000 // Effectively unlimited but fits in database constraints
         } else {
             request.rate_limit_requests
         };
@@ -339,7 +359,11 @@ impl ApiKeyManager {
     }
 
     /// Create a new API key (legacy method with tier)
-    pub async fn create_api_key(
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if key creation fails
+    pub fn create_api_key(
         &self,
         user_id: Uuid,
         request: CreateApiKeyRequest,
@@ -368,9 +392,10 @@ impl ApiKeyManager {
         };
 
         // Get rate limits - use custom if provided, otherwise use tier defaults
+        // For enterprise tier, use a high value that fits in database constraints
         let rate_limit_requests = request
             .rate_limit_requests
-            .unwrap_or_else(|| request.tier.monthly_limit().unwrap_or(u32::MAX));
+            .unwrap_or_else(|| request.tier.monthly_limit().unwrap_or(1_000_000_000));
         let rate_limit_window = request.tier.rate_limit_window();
 
         // Create the API key record
@@ -394,7 +419,11 @@ impl ApiKeyManager {
     }
 
     /// Create a trial API key with default settings
-    pub async fn create_trial_key(
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if key creation fails
+    pub fn create_trial_key(
         &self,
         user_id: Uuid,
         name: String,
@@ -408,10 +437,14 @@ impl ApiKeyManager {
             expires_in_days: None,     // Will use default 14 days
         };
 
-        self.create_api_key(user_id, request).await
+        self.create_api_key(user_id, request)
     }
 
     /// Check if a key is valid and active
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the API key is inactive or expired
     pub fn is_key_valid(&self, api_key: &ApiKey) -> Result<()> {
         if !api_key.is_active {
             anyhow::bail!("API key is inactive");
@@ -427,47 +460,53 @@ impl ApiKeyManager {
     }
 
     /// Get rate limit status for an API key
+    #[must_use]
     pub fn rate_limit_status(&self, api_key: &ApiKey, current_usage: u32) -> RateLimitStatus {
-        match api_key.tier {
-            ApiKeyTier::Enterprise => RateLimitStatus {
+        if api_key.tier == ApiKeyTier::Enterprise {
+            RateLimitStatus {
                 is_rate_limited: false,
                 limit: None,
                 remaining: None,
                 reset_at: None,
-            },
-            _ => {
-                let limit = api_key.rate_limit_requests;
-                let remaining = limit.saturating_sub(current_usage);
-                let is_rate_limited = current_usage >= limit;
+            }
+        } else {
+            let limit = api_key.rate_limit_requests;
+            let remaining = limit.saturating_sub(current_usage);
+            let is_rate_limited = current_usage >= limit;
 
-                // Calculate reset time (beginning of next month)
-                let now = Utc::now();
-                let next_month = if now.month() == 12 {
-                    now.with_year(now.year() + 1)
-                        .expect("Failed to set year for next month calculation")
-                        .with_month(1)
-                        .expect("Failed to set month to January")
-                } else {
-                    now.with_month(now.month() + 1)
-                        .expect("Failed to increment month")
-                };
+            // Calculate reset time (beginning of next month)
+            let now = Utc::now();
+            let next_month = if now.month() == 12 {
+                now.with_year(now.year() + 1)
+                    .and_then(|dt| dt.with_month(1))
+                    .unwrap_or_else(|| {
+                        tracing::warn!("Failed to calculate next year/January, using fallback");
+                        now + chrono::Duration::days(30)
+                    })
+            } else {
+                now.with_month(now.month() + 1).unwrap_or_else(|| {
+                    tracing::warn!("Failed to increment month, using fallback");
+                    now + chrono::Duration::days(30)
+                })
+            };
 
-                let reset_at = next_month
-                    .with_day(1)
-                    .expect("Failed to set day to 1st of month")
-                    .with_hour(0)
-                    .expect("Failed to set hour to 0")
-                    .with_minute(0)
-                    .expect("Failed to set minute to 0")
-                    .with_second(0)
-                    .expect("Failed to set second to 0");
+            let reset_at = next_month
+                .with_day(1)
+                .and_then(|dt| dt.with_hour(0))
+                .and_then(|dt| dt.with_minute(0))
+                .and_then(|dt| dt.with_second(0))
+                .unwrap_or_else(|| {
+                    tracing::warn!(
+                        "Failed to set reset time components, using beginning of next month"
+                    );
+                    next_month
+                });
 
-                RateLimitStatus {
-                    is_rate_limited,
-                    limit: Some(limit),
-                    remaining: Some(remaining),
-                    reset_at: Some(reset_at),
-                }
+            RateLimitStatus {
+                is_rate_limited,
+                limit: Some(limit),
+                remaining: Some(remaining),
+                reset_at: Some(reset_at),
             }
         }
     }
@@ -545,11 +584,11 @@ mod tests {
         let manager = ApiKeyManager::new();
 
         let api_key = ApiKey {
-            id: "test".to_string(),
+            id: "test".into(),
             user_id: Uuid::new_v4(),
-            name: "Test Key".to_string(),
-            key_prefix: "pk_live_test".to_string(),
-            key_hash: "hash".to_string(),
+            name: "Test Key".into(),
+            key_prefix: "pk_live_test".into(),
+            key_hash: "hash".into(),
             description: None,
             tier: ApiKeyTier::Starter,
             rate_limit_requests: 10_000,
@@ -574,14 +613,14 @@ mod tests {
         let manager = ApiKeyManager::new();
 
         let enterprise_key = ApiKey {
-            id: "enterprise".to_string(),
+            id: "enterprise".into(),
             user_id: Uuid::new_v4(),
-            name: "Enterprise Key".to_string(),
-            key_prefix: "pk_live_ent".to_string(),
-            key_hash: "hash".to_string(),
+            name: "Enterprise Key".into(),
+            key_prefix: "pk_live_ent".into(),
+            key_hash: "hash".into(),
             description: None,
             tier: ApiKeyTier::Enterprise,
-            rate_limit_requests: u32::MAX,
+            rate_limit_requests: 1_000_000_000,
             rate_limit_window_seconds: 30 * 24 * 60 * 60,
             is_active: true,
             last_used_at: None,
@@ -608,11 +647,11 @@ mod tests {
         let manager = ApiKeyManager::new();
 
         let professional_key = ApiKey {
-            id: "professional".to_string(),
+            id: "professional".into(),
             user_id: Uuid::new_v4(),
-            name: "Professional Key".to_string(),
-            key_prefix: "pk_live_pro".to_string(),
-            key_hash: "hash".to_string(),
+            name: "Professional Key".into(),
+            key_prefix: "pk_live_pro".into(),
+            key_hash: "hash".into(),
             description: None,
             tier: ApiKeyTier::Professional,
             rate_limit_requests: 100_000,
@@ -648,11 +687,11 @@ mod tests {
         let manager = ApiKeyManager::new();
 
         let api_key = ApiKey {
-            id: "reset_test".to_string(),
+            id: "reset_test".into(),
             user_id: Uuid::new_v4(),
-            name: "Reset Test Key".to_string(),
-            key_prefix: "pk_live_reset".to_string(),
-            key_hash: "hash".to_string(),
+            name: "Reset Test Key".into(),
+            key_prefix: "pk_live_reset".into(),
+            key_hash: "hash".into(),
             description: None,
             tier: ApiKeyTier::Starter,
             rate_limit_requests: 10_000,
@@ -747,14 +786,14 @@ mod tests {
         let user_id = Uuid::new_v4();
 
         let request = CreateApiKeyRequest {
-            name: "Expiring Key".to_string(),
-            description: Some("Test key with expiration".to_string()),
+            name: "Expiring Key".into(),
+            description: Some("Test key with expiration".into()),
             tier: ApiKeyTier::Professional,
             rate_limit_requests: None,
             expires_in_days: Some(30),
         };
 
-        let (api_key, full_key) = manager.create_api_key(user_id, request).await.unwrap();
+        let (api_key, full_key) = manager.create_api_key(user_id, request).unwrap();
 
         // Check expiration is set correctly
         assert!(api_key.expires_at.is_some());
@@ -787,14 +826,14 @@ mod tests {
         let user_id = Uuid::new_v4();
 
         let request = CreateApiKeyRequest {
-            name: "Permanent Key".to_string(),
+            name: "Permanent Key".into(),
             description: None,
             tier: ApiKeyTier::Starter,
             rate_limit_requests: None,
             expires_in_days: None,
         };
 
-        let (api_key, _full_key) = manager.create_api_key(user_id, request).await.unwrap();
+        let (api_key, _full_key) = manager.create_api_key(user_id, request).unwrap();
 
         // Should not have expiration
         assert!(api_key.expires_at.is_none());
@@ -808,11 +847,11 @@ mod tests {
 
         // Test active key
         let active_key = ApiKey {
-            id: "active".to_string(),
+            id: "active".into(),
             user_id: Uuid::new_v4(),
-            name: "Active Key".to_string(),
-            key_prefix: "pk_live_active".to_string(),
-            key_hash: "hash".to_string(),
+            name: "Active Key".into(),
+            key_prefix: "pk_live_active".into(),
+            key_hash: "hash".into(),
             description: None,
             tier: ApiKeyTier::Starter,
             rate_limit_requests: 10_000,
@@ -838,7 +877,7 @@ mod tests {
         assert!(manager.is_key_valid(&expired_key).is_err());
 
         // Test key expiring in future (should be valid)
-        let mut future_expiry_key = active_key.clone();
+        let mut future_expiry_key = active_key;
         future_expiry_key.expires_at = Some(Utc::now() + Duration::days(1));
 
         assert!(manager.is_key_valid(&future_expiry_key).is_ok());
@@ -913,10 +952,9 @@ mod tests {
         let (api_key, full_key) = manager
             .create_trial_key(
                 user_id,
-                "Test Trial Key".to_string(),
-                Some("Testing trial functionality".to_string()),
+                "Test Trial Key".into(),
+                Some("Testing trial functionality".into()),
             )
-            .await
             .unwrap();
 
         // Verify trial key properties
@@ -942,14 +980,14 @@ mod tests {
         let user_id = Uuid::new_v4();
 
         let request = CreateApiKeyRequest {
-            name: "Custom Trial".to_string(),
+            name: "Custom Trial".into(),
             description: None,
             tier: ApiKeyTier::Trial,
             rate_limit_requests: None,
             expires_in_days: Some(7), // Custom 7 day trial
         };
 
-        let (api_key, full_key) = manager.create_api_key(user_id, request).await.unwrap();
+        let (api_key, full_key) = manager.create_api_key(user_id, request).unwrap();
 
         // Verify custom expiration is respected
         assert!(api_key.expires_at.is_some());

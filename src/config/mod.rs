@@ -19,9 +19,22 @@ pub use intelligence_config::{
 };
 
 /// Initialize all configurations
+///
+/// # Errors
+///
+/// Returns an error if configuration initialization fails
 pub fn init_configs() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize global intelligence config
-    let _intelligence_config = IntelligenceConfig::global();
+    let intelligence_config = IntelligenceConfig::global();
+
+    // Validate configuration is properly loaded by accessing a field
+    tracing::debug!(
+        "Intelligence config initialized successfully (min duration: {}s)",
+        intelligence_config
+            .activity_analyzer
+            .analysis
+            .min_duration_seconds
+    );
 
     tracing::info!("All configurations initialized successfully");
     Ok(())

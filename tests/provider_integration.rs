@@ -1,8 +1,20 @@
+// ABOUTME: Provider integration tests for fitness data sources
+// ABOUTME: Tests integration between fitness providers and system components
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
+
+#![allow(
+    clippy::uninlined_format_args,
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::float_cmp,
+    clippy::significant_drop_tightening,
+    clippy::match_wildcard_for_single_variants,
+    clippy::match_same_arms
+)]
 
 //! Integration tests for fitness provider functionality
 //!
@@ -65,14 +77,14 @@ fn _mock_strava_stats_response() -> serde_json::Value {
     json!({
         "all_ride_totals": {
             "count": 50,
-            "distance": 1250000.0,
-            "moving_time": 180000,
+            "distance": 1_250_000.0,
+            "moving_time": 180_000,
             "elevation_gain": 15000.0
         },
         "all_run_totals": {
             "count": 100,
-            "distance": 500000.0,
-            "moving_time": 144000,
+            "distance": 500_000.0,
+            "moving_time": 144_000,
             "elevation_gain": 5000.0
         }
     })
@@ -220,6 +232,32 @@ async fn test_activity_model_conversion() -> Result<()> {
         steps: Some(8000),
         heart_rate_zones: None,
         calories: Some(300),
+
+        // Advanced metrics (all None for test)
+        average_power: None,
+        max_power: None,
+        normalized_power: None,
+        power_zones: None,
+        ftp: None,
+        average_cadence: None,
+        max_cadence: None,
+        hrv_score: None,
+        recovery_heart_rate: None,
+        temperature: None,
+        humidity: None,
+        average_altitude: None,
+        wind_speed: None,
+        ground_contact_time: None,
+        vertical_oscillation: None,
+        stride_length: None,
+        running_power: None,
+        breathing_rate: None,
+        spo2: None,
+        training_stress_score: None,
+        intensity_factor: None,
+        suffer_score: None,
+        time_series_data: None,
+
         start_latitude: Some(45.5017), // Montreal
         start_longitude: Some(-73.5673),
         city: None,
@@ -272,8 +310,8 @@ async fn test_athlete_model() -> Result<()> {
 async fn test_stats_model() -> Result<()> {
     let stats = Stats {
         total_activities: 150,
-        total_distance: 1750000.0,     // 1750 km
-        total_duration: 324000,        // 90 hours
+        total_distance: 1_750_000.0,   // 1750 km
+        total_duration: 324_000,       // 90 hours
         total_elevation_gain: 20000.0, // 20 km
     };
 

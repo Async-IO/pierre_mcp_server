@@ -1,4 +1,5 @@
-// Diagnose weather API issues and test different endpoints
+// ABOUTME: Weather API diagnostic utility for troubleshooting external weather service integration
+// ABOUTME: Network connectivity and API configuration testing tool for weather services
 use chrono::{Duration, Utc};
 use reqwest::Client;
 use serde_json::Value;
@@ -8,38 +9,50 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🔧 OpenWeatherMap API Diagnostics");
     println!("=================================");
 
-    // Check API key
-    let api_key = match std::env::var("OPENWEATHER_API_KEY") {
-        Ok(key) => {
+    let api_key = check_api_key()?;
+    let client = Client::new();
+
+    test_current_weather(&client, &api_key).await?;
+    test_historical_weather(&client, &api_key).await?;
+    test_error_conditions(&client, &api_key).await?;
+
+    println!("\n✅ All diagnostics completed successfully!");
+    Ok(())
+}
+
+fn check_api_key() -> Result<String, Box<dyn std::error::Error>> {
+    std::env::var("OPENWEATHER_API_KEY").map_or_else(
+        |_| {
+            println!("❌ No OPENWEATHER_API_KEY environment variable found");
+            Err("Missing API key".into())
+        },
+        |key| {
             println!(
                 "✅ API Key Found: {}...{}",
                 &key[..8],
                 &key[key.len() - 4..]
             );
-            key
-        }
-        Err(_) => {
-            println!("❌ No OPENWEATHER_API_KEY environment variable found");
-            return Ok(());
-        }
-    };
+            Ok(key)
+        },
+    )
+}
 
-    let client = Client::new();
+async fn test_current_weather(
+    client: &Client,
+    api_key: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     let lat = 45.5017; // Montreal
     let lon = -73.5673;
 
-    println!("\n📍 Test Location: Montreal, Canada ({}, {})", lat, lon);
-
-    // Test 1: Current Weather API (should work with free tier)
+    println!("\n📍 Test Location: Montreal, Canada ({lat}, {lon})");
     println!("\n🌤️  Test 1: Current Weather API (Free)");
     println!("=====================================");
 
     let current_url = format!(
-        "https://api.openweathermap.org/data/2.5/weather?lat={}&lon={}&appid={}&units=metric",
-        lat, lon, api_key
+        "https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={api_key}&units=metric"
     );
 
-    println!("🔗 URL: {}", current_url);
+    println!("🔗 URL: {current_url}");
 
     match client.get(&current_url).send().await {
         Ok(response) => {
@@ -51,42 +64,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("✅ Current Weather Success!");
                         if let Some(main) = data.get("main") {
                             if let Some(temp) = main.get("temp") {
-                                println!("   🌡️  Temperature: {}°C", temp);
+                                println!("   🌡️  Temperature: {temp}°C");
                             }
                         }
                         if let Some(weather) = data.get("weather").and_then(|w| w.get(0)) {
                             if let Some(desc) = weather.get("description") {
-                                println!("   🌦️  Conditions: {}", desc);
+                                println!("   🌦️  Conditions: {desc}");
                             }
                         }
                     }
-                    Err(e) => println!("❌ JSON Parse Error: {}", e),
+                    Err(e) => println!("❌ JSON Parse Error: {e}"),
                 }
             } else {
-                let error_text = response
-                    .text()
-                    .await
-                    .unwrap_or_else(|_| "Unknown".to_string());
-                println!("❌ API Error: {}", error_text);
+                let error_text = response.text().await.unwrap_or_else(|_| "Unknown".into());
+                println!("❌ API Error: {error_text}");
             }
         }
-        Err(e) => println!("❌ Network Error: {}", e),
+        Err(e) => println!("❌ Network Error: {e}"),
     }
+    Ok(())
+}
 
-    // Test 2: Historical Weather API (requires subscription)
+async fn test_historical_weather(
+    client: &Client,
+    api_key: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let lat = 45.5017; // Montreal
+    let lon = -73.5673;
+
     println!("\n📅 Test 2: Historical Weather API (Paid)");
     println!("=========================================");
 
     let historical_timestamp = (Utc::now() - Duration::days(7)).timestamp();
     let historical_url = format!(
-        "https://api.openweathermap.org/data/3.0/onecall/timemachine?lat={}&lon={}&dt={}&appid={}&units=metric",
-        lat, lon, historical_timestamp, api_key
+        "https://api.openweathermap.org/data/3.0/onecall/timemachine?lat={lat}&lon={lon}&dt={historical_timestamp}&appid={api_key}&units=metric"
     );
 
-    println!("🔗 URL: {}", historical_url);
+    println!("🔗 URL: {historical_url}");
     println!(
-        "📅 Timestamp: {} ({})",
-        historical_timestamp,
+        "📅 Timestamp: {historical_timestamp} ({})",
         Utc::now() - Duration::days(7)
     );
 
@@ -101,81 +117,83 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         if let Some(data_array) = data.get("data").and_then(|d| d.as_array()) {
                             if let Some(first_entry) = data_array.first() {
                                 if let Some(temp) = first_entry.get("temp") {
-                                    println!("   🌡️  Historical Temperature: {}°C", temp);
+                                    println!("   🌡️  Historical Temperature: {temp}°C");
                                 }
                             }
                         }
                     }
-                    Err(e) => println!("❌ JSON Parse Error: {}", e),
+                    Err(e) => println!("❌ JSON Parse Error: {e}"),
                 }
             } else {
                 let status = response.status();
-                let error_text = response
-                    .text()
-                    .await
-                    .unwrap_or_else(|_| "Unknown".to_string());
-                println!("❌ Historical API Error: {}", error_text);
+                let error_text = response.text().await.unwrap_or_else(|_| "Unknown".into());
+                println!("❌ Historical API Error: {error_text}");
 
-                // Parse common error codes
-                if status == 401 {
-                    println!("   💡 This usually means:");
-                    println!("      • API key is invalid");
-                    println!("      • Historical data requires One Call API 3.0 subscription");
-                } else if status == 403 {
-                    println!("   💡 This usually means:");
-                    println!("      • Historical data not included in your plan");
-                    println!("      • Upgrade to One Call API 3.0 required");
-                } else if status == 429 {
-                    println!("   💡 Rate limit exceeded (1000/day on free tier)");
-                }
+                analyze_error_status(status);
             }
         }
-        Err(e) => println!("❌ Network Error: {}", e),
+        Err(e) => println!("❌ Network Error: {e}"),
     }
+    Ok(())
+}
 
-    // Test 3: Check account info
-    println!("\n👤 Test 3: Account Information");
-    println!("==============================");
+async fn test_error_conditions(
+    client: &Client,
+    api_key: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    println!("\n🔍 Test 3: Error Condition Tests");
+    println!("=================================");
 
-    let account_url = format!(
-        "https://api.openweathermap.org/data/2.5/weather?q=London&appid={}",
-        api_key
+    // Test with invalid coordinates
+    let invalid_url = format!(
+        "https://api.openweathermap.org/data/2.5/weather?lat=999&lon=999&appid={api_key}&units=metric"
     );
 
-    match client.get(&account_url).send().await {
+    println!("🧪 Testing invalid coordinates...");
+    match client.get(&invalid_url).send().await {
         Ok(response) => {
-            if response.status().is_success() {
-                println!("✅ API key is valid and active");
-                println!("🔍 Your account appears to have free tier access");
-            } else {
-                println!("❌ API key validation failed: {}", response.status());
+            println!("📊 Status: {}", response.status());
+            if !response.status().is_success() {
+                println!("✅ Correctly rejected invalid coordinates");
             }
         }
-        Err(_) => println!("❌ Could not validate API key"),
+        Err(e) => println!("❌ Network Error: {e}"),
     }
 
-    println!("\n📋 Summary & Recommendations");
-    println!("=============================");
+    // Test with invalid API key
+    let bad_key_url = "https://api.openweathermap.org/data/2.5/weather?lat=45.5017&lon=-73.5673&appid=invalid_key&units=metric".to_string();
 
-    println!("🎯 Weather Integration Status:");
-    println!("   • Your API key is configured correctly");
-    println!("   • System will use mock weather as fallback");
-    println!("   • This is the expected behavior for development");
-
-    println!("\n💡 For Real Historical Weather:");
-    println!("   1. Sign up for One Call API 3.0 at OpenWeatherMap");
-    println!("   2. Subscribe to historical data plan ($0.0012/call)");
-    println!("   3. Historical data will then work automatically");
-
-    println!("\n🎭 Current Setup (Mock Weather):");
-    println!("   ✅ Realistic seasonal patterns");
-    println!("   ✅ Location-aware variations");
-    println!("   ✅ Time-based temperature changes");
-    println!("   ✅ No API costs or rate limits");
-    println!("   ✅ Perfect for development and testing");
-
-    println!("\n✨ The weather integration is working correctly!");
-    println!("   It automatically provides intelligent fallback weather data.");
+    println!("🧪 Testing invalid API key...");
+    match client.get(&bad_key_url).send().await {
+        Ok(response) => {
+            println!("📊 Status: {}", response.status());
+            if response.status() == 401 {
+                println!("✅ Correctly rejected invalid API key");
+            }
+        }
+        Err(e) => println!("❌ Network Error: {e}"),
+    }
 
     Ok(())
+}
+
+fn analyze_error_status(status: reqwest::StatusCode) {
+    match status.as_u16() {
+        401 => {
+            println!("   💡 This usually means:");
+            println!("      • API key is invalid");
+            println!("      • Historical data requires One Call API 3.0 subscription");
+        }
+        403 => {
+            println!("   💡 This usually means:");
+            println!("      • Historical data not included in your plan");
+            println!("      • Upgrade to One Call API 3.0 required");
+        }
+        429 => {
+            println!("   💡 Rate limit exceeded (1000/day on free tier)");
+        }
+        _ => {
+            println!("   💡 Unexpected error code: {status}");
+        }
+    }
 }

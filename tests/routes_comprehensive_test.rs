@@ -1,3 +1,5 @@
+// ABOUTME: Comprehensive tests for authentication and OAuth route flows
+// ABOUTME: Tests authentication, registration, and OAuth functionality
 //! Comprehensive tests for routes.rs - Authentication and OAuth flows
 //!
 //! This test suite aims to improve coverage from 55.09% to 80%+ by testing
@@ -340,7 +342,7 @@ async fn test_oauth_get_auth_url_strava() -> Result<()> {
     let oauth_routes = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
-    let response = oauth_routes.get_auth_url(user_id, "strava").await?;
+    let response = oauth_routes.get_auth_url(user_id, "strava")?;
 
     assert!(response.authorization_url.contains("strava.com"));
     assert!(response.authorization_url.contains("authorize"));
@@ -356,7 +358,7 @@ async fn test_oauth_get_auth_url_fitbit() -> Result<()> {
     let oauth_routes = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
-    let response = oauth_routes.get_auth_url(user_id, "fitbit").await?;
+    let response = oauth_routes.get_auth_url(user_id, "fitbit")?;
 
     assert!(response.authorization_url.contains("fitbit.com"));
     assert!(response.authorization_url.contains("authorize"));
@@ -372,9 +374,7 @@ async fn test_oauth_get_auth_url_unsupported_provider() -> Result<()> {
     let oauth_routes = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
-    let result = oauth_routes
-        .get_auth_url(user_id, "unsupported_provider")
-        .await;
+    let result = oauth_routes.get_auth_url(user_id, "unsupported_provider");
 
     assert!(result.is_err());
     assert!(result
@@ -410,7 +410,7 @@ async fn test_oauth_disconnect_provider_success() -> Result<()> {
     let user_id = Uuid::new_v4();
 
     // Disconnecting a provider that wasn't connected should succeed (idempotent)
-    let result = oauth_routes.disconnect_provider(user_id, "strava").await;
+    let result = oauth_routes.disconnect_provider(user_id, "strava");
 
     assert!(result.is_ok());
 
@@ -422,9 +422,7 @@ async fn test_oauth_disconnect_invalid_provider() -> Result<()> {
     let oauth_routes = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
-    let result = oauth_routes
-        .disconnect_provider(user_id, "invalid_provider")
-        .await;
+    let result = oauth_routes.disconnect_provider(user_id, "invalid_provider");
 
     assert!(result.is_err());
     assert!(result
@@ -452,7 +450,7 @@ async fn test_email_validation_comprehensive() -> Result<()> {
         };
 
         let result = auth_routes.register(request).await;
-        assert!(result.is_err(), "Email '{}' should be invalid", email);
+        assert!(result.is_err(), "Email '{email}' should be invalid");
     }
 
     // Test valid email formats
@@ -466,13 +464,13 @@ async fn test_email_validation_comprehensive() -> Result<()> {
 
     for (i, email) in valid_emails.iter().enumerate() {
         let request = RegisterRequest {
-            email: email.to_string(),
+            email: (*email).to_string(),
             password: "validpassword123".to_string(),
-            display_name: Some(format!("Test User {}", i)),
+            display_name: Some(format!("Test User {i}")),
         };
 
         let result = auth_routes.register(request).await;
-        assert!(result.is_ok(), "Email '{}' should be valid", email);
+        assert!(result.is_ok(), "Email '{email}' should be valid");
     }
 
     Ok(())
@@ -490,13 +488,13 @@ async fn test_password_validation_comprehensive() -> Result<()> {
 
     for (i, password) in invalid_passwords.iter().enumerate() {
         let request = RegisterRequest {
-            email: format!("test{}@example.com", i),
-            password: password.to_string(),
+            email: format!("test{i}@example.com"),
+            password: (*password).to_string(),
             display_name: Some("Test User".to_string()),
         };
 
         let result = auth_routes.register(request).await;
-        assert!(result.is_err(), "Password '{}' should be invalid", password);
+        assert!(result.is_err(), "Password '{password}' should be invalid");
     }
 
     // Test valid passwords (8+ characters)
@@ -511,8 +509,8 @@ async fn test_password_validation_comprehensive() -> Result<()> {
 
     for (i, password) in valid_passwords.iter().enumerate() {
         let request = RegisterRequest {
-            email: format!("valid{}@example.com", i),
-            password: password.to_string(),
+            email: format!("valid{i}@example.com"),
+            password: (*password).to_string(),
             display_name: Some("Test User".to_string()),
         };
 
@@ -560,7 +558,7 @@ async fn test_complete_auth_flow() -> Result<()> {
     let connections = oauth_routes.get_connection_status(user_id).await?;
 
     // 5. Get OAuth authorization URL
-    let auth_url = oauth_routes.get_auth_url(user_id, "strava").await?;
+    let auth_url = oauth_routes.get_auth_url(user_id, "strava")?;
 
     // Verify everything worked
     assert!(!register_response.user_id.is_empty());
@@ -583,9 +581,9 @@ async fn test_concurrent_registrations() -> Result<()> {
         let routes = auth_routes.clone();
         handles.push(tokio::spawn(async move {
             let request = RegisterRequest {
-                email: format!("concurrent{}@example.com", i),
+                email: format!("concurrent{i}@example.com"),
                 password: "concurrentpass123".to_string(),
-                display_name: Some(format!("Concurrent User {}", i)),
+                display_name: Some(format!("Concurrent User {i}")),
             };
 
             routes.register(request).await
@@ -608,9 +606,9 @@ async fn test_concurrent_logins() -> Result<()> {
     // First register users
     for i in 0..3 {
         let request = RegisterRequest {
-            email: format!("login_concurrent{}@example.com", i),
+            email: format!("login_concurrent{i}@example.com"),
             password: "loginpass123".to_string(),
-            display_name: Some(format!("Login User {}", i)),
+            display_name: Some(format!("Login User {i}")),
         };
         auth_routes.register(request).await?;
     }
@@ -621,7 +619,7 @@ async fn test_concurrent_logins() -> Result<()> {
         let routes = auth_routes.clone();
         handles.push(tokio::spawn(async move {
             let request = LoginRequest {
-                email: format!("login_concurrent{}@example.com", i),
+                email: format!("login_concurrent{i}@example.com"),
                 password: "loginpass123".to_string(),
             };
 

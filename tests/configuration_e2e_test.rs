@@ -1,3 +1,5 @@
+// ABOUTME: End-to-end integration tests for configuration system
+// ABOUTME: Tests MCP protocol tools through universal execution to config management
 //! End-to-End (E2E) integration tests for the configuration system
 //!
 //! Tests the entire configuration system flow from MCP protocol tools

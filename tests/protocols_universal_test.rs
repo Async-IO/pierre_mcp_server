@@ -1,3 +1,5 @@
+// ABOUTME: Universal protocol integration tests for tool execution layer
+// ABOUTME: Tests protocol-agnostic interfaces for MCP and A2A
 //! Universal Protocol Integration Tests
 //!
 //! Comprehensive tests for the universal tool execution layer
@@ -20,6 +22,7 @@ use uuid::Uuid;
 mod common;
 
 /// Test configuration for universal protocols
+#[allow(clippy::too_many_lines)]
 async fn create_test_executor() -> Result<UniversalToolExecutor> {
     let database = common::create_test_database().await?;
 
@@ -197,8 +200,7 @@ async fn test_tool_registration() -> Result<()> {
     for expected_tool in expected_tools {
         assert!(
             tool_names.contains(&expected_tool.to_string()),
-            "Missing tool: {}",
-            expected_tool
+            "Missing tool: {expected_tool}"
         );
     }
 
@@ -300,6 +302,7 @@ async fn test_connect_fitbit_tool() -> Result<()> {
 }
 
 #[tokio::test]
+#[allow(clippy::too_many_lines)]
 async fn test_set_goal_tool() -> Result<()> {
     let database = common::create_test_database().await?;
     let (user_id, _) = common::create_test_user(&database).await?;
@@ -509,16 +512,16 @@ async fn test_analyze_performance_trends_tool() -> Result<()> {
     };
 
     let response = executor.execute_tool(request).await?;
-    if !response.success {
-        println!("Error: {:?}", response.error);
-        // For test data, the handler may expect stored activities
-        assert!(response.error.is_some());
-    } else {
+    if response.success {
         // If it succeeds, verify the response structure
         assert!(response.result.is_some());
         let result = response.result.unwrap();
         assert!(result["trend_direction"].is_string());
         assert!(result["improvement_percentage"].is_number());
+    } else {
+        println!("Error: {:?}", response.error);
+        // For test data, the handler may expect stored activities
+        assert!(response.error.is_some());
     }
 
     Ok(())
@@ -539,17 +542,17 @@ async fn test_compare_activities_tool() -> Result<()> {
     };
 
     let response = executor.execute_tool(request).await?;
-    if !response.success {
-        println!("Error: {:?}", response.error);
-        // For test data, it's expected that activities don't exist
-        assert!(response.error.is_some());
-        assert!(response.error.as_ref().unwrap().contains("not found"));
-    } else {
+    if response.success {
         // If it succeeds (with mock data), verify the response structure
         assert!(response.result.is_some());
         let result = response.result.unwrap();
         assert!(result["comparison_result"].is_object());
         assert!(result["performance_ranking"].is_number());
+    } else {
+        println!("Error: {:?}", response.error);
+        // For test data, it's expected that activities don't exist
+        assert!(response.error.is_some());
+        assert!(response.error.as_ref().unwrap().contains("not found"));
     }
 
     Ok(())
@@ -588,15 +591,15 @@ async fn test_detect_patterns_tool() -> Result<()> {
     };
 
     let response = executor.execute_tool(request).await?;
-    if !response.success {
-        println!("Error: {:?}", response.error);
-        // For test data, the handler may expect stored activities
-        assert!(response.error.is_some());
-    } else {
+    if response.success {
         // If it succeeds, verify the response structure
         assert!(response.result.is_some());
         let result = response.result.unwrap();
         assert!(result["patterns"].is_array());
+    } else {
+        println!("Error: {:?}", response.error);
+        // For test data, the handler may expect stored activities
+        assert!(response.error.is_some());
     }
 
     Ok(())
@@ -616,16 +619,16 @@ async fn test_track_progress_tool() -> Result<()> {
     };
 
     let response = executor.execute_tool(request).await?;
-    if !response.success {
-        println!("Error: {:?}", response.error);
-        // For test data, it's expected that goal doesn't exist
-        assert!(response.error.is_some());
-    } else {
+    if response.success {
         // If it succeeds (with mock data), verify the response structure
         assert!(response.result.is_some());
         let result = response.result.unwrap();
         assert!(result["progress_percentage"].is_number());
         assert!(result["on_track"].is_boolean());
+    } else {
+        println!("Error: {:?}", response.error);
+        // For test data, it's expected that goal doesn't exist
+        assert!(response.error.is_some());
     }
 
     Ok(())
@@ -746,16 +749,16 @@ async fn test_calculate_fitness_score_tool() -> Result<()> {
     };
 
     let response = executor.execute_tool(request).await?;
-    if !response.success {
-        println!("Error: {:?}", response.error);
-        // For test data, the handler may expect stored activities
-        assert!(response.error.is_some());
-    } else {
+    if response.success {
         // If it succeeds, verify the response structure
         assert!(response.result.is_some());
         let result = response.result.unwrap();
         assert!(result["fitness_score"].is_number());
         assert!(result["score_components"].is_object());
+    } else {
+        println!("Error: {:?}", response.error);
+        // For test data, the handler may expect stored activities
+        assert!(response.error.is_some());
     }
 
     Ok(())
@@ -776,7 +779,13 @@ async fn test_predict_performance_tool() -> Result<()> {
     };
 
     let response = executor.execute_tool(request).await?;
-    if !response.success {
+    if response.success {
+        // If it succeeds (with mock/real data), verify the response structure
+        assert!(response.result.is_some());
+        let result = response.result.unwrap();
+        assert!(result["predicted_time"].is_number());
+        assert!(result["confidence_level"].is_number());
+    } else {
         println!("Error: {:?}", response.error);
         // For test data, it's expected that no historical activities exist
         assert!(response.error.is_some());
@@ -785,12 +794,6 @@ async fn test_predict_performance_tool() -> Result<()> {
             .as_ref()
             .unwrap()
             .contains("No historical activities"));
-    } else {
-        // If it succeeds (with mock/real data), verify the response structure
-        assert!(response.result.is_some());
-        let result = response.result.unwrap();
-        assert!(result["predicted_time"].is_number());
-        assert!(result["confidence_level"].is_number());
     }
 
     Ok(())
@@ -823,22 +826,23 @@ async fn test_analyze_training_load_tool() -> Result<()> {
     };
 
     let response = executor.execute_tool(request).await?;
-    if !response.success {
-        println!("Error: {:?}", response.error);
-        // For test data, the handler may expect stored activities
-        assert!(response.error.is_some());
-    } else {
+    if response.success {
         // If it succeeds, verify the response structure
         assert!(response.result.is_some());
         let result = response.result.unwrap();
         assert!(result["training_load_balance"].is_string());
         assert!(result["recovery_recommendation"].is_string());
+    } else {
+        println!("Error: {:?}", response.error);
+        // For test data, the handler may expect stored activities
+        assert!(response.error.is_some());
     }
 
     Ok(())
 }
 
 #[tokio::test]
+#[allow(clippy::too_many_lines)]
 async fn test_disconnect_provider_tool() -> Result<()> {
     let database = common::create_test_database().await?;
     let (user_id, _) = common::create_test_user(&database).await?;
@@ -1081,7 +1085,9 @@ async fn test_invalid_protocol_handling() -> Result<()> {
     match response {
         Ok(response) => {
             // If it succeeds in creating a response, it should indicate failure
-            if !response.success {
+            if response.success {
+                panic!("Response should not be successful for invalid UUID");
+            } else {
                 println!("Error: {:?}", response.error);
             }
             assert!(!response.success);
@@ -1089,7 +1095,7 @@ async fn test_invalid_protocol_handling() -> Result<()> {
         }
         Err(err) => {
             // If execute_tool returns an error, that's also acceptable for invalid UUID
-            println!("Tool execution error: {:?}", err);
+            println!("Tool execution error: {err:?}");
             assert!(err.to_string().contains("Invalid user ID format"));
         }
     }
@@ -1132,7 +1138,9 @@ async fn test_malformed_parameters() -> Result<()> {
     match response {
         Ok(response) => {
             // If it succeeds in creating a response, it should indicate failure
-            if !response.success {
+            if response.success {
+                panic!("Response should not be successful for invalid parameters");
+            } else {
                 println!("Error: {:?}", response.error);
             }
             assert!(!response.success);
@@ -1145,7 +1153,7 @@ async fn test_malformed_parameters() -> Result<()> {
         }
         Err(err) => {
             // If execute_tool returns an error, that's also acceptable for missing params
-            println!("Tool execution error: {:?}", err);
+            println!("Tool execution error: {err:?}");
             assert!(err.to_string().contains("goal_type is required"));
         }
     }

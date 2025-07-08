@@ -62,7 +62,8 @@ pub enum ErrorCode {
 }
 
 impl ErrorCode {
-    /// Get the HTTP status code for this error
+    /// Get the `HTTP` status code for this error
+    #[must_use]
     pub const fn http_status(self) -> u16 {
         match self {
             // 400 Bad Request
@@ -104,6 +105,7 @@ impl ErrorCode {
     }
 
     /// Get a user-friendly description of this error
+    #[must_use]
     pub const fn description(self) -> &'static str {
         match self {
             Self::AuthRequired => "Authentication is required to access this resource",
@@ -142,7 +144,7 @@ impl Serialize for ErrorCode {
     where
         S: serde::Serializer,
     {
-        serializer.serialize_str(&format!("{:?}", self))
+        serializer.serialize_str(&format!("{self:?}"))
     }
 }
 
@@ -191,12 +193,13 @@ pub struct AppError {
     pub code: ErrorCode,
     /// Human-readable error message
     pub message: String,
-    /// Optional request ID for tracing
+    /// Optional request `ID` for tracing
     pub request_id: Option<String>,
 }
 
 impl AppError {
-    /// Create a new AppError with the given code and message
+    /// Create a new `AppError` with the given code and message
+    #[must_use]
     pub fn new(code: ErrorCode, message: impl Into<String>) -> Self {
         Self {
             code,
@@ -205,14 +208,16 @@ impl AppError {
         }
     }
 
-    /// Add a request ID to the error
+    /// Add a request `ID` to the error
+    #[must_use]
     pub fn with_request_id(mut self, request_id: impl Into<String>) -> Self {
         self.request_id = Some(request_id.into());
         self
     }
 
-    /// Get the HTTP status code for this error
-    pub fn http_status(&self) -> u16 {
+    /// Get the `HTTP` status code for this error
+    #[must_use]
+    pub const fn http_status(&self) -> u16 {
         self.code.http_status()
     }
 }
@@ -229,7 +234,7 @@ impl Reject for AppError {}
 /// Result type alias for convenience
 pub type AppResult<T> = Result<T, AppError>;
 
-/// Simplified HTTP error response format
+/// Simplified `HTTP` error response format
 #[derive(Debug, Serialize)]
 pub struct ErrorResponse {
     pub code: ErrorCode,
@@ -253,99 +258,112 @@ impl From<AppError> for ErrorResponse {
 /// Convenience functions for creating common errors
 impl AppError {
     /// Authentication required
+    #[must_use]
     pub fn auth_required() -> Self {
         Self::new(ErrorCode::AuthRequired, "Authentication required")
     }
 
     /// Invalid authentication
+    #[must_use]
     pub fn auth_invalid(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::AuthInvalid, message)
     }
 
     /// Authentication expired
+    #[must_use]
     pub fn auth_expired() -> Self {
         Self::new(ErrorCode::AuthExpired, "Authentication token has expired")
     }
 
     /// Rate limit exceeded
+    #[must_use]
     pub fn rate_limit_exceeded(limit: u32) -> Self {
         Self::new(
             ErrorCode::RateLimitExceeded,
-            format!("Rate limit of {} requests exceeded", limit),
+            format!("Rate limit of {limit} requests exceeded"),
         )
     }
 
     /// Resource not found
+    #[must_use]
     pub fn not_found(resource: impl Into<String>) -> Self {
+        let resource_str = resource.into();
         Self::new(
             ErrorCode::ResourceNotFound,
-            format!("{} not found", resource.into()),
+            format!("{resource_str} not found"),
         )
     }
 
     /// Invalid input
+    #[must_use]
     pub fn invalid_input(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::InvalidInput, message)
     }
 
     /// Internal server error
+    #[must_use]
     pub fn internal(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::InternalError, message)
     }
 
     /// Database error
+    #[must_use]
     pub fn database(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::DatabaseError, message)
     }
 
     /// Configuration error
+    #[must_use]
     pub fn config(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::ConfigError, message)
     }
 
     /// External service error
+    #[must_use]
     pub fn external_service(service: impl Into<String>, message: impl Into<String>) -> Self {
+        let service_str = service.into();
+        let message_str = message.into();
         Self::new(
             ErrorCode::ExternalServiceError,
-            format!("{}: {}", service.into(), message.into()),
+            format!("{service_str}: {message_str}"),
         )
     }
 }
 
-/// Conversion from anyhow::Error to AppError
+/// Conversion from `anyhow::Error` to `AppError`
 impl From<anyhow::Error> for AppError {
     fn from(error: anyhow::Error) -> Self {
-        AppError::new(ErrorCode::InternalError, error.to_string())
+        Self::new(ErrorCode::InternalError, error.to_string())
     }
 }
 
-/// Conversion from std::io::Error to AppError
+/// Conversion from `std::io::Error` to `AppError`
 impl From<std::io::Error> for AppError {
     fn from(error: std::io::Error) -> Self {
-        AppError::new(ErrorCode::InternalError, format!("IO error: {}", error))
+        Self::new(ErrorCode::InternalError, format!("IO error: {error}"))
     }
 }
 
-/// Conversion from serde_json::Error to AppError
+/// Conversion from `serde_json::Error` to `AppError`
 impl From<serde_json::Error> for AppError {
     fn from(error: serde_json::Error) -> Self {
-        AppError::new(ErrorCode::InvalidInput, format!("JSON error: {}", error))
+        Self::new(ErrorCode::InvalidInput, format!("JSON error: {error}"))
     }
 }
 
-/// Conversion from uuid::Error to AppError
+/// Conversion from `uuid::Error` to `AppError`
 impl From<uuid::Error> for AppError {
     fn from(error: uuid::Error) -> Self {
-        AppError::new(ErrorCode::InvalidInput, format!("UUID error: {}", error))
+        Self::new(ErrorCode::InvalidInput, format!("UUID error: {error}"))
     }
 }
 
-/// Conversion from chrono::ParseError to AppError  
+/// Conversion from `chrono::ParseError` to `AppError`
 impl From<chrono::ParseError> for AppError {
     fn from(error: chrono::ParseError) -> Self {
-        AppError::new(
+        Self::new(
             ErrorCode::InvalidInput,
-            format!("Date parse error: {}", error),
+            format!("Date parse error: {error}"),
         )
     }
 }
@@ -355,37 +373,41 @@ impl From<crate::protocols::ProtocolError> for AppError {
     fn from(error: crate::protocols::ProtocolError) -> Self {
         match error {
             crate::protocols::ProtocolError::UnsupportedProtocol(protocol) => {
-                AppError::invalid_input(format!("Unsupported protocol: {}", protocol))
+                Self::invalid_input(format!("Unsupported protocol: {protocol}"))
             }
             crate::protocols::ProtocolError::ToolNotFound(tool) => {
-                AppError::not_found(format!("tool '{}'", tool))
+                Self::not_found(format!("tool '{tool}'"))
             }
             crate::protocols::ProtocolError::InvalidParameters(message) => {
-                AppError::invalid_input(message)
+                Self::invalid_input(message)
             }
-            crate::protocols::ProtocolError::ConfigurationError(message) => {
-                AppError::config(message)
-            }
+            crate::protocols::ProtocolError::ConfigurationError(message) => Self::config(message),
             crate::protocols::ProtocolError::ExecutionFailed(message) => {
-                AppError::internal(format!("Tool execution failed: {}", message))
+                Self::internal(format!("Tool execution failed: {message}"))
             }
             crate::protocols::ProtocolError::ConversionFailed(message) => {
-                AppError::internal(format!("Protocol conversion failed: {}", message))
+                Self::internal(format!("Protocol conversion failed: {message}"))
+            }
+            crate::protocols::ProtocolError::SerializationError(message) => {
+                Self::internal(format!("Serialization failed: {message}"))
+            }
+            crate::protocols::ProtocolError::DatabaseError(message) => {
+                Self::internal(format!("Database operation failed: {message}"))
             }
         }
     }
 }
 
-/// Database error conversion helper  
-/// Note: This is conditional on whether SQLx is actually used in the database plugins
+/// Database error conversion helper
+/// Note: This is conditional on whether `SQLx` is actually used in the database plugins
 #[cfg(any(feature = "postgresql", feature = "sqlite"))]
 impl From<Box<dyn std::error::Error + Send + Sync>> for AppError {
     fn from(error: Box<dyn std::error::Error + Send + Sync>) -> Self {
-        AppError::database(error.to_string())
+        Self::database(error.to_string())
     }
 }
 
-/// Convert AppError to warp Reply for HTTP responses
+/// Convert `AppError` to warp `Reply` for `HTTP` responses
 impl warp::Reply for AppError {
     fn into_response(self) -> warp::reply::Response {
         let status = warp::http::StatusCode::from_u16(self.code.http_status())

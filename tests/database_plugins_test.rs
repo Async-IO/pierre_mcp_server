@@ -1,3 +1,5 @@
+// ABOUTME: Unit tests for database plugin functionality and factory patterns
+// ABOUTME: Tests database creation, user operations, and plugin isolation
 use chrono::Utc;
 use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
 use pierre_mcp_server::models::User;
@@ -8,7 +10,7 @@ async fn create_test_database() -> Database {
     let encryption_key = (0..32).collect::<Vec<u8>>();
     // Use a unique database file path for each test to ensure isolation
     let unique_id = uuid::Uuid::new_v4();
-    let database_url = format!("sqlite:/tmp/test_{}.db", unique_id);
+    let database_url = format!("sqlite:/tmp/test_{unique_id}.db");
     Database::new(&database_url, encryption_key)
         .await
         .expect("Failed to create test database")
@@ -249,8 +251,8 @@ async fn test_database_trait_abstraction() {
             let user_id = Uuid::new_v4();
             let user = User {
                 id: user_id,
-                email: format!("test{}@example.com", i),
-                display_name: Some(format!("Test User {}", i)),
+                email: format!("test{i}@example.com"),
+                display_name: Some(format!("Test User {i}")),
                 password_hash: "hashed_password".to_string(),
                 tier: pierre_mcp_server::models::UserTier::Starter,
                 created_at: Utc::now(),
@@ -290,8 +292,8 @@ async fn test_system_stats() {
         let user_id = Uuid::new_v4();
         let user = User {
             id: user_id,
-            email: format!("user{}@example.com", i),
-            display_name: Some(format!("User {}", i)),
+            email: format!("user{i}@example.com"),
+            display_name: Some(format!("User {i}")),
             password_hash: "hashed_password".to_string(),
             tier: pierre_mcp_server::models::UserTier::Starter,
             created_at: Utc::now(),

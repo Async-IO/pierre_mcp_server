@@ -62,10 +62,10 @@ impl warp::reject::Reject for A2AError {}
 
 /// Helper function for mapping database errors to A2A errors
 pub fn map_db_error(context: &str) -> impl Fn(anyhow::Error) -> A2AError + '_ {
-    move |e| A2AError::InternalError(format!("{}: {}", context, e))
+    move |e| A2AError::InternalError(format!("{context}: {e}"))
 }
 
 /// Helper function for mapping database errors to A2A errors with string context
 pub fn map_db_error_str(context: String) -> impl Fn(anyhow::Error) -> A2AError {
-    move |e| A2AError::InternalError(format!("{}: {}", context, e))
+    move |e| A2AError::InternalError(format!("{context}: {e}"))
 }

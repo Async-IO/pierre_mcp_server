@@ -67,7 +67,7 @@ pub struct ApiKeyRoutes {
 
 impl ApiKeyRoutes {
     /// Create a new API key routes handler
-    pub fn new(database: Database, auth_manager: AuthManager) -> Self {
+    pub const fn new(database: Database, auth_manager: AuthManager) -> Self {
         Self {
             database,
             auth_manager,
@@ -76,7 +76,7 @@ impl ApiKeyRoutes {
     }
 
     /// Authenticate JWT token and extract user ID
-    async fn authenticate_user(&self, auth_header: Option<&str>) -> Result<Uuid> {
+    fn authenticate_user(&self, auth_header: Option<&str>) -> Result<Uuid> {
         let auth_str =
             auth_header.ok_or_else(|| anyhow::anyhow!("Missing authorization header"))?;
 
@@ -90,18 +90,24 @@ impl ApiKeyRoutes {
     }
 
     /// Create a new API key with simplified rate limit approach
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Authentication fails
+    /// - Database operations fail
+    /// - API key creation fails
     pub async fn create_api_key_simple(
         &self,
         auth_header: Option<&str>,
         request: CreateApiKeyRequestSimple,
     ) -> Result<ApiKeyCreateResponse> {
-        let user_id = self.authenticate_user(auth_header).await?;
+        let user_id = self.authenticate_user(auth_header)?;
 
         // Create the API key
         let (api_key, full_key) = self
             .api_key_manager
-            .create_api_key_simple(user_id, request)
-            .await?;
+            .create_api_key_simple(user_id, request)?;
 
         // Store in database
         self.database.create_api_key(&api_key).await?;
@@ -121,23 +127,27 @@ impl ApiKeyRoutes {
         Ok(ApiKeyCreateResponse {
             api_key: full_key,
             key_info,
-            warning: "Store this API key securely. It will not be shown again.".to_string(),
+            warning: "Store this API key securely. It will not be shown again.".into(),
         })
     }
 
     /// Create a new API key (legacy method with tier)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Authentication fails
+    /// - Database operations fail
+    /// - API key creation fails
     pub async fn create_api_key(
         &self,
         auth_header: Option<&str>,
         request: CreateApiKeyRequest,
     ) -> Result<ApiKeyCreateResponse> {
-        let user_id = self.authenticate_user(auth_header).await?;
+        let user_id = self.authenticate_user(auth_header)?;
 
         // Create the API key
-        let (api_key, full_key) = self
-            .api_key_manager
-            .create_api_key(user_id, request)
-            .await?;
+        let (api_key, full_key) = self.api_key_manager.create_api_key(user_id, request)?;
 
         // Store in database
         self.database.create_api_key(&api_key).await?;
@@ -157,13 +167,19 @@ impl ApiKeyRoutes {
         Ok(ApiKeyCreateResponse {
             api_key: full_key,
             key_info,
-            warning: "Store this API key securely. It will not be shown again.".to_string(),
+            warning: "Store this API key securely. It will not be shown again.".into(),
         })
     }
 
     /// List user's API keys
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Authentication fails
+    /// - Database operations fail
     pub async fn list_api_keys(&self, auth_header: Option<&str>) -> Result<ApiKeyListResponse> {
-        let user_id = self.authenticate_user(auth_header).await?;
+        let user_id = self.authenticate_user(auth_header)?;
 
         let api_keys = self.database.get_user_api_keys(user_id).await?;
 
@@ -188,24 +204,38 @@ impl ApiKeyRoutes {
     }
 
     /// Deactivate an API key
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Authentication fails
+    /// - Database operations fail
+    /// - API key not found or not owned by user
     pub async fn deactivate_api_key(
         &self,
         auth_header: Option<&str>,
         api_key_id: &str,
     ) -> Result<ApiKeyDeactivateResponse> {
-        let user_id = self.authenticate_user(auth_header).await?;
+        let user_id = self.authenticate_user(auth_header)?;
 
         self.database
             .deactivate_api_key(api_key_id, user_id)
             .await?;
 
         Ok(ApiKeyDeactivateResponse {
-            message: format!("API key {} has been deactivated", api_key_id),
+            message: format!("API key {api_key_id} has been deactivated"),
             deactivated_at: Utc::now(),
         })
     }
 
     /// Get API key usage statistics
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Authentication fails
+    /// - Database operations fail
+    /// - API key not found or not owned by user
     pub async fn get_api_key_usage(
         &self,
         auth_header: Option<&str>,
@@ -213,7 +243,7 @@ impl ApiKeyRoutes {
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
     ) -> Result<ApiKeyUsageResponse> {
-        let user_id = self.authenticate_user(auth_header).await?;
+        let user_id = self.authenticate_user(auth_header)?;
 
         // Verify the API key belongs to the user
         let user_keys = self.database.get_user_api_keys(user_id).await?;
@@ -230,13 +260,21 @@ impl ApiKeyRoutes {
     }
 
     /// Create a trial API key with default settings
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Authentication fails
+    /// - User already has a trial key
+    /// - Database operations fail
+    /// - API key creation fails
     pub async fn create_trial_key(
         &self,
         auth_header: Option<&str>,
         name: String,
         description: Option<String>,
     ) -> Result<ApiKeyCreateResponse> {
-        let user_id = self.authenticate_user(auth_header).await?;
+        let user_id = self.authenticate_user(auth_header)?;
 
         // Check if user already has a trial key
         let existing_keys = self.database.get_user_api_keys(user_id).await?;
@@ -247,10 +285,9 @@ impl ApiKeyRoutes {
         }
 
         // Create the trial key
-        let (api_key, full_key) = self
-            .api_key_manager
-            .create_trial_key(user_id, name, description)
-            .await?;
+        let (api_key, full_key) =
+            self.api_key_manager
+                .create_trial_key(user_id, name, description)?;
 
         // Store in database
         self.database.create_api_key(&api_key).await?;
@@ -270,9 +307,7 @@ impl ApiKeyRoutes {
             },
             warning: format!(
                 "This is a trial API key that will expire on {}. Store it securely - it cannot be recovered once lost.",
-                api_key.expires_at
-                    .map(|d| d.format("%Y-%m-%d").to_string())
-                    .unwrap_or_else(|| "N/A".to_string())
+                api_key.expires_at.map_or_else(|| "N/A".into(), |d| d.format("%Y-%m-%d").to_string())
             ),
         })
     }

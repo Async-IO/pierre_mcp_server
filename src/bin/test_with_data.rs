@@ -1,18 +1,14 @@
+// ABOUTME: Comprehensive testing utility for validating server functionality with real fitness data
+// ABOUTME: End-to-end testing tool for MCP protocol, activity analysis, and data processing workflows
 use anyhow::Result;
 use serde_json::json;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    println!("Testing MCP Server with Real Strava Data...\n");
-
-    // Connect to the MCP server
-    let stream = TcpStream::connect("127.0.0.1:8080").await?;
-    let (reader, mut writer) = stream.into_split();
-    let mut reader = BufReader::new(reader);
-
-    // Test 1: Initialize
+async fn test_initialize(
+    writer: &mut tokio::net::tcp::OwnedWriteHalf,
+    reader: &mut BufReader<tokio::net::tcp::OwnedReadHalf>,
+) -> Result<()> {
     println!("🔄 Initializing MCP connection...");
     let init_request = json!({
         "jsonrpc": "2.0",
@@ -21,7 +17,7 @@ async fn main() -> Result<()> {
         "id": 1
     });
 
-    let request_str = format!("{}\n", init_request);
+    let request_str = format!("{init_request}\n");
     writer.write_all(request_str.as_bytes()).await?;
 
     let mut response = String::new();
@@ -34,8 +30,13 @@ async fn main() -> Result<()> {
             .unwrap()
             .len()
     );
+    Ok(())
+}
 
-    // Test 2: Get Athlete Profile
+async fn test_athlete_profile(
+    writer: &mut tokio::net::tcp::OwnedWriteHalf,
+    reader: &mut BufReader<tokio::net::tcp::OwnedReadHalf>,
+) -> Result<()> {
     println!("\n🔄 Getting athlete profile...");
     let athlete_request = json!({
         "jsonrpc": "2.0",
@@ -49,7 +50,7 @@ async fn main() -> Result<()> {
         "id": 2
     });
 
-    let request_str = format!("{}\n", athlete_request);
+    let request_str = format!("{athlete_request}\n");
     writer.write_all(request_str.as_bytes()).await?;
 
     let mut response = String::new();
@@ -74,8 +75,13 @@ async fn main() -> Result<()> {
     } else {
         println!("❌ Error getting athlete: {}", athlete_response["error"]);
     }
+    Ok(())
+}
 
-    // Test 3: Get Recent Activities
+async fn test_recent_activities(
+    writer: &mut tokio::net::tcp::OwnedWriteHalf,
+    reader: &mut BufReader<tokio::net::tcp::OwnedReadHalf>,
+) -> Result<()> {
     println!("\n🔄 Getting recent activities...");
     let activities_request = json!({
         "jsonrpc": "2.0",
@@ -90,7 +96,7 @@ async fn main() -> Result<()> {
         "id": 3
     });
 
-    let request_str = format!("{}\n", activities_request);
+    let request_str = format!("{activities_request}\n");
     writer.write_all(request_str.as_bytes()).await?;
 
     let mut response = String::new();
@@ -125,8 +131,13 @@ async fn main() -> Result<()> {
             activities_response["error"]
         );
     }
+    Ok(())
+}
 
-    // Test 4: Get Stats
+async fn test_fitness_stats(
+    writer: &mut tokio::net::tcp::OwnedWriteHalf,
+    reader: &mut BufReader<tokio::net::tcp::OwnedReadHalf>,
+) -> Result<()> {
     println!("🔄 Getting fitness statistics...");
     let stats_request = json!({
         "jsonrpc": "2.0",
@@ -140,7 +151,7 @@ async fn main() -> Result<()> {
         "id": 4
     });
 
-    let request_str = format!("{}\n", stats_request);
+    let request_str = format!("{stats_request}\n");
     writer.write_all(request_str.as_bytes()).await?;
 
     let mut response = String::new();
@@ -168,6 +179,23 @@ async fn main() -> Result<()> {
     } else {
         println!("❌ Error getting stats: {}", stats_response["error"]);
     }
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    println!("Testing MCP Server with Real Strava Data...\n");
+
+    // Connect to the MCP server
+    let stream = TcpStream::connect("127.0.0.1:8080").await?;
+    let (reader, mut writer) = stream.into_split();
+    let mut reader = BufReader::new(reader);
+
+    // Run all tests
+    test_initialize(&mut writer, &mut reader).await?;
+    test_athlete_profile(&mut writer, &mut reader).await?;
+    test_recent_activities(&mut writer, &mut reader).await?;
+    test_fitness_stats(&mut writer, &mut reader).await?;
 
     println!("\n🎉 MCP Server test completed successfully!");
 

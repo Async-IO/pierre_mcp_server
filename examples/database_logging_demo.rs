@@ -1,3 +1,5 @@
+// ABOUTME: Demo application showing database backend logging functionality
+// ABOUTME: Tests SQLite and PostgreSQL database initialization with logging output
 //! Demo showing database backend logging
 
 use pierre_mcp_server::database_plugins::factory::Database;

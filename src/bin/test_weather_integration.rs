@@ -1,18 +1,14 @@
-// Test weather integration with real activity data
+// ABOUTME: Weather integration testing utility for validating environmental data correlation with activities
+// ABOUTME: Integration testing tool for weather API connectivity and activity-weather data correlation
 use chrono::Utc;
 use pierre_mcp_server::config::fitness_config::WeatherApiConfig;
 use pierre_mcp_server::intelligence::weather::WeatherService;
 use pierre_mcp_server::models::{Activity, SportType};
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("🌦️  Testing Weather Integration");
-    println!("================================");
-
-    // Create test activity with GPS coordinates (Montreal)
-    let activity = Activity {
-        id: "test_weather".to_string(),
-        name: "Test Weather Integration".to_string(),
+fn create_test_activity() -> Activity {
+    Activity {
+        id: "test_weather".into(),
+        name: "Test Weather Integration".into(),
         sport_type: SportType::Run,
         start_date: Utc::now(),
         duration_seconds: 3600,         // 1 hour
@@ -25,15 +21,43 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         calories: Some(500),
         steps: None,
         heart_rate_zones: None,
+
+        // Advanced metrics (all None for test)
+        average_power: None,
+        max_power: None,
+        normalized_power: None,
+        power_zones: None,
+        ftp: None,
+        average_cadence: None,
+        max_cadence: None,
+        hrv_score: None,
+        recovery_heart_rate: None,
+        temperature: None,
+        humidity: None,
+        average_altitude: None,
+        wind_speed: None,
+        ground_contact_time: None,
+        vertical_oscillation: None,
+        stride_length: None,
+        running_power: None,
+        breathing_rate: None,
+        spo2: None,
+        training_stress_score: None,
+        intensity_factor: None,
+        suffer_score: None,
+        time_series_data: None,
+
         start_latitude: Some(45.5017), // Montreal
         start_longitude: Some(-73.5673),
         city: None,
         region: None,
         country: None,
         trail_name: None,
-        provider: "test".to_string(),
-    };
+        provider: "test".into(),
+    }
+}
 
+async fn test_weather_service(activity: &Activity) -> Result<(), Box<dyn std::error::Error>> {
     // Test with default configuration (will use mock weather)
     println!(
         "\n📍 Activity Location: Montreal, Canada ({}, {})",
@@ -50,8 +74,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   Provider: {}", weather_service.get_config().provider);
     println!("   Enabled: {}", weather_service.get_config().enabled);
     println!(
-        "   Fallback to Mock: {}",
-        weather_service.get_config().fallback_to_mock
+        "   Cache Duration: {} hours",
+        weather_service.get_config().cache_duration_hours
     );
 
     // Test weather retrieval
@@ -71,11 +95,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("   Conditions: {}", weather.conditions);
 
             if let Some(humidity) = weather.humidity_percentage {
-                println!("   Humidity: {:.1}%", humidity);
+                println!("   Humidity: {humidity:.1}%");
             }
 
             if let Some(wind_speed) = weather.wind_speed_kmh {
-                println!("   Wind Speed: {:.1} km/h", wind_speed);
+                println!("   Wind Speed: {wind_speed:.1} km/h");
             }
 
             // Test weather impact analysis
@@ -90,7 +114,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if !impact.impact_factors.is_empty() {
                 println!("   Impact Factors:");
                 for factor in &impact.impact_factors {
-                    println!("     • {}", factor);
+                    println!("     • {factor}");
                 }
             }
         }
@@ -98,26 +122,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("ℹ️  No weather data available (missing GPS coordinates)");
         }
         Err(e) => {
-            println!("⚠️  Weather fetch failed: {}", e);
-            println!("   This is expected if OPENWEATHER_API_KEY is not set");
-            println!("   The system should fall back to mock weather data");
+            println!("⚠️  Weather fetch failed: {e}");
+            println!("   This is expected if OPENWEATHER_API_KEY is not set or API is disabled");
         }
     }
-
-    // Test mock weather generation
-    println!("\n🎭 Mock Weather Generation:");
-    let mock_weather = weather_service.generate_mock_weather();
-    println!(
-        "   Mock Temperature: {:.1}°C",
-        mock_weather.temperature_celsius
-    );
-    println!("   Mock Conditions: {}", mock_weather.conditions);
 
     println!("\n✅ Weather Integration Test Complete!");
     println!("\n📝 Next Steps:");
     println!("   1. Set OPENWEATHER_API_KEY environment variable for real weather");
     println!("   2. Test with real Strava activities using: cargo run --bin test-with-data");
     println!("   3. Check activity intelligence includes weather context");
+
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!("🌦️  Testing Weather Integration");
+    println!("================================");
+
+    let activity = create_test_activity();
+    test_weather_service(&activity).await?;
 
     Ok(())
 }

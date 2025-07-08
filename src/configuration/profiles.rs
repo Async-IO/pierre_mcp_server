@@ -1,3 +1,5 @@
+// ABOUTME: User profile configuration and fitness-specific settings
+// ABOUTME: Manages athlete profiles, preferences, and personalized configurations
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -6,6 +8,7 @@
 
 //! Configuration profiles for different user types and use cases
 
+use super::catalog::CatalogBuilder;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -81,20 +84,22 @@ pub enum ConfigProfile {
 
 impl ConfigProfile {
     /// Get the profile name
+    #[must_use]
     pub fn name(&self) -> String {
         match self {
-            Self::Default => "default".to_string(),
-            Self::Research { .. } => "research".to_string(),
-            Self::Elite { .. } => "elite".to_string(),
-            Self::Recreational { .. } => "recreational".to_string(),
-            Self::Beginner { .. } => "beginner".to_string(),
-            Self::Medical { .. } => "medical".to_string(),
+            Self::Default => "default".into(),
+            Self::Research { .. } => "research".into(),
+            Self::Elite { .. } => "elite".into(),
+            Self::Recreational { .. } => "recreational".into(),
+            Self::Beginner { .. } => "beginner".into(),
+            Self::Medical { .. } => "medical".into(),
             Self::SportSpecific { sport, .. } => format!("sport_{}", sport.to_lowercase()),
             Self::Custom { name, .. } => name.clone(),
         }
     }
 
     /// Create an elite profile from VO2 max
+    #[must_use]
     pub fn elite_from_vo2_max(vo2_max: f64) -> Self {
         let performance_factor = match vo2_max {
             v if v >= 70.0 => 1.2,  // Professional level
@@ -110,6 +115,7 @@ impl ConfigProfile {
     }
 
     /// Get parameter adjustments for this profile
+    #[must_use]
     pub fn get_adjustments(&self) -> HashMap<String, f64> {
         let mut adjustments = HashMap::new();
 
@@ -118,37 +124,34 @@ impl ConfigProfile {
                 sensitivity_multiplier,
                 ..
             } => {
-                adjustments.insert(
-                    "sensitivity_multiplier".to_string(),
-                    *sensitivity_multiplier,
-                );
-                adjustments.insert("analysis_depth".to_string(), 2.0); // Double analysis depth
+                adjustments.insert("sensitivity_multiplier".into(), *sensitivity_multiplier);
+                adjustments.insert("analysis_depth".into(), 2.0); // Double analysis depth
             }
 
             Self::Elite {
                 performance_factor,
                 recovery_sensitivity,
             } => {
-                adjustments.insert("threshold_multiplier".to_string(), *performance_factor);
-                adjustments.insert("recovery_sensitivity".to_string(), *recovery_sensitivity);
-                adjustments.insert("performance_standards".to_string(), 1.15);
+                adjustments.insert("threshold_multiplier".into(), *performance_factor);
+                adjustments.insert("recovery_sensitivity".into(), *recovery_sensitivity);
+                adjustments.insert("performance_standards".into(), 1.15);
             }
 
             Self::Recreational {
                 threshold_tolerance,
                 ..
             } => {
-                adjustments.insert("threshold_multiplier".to_string(), *threshold_tolerance);
-                adjustments.insert("effort_scaling".to_string(), 0.9); // Slightly easier effort scores
+                adjustments.insert("threshold_multiplier".into(), *threshold_tolerance);
+                adjustments.insert("effort_scaling".into(), 0.9); // Slightly easier effort scores
             }
 
             Self::Beginner {
                 threshold_reduction,
                 ..
             } => {
-                adjustments.insert("threshold_multiplier".to_string(), *threshold_reduction);
-                adjustments.insert("zone_buffer".to_string(), 1.1); // 10% buffer between zones
-                adjustments.insert("achievement_sensitivity".to_string(), 1.2); // More achievements
+                adjustments.insert("threshold_multiplier".into(), *threshold_reduction);
+                adjustments.insert("zone_buffer".into(), 1.1); // 10% buffer between zones
+                adjustments.insert("achievement_sensitivity".into(), 1.2); // More achievements
             }
 
             Self::Medical {
@@ -156,9 +159,9 @@ impl ConfigProfile {
                 safety_margin,
                 ..
             } => {
-                adjustments.insert("max_intensity".to_string(), *max_intensity);
-                adjustments.insert("safety_margin".to_string(), *safety_margin);
-                adjustments.insert("conservative_factor".to_string(), 0.8);
+                adjustments.insert("max_intensity".into(), *max_intensity);
+                adjustments.insert("safety_margin".into(), *safety_margin);
+                adjustments.insert("conservative_factor".into(), 0.8);
             }
 
             Self::SportSpecific {
@@ -192,7 +195,7 @@ impl Default for ConfigProfile {
 }
 
 /// Zone analysis granularity
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ZoneGranularity {
     /// Standard 5-zone model
     Standard,
@@ -203,7 +206,7 @@ pub enum ZoneGranularity {
 }
 
 /// Athlete fitness level
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum FitnessLevel {
     Beginner,
     Recreational,
@@ -215,7 +218,8 @@ pub enum FitnessLevel {
 
 impl FitnessLevel {
     /// Get threshold adjustment factor for fitness level
-    pub fn threshold_factor(&self) -> f64 {
+    #[must_use]
+    pub const fn threshold_factor(&self) -> f64 {
         match self {
             Self::Beginner => 0.85,
             Self::Recreational => 0.90,
@@ -227,29 +231,27 @@ impl FitnessLevel {
     }
 
     /// Create from VO2 max value
+    #[must_use]
     pub fn from_vo2_max(vo2_max: f64, age: Option<u16>, gender: Option<&str>) -> Self {
         // Adjust for age if provided
-        let age_adjusted_vo2 = if let Some(age) = age {
+        let age_adjusted_vo2 = age.map_or(vo2_max, |age| {
             // VO2 max declines approximately 1% per year after age 25
             let age_factor = if age > 25 {
-                1.0 - ((age - 25) as f64 * 0.01)
+                f64::from(age - 25).mul_add(-0.01, 1.0)
             } else {
                 1.0
             };
             vo2_max / age_factor.max(0.7)
-        } else {
-            vo2_max
-        };
+        });
 
         // Get thresholds from configuration catalog
-        use super::catalog::CatalogBuilder;
         let gender_prefix = match gender {
-            Some("F") | Some("female") => "female",
+            Some("F" | "female") => "female",
             _ => "male", // Male or unspecified
         };
 
         let get_threshold = |level: &str| -> f64 {
-            let key = format!("fitness.vo2_max_threshold_{}_{}", gender_prefix, level);
+            let key = format!("fitness.vo2_max_threshold_{gender_prefix}_{level}");
             CatalogBuilder::get_parameter(&key)
                 .and_then(|param| match param.default_value {
                     super::runtime::ConfigValue::Float(v) => Some(v),
@@ -259,13 +261,22 @@ impl FitnessLevel {
                     // Fallback values if parameter not found
                     match (gender_prefix, level) {
                         ("female", "beginner") => 30.0,
-                        ("female", "recreational") => 35.0,
+                        ("female", "recreational") | ("male", "beginner") => 35.0,
                         ("female", "intermediate") => 42.0,
-                        ("female", "advanced") => 50.0,
-                        ("female", "elite") => 55.0,
-                        ("male", "beginner") => 35.0,
-                        ("male", "recreational") => 42.0,
-                        ("male", "intermediate") => 50.0,
+                        ("female", "advanced") | ("male", "recreational") => {
+                            if gender_prefix == "female" {
+                                50.0
+                            } else {
+                                42.0
+                            }
+                        }
+                        ("female", "elite") | ("male", "intermediate") => {
+                            if gender_prefix == "female" {
+                                55.0
+                            } else {
+                                50.0
+                            }
+                        }
                         ("male", "advanced") => 55.0,
                         ("male", "elite") => 60.0,
                         _ => 50.0,
@@ -295,11 +306,12 @@ pub struct ProfileTemplates;
 
 impl ProfileTemplates {
     /// Get all available profile templates
+    #[must_use]
     pub fn all() -> Vec<(String, ConfigProfile)> {
         vec![
-            ("Default".to_string(), ConfigProfile::Default),
+            ("Default".into(), ConfigProfile::Default),
             (
-                "Research".to_string(),
+                "Research".into(),
                 ConfigProfile::Research {
                     sensitivity_multiplier: 1.5,
                     zone_granularity: ZoneGranularity::Fine,
@@ -307,28 +319,28 @@ impl ProfileTemplates {
                 },
             ),
             (
-                "Elite Athlete".to_string(),
+                "Elite Athlete".into(),
                 ConfigProfile::Elite {
                     performance_factor: 1.15,
                     recovery_sensitivity: 1.2,
                 },
             ),
             (
-                "Recreational Athlete".to_string(),
+                "Recreational Athlete".into(),
                 ConfigProfile::Recreational {
                     motivation_bias: 0.1,
                     threshold_tolerance: 1.1,
                 },
             ),
             (
-                "Beginner".to_string(),
+                "Beginner".into(),
                 ConfigProfile::Beginner {
                     threshold_reduction: 0.85,
                     simplified_metrics: true,
                 },
             ),
             (
-                "Medical/Rehab".to_string(),
+                "Medical/Rehab".into(),
                 ConfigProfile::Medical {
                     max_intensity: 0.75,
                     conservative_thresholds: true,
@@ -336,35 +348,35 @@ impl ProfileTemplates {
                 },
             ),
             (
-                "Cycling Specialist".to_string(),
+                "Cycling Specialist".into(),
                 ConfigProfile::SportSpecific {
-                    sport: "cycling".to_string(),
+                    sport: "cycling".into(),
                     specialization_factors: HashMap::from([
-                        ("power_weight_importance".to_string(), 1.2),
-                        ("aerodynamic_factor".to_string(), 1.1),
-                        ("ftp_calculation_method".to_string(), 0.95),
+                        ("power_weight_importance".into(), 1.2),
+                        ("aerodynamic_factor".into(), 1.1),
+                        ("ftp_calculation_method".into(), 0.95),
                     ]),
                 },
             ),
             (
-                "Running Specialist".to_string(),
+                "Running Specialist".into(),
                 ConfigProfile::SportSpecific {
-                    sport: "running".to_string(),
+                    sport: "running".into(),
                     specialization_factors: HashMap::from([
-                        ("running_economy_factor".to_string(), 1.15),
-                        ("cadence_importance".to_string(), 1.1),
-                        ("vertical_oscillation_penalty".to_string(), 1.2),
+                        ("running_economy_factor".into(), 1.15),
+                        ("cadence_importance".into(), 1.1),
+                        ("vertical_oscillation_penalty".into(), 1.2),
                     ]),
                 },
             ),
             (
-                "Swimming Specialist".to_string(),
+                "Swimming Specialist".into(),
                 ConfigProfile::SportSpecific {
-                    sport: "swimming".to_string(),
+                    sport: "swimming".into(),
                     specialization_factors: HashMap::from([
-                        ("stroke_efficiency_weight".to_string(), 1.3),
-                        ("breathing_pattern_factor".to_string(), 1.1),
-                        ("turn_efficiency".to_string(), 1.05),
+                        ("stroke_efficiency_weight".into(), 1.3),
+                        ("breathing_pattern_factor".into(), 1.1),
+                        ("turn_efficiency".into(), 1.05),
                     ]),
                 },
             ),
@@ -372,6 +384,7 @@ impl ProfileTemplates {
     }
 
     /// Get a profile template by name
+    #[must_use]
     pub fn get(name: &str) -> Option<ConfigProfile> {
         Self::all()
             .into_iter()
@@ -404,7 +417,7 @@ mod tests {
             performance_factor, ..
         } = profile
         {
-            assert_eq!(performance_factor, 1.15);
+            assert!((performance_factor - 1.15).abs() < f64::EPSILON);
         } else {
             panic!("Expected Elite profile");
         }

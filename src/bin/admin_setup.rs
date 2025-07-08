@@ -1,6 +1,5 @@
-//! Admin Token Setup Tool
-//!
-//! This binary provides a command-line interface for managing admin tokens
+// ABOUTME: Administrative token setup utility for configuring system admin credentials
+// ABOUTME: Command-line interface for managing admin tokens and administrative access controls
 //! for the Pierre MCP Server. Admin tokens are used by admin services to
 //! provision and manage API keys for users.
 //!
@@ -65,7 +64,7 @@ struct AdminSetupArgs {
 enum AdminCommand {
     /// Generate a new admin token
     GenerateToken {
-        /// Service name (e.g., "pierre_admin_service")
+        /// Service name (e.g., "`pierre_admin_service`")
         #[arg(long)]
         service: String,
 
@@ -157,19 +156,18 @@ async fn main() -> Result<()> {
     let database_url = args
         .database_url
         .or_else(|| env::var("DATABASE_URL").ok())
-        .unwrap_or_else(|| "sqlite:./data/users.db".to_string());
+        .unwrap_or_else(|| "sqlite:./data/users.db".into());
 
-    let encryption_key = match args
+    let encryption_key = if let Some(key_str) = args
         .encryption_key
         .or_else(|| env::var("ENCRYPTION_KEY").ok())
     {
-        Some(key_str) => base64::engine::general_purpose::STANDARD
+        base64::engine::general_purpose::STANDARD
             .decode(&key_str)
-            .map_err(|e| anyhow!("Invalid encryption key format: {}", e))?,
-        None => {
-            warn!("No encryption key provided, generating a new one");
-            generate_encryption_key().to_vec()
-        }
+            .map_err(|e| anyhow!("Invalid encryption key format: {}", e))?
+    } else {
+        warn!("No encryption key provided, generating a new one");
+        generate_encryption_key().to_vec()
     };
 
     // Initialize database
@@ -242,23 +240,20 @@ async fn generate_token_command(
     info!("🔑 Generating admin token for service: {}", service);
 
     // Check if service already has an active token
-    match database.list_admin_tokens(false).await {
-        Ok(existing_tokens) => {
-            if existing_tokens
-                .iter()
-                .any(|t| t.service_name == service && t.is_active)
-            {
-                error!(
-                    "❌ Service '{}' already has an active admin token!",
-                    service
-                );
-                info!("💡 Use 'rotate-token' command to replace the existing token");
-                return Err(anyhow!("Service already has an active token"));
-            }
+    if let Ok(existing_tokens) = database.list_admin_tokens(false).await {
+        if existing_tokens
+            .iter()
+            .any(|t| t.service_name == service && t.is_active)
+        {
+            error!(
+                "❌ Service '{}' already has an active admin token!",
+                service
+            );
+            info!("💡 Use 'rotate-token' command to replace the existing token");
+            return Err(anyhow!("Service already has an active token"));
         }
-        Err(_) => {
-            // Ignore error - might be first time setup
-        }
+    } else {
+        // Ignore error - might be first time setup
     }
 
     // Create token request
@@ -288,23 +283,22 @@ async fn generate_token_command(
 
             for perm_str in permissions_str.split(',') {
                 let trimmed = perm_str.trim();
-                match trimmed.parse::<pierre_mcp_server::admin::models::AdminPermission>() {
-                    Ok(permission) => {
-                        info!("  ✅ Added permission: {}", permission);
-                        parsed_permissions.push(permission);
-                    }
-                    Err(_) => {
-                        error!("❌ Invalid permission: '{}'", trimmed);
-                        info!("💡 Valid permissions are:");
-                        info!("   - provision_keys");
-                        info!("   - list_keys");
-                        info!("   - revoke_keys");
-                        info!("   - update_key_limits");
-                        info!("   - manage_admin_tokens");
-                        info!("   - view_audit_logs");
-                        info!("   - manage_users");
-                        return Err(anyhow!("Invalid permission: {}", trimmed));
-                    }
+                if let Ok(permission) =
+                    trimmed.parse::<pierre_mcp_server::admin::models::AdminPermission>()
+                {
+                    info!("  ✅ Added permission: {}", permission);
+                    parsed_permissions.push(permission);
+                } else {
+                    error!("❌ Invalid permission: '{}'", trimmed);
+                    info!("💡 Valid permissions are:");
+                    info!("   - provision_keys");
+                    info!("   - list_keys");
+                    info!("   - revoke_keys");
+                    info!("   - update_key_limits");
+                    info!("   - manage_admin_tokens");
+                    info!("   - view_audit_logs");
+                    info!("   - manage_users");
+                    return Err(anyhow!("Invalid permission: {}", trimmed));
                 }
             }
 
@@ -353,7 +347,7 @@ async fn list_tokens_command(
         println!("🔑 Token ID: {}", token.id);
         println!("   Service: {}", token.service_name);
         if let Some(desc) = &token.service_description {
-            println!("   Description: {}", desc);
+            println!("   Description: {desc}");
         }
         println!(
             "   Status: {}",
@@ -394,7 +388,7 @@ async fn list_tokens_command(
             println!("   Permissions: {:?}", token.permissions.to_vec());
             println!("   Prefix: {}", token.token_prefix);
             if let Some(ip) = &token.last_used_ip {
-                println!("   Last IP: {}", ip);
+                println!("   Last IP: {ip}");
             }
         }
 
@@ -423,7 +417,7 @@ async fn revoke_token_command(database: &Database, token_id: String) -> Result<(
     database.deactivate_admin_token(&token_id).await?;
 
     println!("✅ Admin token revoked successfully!");
-    println!("   Token ID: {}", token_id);
+    println!("   Token ID: {token_id}");
     println!("   Service: {}", token.service_name);
     println!("   ⚠️  The JWT token is now invalid and cannot be used");
 
@@ -468,7 +462,7 @@ async fn rotate_token_command(
     database.deactivate_admin_token(&token_id).await?;
 
     println!("🔄 Token rotation completed successfully!");
-    println!("   Old Token: {} (revoked)", token_id);
+    println!("   Old Token: {token_id} (revoked)");
     println!("   New Token: {} (active)", new_token.token_id);
     println!();
 
@@ -483,79 +477,83 @@ async fn token_stats_command(
     token_id: Option<String>,
     days: u32,
 ) -> Result<()> {
-    let start_date = chrono::Utc::now() - chrono::Duration::days(days as i64);
+    let start_date = chrono::Utc::now() - chrono::Duration::days(i64::from(days));
     let end_date = chrono::Utc::now();
 
-    match token_id {
-        Some(id) => {
-            info!("📊 Token usage statistics for: {} ({} days)", id, days);
+    if let Some(id) = token_id {
+        info!("📊 Token usage statistics for: {} ({} days)", id, days);
 
-            let usage_history = database
-                .get_admin_token_usage_history(&id, start_date, end_date)
-                .await?;
+        let usage_history = database
+            .get_admin_token_usage_history(&id, start_date, end_date)
+            .await?;
 
-            if usage_history.is_empty() {
-                println!(
-                    "No usage data found for token {} in the last {} days",
-                    id, days
-                );
-                return Ok(());
-            }
-
-            println!("\n📊 Usage Statistics for Token: {}", id);
-            println!("{}", "=".repeat(60));
-            println!(
-                "Period: {} to {}",
-                start_date.format("%Y-%m-%d"),
-                end_date.format("%Y-%m-%d")
-            );
-            println!("Total Requests: {}", usage_history.len());
-
-            let successful = usage_history.iter().filter(|u| u.success).count();
-            let failed = usage_history.len() - successful;
-
-            println!(
-                "Successful: {} ({}%)",
-                successful,
-                (successful as f64 / usage_history.len() as f64 * 100.0) as u32
-            );
-            println!(
-                "Failed: {} ({}%)",
-                failed,
-                (failed as f64 / usage_history.len() as f64 * 100.0) as u32
-            );
-
-            // Group by action
-            let mut action_counts = std::collections::HashMap::new();
-            for usage in &usage_history {
-                *action_counts.entry(&usage.action).or_insert(0) += 1;
-            }
-
-            println!("\nActions:");
-            for (action, count) in action_counts {
-                println!("  {}: {}", action, count);
-            }
+        if usage_history.is_empty() {
+            println!("No usage data found for token {id} in the last {days} days");
+            return Ok(());
         }
-        None => {
-            info!("📊 Overall admin token statistics ({} days)", days);
 
-            let tokens = database.list_admin_tokens(true).await?;
+        println!("\n📊 Usage Statistics for Token: {id}");
+        println!("{}", "=".repeat(60));
+        println!(
+            "Period: {} to {}",
+            start_date.format("%Y-%m-%d"),
+            end_date.format("%Y-%m-%d")
+        );
+        println!("Total Requests: {}", usage_history.len());
 
-            println!("\n📊 Admin Token Overview");
-            println!("{}", "=".repeat(60));
-            println!("Total Tokens: {}", tokens.len());
-            println!(
-                "Active Tokens: {}",
-                tokens.iter().filter(|t| t.is_active).count()
-            );
-            println!(
-                "Super Admin Tokens: {}",
-                tokens.iter().filter(|t| t.is_super_admin).count()
-            );
+        let successful = usage_history.iter().filter(|u| u.success).count();
+        let failed = usage_history.len() - successful;
 
-            let total_usage: u64 = tokens.iter().map(|t| t.usage_count).sum();
-            println!("Total Usage Count: {}", total_usage);
+        println!("Successful: {} ({}%)", successful, {
+            #[allow(
+                clippy::cast_precision_loss,
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss
+            )]
+            {
+                (successful as f64 / usage_history.len() as f64 * 100.0).round() as u32
+            }
+        });
+        println!("Failed: {} ({}%)", failed, {
+            #[allow(
+                clippy::cast_precision_loss,
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss
+            )]
+            {
+                (failed as f64 / usage_history.len() as f64 * 100.0).round() as u32
+            }
+        });
+
+        // Group by action
+        let mut action_counts = std::collections::HashMap::new();
+        for usage in &usage_history {
+            *action_counts.entry(&usage.action).or_insert(0) += 1;
         }
+
+        println!("\nActions:");
+        for (action, count) in action_counts {
+            println!("  {action}: {count}");
+        }
+    } else {
+        info!("📊 Overall admin token statistics ({} days)", days);
+
+        let tokens = database.list_admin_tokens(true).await?;
+
+        println!("\n📊 Admin Token Overview");
+        println!("{}", "=".repeat(60));
+        println!("Total Tokens: {}", tokens.len());
+        println!(
+            "Active Tokens: {}",
+            tokens.iter().filter(|t| t.is_active).count()
+        );
+        println!(
+            "Super Admin Tokens: {}",
+            tokens.iter().filter(|t| t.is_super_admin).count()
+        );
+
+        let total_usage: u64 = tokens.iter().map(|t| t.usage_count).sum();
+        println!("Total Usage Count: {total_usage}");
     }
 
     Ok(())
@@ -626,15 +624,15 @@ async fn create_admin_user_command(
     println!("\n✅ Admin User Created Successfully!");
     println!("{}", "=".repeat(50));
     println!("👤 USER DETAILS:");
-    println!("   Email: {}", email);
-    println!("   Name: {}", name);
+    println!("   Email: {email}");
+    println!("   Name: {name}");
     println!("   Tier: Enterprise (Full access)");
     println!("   Status: Active");
 
     println!("\n🔑 LOGIN CREDENTIALS:");
     println!("{}", "=".repeat(50));
-    println!("   Email: {}", email);
-    println!("   Password: {}", password);
+    println!("   Email: {email}");
+    println!("   Password: {password}");
 
     println!("\n🚨 IMPORTANT SECURITY NOTES:");
     println!("• Change the default password in production!");

@@ -1,3 +1,5 @@
+// ABOUTME: Data analysis utility for finding the longest running activity in 2025 dataset
+// ABOUTME: Fitness data mining tool to identify peak distance achievements from current year activity records
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -11,9 +13,7 @@ use serde_json::{json, Value};
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
 
-fn main() -> Result<()> {
-    println!("🔍 Finding longest run in 2025...");
-
+fn connect_and_initialize() -> Result<(TcpStream, BufReader<TcpStream>)> {
     // Connect to MCP server
     let mut stream = TcpStream::connect("127.0.0.1:8080")?;
     let mut reader = BufReader::new(stream.try_clone()?);
@@ -35,7 +35,7 @@ fn main() -> Result<()> {
         }
     });
 
-    writeln!(stream, "{}", init_request)?;
+    writeln!(stream, "{init_request}")?;
 
     // Read initialize response
     let mut response = String::new();
@@ -48,9 +48,15 @@ fn main() -> Result<()> {
         "method": "notifications/initialized"
     });
 
-    writeln!(stream, "{}", initialized)?;
+    writeln!(stream, "{initialized}")?;
 
-    // Request activities from Strava with pagination to get more activities
+    Ok((stream, reader))
+}
+
+fn fetch_all_activities(
+    stream: &mut TcpStream,
+    reader: &mut BufReader<TcpStream>,
+) -> Result<Vec<Activity>> {
     let mut all_activities = Vec::new();
     let mut page = 1;
     let per_page = 50;
@@ -70,7 +76,7 @@ fn main() -> Result<()> {
             }
         });
 
-        writeln!(stream, "{}", activities_request)?;
+        writeln!(stream, "{activities_request}")?;
 
         // Read activities response
         let mut response = String::new();
@@ -88,21 +94,21 @@ fn main() -> Result<()> {
                 if let Some(activities_json) = content.get(0).and_then(|c| c.get("text")) {
                     serde_json::from_str(activities_json.as_str().unwrap())?
                 } else {
-                    println!("❌ Unexpected content format: {}", response);
+                    println!("❌ Unexpected content format: {response}");
                     break;
                 }
             } else {
-                println!("❌ Unexpected result format: {}", response);
+                println!("❌ Unexpected result format: {response}");
                 break;
             };
 
             if activities.is_empty() {
-                println!("📄 No more activities found on page {}", page);
+                println!("📄 No more activities found on page {page}");
                 break;
             }
 
             let activities_count = activities.len();
-            println!("📄 Found {} activities on page {}", activities_count, page);
+            println!("📄 Found {activities_count} activities on page {page}");
             all_activities.extend(activities);
 
             if activities_count < per_page {
@@ -118,12 +124,79 @@ fn main() -> Result<()> {
                 break;
             }
         } else {
-            println!("❌ Failed to get activities: {}", response);
+            println!("❌ Failed to get activities: {response}");
             break;
         }
     }
 
     println!("📊 Total activities retrieved: {}", all_activities.len());
+    Ok(all_activities)
+}
+
+fn print_debug_info(all_activities: &[Activity]) {
+    // Show some sample activities for debugging
+    println!("\n🔍 Sample activities for debugging:");
+    for activity in all_activities.iter().take(5) {
+        println!(
+            "  - {} ({:?}) on {} - Distance: {:.2}km",
+            activity.name,
+            activity.sport_type,
+            activity.start_date.format("%Y-%m-%d"),
+            activity.distance_meters.unwrap_or(0.0) / 1000.0
+        );
+    }
+
+    // Show activities by year
+    let mut years: std::collections::HashMap<i32, usize> = std::collections::HashMap::new();
+    for activity in all_activities {
+        *years.entry(activity.start_date.year()).or_insert(0) += 1;
+    }
+
+    println!("\n📅 Activities by year:");
+    let mut sorted_years: Vec<_> = years.into_iter().collect();
+    sorted_years.sort_by_key(|&(year, _)| year);
+    for (year, count) in sorted_years {
+        println!("  - {year}: {count} activities");
+    }
+}
+
+fn print_longest_run_details(longest_run: &Activity) {
+    let distance_km = longest_run.distance_meters.unwrap_or(0.0) / 1000.0;
+    let duration_hours = {
+        #[allow(clippy::cast_precision_loss, clippy::cast_lossless)]
+        {
+            (longest_run.duration_seconds.min(u64::from(u32::MAX)) as f64) / 3600.0
+        }
+    };
+
+    println!("\n🎯 LONGEST RUN IN 2025:");
+    println!("   📛 Name: {}", longest_run.name);
+    println!("   📏 Distance: {distance_km:.2} km");
+    println!("   ⏱️  Duration: {duration_hours:.2} hours");
+    println!(
+        "   📅 Date: {}",
+        longest_run.start_date.format("%Y-%m-%d %H:%M:%S UTC")
+    );
+    println!("   🏃 Type: {:?}", longest_run.sport_type);
+
+    if let Some(elevation) = longest_run.elevation_gain {
+        println!("   ⛰️  Elevation Gain: {elevation:.0} m");
+    }
+
+    if let Some(avg_speed) = longest_run.average_speed {
+        let pace_min_per_km = 1000.0 / (avg_speed * 60.0);
+        println!("   🏃 Average Pace: {pace_min_per_km:.2} min/km");
+    }
+}
+
+fn main() -> Result<()> {
+    println!("🔍 Finding longest run in 2025...");
+
+    // Connect and initialize
+    let (mut stream, mut reader) = connect_and_initialize()?;
+
+    // Fetch all activities
+    let all_activities = fetch_all_activities(&mut stream, &mut reader)?;
 
     // Filter for 2025 runs
     let year_2025_runs: Vec<&Activity> = all_activities
@@ -143,32 +216,7 @@ fn main() -> Result<()> {
 
     if year_2025_runs.is_empty() {
         println!("❌ No runs found in 2025");
-
-        // Show some sample activities for debugging
-        println!("\n🔍 Sample activities for debugging:");
-        for activity in all_activities.iter().take(5) {
-            println!(
-                "  - {} ({:?}) on {} - Distance: {:.2}km",
-                activity.name,
-                activity.sport_type,
-                activity.start_date.format("%Y-%m-%d"),
-                activity.distance_meters.unwrap_or(0.0) / 1000.0
-            );
-        }
-
-        // Show activities by year
-        let mut years: std::collections::HashMap<i32, usize> = std::collections::HashMap::new();
-        for activity in &all_activities {
-            *years.entry(activity.start_date.year()).or_insert(0) += 1;
-        }
-
-        println!("\n📅 Activities by year:");
-        let mut sorted_years: Vec<_> = years.into_iter().collect();
-        sorted_years.sort_by_key(|&(year, _)| year);
-        for (year, count) in sorted_years {
-            println!("  - {}: {} activities", year, count);
-        }
-
+        print_debug_info(&all_activities);
         return Ok(());
     }
 
@@ -184,27 +232,7 @@ fn main() -> Result<()> {
         })
         .unwrap();
 
-    let distance_km = longest_run.distance_meters.unwrap_or(0.0) / 1000.0;
-    let duration_hours = longest_run.duration_seconds as f64 / 3600.0;
-
-    println!("\n🎯 LONGEST RUN IN 2025:");
-    println!("   📛 Name: {}", longest_run.name);
-    println!("   📏 Distance: {:.2} km", distance_km);
-    println!("   ⏱️  Duration: {:.2} hours", duration_hours);
-    println!(
-        "   📅 Date: {}",
-        longest_run.start_date.format("%Y-%m-%d %H:%M:%S UTC")
-    );
-    println!("   🏃 Type: {:?}", longest_run.sport_type);
-
-    if let Some(elevation) = longest_run.elevation_gain {
-        println!("   ⛰️  Elevation Gain: {:.0} m", elevation);
-    }
-
-    if let Some(avg_speed) = longest_run.average_speed {
-        let pace_min_per_km = 1000.0 / (avg_speed * 60.0);
-        println!("   🏃 Average Pace: {:.2} min/km", pace_min_per_km);
-    }
+    print_longest_run_details(longest_run);
 
     println!("\n✅ Test completed successfully!");
 

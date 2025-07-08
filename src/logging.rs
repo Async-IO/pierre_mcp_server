@@ -43,7 +43,7 @@ pub struct LoggingConfig {
 
 #[derive(Debug, Clone)]
 pub enum LogFormat {
-    /// JSON format for production logging
+    /// `JSON` format for production logging
     Json,
     /// Pretty format for development
     Pretty,
@@ -54,22 +54,23 @@ pub enum LogFormat {
 impl Default for LoggingConfig {
     fn default() -> Self {
         Self {
-            level: "info".to_string(),
+            level: "info".into(),
             format: LogFormat::Pretty,
             include_location: false,
             include_thread: false,
             include_spans: false,
-            service_name: "pierre-mcp-server".to_string(),
+            service_name: "pierre-mcp-server".into(),
             service_version: env!("CARGO_PKG_VERSION").to_string(),
-            environment: "development".to_string(),
+            environment: "development".into(),
         }
     }
 }
 
 impl LoggingConfig {
     /// Create logging configuration from environment variables
+    #[must_use]
     pub fn from_env() -> Self {
-        let level = env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
+        let level = env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
 
         let format = match env::var("LOG_FORMAT").as_deref() {
             Ok("json") => LogFormat::Json,
@@ -79,7 +80,7 @@ impl LoggingConfig {
 
         let environment = env::var("ENVIRONMENT")
             .or_else(|_| env::var("NODE_ENV"))
-            .unwrap_or_else(|_| "development".to_string());
+            .unwrap_or_else(|_| "development".into());
 
         // In production, use more detailed logging
         let is_production = environment == "production";
@@ -90,8 +91,7 @@ impl LoggingConfig {
             include_location: is_production || env::var("LOG_INCLUDE_LOCATION").is_ok(),
             include_thread: is_production || env::var("LOG_INCLUDE_THREAD").is_ok(),
             include_spans: is_production || env::var("LOG_INCLUDE_SPANS").is_ok(),
-            service_name: env::var("SERVICE_NAME")
-                .unwrap_or_else(|_| "pierre-mcp-server".to_string()),
+            service_name: env::var("SERVICE_NAME").unwrap_or_else(|_| "pierre-mcp-server".into()),
             service_version: env::var("SERVICE_VERSION")
                 .unwrap_or_else(|_| env!("CARGO_PKG_VERSION").to_string()),
             environment,
@@ -99,6 +99,10 @@ impl LoggingConfig {
     }
 
     /// Initialize the global tracing subscriber
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the tracing subscriber fails to initialize
     pub fn init(&self) -> Result<()> {
         // Create environment filter
         let env_filter = EnvFilter::try_from_default_env()
@@ -197,11 +201,19 @@ impl LoggingConfig {
 }
 
 /// Initialize logging with default configuration
+///
+/// # Errors
+///
+/// Returns an error if logging initialization fails
 pub fn init_default() -> Result<()> {
     LoggingConfig::default().init()
 }
 
 /// Initialize logging from environment
+///
+/// # Errors
+///
+/// Returns an error if logging initialization fails
 pub fn init_from_env() -> Result<()> {
     LoggingConfig::from_env().init()
 }
@@ -221,7 +233,7 @@ impl AppLogger {
         );
     }
 
-    /// Log OAuth events
+    /// Log `OAuth` events
     pub fn log_oauth_event(user_id: &str, provider: &str, event: &str, success: bool) {
         info!(
             user.id = %user_id,
@@ -232,7 +244,7 @@ impl AppLogger {
         );
     }
 
-    /// Log API requests
+    /// Log `API` requests
     pub fn log_api_request(
         method: &str,
         path: &str,
@@ -295,11 +307,12 @@ impl AppLogger {
         unit: &str,
         tags: Option<&serde_json::Value>,
     ) {
+        let default_tags = json!({});
         info!(
             metric.name = %metric_name,
             metric.value = %value,
             metric.unit = %unit,
-            metric.tags = %tags.unwrap_or(&json!({})),
+            metric.tags = %tags.unwrap_or(&default_tags),
             "Performance metric"
         );
     }

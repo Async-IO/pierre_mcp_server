@@ -1,3 +1,10 @@
+// ABOUTME: Integration tests for API key authentication and MCP workflows
+// ABOUTME: Tests API key creation, validation, rate limiting, and MCP protocol integration
+#![allow(
+    clippy::uninlined_format_args,
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap
+)]
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -67,10 +74,7 @@ async fn test_end_to_end_api_key_workflow() {
         rate_limit_requests: None,
     };
 
-    let (api_key, full_key) = api_key_manager
-        .create_api_key(user.id, request)
-        .await
-        .unwrap();
+    let (api_key, full_key) = api_key_manager.create_api_key(user.id, request).unwrap();
     database.create_api_key(&api_key).await.unwrap();
 
     // Step 2: Authenticate using the API key
@@ -150,10 +154,7 @@ async fn test_api_key_rate_limiting() {
         rate_limit_requests: None,
     };
 
-    let (mut api_key, full_key) = api_key_manager
-        .create_api_key(user.id, request)
-        .await
-        .unwrap();
+    let (mut api_key, full_key) = api_key_manager.create_api_key(user.id, request).unwrap();
 
     // Override rate limit for testing (simulate a very low limit)
     api_key.rate_limit_requests = 2;
@@ -172,7 +173,7 @@ async fn test_api_key_rate_limiting() {
             id: None,
             api_key_id: api_key.id.clone(),
             timestamp: Utc::now(),
-            tool_name: format!("test_tool_{}", i),
+            tool_name: format!("test_tool_{i}"),
             response_time_ms: Some(100),
             status_code: 200,
             error_message: None,
@@ -217,10 +218,7 @@ async fn test_enterprise_tier_unlimited_usage() {
         rate_limit_requests: None,
     };
 
-    let (api_key, full_key) = api_key_manager
-        .create_api_key(user.id, request)
-        .await
-        .unwrap();
+    let (api_key, full_key) = api_key_manager.create_api_key(user.id, request).unwrap();
     database.create_api_key(&api_key).await.unwrap();
 
     // Record high usage
@@ -229,7 +227,7 @@ async fn test_enterprise_tier_unlimited_usage() {
             id: None,
             api_key_id: api_key.id.clone(),
             timestamp: Utc::now(),
-            tool_name: format!("bulk_tool_{}", i),
+            tool_name: format!("bulk_tool_{i}"),
             response_time_ms: Some(50),
             status_code: 200,
             error_message: None,
@@ -277,10 +275,7 @@ async fn test_api_key_expiration() {
         rate_limit_requests: None,
     };
 
-    let (mut api_key, full_key) = api_key_manager
-        .create_api_key(user.id, request)
-        .await
-        .unwrap();
+    let (mut api_key, full_key) = api_key_manager.create_api_key(user.id, request).unwrap();
 
     // Manually set expiration to past date
     api_key.expires_at = Some(Utc::now() - Duration::days(1));
@@ -307,10 +302,7 @@ async fn test_deactivated_api_key() {
         rate_limit_requests: None,
     };
 
-    let (api_key, full_key) = api_key_manager
-        .create_api_key(user.id, request)
-        .await
-        .unwrap();
+    let (api_key, full_key) = api_key_manager.create_api_key(user.id, request).unwrap();
     database.create_api_key(&api_key).await.unwrap();
 
     // Verify it works initially
@@ -376,10 +368,7 @@ async fn test_concurrent_api_key_usage() {
         rate_limit_requests: None,
     };
 
-    let (api_key, full_key) = api_key_manager
-        .create_api_key(user.id, request)
-        .await
-        .unwrap();
+    let (api_key, full_key) = api_key_manager.create_api_key(user.id, request).unwrap();
     database.create_api_key(&api_key).await.unwrap();
 
     // Simulate concurrent requests
@@ -402,7 +391,7 @@ async fn test_concurrent_api_key_usage() {
                 id: None,
                 api_key_id: api_key_id.clone(),
                 timestamp: Utc::now(),
-                tool_name: format!("concurrent_tool_{}", i),
+                tool_name: format!("concurrent_tool_{i}"),
                 response_time_ms: Some(100 + i * 10),
                 status_code: 200,
                 error_message: None,
@@ -454,10 +443,7 @@ async fn test_usage_analytics() {
         rate_limit_requests: None,
     };
 
-    let (api_key, _full_key) = api_key_manager
-        .create_api_key(user.id, request)
-        .await
-        .unwrap();
+    let (api_key, _full_key) = api_key_manager.create_api_key(user.id, request).unwrap();
     database.create_api_key(&api_key).await.unwrap();
 
     // Record diverse usage patterns
@@ -473,7 +459,7 @@ async fn test_usage_analytics() {
             response_time_ms: Some((100 + i * 50) as u32),
             status_code,
             error_message: if status_code >= 400 {
-                Some(format!("Error {}", status_code))
+                Some(format!("Error {status_code}"))
             } else {
                 None
             },

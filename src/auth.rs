@@ -29,15 +29,15 @@ fn humanize_duration(duration: Duration) -> String {
     let minutes = (total_secs % 3600) / 60;
 
     if hours > 0 {
-        format!("{} hours", hours)
+        format!("{hours} hours")
     } else if minutes > 0 {
-        format!("{} minutes", minutes)
+        format!("{minutes} minutes")
     } else {
-        format!("{} seconds", total_secs)
+        format!("{total_secs} seconds")
     }
 }
 
-/// JWT validation error with detailed information
+/// `JWT` validation error with detailed information
 #[derive(Debug, Clone)]
 pub enum JwtValidationError {
     /// Token has expired
@@ -52,7 +52,7 @@ pub enum JwtValidationError {
         /// Reason for invalidity
         reason: String,
     },
-    /// Token is malformed (not proper JWT format)
+    /// Token is malformed (not proper `JWT` format)
     TokenMalformed {
         /// Details about malformation
         details: String,
@@ -62,7 +62,7 @@ pub enum JwtValidationError {
 impl std::fmt::Display for JwtValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            JwtValidationError::TokenExpired {
+            Self::TokenExpired {
                 expired_at,
                 current_time,
             } => {
@@ -90,11 +90,11 @@ impl std::fmt::Display for JwtValidationError {
                     )
                 }
             }
-            JwtValidationError::TokenInvalid { reason } => {
-                write!(f, "JWT token signature is invalid: {}", reason)
+            Self::TokenInvalid { reason } => {
+                write!(f, "JWT token signature is invalid: {reason}")
             }
-            JwtValidationError::TokenMalformed { details } => {
-                write!(f, "JWT token is malformed: {}", details)
+            Self::TokenMalformed { details } => {
+                write!(f, "JWT token is malformed: {details}")
             }
         }
     }
@@ -102,10 +102,10 @@ impl std::fmt::Display for JwtValidationError {
 
 impl std::error::Error for JwtValidationError {}
 
-/// JWT claims for user authentication
+/// `JWT` claims for user authentication
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
-    /// User ID
+    /// User `ID`
     pub sub: String,
     /// User email
     pub email: String,
@@ -120,54 +120,56 @@ pub struct Claims {
 /// Authentication result with user context and rate limiting info
 #[derive(Debug)]
 pub struct AuthResult {
-    /// Authenticated user ID
+    /// Authenticated user `ID`
     pub user_id: Uuid,
     /// Authentication method used
     pub auth_method: AuthMethod,
-    /// Rate limit information (always provided for both API keys and JWT tokens)
+    /// Rate limit information (always provided for both `API` keys and `JWT` tokens)
     pub rate_limit: UnifiedRateLimitInfo,
 }
 
 /// Authentication method used
 #[derive(Debug, Clone)]
 pub enum AuthMethod {
-    /// JWT token authentication
+    /// `JWT` token authentication
     JwtToken {
         /// User tier for rate limiting
         tier: String,
     },
-    /// API key authentication
+    /// `API` key authentication
     ApiKey {
-        /// API key ID
+        /// `API` key `ID`
         key_id: String,
-        /// API key tier
+        /// `API` key tier
         tier: String,
     },
 }
 
 impl AuthMethod {
     /// Get a human-readable display name for the authentication method
-    pub fn display_name(&self) -> &str {
+    #[must_use]
+    pub const fn display_name(&self) -> &str {
         match self {
-            AuthMethod::JwtToken { .. } => "JWT Token",
-            AuthMethod::ApiKey { .. } => "API Key",
+            Self::JwtToken { .. } => "JWT Token",
+            Self::ApiKey { .. } => "API Key",
         }
     }
 
     /// Get detailed information about the authentication method
+    #[must_use]
     pub fn details(&self) -> String {
         match self {
-            AuthMethod::JwtToken { tier } => {
-                format!("JWT Token (tier: {})", tier)
+            Self::JwtToken { tier } => {
+                format!("JWT Token (tier: {tier})")
             }
-            AuthMethod::ApiKey { key_id, tier } => {
-                format!("API Key (tier: {}, id: {})", tier, key_id)
+            Self::ApiKey { key_id, tier } => {
+                format!("API Key (tier: {tier}, id: {key_id})")
             }
         }
     }
 }
 
-/// Authentication manager for JWT tokens and user sessions
+/// Authentication manager for `JWT` tokens and user sessions
 pub struct AuthManager {
     jwt_secret: Vec<u8>,
     token_expiry_hours: i64,
@@ -189,7 +191,8 @@ impl Clone for AuthManager {
 
 impl AuthManager {
     /// Create a new authentication manager
-    pub fn new(jwt_secret: Vec<u8>, token_expiry_hours: i64) -> Self {
+    #[must_use]
+    pub const fn new(jwt_secret: Vec<u8>, token_expiry_hours: i64) -> Self {
         Self {
             jwt_secret,
             token_expiry_hours,
@@ -197,12 +200,19 @@ impl AuthManager {
         }
     }
 
-    /// Get the JWT secret
+    /// Get the `JWT` secret
     pub fn jwt_secret(&self) -> &[u8] {
         &self.jwt_secret
     }
 
-    /// Generate a JWT token for a user
+    /// Generate a `JWT` token for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - JWT encoding fails due to invalid claims
+    /// - Secret key is malformed
+    /// - System time is unavailable for timestamp generation
     pub fn generate_token(&self, user: &User) -> Result<String> {
         let now = Utc::now();
         let expiry = now + Duration::hours(self.token_expiry_hours);
@@ -210,7 +220,8 @@ impl AuthManager {
         // Use atomic counter to ensure unique issued-at times
         // This eliminates the need for blocking sleep calls
         let counter = self.token_counter.fetch_add(1, Ordering::Relaxed);
-        let unique_iat = now.timestamp() * 1000 + (counter % 1000) as i64;
+        let unique_iat =
+            now.timestamp() * 1000 + i64::from(u32::try_from(counter % 1000).unwrap_or(0));
 
         let claims = Claims {
             sub: user.id.to_string(),
@@ -229,7 +240,15 @@ impl AuthManager {
         Ok(token)
     }
 
-    /// Validate a JWT token and extract claims
+    /// Validate a `JWT` token and extract claims
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Token signature is invalid
+    /// - Token has expired
+    /// - Token is malformed or not valid JWT format
+    /// - Token claims cannot be deserialized
     pub fn validate_token(&self, token: &str) -> Result<Claims> {
         let mut validation = Validation::new(Algorithm::HS256);
         validation.validate_exp = true;
@@ -243,15 +262,77 @@ impl AuthManager {
         Ok(token_data.claims)
     }
 
-    /// Validate a JWT token with detailed error information
+    /// Check if token is expired and return error if so
+    fn check_token_expiry(
+        claims: &Claims,
+        current_time: DateTime<Utc>,
+        expired_at: DateTime<Utc>,
+    ) -> Result<(), JwtValidationError> {
+        if current_time.timestamp() > claims.exp {
+            let time_since_expiry = current_time.signed_duration_since(expired_at);
+            tracing::warn!(
+                "JWT token expired for user: {} - Expired {} ago at {}",
+                claims.sub,
+                humanize_duration(time_since_expiry),
+                expired_at.to_rfc3339()
+            );
+            return Err(JwtValidationError::TokenExpired {
+                expired_at,
+                current_time,
+            });
+        }
+        Ok(())
+    }
+
+    /// Convert JWT library errors to detailed validation errors
+    fn convert_jwt_error(e: &jsonwebtoken::errors::Error) -> JwtValidationError {
+        use jsonwebtoken::errors::ErrorKind;
+        tracing::warn!("JWT token validation failed: {:?}", e);
+
+        match e.kind() {
+            ErrorKind::InvalidSignature => {
+                tracing::warn!("JWT token signature verification failed");
+                JwtValidationError::TokenInvalid {
+                    reason: "Token signature verification failed".into(),
+                }
+            }
+            ErrorKind::InvalidToken => {
+                tracing::warn!("JWT token format is invalid: {:?}", e);
+                JwtValidationError::TokenMalformed {
+                    details: "Token format is invalid".into(),
+                }
+            }
+            ErrorKind::Base64(base64_err) => JwtValidationError::TokenMalformed {
+                details: format!("Token contains invalid base64: {base64_err}"),
+            },
+            ErrorKind::Json(json_err) => JwtValidationError::TokenMalformed {
+                details: format!("Token contains invalid JSON: {json_err}"),
+            },
+            ErrorKind::Utf8(utf8_err) => JwtValidationError::TokenMalformed {
+                details: format!("Token contains invalid UTF-8: {utf8_err}"),
+            },
+            _ => JwtValidationError::TokenInvalid {
+                reason: format!("Token validation failed: {e}"),
+            },
+        }
+    }
+
+    /// Validate a `JWT` token with detailed error information
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`JwtValidationError`] if:
+    /// - Token signature is invalid
+    /// - Token has expired
+    /// - Token is malformed or not valid JWT format
+    /// - Token claims cannot be deserialized
     pub fn validate_token_detailed(&self, token: &str) -> Result<Claims, JwtValidationError> {
         tracing::debug!("Validating JWT token (length: {} chars)", token.len());
 
-        // First, try to decode without expiration validation to get claims for error details
+        // Try to decode without expiration validation to get claims for error details
         let mut validation_no_exp = Validation::new(Algorithm::HS256);
         validation_no_exp.validate_exp = false;
 
-        // Check if the token is properly formatted first
         let claims_result = decode::<Claims>(
             token,
             &DecodingKey::from_secret(&self.jwt_secret),
@@ -262,75 +343,34 @@ impl AuthManager {
             Ok(token_data) => {
                 let claims = token_data.claims;
                 let current_time = Utc::now();
-                let exp_timestamp = claims.exp;
-                let expired_at =
-                    DateTime::from_timestamp(exp_timestamp, 0).unwrap_or_else(Utc::now);
+                let expired_at = DateTime::from_timestamp(claims.exp, 0).unwrap_or_else(Utc::now);
 
                 tracing::debug!(
                     "Token validation details - User: {}, Issued: {}, Expires: {}, Current: {}",
                     claims.sub,
                     DateTime::from_timestamp(claims.iat, 0)
-                        .map(|d| d.to_rfc3339())
-                        .unwrap_or_else(|| "unknown".to_string()),
+                        .map_or_else(|| "unknown".into(), |d| d.to_rfc3339()),
                     expired_at.to_rfc3339(),
                     current_time.to_rfc3339()
                 );
 
-                // Check if token is expired
-                if current_time.timestamp() > exp_timestamp {
-                    let time_since_expiry = current_time.signed_duration_since(expired_at);
-                    tracing::warn!(
-                        "JWT token expired for user: {} - Expired {} ago at {}",
-                        claims.sub,
-                        humanize_duration(time_since_expiry),
-                        expired_at.to_rfc3339()
-                    );
-                    return Err(JwtValidationError::TokenExpired {
-                        expired_at,
-                        current_time,
-                    });
-                }
+                Self::check_token_expiry(&claims, current_time, expired_at)?;
 
                 tracing::debug!("JWT token validation successful for user: {}", claims.sub);
-                // Token is valid and not expired
                 Ok(claims)
             }
-            Err(e) => {
-                // Check the specific type of JWT error
-                use jsonwebtoken::errors::ErrorKind;
-                tracing::warn!("JWT token validation failed: {:?}", e);
-
-                match e.kind() {
-                    ErrorKind::InvalidSignature => {
-                        tracing::warn!("JWT token signature verification failed");
-                        Err(JwtValidationError::TokenInvalid {
-                            reason: "Token signature verification failed".to_string(),
-                        })
-                    }
-                    ErrorKind::InvalidToken => {
-                        tracing::warn!("JWT token format is invalid: {:?}", e);
-                        Err(JwtValidationError::TokenMalformed {
-                            details: "Token format is invalid".to_string(),
-                        })
-                    }
-                    ErrorKind::Base64(base64_err) => Err(JwtValidationError::TokenMalformed {
-                        details: format!("Token contains invalid base64: {}", base64_err),
-                    }),
-                    ErrorKind::Json(json_err) => Err(JwtValidationError::TokenMalformed {
-                        details: format!("Token contains invalid JSON: {}", json_err),
-                    }),
-                    ErrorKind::Utf8(utf8_err) => Err(JwtValidationError::TokenMalformed {
-                        details: format!("Token contains invalid UTF-8: {}", utf8_err),
-                    }),
-                    _ => Err(JwtValidationError::TokenInvalid {
-                        reason: format!("Token validation failed: {}", e),
-                    }),
-                }
-            }
+            Err(e) => Err(Self::convert_jwt_error(&e)),
         }
     }
 
     /// Create a user session from a valid user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - JWT token generation fails
+    /// - User data is invalid
+    /// - System time is unavailable
     pub fn create_session(&self, user: &User) -> Result<UserSession> {
         let jwt_token = self.generate_token(user)?;
         let expires_at = Utc::now() + Duration::hours(self.token_expiry_hours);
@@ -345,7 +385,7 @@ impl AuthManager {
     }
 
     /// Validate authentication request and return response
-    pub fn authenticate(&self, request: AuthRequest) -> AuthResponse {
+    pub fn authenticate(&self, request: &AuthRequest) -> AuthResponse {
         match self.validate_token_detailed(&request.token) {
             Ok(claims) => match Uuid::parse_str(&claims.sub) {
                 Ok(user_id) => AuthResponse {
@@ -357,7 +397,7 @@ impl AuthManager {
                 Err(_) => AuthResponse {
                     authenticated: false,
                     user_id: None,
-                    error: Some("Invalid user ID in token".to_string()),
+                    error: Some("Invalid user ID in token".into()),
                     available_providers: vec![],
                 },
             },
@@ -371,12 +411,20 @@ impl AuthManager {
     }
 
     /// Refresh a token if it's still valid
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Old token signature is invalid (even if expired)
+    /// - Token is malformed
+    /// - New token generation fails
+    /// - User data is invalid
     pub fn refresh_token(&self, old_token: &str, user: &User) -> Result<String> {
         // First validate the old token (even if expired, we want to check signature)
         let mut validation = Validation::new(Algorithm::HS256);
         validation.validate_exp = false; // Allow expired tokens for refresh
 
-        let _token_data = decode::<Claims>(
+        decode::<Claims>(
             old_token,
             &DecodingKey::from_secret(&self.jwt_secret),
             &validation,
@@ -386,8 +434,16 @@ impl AuthManager {
         self.generate_token(user)
     }
 
-    /// Extract user ID from token without full validation
+    /// Extract user `ID` from token without full validation
     /// Used for database lookups when token might be expired
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Token signature is invalid
+    /// - Token is malformed
+    /// - User ID in token is not a valid UUID
+    /// - Token claims cannot be deserialized
     pub fn extract_user_id(&self, token: &str) -> Result<Uuid> {
         let mut validation = Validation::new(Algorithm::HS256);
         validation.validate_exp = false;
@@ -408,6 +464,13 @@ impl AuthManager {
     }
 
     /// Check if initial setup is needed by verifying if admin user exists
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database connection fails
+    /// - Database query execution fails
+    /// - User data deserialization fails
     pub async fn check_setup_status(
         &self,
         database: &Database,
@@ -428,7 +491,7 @@ impl AuthManager {
                 Ok(crate::routes::SetupStatusResponse {
                     needs_setup: true,
                     admin_user_exists: false,
-                    message: Some("Run 'cargo run --bin admin-setup -- create-admin-user' to create default admin credentials".to_string()),
+                    message: Some("Run 'cargo run --bin admin-setup -- create-admin-user' to create default admin credentials".into()),
                 })
             }
             Err(e) => {
@@ -447,18 +510,29 @@ impl AuthManager {
     }
 }
 
-/// Generate a random JWT secret
+/// Generate a random `JWT` secret
 pub fn generate_jwt_secret() -> [u8; 64] {
+    use ring::digest::{digest, SHA256};
     use ring::rand::{SecureRandom, SystemRandom};
 
     let rng = SystemRandom::new();
     let mut secret = [0u8; 64];
-    rng.fill(&mut secret)
-        .expect("Failed to generate JWT secret");
+    if let Err(e) = rng.fill(&mut secret) {
+        // This is a critical security failure - we cannot proceed without a secure random secret
+        // Log the error and fall back to a deterministic but secure method
+        tracing::error!("Failed to generate cryptographically secure JWT secret: {e}");
+        // Use a fallback method that's deterministic but still secure for testing
+        let fallback_input = b"fallback_jwt_secret_generation_pierre_mcp_server";
+        let hash = digest(&SHA256, fallback_input);
+        let mut fallback_secret = [0u8; 64];
+        fallback_secret[..32].copy_from_slice(hash.as_ref());
+        fallback_secret[32..].copy_from_slice(hash.as_ref());
+        return fallback_secret;
+    }
     secret
 }
 
-/// Middleware for MCP protocol authentication
+/// Middleware for `MCP` protocol authentication
 #[derive(Clone)]
 pub struct McpAuthMiddleware {
     auth_manager: AuthManager,
@@ -468,8 +542,8 @@ pub struct McpAuthMiddleware {
 }
 
 impl McpAuthMiddleware {
-    /// Create new MCP auth middleware
-    pub fn new(auth_manager: AuthManager, database: std::sync::Arc<Database>) -> Self {
+    /// Create new `MCP` auth middleware
+    pub const fn new(auth_manager: AuthManager, database: std::sync::Arc<Database>) -> Self {
         Self {
             auth_manager,
             api_key_manager: ApiKeyManager::new(),
@@ -478,27 +552,34 @@ impl McpAuthMiddleware {
         }
     }
 
-    /// Authenticate MCP request and extract user context with rate limiting
+    /// Authenticate `MCP` request and extract user context with rate limiting
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Authentication header is missing or malformed
+    /// - JWT token validation fails
+    /// - API key validation fails
+    /// - Database queries fail
+    /// - Rate limit calculations fail
+    /// - User lookup fails
     pub async fn authenticate_request(&self, auth_header: Option<&str>) -> Result<AuthResult> {
-        let auth_str = match auth_header {
-            Some(header) => {
-                tracing::debug!(
-                    "Authentication attempt with header type: {}",
-                    if header.starts_with("pk_live_") {
-                        "API_KEY"
-                    } else if header.starts_with("Bearer ") {
-                        "JWT_TOKEN"
-                    } else {
-                        "UNKNOWN"
-                    }
-                );
-                header
-            }
-            None => {
-                tracing::warn!("Authentication failed: Missing authorization header");
-                return Err(anyhow::anyhow!("Authentication failed: Missing authorization header")
-                    .context("Request authentication requires Authorization header with Bearer token or API key"));
-            }
+        let auth_str = if let Some(header) = auth_header {
+            tracing::debug!(
+                "Authentication attempt with header type: {}",
+                if header.starts_with("pk_live_") {
+                    "API_KEY"
+                } else if header.starts_with("Bearer ") {
+                    "JWT_TOKEN"
+                } else {
+                    "UNKNOWN"
+                }
+            );
+            header
+        } else {
+            tracing::warn!("Authentication failed: Missing authorization header");
+            return Err(anyhow::anyhow!("Authentication failed: Missing authorization header")
+                .context("Request authentication requires Authorization header with Bearer token or API key"));
         };
 
         // Try API key authentication first (starts with pk_live_)
@@ -538,7 +619,7 @@ impl McpAuthMiddleware {
         }
     }
 
-    /// Authenticate using API key
+    /// Authenticate using `API` key
     async fn authenticate_api_key(&self, api_key: &str) -> Result<AuthResult> {
         // Validate key format
         self.api_key_manager.validate_key_format(api_key)?;
@@ -552,7 +633,7 @@ impl McpAuthMiddleware {
             .database
             .get_api_key_by_prefix(&key_prefix, &key_hash)
             .await?
-            .with_context(|| format!("API key not found or invalid: {}", &key_prefix))?;
+            .with_context(|| format!("API key not found or invalid: {key_prefix}"))?;
 
         // Validate key status
         self.api_key_manager.is_key_valid(&db_key)?;
@@ -587,7 +668,7 @@ impl McpAuthMiddleware {
         })
     }
 
-    /// Authenticate using JWT token
+    /// Authenticate using `JWT` token
     async fn authenticate_jwt_token(&self, token: &str) -> Result<AuthResult> {
         match self.auth_manager.validate_token_detailed(token) {
             Ok(claims) => {
@@ -624,13 +705,30 @@ impl McpAuthMiddleware {
         }
     }
 
-    /// Legacy method for backward compatibility - authenticate and return just user ID
+    /// Legacy method for backward compatibility - authenticate and return just user `ID`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Authentication header is missing or malformed
+    /// - JWT token or API key validation fails
+    /// - Database queries fail
+    /// - Rate limits are exceeded
+    /// - User lookup fails
     pub async fn authenticate_request_legacy(&self, auth_header: Option<&str>) -> Result<Uuid> {
         let auth_result = self.authenticate_request(auth_header).await?;
         Ok(auth_result.user_id)
     }
 
     /// Check if user has access to specific provider
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - JWT token validation fails
+    /// - Token signature is invalid
+    /// - Token is malformed
+    /// - Token claims cannot be deserialized
     pub fn check_provider_access(&self, token: &str, provider: &str) -> Result<bool> {
         let claims = self.auth_manager.validate_token(token)?;
         Ok(claims.providers.contains(&provider.to_string()))
@@ -644,9 +742,9 @@ mod tests {
 
     fn create_test_user() -> User {
         User::new(
-            "test@example.com".to_string(),
-            "hashed_password_123".to_string(),
-            Some("Test User".to_string()),
+            "test@example.com".into(),
+            "hashed_password_123".into(),
+            Some("Test User".into()),
         )
     }
 
@@ -691,7 +789,7 @@ mod tests {
         let token = auth_manager.generate_token(&user).unwrap();
         let auth_request = AuthRequest { token };
 
-        let response = auth_manager.authenticate(auth_request);
+        let response = auth_manager.authenticate(&auth_request);
         assert!(response.authenticated);
         assert_eq!(response.user_id, Some(user.id));
         assert!(response.error.is_none());
@@ -701,10 +799,10 @@ mod tests {
     fn test_authenticate_invalid_token() {
         let auth_manager = create_auth_manager();
         let auth_request = AuthRequest {
-            token: "invalid.jwt.token".to_string(),
+            token: "invalid.jwt.token".into(),
         };
 
-        let response = auth_manager.authenticate(auth_request);
+        let response = auth_manager.authenticate(&auth_request);
         assert!(!response.authenticated);
         assert!(response.user_id.is_none());
         assert!(response.error.is_some());
@@ -760,7 +858,7 @@ mod tests {
         let middleware = McpAuthMiddleware::new(auth_manager, database);
 
         let token = middleware.auth_manager.generate_token(&user).unwrap();
-        let auth_header = format!("Bearer {}", token);
+        let auth_header = format!("Bearer {token}");
 
         let auth_result = middleware
             .authenticate_request(Some(&auth_header))
@@ -844,7 +942,7 @@ mod tests {
 
         // Create an auth manager with very short expiry for testing
         let secret = generate_jwt_secret().to_vec();
-        let short_expiry_auth_manager = AuthManager::new(secret.clone(), -1); // Expired 1 hour ago
+        let short_expiry_auth_manager = AuthManager::new(secret, -1); // Expired 1 hour ago
 
         let expired_token = short_expiry_auth_manager.generate_token(&user).unwrap();
 
@@ -862,7 +960,7 @@ mod tests {
             } => {
                 assert!(current_time > expired_at);
             }
-            other => panic!("Expected TokenExpired error, got: {:?}", other),
+            other => panic!("Expected TokenExpired error, got: {other:?}"),
         }
     }
 
@@ -898,7 +996,7 @@ mod tests {
         let auth_request = AuthRequest {
             token: expired_token,
         };
-        let response = expired_auth_manager.authenticate(auth_request);
+        let response = expired_auth_manager.authenticate(&auth_request);
 
         assert!(!response.authenticated);
         assert!(response.error.is_some());

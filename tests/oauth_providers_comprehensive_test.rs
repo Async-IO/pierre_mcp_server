@@ -1,3 +1,5 @@
+// ABOUTME: Comprehensive tests for OAuth provider implementations
+// ABOUTME: Tests all OAuth provider functionality for Strava and Fitbit
 //! Comprehensive tests for oauth/providers.rs - OAuth provider implementations
 //!
 //! This test suite aims to improve coverage from 43.19% to 80%+ by testing
@@ -662,7 +664,7 @@ async fn test_concurrent_auth_url_generation() -> Result<()> {
         handles.push(tokio::spawn(async move {
             let provider = StravaOAuthProvider::from_config(&config_clone)?;
             let user_id = Uuid::new_v4();
-            let state = format!("concurrent_test_{}", i);
+            let state = format!("concurrent_test_{i}");
             provider.generate_auth_url(user_id, state).await
         }));
     }

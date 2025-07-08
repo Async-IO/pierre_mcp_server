@@ -1,3 +1,5 @@
+// ABOUTME: Comprehensive tests for Fitbit provider to improve coverage
+// ABOUTME: Tests providers/fitbit.rs functionality and API integration
 //! Comprehensive tests for Fitbit provider to improve coverage
 //!
 //! This test suite focuses on providers/fitbit.rs which has 43.40% coverage
@@ -225,7 +227,7 @@ async fn test_fitbit_exchange_code_no_client_secret() -> Result<()> {
     let mut provider = FitbitProvider::new();
     let auth_data = AuthData::OAuth2 {
         client_id: "fitbit_client".to_string(),
-        client_secret: "".to_string(), // Empty secret
+        client_secret: String::new(), // Empty secret
         access_token: None,
         refresh_token: None,
     };
@@ -263,7 +265,7 @@ async fn test_fitbit_refresh_access_token_no_client_id() -> Result<()> {
     let mut provider = FitbitProvider::new();
     // Set refresh token without setting client credentials
     let auth_data = AuthData::OAuth2 {
-        client_id: "".to_string(), // Empty client ID
+        client_id: String::new(), // Empty client ID
         client_secret: "fitbit_secret".to_string(),
         access_token: Some("access_token".to_string()),
         refresh_token: Some("refresh_token".to_string()),
@@ -282,7 +284,7 @@ async fn test_fitbit_refresh_access_token_no_client_secret() -> Result<()> {
     let mut provider = FitbitProvider::new();
     let auth_data = AuthData::OAuth2 {
         client_id: "fitbit_client".to_string(),
-        client_secret: "".to_string(), // Empty client secret
+        client_secret: String::new(), // Empty client secret
         access_token: Some("access_token".to_string()),
         refresh_token: Some("refresh_token".to_string()),
     };
@@ -355,6 +357,8 @@ async fn test_fitbit_get_activities_with_limits() -> Result<()> {
 
 #[tokio::test]
 async fn test_fitbit_pkce_auth_url() -> Result<()> {
+    use pierre_mcp_server::oauth2_client::PkceParams;
+
     let mut provider = FitbitProvider::new();
     let auth_data = AuthData::OAuth2 {
         client_id: "pkce_fitbit_client".to_string(),
@@ -363,8 +367,6 @@ async fn test_fitbit_pkce_auth_url() -> Result<()> {
         refresh_token: None,
     };
     provider.authenticate(auth_data).await?;
-
-    use pierre_mcp_server::oauth2_client::PkceParams;
     let pkce = PkceParams {
         code_verifier: "test_verifier".to_string(),
         code_challenge: "test_challenge".to_string(),
@@ -385,9 +387,9 @@ async fn test_fitbit_pkce_auth_url() -> Result<()> {
 
 #[tokio::test]
 async fn test_fitbit_exchange_code_with_pkce_no_client_id() -> Result<()> {
-    let mut provider = FitbitProvider::new();
-
     use pierre_mcp_server::oauth2_client::PkceParams;
+
+    let mut provider = FitbitProvider::new();
     let pkce = PkceParams {
         code_verifier: "test_verifier".to_string(),
         code_challenge: "test_challenge".to_string(),
@@ -405,16 +407,16 @@ async fn test_fitbit_exchange_code_with_pkce_no_client_id() -> Result<()> {
 
 #[tokio::test]
 async fn test_fitbit_exchange_code_with_pkce_no_client_secret() -> Result<()> {
+    use pierre_mcp_server::oauth2_client::PkceParams;
+
     let mut provider = FitbitProvider::new();
     let auth_data = AuthData::OAuth2 {
         client_id: "fitbit_client".to_string(),
-        client_secret: "".to_string(), // Empty secret
+        client_secret: String::new(), // Empty secret
         access_token: None,
         refresh_token: None,
     };
     provider.authenticate(auth_data).await?;
-
-    use pierre_mcp_server::oauth2_client::PkceParams;
     let pkce = PkceParams {
         code_verifier: "test_verifier".to_string(),
         code_challenge: "test_challenge".to_string(),
@@ -459,8 +461,10 @@ async fn test_fitbit_auth_url_variations() -> Result<()> {
         let url = result?;
         assert!(url.contains("client_id=test_fitbit_client"));
         assert!(url.contains("fitbit.com"));
-        if !state.is_empty() {
-            assert!(url.contains(&format!("state={}", state)));
+        if state.is_empty() {
+            // Empty state is acceptable
+        } else {
+            assert!(url.contains(&format!("state={state}")));
         }
     }
 
@@ -507,8 +511,8 @@ async fn test_fitbit_empty_authentication_fields() -> Result<()> {
 
     // Test with empty client credentials
     let auth_data = AuthData::OAuth2 {
-        client_id: "".to_string(),
-        client_secret: "".to_string(),
+        client_id: String::new(),
+        client_secret: String::new(),
         access_token: None,
         refresh_token: None,
     };

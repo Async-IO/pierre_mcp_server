@@ -29,6 +29,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 /// Heart rate zone data for an activity
@@ -44,7 +45,62 @@ pub struct HeartRateZone {
     pub minutes: u32,
 }
 
-/// User tier for rate limiting - same as API key tiers for consistency
+/// Power zone data for cycling activities
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PowerZone {
+    /// Zone name (e.g., "Zone 1", "Active Recovery", "Threshold")
+    pub name: String,
+    /// Minimum power for this zone in watts
+    pub min_power: u32,
+    /// Maximum power for this zone in watts
+    pub max_power: u32,
+    /// Time spent in this zone in seconds
+    pub time_in_zone: u32,
+}
+
+/// Sleep stage data
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SleepStage {
+    /// Stage type (awake, light, deep, rem)
+    pub stage_type: SleepStageType,
+    /// Start time of this stage
+    pub start_time: DateTime<Utc>,
+    /// Duration of this stage in minutes
+    pub duration_minutes: u32,
+}
+
+/// Types of sleep stages
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum SleepStageType {
+    Awake,
+    Light,
+    Deep,
+    Rem,
+}
+
+/// Time-series data for detailed activity analysis
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TimeSeriesData {
+    /// Time offsets from activity start in seconds
+    pub timestamps: Vec<u32>,
+    /// Heart rate measurements (BPM)
+    pub heart_rate: Option<Vec<u32>>,
+    /// Power measurements (watts)
+    pub power: Option<Vec<u32>>,
+    /// Cadence measurements (RPM or steps/min)
+    pub cadence: Option<Vec<u32>>,
+    /// Speed measurements (m/s)
+    pub speed: Option<Vec<f32>>,
+    /// Altitude measurements (meters)
+    pub altitude: Option<Vec<f32>>,
+    /// Temperature measurements (Celsius)
+    pub temperature: Option<Vec<f32>>,
+    /// GPS coordinates (lat, lon pairs)
+    pub gps_coordinates: Option<Vec<(f64, f64)>>,
+}
+
+/// User tier for rate limiting - same as `API` key tiers for consistency
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum UserTier {
@@ -58,29 +114,32 @@ pub enum UserTier {
 
 impl UserTier {
     /// Get monthly request limit for this tier
+    #[must_use]
     pub const fn monthly_limit(&self) -> Option<u32> {
         match self {
-            UserTier::Starter => Some(10_000),
-            UserTier::Professional => Some(100_000),
-            UserTier::Enterprise => None, // Unlimited
+            Self::Starter => Some(10_000),
+            Self::Professional => Some(100_000),
+            Self::Enterprise => None, // Unlimited
         }
     }
 
     /// Get display name for this tier
+    #[must_use]
     pub const fn display_name(&self) -> &'static str {
         match self {
-            UserTier::Starter => "Starter",
-            UserTier::Professional => "Professional",
-            UserTier::Enterprise => "Enterprise",
+            Self::Starter => "Starter",
+            Self::Professional => "Professional",
+            Self::Enterprise => "Enterprise",
         }
     }
 
     /// Convert to string for database storage
+    #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
-            UserTier::Starter => "starter",
-            UserTier::Professional => "professional",
-            UserTier::Enterprise => "enterprise",
+            Self::Starter => "starter",
+            Self::Professional => "professional",
+            Self::Enterprise => "enterprise",
         }
     }
 }
@@ -90,10 +149,10 @@ impl std::str::FromStr for UserTier {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "starter" => Ok(UserTier::Starter),
-            "professional" => Ok(UserTier::Professional),
-            "enterprise" => Ok(UserTier::Enterprise),
-            _ => Err(anyhow::anyhow!("Invalid user tier: {}", s)),
+            "starter" => Ok(Self::Starter),
+            "professional" => Ok(Self::Professional),
+            "enterprise" => Ok(Self::Enterprise),
+            _ => Err(anyhow::anyhow!("Invalid user tier: {s}")),
         }
     }
 }
@@ -110,8 +169,8 @@ impl std::str::FromStr for UserTier {
 /// use chrono::Utc;
 ///
 /// let activity = Activity {
-///     id: "12345".to_string(),
-///     name: "Morning Run".to_string(),
+///     id: "12345".into(),
+///     name: "Morning Run".into(),
 ///     sport_type: SportType::Run,
 ///     start_date: Utc::now(),
 ///     duration_seconds: 1800, // 30 minutes
@@ -122,13 +181,38 @@ impl std::str::FromStr for UserTier {
 ///     average_speed: Some(2.78), // m/s
 ///     max_speed: Some(4.17), // m/s
 ///     calories: Some(300),
+///     steps: None,
+///     heart_rate_zones: None,
+///     average_power: None,
+///     max_power: None,
+///     normalized_power: None,
+///     power_zones: None,
+///     ftp: None,
+///     average_cadence: None,
+///     max_cadence: None,
+///     hrv_score: None,
+///     recovery_heart_rate: None,
+///     temperature: None,
+///     humidity: None,
+///     average_altitude: None,
+///     wind_speed: None,
+///     ground_contact_time: None,
+///     vertical_oscillation: None,
+///     stride_length: None,
+///     running_power: None,
+///     breathing_rate: None,
+///     spo2: None,
+///     training_stress_score: None,
+///     intensity_factor: None,
+///     suffer_score: None,
+///     time_series_data: None,
 ///     start_latitude: Some(45.5017), // Montreal
 ///     start_longitude: Some(-73.5673),
-///     city: Some("Montreal".to_string()),
-///     region: Some("Quebec".to_string()),
-///     country: Some("Canada".to_string()),
-///     trail_name: Some("Mount Royal Trail".to_string()),
-///     provider: "strava".to_string(),
+///     city: Some("Montreal".into()),
+///     region: Some("Quebec".into()),
+///     country: Some("Canada".into()),
+///     trail_name: Some("Mount Royal Trail".into()),
+///     provider: "strava".into(),
 /// };
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -161,6 +245,68 @@ pub struct Activity {
     pub steps: Option<u32>,
     /// Heart rate zone data if available from the provider
     pub heart_rate_zones: Option<Vec<HeartRateZone>>,
+
+    // Advanced Power Metrics
+    /// Average power output in watts (cycling/rowing)
+    pub average_power: Option<u32>,
+    /// Maximum power output reached in watts
+    pub max_power: Option<u32>,
+    /// Normalized power (power adjusted for variability)
+    pub normalized_power: Option<u32>,
+    /// Power zone distribution
+    pub power_zones: Option<Vec<PowerZone>>,
+    /// Functional Threshold Power at time of activity
+    pub ftp: Option<u32>,
+
+    // Cadence Metrics
+    /// Average cadence (RPM for cycling, steps/min for running)
+    pub average_cadence: Option<u32>,
+    /// Maximum cadence reached
+    pub max_cadence: Option<u32>,
+
+    // Advanced Heart Rate Metrics
+    /// Heart Rate Variability score during activity
+    pub hrv_score: Option<f64>,
+    /// Heart rate recovery (drop in first minute after activity)
+    pub recovery_heart_rate: Option<u32>,
+
+    // Environmental Conditions
+    /// Temperature during activity (Celsius)
+    pub temperature: Option<f32>,
+    /// Humidity percentage during activity
+    pub humidity: Option<f32>,
+    /// Average altitude during activity (meters)
+    pub average_altitude: Option<f32>,
+    /// Wind speed during activity (m/s)
+    pub wind_speed: Option<f32>,
+
+    // Biomechanical Metrics (Running)
+    /// Ground contact time in milliseconds
+    pub ground_contact_time: Option<u32>,
+    /// Vertical oscillation in centimeters
+    pub vertical_oscillation: Option<f32>,
+    /// Average stride length in meters
+    pub stride_length: Option<f32>,
+    /// Running power (estimated or measured)
+    pub running_power: Option<u32>,
+
+    // Respiratory and Oxygen Metrics
+    /// Average breathing rate (breaths per minute)
+    pub breathing_rate: Option<u32>,
+    /// Blood oxygen saturation percentage
+    pub spo2: Option<f32>,
+
+    // Training Load and Performance
+    /// Training Stress Score for this activity
+    pub training_stress_score: Option<f32>,
+    /// Intensity Factor (normalized intensity vs threshold)
+    pub intensity_factor: Option<f32>,
+    /// Suffer score or relative effort rating
+    pub suffer_score: Option<u32>,
+
+    // Detailed Time-Series Data
+    /// Time-series data for advanced analysis
+    pub time_series_data: Option<TimeSeriesData>,
     /// Starting latitude coordinate (if available)
     pub start_latitude: Option<f64>,
     /// Starting longitude coordinate (if available)
@@ -177,11 +323,197 @@ pub struct Activity {
     pub provider: String,
 }
 
+/// Sleep session data for recovery analysis
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SleepSession {
+    /// Unique identifier for the sleep session
+    pub id: String,
+    /// When sleep started
+    pub start_time: DateTime<Utc>,
+    /// When sleep ended
+    pub end_time: DateTime<Utc>,
+    /// Total time spent in bed (minutes)
+    pub time_in_bed: u32,
+    /// Actual sleep time (minutes)
+    pub total_sleep_time: u32,
+    /// Sleep efficiency percentage (sleep time / time in bed)
+    pub sleep_efficiency: f32,
+    /// Sleep quality score (0-100)
+    pub sleep_score: Option<f32>,
+    /// Sleep stages breakdown
+    pub stages: Vec<SleepStage>,
+    /// Heart rate variability during sleep
+    pub hrv_during_sleep: Option<f64>,
+    /// Average respiratory rate during sleep
+    pub respiratory_rate: Option<f32>,
+    /// Temperature variation during sleep
+    pub temperature_variation: Option<f32>,
+    /// Number of times awakened
+    pub wake_count: Option<u32>,
+    /// Time to fall asleep (minutes)
+    pub sleep_onset_latency: Option<u32>,
+    /// Provider of this sleep data
+    pub provider: String,
+}
+
+/// Daily recovery and readiness metrics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecoveryMetrics {
+    /// Date for these recovery metrics
+    pub date: DateTime<Utc>,
+    /// Overall recovery score (0-100)
+    pub recovery_score: Option<f32>,
+    /// Readiness score for training (0-100)
+    pub readiness_score: Option<f32>,
+    /// HRV status or trend
+    pub hrv_status: Option<String>,
+    /// Sleep contribution to recovery (0-100)
+    pub sleep_score: Option<f32>,
+    /// Stress level indicator (0-100, higher = more stress)
+    pub stress_level: Option<f32>,
+    /// Current training load
+    pub training_load: Option<f32>,
+    /// Resting heart rate for the day
+    pub resting_heart_rate: Option<u32>,
+    /// Body temperature deviation from baseline
+    pub body_temperature: Option<f32>,
+    /// Respiratory rate while resting
+    pub resting_respiratory_rate: Option<f32>,
+    /// Provider of this recovery data
+    pub provider: String,
+}
+
+/// Health metrics for comprehensive wellness tracking
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HealthMetrics {
+    /// Date for these health metrics
+    pub date: DateTime<Utc>,
+    /// Weight in kilograms
+    pub weight: Option<f64>,
+    /// Body fat percentage
+    pub body_fat_percentage: Option<f32>,
+    /// Muscle mass in kilograms
+    pub muscle_mass: Option<f64>,
+    /// Bone mass in kilograms
+    pub bone_mass: Option<f64>,
+    /// Body water percentage
+    pub body_water_percentage: Option<f32>,
+    /// Basal metabolic rate (calories/day)
+    pub bmr: Option<u32>,
+    /// Blood pressure (systolic, diastolic)
+    pub blood_pressure: Option<(u32, u32)>,
+    /// Blood glucose level (mg/dL)
+    pub blood_glucose: Option<f32>,
+    /// VO2 max estimate (ml/kg/min)
+    pub vo2_max: Option<f32>,
+    /// Provider of this health data
+    pub provider: String,
+}
+
+impl SleepSession {
+    /// Calculate sleep stages summary
+    #[must_use]
+    pub fn stage_summary(&self) -> HashMap<SleepStageType, u32> {
+        let mut summary = HashMap::new();
+        for stage in &self.stages {
+            *summary.entry(stage.stage_type.clone()).or_insert(0) += stage.duration_minutes;
+        }
+        summary
+    }
+
+    /// Get deep sleep percentage
+    #[must_use]
+    pub fn deep_sleep_percentage(&self) -> f32 {
+        let deep_sleep_total = self
+            .stages
+            .iter()
+            .filter(|s| matches!(s.stage_type, SleepStageType::Deep))
+            .map(|s| s.duration_minutes)
+            .sum::<u32>();
+        let deep_sleep_minutes =
+            f32::from(u16::try_from(deep_sleep_total.min(u32::from(u16::MAX))).unwrap_or(u16::MAX));
+
+        if self.total_sleep_time > 0 {
+            let total_sleep_f32 = f32::from(
+                u16::try_from(self.total_sleep_time.min(u32::from(u16::MAX))).unwrap_or(u16::MAX),
+            );
+            (deep_sleep_minutes / total_sleep_f32) * 100.0
+        } else {
+            0.0
+        }
+    }
+
+    /// Get REM sleep percentage
+    #[must_use]
+    pub fn rem_sleep_percentage(&self) -> f32 {
+        let rem_sleep_total = self
+            .stages
+            .iter()
+            .filter(|s| matches!(s.stage_type, SleepStageType::Rem))
+            .map(|s| s.duration_minutes)
+            .sum::<u32>();
+        let rem_sleep_minutes =
+            f32::from(u16::try_from(rem_sleep_total.min(u32::from(u16::MAX))).unwrap_or(u16::MAX));
+
+        if self.total_sleep_time > 0 {
+            let total_sleep_f32 = f32::from(
+                u16::try_from(self.total_sleep_time.min(u32::from(u16::MAX))).unwrap_or(u16::MAX),
+            );
+            (rem_sleep_minutes / total_sleep_f32) * 100.0
+        } else {
+            0.0
+        }
+    }
+}
+
+impl RecoveryMetrics {
+    /// Check if recovery metrics indicate good readiness for training
+    #[must_use]
+    pub fn is_ready_for_training(&self) -> bool {
+        // Consider ready if recovery score > 70 and readiness score > 70
+        match (self.recovery_score, self.readiness_score) {
+            (Some(recovery), Some(readiness)) => recovery > 70.0 && readiness > 70.0,
+            (Some(recovery), None) => recovery > 70.0,
+            (None, Some(readiness)) => readiness > 70.0,
+            (None, None) => false,
+        }
+    }
+
+    /// Get overall wellness score combining all available metrics
+    #[must_use]
+    pub fn wellness_score(&self) -> Option<f32> {
+        let mut total_score = 0.0;
+        let mut factor_count = 0;
+
+        if let Some(recovery) = self.recovery_score {
+            total_score += recovery;
+            factor_count += 1;
+        }
+
+        if let Some(sleep) = self.sleep_score {
+            total_score += sleep;
+            factor_count += 1;
+        }
+
+        // Invert stress level (lower stress = better wellness)
+        if let Some(stress) = self.stress_level {
+            total_score += 100.0 - stress;
+            factor_count += 1;
+        }
+
+        if factor_count > 0 {
+            Some(total_score / f32::from(u8::try_from(factor_count).unwrap_or(u8::MAX)))
+        } else {
+            None
+        }
+    }
+}
+
 impl Default for Activity {
     fn default() -> Self {
         Self {
-            id: "test_id".to_string(),
-            name: "Test Activity".to_string(),
+            id: "test_id".into(),
+            name: "Test Activity".into(),
             sport_type: SportType::Run,
             start_date: chrono::Utc::now(),
             duration_seconds: 1800,        // 30 minutes
@@ -194,13 +526,39 @@ impl Default for Activity {
             calories: Some(350),
             steps: None,
             heart_rate_zones: None,
+
+            // Advanced metrics (all default to None)
+            average_power: None,
+            max_power: None,
+            normalized_power: None,
+            power_zones: None,
+            ftp: None,
+            average_cadence: None,
+            max_cadence: None,
+            hrv_score: None,
+            recovery_heart_rate: None,
+            temperature: None,
+            humidity: None,
+            average_altitude: None,
+            wind_speed: None,
+            ground_contact_time: None,
+            vertical_oscillation: None,
+            stride_length: None,
+            running_power: None,
+            breathing_rate: None,
+            spo2: None,
+            training_stress_score: None,
+            intensity_factor: None,
+            suffer_score: None,
+            time_series_data: None,
+
             start_latitude: None,
             start_longitude: None,
             city: None,
             region: None,
             country: None,
             trail_name: None,
-            provider: "test".to_string(),
+            provider: "test".into(),
         }
     }
 }
@@ -273,7 +631,7 @@ pub enum SportType {
     // Strength and fitness
     /// Weight/strength training
     StrengthTraining,
-    /// CrossFit workout
+    /// `CrossFit` workout
     Crossfit,
     /// Pilates session
     Pilates,
@@ -305,7 +663,8 @@ pub enum SportType {
 }
 
 impl SportType {
-    /// Create SportType from provider string using configuration mapping
+    /// Create `SportType` from provider string using configuration mapping
+    #[must_use]
     pub fn from_provider_string(
         provider_sport: &str,
         fitness_config: &crate::config::FitnessConfig,
@@ -317,126 +676,128 @@ impl SportType {
 
         // Fall back to direct mapping for backward compatibility
         match provider_sport {
-            "Run" => SportType::Run,
-            "Ride" => SportType::Ride,
-            "Swim" => SportType::Swim,
-            "Walk" => SportType::Walk,
-            "Hike" => SportType::Hike,
-            "VirtualRide" => SportType::VirtualRide,
-            "VirtualRun" => SportType::VirtualRun,
-            "Workout" => SportType::Workout,
-            "Yoga" => SportType::Yoga,
-            "EBikeRide" => SportType::EbikeRide,
-            "MountainBikeRide" => SportType::MountainBike,
-            "GravelRide" => SportType::GravelRide,
-            "CrossCountrySkiing" => SportType::CrossCountrySkiing,
-            "AlpineSkiing" => SportType::AlpineSkiing,
-            "Snowboarding" => SportType::Snowboarding,
-            "Snowshoe" => SportType::Snowshoe,
-            "IceSkate" => SportType::IceSkating,
-            "BackcountrySki" => SportType::BackcountrySkiing,
-            "Kayaking" => SportType::Kayaking,
-            "Canoeing" => SportType::Canoeing,
-            "Rowing" => SportType::Rowing,
-            "StandUpPaddling" => SportType::Paddleboarding,
-            "Surfing" => SportType::Surfing,
-            "Kitesurf" => SportType::Kitesurfing,
-            "WeightTraining" => SportType::StrengthTraining,
-            "Crossfit" => SportType::Crossfit,
-            "Pilates" => SportType::Pilates,
-            "RockClimbing" => SportType::RockClimbing,
-            "TrailRunning" => SportType::TrailRunning,
-            "Soccer" => SportType::Soccer,
-            "Basketball" => SportType::Basketball,
-            "Tennis" => SportType::Tennis,
-            "Golf" => SportType::Golf,
-            "Skateboard" => SportType::Skateboarding,
-            "InlineSkate" => SportType::InlineSkating,
-            other => SportType::Other(other.to_string()),
+            "Run" => Self::Run,
+            "Ride" => Self::Ride,
+            "Swim" => Self::Swim,
+            "Walk" => Self::Walk,
+            "Hike" => Self::Hike,
+            "VirtualRide" => Self::VirtualRide,
+            "VirtualRun" => Self::VirtualRun,
+            "Workout" => Self::Workout,
+            "Yoga" => Self::Yoga,
+            "EBikeRide" => Self::EbikeRide,
+            "MountainBikeRide" => Self::MountainBike,
+            "GravelRide" => Self::GravelRide,
+            "CrossCountrySkiing" => Self::CrossCountrySkiing,
+            "AlpineSkiing" => Self::AlpineSkiing,
+            "Snowboarding" => Self::Snowboarding,
+            "Snowshoe" => Self::Snowshoe,
+            "IceSkate" => Self::IceSkating,
+            "BackcountrySki" => Self::BackcountrySkiing,
+            "Kayaking" => Self::Kayaking,
+            "Canoeing" => Self::Canoeing,
+            "Rowing" => Self::Rowing,
+            "StandUpPaddling" => Self::Paddleboarding,
+            "Surfing" => Self::Surfing,
+            "Kitesurf" => Self::Kitesurfing,
+            "WeightTraining" => Self::StrengthTraining,
+            "Crossfit" => Self::Crossfit,
+            "Pilates" => Self::Pilates,
+            "RockClimbing" => Self::RockClimbing,
+            "TrailRunning" => Self::TrailRunning,
+            "Soccer" => Self::Soccer,
+            "Basketball" => Self::Basketball,
+            "Tennis" => Self::Tennis,
+            "Golf" => Self::Golf,
+            "Skateboard" => Self::Skateboarding,
+            "InlineSkate" => Self::InlineSkating,
+            other => Self::Other(other.to_string()),
         }
     }
 
-    /// Create SportType from internal configuration string
+    /// Create `SportType` from internal configuration string
+    #[must_use]
     pub fn from_internal_string(internal_name: &str) -> Self {
         match internal_name {
-            "run" => SportType::Run,
-            "bike_ride" => SportType::Ride,
-            "swim" => SportType::Swim,
-            "walk" => SportType::Walk,
-            "hike" => SportType::Hike,
-            "virtual_ride" => SportType::VirtualRide,
-            "virtual_run" => SportType::VirtualRun,
-            "workout" => SportType::Workout,
-            "yoga" => SportType::Yoga,
-            "ebike_ride" => SportType::EbikeRide,
-            "mountain_bike" => SportType::MountainBike,
-            "gravel_ride" => SportType::GravelRide,
-            "cross_country_skiing" => SportType::CrossCountrySkiing,
-            "alpine_skiing" => SportType::AlpineSkiing,
-            "snowboarding" => SportType::Snowboarding,
-            "snowshoe" => SportType::Snowshoe,
-            "ice_skating" => SportType::IceSkating,
-            "backcountry_skiing" => SportType::BackcountrySkiing,
-            "kayaking" => SportType::Kayaking,
-            "canoeing" => SportType::Canoeing,
-            "rowing" => SportType::Rowing,
-            "paddleboarding" => SportType::Paddleboarding,
-            "surfing" => SportType::Surfing,
-            "kitesurfing" => SportType::Kitesurfing,
-            "strength_training" => SportType::StrengthTraining,
-            "crossfit" => SportType::Crossfit,
-            "pilates" => SportType::Pilates,
-            "rock_climbing" => SportType::RockClimbing,
-            "trail_running" => SportType::TrailRunning,
-            "soccer" => SportType::Soccer,
-            "basketball" => SportType::Basketball,
-            "tennis" => SportType::Tennis,
-            "golf" => SportType::Golf,
-            "skateboarding" => SportType::Skateboarding,
-            "inline_skating" => SportType::InlineSkating,
-            other => SportType::Other(other.to_string()),
+            "run" => Self::Run,
+            "bike_ride" => Self::Ride,
+            "swim" => Self::Swim,
+            "walk" => Self::Walk,
+            "hike" => Self::Hike,
+            "virtual_ride" => Self::VirtualRide,
+            "virtual_run" => Self::VirtualRun,
+            "workout" => Self::Workout,
+            "yoga" => Self::Yoga,
+            "ebike_ride" => Self::EbikeRide,
+            "mountain_bike" => Self::MountainBike,
+            "gravel_ride" => Self::GravelRide,
+            "cross_country_skiing" => Self::CrossCountrySkiing,
+            "alpine_skiing" => Self::AlpineSkiing,
+            "snowboarding" => Self::Snowboarding,
+            "snowshoe" => Self::Snowshoe,
+            "ice_skating" => Self::IceSkating,
+            "backcountry_skiing" => Self::BackcountrySkiing,
+            "kayaking" => Self::Kayaking,
+            "canoeing" => Self::Canoeing,
+            "rowing" => Self::Rowing,
+            "paddleboarding" => Self::Paddleboarding,
+            "surfing" => Self::Surfing,
+            "kitesurfing" => Self::Kitesurfing,
+            "strength_training" => Self::StrengthTraining,
+            "crossfit" => Self::Crossfit,
+            "pilates" => Self::Pilates,
+            "rock_climbing" => Self::RockClimbing,
+            "trail_running" => Self::TrailRunning,
+            "soccer" => Self::Soccer,
+            "basketball" => Self::Basketball,
+            "tennis" => Self::Tennis,
+            "golf" => Self::Golf,
+            "skateboarding" => Self::Skateboarding,
+            "inline_skating" => Self::InlineSkating,
+            other => Self::Other(other.to_string()),
         }
     }
 
     /// Get the human-readable name for this sport type
+    #[must_use]
     pub const fn display_name(&self) -> &'static str {
         match self {
-            SportType::Run => "run",
-            SportType::Ride => "bike ride",
-            SportType::Swim => "swim",
-            SportType::Walk => "walk",
-            SportType::Hike => "hike",
-            SportType::VirtualRide => "indoor bike ride",
-            SportType::VirtualRun => "treadmill run",
-            SportType::Workout => "workout",
-            SportType::Yoga => "yoga session",
-            SportType::EbikeRide => "e-bike ride",
-            SportType::MountainBike => "mountain bike ride",
-            SportType::GravelRide => "gravel ride",
-            SportType::CrossCountrySkiing => "cross-country ski",
-            SportType::AlpineSkiing => "alpine ski",
-            SportType::Snowboarding => "snowboard session",
-            SportType::Snowshoe => "snowshoe hike",
-            SportType::IceSkating => "ice skating session",
-            SportType::BackcountrySkiing => "backcountry ski",
-            SportType::Kayaking => "kayak session",
-            SportType::Canoeing => "canoe trip",
-            SportType::Rowing => "rowing session",
-            SportType::Paddleboarding => "paddleboard session",
-            SportType::Surfing => "surf session",
-            SportType::Kitesurfing => "kitesurf session",
-            SportType::StrengthTraining => "strength training",
-            SportType::Crossfit => "CrossFit workout",
-            SportType::Pilates => "Pilates session",
-            SportType::RockClimbing => "climbing session",
-            SportType::TrailRunning => "trail run",
-            SportType::Soccer => "soccer game",
-            SportType::Basketball => "basketball game",
-            SportType::Tennis => "tennis match",
-            SportType::Golf => "golf round",
-            SportType::Skateboarding => "skate session",
-            SportType::InlineSkating => "inline skating",
-            SportType::Other(_name) => "activity", // Could use name but keeping generic
+            Self::Run => "run",
+            Self::Ride => "bike ride",
+            Self::Swim => "swim",
+            Self::Walk => "walk",
+            Self::Hike => "hike",
+            Self::VirtualRide => "indoor bike ride",
+            Self::VirtualRun => "treadmill run",
+            Self::Workout => "workout",
+            Self::Yoga => "yoga session",
+            Self::EbikeRide => "e-bike ride",
+            Self::MountainBike => "mountain bike ride",
+            Self::GravelRide => "gravel ride",
+            Self::CrossCountrySkiing => "cross-country ski",
+            Self::AlpineSkiing => "alpine ski",
+            Self::Snowboarding => "snowboard session",
+            Self::Snowshoe => "snowshoe hike",
+            Self::IceSkating => "ice skating session",
+            Self::BackcountrySkiing => "backcountry ski",
+            Self::Kayaking => "kayak session",
+            Self::Canoeing => "canoe trip",
+            Self::Rowing => "rowing session",
+            Self::Paddleboarding => "paddleboard session",
+            Self::Surfing => "surf session",
+            Self::Kitesurfing => "kitesurf session",
+            Self::StrengthTraining => "strength training",
+            Self::Crossfit => "CrossFit workout",
+            Self::Pilates => "Pilates session",
+            Self::RockClimbing => "climbing session",
+            Self::TrailRunning => "trail run",
+            Self::Soccer => "soccer game",
+            Self::Basketball => "basketball game",
+            Self::Tennis => "tennis match",
+            Self::Golf => "golf round",
+            Self::Skateboarding => "skate session",
+            Self::InlineSkating => "inline skating",
+            Self::Other(_name) => "activity", // Could use name but keeping generic
         }
     }
 }
@@ -452,12 +813,12 @@ impl SportType {
 /// use pierre_mcp_server::models::Athlete;
 ///
 /// let athlete = Athlete {
-///     id: "12345".to_string(),
-///     username: "runner123".to_string(),
-///     firstname: Some("John".to_string()),
-///     lastname: Some("Doe".to_string()),
-///     profile_picture: Some("https://example.com/avatar.jpg".to_string()),
-///     provider: "strava".to_string(),
+///     id: "12345".into(),
+///     username: "runner123".into(),
+///     firstname: Some("John".into()),
+///     lastname: Some("Doe".into()),
+///     profile_picture: Some("https://example.com/avatar.jpg".into()),
+///     provider: "strava".into(),
 /// };
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -470,7 +831,7 @@ pub struct Athlete {
     pub firstname: Option<String>,
     /// Last name (may not be public on some providers)
     pub lastname: Option<String>,
-    /// URL to profile picture/avatar
+    /// `URL` to profile picture/avatar
     pub profile_picture: Option<String>,
     /// Source provider of this athlete data
     pub provider: String,
@@ -511,7 +872,7 @@ pub struct Stats {
 /// Links back to the specific activity where the record was achieved.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PersonalRecord {
-    /// ID of the activity where this record was achieved
+    /// `ID` of the activity where this record was achieved
     pub activity_id: String,
     /// Type of performance metric
     pub metric: PrMetric,
@@ -544,7 +905,7 @@ pub enum PrMetric {
 
 /// Represents a user in the multi-tenant system
 ///
-/// Users are authenticated through OAuth providers and have encrypted tokens
+/// Users are authenticated through `OAuth` providers and have encrypted tokens
 /// stored securely for accessing their fitness data.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
@@ -576,7 +937,7 @@ pub struct User {
 /// pace zones, and other performance thresholds based on individual fitness metrics.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserPhysiologicalProfile {
-    /// User ID this profile belongs to
+    /// User `ID` this profile belongs to
     pub user_id: Uuid,
     /// VO2 max in ml/kg/min (if measured or estimated)
     pub vo2_max: Option<f64>,
@@ -600,7 +961,8 @@ pub struct UserPhysiologicalProfile {
 
 impl UserPhysiologicalProfile {
     /// Create a new physiological profile
-    pub fn new(user_id: Uuid, primary_sport: SportType) -> Self {
+    #[must_use]
+    pub const fn new(user_id: Uuid, primary_sport: SportType) -> Self {
         Self {
             user_id,
             vo2_max: None,
@@ -616,38 +978,51 @@ impl UserPhysiologicalProfile {
     }
 
     /// Estimate max heart rate from age if not provided
+    #[must_use]
     pub fn estimated_max_hr(&self) -> Option<u16> {
         self.max_hr.or_else(|| {
             self.age.map(|age| {
                 // Use Tanaka formula: 208 - (0.7 × age)
-                (208.0 - (0.7 * age as f64)) as u16
+                {
+                    let hr = 0.7f64.mul_add(-f64::from(age), 208.0);
+                    // Ensure result is within u16 bounds (heart rate should be 0-300)
+                    if hr.is_finite() && hr >= 0.0 && hr <= f64::from(u16::MAX) {
+                        let rounded = hr.round();
+                        let hr_string = format!("{rounded:.0}");
+                        hr_string
+                            .parse::<u16>()
+                            .unwrap_or_else(|_| 220_u16.saturating_sub(age))
+                    } else {
+                        220_u16.saturating_sub(age)
+                    }
+                }
             })
         })
     }
 
     /// Check if profile has sufficient data for VO2 max calculations
-    pub fn has_vo2_max_data(&self) -> bool {
+    #[must_use]
+    pub const fn has_vo2_max_data(&self) -> bool {
         self.vo2_max.is_some()
             && self.resting_hr.is_some()
             && (self.max_hr.is_some() || self.age.is_some())
     }
 
     /// Get fitness level from VO2 max if available
+    #[must_use]
     pub fn fitness_level_from_vo2_max(&self) -> crate::configuration::profiles::FitnessLevel {
-        if let Some(vo2_max) = self.vo2_max {
+        self.vo2_max.map_or(self.fitness_level, |vo2_max| {
             crate::configuration::profiles::FitnessLevel::from_vo2_max(
                 vo2_max, self.age, None, // Gender not stored in this profile
             )
-        } else {
-            self.fitness_level
-        }
+        })
     }
 }
 
-/// Encrypted OAuth token storage
+/// Encrypted `OAuth` token storage
 ///
 /// Tokens are encrypted at rest using AES-256-GCM encryption.
-/// Only decrypted when needed for API calls.
+/// Only decrypted when needed for `API` calls.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EncryptedToken {
     /// Encrypted access token (base64 encoded)
@@ -662,9 +1037,9 @@ pub struct EncryptedToken {
     pub nonce: String,
 }
 
-/// Decrypted OAuth token for API calls
+/// Decrypted `OAuth` token for `API` calls
 ///
-/// This is never stored - only exists in memory during API requests.
+/// This is never stored - only exists in memory during `API` requests.
 #[derive(Debug, Clone)]
 pub struct DecryptedToken {
     /// Plain text access token
@@ -677,14 +1052,14 @@ pub struct DecryptedToken {
     pub scope: String,
 }
 
-/// User session for MCP protocol authentication
+/// User session for `MCP` protocol authentication
 ///
-/// Contains JWT token and user context for secure MCP communication.
+/// Contains `JWT` token and user context for secure `MCP` communication.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserSession {
-    /// User ID this session belongs to
+    /// User `ID` this session belongs to
     pub user_id: Uuid,
-    /// JWT token for authentication
+    /// `JWT` token for authentication
     pub jwt_token: String,
     /// When the session expires
     pub expires_at: DateTime<Utc>,
@@ -694,23 +1069,23 @@ pub struct UserSession {
     pub available_providers: Vec<String>,
 }
 
-/// Authentication request for MCP protocol
+/// Authentication request for `MCP` protocol
 ///
-/// Clients send this to authenticate with the MCP server.
+/// Clients send this to authenticate with the `MCP` server.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthRequest {
-    /// JWT token for authentication
+    /// `JWT` token for authentication
     pub token: String,
 }
 
-/// Authentication response for MCP protocol
+/// Authentication response for `MCP` protocol
 ///
 /// Server responds with user context and available capabilities.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthResponse {
     /// Whether authentication was successful
     pub authenticated: bool,
-    /// User ID if authenticated
+    /// User `ID` if authenticated
     pub user_id: Option<Uuid>,
     /// Error message if authentication failed
     pub error: Option<String>,
@@ -720,6 +1095,7 @@ pub struct AuthResponse {
 
 impl User {
     /// Create a new user with the given email and password hash
+    #[must_use]
     pub fn new(email: String, password_hash: String, display_name: Option<String>) -> Self {
         let now = Utc::now();
         Self {
@@ -737,6 +1113,7 @@ impl User {
     }
 
     /// Check if user has valid Strava token
+    #[must_use]
     pub fn has_strava_access(&self) -> bool {
         self.strava_token
             .as_ref()
@@ -744,6 +1121,7 @@ impl User {
     }
 
     /// Check if user has valid Fitbit token
+    #[must_use]
     pub fn has_fitbit_access(&self) -> bool {
         self.fitbit_token
             .as_ref()
@@ -751,13 +1129,14 @@ impl User {
     }
 
     /// Get list of available providers for this user
+    #[must_use]
     pub fn available_providers(&self) -> Vec<String> {
         let mut providers = Vec::new();
         if self.has_strava_access() {
-            providers.push("strava".to_string());
+            providers.push("strava".into());
         }
         if self.has_fitbit_access() {
-            providers.push("fitbit".to_string());
+            providers.push("fitbit".into());
         }
         providers
     }
@@ -770,6 +1149,10 @@ impl User {
 
 impl EncryptedToken {
     /// Create a new encrypted token
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if encryption fails or if the encryption key is invalid
     pub fn new(
         access_token: &str,
         refresh_token: &str,
@@ -777,6 +1160,7 @@ impl EncryptedToken {
         scope: String,
         encryption_key: &[u8],
     ) -> Result<Self, anyhow::Error> {
+        use base64::{engine::general_purpose, Engine as _};
         use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
         use ring::rand::{SecureRandom, SystemRandom};
 
@@ -786,8 +1170,6 @@ impl EncryptedToken {
         let mut nonce_bytes = [0u8; 12];
         rng.fill(&mut nonce_bytes)?;
         let nonce = Nonce::assume_unique_for_key(nonce_bytes);
-        use base64::{engine::general_purpose, Engine as _};
-        let _nonce_b64 = general_purpose::STANDARD.encode(nonce_bytes);
 
         // Create encryption key
         let unbound_key = UnboundKey::new(&AES_256_GCM, encryption_key)?;
@@ -824,6 +1206,10 @@ impl EncryptedToken {
     }
 
     /// Decrypt the token for use
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if decryption fails, nonce is invalid, or the encryption key is incorrect
     pub fn decrypt(&self, encryption_key: &[u8]) -> Result<DecryptedToken, anyhow::Error> {
         use base64::{engine::general_purpose, Engine as _};
         use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
@@ -872,8 +1258,8 @@ mod tests {
     /// Test data for creating sample activities
     fn create_sample_activity() -> Activity {
         Activity {
-            id: "12345".to_string(),
-            name: "Morning Run".to_string(),
+            id: "12345".into(),
+            name: "Morning Run".into(),
             sport_type: SportType::Run,
             start_date: Utc::now(),
             duration_seconds: 1800,        // 30 minutes
@@ -886,25 +1272,51 @@ mod tests {
             calories: Some(300),
             steps: Some(7500),
             heart_rate_zones: None,
+
+            // Advanced metrics (all None for basic test)
+            average_power: None,
+            max_power: None,
+            normalized_power: None,
+            power_zones: None,
+            ftp: None,
+            average_cadence: None,
+            max_cadence: None,
+            hrv_score: None,
+            recovery_heart_rate: None,
+            temperature: None,
+            humidity: None,
+            average_altitude: None,
+            wind_speed: None,
+            ground_contact_time: None,
+            vertical_oscillation: None,
+            stride_length: None,
+            running_power: None,
+            breathing_rate: None,
+            spo2: None,
+            training_stress_score: None,
+            intensity_factor: None,
+            suffer_score: None,
+            time_series_data: None,
+
             start_latitude: Some(45.5017), // Montreal
             start_longitude: Some(-73.5673),
-            city: Some("Montreal".to_string()),
-            region: Some("Quebec".to_string()),
-            country: Some("Canada".to_string()),
-            trail_name: Some("Mount Royal Trail".to_string()),
-            provider: "strava".to_string(),
+            city: Some("Montreal".into()),
+            region: Some("Quebec".into()),
+            country: Some("Canada".into()),
+            trail_name: Some("Mount Royal Trail".into()),
+            provider: "strava".into(),
         }
     }
 
     /// Test data for creating sample athlete
     fn create_sample_athlete() -> Athlete {
         Athlete {
-            id: "67890".to_string(),
-            username: "runner123".to_string(),
-            firstname: Some("John".to_string()),
-            lastname: Some("Doe".to_string()),
-            profile_picture: Some("https://example.com/avatar.jpg".to_string()),
-            provider: "strava".to_string(),
+            id: "67890".into(),
+            username: "runner123".into(),
+            firstname: Some("John".into()),
+            lastname: Some("Doe".into()),
+            profile_picture: Some("https://example.com/avatar.jpg".into()),
+            provider: "strava".into(),
         }
     }
 
@@ -947,7 +1359,7 @@ mod tests {
         );
 
         // Test Other variant
-        let custom_sport = SportType::Other("CrossCountrySkiing".to_string());
+        let custom_sport = SportType::Other("CrossCountrySkiing".into());
         let json = serde_json::to_string(&custom_sport).unwrap();
         assert!(json.contains("CrossCountrySkiing"));
 
@@ -961,8 +1373,8 @@ mod tests {
         let athlete = create_sample_athlete();
         assert_eq!(athlete.id, "67890");
         assert_eq!(athlete.username, "runner123");
-        assert_eq!(athlete.firstname, Some("John".to_string()));
-        assert_eq!(athlete.lastname, Some("Doe".to_string()));
+        assert_eq!(athlete.firstname, Some("John".into()));
+        assert_eq!(athlete.lastname, Some("Doe".into()));
         assert_eq!(athlete.provider, "strava");
     }
 
@@ -992,9 +1404,11 @@ mod tests {
         };
 
         assert_eq!(stats.total_activities, 150);
-        assert_eq!(stats.total_distance, 1_500_000.0);
+        {
+            assert!((stats.total_distance - 1_500_000.0).abs() < f64::EPSILON);
+            assert!((stats.total_elevation_gain - 25000.0).abs() < f64::EPSILON);
+        }
         assert_eq!(stats.total_duration, 540_000);
-        assert_eq!(stats.total_elevation_gain, 25000.0);
     }
 
     #[test]
@@ -1010,13 +1424,13 @@ mod tests {
         let deserialized: Stats = serde_json::from_str(&json).expect("Failed to deserialize stats");
 
         assert_eq!(deserialized.total_activities, stats.total_activities);
-        assert_eq!(deserialized.total_distance, stats.total_distance);
+        assert!((deserialized.total_distance - stats.total_distance).abs() < f64::EPSILON);
     }
 
     #[test]
     fn test_personal_record_creation() {
         let pr = PersonalRecord {
-            activity_id: "12345".to_string(),
+            activity_id: "12345".into(),
             metric: PrMetric::LongestDistance,
             value: 42195.0, // Marathon distance in meters
             date: Utc::now(),
@@ -1024,7 +1438,7 @@ mod tests {
 
         assert_eq!(pr.activity_id, "12345");
         assert!(matches!(pr.metric, PrMetric::LongestDistance));
-        assert_eq!(pr.value, 42195.0);
+        assert!((pr.value - 42195.0).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -1054,8 +1468,8 @@ mod tests {
     #[test]
     fn test_activity_optional_fields() {
         let minimal_activity = Activity {
-            id: "123".to_string(),
-            name: "Quick Walk".to_string(),
+            id: "123".into(),
+            name: "Quick Walk".into(),
             sport_type: SportType::Walk,
             start_date: Utc::now(),
             duration_seconds: 600, // 10 minutes
@@ -1068,13 +1482,39 @@ mod tests {
             calories: None,
             steps: None,
             heart_rate_zones: None,
+
+            // Advanced metrics (all None)
+            average_power: None,
+            max_power: None,
+            normalized_power: None,
+            power_zones: None,
+            ftp: None,
+            average_cadence: None,
+            max_cadence: None,
+            hrv_score: None,
+            recovery_heart_rate: None,
+            temperature: None,
+            humidity: None,
+            average_altitude: None,
+            wind_speed: None,
+            ground_contact_time: None,
+            vertical_oscillation: None,
+            stride_length: None,
+            running_power: None,
+            breathing_rate: None,
+            spo2: None,
+            training_stress_score: None,
+            intensity_factor: None,
+            suffer_score: None,
+            time_series_data: None,
+
             start_latitude: Some(45.5017), // Montreal
             start_longitude: Some(-73.5673),
             city: None,
             region: None,
             country: None,
             trail_name: None,
-            provider: "manual".to_string(),
+            provider: "manual".into(),
         };
 
         // Should serialize and deserialize correctly even with None values

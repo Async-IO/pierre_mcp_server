@@ -1,3 +1,5 @@
+// ABOUTME: Data analysis utility for finding consecutive 10K running activities in fitness dataset
+// ABOUTME: Pattern recognition tool to identify sustained high-distance training periods and streaks
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -12,6 +14,7 @@ use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
 
+#[allow(clippy::too_many_lines)]
 fn main() -> Result<()> {
     println!("🏃 Finding longest consecutive running streak with 10km+ runs...");
 
@@ -36,7 +39,7 @@ fn main() -> Result<()> {
         }
     });
 
-    writeln!(stream, "{}", init_request)?;
+    writeln!(stream, "{init_request}")?;
 
     // Read initialize response
     let mut response = String::new();
@@ -49,7 +52,7 @@ fn main() -> Result<()> {
         "method": "notifications/initialized"
     });
 
-    writeln!(stream, "{}", initialized)?;
+    writeln!(stream, "{initialized}")?;
 
     // Request all activities with aggressive pagination to get full history
     let mut all_activities = Vec::new();
@@ -73,7 +76,7 @@ fn main() -> Result<()> {
             }
         });
 
-        writeln!(stream, "{}", activities_request)?;
+        writeln!(stream, "{activities_request}")?;
 
         // Read activities response
         let mut response = String::new();
@@ -97,15 +100,12 @@ fn main() -> Result<()> {
             };
 
             if activities.is_empty() {
-                println!("📄 No more activities found on page {}", page);
+                println!("📄 No more activities found on page {page}");
                 break;
             }
 
             let activities_count = activities.len();
-            println!(
-                "📄 Retrieved {} activities on page {}",
-                activities_count, page
-            );
+            println!("📄 Retrieved {activities_count} activities on page {page}");
             all_activities.extend(activities);
 
             if activities_count < per_page {
@@ -121,7 +121,7 @@ fn main() -> Result<()> {
                 break;
             }
         } else {
-            println!("❌ Failed to get activities: {}", response);
+            println!("❌ Failed to get activities: {response}");
             break;
         }
     }
@@ -138,8 +138,7 @@ fn main() -> Result<()> {
 
             // Check if distance is 10km or more
             let is_10k_plus = activity.distance_meters
-                .map(|d| d >= 10000.0)
-                .unwrap_or(false);
+                .is_some_and(|d| d >= 10000.0);
             is_run && is_10k_plus
         })
         .collect();
@@ -242,7 +241,7 @@ fn main() -> Result<()> {
 
     // Display results
     println!("\n🏆 LONGEST CONSECUTIVE 10KM+ RUNNING STREAK:");
-    println!("   📈 Streak Length: {} days", longest_streak);
+    println!("   📈 Streak Length: {longest_streak} days");
 
     if let (Some(start), Some(end)) = (longest_streak_start, longest_streak_end) {
         println!(
@@ -263,16 +262,28 @@ fn main() -> Result<()> {
             .sum();
 
         println!("   📏 Total Distance: {:.2} km", total_distance / 1000.0);
-        println!("   ⏱️  Total Time: {:.2} hours", total_time as f64 / 3600.0);
-        println!(
-            "   📊 Average Distance: {:.2} km/day",
-            (total_distance / 1000.0) / longest_streak as f64
-        );
+        println!("   ⏱️  Total Time: {:.2} hours", {
+            #[allow(clippy::cast_precision_loss, clippy::cast_lossless)]
+            {
+                (total_time.min(u64::from(u32::MAX)) as f64) / 3600.0
+            }
+        });
+        println!("   📊 Average Distance: {:.2} km/day", {
+            #[allow(clippy::cast_precision_loss)]
+            {
+                (total_distance / 1000.0) / (longest_streak as f64)
+            }
+        });
 
         println!("\n📋 Streak Details:");
         for (i, activity) in longest_streak_activities.iter().enumerate() {
             let distance_km = activity.distance_meters.unwrap_or(0.0) / 1000.0;
-            let duration_hours = activity.duration_seconds as f64 / 3600.0;
+            let duration_hours = {
+                #[allow(clippy::cast_precision_loss, clippy::cast_lossless)]
+                {
+                    (activity.duration_seconds.min(u64::from(u32::MAX)) as f64) / 3600.0
+                }
+            };
 
             println!(
                 "   Day {}: {} - {:.2}km in {:.2}h - \"{}\"",
