@@ -32,13 +32,10 @@ pub mod protocol {
         env::var("SERVER_NAME").unwrap_or_else(|_| "pierre-mcp-server".into())
     }
 
-    /// Get multi-tenant server name variant
+    /// Get server name variant with specific suffix
     #[must_use]
     pub fn server_name_multitenant() -> String {
-        env::var("SERVER_NAME").map_or_else(
-            |_| "pierre-mcp-server-multitenant".into(),
-            |name| format!("{name}-multitenant"),
-        )
+        env::var("SERVER_NAME").unwrap_or_else(|_| "pierre-mcp-server".into())
     }
 
     /// Server version from Cargo.toml
@@ -47,7 +44,6 @@ pub mod protocol {
     // For backward compatibility and performance, provide const versions with defaults
     pub const MCP_PROTOCOL_VERSION: &str = "2025-06-18";
     pub const SERVER_NAME: &str = "pierre-mcp-server";
-    pub const SERVER_NAME_MULTITENANT: &str = "pierre-mcp-server-multitenant";
 }
 
 /// Environment-based configuration

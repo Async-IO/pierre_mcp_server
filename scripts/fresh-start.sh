@@ -26,6 +26,5 @@ mkdir -p ./data
 
 echo "✅ Database cleanup complete!"
 echo "📝 Next steps:"
-echo "   - For single-tenant: cargo run --bin pierre-mcp-server -- --single-tenant"
-echo "   - For multi-tenant: cargo run --bin pierre-mcp-server"
-echo "   - For Docker: docker-compose up"
+echo "   - Local development: cargo run --bin pierre-mcp-server"
+echo "   - Docker deployment: docker-compose up"

@@ -3,8 +3,7 @@
 //! Unified tool execution engine
 //!
 //! This engine provides a single implementation for tool execution that can be
-//! used by both single-tenant and multi-tenant MCP servers, eliminating code
-//! duplication and providing a consistent interface.
+//! used by multi-tenant MCP servers with comprehensive authentication and user isolation.
 
 use crate::database_plugins::factory::Database;
 use crate::errors::AppError;
@@ -24,7 +23,7 @@ pub struct UserContext {
     pub tier: String,
 }
 
-/// Unified tool execution engine that can be used by both single-tenant and multi-tenant servers
+/// Unified tool execution engine that provides multi-tenant server functionality
 pub struct ToolEngine {
     _database: Arc<Database>,
     _intelligence: Arc<ActivityAnalyzer>,
@@ -51,8 +50,7 @@ impl ToolEngine {
 
     /// Execute a tool with unified error handling and context
     ///
-    /// This method provides a single point for tool execution that can be used
-    /// by both single-tenant (`user_context` = None) and multi-tenant implementations.
+    /// This method provides a single point for tool execution for multi-tenant implementations.
     /// # Errors
     ///
     /// Returns an error if:
@@ -65,7 +63,7 @@ impl ToolEngine {
         params: Value,
         user_context: Option<&UserContext>,
     ) -> Result<Value, AppError> {
-        // Validate permissions for multi-tenant mode
+        // Validate permissions for authenticated users
         if let Some(ctx) = user_context {
             self.validate_user_permissions(ctx, tool_name)?;
         }
@@ -93,18 +91,6 @@ impl ToolEngine {
                 )))
             }
         }
-    }
-
-    /// Execute a tool for single-tenant mode (convenience method)
-    /// # Errors
-    ///
-    /// Returns an error if tool execution fails
-    pub async fn execute_tool_single_tenant(
-        &self,
-        tool_name: &str,
-        params: Value,
-    ) -> Result<Value, AppError> {
-        self.execute_tool(tool_name, params, None).await
     }
 
     /// Execute a tool for multi-tenant mode with user context

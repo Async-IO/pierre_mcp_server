@@ -10,16 +10,13 @@ This comprehensive guide covers installation, configuration, and authentication 
 # Build the project
 cargo build --release
 
-# Run the server (multi-tenant mode by default)
+# Run the server (requires environment configuration)
 cargo run --bin pierre-mcp-server
-
-# For single-tenant mode (no authentication required)
-cargo run --bin pierre-mcp-server -- --single-tenant
 ```
 
-### Multi-Tenant Setup (Recommended)
+### Production Setup
 
-The multi-tenant mode provides user authentication, OAuth integration, and MCP protocol compliance with both stdio and HTTP transports.
+Pierre MCP Server provides user authentication, OAuth integration, and MCP protocol compliance with both stdio and HTTP transports.
 
 **Step 1: Fresh Database Setup**
 ```bash
@@ -34,7 +31,7 @@ cargo run --bin admin-setup generate-token --service "my-service"
 # Save the JWT token from output - shown only once!
 ```
 
-**Step 3: Start Multi-Tenant Server**
+**Step 3: Start Production Server**
 ```bash
 # Server runs on ports 8080 (MCP) and 8081 (HTTP)
 cargo run --bin pierre-mcp-server
