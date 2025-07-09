@@ -195,9 +195,9 @@ impl UniversalToolExecutor {
                 "timestamp": chrono::Utc::now().to_rfc3339(),
                 "intelligence": {
                     "summary": analysis.summary,
-                    "insights": analysis.key_insights,
-                    "performance_metrics": analysis.performance_indicators,
-                    "contextual_factors": analysis.contextual_factors,
+                    "insights": &analysis.key_insights,
+                    "performance_metrics": &analysis.performance_indicators,
+                    "contextual_factors": &analysis.contextual_factors,
                     "generated_at": analysis.generated_at
                 },
                 "metadata": {
@@ -316,8 +316,9 @@ impl UniversalToolExecutor {
     }
 
     /// Register a new tool
-    pub fn register_tool(&mut self, tool: UniversalTool) {
-        self.tools.insert(tool.name.clone(), tool);
+    pub fn register_tool(&mut self, mut tool: UniversalTool) {
+        let name = std::mem::take(&mut tool.name);
+        self.tools.insert(name, tool);
     }
 
     /// Execute a tool by name
@@ -839,9 +840,9 @@ impl UniversalToolExecutor {
                     "analysis": {
                         "efficiency_score": efficiency_score,
                         "relative_effort": relative_effort,
-                        "performance_summary": intelligence.performance_indicators.clone()
+                        "performance_summary": &intelligence.performance_indicators
                     },
-                    "insights": intelligence.key_insights.clone(),
+                    "insights": &intelligence.key_insights,
                     "is_real_data": true
                 });
 
@@ -1450,9 +1451,9 @@ impl UniversalToolExecutor {
                     "trend_strength": trend_analysis.trend_strength,
                     "statistical_significance": trend_analysis.statistical_significance,
                     "data_points_count": trend_analysis.data_points.len(),
-                    "insights": trend_analysis.insights.iter().map(|i| i.message.clone()).collect::<Vec<_>>(),
+                    "insights": trend_analysis.insights.iter().map(|i| &i.message).collect::<Vec<_>>(),
                     "recommendations": trend_analysis.insights.iter().filter_map(|i| {
-                        if i.insight_type == "recommendation" { Some(i.message.clone()) } else { None }
+                        if i.insight_type == "recommendation" { Some(&i.message) } else { None }
                     }).collect::<Vec<_>>()
                 })),
                 error: None,
