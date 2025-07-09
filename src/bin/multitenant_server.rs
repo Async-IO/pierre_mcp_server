@@ -19,7 +19,6 @@ use pierre_mcp_server::{
     constants::{env_config, network_config::HTTP_PORT_OFFSET},
     database::generate_encryption_key,
     database_plugins::factory::Database,
-    health::HealthChecker,
     logging,
     mcp::multitenant::MultiTenantMcpServer,
 };
@@ -151,11 +150,7 @@ async fn main() -> Result<()> {
         };
         info!("Authentication manager initialized");
 
-        // Initialize health checker
-        let health_checker = HealthChecker::new(database.clone());
-        info!("Health checker initialized");
-
-        // Create and run multi-tenant server with health checks
+        // Create and run multi-tenant server
         let server = MultiTenantMcpServer::new(database, auth_manager, Arc::new(config.clone()));
 
         info!(
@@ -164,73 +159,14 @@ async fn main() -> Result<()> {
         );
         info!("Ready to serve fitness data with user authentication!");
 
-        // Run server with health check integration
-        if let Err(e) = run_production_server(server, config, health_checker).await {
+        // Run the multi-tenant server directly (includes all routes)
+        if let Err(e) = server.run(config.mcp_port).await {
             error!("Server error: {}", e);
             return Err(e);
         }
     }
 
     Ok(())
-}
-
-/// Run the production server with health checks and graceful shutdown
-async fn run_production_server(
-    server: MultiTenantMcpServer,
-    config: ServerConfig,
-    health_checker: HealthChecker,
-) -> Result<()> {
-    // Load admin JWT secret for admin API authentication
-    let admin_jwt_secret = load_or_generate_admin_jwt_secret(&config.auth.jwt_secret_path)?;
-    let admin_jwt_secret_str = String::from_utf8(admin_jwt_secret.to_vec())
-        .unwrap_or_else(|_| "fallback_admin_secret".into());
-
-    // Setup HTTP routes with health checks and admin API
-    let health_routes = pierre_mcp_server::health::middleware::routes(health_checker);
-
-    // Setup admin API routes
-    let admin_context = pierre_mcp_server::admin_routes::AdminApiContext::new(
-        server.database().clone(),
-        &admin_jwt_secret_str,
-        server.auth_manager().clone(),
-    );
-    let admin_routes = pierre_mcp_server::admin_routes::admin_routes(admin_context);
-
-    // Combine all routes
-    let routes = health_routes.or(admin_routes);
-
-    info!("Admin API enabled at /admin/* endpoints");
-    info!("Available admin endpoints:");
-    info!("  POST /admin/provision-api-key - Provision API keys for users");
-    info!("  POST /admin/revoke-api-key - Revoke existing API keys");
-    info!("  GET  /admin/list-api-keys - List API keys (with filters)");
-    info!("  GET  /admin/token-info - Get admin token information");
-    info!("  GET  /admin/health - Admin API health check");
-    info!("  GET  /admin/setup-status - Check if admin user exists");
-    info!("  GET  /admin/tokens - List admin tokens");
-    info!("  POST /admin/tokens - Create admin token");
-    info!("  GET  /admin/tokens/{{id}} - Get admin token details");
-    info!("  POST /admin/tokens/{{id}}/revoke - Revoke admin token");
-    info!("  POST /admin/tokens/{{id}}/rotate - Rotate admin token");
-
-    // Run HTTP server and MCP server concurrently
-    let http_server = warp::serve(routes).run(([0, 0, 0, 0], config.http_port));
-
-    let mcp_server = server.run(config.mcp_port);
-
-    // Wait for either server to complete (or fail)
-    tokio::select! {
-        _result = http_server => {
-            info!("HTTP server completed");
-            Ok(())
-        }
-        result = mcp_server => {
-            if let Err(ref e) = result {
-                error!("MCP server error: {}", e);
-            }
-            result
-        }
-    }
 }
 
 /// Run the single-tenant server with OAuth callback support
@@ -622,11 +558,4 @@ fn load_or_generate_jwt_secret(secret_file: &PathBuf) -> Result<[u8; 64]> {
         info!("Generated new JWT secret: {}", secret_file.display());
         Ok(secret)
     }
-}
-
-/// Load admin JWT secret from file or generate a new one (reuses user JWT secret)
-fn load_or_generate_admin_jwt_secret(secret_file: &PathBuf) -> Result<[u8; 64]> {
-    // For now, we reuse the same JWT secret for admin tokens
-    // In production, you might want separate secrets
-    load_or_generate_jwt_secret(secret_file)
 }
