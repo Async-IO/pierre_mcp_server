@@ -106,7 +106,7 @@ fn retrieve_all_activities(
                 if activities.is_empty() {
                     break; // No more activities
                 }
-                all_activities.extend(activities.clone());
+                all_activities.extend(activities.iter().cloned());
                 println!(
                     "Page Retrieved page {page} with {} activities",
                     activities.len()

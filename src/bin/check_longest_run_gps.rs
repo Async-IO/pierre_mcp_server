@@ -89,7 +89,7 @@ fn fetch_activities(
                 if activities.is_empty() {
                     break;
                 }
-                all_activities.extend(activities.clone());
+                all_activities.extend(activities.iter().cloned());
                 println!(
                     "Page Retrieved page {page} with {} activities",
                     activities.len()
