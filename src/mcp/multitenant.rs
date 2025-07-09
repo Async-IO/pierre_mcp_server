@@ -60,6 +60,7 @@ use uuid::Uuid;
 type UserProviderStorage = Arc<RwLock<HashMap<String, HashMap<String, Box<dyn FitnessProvider>>>>>;
 
 /// Multi-tenant MCP server supporting user authentication
+#[derive(Clone)]
 pub struct MultiTenantMcpServer {
     database: Arc<Database>,
     auth_manager: Arc<AuthManager>,
@@ -1247,61 +1248,275 @@ impl MultiTenantMcpServer {
         Ok(())
     }
 
-    /// Run MCP server for AI assistant connections
+    /// Run MCP server with both stdio and HTTP transports
     async fn run_mcp_server(self, port: u16) -> Result<()> {
+        info!("Starting MCP server with stdio and HTTP transports");
+
+        // Clone server for both transports
+        let server_for_stdio = self.clone();
+        let server_for_http = self;
+
+        // Start stdio transport
+        let stdio_handle =
+            tokio::spawn(async move { server_for_stdio.run_stdio_transport().await });
+
+        // Start HTTP transport
+        let http_handle =
+            tokio::spawn(async move { server_for_http.run_http_transport(port).await });
+
+        // Wait for either transport to fail
+        tokio::select! {
+            result = stdio_handle => {
+                match result {
+                    Ok(Ok(())) => info!("stdio transport completed successfully"),
+                    Ok(Err(e)) => warn!("stdio transport failed: {}", e),
+                    Err(e) => warn!("stdio transport task failed: {}", e),
+                }
+            }
+            result = http_handle => {
+                match result {
+                    Ok(Ok(())) => info!("HTTP transport completed successfully"),
+                    Ok(Err(e)) => warn!("HTTP transport failed: {}", e),
+                    Err(e) => warn!("HTTP transport task failed: {}", e),
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Run MCP server using stdio transport (MCP specification compliant)
+    async fn run_stdio_transport(self) -> Result<()> {
         use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-        use tokio::net::TcpListener;
 
-        let listener = TcpListener::bind(format!("127.0.0.1:{port}")).await?;
-        info!("MCP server listening on port {}", port);
+        info!("MCP stdio transport ready - listening on stdin/stdout");
 
-        loop {
-            let (socket, addr) = listener.accept().await?;
-            info!("New MCP connection from {}", addr);
+        let stdin = tokio::io::stdin();
+        let mut stdout = tokio::io::stdout();
+        let mut reader = BufReader::new(stdin);
+        let mut line = String::new();
 
-            let database = self.database.clone();
-            let auth_manager = self.auth_manager.clone();
-            let auth_middleware = self.auth_middleware.clone();
-            let user_providers = self.user_providers.clone();
+        while reader.read_line(&mut line).await.unwrap_or(0) > 0 {
+            let trimmed_line = line.trim();
+            if trimmed_line.is_empty() {
+                line.clear();
+                continue;
+            }
 
-            tokio::spawn(async move {
-                let (reader, mut writer) = socket.into_split();
-                let mut reader = BufReader::new(reader);
-                let mut line = String::new();
+            if let Ok(request) = serde_json::from_str::<McpRequest>(trimmed_line) {
+                let response = Self::handle_request(
+                    request,
+                    &self.database,
+                    &self.auth_manager,
+                    &self.auth_middleware,
+                    &self.user_providers,
+                )
+                .await;
 
-                while reader.read_line(&mut line).await.unwrap_or(0) > 0 {
-                    if let Ok(request) = serde_json::from_str::<McpRequest>(&line) {
-                        let response = Self::handle_request(
-                            request,
+                let response_str = match serde_json::to_string(&response) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        tracing::error!("Failed to serialize response: {}", e);
+                        line.clear();
+                        continue;
+                    }
+                };
+
+                if let Err(e) = stdout.write_all(response_str.as_bytes()).await {
+                    tracing::error!("Failed to write to stdout: {}", e);
+                    break;
+                }
+                if let Err(e) = stdout.write_all(b"\n").await {
+                    tracing::error!("Failed to write newline to stdout: {}", e);
+                    break;
+                }
+                if let Err(e) = stdout.flush().await {
+                    tracing::error!("Failed to flush stdout: {}", e);
+                    break;
+                }
+            }
+            line.clear();
+        }
+
+        info!("MCP stdio transport ended");
+        Ok(())
+    }
+
+    /// Run MCP server using Streamable HTTP transport (MCP specification compliant)
+    async fn run_http_transport(self, port: u16) -> Result<()> {
+        use warp::Filter;
+
+        info!("MCP HTTP transport starting on port {}", port);
+
+        let database = self.database.clone();
+        let auth_manager = self.auth_manager.clone();
+        let auth_middleware = self.auth_middleware.clone();
+        let user_providers = self.user_providers.clone();
+
+        // MCP endpoint for both POST and GET
+        let mcp_endpoint = warp::path("mcp")
+            .and(warp::method())
+            .and(warp::header::optional::<String>("origin"))
+            .and(warp::header::optional::<String>("accept"))
+            .and(
+                warp::body::json()
+                    .or(warp::any().map(|| serde_json::Value::Null))
+                    .unify(),
+            )
+            .and_then({
+                move |method: warp::http::Method,
+                      origin: Option<String>,
+                      accept: Option<String>,
+                      body: serde_json::Value| {
+                    let database = database.clone();
+                    let auth_manager = auth_manager.clone();
+                    let auth_middleware = auth_middleware.clone();
+                    let user_providers = user_providers.clone();
+
+                    async move {
+                        Self::handle_mcp_http_request(
+                            method,
+                            origin,
+                            accept,
+                            body,
                             &database,
                             &auth_manager,
                             &auth_middleware,
                             &user_providers,
                         )
-                        .await;
-
-                        let response_str = match serde_json::to_string(&response) {
-                            Ok(s) => s,
-                            Err(e) => {
-                                tracing::error!("Failed to serialize response: {}", e);
-                                continue;
-                            }
-                        };
-                        if matches!(
-                            (
-                                writer.write_all(response_str.as_bytes()).await,
-                                writer.write_all(b"\n").await,
-                                writer.flush().await,
-                            ),
-                            (Ok(()), Ok(()), Ok(()))
-                        ) {
-                            // Response sent successfully
-                        }
+                        .await
                     }
-                    line.clear();
                 }
             });
+
+        // Configure CORS for MCP
+        let cors = warp::cors()
+            .allow_any_origin()
+            .allow_headers(vec!["content-type", "accept", "origin", "authorization"])
+            .allow_methods(vec!["GET", "POST", "OPTIONS"]);
+
+        let routes = mcp_endpoint.with(cors).recover(Self::handle_mcp_rejection);
+
+        info!("MCP HTTP transport ready on port {}", port);
+        warp::serve(routes).run(([127, 0, 0, 1], port)).await;
+
+        Ok(())
+    }
+
+    /// Handle MCP HTTP request (Streamable HTTP transport)
+    async fn handle_mcp_http_request(
+        method: warp::http::Method,
+        origin: Option<String>,
+        accept: Option<String>,
+        body: serde_json::Value,
+        database: &Arc<Database>,
+        auth_manager: &Arc<AuthManager>,
+        auth_middleware: &Arc<McpAuthMiddleware>,
+        user_providers: &UserProviderStorage,
+    ) -> Result<Box<dyn warp::Reply>, warp::Rejection> {
+        // Validate Origin header for security (DNS rebinding protection)
+        if let Some(origin) = origin {
+            if !Self::is_valid_origin(&origin) {
+                return Err(warp::reject::custom(McpHttpError::InvalidOrigin));
+            }
         }
+
+        match method {
+            warp::http::Method::POST => {
+                // Handle JSON-RPC request
+                if let Ok(request) = serde_json::from_value::<McpRequest>(body) {
+                    let response = Self::handle_request(
+                        request,
+                        database,
+                        auth_manager,
+                        auth_middleware,
+                        user_providers,
+                    )
+                    .await;
+
+                    // Return 202 Accepted with no body for successful requests
+                    Ok(Box::new(warp::reply::with_status(
+                        warp::reply::json(&response),
+                        warp::http::StatusCode::ACCEPTED,
+                    )))
+                } else {
+                    Err(warp::reject::custom(McpHttpError::InvalidRequest))
+                }
+            }
+            warp::http::Method::GET => {
+                // Handle GET request for server-sent events or status
+                if accept
+                    .as_ref()
+                    .map_or(false, |a| a.contains("text/event-stream"))
+                {
+                    // Return SSE response for streaming
+                    let reply = warp::reply::with_header(
+                        "MCP HTTP transport ready",
+                        "content-type",
+                        "text/event-stream",
+                    );
+                    Ok(Box::new(warp::reply::with_status(
+                        reply,
+                        warp::http::StatusCode::OK,
+                    )))
+                } else {
+                    // Return JSON status
+                    let reply = warp::reply::json(&serde_json::json!({
+                        "status": "ready",
+                        "transport": "streamable-http",
+                        "version": "2024-11-05"
+                    }));
+                    Ok(Box::new(warp::reply::with_status(
+                        reply,
+                        warp::http::StatusCode::OK,
+                    )))
+                }
+            }
+            _ => Err(warp::reject::custom(McpHttpError::InvalidRequest)),
+        }
+    }
+
+    /// Validate origin header for security
+    fn is_valid_origin(origin: &str) -> bool {
+        // Allow localhost origins for development
+        origin.starts_with("http://localhost") ||
+        origin.starts_with("http://127.0.0.1") ||
+        origin.starts_with("https://localhost") ||
+        origin.starts_with("https://127.0.0.1") ||
+        // Allow null origin for direct connections
+        origin == "null"
+    }
+
+    /// Handle HTTP rejection
+    async fn handle_mcp_rejection(
+        err: warp::Rejection,
+    ) -> Result<impl warp::Reply, std::convert::Infallible> {
+        let code;
+        let message;
+
+        if err.is_not_found() {
+            code = warp::http::StatusCode::NOT_FOUND;
+            message = "Not Found";
+        } else if let Some(McpHttpError::InvalidOrigin) = err.find() {
+            code = warp::http::StatusCode::FORBIDDEN;
+            message = "Invalid origin";
+        } else if let Some(McpHttpError::InvalidRequest) = err.find() {
+            code = warp::http::StatusCode::BAD_REQUEST;
+            message = "Invalid request";
+        } else if err.find::<warp::reject::MethodNotAllowed>().is_some() {
+            code = warp::http::StatusCode::METHOD_NOT_ALLOWED;
+            message = "Method not allowed";
+        } else {
+            code = warp::http::StatusCode::INTERNAL_SERVER_ERROR;
+            message = "Internal server error";
+        }
+
+        let json = warp::reply::json(&serde_json::json!({
+            "error": message,
+            "code": code.as_u16()
+        }));
+
+        Ok(warp::reply::with_status(json, code))
     }
 
     /// Handle MCP request with authentication
@@ -3002,6 +3217,15 @@ pub struct McpError {
 struct ApiError(serde_json::Value);
 
 impl warp::reject::Reject for ApiError {}
+
+/// MCP HTTP transport errors
+#[derive(Debug)]
+enum McpHttpError {
+    InvalidOrigin,
+    InvalidRequest,
+}
+
+impl warp::reject::Reject for McpHttpError {}
 
 /// Add CORS and security headers to a reply
 fn with_cors_headers(
