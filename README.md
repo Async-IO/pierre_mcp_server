@@ -71,23 +71,41 @@ Pierre supports multiple integration patterns for different use cases:
 <summary><strong>A2A Integration for Developers</strong></summary>
 
 ```bash
-# Register your application
-curl -X POST https://your-pierre-server.com/a2a/clients \
-  -H "Authorization: Bearer JWT_TOKEN" \
-  -d '{"name": "My Fitness App", "description": "AI fitness coach"}'
+# 1. Register your A2A client
+curl -X POST http://localhost:8081/a2a/clients \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My Fitness App",
+    "description": "AI fitness coach",
+    "capabilities": ["fitness-data-analysis"],
+    "contact_email": "developer@myapp.com"
+  }'
 
-# Execute fitness tools
-curl -X POST https://your-pierre-server.com/a2a/execute \
-  -H "Authorization: Bearer API_KEY" \
+# 2. Authenticate client
+curl -X POST http://localhost:8081/a2a/auth \
+  -H "Content-Type: application/json" \
+  -d '{
+    "client_id": "your_client_id",
+    "client_secret": "your_client_secret",
+    "scopes": ["read", "write"]
+  }'
+
+# 3. Execute fitness tools (requires user JWT token)
+curl -X POST http://localhost:8081/a2a/execute \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer USER_JWT_TOKEN" \
   -d '{
     "jsonrpc": "2.0",
     "method": "tools.execute",
     "params": {
       "tool_name": "get_activities",
       "parameters": {"provider": "strava", "limit": 10}
-    }
+    },
+    "id": 1
   }'
 ```
+
+**📚 A2A Quick Start**: See [A2A_QUICK_START.md](docs/A2A_QUICK_START.md) for complete 5-minute setup guide.
 
 </details>
 
@@ -99,7 +117,9 @@ curl -X POST https://your-pierre-server.com/a2a/execute \
 |-------|-------------|------------|
 | **[Documentation Index](docs/README.md)** | **Complete doc guide** | **All documentation organized by use case** |
 | **[Getting Started](docs/GETTING_STARTED.md)** | Setup and configuration | Local setup, OAuth config, Docker deployment |
-| **[API Reference](docs/API_REFERENCE.md)** | **Complete API documentation** | **MCP tools, HTTP endpoints, error handling** |
+| **[API Reference](docs/API_REFERENCE.md)** | **Complete API documentation** | **MCP tools, A2A protocol, HTTP endpoints** |
+| **[A2A Quick Start](docs/A2A_QUICK_START.md)** | **5-minute A2A setup** | **Enterprise integration, client registration** |
+| **[A2A Reference](docs/A2A_REFERENCE.md)** | **Complete A2A guide** | **Authentication, tools, Python client** |
 | **[OpenAPI Specification](docs/openapi.yaml)** | **Interactive API reference** | **Complete API spec with examples** |
 | **[Database Guide](docs/DATABASE_GUIDE.md)** | Database setup | SQLite/PostgreSQL setup and database plugins |
 | **[Deployment Guide](docs/DEPLOYMENT_GUIDE.md)** | Production deployment | Docker, Kubernetes, cloud platforms |

@@ -11,7 +11,6 @@ python3 run_demos.py
 # Or run individual demos
 python3 python/multitenant_mcp_example.py     # NEW: Multi-tenant MCP workflow
 python3 python/mcp_stdio_example.py           # NEW: MCP stdio transport
-python3 python/mcp/investor_demo.py           # MCP investor demonstration
 python3 python/a2a/enterprise_demo.py         # A2A enterprise demonstration
 ```
 
@@ -51,9 +50,6 @@ The Pierre Fitness API supports two protocols:
 ```
 examples/
 ├── python/
-│   ├── mcp/                    # MCP Protocol Examples
-│   │   ├── data_collection.py  # Bulk data collection via MCP
-│   │   └── investor_demo.py    # Complete investor demonstration
 │   ├── a2a/                    # A2A Protocol Examples  
 │   │   ├── api_client.py       # Enterprise API client
 │   │   └── enterprise_demo.py  # Complete enterprise demonstration
@@ -96,17 +92,18 @@ examples/
 - Proper MCP protocol sequence
 - Compliant with MCP 2024-11-05 specification
 
-#### Data Collection (`python/mcp/data_collection.py`)
-- Connects to MCP server via WebSocket
-- Collects fitness activities in real-time
-- Performs data quality validation
-- Saves results for analysis
+#### Multi-Tenant MCP Workflow (`python/multitenant_mcp_example.py`)
+- **NEW**: Complete multi-tenant setup workflow
+- User registration and JWT authentication
+- Strava OAuth integration
+- MCP protocol usage (HTTP transport)
+- Real fitness data analysis with AI insights
 
-#### Investor Demo (`python/mcp/investor_demo.py`)
-- Complete demonstration for investors
-- Real-time fitness scoring and analysis
-- Sport-specific intelligence
-- Interactive presentation format
+#### MCP stdio Transport (`python/mcp_stdio_example.py`)
+- **NEW**: MCP stdio transport (primary for AI assistants)
+- JSON-RPC 2.0 message format
+- Interactive and pipe modes
+- Proper MCP protocol sequence
 
 ### 2. A2A Examples
 
@@ -220,18 +217,19 @@ The examples support two data modes:
 
 ## Example Output
 
-### MCP Investor Demo
+### Multi-Tenant MCP Demo
 ```
-🚀 PIERRE AI FITNESS PLATFORM - MCP DEMONSTRATION
+🚀 PIERRE FITNESS API - MULTI-TENANT MCP DEMONSTRATION
 ============================================================
-🎯 Purpose: Real-time AI fitness analysis for investors
-📡 Protocol: Model Context Protocol (MCP)
-⚡ Benefits: Low latency, real-time analysis, interactive clients
+🎯 Purpose: Complete MCP setup and real-time fitness analysis
+📡 Protocol: Model Context Protocol (MCP) with HTTP transport
+⚡ Benefits: Low latency, real-time analysis, secure multi-tenant
 
-✅ Connected to MCP server
-✅ Successfully collected 100 real activities
+✅ User registered and authenticated
+✅ Strava OAuth connected
+✅ MCP server connected
+✅ Successfully retrieved 50 real activities
 🏆 FITNESS SCORE: 89/100
-📊 Data Quality Score: 94.2/100
 ```
 
 ### A2A Enterprise Demo
