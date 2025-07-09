@@ -131,13 +131,13 @@ curl -X POST http://localhost:8081/a2a/execute \
 | **Integrations** | Strava, Fitbit • MCP Protocol • A2A Protocol • REST APIs |
 | **Security** | OAuth2 + PKCE • JWT Authentication • Encrypted storage • Rate limiting |
 | **Intelligence** | Activity analysis • Location detection • Weather integration |
-| **Architecture** | Single & multi-tenant • Cloud-ready • Extensible • Deployment-ready |
+| **Architecture** | Multi-tenant • Cloud-ready • Extensible • Production-ready |
 
 ## Quick Start
 
 | Method | Command | Use Case |
 |--------|---------|----------|
-| **Local** | `cargo run --bin pierre-mcp-server -- --single-tenant` | Personal use, development |
+| **Local** | `cargo run --bin pierre-mcp-server` | Development, local testing |
 | **Docker** | `./docker-compose-with-envrc.sh up` | Easy deployment, cloud-ready |
 | **AI Assistants** | Add to MCP client config | Claude, ChatGPT, agent integration |
 
@@ -147,15 +147,16 @@ curl -X POST http://localhost:8081/a2a/execute \
 git clone https://github.com/Async-IO/pierre_mcp_server.git
 cd pierre_mcp_server && cargo build --release
 
-# 2. Run locally (single-tenant mode)
-cargo run --bin pierre-mcp-server -- --single-tenant
+# 2. Set up environment and run server
+# Configure your environment variables (see docs/GETTING_STARTED.md)
+cargo run --bin pierre-mcp-server
 
 # 3. Configure AI Assistant (Claude, ChatGPT, etc.)
 echo '{
   "mcpServers": {
     "pierre-fitness": {
       "command": "'$(pwd)'/target/release/pierre-mcp-server",
-      "args": ["--single-tenant", "--port", "8080"]
+      "args": ["--mcp-port", "8080"]
     }
   }
 }' > ~/.claude/claude_desktop_config.json
@@ -165,10 +166,12 @@ echo '{
 
 ## Architecture
 
-| Mode | Best For | Features |
-|------|----------|----------|
-| **Single-Tenant** | Personal use | Local config, no auth required, simple setup |
-| **Multi-Tenant** | Cloud deployment | JWT auth, encrypted storage, user isolation |
+Pierre MCP Server is built as a production-ready, multi-tenant application with comprehensive security and scalability features:
+
+- **Authentication**: JWT-based user authentication with secure token management
+- **Database**: Encrypted storage with SQLite/PostgreSQL support
+- **Security**: User isolation, rate limiting, and encrypted data storage
+- **Scalability**: Cloud-ready deployment with Docker and Kubernetes support
 
 ## License
 

@@ -16,7 +16,6 @@ use clap::Parser;
 use pierre_mcp_server::{
     auth::{generate_jwt_secret, AuthManager},
     config::environment::ServerConfig,
-    constants::{env_config, network_config::HTTP_PORT_OFFSET},
     database::generate_encryption_key,
     database_plugins::factory::Database,
     logging,
@@ -25,25 +24,20 @@ use pierre_mcp_server::{
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{error, info};
-use warp::Filter;
 
 #[derive(Parser)]
 #[command(name = "pierre-mcp-server")]
 #[command(about = "Pierre Fitness API - Multi-protocol fitness data API for LLMs")]
 pub struct Args {
-    /// Run in single-tenant mode (no authentication required)
-    #[arg(long, default_value = "false")]
-    single_tenant: bool,
-
-    /// Configuration file path for providers (required in single-tenant mode)
+    /// Configuration file path for providers
     #[arg(short, long)]
     config: Option<String>,
 
-    /// Override MCP port (multi-tenant mode only)
+    /// Override MCP port
     #[arg(long)]
     mcp_port: Option<u16>,
 
-    /// Override HTTP port (multi-tenant mode only)  
+    /// Override HTTP port
     #[arg(long)]
     http_port: Option<u16>,
 }
@@ -58,7 +52,6 @@ async fn main() -> Result<()> {
             eprintln!("Using default configuration for production mode");
             // Default to production mode if argument parsing fails
             Args {
-                single_tenant: false,
                 config: None,
                 mcp_port: None,
                 http_port: None,
@@ -66,35 +59,7 @@ async fn main() -> Result<()> {
         }
     };
 
-    if args.single_tenant {
-        // Legacy mode with simple logging
-        tracing_subscriber::fmt::init();
-
-        info!("Starting Pierre Fitness API - Single-Tenant Mode");
-
-        // In single-tenant mode, use the original server with OAuth support
-        let config = pierre_mcp_server::config::fitness_config::FitnessConfig::load(args.config)?;
-        let server = pierre_mcp_server::mcp::McpServer::new(config);
-
-        let mcp_port = args.mcp_port.unwrap_or_else(env_config::mcp_port);
-        let http_port = args
-            .http_port
-            .unwrap_or_else(|| env_config::mcp_port() + HTTP_PORT_OFFSET);
-
-        info!(
-            "Single-tenant MCP server starting on port {} (MCP) and {} (HTTP)",
-            mcp_port, http_port
-        );
-        info!("Ready to serve fitness data with OAuth support!");
-
-        // Run both MCP server and OAuth HTTP server concurrently
-        if let Err(e) = run_single_tenant_server(server, mcp_port, http_port).await {
-            error!("Server error: {}", e);
-            return Err(e);
-        }
-    } else {
-        // Production mode with full configuration
-
+    {
         // Load configuration from environment
         let mut config = ServerConfig::from_env()?;
 
@@ -168,339 +133,6 @@ async fn main() -> Result<()> {
 
     Ok(())
 }
-
-/// Run the single-tenant server with OAuth callback support
-async fn run_single_tenant_server(
-    server: pierre_mcp_server::mcp::McpServer,
-    mcp_port: u16,
-    http_port: u16,
-) -> Result<()> {
-    // Setup OAuth callback routes for single-tenant mode
-    let oauth_routes = setup_single_tenant_oauth_routes();
-
-    // Run HTTP server for OAuth callbacks
-    let http_server = warp::serve(oauth_routes).run(([0, 0, 0, 0], http_port));
-
-    // Run MCP server
-    let mcp_server = server.run(mcp_port);
-
-    // Wait for either server to complete (or fail)
-    tokio::select! {
-        _result = http_server => {
-            info!("HTTP server completed");
-            Ok(())
-        }
-        result = mcp_server => {
-            if let Err(ref e) = result {
-                error!("MCP server error: {}", e);
-            }
-            result
-        }
-    }
-}
-
-/// Setup OAuth callback routes for single-tenant mode
-fn setup_single_tenant_oauth_routes(
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-    // OAuth callback route for Strava
-    let strava_callback = warp::path!("oauth" / "callback" / "strava")
-        .and(warp::get())
-        .and(warp::query::<std::collections::HashMap<String, String>>())
-        .and_then(handle_strava_oauth_callback);
-
-    // OAuth callback route for Fitbit
-    let fitbit_callback = warp::path!("oauth" / "callback" / "fitbit")
-        .and(warp::get())
-        .and(warp::query::<std::collections::HashMap<String, String>>())
-        .and_then(handle_fitbit_oauth_callback);
-
-    // Health check route
-    let health = warp::path!("health").and(warp::get()).map(|| {
-        warp::reply::json(&serde_json::json!({
-            "status": "healthy",
-            "service": "pierre-mcp-server-single-tenant",
-            "timestamp": chrono::Utc::now().to_rfc3339()
-        }))
-    });
-
-    strava_callback.or(fitbit_callback).or(health)
-}
-
-/// Handle Strava OAuth callback in single-tenant mode
-async fn handle_strava_oauth_callback(
-    query: std::collections::HashMap<String, String>,
-) -> Result<impl warp::Reply, warp::Rejection> {
-    handle_oauth_callback("strava", query).await
-}
-
-/// Handle Fitbit OAuth callback in single-tenant mode
-async fn handle_fitbit_oauth_callback(
-    query: std::collections::HashMap<String, String>,
-) -> Result<impl warp::Reply, warp::Rejection> {
-    handle_oauth_callback("fitbit", query).await
-}
-
-/// Generic OAuth callback handler for single-tenant mode
-#[allow(clippy::too_many_lines)]
-async fn handle_oauth_callback(
-    provider: &str,
-    query: std::collections::HashMap<String, String>,
-) -> Result<impl warp::Reply, warp::Rejection> {
-    use pierre_mcp_server::oauth::manager::OAuthManager;
-
-    // Extract code and state from query parameters
-    let code = query
-        .get("code")
-        .ok_or_else(|| warp::reject::custom(OAuthCallbackError::MissingParameter("code".into())))?;
-
-    let state = query.get("state").ok_or_else(|| {
-        warp::reject::custom(OAuthCallbackError::MissingParameter("state".into()))
-    })?;
-
-    // Initialize database with default configuration for single-tenant
-    let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "data/pierre.db".into());
-
-    let encryption_key = if let Ok(key_path) = std::env::var("ENCRYPTION_KEY_PATH") {
-        std::fs::read(&key_path).map_err(|e| {
-            tracing::error!("Failed to read encryption key from {}: {}", key_path, e);
-            warp::reject::custom(OAuthCallbackError::ServerError(format!(
-                "Key read error: {e}"
-            )))
-        })?
-    } else {
-        let key_path = "data/encryption.key";
-        if std::path::Path::new(key_path).exists() {
-            std::fs::read(key_path).map_err(|e| {
-                tracing::error!("Failed to read encryption key from {}: {}", key_path, e);
-                warp::reject::custom(OAuthCallbackError::ServerError(format!(
-                    "Key read error: {e}"
-                )))
-            })?
-        } else {
-            let key = pierre_mcp_server::database::generate_encryption_key();
-            if let Some(parent) = std::path::Path::new(key_path).parent() {
-                std::fs::create_dir_all(parent).map_err(|e| {
-                    warp::reject::custom(OAuthCallbackError::ServerError(format!(
-                        "Directory creation error: {e}"
-                    )))
-                })?;
-            }
-            std::fs::write(key_path, key).map_err(|e| {
-                warp::reject::custom(OAuthCallbackError::ServerError(format!(
-                    "Key write error: {e}"
-                )))
-            })?;
-            key.to_vec()
-        }
-    };
-
-    let database = std::sync::Arc::new(
-        Database::new(&database_url, encryption_key)
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to create database: {}", e);
-                warp::reject::custom(OAuthCallbackError::ServerError(format!(
-                    "Database error: {e}"
-                )))
-            })?,
-    );
-
-    tracing::info!(
-        "OAuth callback handler initialized with: {}",
-        database.backend_info()
-    );
-
-    // Create OAuth manager and register providers
-    let mut oauth_manager = OAuthManager::new(database);
-
-    match provider {
-        "strava" => {
-            // For single-tenant mode, read from environment variables
-            let client_id = std::env::var("STRAVA_CLIENT_ID").map_err(|_| {
-                warp::reject::custom(OAuthCallbackError::ServerError(
-                    "STRAVA_CLIENT_ID not set".into(),
-                ))
-            })?;
-            let client_secret = std::env::var("STRAVA_CLIENT_SECRET").map_err(|_| {
-                warp::reject::custom(OAuthCallbackError::ServerError(
-                    "STRAVA_CLIENT_SECRET not set".into(),
-                ))
-            })?;
-            let redirect_uri = std::env::var("STRAVA_REDIRECT_URI").ok();
-
-            let config = pierre_mcp_server::config::environment::OAuthProviderConfig {
-                client_id: Some(client_id),
-                client_secret: Some(client_secret),
-                redirect_uri,
-                scopes: vec!["read".into(), "activity:read_all".into()],
-                enabled: true,
-            };
-
-            let strava_provider =
-                pierre_mcp_server::oauth::providers::StravaOAuthProvider::from_config(&config)
-                    .map_err(|e| {
-                        tracing::error!("Failed to create Strava provider: {}", e);
-                        warp::reject::custom(OAuthCallbackError::ServerError(format!(
-                            "Provider error: {e}"
-                        )))
-                    })?;
-            oauth_manager.register_provider(Box::new(strava_provider));
-        }
-        "fitbit" => {
-            // For single-tenant mode, read from environment variables
-            let client_id = std::env::var("FITBIT_CLIENT_ID").map_err(|_| {
-                warp::reject::custom(OAuthCallbackError::ServerError(
-                    "FITBIT_CLIENT_ID not set".into(),
-                ))
-            })?;
-            let client_secret = std::env::var("FITBIT_CLIENT_SECRET").map_err(|_| {
-                warp::reject::custom(OAuthCallbackError::ServerError(
-                    "FITBIT_CLIENT_SECRET not set".into(),
-                ))
-            })?;
-            let redirect_uri = std::env::var("FITBIT_REDIRECT_URI").ok();
-
-            let config = pierre_mcp_server::config::environment::OAuthProviderConfig {
-                client_id: Some(client_id),
-                client_secret: Some(client_secret),
-                redirect_uri,
-                scopes: vec![
-                    "activity".into(),
-                    "heartrate".into(),
-                    "location".into(),
-                    "nutrition".into(),
-                    "profile".into(),
-                    "settings".into(),
-                    "sleep".into(),
-                    "social".into(),
-                    "weight".into(),
-                ],
-                enabled: true,
-            };
-
-            let fitbit_provider =
-                pierre_mcp_server::oauth::providers::FitbitOAuthProvider::from_config(&config)
-                    .map_err(|e| {
-                        tracing::error!("Failed to create Fitbit provider: {}", e);
-                        warp::reject::custom(OAuthCallbackError::ServerError(format!(
-                            "Provider error: {e}"
-                        )))
-                    })?;
-            oauth_manager.register_provider(Box::new(fitbit_provider));
-        }
-        _ => {
-            return Err(warp::reject::custom(
-                OAuthCallbackError::UnsupportedProvider(provider.to_string()),
-            ));
-        }
-    }
-
-    // Handle the OAuth callback
-    match oauth_manager.handle_callback(code, state, provider).await {
-        Ok(callback_response) => {
-            tracing::info!(
-                "OAuth callback successful for provider {}: user {}",
-                provider,
-                callback_response.user_id
-            );
-
-            // Return success page
-            let success_html = format!(
-                r#"<!DOCTYPE html>
-<html>
-<head>
-    <title>OAuth Success - Pierre Fitness API</title>
-    <style>
-        body {{ font-family: Arial, sans-serif; margin: 40px; text-align: center; }}
-        .success {{ color: #4CAF50; }}
-        .info {{ color: #2196F3; margin: 20px 0; }}
-        .details {{ background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0; }}
-    </style>
-</head>
-<body>
-    <h1 class="success">Success OAuth Authorization Successful!</h1>
-    <div class="info">
-        <p>Your {} account has been successfully connected to Pierre Fitness API.</p>
-        <p>You can now close this browser window and return to your MCP client.</p>
-    </div>
-    <div class="details">
-        <h3>Connection Details:</h3>
-        <p><strong>Provider:</strong> {}</p>
-        <p><strong>User ID:</strong> {}</p>
-        <p><strong>Scopes:</strong> {}</p>
-        <p><strong>Expires:</strong> {}</p>
-    </div>
-</body>
-</html>"#,
-                provider.chars().next().map_or_else(
-                    || "Unknown".to_string(),
-                    |c| c.to_uppercase().collect::<String>()
-                ) + &provider[1..],
-                callback_response.provider,
-                callback_response.user_id,
-                callback_response.scopes,
-                callback_response.expires_at
-            );
-
-            Ok(warp::reply::html(success_html))
-        }
-        Err(e) => {
-            tracing::error!("OAuth callback failed for provider {}: {}", provider, e);
-
-            // Return error page
-            let error_html = format!(
-                r#"<!DOCTYPE html>
-<html>
-<head>
-    <title>OAuth Error - Pierre Fitness API</title>
-    <style>
-        body {{ font-family: Arial, sans-serif; margin: 40px; text-align: center; }}
-        .error {{ color: #f44336; }}
-        .details {{ background: #ffebee; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f44336; }}
-    </style>
-</head>
-<body>
-    <h1 class="error">Error OAuth Authorization Failed</h1>
-    <div class="details">
-        <h3>Error Details:</h3>
-        <p><strong>Provider:</strong> {provider}</p>
-        <p><strong>Error:</strong> {e}</p>
-        <p>Please try the authorization process again.</p>
-    </div>
-</body>
-</html>"#
-            );
-
-            Ok(warp::reply::html(error_html))
-        }
-    }
-}
-
-/// Custom error type for OAuth callbacks
-#[derive(Debug)]
-enum OAuthCallbackError {
-    MissingParameter(String),
-    UnsupportedProvider(String),
-    ServerError(String),
-}
-
-impl std::fmt::Display for OAuthCallbackError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::MissingParameter(param) => {
-                write!(f, "Missing required parameter: {param}")
-            }
-            Self::UnsupportedProvider(provider) => {
-                write!(f, "Unsupported OAuth provider: {provider}")
-            }
-            Self::ServerError(error) => {
-                write!(f, "OAuth server error: {error}")
-            }
-        }
-    }
-}
-
-impl warp::reject::Reject for OAuthCallbackError {}
 
 /// Load encryption key from file or generate a new one
 fn load_or_generate_key(key_file: &PathBuf) -> Result<[u8; 32]> {
