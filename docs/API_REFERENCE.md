@@ -6,10 +6,11 @@ Complete API documentation for the Pierre Fitness API platform, including MCP to
 
 1. [MCP Protocol Usage](#mcp-protocol-usage)
 2. [MCP Tools Reference](#mcp-tools-reference)
-3. [HTTP REST API Endpoints](#http-rest-api-endpoints)
-4. [Error Handling](#error-handling)
-5. [Integration Examples](#integration-examples)
-6. [Weather Integration](#weather-integration)
+3. [A2A Protocol Usage](#a2a-protocol-usage)
+4. [HTTP REST API Endpoints](#http-rest-api-endpoints)
+5. [Error Handling](#error-handling)
+6. [Integration Examples](#integration-examples)
+7. [Weather Integration](#weather-integration)
 
 ## MCP Protocol Usage
 
@@ -214,6 +215,87 @@ Force refresh of data from provider
 Export fitness data in various formats
 - **Parameters**: `provider`, `format` (json/csv/gpx), `timeframe`
 - **Returns**: Exported data in requested format
+
+## A2A Protocol Usage
+
+**⚠️ IMPORTANT**: The A2A (Agent-to-Agent) protocol provides enterprise-grade REST API access for business integrations and high-throughput applications.
+
+### A2A vs MCP Protocol
+
+| Feature | A2A Protocol | MCP Protocol |
+|---------|--------------|--------------|
+| **Use Case** | Enterprise integration, B2B | AI assistants, real-time |
+| **Transport** | REST API (HTTP/HTTPS) | stdio, WebSocket |
+| **Authentication** | Client credentials + JWT | JWT tokens |
+| **State** | Stateless | Stateful |
+| **Throughput** | High | Medium |
+| **Target Users** | Enterprise developers | AI assistant developers |
+
+### A2A Authentication Flow
+
+The A2A protocol uses a three-step authentication process:
+
+1. **Client Registration**: Register your application
+2. **Client Authentication**: Get session token with client credentials
+3. **Tool Execution**: Execute tools with user JWT token
+
+### Quick A2A Example
+
+```bash
+# 1. Register A2A client
+curl -X POST http://localhost:8081/a2a/clients \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My Fitness App",
+    "description": "AI-powered fitness analytics",
+    "capabilities": ["fitness-data-analysis"],
+    "contact_email": "developer@myapp.com"
+  }'
+
+# 2. Authenticate client
+curl -X POST http://localhost:8081/a2a/auth \
+  -H "Content-Type: application/json" \
+  -d '{
+    "client_id": "your_client_id",
+    "client_secret": "your_client_secret",
+    "scopes": ["read", "write"]
+  }'
+
+# 3. Execute tools (requires user JWT token)
+curl -X POST http://localhost:8081/a2a/execute \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer USER_JWT_TOKEN" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "tools.execute",
+    "params": {
+      "tool_name": "get_activities",
+      "parameters": {"limit": 10}
+    },
+    "id": 1
+  }'
+```
+
+### A2A Endpoints
+
+| Endpoint | Method | Description |
+|----------|---------|-------------|
+| `/a2a/clients` | POST | Register A2A client |
+| `/a2a/auth` | POST | Authenticate client |
+| `/a2a/execute` | POST | Execute tools via JSON-RPC 2.0 |
+| `/a2a/agent-card` | GET | Get agent capabilities |
+
+### A2A Tools
+
+A2A protocol supports all MCP tools via the `tools.execute` method:
+
+- **Data Access**: `get_activities`, `get_athlete`, `analyze_activity`
+- **OAuth Integration**: `connect_strava`, `connect_fitbit`
+- **Goal Management**: `create_goal`, `get_goals`, `update_goal`
+- **Analytics**: `calculate_fitness_score`, `generate_recommendations`
+- **System**: `client.info`, `session.heartbeat`, `capabilities.list`
+
+**📖 Complete A2A Documentation**: See [A2A_REFERENCE.md](A2A_REFERENCE.md) for detailed implementation guide.
 
 ## HTTP REST API Endpoints
 

@@ -67,55 +67,50 @@ def _generate_mock_activities(count: int = 200):
 def enterprise_demonstration():
     """Complete enterprise demonstration showcasing A2A capabilities"""
     
-    print("🏢 PIERRE FITNESS API - A2A ENTERPRISE DEMO")
+    print("PIERRE FITNESS API - A2A ENTERPRISE DEMO")
     print("=" * 65)
-    print("🎯 Purpose: Scalable fitness analytics for B2B clients")
-    print("📡 Protocol: Agent-to-Agent (A2A) REST API")
-    print("⚡ Benefits: High throughput, scalable, enterprise integration")
+    print("Purpose: Scalable fitness analytics for B2B clients")
+    print("Protocol: Agent-to-Agent (A2A) REST API")
+    print("Benefits: High throughput, scalable, enterprise integration")
     print("=" * 65)
     
     # Setup authentication and client
-    print("\n🔐 ENTERPRISE AUTHENTICATION SETUP")
+    print("\nENTERPRISE AUTHENTICATION SETUP")
     print("-" * 40)
+    
+    # Initialize A2A client
+    client = A2AClient()
     
     # Skip authentication in CI mode for faster testing
     if os.getenv('PIERRE_CI_MODE') == 'true':
-        print("✅ Enterprise authentication skipped (CI mode)")
-        client = A2AClient()
+        print("Enterprise authentication skipped (CI mode)")
     else:
-        auth_manager = AuthManager()
-        client = A2AClient()
+        # For demonstration, we'll use environment variables or defaults
+        # In production, you would register your client properly
+        client_id = os.getenv('PIERRE_A2A_CLIENT_ID', 'demo_client_123')
+        client_secret = os.getenv('PIERRE_A2A_CLIENT_SECRET', 'demo_secret_456')
         
-        # Authenticate for API access
-        if not client.authenticate_with_jwt('test@example.com', 'password123'):
-            print("❌ Enterprise authentication failed")
-            return False
+        # Set client credentials
+        client.client_id = client_id
+        client.client_secret = client_secret
         
-        print("✅ Enterprise authentication successful")
+        # Authenticate with A2A protocol
+        try:
+            if client.authenticate(scopes=["read", "write"]):
+                print("Enterprise A2A authentication successful")
+            else:
+                print("Enterprise A2A authentication failed")
+                print("Make sure you have registered an A2A client first")
+                return False
+        except Exception as e:
+            print(f"Enterprise authentication error: {e}")
+            print("Using mock data for demonstration")
     
-    # Create dedicated API key for production use
-    print("\n🔑 API KEY PROVISIONING")
-    print("-" * 30)
-    
-    if os.getenv('PIERRE_CI_MODE') == 'true':
-        print("✅ API key provisioning skipped (CI mode)")
-        api_key = None
-    else:
-        api_key = client.create_api_key(
-            name='Enterprise Demo Key',
-            description='API key for business demonstration',
-            tier='professional'
-        )
-        
-        if api_key:
-            print(f"✅ Enterprise API key provisioned")
-            print(f"🔒 Key prefix: {api_key[:12]}...")
-            
-            # Update client to use API key
-            client.api_key = api_key
-            client.session.headers['Authorization'] = f'Bearer {api_key}'
-        else:
-            print("⚠️ Using JWT for demo (API key creation failed)")
+    # Note: API key management would be handled separately in production
+    print("\nAPI KEY MANAGEMENT")
+    print("-" * 25)
+    print("A2A clients use client credentials authentication")
+    print("Additional API key management available via admin endpoints")
     
     # Demonstrate bulk data processing
     print("\n📊 ENTERPRISE DATA PROCESSING")
@@ -308,7 +303,7 @@ def enterprise_demonstration():
             'report_type': 'Enterprise Analytics',
             'activities_processed': len(activities),
             'processing_time_seconds': processing_time,
-            'api_key_used': api_key[:12] + "..." if api_key else None
+            'authentication_method': 'A2A_client_credentials'
         },
         'data_quality': validation,
         'fitness_analytics': {
