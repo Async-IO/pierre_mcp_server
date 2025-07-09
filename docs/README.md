@@ -16,6 +16,7 @@ Complete documentation for the Pierre Fitness API platform.
 
 ### **Database & Storage**
 - [**Database Guide**](DATABASE_GUIDE.md) - SQLite/PostgreSQL setup and database plugins architecture
+- [**Database Cleanup Guide**](DATABASE_CLEANUP.md) - How to clean databases for fresh starts, troubleshooting, and testing
 
 ## Quick Navigation
 

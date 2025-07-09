@@ -138,8 +138,45 @@ pub fn admin_routes(
         .recover(handle_admin_rejection)
 }
 
+/// Create admin routes filter with proper scoped recovery
+/// This handles admin-specific rejections and lets other errors pass through
+pub fn admin_routes_with_scoped_recovery(
+    context: AdminApiContext,
+) -> impl Filter<Extract = impl Reply, Error = std::convert::Infallible> + Clone {
+    let provision_route = provision_api_key_route(context.clone());
+    let revoke_route = revoke_api_key_route(context.clone());
+    let list_keys_route = list_api_keys_route(context.clone());
+    let token_info_route = token_info_route(context.clone());
+    let setup_status_route = setup_status_route(context.clone());
+
+    // Admin token management routes
+    let admin_tokens_list_route = admin_tokens_list_route(context.clone());
+    let admin_tokens_create_route = admin_tokens_create_route(context.clone());
+    let admin_tokens_details_route = admin_tokens_details_route(context.clone());
+    let admin_tokens_revoke_route = admin_tokens_revoke_route(context.clone());
+    let admin_tokens_rotate_route = admin_tokens_rotate_route(context);
+
+    let health_route = admin_health_route();
+
+    let admin_routes = provision_route
+        .or(revoke_route)
+        .or(list_keys_route)
+        .or(token_info_route)
+        .or(setup_status_route)
+        .or(admin_tokens_list_route)
+        .or(admin_tokens_create_route)
+        .or(admin_tokens_details_route)
+        .or(admin_tokens_revoke_route)
+        .or(admin_tokens_rotate_route)
+        .or(health_route);
+
+    warp::path("admin")
+        .and(admin_routes)
+        .recover(handle_admin_rejection)
+}
+
 /// Create admin routes filter without recovery (maintains Rejection error type)
-/// This is used for embedding in other servers that handle rejections differently
+/// This is used for embedding in other servers that handle rejections globally
 pub fn admin_routes_with_rejection(
     context: AdminApiContext,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
@@ -800,19 +837,50 @@ pub enum AdminApiError {
 
 impl warp::reject::Reject for AdminApiError {}
 
-/// Handle admin API rejections
+/// Handle admin API rejections - only handle admin-specific errors
 async fn handle_admin_rejection(err: Rejection) -> Result<impl Reply, std::convert::Infallible> {
-    let (status, message) = if matches!(err.find(), Some(AdminApiError::InvalidAuthHeader)) {
-        (StatusCode::BAD_REQUEST, "Invalid Authorization header")
-    } else if let Some(AdminApiError::AuthenticationFailed(msg)) = err.find() {
-        (StatusCode::UNAUTHORIZED, msg.as_str())
-    } else if let Some(AdminApiError::DatabaseError(msg)) = err.find() {
-        (StatusCode::INTERNAL_SERVER_ERROR, msg.as_str())
-    } else if let Some(AdminApiError::InvalidRequest(msg)) = err.find() {
-        (StatusCode::BAD_REQUEST, msg.as_str())
-    } else if err.is_not_found() {
-        (StatusCode::NOT_FOUND, "Endpoint not found")
-    } else if err
+    // Check if this is an admin-specific error first
+    if matches!(err.find(), Some(AdminApiError::InvalidAuthHeader)) {
+        let response = AdminResponse {
+            success: false,
+            message: "Invalid Authorization header".to_string(),
+            data: None,
+        };
+        return Ok(with_status(json(&response), StatusCode::BAD_REQUEST));
+    }
+
+    if let Some(AdminApiError::AuthenticationFailed(msg)) = err.find() {
+        let response = AdminResponse {
+            success: false,
+            message: msg.clone(),
+            data: None,
+        };
+        return Ok(with_status(json(&response), StatusCode::UNAUTHORIZED));
+    }
+
+    if let Some(AdminApiError::DatabaseError(msg)) = err.find() {
+        let response = AdminResponse {
+            success: false,
+            message: msg.clone(),
+            data: None,
+        };
+        return Ok(with_status(
+            json(&response),
+            StatusCode::INTERNAL_SERVER_ERROR,
+        ));
+    }
+
+    if let Some(AdminApiError::InvalidRequest(msg)) = err.find() {
+        let response = AdminResponse {
+            success: false,
+            message: msg.clone(),
+            data: None,
+        };
+        return Ok(with_status(json(&response), StatusCode::BAD_REQUEST));
+    }
+
+    // For other errors within admin routes (body parsing, missing headers, etc.)
+    let (status, message) = if err
         .find::<warp::filters::body::BodyDeserializeError>()
         .is_some()
     {
@@ -821,6 +889,9 @@ async fn handle_admin_rejection(err: Rejection) -> Result<impl Reply, std::conve
         (StatusCode::BAD_REQUEST, "Missing required header")
     } else if err.find::<warp::reject::MethodNotAllowed>().is_some() {
         (StatusCode::METHOD_NOT_ALLOWED, "Method not allowed")
+    } else if err.is_not_found() {
+        // This should only happen for admin routes under /admin/*
+        (StatusCode::NOT_FOUND, "Admin endpoint not found")
     } else {
         (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error")
     };

@@ -141,6 +141,8 @@ echo '{
 }' > ~/.claude/claude_desktop_config.json
 ```
 
+> **Fresh Start**: Need to clean your database? See our [Database Cleanup Guide](docs/DATABASE_CLEANUP.md).
+
 ## Architecture
 
 | Mode | Best For | Features |

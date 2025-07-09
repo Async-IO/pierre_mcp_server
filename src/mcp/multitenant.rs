@@ -43,6 +43,7 @@ use crate::security::SecurityConfig;
 use crate::websocket::WebSocketManager;
 
 use anyhow::Result;
+use base64::{engine::general_purpose, Engine as _};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -203,8 +204,8 @@ impl MultiTenantMcpServer {
             ));
         };
 
-        String::from_utf8(jwt_secret)
-            .map_err(|e| anyhow::anyhow!("JWT secret file contains invalid UTF-8: {}", e))
+        // JWT secret is stored as binary data (64 bytes), convert to base64 string for admin routes
+        Ok(general_purpose::STANDARD.encode(jwt_secret))
     }
 
     /// Configure CORS settings
@@ -232,6 +233,7 @@ impl MultiTenantMcpServer {
         // Registration endpoint
         let register = warp::path("auth")
             .and(warp::path("register"))
+            .and(warp::path::end())
             .and(warp::post())
             .and(warp::body::json())
             .and_then({
@@ -253,6 +255,7 @@ impl MultiTenantMcpServer {
         // Login endpoint
         let login = warp::path("auth")
             .and(warp::path("login"))
+            .and(warp::path::end())
             .and(warp::post())
             .and(warp::body::json())
             .and_then({
@@ -1210,16 +1213,12 @@ impl MultiTenantMcpServer {
 
         // Combine route groups
         let auth_routes = auth_route_filter.or(oauth_route_filter);
-
         let api_key_routes = api_key_route_filter.or(api_key_usage_filter);
-
         let dashboard_routes = dashboard_basic_filter.or(dashboard_detailed_filter);
-
         let a2a_routes = a2a_basic_filter
             .or(a2a_client_filter)
             .or(a2a_monitoring_filter)
             .or(a2a_execution_filter);
-
         let configuration_routes = config_basic_filter
             .or(config_user_filter)
             .or(config_specialized_filter);
@@ -1230,8 +1229,8 @@ impl MultiTenantMcpServer {
             .or(dashboard_routes)
             .or(a2a_routes)
             .or(configuration_routes)
-            .or(admin_routes_filter)
             .or(health_filter)
+            .or(admin_routes_filter)
             .with(cors.clone())
             .with(security_headers_filter);
 
@@ -1239,7 +1238,8 @@ impl MultiTenantMcpServer {
         let ws_routes = websocket_route.with(cors);
 
         // Combine routes
-        let routes = http_routes.or(ws_routes).recover(handle_rejection);
+        let routes = http_routes.or(ws_routes);
+        let routes = routes.recover(handle_rejection);
 
         info!("HTTP server ready on port {}", port);
         Box::pin(warp::serve(routes).run(([127, 0, 0, 1], port))).await;
