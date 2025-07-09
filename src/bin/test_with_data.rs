@@ -23,13 +23,10 @@ async fn test_initialize(
     let mut response = String::new();
     reader.read_line(&mut response).await?;
     let init_response: serde_json::Value = serde_json::from_str(&response)?;
-    println!(
-        "Success Initialized! Available tools: {:?}",
-        init_response["result"]["capabilities"]["tools"]
-            .as_array()
-            .unwrap()
-            .len()
-    );
+    let tools_count = init_response["result"]["capabilities"]["tools"]
+        .as_array()
+        .map_or(0, std::vec::Vec::len);
+    println!("Success Initialized! Available tools: {tools_count}");
     Ok(())
 }
 

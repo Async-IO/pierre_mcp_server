@@ -59,11 +59,14 @@ fn create_test_activity() -> Activity {
 
 async fn test_weather_service(activity: &Activity) -> Result<(), Box<dyn std::error::Error>> {
     // Test with default configuration (will use mock weather)
-    println!(
-        "\nLocation Activity Location: Montreal, Canada ({}, {})",
-        activity.start_latitude.unwrap(),
-        activity.start_longitude.unwrap()
-    );
+    match (activity.start_latitude, activity.start_longitude) {
+        (Some(lat), Some(lon)) => {
+            println!("\nLocation Activity Location: Montreal, Canada ({lat}, {lon})");
+        }
+        _ => {
+            println!("\nLocation Activity Location: Montreal, Canada (no coordinates available)");
+        }
+    }
 
     // Create weather service with default config
     let config = WeatherApiConfig::default();

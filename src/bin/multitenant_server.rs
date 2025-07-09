@@ -496,13 +496,10 @@ async fn handle_oauth_callback(
     </div>
 </body>
 </html>"#,
-                provider
-                    .chars()
-                    .next()
-                    .unwrap()
-                    .to_uppercase()
-                    .collect::<String>()
-                    + &provider[1..],
+                provider.chars().next().map_or_else(
+                    || "Unknown".to_string(),
+                    |c| c.to_uppercase().collect::<String>()
+                ) + &provider[1..],
                 callback_response.provider,
                 callback_response.user_id,
                 callback_response.scopes,

@@ -89,7 +89,12 @@ fn main() -> Result<()> {
                 serde_json::from_value(result.clone())?
             } else if let Some(content) = result.get("content") {
                 if let Some(activities_json) = content.get(0).and_then(|c| c.get("text")) {
-                    serde_json::from_str(activities_json.as_str().unwrap())?
+                    if let Some(json_str) = activities_json.as_str() {
+                        serde_json::from_str(json_str)?
+                    } else {
+                        println!("Error: Activities JSON is not a string");
+                        break;
+                    }
                 } else {
                     println!("Error Unexpected content format");
                     break;
@@ -229,7 +234,7 @@ fn main() -> Result<()> {
     if current_streak > longest_streak {
         longest_streak = current_streak;
         longest_streak_start = current_streak_start;
-        longest_streak_end = Some(daily_runs.last().unwrap().0);
+        longest_streak_end = daily_runs.last().map(|run| run.0);
 
         // Collect activities from the final streak
         longest_streak_activities.clear();
