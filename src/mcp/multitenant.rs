@@ -59,6 +59,14 @@ use uuid::Uuid;
 /// Type alias for the complex provider storage type
 type UserProviderStorage = Arc<RwLock<HashMap<String, HashMap<String, Box<dyn FitnessProvider>>>>>;
 
+/// Context for HTTP request handling
+struct HttpRequestContext {
+    database: Arc<Database>,
+    auth_manager: Arc<AuthManager>,
+    auth_middleware: Arc<McpAuthMiddleware>,
+    user_providers: UserProviderStorage,
+}
+
 /// Multi-tenant MCP server supporting user authentication
 #[derive(Clone)]
 pub struct MultiTenantMcpServer {
@@ -1374,17 +1382,13 @@ impl MultiTenantMcpServer {
                     let user_providers = user_providers.clone();
 
                     async move {
-                        Self::handle_mcp_http_request(
-                            method,
-                            origin,
-                            accept,
-                            body,
-                            &database,
-                            &auth_manager,
-                            &auth_middleware,
-                            &user_providers,
-                        )
-                        .await
+                        let ctx = HttpRequestContext {
+                            database,
+                            auth_manager,
+                            auth_middleware,
+                            user_providers,
+                        };
+                        Self::handle_mcp_http_request(method, origin, accept, body, &ctx).await
                     }
                 }
             });
@@ -1395,7 +1399,9 @@ impl MultiTenantMcpServer {
             .allow_headers(vec!["content-type", "accept", "origin", "authorization"])
             .allow_methods(vec!["GET", "POST", "OPTIONS"]);
 
-        let routes = mcp_endpoint.with(cors).recover(Self::handle_mcp_rejection);
+        let routes = mcp_endpoint.with(cors).recover(|err| async move {
+            Ok::<_, std::convert::Infallible>(Self::handle_mcp_rejection_sync(&err))
+        });
 
         info!("MCP HTTP transport ready on port {}", port);
         warp::serve(routes).run(([127, 0, 0, 1], port)).await;
@@ -1409,10 +1415,7 @@ impl MultiTenantMcpServer {
         origin: Option<String>,
         accept: Option<String>,
         body: serde_json::Value,
-        database: &Arc<Database>,
-        auth_manager: &Arc<AuthManager>,
-        auth_middleware: &Arc<McpAuthMiddleware>,
-        user_providers: &UserProviderStorage,
+        ctx: &HttpRequestContext,
     ) -> Result<Box<dyn warp::Reply>, warp::Rejection> {
         // Validate Origin header for security (DNS rebinding protection)
         if let Some(origin) = origin {
@@ -1427,10 +1430,10 @@ impl MultiTenantMcpServer {
                 if let Ok(request) = serde_json::from_value::<McpRequest>(body) {
                     let response = Self::handle_request(
                         request,
-                        database,
-                        auth_manager,
-                        auth_middleware,
-                        user_providers,
+                        &ctx.database,
+                        &ctx.auth_manager,
+                        &ctx.auth_middleware,
+                        &ctx.user_providers,
                     )
                     .await;
 
@@ -1447,7 +1450,7 @@ impl MultiTenantMcpServer {
                 // Handle GET request for server-sent events or status
                 if accept
                     .as_ref()
-                    .map_or(false, |a| a.contains("text/event-stream"))
+                    .is_some_and(|a| a.contains("text/event-stream"))
                 {
                     // Return SSE response for streaming
                     let reply = warp::reply::with_header(
@@ -1488,19 +1491,17 @@ impl MultiTenantMcpServer {
     }
 
     /// Handle HTTP rejection
-    async fn handle_mcp_rejection(
-        err: warp::Rejection,
-    ) -> Result<impl warp::Reply, std::convert::Infallible> {
+    fn handle_mcp_rejection_sync(err: &warp::Rejection) -> impl warp::Reply {
         let code;
         let message;
 
         if err.is_not_found() {
             code = warp::http::StatusCode::NOT_FOUND;
             message = "Not Found";
-        } else if let Some(McpHttpError::InvalidOrigin) = err.find() {
+        } else if matches!(err.find(), Some(McpHttpError::InvalidOrigin)) {
             code = warp::http::StatusCode::FORBIDDEN;
             message = "Invalid origin";
-        } else if let Some(McpHttpError::InvalidRequest) = err.find() {
+        } else if matches!(err.find(), Some(McpHttpError::InvalidRequest)) {
             code = warp::http::StatusCode::BAD_REQUEST;
             message = "Invalid request";
         } else if err.find::<warp::reject::MethodNotAllowed>().is_some() {
@@ -1516,7 +1517,7 @@ impl MultiTenantMcpServer {
             "code": code.as_u16()
         }));
 
-        Ok(warp::reply::with_status(json, code))
+        warp::reply::with_status(json, code)
     }
 
     /// Handle MCP request with authentication
