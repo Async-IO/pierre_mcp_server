@@ -1293,6 +1293,40 @@ impl MultiTenantMcpServer {
         Ok(())
     }
 
+    /// Run MCP server with only HTTP transport (for testing)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the HTTP server fails to start or bind to the specified port
+    pub async fn run_http_only(self, port: u16) -> Result<()> {
+        info!("Starting MCP server with HTTP transport only");
+
+        // Clone references for HTTP handlers
+        let database = self.database.clone();
+        let auth_manager = self.auth_manager.clone();
+
+        // Start HTTP server for auth endpoints in background
+        let http_port = port + 1; // Use port+1 for HTTP
+        let database_http = database.clone();
+        let auth_manager_http = auth_manager.clone();
+        let websocket_manager_http = self.websocket_manager.clone();
+
+        let config_http = self.config.clone();
+        tokio::spawn(async move {
+            Self::run_http_server(
+                http_port,
+                database_http,
+                auth_manager_http,
+                websocket_manager_http,
+                config_http,
+            )
+            .await
+        });
+
+        // Run MCP HTTP transport only (no stdio)
+        self.run_http_transport(port).await
+    }
+
     /// Run MCP server using stdio transport (MCP specification compliant)
     async fn run_stdio_transport(self) -> Result<()> {
         use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
