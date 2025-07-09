@@ -663,12 +663,6 @@ print(f"Performance impact: {weather_data['performance_impact']}")
 Use the diagnostic tools to test your weather setup:
 
 ```bash
-# Test basic weather API connection
-cargo run --bin test-weather-integration
-
-# Test with real OpenWeatherMap API
-cargo run --bin test-real-weather
-
 # Diagnose weather API issues
 cargo run --bin diagnose-weather-api
 ```

@@ -24,11 +24,11 @@ COPY Cargo.toml Cargo.lock ./
 RUN mkdir -p src/bin && \
     echo "fn main() {}" > src/main.rs && \
     echo "// Dummy lib.rs" > src/lib.rs && \
-    echo "fn main() {}" > src/bin/multitenant_server.rs
+    echo "fn main() {}" > src/bin/pierre-mcp-server.rs
 
 # Build dependencies (this layer will be cached unless Cargo.toml changes)
 RUN cargo build --release --bin pierre-mcp-server
-RUN rm src/main.rs src/lib.rs src/bin/multitenant_server.rs
+RUN rm src/main.rs src/lib.rs src/bin/pierre-mcp-server.rs
 
 # Copy source code
 COPY src ./src

@@ -345,13 +345,7 @@ Pierre includes several utility binaries for setup, testing, and administration:
 
 | Binary | Purpose | Usage |
 |--------|---------|-------|
-| `test-with-data` | Test with real fitness data | Development/debugging |
-| `test-weather-integration` | Test weather API integration | Weather setup validation |
-| `test-real-weather` | Test with OpenWeatherMap API | Real weather API testing |
 | `diagnose-weather-api` | Weather API diagnostics | Troubleshoot weather issues |
-| `test-intelligence-for-longest-run` | Test activity intelligence | AI analysis validation |
-| `test-location-intelligence` | Test location detection | GPS/location testing |
-| `test-oauth-callback` | Test OAuth callback flow | OAuth integration testing |
 | `serve-docs` | Local documentation server | Documentation development |
 
 ### Running Binaries
@@ -367,11 +361,10 @@ cargo run --bin auth-setup -- --help
 cargo run --bin admin-setup -- --help
 
 # Testing utilities
-cargo run --bin test-weather-integration
 cargo run --bin diagnose-weather-api
 
-# Activity analysis
-cargo run --bin find-2024-longest-run
+# Documentation server
+cargo run --bin serve-docs
 ```
 
 ## Next Steps
