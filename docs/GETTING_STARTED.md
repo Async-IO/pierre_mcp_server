@@ -10,9 +10,126 @@ This comprehensive guide covers installation, configuration, and authentication 
 # Build the project
 cargo build --release
 
-# Run the server
+# Run the server (multi-tenant mode by default)
+cargo run --bin pierre-mcp-server
+
+# For single-tenant mode (no authentication required)
+cargo run --bin pierre-mcp-server -- --single-tenant
+```
+
+### Multi-Tenant Setup (Recommended)
+
+The multi-tenant mode provides user authentication, OAuth integration, and MCP protocol compliance with both stdio and HTTP transports.
+
+**Step 1: Fresh Database Setup**
+```bash
+# Clean database and start fresh
+./scripts/fresh-start.sh
+```
+
+**Step 2: Generate Admin Token**
+```bash
+# Generate admin token for API key management
+cargo run --bin admin-setup generate-token --service "my-service"
+# Save the JWT token from output - shown only once!
+```
+
+**Step 3: Start Multi-Tenant Server**
+```bash
+# Server runs on ports 8080 (MCP) and 8081 (HTTP)
 cargo run --bin pierre-mcp-server
 ```
+
+**Step 4: Create User Account**
+```bash
+# Register new user
+curl -X POST http://localhost:8081/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"password123","display_name":"Test User"}'
+
+# Login to get JWT token
+curl -X POST http://localhost:8081/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"password123"}'
+```
+
+**Step 5: Setup OAuth (Optional)**
+```bash
+# Generate Strava OAuth URL (replace USER_ID with actual user ID)
+curl -X GET "http://localhost:8081/oauth/auth/strava/YOUR_USER_ID"
+# Visit the returned URL to authorize Strava access
+```
+
+### MCP Protocol Usage
+
+The multi-tenant server supports both MCP-compliant transports as specified in the MCP 2024-11-05 specification:
+
+#### MCP stdio Transport (Primary)
+The stdio transport is the primary MCP transport for local AI assistant connections:
+
+```bash
+# Example: pipe MCP requests to server
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{"roots":{"listChanged":true}},"clientInfo":{"name":"test-client","version":"1.0.0"}}}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","auth":"Bearer YOUR_JWT_TOKEN","params":{"name":"get_connection_status","arguments":{}}}' | cargo run --bin pierre-mcp-server
+```
+
+#### MCP Streamable HTTP Transport
+The HTTP transport enables remote MCP connections:
+
+```bash
+# Initialize MCP connection
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -H "Origin: http://localhost" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{"roots":{"listChanged":true}},"clientInfo":{"name":"test-client","version":"1.0.0"}}}'
+
+# List available tools
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -H "Origin: http://localhost" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","auth":"Bearer YOUR_JWT_TOKEN"}'
+
+# Call a tool (get connection status)
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -H "Origin: http://localhost" \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","auth":"Bearer YOUR_JWT_TOKEN","params":{"name":"get_connection_status","arguments":{}}}'
+
+# Get athlete profile
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -H "Origin: http://localhost" \
+  -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","auth":"Bearer YOUR_JWT_TOKEN","params":{"name":"get_athlete","arguments":{"provider":"strava"}}}'
+
+# Get recent activities
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -H "Origin: http://localhost" \
+  -d '{"jsonrpc":"2.0","id":5,"method":"tools/call","auth":"Bearer YOUR_JWT_TOKEN","params":{"name":"get_activities","arguments":{"provider":"strava","limit":5}}}'
+```
+
+#### MCP Authentication
+Multi-tenant mode requires JWT authentication in the `auth` field:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "auth": "Bearer YOUR_JWT_TOKEN",
+  "params": {
+    "name": "get_activities",
+    "arguments": {"provider": "strava", "limit": 5}
+  }
+}
+```
+
+**Important Notes:**
+- **Protocol Version**: Use `2024-11-05` for MCP protocol version
+- **Transport Ports**: stdio (same process), HTTP (port 8080)
+- **Authentication**: JWT token required for all tool calls
+- **Error Handling**: Follow JSON-RPC 2.0 error format
+- **Rate Limiting**: Applied per user account, not per connection
 
 ### Docker Deployment
 

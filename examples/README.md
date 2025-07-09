@@ -9,8 +9,27 @@ This directory contains comprehensive examples demonstrating both MCP (Model Con
 python3 run_demos.py
 
 # Or run individual demos
-python3 python/mcp/investor_demo.py      # MCP investor demonstration
-python3 python/a2a/enterprise_demo.py   # A2A enterprise demonstration
+python3 python/multitenant_mcp_example.py     # NEW: Multi-tenant MCP workflow
+python3 python/mcp_stdio_example.py           # NEW: MCP stdio transport
+python3 python/mcp/investor_demo.py           # MCP investor demonstration
+python3 python/a2a/enterprise_demo.py         # A2A enterprise demonstration
+```
+
+### Multi-Tenant MCP Setup (NEW)
+
+For the new multi-tenant MCP examples, ensure you have:
+
+1. **Fresh database**: `./scripts/fresh-start.sh`
+2. **Admin token**: `cargo run --bin admin-setup generate-token --service "demo"`
+3. **Server running**: `cargo run --bin pierre-mcp-server`
+
+Then run the examples:
+```bash
+# Complete multi-tenant workflow
+python3 python/multitenant_mcp_example.py
+
+# MCP stdio transport (pipe to server)
+python3 python/mcp_stdio_example.py | cargo run --bin pierre-mcp-server
 ```
 
 ## Architecture Overview
@@ -38,6 +57,8 @@ examples/
 │   ├── a2a/                    # A2A Protocol Examples  
 │   │   ├── api_client.py       # Enterprise API client
 │   │   └── enterprise_demo.py  # Complete enterprise demonstration
+│   ├── multitenant_mcp_example.py  # Multi-tenant MCP workflow
+│   ├── mcp_stdio_example.py    # MCP stdio transport example
 │   └── common/                 # Shared Utilities
 │       ├── auth_utils.py       # Authentication management
 │       └── data_utils.py       # Fitness data processing
@@ -59,6 +80,21 @@ examples/
 ## Examples Guide
 
 ### 1. MCP Examples
+
+#### Multi-Tenant MCP Workflow (`python/multitenant_mcp_example.py`)
+- **NEW**: Complete multi-tenant setup workflow
+- User registration and JWT authentication
+- Strava OAuth integration
+- MCP protocol usage (HTTP transport)
+- Real fitness data analysis with AI insights
+- Rate limiting and error handling
+
+#### MCP stdio Transport (`python/mcp_stdio_example.py`)
+- **NEW**: MCP stdio transport (primary for AI assistants)
+- JSON-RPC 2.0 message format
+- Interactive and pipe modes
+- Proper MCP protocol sequence
+- Compliant with MCP 2024-11-05 specification
 
 #### Data Collection (`python/mcp/data_collection.py`)
 - Connects to MCP server via WebSocket

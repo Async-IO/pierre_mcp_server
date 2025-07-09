@@ -4,11 +4,81 @@ Complete API documentation for the Pierre Fitness API platform, including MCP to
 
 ## Table of Contents
 
-1. [MCP Tools Reference](#mcp-tools-reference)
-2. [HTTP API Endpoints](#http-api-endpoints)
-3. [Error Handling](#error-handling)
-4. [Integration Examples](#integration-examples)
-5. [Weather Integration](#weather-integration)
+1. [MCP Protocol Usage](#mcp-protocol-usage)
+2. [MCP Tools Reference](#mcp-tools-reference)
+3. [HTTP REST API Endpoints](#http-rest-api-endpoints)
+4. [Error Handling](#error-handling)
+5. [Integration Examples](#integration-examples)
+6. [Weather Integration](#weather-integration)
+
+## MCP Protocol Usage
+
+**⚠️ IMPORTANT**: This server provides **MCP protocol** access, not REST API. The MCP protocol is designed for AI assistants and follows JSON-RPC 2.0 specification.
+
+### MCP vs REST API
+
+| Feature | MCP Protocol | REST API |
+|---------|--------------|----------|
+| **Purpose** | AI assistant integration | Web application APIs |
+| **Format** | JSON-RPC 2.0 | HTTP REST |
+| **Transport** | stdio, Streamable HTTP | HTTP only |
+| **Endpoints** | `/mcp` (single endpoint) | Multiple REST endpoints |
+| **Authentication** | JWT in `auth` field | JWT in `Authorization` header |
+| **Tools** | `tools/call` method | Direct endpoint calls |
+
+### Multi-Tenant Authentication
+
+Multi-tenant mode requires JWT authentication for all MCP tool calls:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "auth": "Bearer YOUR_JWT_TOKEN",
+  "params": {
+    "name": "get_activities",
+    "arguments": {"provider": "strava", "limit": 5}
+  }
+}
+```
+
+### MCP Transports
+
+#### stdio Transport (Primary)
+```bash
+# Pipe requests to server
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{"roots":{"listChanged":true}},"clientInfo":{"name":"client","version":"1.0.0"}}}' | cargo run --bin pierre-mcp-server
+```
+
+#### Streamable HTTP Transport
+```bash
+# POST to /mcp endpoint
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -H "Origin: http://localhost" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","auth":"Bearer TOKEN","params":{"name":"get_activities","arguments":{"provider":"strava","limit":5}}}'
+```
+
+### MCP Request Flow
+
+1. **Initialize**: Establish MCP connection
+2. **List Tools**: Get available tools
+3. **Call Tools**: Execute fitness data operations
+4. **Handle Responses**: Process JSON-RPC responses
+
+### Example MCP Sequence
+
+```bash
+# 1. Initialize connection
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{"roots":{"listChanged":true}},"clientInfo":{"name":"test-client","version":"1.0.0"}}}
+
+# 2. List available tools
+{"jsonrpc":"2.0","id":2,"method":"tools/list","auth":"Bearer JWT_TOKEN"}
+
+# 3. Call a tool
+{"jsonrpc":"2.0","id":3,"method":"tools/call","auth":"Bearer JWT_TOKEN","params":{"name":"get_activities","arguments":{"provider":"strava","limit":5}}}
+```
 
 ## MCP Tools Reference
 
@@ -145,7 +215,9 @@ Export fitness data in various formats
 - **Parameters**: `provider`, `format` (json/csv/gpx), `timeframe`
 - **Returns**: Exported data in requested format
 
-## HTTP API Endpoints
+## HTTP REST API Endpoints
+
+**⚠️ NOTE**: These are REST API endpoints for administration and authentication, not MCP tools. For fitness data access, use the MCP protocol above.
 
 ### API Platform Features
 
@@ -346,37 +418,95 @@ A2A errors follow JSON-RPC format with specific error codes:
 
 ## Integration Examples
 
-### Basic MCP Integration
+### MCP stdio Transport Example
 
 ```python
 import json
-from mcp import Client
+import subprocess
 
-# Initialize MCP client
-client = Client("stdio", command=["pierre-mcp-server"])
+# Example JWT token (replace with your actual token)
+jwt_token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
 
-# Get activities from Strava
-response = await client.call_tool("get_activities", {
-    "provider": "strava",
-    "limit": 10
-})
+# MCP requests
+requests = [
+    # Initialize
+    {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{"roots":{"listChanged":true}},"clientInfo":{"name":"client","version":"1.0.0"}}},
+    
+    # List tools
+    {"jsonrpc":"2.0","id":2,"method":"tools/list","auth":f"Bearer {jwt_token}"},
+    
+    # Get activities
+    {"jsonrpc":"2.0","id":3,"method":"tools/call","auth":f"Bearer {jwt_token}","params":{"name":"get_activities","arguments":{"provider":"strava","limit":5}}}
+]
 
-activities = json.loads(response.content[0].text)
-print(f"Found {len(activities)} activities")
+# Send via stdio
+server_process = subprocess.Popen(
+    ["cargo", "run", "--bin", "pierre-mcp-server"],
+    stdin=subprocess.PIPE,
+    stdout=subprocess.PIPE,
+    text=True
+)
+
+for request in requests:
+    server_process.stdin.write(json.dumps(request) + "\n")
+    server_process.stdin.flush()
+    
+    response = server_process.stdout.readline()
+    data = json.loads(response)
+    print(f"Response: {data}")
 ```
 
-### HTTP API Integration
+### MCP HTTP Transport Example
+
+```python
+import requests
+import json
+
+# Example JWT token (replace with your actual token)
+jwt_token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+
+# MCP HTTP endpoint
+mcp_url = "http://localhost:8080/mcp"
+
+# Get activities via MCP HTTP
+mcp_request = {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "auth": f"Bearer {jwt_token}",
+    "params": {
+        "name": "get_activities",
+        "arguments": {"provider": "strava", "limit": 5}
+    }
+}
+
+response = requests.post(
+    mcp_url,
+    headers={
+        "Content-Type": "application/json",
+        "Origin": "http://localhost"
+    },
+    json=mcp_request
+)
+
+if response.status_code == 202:  # MCP returns 202 Accepted
+    data = response.json()
+    activities = data.get("result", [])
+    print(f"Found {len(activities)} activities")
+```
+
+### REST API Integration (Admin Only)
 
 ```python
 import requests
 
-# Using API key authentication
+# Using admin JWT token for REST endpoints
 headers = {
-    "X-API-Key": "pk_live_1234567890abcdef",
+    "Authorization": "Bearer ADMIN_JWT_TOKEN",
     "Content-Type": "application/json"
 }
 
-# Get API key usage statistics
+# Get API key usage statistics (REST endpoint)
 response = requests.get(
     "http://localhost:8081/admin/list-api-keys",
     headers=headers
@@ -387,41 +517,80 @@ if response.status_code == 200:
     print(f"Found {data['data']['count']} API keys")
 ```
 
-### Advanced Activity Analysis
+### Advanced Activity Analysis (MCP)
 
 ```python
-# Get detailed activity intelligence
-response = await client.call_tool("get_activity_intelligence", {
-    "provider": "strava",
-    "activity_id": "12345678",
-    "include_weather": True,
-    "include_location": True
-})
+# Get detailed activity intelligence via MCP
+mcp_request = {
+    "jsonrpc": "2.0",
+    "id": 4,
+    "method": "tools/call",
+    "auth": f"Bearer {jwt_token}",
+    "params": {
+        "name": "get_activity_intelligence",
+        "arguments": {
+            "provider": "strava",
+            "activity_id": "12345678",
+            "include_weather": True,
+            "include_location": True
+        }
+    }
+}
 
-intelligence = json.loads(response.content[0].text)
-print(f"Activity summary: {intelligence['summary']}")
-print(f"Key insights: {intelligence['key_insights']}")
+response = requests.post(mcp_url, headers=headers, json=mcp_request)
+data = response.json()
+
+if data.get("result"):
+    intelligence = data["result"]
+    print(f"Activity summary: {intelligence['summary']}")
+    print(f"Key insights: {intelligence['key_insights']}")
 ```
 
-### Goal Management Workflow
+### Goal Management Workflow (MCP)
 
 ```python
-# Create a new fitness goal
-goal_response = await client.call_tool("create_goal", {
-    "type": "distance",
-    "target_value": 100,  # 100km
-    "target_date": "2024-12-31",
-    "sport": "running"
-})
+# Create a new fitness goal via MCP
+create_goal_request = {
+    "jsonrpc": "2.0",
+    "id": 5,
+    "method": "tools/call",
+    "auth": f"Bearer {jwt_token}",
+    "params": {
+        "name": "set_goal",
+        "arguments": {
+            "title": "Run 100km",
+            "goal_type": "distance",
+            "target_value": 100,
+            "target_date": "2024-12-31",
+            "sport_type": "running"
+        }
+    }
+}
 
-goal_id = json.loads(goal_response.content[0].text)["goal_id"]
+response = requests.post(mcp_url, headers=headers, json=create_goal_request)
+goal_data = response.json()
 
-# Update progress
-progress_response = await client.call_tool("update_goal_progress", {
-    "goal_id": goal_id,
-    "current_value": 25,  # 25km completed
-    "update_date": "2024-06-20"
-})
+if goal_data.get("result"):
+    goal_id = goal_data["result"]["goal_created"]["goal_id"]
+    
+    # Track progress
+    progress_request = {
+        "jsonrpc": "2.0",
+        "id": 6,
+        "method": "tools/call",
+        "auth": f"Bearer {jwt_token}",
+        "params": {
+            "name": "track_progress",
+            "arguments": {"goal_id": goal_id}
+        }
+    }
+    
+    progress_response = requests.post(mcp_url, headers=headers, json=progress_request)
+    progress_data = progress_response.json()
+    
+    if progress_data.get("result"):
+        progress = progress_data["result"]["progress_report"]
+        print(f"Goal progress: {progress['progress_percentage']}%")
 ```
 
 ## Weather Integration
