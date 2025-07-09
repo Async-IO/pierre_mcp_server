@@ -367,8 +367,8 @@ docker-compose -f docker-compose.dev.yml up
 # Run with mock providers for testing
 MOCK_PROVIDERS=true cargo run --bin pierre-mcp-server
 
-# Test with sample data
-cargo run --bin test-with-data
+# Test server is running
+curl http://localhost:8081/health
 ```
 
 ### Continuous Integration

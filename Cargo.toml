@@ -14,7 +14,7 @@ path = "src/lib.rs"
 
 [[bin]]
 name = "pierre-mcp-server"
-path = "src/bin/multitenant_server.rs"
+path = "src/bin/pierre-mcp-server.rs"
 
 [[bin]]
 name = "auth-setup"
@@ -25,48 +25,8 @@ name = "admin-setup"
 path = "src/bin/admin_setup.rs"
 
 [[bin]]
-name = "test-with-data"
-path = "src/bin/test_with_data.rs"
-
-[[bin]]
-name = "find-2024-longest-run"
-path = "src/bin/find_2024_longest_run.rs"
-
-[[bin]]
-name = "find-2025-longest-run"
-path = "src/bin/find_2025_longest_run.rs"
-
-[[bin]]
-name = "find-consecutive-10k-runs"
-path = "src/bin/find_consecutive_10k_runs.rs"
-
-[[bin]]
-name = "test-weather-integration"
-path = "src/bin/test_weather_integration.rs"
-
-[[bin]]
-name = "test-real-weather"
-path = "src/bin/test_real_weather.rs"
-
-[[bin]]
 name = "diagnose-weather-api"
 path = "src/bin/diagnose_weather_api.rs"
-
-[[bin]]
-name = "test-intelligence-for-longest-run"
-path = "src/bin/test_intelligence_for_longest_run.rs"
-
-[[bin]]
-name = "test-location-intelligence"
-path = "src/bin/test_location_intelligence.rs"
-
-[[bin]]
-name = "check-longest-run-gps"
-path = "src/bin/check_longest_run_gps.rs"
-
-[[bin]]
-name = "test-oauth-callback"
-path = "src/bin/test_oauth_callback.rs"
 
 [[bin]]
 name = "serve-docs"
