@@ -134,7 +134,9 @@ fn find_longest_2025_run(all_activities: &[Value]) -> Option<&Value> {
                 .get("distance_meters")
                 .and_then(serde_json::Value::as_f64)
                 .unwrap_or(0.0);
-            dist_a.partial_cmp(&dist_b).unwrap()
+            dist_a
+                .partial_cmp(&dist_b)
+                .unwrap_or(std::cmp::Ordering::Equal)
         })
         .copied()
 }
