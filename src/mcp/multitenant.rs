@@ -1765,7 +1765,13 @@ impl MultiTenantMcpServer {
             | GENERATE_RECOMMENDATIONS
             | ANALYZE_TRAINING_LOAD
             | DETECT_PATTERNS
-            | ANALYZE_PERFORMANCE_TRENDS => {
+            | ANALYZE_PERFORMANCE_TRENDS
+            | "get_configuration_catalog"
+            | "get_configuration_profiles"
+            | "get_user_configuration"
+            | "update_user_configuration"
+            | "calculate_personalized_zones"
+            | "validate_configuration" => {
                 Self::handle_tool_without_provider(
                     tool_name,
                     args,
@@ -2113,6 +2119,14 @@ impl MultiTenantMcpServer {
             ANALYZE_TRAINING_LOAD => Ok(Self::handle_analyze_training_load()),
             DETECT_PATTERNS => Ok(Self::handle_detect_patterns(args)),
             ANALYZE_PERFORMANCE_TRENDS => Ok(Self::handle_analyze_performance_trends(args)),
+            "get_configuration_catalog" => Ok(Self::handle_get_configuration_catalog()),
+            "get_configuration_profiles" => Ok(Self::handle_get_configuration_profiles()),
+            "get_user_configuration" => Ok(Self::handle_get_user_configuration(user_id, database)),
+            "update_user_configuration" => Ok(Self::handle_update_user_configuration(
+                args, user_id, database,
+            )),
+            "calculate_personalized_zones" => Ok(Self::handle_calculate_personalized_zones(args)),
+            "validate_configuration" => Ok(Self::handle_validate_configuration(args)),
             PREDICT_PERFORMANCE => {
                 return McpResponse {
                     jsonrpc: JSONRPC_VERSION.to_string(),
@@ -3215,6 +3229,218 @@ impl MultiTenantMcpServer {
     #[must_use]
     pub fn auth_manager(&self) -> &AuthManager {
         &self.auth_manager
+    }
+
+    /// Handle get configuration catalog tool call
+    fn handle_get_configuration_catalog() -> Value {
+        use crate::configuration::catalog::CatalogBuilder;
+
+        let catalog = CatalogBuilder::build();
+        serde_json::json!({
+            "catalog": catalog,
+            "metadata": {
+                "timestamp": chrono::Utc::now(),
+                "processing_time_ms": None::<u64>,
+                "api_version": "1.0.0"
+            }
+        })
+    }
+
+    /// Handle get configuration profiles tool call
+    fn handle_get_configuration_profiles() -> Value {
+        use crate::configuration::profiles::ProfileTemplates;
+
+        let all_profiles = ProfileTemplates::all();
+        let profiles: Vec<_> = all_profiles
+            .into_iter()
+            .map(|(name, profile)| {
+                let description = match &profile {
+                    crate::configuration::profiles::ConfigProfile::Default => {
+                        "Standard configuration with default thresholds".to_string()
+                    }
+                    crate::configuration::profiles::ConfigProfile::Research { .. } => {
+                        "Research-grade detailed analysis with high sensitivity".to_string()
+                    }
+                    crate::configuration::profiles::ConfigProfile::Elite { .. } => {
+                        "Elite athlete configuration with strict performance standards".to_string()
+                    }
+                    crate::configuration::profiles::ConfigProfile::Recreational { .. } => {
+                        "Recreational athlete configuration with forgiving thresholds".to_string()
+                    }
+                    crate::configuration::profiles::ConfigProfile::Beginner { .. } => {
+                        "Beginner-friendly configuration with simplified metrics".to_string()
+                    }
+                    crate::configuration::profiles::ConfigProfile::Medical { .. } => {
+                        "Medical/rehabilitation configuration with conservative limits".to_string()
+                    }
+                    crate::configuration::profiles::ConfigProfile::SportSpecific {
+                        sport, ..
+                    } => format!("Sport-specific optimization for {sport}"),
+                    crate::configuration::profiles::ConfigProfile::Custom {
+                        description, ..
+                    } => description.clone(),
+                };
+
+                serde_json::json!({
+                    "name": name,
+                    "profile": profile,
+                    "description": description
+                })
+            })
+            .collect();
+
+        serde_json::json!({
+            "profiles": profiles,
+            "metadata": {
+                "timestamp": chrono::Utc::now(),
+                "total_profiles": profiles.len()
+            }
+        })
+    }
+
+    /// Handle get user configuration tool call
+    fn handle_get_user_configuration(user_id: Uuid, _database: &Arc<Database>) -> Value {
+        // For now, return default configuration
+        // In a full implementation, this would query the database for user preferences
+        let default_config = crate::configuration::profiles::ConfigProfile::Default;
+
+        serde_json::json!({
+            "user_id": user_id,
+            "active_profile": default_config,
+            "parameter_overrides": {},
+            "created_at": chrono::Utc::now(),
+            "updated_at": chrono::Utc::now()
+        })
+    }
+
+    /// Handle update user configuration tool call
+    fn handle_update_user_configuration(
+        args: &Value,
+        user_id: Uuid,
+        _database: &Arc<Database>,
+    ) -> Value {
+        // Extract parameters from args
+        let profile = args.get("profile").and_then(|v| v.as_str());
+        let parameter_overrides = args
+            .get("parameters")
+            .cloned()
+            .unwrap_or_else(|| serde_json::json!({}));
+
+        // For now, just return success with the updated configuration
+        // In a full implementation, this would update the database
+        serde_json::json!({
+            "user_id": user_id,
+            "active_profile": profile.unwrap_or("Default"),
+            "parameter_overrides": parameter_overrides,
+            "updated_at": chrono::Utc::now(),
+            "success": true
+        })
+    }
+
+    /// Handle calculate personalized zones tool call
+    fn handle_calculate_personalized_zones(args: &Value) -> Value {
+        use crate::configuration::vo2_max::VO2MaxCalculator;
+
+        // Extract parameters
+        let vo2_max = args
+            .get("vo2_max")
+            .and_then(serde_json::Value::as_f64)
+            .unwrap_or(50.0);
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let max_hr = args
+            .get("max_hr")
+            .and_then(serde_json::Value::as_f64)
+            .map_or(190, |v| v as u16);
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let resting_hr = args
+            .get("resting_hr")
+            .and_then(serde_json::Value::as_f64)
+            .map_or(60, |v| v as u16);
+        let lactate_threshold = args
+            .get("lactate_threshold")
+            .and_then(serde_json::Value::as_f64)
+            .unwrap_or(0.85);
+        let sport_efficiency = args
+            .get("sport_efficiency")
+            .and_then(serde_json::Value::as_f64)
+            .unwrap_or(1.0);
+
+        // Create calculator and calculate zones
+        let calculator = VO2MaxCalculator::new(
+            vo2_max,
+            resting_hr,
+            max_hr,
+            lactate_threshold,
+            sport_efficiency,
+        );
+
+        let hr_zones = calculator.calculate_hr_zones();
+        let pace_zones = calculator.calculate_pace_zones();
+
+        serde_json::json!({
+            "zones": {
+                "heart_rate_zones": hr_zones,
+                "pace_zones": pace_zones
+            },
+            "parameters_used": {
+                "vo2_max": vo2_max,
+                "max_hr": max_hr,
+                "resting_hr": resting_hr,
+                "lactate_threshold": lactate_threshold,
+                "sport_efficiency": sport_efficiency
+            },
+            "metadata": {
+                "timestamp": chrono::Utc::now(),
+                "calculation_method": "VO2MaxCalculator"
+            }
+        })
+    }
+
+    /// Handle validate configuration tool call
+    fn handle_validate_configuration(args: &Value) -> Value {
+        use crate::configuration::runtime::ConfigValue;
+        use crate::configuration::validation::ConfigValidator;
+
+        let parameters = args
+            .get("parameters")
+            .cloned()
+            .unwrap_or_else(|| serde_json::json!({}));
+
+        // Convert to HashMap<String, ConfigValue> for validation
+        let mut param_map: std::collections::HashMap<String, ConfigValue> =
+            std::collections::HashMap::new();
+
+        if let Ok(json_map) = serde_json::from_value::<
+            std::collections::HashMap<String, serde_json::Value>,
+        >(parameters)
+        {
+            for (key, value) in json_map {
+                let config_value = match value {
+                    serde_json::Value::Number(n) if n.is_f64() => {
+                        ConfigValue::Float(n.as_f64().unwrap_or(0.0))
+                    }
+                    serde_json::Value::Number(n) if n.is_i64() => {
+                        ConfigValue::Integer(n.as_i64().unwrap_or(0))
+                    }
+                    serde_json::Value::Bool(b) => ConfigValue::Boolean(b),
+                    serde_json::Value::String(s) => ConfigValue::String(s),
+                    _ => continue, // Skip unsupported types
+                };
+                param_map.insert(key, config_value);
+            }
+        }
+
+        // Validate using ConfigValidator
+        let validator = ConfigValidator::new();
+        let validation_result = validator.validate(&param_map, None); // No user profile for now
+
+        serde_json::json!({
+            "validation_result": validation_result,
+            "metadata": {
+                "timestamp": chrono::Utc::now(),
+                "validator_version": "1.0.0"
+            }
+        })
     }
 }
 

@@ -186,6 +186,9 @@ TOKEN_EXPIRY_HOURS=24                # JWT token expiry (default: 24)
 
 # Logging
 RUST_LOG=info                        # Log level (error, warn, info, debug, trace)
+# Example for reducing SQL query noise:
+# RUST_LOG=info,sqlx::query=warn     # App logs at info, SQL queries only on warnings/errors
+# RUST_LOG=debug,sqlx::query=trace   # Development: debug logs but SQL at trace level
 LOG_FORMAT=json                      # Log format (json, text)
 ```
 
@@ -396,8 +399,39 @@ cargo run --bin serve-docs
 3. **OAuth errors**: Check client IDs/secrets and redirect URIs match provider settings
 4. **JWT token issues**: Ensure `JWT_SECRET` is at least 32 characters long
 
+### Logging Configuration
+
+**Standard Log Levels:**
+```bash
+RUST_LOG=error    # Only errors
+RUST_LOG=warn     # Warnings and errors
+RUST_LOG=info     # General information (recommended for production)
+RUST_LOG=debug    # Detailed debugging information
+RUST_LOG=trace    # Very verbose debugging
+```
+
+**Reducing SQL Query Noise:**
+By default, sqlx logs all SQL queries at DEBUG level. To reduce log noise:
+
+```bash
+# Production: App info, SQL only on errors
+RUST_LOG=info,sqlx::query=warn
+
+# Development: App debug, SQL at trace level
+RUST_LOG=debug,sqlx::query=trace
+
+# Hide SQL queries completely
+RUST_LOG=info,sqlx=warn
+```
+
+**Module-Specific Logging:**
+```bash
+# Fine-tune specific modules
+RUST_LOG=info,pierre_mcp_server::mcp=debug,reqwest=warn
+```
+
 ### Getting Help
 
-- Check logs with `RUST_LOG=debug` for detailed error information
+- Check logs with appropriate `RUST_LOG` level for detailed error information
 - Use health check endpoint: `http://localhost:8081/health`
 - Run diagnostic utilities: `cargo run --bin diagnose-weather-api`
