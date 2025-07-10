@@ -261,7 +261,7 @@ impl WebSocketManager {
     async fn broadcast_to_all(&self, message: &WebSocketMessage, topic: &str) {
         // Use broadcast channel for efficient message distribution
         if let Err(e) = self.broadcast_tx.send(message.clone()) {
-            tracing::warn!("Failed to send broadcast message: {}", e);
+            tracing::trace!("Failed to send broadcast message: {}", e);
         }
 
         // Also send directly to subscribed clients for immediate delivery
