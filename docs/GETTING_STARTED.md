@@ -190,20 +190,37 @@ LOG_FORMAT=json                      # Log format (json, text)
 ```
 
 #### OAuth Provider Configuration
+
+OAuth providers are configured through the admin API, not environment variables:
+
 ```bash
-# Strava OAuth
-STRAVA_CLIENT_ID=your_strava_client_id
-STRAVA_CLIENT_SECRET=your_strava_client_secret
-STRAVA_ACCESS_TOKEN=your_strava_access_token        # Optional: pre-configured token
-STRAVA_REFRESH_TOKEN=your_strava_refresh_token      # Optional: pre-configured token
+# Generate admin token first
+cargo run --bin admin-setup generate-token --service "my-service"
 
-# Fitbit OAuth
-FITBIT_CLIENT_ID=your_fitbit_client_id
-FITBIT_CLIENT_SECRET=your_fitbit_client_secret
-FITBIT_ACCESS_TOKEN=your_fitbit_access_token        # Optional: pre-configured token
-FITBIT_REFRESH_TOKEN=your_fitbit_refresh_token      # Optional: pre-configured token
+# Configure OAuth providers via admin API
+curl -X POST http://localhost:8081/admin/oauth/providers/strava \
+  -H "Authorization: Bearer ADMIN_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "client_id": "your_strava_client_id",
+    "client_secret": "your_strava_client_secret",
+    "redirect_uri": "http://localhost:8081/oauth/callback/strava"
+  }'
 
-# Weather Integration
+# Configure Fitbit provider
+curl -X POST http://localhost:8081/admin/oauth/providers/fitbit \
+  -H "Authorization: Bearer ADMIN_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "client_id": "your_fitbit_client_id",
+    "client_secret": "your_fitbit_client_secret",
+    "redirect_uri": "http://localhost:8081/oauth/callback/fitbit"
+  }'
+```
+
+#### Weather Integration
+```bash
+# Weather API is still configured via environment variable
 OPENWEATHER_API_KEY=your_openweather_api_key        # Required for weather analysis
 ```
 
