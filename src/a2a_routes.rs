@@ -26,6 +26,7 @@ use crate::{
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use subtle::ConstantTimeEq;
 
 #[derive(Debug, Serialize)]
 pub struct A2ADashboardOverview {
@@ -368,15 +369,22 @@ impl A2ARoutes {
             ));
         }
 
-        // Verify client secret - in production this would be properly hashed
-        // Use certificate-based verification for client authentication
+        // Verify client secret using constant-time comparison to prevent timing attacks
         let credentials = self
             .client_manager
             .get_client_credentials(client_id)
             .await?
             .ok_or_else(|| A2AError::AuthenticationFailed("Invalid credentials".into()))?;
 
-        if credentials.client_secret != client_secret {
+        // Use constant-time comparison to prevent timing attacks
+        let expected_secret = credentials.client_secret.as_bytes();
+        let provided_secret = client_secret.as_bytes();
+
+        // Both secrets must be the same length and content for authentication to succeed
+        let secrets_match = expected_secret.len() == provided_secret.len()
+            && expected_secret.ct_eq(provided_secret).into();
+
+        if !secrets_match {
             return Err(A2AError::AuthenticationFailed(
                 "Invalid client_secret".into(),
             ));
