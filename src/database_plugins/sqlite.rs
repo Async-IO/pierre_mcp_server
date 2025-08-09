@@ -523,7 +523,7 @@ impl DatabaseProvider for SqliteDatabase {
             .fetch_all(self.inner.pool())
             .await?;
 
-        let mut tool_usage = Vec::new();
+        let mut tool_usage = Vec::with_capacity(rows.len());
         for row in rows {
             use sqlx::Row;
 
@@ -728,7 +728,7 @@ impl DatabaseProvider for SqliteDatabase {
 
         let rows = sqlx::query(query).fetch_all(self.inner.pool()).await?;
 
-        let mut tokens = Vec::new();
+        let mut tokens = Vec::with_capacity(rows.len());
         for row in rows {
             tokens.push(Self::row_to_admin_token(&row)?);
         }
@@ -819,7 +819,7 @@ impl DatabaseProvider for SqliteDatabase {
             .fetch_all(self.inner.pool())
             .await?;
 
-        let mut usage_history = Vec::new();
+        let mut usage_history = Vec::with_capacity(rows.len());
         for row in rows {
             usage_history.push(Self::row_to_admin_token_usage(&row)?);
         }
