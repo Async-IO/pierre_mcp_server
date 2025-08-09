@@ -21,6 +21,7 @@ use crate::configuration::{
 };
 use crate::database_plugins::factory::Database;
 use crate::database_plugins::DatabaseProvider;
+use crate::utils::auth::extract_bearer_token_from_option;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -270,9 +271,7 @@ impl ConfigurationRoutes {
         let auth_str =
             auth_header.ok_or_else(|| anyhow::anyhow!("Missing authorization header"))?;
 
-        let token = auth_str
-            .strip_prefix("Bearer ")
-            .ok_or_else(|| anyhow::anyhow!("Invalid authorization header format"))?;
+        let token = extract_bearer_token_from_option(Some(auth_str))?;
 
         let claims = self.auth_manager.validate_token(token)?;
         let user_id = Uuid::parse_str(&claims.sub)?;

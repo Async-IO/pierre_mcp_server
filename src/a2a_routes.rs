@@ -14,6 +14,7 @@ use crate::auth::AuthManager;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::intelligence::ActivityIntelligence;
 use crate::protocols::universal::{UniversalRequest, UniversalToolExecutor};
+use crate::utils::auth::extract_bearer_token;
 use crate::{
     a2a::{
         agent_card::AgentCard,
@@ -80,7 +81,7 @@ impl A2ARoutes {
             })
         })?;
 
-        let token = auth.strip_prefix("Bearer ").ok_or_else(|| {
+        let token = extract_bearer_token(auth).map_err(|_| {
             serde_json::json!({
                 "code": -32001,
                 "message": "Invalid authorization header format"

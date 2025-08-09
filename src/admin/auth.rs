@@ -218,7 +218,7 @@ impl AdminAuthService {
 /// Admin authentication middleware for HTTP requests
 pub mod middleware {
     use super::{AdminAuthService, AdminPermission, ValidatedAdminToken};
-    use anyhow::anyhow;
+    use crate::utils::auth::extract_bearer_token_owned;
     use tracing::warn;
     use warp::{Filter, Rejection};
 
@@ -234,7 +234,7 @@ pub mod middleware {
 
             async move {
                 // Extract Bearer token
-                let token = extract_bearer_token(&auth_header)
+                let token = extract_bearer_token_owned(&auth_header)
                     .map_err(|_| warp::reject::custom(AdminAuthError::InvalidAuthHeader))?;
 
                 // Authenticate and authorize
@@ -247,23 +247,6 @@ pub mod middleware {
                     })
             }
         })
-    }
-
-    /// Extract Bearer token from Authorization header
-    fn extract_bearer_token(auth_header: &str) -> anyhow::Result<String> {
-        if !auth_header.starts_with("Bearer ") {
-            return Err(anyhow!("Invalid authorization header format"));
-        }
-
-        let token = auth_header
-            .strip_prefix("Bearer ")
-            .ok_or_else(|| anyhow!("Failed to extract Bearer token from authorization header"))?
-            .trim();
-        if token.is_empty() {
-            return Err(anyhow!("Empty bearer token"));
-        }
-
-        Ok(token.to_string())
     }
 
     /// Admin authentication errors
