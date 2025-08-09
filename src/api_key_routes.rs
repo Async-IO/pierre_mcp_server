@@ -85,7 +85,7 @@ impl ApiKeyRoutes {
             .ok_or_else(|| anyhow::anyhow!("Invalid authorization header format"))?;
 
         let claims = self.auth_manager.validate_token(token)?;
-        let user_id = Uuid::parse_str(&claims.sub)?;
+        let user_id = crate::utils::uuid::parse_uuid(&claims.sub)?;
         Ok(user_id)
     }
 

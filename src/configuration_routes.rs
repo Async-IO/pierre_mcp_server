@@ -274,7 +274,7 @@ impl ConfigurationRoutes {
         let token = extract_bearer_token_from_option(Some(auth_str))?;
 
         let claims = self.auth_manager.validate_token(token)?;
-        let user_id = Uuid::parse_str(&claims.sub)?;
+        let user_id = crate::utils::uuid::parse_uuid(&claims.sub)?;
         Ok(user_id)
     }
 
