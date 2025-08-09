@@ -14,8 +14,9 @@ use crate::{
     },
     database_plugins::{factory::Database, DatabaseProvider},
     models::User,
+    utils::auth::extract_bearer_token_owned,
 };
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::{info, warn};
@@ -301,7 +302,7 @@ fn admin_auth_filter(
 
                 async move {
                     // Extract Bearer token
-                    let token = extract_bearer_token(&auth_header)
+                    let token = extract_bearer_token_owned(&auth_header)
                         .map_err(|_| warp::reject::custom(AdminApiError::InvalidAuthHeader))?;
 
                     // Extract client IP from headers or remote address
@@ -344,29 +345,6 @@ fn extract_client_ip(
             xff.split(',').next().map(|ip| ip.trim().to_string())
         },
     )
-}
-
-/// Extract Bearer token from Authorization header
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - Authorization header format is invalid
-/// - Bearer token is empty or missing
-pub fn extract_bearer_token(auth_header: &str) -> Result<String> {
-    if !auth_header.starts_with("Bearer ") {
-        return Err(anyhow!("Invalid authorization header format"));
-    }
-
-    let token = auth_header
-        .strip_prefix("Bearer ")
-        .context("Failed to extract bearer token")?
-        .trim();
-    if token.is_empty() {
-        return Err(anyhow!("Empty bearer token"));
-    }
-
-    Ok(token.to_string())
 }
 
 /// Convert rate limit period string to window duration in seconds
