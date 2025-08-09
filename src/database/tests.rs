@@ -1,4 +1,5 @@
-// Test utilities for database operations
+// ABOUTME: Test utilities for database operations and in-memory test database creation
+// ABOUTME: Provides helper functions for creating isolated test database instances
 use super::Database;
 use anyhow::Result;
 
