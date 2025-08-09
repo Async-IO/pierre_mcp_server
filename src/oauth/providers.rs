@@ -12,8 +12,11 @@
 
 use super::{AuthorizationResponse, OAuthError, OAuthProvider, TokenData};
 use crate::config::environment::OAuthProviderConfig;
+use crate::utils::oauth::{
+    exchange_authorization_code, refresh_access_token, revoke_access_token, validate_token_expiry,
+    AuthMethod, OAuthConfig,
+};
 use anyhow::Result;
-use base64::{engine::general_purpose, Engine as _};
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -138,112 +141,82 @@ impl OAuthProvider for StravaOAuthProvider {
     }
 
     async fn exchange_code(&self, code: &str, _state: &str) -> Result<TokenData, OAuthError> {
-        let client = reqwest::Client::new();
+        let config = OAuthConfig {
+            client_id: self.client_id.clone(),
+            client_secret: self.client_secret.clone(),
+            redirect_uri: self.redirect_uri.clone(),
+            token_url: crate::constants::env_config::strava_token_url(),
+            provider_name: "strava".into(),
+            auth_method: AuthMethod::FormParams,
+        };
 
-        let params = [
-            ("client_id", self.client_id.as_str()),
-            ("client_secret", self.client_secret.as_str()),
-            ("code", code),
-            ("grant_type", "authorization_code"),
-        ];
+        exchange_authorization_code(
+            &config,
+            code,
+            |token_response: StravaTokenResponse, provider| {
+                let expires_at =
+                    chrono::DateTime::<chrono::Utc>::from_timestamp(token_response.expires_at, 0)
+                        .unwrap_or_else(|| chrono::Utc::now() + chrono::Duration::hours(6));
 
-        let token_url = crate::constants::env_config::strava_token_url();
-        let response = client
-            .post(&token_url)
-            .form(&params)
-            .send()
-            .await
-            .map_err(|e| OAuthError::TokenExchangeFailed(e.to_string()))?;
-
-        let response_text = response
-            .text()
-            .await
-            .map_err(|e| OAuthError::TokenExchangeFailed(e.to_string()))?;
-
-        let token_response: StravaTokenResponse = serde_json::from_str(&response_text)
-            .map_err(|e| OAuthError::TokenExchangeFailed(format!("Parse error: {e}")))?;
-
-        let expires_at =
-            chrono::DateTime::<chrono::Utc>::from_timestamp(token_response.expires_at, 0)
-                .unwrap_or_else(|| chrono::Utc::now() + chrono::Duration::hours(6));
-
-        Ok(TokenData {
-            access_token: token_response.access_token,
-            refresh_token: token_response.refresh_token,
-            expires_at,
-            scopes: token_response
-                .scope
-                .unwrap_or_else(|| "read,activity:read_all".into()),
-            provider: "strava".into(),
-        })
+                TokenData {
+                    access_token: token_response.access_token,
+                    refresh_token: token_response.refresh_token,
+                    expires_at,
+                    scopes: token_response
+                        .scope
+                        .unwrap_or_else(|| "read,activity:read_all".into()),
+                    provider: provider.into(),
+                }
+            },
+        )
+        .await
     }
 
     async fn refresh_token(&self, refresh_token: &str) -> Result<TokenData, OAuthError> {
-        let client = reqwest::Client::new();
+        let config = OAuthConfig {
+            client_id: self.client_id.clone(),
+            client_secret: self.client_secret.clone(),
+            redirect_uri: self.redirect_uri.clone(),
+            token_url: crate::constants::env_config::strava_token_url(),
+            provider_name: "strava".into(),
+            auth_method: AuthMethod::FormParams,
+        };
 
-        let params = [
-            ("client_id", self.client_id.as_str()),
-            ("client_secret", self.client_secret.as_str()),
-            ("refresh_token", refresh_token),
-            ("grant_type", "refresh_token"),
-        ];
+        refresh_access_token(
+            &config,
+            refresh_token,
+            |token_response: StravaTokenResponse, provider| {
+                let expires_at =
+                    chrono::DateTime::<chrono::Utc>::from_timestamp(token_response.expires_at, 0)
+                        .unwrap_or_else(|| chrono::Utc::now() + chrono::Duration::hours(6));
 
-        let token_url = crate::constants::env_config::strava_token_url();
-        let response = client
-            .post(&token_url)
-            .form(&params)
-            .send()
-            .await
-            .map_err(|e| OAuthError::TokenRefreshFailed(e.to_string()))?;
-
-        let response_text = response
-            .text()
-            .await
-            .map_err(|e| OAuthError::TokenRefreshFailed(e.to_string()))?;
-
-        let token_response: StravaTokenResponse = serde_json::from_str(&response_text)
-            .map_err(|e| OAuthError::TokenRefreshFailed(format!("Parse error: {e}")))?;
-
-        let expires_at =
-            chrono::DateTime::<chrono::Utc>::from_timestamp(token_response.expires_at, 0)
-                .unwrap_or_else(|| chrono::Utc::now() + chrono::Duration::hours(6));
-
-        Ok(TokenData {
-            access_token: token_response.access_token,
-            refresh_token: token_response.refresh_token,
-            expires_at,
-            scopes: token_response
-                .scope
-                .unwrap_or_else(|| "read,activity:read_all".into()),
-            provider: "strava".into(),
-        })
+                TokenData {
+                    access_token: token_response.access_token,
+                    refresh_token: token_response.refresh_token,
+                    expires_at,
+                    scopes: token_response
+                        .scope
+                        .unwrap_or_else(|| "read,activity:read_all".into()),
+                    provider: provider.into(),
+                }
+            },
+        )
+        .await
     }
 
     async fn revoke_token(&self, access_token: &str) -> Result<(), OAuthError> {
-        let client = reqwest::Client::new();
-
-        let response = client
-            .post(crate::constants::env_config::strava_deauthorize_url())
-            .form(&[("access_token", access_token)])
-            .send()
-            .await
-            .map_err(|e| OAuthError::TokenRefreshFailed(e.to_string()))?;
-
-        if !response.status().is_success() {
-            return Err(OAuthError::TokenRefreshFailed(
-                "Failed to revoke token".into(),
-            ));
-        }
-
-        Ok(())
+        revoke_access_token(
+            &crate::constants::env_config::strava_deauthorize_url(),
+            access_token,
+            &AuthMethod::FormParams,
+            &self.client_id,
+            &self.client_secret,
+        )
+        .await
     }
 
     async fn validate_token(&self, token: &TokenData) -> Result<bool, OAuthError> {
-        // Check if token is expired (with 5 minute buffer)
-        let now = chrono::Utc::now();
-        let buffer = chrono::Duration::minutes(5);
-
-        Ok(token.expires_at > (now + buffer))
+        validate_token_expiry(token, 5)
     }
 }
 
@@ -359,111 +332,75 @@ impl OAuthProvider for FitbitOAuthProvider {
     }
 
     async fn exchange_code(&self, code: &str, _state: &str) -> Result<TokenData, OAuthError> {
-        let client = reqwest::Client::new();
+        let config = OAuthConfig {
+            client_id: self.client_id.clone(),
+            client_secret: self.client_secret.clone(),
+            redirect_uri: self.redirect_uri.clone(),
+            token_url: crate::constants::env_config::fitbit_token_url(),
+            provider_name: "fitbit".into(),
+            auth_method: AuthMethod::BasicAuth,
+        };
 
-        let params = [
-            ("client_id", self.client_id.as_str()),
-            ("grant_type", "authorization_code"),
-            ("redirect_uri", self.redirect_uri.as_str()),
-            ("code", code),
-        ];
+        exchange_authorization_code(
+            &config,
+            code,
+            |token_response: FitbitTokenResponse, provider| {
+                let expires_at =
+                    chrono::Utc::now() + chrono::Duration::seconds(token_response.expires_in);
 
-        let auth_header =
-            general_purpose::STANDARD.encode(format!("{}:{}", self.client_id, self.client_secret));
-
-        let response = client
-            .post(crate::constants::env_config::fitbit_token_url())
-            .header("Authorization", format!("Basic {auth_header}"))
-            .form(&params)
-            .send()
-            .await
-            .map_err(|e| OAuthError::TokenExchangeFailed(e.to_string()))?;
-
-        let response_text = response
-            .text()
-            .await
-            .map_err(|e| OAuthError::TokenExchangeFailed(e.to_string()))?;
-
-        let token_response: FitbitTokenResponse = serde_json::from_str(&response_text)
-            .map_err(|e| OAuthError::TokenExchangeFailed(format!("Parse error: {e}")))?;
-
-        let expires_at = chrono::Utc::now() + chrono::Duration::seconds(token_response.expires_in);
-
-        Ok(TokenData {
-            access_token: token_response.access_token,
-            refresh_token: token_response.refresh_token,
-            expires_at,
-            scopes: token_response.scope,
-            provider: "fitbit".into(),
-        })
+                TokenData {
+                    access_token: token_response.access_token,
+                    refresh_token: token_response.refresh_token,
+                    expires_at,
+                    scopes: token_response.scope,
+                    provider: provider.into(),
+                }
+            },
+        )
+        .await
     }
 
     async fn refresh_token(&self, refresh_token: &str) -> Result<TokenData, OAuthError> {
-        let client = reqwest::Client::new();
+        let config = OAuthConfig {
+            client_id: self.client_id.clone(),
+            client_secret: self.client_secret.clone(),
+            redirect_uri: self.redirect_uri.clone(),
+            token_url: crate::constants::env_config::fitbit_token_url(),
+            provider_name: "fitbit".into(),
+            auth_method: AuthMethod::BasicAuth,
+        };
 
-        let params = [
-            ("grant_type", "refresh_token"),
-            ("refresh_token", refresh_token),
-        ];
+        refresh_access_token(
+            &config,
+            refresh_token,
+            |token_response: FitbitTokenResponse, provider| {
+                let expires_at =
+                    chrono::Utc::now() + chrono::Duration::seconds(token_response.expires_in);
 
-        let auth_header =
-            general_purpose::STANDARD.encode(format!("{}:{}", self.client_id, self.client_secret));
-
-        let response = client
-            .post(crate::constants::env_config::fitbit_token_url())
-            .header("Authorization", format!("Basic {auth_header}"))
-            .form(&params)
-            .send()
-            .await
-            .map_err(|e| OAuthError::TokenRefreshFailed(e.to_string()))?;
-
-        let response_text = response
-            .text()
-            .await
-            .map_err(|e| OAuthError::TokenRefreshFailed(e.to_string()))?;
-
-        let token_response: FitbitTokenResponse = serde_json::from_str(&response_text)
-            .map_err(|e| OAuthError::TokenRefreshFailed(format!("Parse error: {e}")))?;
-
-        let expires_at = chrono::Utc::now() + chrono::Duration::seconds(token_response.expires_in);
-
-        Ok(TokenData {
-            access_token: token_response.access_token,
-            refresh_token: token_response.refresh_token,
-            expires_at,
-            scopes: token_response.scope,
-            provider: "fitbit".into(),
-        })
+                TokenData {
+                    access_token: token_response.access_token,
+                    refresh_token: token_response.refresh_token,
+                    expires_at,
+                    scopes: token_response.scope,
+                    provider: provider.into(),
+                }
+            },
+        )
+        .await
     }
 
     async fn revoke_token(&self, access_token: &str) -> Result<(), OAuthError> {
-        let client = reqwest::Client::new();
-
-        let auth_header =
-            general_purpose::STANDARD.encode(format!("{}:{}", self.client_id, self.client_secret));
-
-        let response = client
-            .post(crate::constants::env_config::fitbit_revoke_url())
-            .header("Authorization", format!("Basic {auth_header}"))
-            .form(&[("token", access_token)])
-            .send()
-            .await
-            .map_err(|e| OAuthError::TokenRefreshFailed(e.to_string()))?;
-
-        if !response.status().is_success() {
-            return Err(OAuthError::TokenRefreshFailed(
-                "Failed to revoke token".into(),
-            ));
-        }
-
-        Ok(())
+        revoke_access_token(
+            &crate::constants::env_config::fitbit_revoke_url(),
+            access_token,
+            &AuthMethod::BasicAuth,
+            &self.client_id,
+            &self.client_secret,
+        )
+        .await
     }
 
     async fn validate_token(&self, token: &TokenData) -> Result<bool, OAuthError> {
-        // Check if token is expired (with 5 minute buffer)
-        let now = chrono::Utc::now();
-        let buffer = chrono::Duration::minutes(5);
-
-        Ok(token.expires_at > (now + buffer))
+        validate_token_expiry(token, 5)
     }
 }
