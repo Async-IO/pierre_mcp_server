@@ -11,6 +11,7 @@
 use crate::{
     auth::AuthManager,
     database_plugins::{factory::Database, DatabaseProvider},
+    errors::AppError,
     models::User,
 };
 use anyhow::Result;
@@ -329,18 +330,12 @@ impl OAuthRoutes {
 
         match provider {
             "strava" => {
-                let client_id = std::env::var("STRAVA_CLIENT_ID")
-                    .or_else(|_| std::env::var("strava_client_id"))
-                    .unwrap_or_else(|_| "YOUR_STRAVA_CLIENT_ID".into());
+                let client_id =
+                    crate::constants::env_config::strava_client_id().ok_or_else(|| {
+                        AppError::internal("STRAVA_CLIENT_ID environment variable not set")
+                    })?;
 
-                let redirect_uri = std::env::var("STRAVA_REDIRECT_URI")
-                    .or_else(|_| std::env::var("strava_redirect_uri"))
-                    .unwrap_or_else(|_| {
-                        format!(
-                            "http://localhost:{}/oauth/callback/strava",
-                            crate::constants::ports::DEFAULT_HTTP_PORT
-                        )
-                    });
+                let redirect_uri = crate::constants::env_config::strava_redirect_uri();
 
                 let scope = "read,activity:read_all";
 
@@ -360,18 +355,12 @@ impl OAuthRoutes {
                 })
             }
             "fitbit" => {
-                let client_id = std::env::var("FITBIT_CLIENT_ID")
-                    .or_else(|_| std::env::var("fitbit_client_id"))
-                    .unwrap_or_else(|_| "YOUR_FITBIT_CLIENT_ID".into());
+                let client_id =
+                    crate::constants::env_config::fitbit_client_id().ok_or_else(|| {
+                        AppError::internal("FITBIT_CLIENT_ID environment variable not set")
+                    })?;
 
-                let redirect_uri = std::env::var("FITBIT_REDIRECT_URI")
-                    .or_else(|_| std::env::var("fitbit_redirect_uri"))
-                    .unwrap_or_else(|_| {
-                        format!(
-                            "http://localhost:{}/oauth/callback/fitbit",
-                            crate::constants::ports::DEFAULT_HTTP_PORT
-                        )
-                    });
+                let redirect_uri = crate::constants::env_config::fitbit_redirect_uri();
 
                 let scope = "activity%20profile";
 

@@ -40,10 +40,6 @@ pub mod protocol {
 
     /// Server version from Cargo.toml
     pub const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-    // For backward compatibility and performance, provide const versions with defaults
-    pub const MCP_PROTOCOL_VERSION: &str = "2025-06-18";
-    pub const SERVER_NAME: &str = "pierre-mcp-server";
 }
 
 /// Environment-based configuration
@@ -110,12 +106,8 @@ pub mod env_config {
     /// Get Strava redirect `URI` from environment or default
     #[must_use]
     pub fn strava_redirect_uri() -> String {
-        env::var("STRAVA_REDIRECT_URI").unwrap_or_else(|_| {
-            format!(
-                "http://localhost:{}/oauth/callback/strava",
-                crate::constants::ports::DEFAULT_HTTP_PORT
-            )
-        })
+        env::var("STRAVA_REDIRECT_URI")
+            .unwrap_or_else(|_| format!("{}/oauth/callback/strava", base_url()))
     }
 
     /// Get Fitbit `client_id` from environment
@@ -133,12 +125,8 @@ pub mod env_config {
     /// Get Fitbit redirect `URI` from environment or default
     #[must_use]
     pub fn fitbit_redirect_uri() -> String {
-        env::var("FITBIT_REDIRECT_URI").unwrap_or_else(|_| {
-            format!(
-                "http://localhost:{}/oauth/callback/fitbit",
-                crate::constants::ports::DEFAULT_HTTP_PORT
-            )
-        })
+        env::var("FITBIT_REDIRECT_URI")
+            .unwrap_or_else(|_| format!("{}/oauth/callback/fitbit", base_url()))
     }
 
     /// Get `OpenWeather` `API` key from environment
@@ -223,6 +211,17 @@ pub mod env_config {
     pub fn openweather_api_base() -> String {
         env::var("OPENWEATHER_API_BASE_URL")
             .unwrap_or_else(|_| "https://api.openweathermap.org".into())
+    }
+
+    /// Get base URL for the application from environment or construct from host and port
+    #[must_use]
+    pub fn base_url() -> String {
+        env::var("BASE_URL").unwrap_or_else(|_| {
+            let host = env::var("HOST")
+                .unwrap_or_else(|_| crate::constants::network_config::DEFAULT_HOST.into());
+            let port = http_port();
+            format!("http://{host}:{port}")
+        })
     }
 }
 
@@ -585,6 +584,17 @@ pub mod network_config {
 
     /// Default `MCP` protocol version string
     pub const DEFAULT_MCP_VERSION: &str = "2024-11-05";
+
+    /// Default host for development
+    pub const DEFAULT_HOST: &str = "localhost";
+
+    /// Development localhost patterns for CORS validation
+    pub const LOCALHOST_PATTERNS: &[&str] = &[
+        "http://localhost",
+        "https://localhost",
+        "http://127.0.0.1",
+        "https://127.0.0.1",
+    ];
 }
 
 /// Demo and test data constants

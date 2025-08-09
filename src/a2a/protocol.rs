@@ -512,8 +512,8 @@ impl A2AServer {
     /// Create minimal fallback config for A2A protocol
     fn create_minimal_fallback_config() -> crate::config::environment::ServerConfig {
         crate::config::environment::ServerConfig {
-            mcp_port: 3000,
-            http_port: 4000,
+            mcp_port: crate::constants::network_config::DEFAULT_TEST_PORT,
+            http_port: crate::constants::network_config::DEFAULT_TEST_PORT + 1000,
             log_level: crate::config::environment::LogLevel::Info,
             database: crate::config::environment::DatabaseConfig {
                 url: crate::config::environment::DatabaseUrl::default(),

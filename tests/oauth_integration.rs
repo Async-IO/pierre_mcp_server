@@ -18,6 +18,12 @@ use uuid::Uuid;
 
 #[tokio::test]
 async fn test_oauth_authorization_url_generation() {
+    // Set required environment variables for OAuth
+    std::env::set_var("STRAVA_CLIENT_ID", "test_client_id");
+    std::env::set_var("STRAVA_CLIENT_SECRET", "test_client_secret");
+    std::env::set_var("FITBIT_CLIENT_ID", "test_fitbit_client_id");
+    std::env::set_var("FITBIT_CLIENT_SECRET", "test_fitbit_client_secret");
+
     // Setup
     let encryption_key = generate_encryption_key().to_vec();
     let database = Database::new("sqlite::memory:", encryption_key)
@@ -155,6 +161,12 @@ async fn test_disconnect_provider() {
 
 #[tokio::test]
 async fn test_oauth_urls_contain_required_parameters() {
+    // Set required environment variables for OAuth
+    std::env::set_var("STRAVA_CLIENT_ID", "test_client_id");
+    std::env::set_var("STRAVA_CLIENT_SECRET", "test_client_secret");
+    std::env::set_var("FITBIT_CLIENT_ID", "test_fitbit_client_id");
+    std::env::set_var("FITBIT_CLIENT_SECRET", "test_fitbit_client_secret");
+
     let encryption_key = generate_encryption_key().to_vec();
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
