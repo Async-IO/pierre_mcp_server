@@ -158,3 +158,6 @@ pub mod errors;
 
 /// Unified tool execution engine for fitness analysis and data processing
 pub mod tools;
+
+// Utility modules
+pub mod utils;
