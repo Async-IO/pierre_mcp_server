@@ -13,7 +13,10 @@ use crate::{
     database_plugins::{factory::Database, DatabaseProvider},
     errors::AppError,
     models::User,
-    utils::http_client::oauth_client,
+    utils::{
+        http_client::oauth_client,
+        json_responses::{a2a_registration_success, registration_failed_error},
+    },
 };
 use anyhow::Result;
 use base64::{engine::general_purpose, Engine};
@@ -774,26 +777,14 @@ impl A2ARoutes {
                     "A2A client registered successfully"
                 );
 
-                let response = serde_json::json!({
-                    "success": true,
-                    "message": "A2A client registered successfully",
-                    "data": {
-                        "client_id": credentials.client_id,
-                        "client_secret": credentials.client_secret,
-                        "api_key": credentials.api_key,
-                        "public_key": credentials.public_key,
-                        "private_key": credentials.private_key,
-                        "key_type": credentials.key_type,
-                        "next_steps": {
-                            "documentation": "https://docs.pierre.ai/a2a",
-                            "authentication": "Use the provided credentials for A2A protocol authentication",
-                            "endpoints": {
-                                "a2a_protocol": "/a2a/protocol",
-                                "agent_card": "/.well-known/agent.json"
-                            }
-                        }
-                    }
-                });
+                let response = a2a_registration_success(
+                    &credentials.client_id,
+                    &credentials.client_secret,
+                    &credentials.api_key,
+                    &credentials.public_key,
+                    &credentials.private_key,
+                    &credentials.key_type,
+                );
 
                 Ok(warp::reply::with_status(
                     warp::reply::json(&response),
@@ -806,12 +797,10 @@ impl A2ARoutes {
                     "Failed to register A2A client"
                 );
 
-                let error_response = serde_json::json!({
-                    "success": false,
-                    "error": "registration_failed",
-                    "error_description": format!("Failed to register A2A client: {e}"),
-                    "details": e.to_string()
-                });
+                let error_response = registration_failed_error(
+                    &format!("Failed to register A2A client: {e}"),
+                    &e.to_string(),
+                );
 
                 Ok(warp::reply::with_status(
                     warp::reply::json(&error_response),

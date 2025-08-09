@@ -52,7 +52,10 @@
 
 // Intelligence config will be used for future enhancements
 use crate::database_plugins::{factory::Database, DatabaseProvider};
-use crate::utils::uuid::parse_user_id_for_protocol;
+use crate::utils::{
+    json_responses::{activity_not_found_error, provider_connection_error, serialization_error},
+    uuid::parse_user_id_for_protocol,
+};
 // Removed unused import
 use crate::intelligence::analyzer::ActivityAnalyzer;
 use crate::intelligence::goal_engine::GoalEngineTrait;
@@ -853,11 +856,7 @@ impl UniversalToolExecutor {
                 })
             }
             None => {
-                let error_result = serde_json::json!({
-                    "error": "Activity not found or user not connected to Strava",
-                    "activity_id": activity_id,
-                    "is_real_data": false
-                });
+                let error_result = activity_not_found_error(activity_id, Some("Strava"));
 
                 Ok(UniversalResponse {
                     success: false,
@@ -895,12 +894,8 @@ impl UniversalToolExecutor {
 
                         match provider.authenticate(auth_data).await {
                             Ok(()) => match provider.get_stats().await {
-                                Ok(stats) => serde_json::to_value(&stats).unwrap_or_else(|_| {
-                                    serde_json::json!({
-                                        "error": "Failed to serialize stats",
-                                        "is_real_data": false
-                                    })
-                                }),
+                                Ok(stats) => serde_json::to_value(&stats)
+                                    .unwrap_or_else(|_| serialization_error("stats")),
                                 Err(e) => serde_json::json!({
                                     "error": format!("Failed to get stats: {}", e),
                                     "is_real_data": false
@@ -917,10 +912,7 @@ impl UniversalToolExecutor {
                         "is_real_data": false
                     }),
                 },
-                Ok(None) => serde_json::json!({
-                    "error": "No provider token found - please connect your account first",
-                    "is_real_data": false
-                }),
+                Ok(None) => provider_connection_error("provider", "No token found"),
                 Err(e) => serde_json::json!({
                     "error": format!("Database error: {}", e),
                     "is_real_data": false
