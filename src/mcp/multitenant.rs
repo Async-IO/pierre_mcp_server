@@ -1516,10 +1516,9 @@ impl MultiTenantMcpServer {
     /// Validate origin header for security
     fn is_valid_origin(origin: &str) -> bool {
         // Allow localhost origins for development
-        origin.starts_with("http://localhost") ||
-        origin.starts_with("http://127.0.0.1") ||
-        origin.starts_with("https://localhost") ||
-        origin.starts_with("https://127.0.0.1") ||
+        crate::constants::network_config::LOCALHOST_PATTERNS
+            .iter()
+            .any(|pattern| origin.starts_with(pattern)) ||
         // Allow null origin for direct connections
         origin == "null"
     }

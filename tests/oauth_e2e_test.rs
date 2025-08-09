@@ -362,6 +362,10 @@ async fn test_oauth_callback_error_handling() {
 /// Test OAuth state security
 #[tokio::test]
 async fn test_oauth_state_csrf_protection() {
+    // Set required environment variables for OAuth
+    std::env::set_var("STRAVA_CLIENT_ID", "test_client_id");
+    std::env::set_var("STRAVA_CLIENT_SECRET", "test_client_secret");
+
     let encryption_key = generate_encryption_key().to_vec();
     let database = Database::new("sqlite::memory:", encryption_key)
         .await

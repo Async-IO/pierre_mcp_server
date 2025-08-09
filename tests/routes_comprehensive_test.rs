@@ -26,6 +26,12 @@ async fn create_test_auth_routes() -> Result<AuthRoutes> {
 }
 
 async fn create_test_oauth_routes() -> Result<OAuthRoutes> {
+    // Set required environment variables for OAuth
+    std::env::set_var("STRAVA_CLIENT_ID", "test_client_id");
+    std::env::set_var("STRAVA_CLIENT_SECRET", "test_client_secret");
+    std::env::set_var("FITBIT_CLIENT_ID", "test_fitbit_client_id");
+    std::env::set_var("FITBIT_CLIENT_SECRET", "test_fitbit_client_secret");
+
     let database = common::create_test_database().await?;
 
     Ok(OAuthRoutes::new((*database).clone()))

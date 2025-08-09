@@ -813,7 +813,11 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
                 rationale: "Proper running equipment reduces injury risk and can improve performance and comfort.".into(),
                 actionable_steps: vec![
                     "Get professional gait analysis and shoe fitting".into(),
-                    "Replace running shoes every 500-800km".into(),
+                    format!(
+                        "Replace running shoes every {}-{}km",
+                        crate::intelligence::physiological_constants::zone_distributions::equipment::SHOE_REPLACEMENT_MIN_KM as u32,
+                        crate::intelligence::physiological_constants::zone_distributions::equipment::SHOE_REPLACEMENT_MAX_KM as u32
+                    ),
                     "Consider moisture-wicking clothing for longer runs".into(),
                     "Use GPS watch or smartphone app for pacing".into(),
                 ],

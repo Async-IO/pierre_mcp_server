@@ -916,4 +916,15 @@ pub mod zone_distributions {
         /// Used to scale consistency factor contribution to overall efficiency
         pub const CONSISTENCY_MULTIPLIER: f32 = 20.0;
     }
+
+    /// Equipment maintenance recommendations
+    pub mod equipment {
+        /// Minimum recommended shoe replacement distance (km)
+        /// Based on typical running shoe durability recommendations
+        pub const SHOE_REPLACEMENT_MIN_KM: f64 = 500.0;
+
+        /// Maximum recommended shoe replacement distance (km)
+        /// Upper limit for running shoe usage before replacement
+        pub const SHOE_REPLACEMENT_MAX_KM: f64 = 800.0;
+    }
 }

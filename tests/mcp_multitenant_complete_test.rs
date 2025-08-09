@@ -328,6 +328,12 @@ async fn setup_test_environment() -> Result<(Database, AuthManager, u16, TempDir
 /// Test complete multi-tenant MCP server workflow
 #[tokio::test]
 async fn test_complete_multitenant_workflow() -> Result<()> {
+    // Set required environment variables for OAuth
+    std::env::set_var("STRAVA_CLIENT_ID", "test_client_id");
+    std::env::set_var("STRAVA_CLIENT_SECRET", "test_client_secret");
+    std::env::set_var("FITBIT_CLIENT_ID", "test_fitbit_client_id");
+    std::env::set_var("FITBIT_CLIENT_SECRET", "test_fitbit_client_secret");
+
     let (database, auth_manager, server_port, temp_dir) = setup_test_environment().await?;
 
     // Start the server

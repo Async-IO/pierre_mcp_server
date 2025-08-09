@@ -20,9 +20,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
     let port = std::env::var("DOCS_PORT")
-        .unwrap_or_else(|_| "3000".into())
+        .unwrap_or_else(|_| pierre_mcp_server::constants::ports::DEFAULT_DOCS_PORT.to_string())
         .parse::<u16>()
-        .unwrap_or(3000);
+        .unwrap_or(pierre_mcp_server::constants::ports::DEFAULT_DOCS_PORT);
 
     println!("Starting Pierre MCP API Documentation Server");
     println!("Swagger UI: http://localhost:{port}");

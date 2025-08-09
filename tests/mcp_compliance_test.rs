@@ -456,8 +456,8 @@ fn test_protocol_version_compliance() {
         "Should use latest MCP protocol version"
     );
 
-    // Verify const version is also updated
-    assert_eq!(protocol::MCP_PROTOCOL_VERSION, "2025-06-18");
+    // Verify function version returns the expected default
+    assert_eq!(protocol::mcp_protocol_version(), "2025-06-18");
 }
 
 /// Test JSON-RPC version compliance
