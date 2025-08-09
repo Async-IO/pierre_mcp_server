@@ -387,7 +387,7 @@ impl AuthManager {
     /// Validate authentication request and return response
     pub fn authenticate(&self, request: &AuthRequest) -> AuthResponse {
         match self.validate_token_detailed(&request.token) {
-            Ok(claims) => match Uuid::parse_str(&claims.sub) {
+            Ok(claims) => match crate::utils::uuid::parse_uuid(&claims.sub) {
                 Ok(user_id) => AuthResponse {
                     authenticated: true,
                     user_id: Some(user_id),
@@ -455,7 +455,7 @@ impl AuthManager {
             &validation,
         )?;
 
-        Uuid::parse_str(&token_data.claims.sub).with_context(|| {
+        crate::utils::uuid::parse_uuid(&token_data.claims.sub).with_context(|| {
             format!(
                 "Failed to parse user ID from JWT token subject: {}",
                 token_data.claims.sub
@@ -672,7 +672,7 @@ impl McpAuthMiddleware {
     async fn authenticate_jwt_token(&self, token: &str) -> Result<AuthResult> {
         match self.auth_manager.validate_token_detailed(token) {
             Ok(claims) => {
-                let user_id = Uuid::parse_str(&claims.sub)
+                let user_id = crate::utils::uuid::parse_uuid(&claims.sub)
                     .map_err(|_| anyhow::anyhow!("Invalid user ID in token"))?;
 
                 // Get user from database to check tier and rate limits

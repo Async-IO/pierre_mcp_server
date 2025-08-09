@@ -132,7 +132,7 @@ impl DashboardRoutes {
 
         // Authenticate user
         let claims = self.validate_auth_header(auth_header)?;
-        let user_id = Uuid::parse_str(&claims.sub)?;
+        let user_id = crate::utils::uuid::parse_uuid(&claims.sub)?;
 
         tracing::info!(
             "Dashboard overview data access granted for user: {}",
@@ -236,7 +236,7 @@ impl DashboardRoutes {
         tracing::debug!("Dashboard analytics request received for {} days", days);
 
         let claims = self.validate_auth_header(auth_header)?;
-        let user_id = Uuid::parse_str(&claims.sub)?;
+        let user_id = crate::utils::uuid::parse_uuid(&claims.sub)?;
 
         tracing::info!(
             "Dashboard analytics data access granted for user: {} (timeframe: {} days)",
@@ -337,7 +337,7 @@ impl DashboardRoutes {
         tracing::debug!("Dashboard rate limit overview request received");
 
         let claims = self.validate_auth_header(auth_header)?;
-        let user_id = Uuid::parse_str(&claims.sub)?;
+        let user_id = crate::utils::uuid::parse_uuid(&claims.sub)?;
 
         tracing::info!(
             "Dashboard rate limit data access granted for user: {}",
@@ -558,7 +558,7 @@ impl DashboardRoutes {
         tracing::debug!("Dashboard request logs request received");
 
         let claims = self.validate_auth_header(auth_header)?;
-        let user_id = Uuid::parse_str(&claims.sub)?;
+        let user_id = crate::utils::uuid::parse_uuid(&claims.sub)?;
 
         tracing::info!(
             "Dashboard request logs access granted for user: {}",
@@ -605,7 +605,7 @@ impl DashboardRoutes {
         tracing::debug!("Dashboard request stats request received");
 
         let claims = self.validate_auth_header(auth_header)?;
-        let user_id = Uuid::parse_str(&claims.sub)?;
+        let user_id = crate::utils::uuid::parse_uuid(&claims.sub)?;
 
         tracing::info!(
             "Dashboard request stats access granted for user: {}",
@@ -697,7 +697,7 @@ impl DashboardRoutes {
         tracing::debug!("Dashboard tool usage breakdown request received");
 
         let claims = self.validate_auth_header(auth_header)?;
-        let user_id = Uuid::parse_str(&claims.sub)?;
+        let user_id = crate::utils::uuid::parse_uuid(&claims.sub)?;
 
         tracing::info!(
             "Dashboard tool usage breakdown access granted for user: {}",

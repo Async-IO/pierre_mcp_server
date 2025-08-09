@@ -246,7 +246,7 @@ impl AuthRoutes {
         info!("Token refresh attempt for user: {}", request.user_id);
 
         // Parse user ID
-        let user_uuid = uuid::Uuid::parse_str(&request.user_id)
+        let user_uuid = crate::utils::uuid::parse_user_id(&request.user_id)
             .map_err(|_| anyhow::anyhow!("Invalid user ID format"))?;
 
         // Get user from database
@@ -416,13 +416,15 @@ impl OAuthRoutes {
         state: &str,
         provider: &str,
     ) -> Result<OAuthCallbackResponse> {
-        // Parse user ID from state
-        let parts: Vec<&str> = state.split(':').collect();
-        if parts.len() != 2 {
-            return Err(anyhow::anyhow!("Invalid state parameter"));
-        }
-
-        let user_id = uuid::Uuid::parse_str(parts[0])?;
+        // Parse user ID from state (format: "user_id:uuid")
+        let mut parts = state.splitn(2, ':');
+        let user_id_str = parts
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("Invalid state parameter format"))?;
+        let _random_part = parts
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("Invalid state parameter format"))?;
+        let user_id = crate::utils::uuid::parse_user_id(user_id_str)?;
 
         // Validate state (in production, check against stored state)
         info!(

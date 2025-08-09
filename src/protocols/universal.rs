@@ -52,6 +52,7 @@
 
 // Intelligence config will be used for future enhancements
 use crate::database_plugins::{factory::Database, DatabaseProvider};
+use crate::utils::uuid::parse_user_id_for_protocol;
 // Removed unused import
 use crate::intelligence::analyzer::ActivityAnalyzer;
 use crate::intelligence::goal_engine::GoalEngineTrait;
@@ -161,8 +162,8 @@ impl UniversalToolExecutor {
             .ok_or("Missing activity_id parameter")?;
 
         // Parse user_id
-        let user_id =
-            uuid::Uuid::parse_str(&request.user_id).map_err(|e| format!("Invalid user ID: {e}"))?;
+        let user_id = crate::utils::uuid::parse_uuid(&request.user_id)
+            .map_err(|e| format!("Invalid user ID: {e}"))?;
 
         // First, try to get the activity from the database or providers
         let activity_data = match self.get_activity_data(activity_id, user_id).await {
@@ -553,7 +554,7 @@ impl UniversalToolExecutor {
 
         // Get REAL Strava data
         let activities = if provider_type == "strava" {
-            match uuid::Uuid::parse_str(&request.user_id) {
+            match crate::utils::uuid::parse_uuid(&request.user_id) {
                 Ok(user_uuid) => {
                     // Get valid Strava token (with automatic refresh if needed)
                     match self.get_valid_token(user_uuid, "strava").await {
@@ -679,7 +680,7 @@ impl UniversalToolExecutor {
         request: UniversalRequest,
     ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
         // Get REAL athlete data
-        let athlete_data = match uuid::Uuid::parse_str(&request.user_id) {
+        let athlete_data = match crate::utils::uuid::parse_uuid(&request.user_id) {
             Ok(user_uuid) => match self.get_valid_token(user_uuid, "strava").await {
                 Ok(Some(token_data)) => match create_provider("strava") {
                     Ok(mut provider) => {
@@ -757,9 +758,7 @@ impl UniversalToolExecutor {
             })?;
 
         // Parse user ID
-        let user_uuid = uuid::Uuid::parse_str(&request.user_id).map_err(|_| {
-            crate::protocols::ProtocolError::InvalidParameters("Invalid user ID format".into())
-        })?;
+        let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get real activity data async
         let activity_result = {
@@ -882,7 +881,7 @@ impl UniversalToolExecutor {
             .unwrap_or("strava");
 
         // Get REAL stats from the provider
-        let stats = match uuid::Uuid::parse_str(&request.user_id) {
+        let stats = match crate::utils::uuid::parse_uuid(&request.user_id) {
             Ok(user_uuid) => match self.get_valid_token(user_uuid, provider_type).await {
                 Ok(Some(token_data)) => match create_provider(provider_type) {
                     Ok(mut provider) => {
@@ -1001,9 +1000,7 @@ impl UniversalToolExecutor {
         request: UniversalRequest,
     ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
         // Parse user ID
-        let user_uuid = uuid::Uuid::parse_str(&request.user_id).map_err(|_| {
-            crate::protocols::ProtocolError::InvalidParameters("Invalid user ID format".into())
-        })?;
+        let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Use OAuth manager to check connection status for all providers
         let database = self.database.clone();
@@ -1058,9 +1055,7 @@ impl UniversalToolExecutor {
         request: UniversalRequest,
     ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
         // Parse user ID
-        let user_uuid = uuid::Uuid::parse_str(&request.user_id).map_err(|_| {
-            crate::protocols::ProtocolError::InvalidParameters("Invalid user ID format".into())
-        })?;
+        let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Create OAuth manager with database
         let mut oauth_manager = crate::oauth::manager::OAuthManager::new(self.database.clone());
@@ -1105,9 +1100,7 @@ impl UniversalToolExecutor {
         request: UniversalRequest,
     ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
         // Parse user ID
-        let user_uuid = uuid::Uuid::parse_str(&request.user_id).map_err(|_| {
-            crate::protocols::ProtocolError::InvalidParameters("Invalid user ID format".into())
-        })?;
+        let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Create OAuth manager with database
         let mut oauth_manager = crate::oauth::manager::OAuthManager::new(self.database.clone());
@@ -1159,9 +1152,7 @@ impl UniversalToolExecutor {
                 crate::protocols::ProtocolError::InvalidParameters("provider is required".into())
             })?;
 
-        let user_uuid = uuid::Uuid::parse_str(&request.user_id).map_err(|_| {
-            crate::protocols::ProtocolError::InvalidParameters("Invalid user ID format".into())
-        })?;
+        let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Clear tokens for the specified provider
         match provider {
@@ -1245,9 +1236,7 @@ impl UniversalToolExecutor {
             .unwrap_or("Fitness Goal");
 
         // Parse user ID
-        let user_uuid = uuid::Uuid::parse_str(&request.user_id).map_err(|_| {
-            crate::protocols::ProtocolError::InvalidParameters("Invalid user ID format".into())
-        })?;
+        let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Save goal to database
         let created_at = chrono::Utc::now();
@@ -1396,9 +1385,7 @@ impl UniversalToolExecutor {
         };
 
         // Parse user ID
-        let user_uuid = uuid::Uuid::parse_str(&request.user_id).map_err(|_| {
-            crate::protocols::ProtocolError::InvalidParameters("Invalid user ID format".into())
-        })?;
+        let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get activities from provider
         let mut activities = Vec::new();
@@ -1506,9 +1493,7 @@ impl UniversalToolExecutor {
             })?;
 
         // Parse user ID
-        let user_uuid = uuid::Uuid::parse_str(&request.user_id).map_err(|_| {
-            crate::protocols::ProtocolError::InvalidParameters("Invalid user ID format".into())
-        })?;
+        let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get activities from provider
         let mut activity1 = None;
@@ -1599,9 +1584,7 @@ impl UniversalToolExecutor {
         request: UniversalRequest,
     ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
         // Parse user ID
-        let user_uuid = uuid::Uuid::parse_str(&request.user_id).map_err(|_| {
-            crate::protocols::ProtocolError::InvalidParameters("Invalid user ID format".into())
-        })?;
+        let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get activities from provider
         let mut activities = Vec::new();
@@ -1721,9 +1704,7 @@ impl UniversalToolExecutor {
             })?;
 
         // Parse user ID
-        let user_uuid = uuid::Uuid::parse_str(&request.user_id).map_err(|_| {
-            crate::protocols::ProtocolError::InvalidParameters("Invalid user ID format".into())
-        })?;
+        let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get activities from provider
         let mut activities = Vec::new();
@@ -1794,9 +1775,7 @@ impl UniversalToolExecutor {
         request: UniversalRequest,
     ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
         // Parse user ID
-        let user_uuid = uuid::Uuid::parse_str(&request.user_id).map_err(|_| {
-            crate::protocols::ProtocolError::InvalidParameters("Invalid user ID format".into())
-        })?;
+        let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get recent activities
         let mut activities = Vec::new();
@@ -1936,9 +1915,7 @@ impl UniversalToolExecutor {
             .to_string();
 
         // Parse user ID
-        let user_uuid = uuid::Uuid::parse_str(&request.user_id).map_err(|_| {
-            crate::protocols::ProtocolError::InvalidParameters("Invalid user ID format".into())
-        })?;
+        let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get historical activities
         let mut activities = Vec::new();
@@ -2064,9 +2041,7 @@ impl UniversalToolExecutor {
         request: UniversalRequest,
     ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
         // Parse user ID
-        let user_uuid = uuid::Uuid::parse_str(&request.user_id).map_err(|_| {
-            crate::protocols::ProtocolError::InvalidParameters("Invalid user ID format".into())
-        })?;
+        let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get recent activities
         let mut activities = Vec::new();
@@ -2173,9 +2148,7 @@ impl UniversalToolExecutor {
         request: UniversalRequest,
     ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
         // Parse user ID
-        let user_uuid = uuid::Uuid::parse_str(&request.user_id).map_err(|_| {
-            crate::protocols::ProtocolError::InvalidParameters("Invalid user ID format".into())
-        })?;
+        let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get recent activities
         let mut activities = Vec::new();
@@ -2323,9 +2296,7 @@ impl UniversalToolExecutor {
             .unwrap_or("run");
 
         // Parse user ID
-        let user_uuid = uuid::Uuid::parse_str(&request.user_id).map_err(|_| {
-            crate::protocols::ProtocolError::InvalidParameters("Invalid user ID format".into())
-        })?;
+        let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get historical activities
         let mut activities = Vec::new();
@@ -2455,9 +2426,7 @@ impl UniversalToolExecutor {
         request: UniversalRequest,
     ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
         // Parse user ID
-        let user_uuid = uuid::Uuid::parse_str(&request.user_id).map_err(|_| {
-            crate::protocols::ProtocolError::InvalidParameters("Invalid user ID format".into())
-        })?;
+        let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get recent activities (last 4 weeks)
         let mut activities = Vec::new();
@@ -2721,9 +2690,7 @@ impl UniversalToolExecutor {
         &self,
         request: UniversalRequest,
     ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
-        let user_uuid = uuid::Uuid::parse_str(&request.user_id).map_err(|_| {
-            crate::protocols::ProtocolError::InvalidParameters("Invalid user ID format".into())
-        })?;
+        let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Fetch user configuration from database
         let config = match self
@@ -2802,9 +2769,7 @@ impl UniversalToolExecutor {
         &self,
         request: UniversalRequest,
     ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
-        let user_uuid = uuid::Uuid::parse_str(&request.user_id).map_err(|_| {
-            crate::protocols::ProtocolError::InvalidParameters("Invalid user ID format".into())
-        })?;
+        let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Extract parameters from request
         let profile_name = request.parameters.get("profile").and_then(|v| v.as_str());
