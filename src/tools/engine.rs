@@ -25,27 +25,19 @@ pub struct UserContext {
 
 /// Unified tool execution engine that provides multi-tenant server functionality
 pub struct ToolEngine {
-    _database: Arc<Database>,
-    _intelligence: Arc<ActivityAnalyzer>,
-    _weather: Arc<WeatherService>,
     universal_executor: Arc<UniversalToolExecutor>,
 }
 
 impl ToolEngine {
     /// Create a new tool engine instance
     #[must_use]
-    pub const fn new(
-        database: Arc<Database>,
-        intelligence: Arc<ActivityAnalyzer>,
-        weather: Arc<WeatherService>,
+    pub fn new(
+        _database: Arc<Database>,
+        _intelligence: Arc<ActivityAnalyzer>,
+        _weather: Arc<WeatherService>,
         universal_executor: Arc<UniversalToolExecutor>,
     ) -> Self {
-        Self {
-            _database: database,
-            _intelligence: intelligence,
-            _weather: weather,
-            universal_executor,
-        }
+        Self { universal_executor }
     }
 
     /// Execute a tool with unified error handling and context
