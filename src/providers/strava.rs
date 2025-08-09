@@ -11,6 +11,7 @@ use crate::config::FitnessConfig;
 use crate::constants::env_config;
 use crate::models::{Activity, Athlete, PersonalRecord, SportType, Stats};
 use crate::oauth2_client::PkceParams;
+use crate::utils::http_client::api_client;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -73,7 +74,7 @@ impl StravaProvider {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            client: Client::new(),
+            client: api_client(),
             config: StravaConfig::global(),
             access_token: None,
             refresh_token: None,
@@ -83,7 +84,7 @@ impl StravaProvider {
     #[must_use]
     pub fn with_config(config: &'static StravaConfig) -> Self {
         Self {
-            client: Client::new(),
+            client: api_client(),
             config,
             access_token: None,
             refresh_token: None,

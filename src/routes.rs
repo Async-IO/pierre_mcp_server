@@ -13,6 +13,7 @@ use crate::{
     database_plugins::{factory::Database, DatabaseProvider},
     errors::AppError,
     models::User,
+    utils::http_client::oauth_client,
 };
 use anyhow::Result;
 use base64::{engine::general_purpose, Engine};
@@ -543,7 +544,7 @@ impl OAuthRoutes {
             ("grant_type", "authorization_code"),
         ];
 
-        let client = reqwest::Client::new();
+        let client = oauth_client();
         let response = client
             .post("https://www.strava.com/oauth/token")
             .form(&params)
@@ -599,7 +600,7 @@ impl OAuthRoutes {
 
         let auth_header = general_purpose::STANDARD.encode(format!("{client_id}:{client_secret}"));
 
-        let client = reqwest::Client::new();
+        let client = oauth_client();
         let response = client
             .post("https://api.fitbit.com/oauth2/token")
             .header("Authorization", format!("Basic {auth_header}"))

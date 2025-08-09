@@ -24,6 +24,7 @@ use crate::intelligence::physiological_constants::{
         MODERATE_WIND_THRESHOLD, STRONG_WIND_THRESHOLD,
     },
 };
+use crate::utils::http_client::create_client_with_timeout;
 use chrono::{DateTime, Utc};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -105,10 +106,7 @@ impl WeatherService {
     pub fn new(api_config: WeatherApiConfig, api_key: Option<String>) -> Self {
         let intelligence_config = IntelligenceConfig::global();
         Self {
-            client: Client::builder()
-                .timeout(Duration::from_secs(api_config.request_timeout_seconds))
-                .build()
-                .unwrap_or_else(|_| Client::new()),
+            client: create_client_with_timeout(api_config.request_timeout_seconds, 10),
             api_config,
             weather_config: intelligence_config.weather_analysis.clone(),
             cache: HashMap::new(),
@@ -133,10 +131,7 @@ impl WeatherService {
         api_key: Option<String>,
     ) -> Self {
         Self {
-            client: Client::builder()
-                .timeout(Duration::from_secs(api_config.request_timeout_seconds))
-                .build()
-                .unwrap_or_else(|_| Client::new()),
+            client: create_client_with_timeout(api_config.request_timeout_seconds, 10),
             api_config,
             weather_config,
             cache: HashMap::new(),

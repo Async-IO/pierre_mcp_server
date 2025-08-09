@@ -21,6 +21,7 @@
 use super::{AuthData, FitnessProvider};
 use crate::models::{Activity, Athlete, HeartRateZone, PersonalRecord, SportType, Stats};
 use crate::oauth2_client::PkceParams;
+use crate::utils::http_client::api_client;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -51,7 +52,7 @@ impl FitbitProvider {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            client: Client::new(),
+            client: api_client(),
             access_token: None,
             client_id: None,
             client_secret: None,

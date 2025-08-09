@@ -6,6 +6,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use crate::utils::http_client::oauth_client;
 use anyhow::{Context, Result};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use chrono::{DateTime, Duration, Utc};
@@ -91,7 +92,7 @@ impl OAuth2Client {
     pub fn new(config: OAuth2Config) -> Self {
         Self {
             config,
-            client: reqwest::Client::new(),
+            client: oauth_client(),
         }
     }
 
