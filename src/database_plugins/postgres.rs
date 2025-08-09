@@ -852,7 +852,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         let rows = sqlx_query.fetch_all(&self.pool).await?;
 
-        let mut api_keys = Vec::new();
+        let mut api_keys = Vec::with_capacity(rows.len());
         for row in rows {
             let tier_str: String = row.get("tier");
             let tier = match tier_str.as_str() {
@@ -2100,7 +2100,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         let rows = sqlx::query(query).fetch_all(&self.pool).await?;
 
-        let mut tokens = Vec::new();
+        let mut tokens = Vec::with_capacity(rows.len());
         for row in rows {
             tokens.push(Self::row_to_admin_token(&row)?);
         }

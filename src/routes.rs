@@ -635,7 +635,7 @@ impl OAuthRoutes {
     /// Returns an error if:
     /// - Database operation fails
     pub async fn get_connection_status(&self, user_id: Uuid) -> Result<Vec<ConnectionStatus>> {
-        let mut statuses = Vec::new();
+        let mut statuses = Vec::with_capacity(2); // Always 2 providers (Strava, Fitbit)
 
         // Check Strava connection
         if let Ok(Some(strava_token)) = self.database.get_strava_token(user_id).await {

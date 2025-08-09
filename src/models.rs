@@ -1131,7 +1131,7 @@ impl User {
     /// Get list of available providers for this user
     #[must_use]
     pub fn available_providers(&self) -> Vec<String> {
-        let mut providers = Vec::new();
+        let mut providers = Vec::with_capacity(2); // Typically Strava and Fitbit
         if self.has_strava_access() {
             providers.push("strava".into());
         }

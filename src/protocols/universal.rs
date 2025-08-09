@@ -670,7 +670,7 @@ impl UniversalToolExecutor {
             result: Some(result),
             error: None,
             metadata: Some({
-                let mut meta = std::collections::HashMap::new();
+                let mut meta = std::collections::HashMap::with_capacity(4);
                 meta.insert("limit".into(), serde_json::Value::Number(limit.into()));
                 meta
             }),
@@ -954,7 +954,7 @@ impl UniversalToolExecutor {
                 result: Some(analysis),
                 error: None,
                 metadata: Some({
-                    let mut map = std::collections::HashMap::new();
+                    let mut map = std::collections::HashMap::with_capacity(4);
                     map.insert(
                         "analysis_timestamp".into(),
                         serde_json::Value::String(chrono::Utc::now().to_rfc3339()),
@@ -971,7 +971,7 @@ impl UniversalToolExecutor {
                 result: None,
                 error: Some(format!("Activity intelligence analysis failed: {e}")),
                 metadata: Some({
-                    let mut map = std::collections::HashMap::new();
+                    let mut map = std::collections::HashMap::with_capacity(4);
                     map.insert(
                         "analysis_timestamp".into(),
                         serde_json::Value::String(chrono::Utc::now().to_rfc3339()),
@@ -1014,7 +1014,7 @@ impl UniversalToolExecutor {
             .get_connection_status(user_uuid)
             .await
             .unwrap_or_else(|_| {
-                let mut default_status = std::collections::HashMap::new();
+                let mut default_status = std::collections::HashMap::with_capacity(2);
                 default_status.insert("strava".into(), false);
                 default_status.insert("fitbit".into(), false);
                 default_status
@@ -1380,7 +1380,7 @@ impl UniversalToolExecutor {
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get activities from provider
-        let mut activities = Vec::new();
+        let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
         if let Ok(Some(token_data)) = self.get_valid_token(user_uuid, "strava").await {
             match create_provider("strava") {
                 Ok(mut provider) => {
@@ -1437,7 +1437,7 @@ impl UniversalToolExecutor {
                 })),
                 error: None,
                 metadata: Some({
-                    let mut map = std::collections::HashMap::new();
+                    let mut map = std::collections::HashMap::with_capacity(4);
                     map.insert(
                         "analysis_engine".into(),
                         serde_json::Value::String("advanced_performance_analyzer".into()),
@@ -1579,7 +1579,7 @@ impl UniversalToolExecutor {
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get activities from provider
-        let mut activities = Vec::new();
+        let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
         if let Ok(Some(token_data)) = self.get_valid_token(user_uuid, "strava").await {
             match create_provider("strava") {
                 Ok(mut provider) => {
@@ -1699,7 +1699,7 @@ impl UniversalToolExecutor {
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get activities from provider
-        let mut activities = Vec::new();
+        let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
         if let Ok(Some(token_data)) = self.get_valid_token(user_uuid, "strava").await {
             match create_provider("strava") {
                 Ok(mut provider) => {
@@ -1770,7 +1770,7 @@ impl UniversalToolExecutor {
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get recent activities
-        let mut activities = Vec::new();
+        let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
         if let Ok(Some(token_data)) = self.get_valid_token(user_uuid, "strava").await {
             match create_provider("strava") {
                 Ok(mut provider) => {
@@ -1837,7 +1837,7 @@ impl UniversalToolExecutor {
                 })),
                 error: None,
                 metadata: Some({
-                    let mut map = std::collections::HashMap::new();
+                    let mut map = std::collections::HashMap::with_capacity(4);
                     map.insert(
                         "analysis_engine".into(),
                         serde_json::Value::String("smart_goal_engine".into()),
@@ -1910,7 +1910,7 @@ impl UniversalToolExecutor {
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get historical activities
-        let mut activities = Vec::new();
+        let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
         if let Ok(Some(token_data)) = self.get_valid_token(user_uuid, "strava").await {
             match create_provider("strava") {
                 Ok(mut provider) => {
@@ -2036,7 +2036,7 @@ impl UniversalToolExecutor {
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get recent activities
-        let mut activities = Vec::new();
+        let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
         if let Ok(Some(token_data)) = self.get_valid_token(user_uuid, "strava").await {
             match create_provider("strava") {
                 Ok(mut provider) => {
@@ -2113,7 +2113,7 @@ impl UniversalToolExecutor {
                 })),
                 error: None,
                 metadata: Some({
-                    let mut map = std::collections::HashMap::new();
+                    let mut map = std::collections::HashMap::with_capacity(4);
                     map.insert(
                         "recommendation_engine".into(),
                         serde_json::Value::String("adaptive_recommendation_engine".into()),
@@ -2143,7 +2143,7 @@ impl UniversalToolExecutor {
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get recent activities
-        let mut activities = Vec::new();
+        let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
         if let Ok(Some(token_data)) = self.get_valid_token(user_uuid, "strava").await {
             match create_provider("strava") {
                 Ok(mut provider) => {
@@ -2291,7 +2291,7 @@ impl UniversalToolExecutor {
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get historical activities
-        let mut activities = Vec::new();
+        let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
         if let Ok(Some(token_data)) = self.get_valid_token(user_uuid, "strava").await {
             match create_provider("strava") {
                 Ok(mut provider) => {
@@ -2421,7 +2421,7 @@ impl UniversalToolExecutor {
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get recent activities (last 4 weeks)
-        let mut activities = Vec::new();
+        let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
         if let Ok(Some(token_data)) = self.get_valid_token(user_uuid, "strava").await {
             match create_provider("strava") {
                 Ok(mut provider) => {
@@ -3059,7 +3059,7 @@ impl UniversalToolExecutor {
                 })),
                 error: None,
                 metadata: Some({
-                    let mut map = std::collections::HashMap::new();
+                    let mut map = std::collections::HashMap::with_capacity(4);
                     map.insert(
                         "validation_timestamp".into(),
                         serde_json::Value::String(chrono::Utc::now().to_rfc3339()),
@@ -3091,7 +3091,7 @@ impl UniversalToolExecutor {
                 })),
                 error: None, // No execution error, just validation failed
                 metadata: Some({
-                    let mut map = std::collections::HashMap::new();
+                    let mut map = std::collections::HashMap::with_capacity(4);
                     map.insert(
                         "validation_timestamp".into(),
                         serde_json::Value::String(chrono::Utc::now().to_rfc3339()),
