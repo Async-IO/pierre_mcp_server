@@ -2,6 +2,7 @@
 // ABOUTME: Provides common OAuth token exchange and refresh patterns for all providers
 
 use crate::oauth::{OAuthError, TokenData};
+use crate::utils::http_client::oauth_client;
 use base64::{engine::general_purpose, Engine as _};
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;
@@ -41,7 +42,7 @@ pub async fn exchange_authorization_code<T>(
 where
     T: DeserializeOwned,
 {
-    let client = reqwest::Client::new();
+    let client = oauth_client();
 
     let mut params = HashMap::new();
     params.insert("grant_type", "authorization_code");
@@ -98,7 +99,7 @@ pub async fn refresh_access_token<T>(
 where
     T: DeserializeOwned,
 {
-    let client = reqwest::Client::new();
+    let client = oauth_client();
 
     let mut params = HashMap::new();
     params.insert("grant_type", "refresh_token");
@@ -151,7 +152,7 @@ pub async fn revoke_access_token(
     client_id: &str,
     client_secret: &str,
 ) -> Result<(), OAuthError> {
-    let client = reqwest::Client::new();
+    let client = oauth_client();
 
     let mut request = client.post(revoke_url);
 

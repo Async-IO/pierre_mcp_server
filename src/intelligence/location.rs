@@ -1,5 +1,6 @@
 // ABOUTME: Location and geographic intelligence for activity analysis and environmental context
 // ABOUTME: Provides geocoding, elevation data, route analysis, and location-based insights
+use crate::utils::http_client::shared_client;
 use anyhow::{anyhow, Result};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -84,7 +85,7 @@ impl LocationService {
                     "Failed to create HTTP client for location service: {}, using default",
                     e
                 );
-                Client::new()
+                shared_client().clone()
             });
 
         Self {
