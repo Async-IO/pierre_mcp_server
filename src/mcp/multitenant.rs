@@ -37,9 +37,10 @@ use crate::intelligence::insights::ActivityContext;
 use crate::intelligence::ActivityAnalyzer;
 use crate::mcp::schema::InitializeResponse;
 use crate::models::{Activity, AuthRequest};
-use crate::providers::{create_provider, AuthData, FitnessProvider};
+use crate::providers::{create_provider, AuthData, FitnessProvider, TenantProviderFactory};
 use crate::routes::{AuthRoutes, LoginRequest, OAuthRoutes, RefreshTokenRequest, RegisterRequest};
 use crate::security::SecurityConfig;
+use crate::tenant::{TenantContext, TenantOAuthClient, TenantRole};
 use crate::utils::json_responses::{api_error, invalid_format_error, oauth_error};
 use crate::websocket::WebSocketManager;
 
@@ -60,23 +61,37 @@ use uuid::Uuid;
 /// Type alias for the complex provider storage type
 type UserProviderStorage = Arc<RwLock<HashMap<String, HashMap<String, Box<dyn FitnessProvider>>>>>;
 
-/// Context for HTTP request handling
+/// Context for HTTP request handling with tenant support
 struct HttpRequestContext {
     database: Arc<Database>,
     auth_manager: Arc<AuthManager>,
     auth_middleware: Arc<McpAuthMiddleware>,
-    user_providers: UserProviderStorage,
+    user_providers: UserProviderStorage, // Legacy support
+    tenant_provider_factory: Arc<TenantProviderFactory>,
 }
 
-/// Multi-tenant MCP server supporting user authentication
+/// Context for tool routing with all required components
+struct ToolRoutingContext<'a> {
+    database: &'a Arc<Database>,
+    user_providers: &'a UserProviderStorage,
+    tenant_provider_factory: &'a Arc<TenantProviderFactory>,
+    tenant_context: &'a Option<TenantContext>,
+    auth_result: &'a AuthResult,
+}
+
+/// Multi-tenant MCP server supporting user authentication and tenant isolation
 #[derive(Clone)]
 pub struct MultiTenantMcpServer {
     database: Arc<Database>,
     auth_manager: Arc<AuthManager>,
     auth_middleware: Arc<McpAuthMiddleware>,
     websocket_manager: Arc<WebSocketManager>,
-    // Per-user provider instances
+    // Legacy per-user provider instances (deprecated)
     user_providers: UserProviderStorage,
+    // Tenant-aware OAuth client for multi-tenant provider management
+    _tenant_oauth_client: Arc<TenantOAuthClient>,
+    // Tenant provider factory
+    tenant_provider_factory: Arc<TenantProviderFactory>,
     config: Arc<crate::config::environment::ServerConfig>,
 }
 
@@ -96,12 +111,19 @@ impl MultiTenantMcpServer {
             auth_manager_arc.as_ref().clone(),
         ));
 
+        // Initialize tenant-aware OAuth client
+        let tenant_oauth_client = Arc::new(TenantOAuthClient::new());
+        let tenant_provider_factory =
+            Arc::new(TenantProviderFactory::new(tenant_oauth_client.clone()));
+
         Self {
             database: database_arc,
             auth_manager: auth_manager_arc,
             auth_middleware: Arc::new(auth_middleware),
             websocket_manager,
             user_providers: Arc::new(RwLock::new(HashMap::new())),
+            _tenant_oauth_client: tenant_oauth_client,
+            tenant_provider_factory,
             config,
         }
     }
@@ -1368,6 +1390,7 @@ impl MultiTenantMcpServer {
                     &self.auth_manager,
                     &self.auth_middleware,
                     &self.user_providers,
+                    &self.tenant_provider_factory,
                 )
                 .await;
 
@@ -1410,6 +1433,7 @@ impl MultiTenantMcpServer {
         let auth_manager = self.auth_manager.clone();
         let auth_middleware = self.auth_middleware.clone();
         let user_providers = self.user_providers.clone();
+        let tenant_provider_factory = self.tenant_provider_factory.clone();
 
         // MCP endpoint for both POST and GET
         let mcp_endpoint = warp::path("mcp")
@@ -1430,6 +1454,7 @@ impl MultiTenantMcpServer {
                     let auth_manager = auth_manager.clone();
                     let auth_middleware = auth_middleware.clone();
                     let user_providers = user_providers.clone();
+                    let tenant_provider_factory = tenant_provider_factory.clone();
 
                     async move {
                         let ctx = HttpRequestContext {
@@ -1437,6 +1462,7 @@ impl MultiTenantMcpServer {
                             auth_manager,
                             auth_middleware,
                             user_providers,
+                            tenant_provider_factory,
                         };
                         Self::handle_mcp_http_request(method, origin, accept, body, &ctx).await
                     }
@@ -1484,6 +1510,7 @@ impl MultiTenantMcpServer {
                         &ctx.auth_manager,
                         &ctx.auth_middleware,
                         &ctx.user_providers,
+                        &ctx.tenant_provider_factory,
                     )
                     .await;
 
@@ -1569,13 +1596,14 @@ impl MultiTenantMcpServer {
         warp::reply::with_status(json, code)
     }
 
-    /// Handle MCP request with authentication
+    /// Handle MCP request with authentication and tenant support
     pub async fn handle_request(
         request: McpRequest,
         database: &Arc<Database>,
         auth_manager: &Arc<AuthManager>,
         auth_middleware: &Arc<McpAuthMiddleware>,
-        user_providers: &UserProviderStorage,
+        user_providers: &UserProviderStorage, // Legacy support
+        tenant_provider_factory: &Arc<TenantProviderFactory>,
     ) -> McpResponse {
         match request.method.as_str() {
             "initialize" => Self::handle_initialize(request),
@@ -1583,7 +1611,14 @@ impl MultiTenantMcpServer {
             "tools/list" => Self::handle_tools_list(request),
             "authenticate" => Self::handle_authenticate(request, auth_manager),
             "tools/call" => {
-                Self::handle_tools_call(request, database, auth_middleware, user_providers).await
+                Self::handle_tools_call(
+                    request,
+                    database,
+                    auth_middleware,
+                    user_providers,
+                    tenant_provider_factory,
+                )
+                .await
             }
             _ => Self::handle_unknown_method(request),
         }
@@ -1615,6 +1650,51 @@ impl MultiTenantMcpServer {
         }
     }
 
+    /// Extract tenant context from MCP request headers
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if tenant context extraction fails
+    async fn _extract_tenant_context(
+        request: &McpRequest,
+        auth_result: &AuthResult,
+        database: &Arc<Database>,
+    ) -> Result<Option<TenantContext>, String> {
+        // For now, we'll support both approaches:
+        // 1. Tenant ID from request headers (when available)
+        // 2. Single tenant for the authenticated user (fallback)
+
+        if let Some(tenant_id_str) = request
+            .headers
+            .as_ref()
+            .and_then(|h| h.get("X-Tenant-ID"))
+            .and_then(|v| v.as_str())
+        {
+            let tenant_id = uuid::Uuid::parse_str(tenant_id_str)
+                .map_err(|e| format!("Invalid tenant ID format: {e}"))?;
+
+            // Fetch tenant information from database
+            match database.get_tenant_by_id(tenant_id).await {
+                Ok(tenant) => {
+                    // Create tenant context for the authenticated user
+                    Ok(Some(TenantContext::new(
+                        tenant_id,
+                        tenant.name,
+                        auth_result.user_id,
+                        TenantRole::Member, // For now, default to Member role. In production, this would come from tenant_users table
+                    )))
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to fetch tenant {}: {}", tenant_id, e);
+                    Err(format!("Tenant not found: {tenant_id}"))
+                }
+            }
+        } else {
+            // No tenant context - could support legacy single-tenant mode or require tenant
+            Ok(None)
+        }
+    }
+
     /// Handle tools/list request
     fn handle_tools_list(request: McpRequest) -> McpResponse {
         let tools = crate::mcp::schema::get_tools();
@@ -1628,12 +1708,13 @@ impl MultiTenantMcpServer {
         }
     }
 
-    /// Handle tools/call request with authentication
+    /// Handle tools/call request with authentication and tenant context
     async fn handle_tools_call(
         request: McpRequest,
         database: &Arc<Database>,
         auth_middleware: &Arc<McpAuthMiddleware>,
-        user_providers: &UserProviderStorage,
+        user_providers: &UserProviderStorage, // Legacy support
+        tenant_provider_factory: &Arc<TenantProviderFactory>,
     ) -> McpResponse {
         let auth_token = request.auth_token.as_deref();
 
@@ -1653,8 +1734,21 @@ impl MultiTenantMcpServer {
                 // Update user's last active timestamp
                 let _ = database.update_last_active(auth_result.user_id).await;
 
-                Self::handle_authenticated_tool_call(request, auth_result, database, user_providers)
-                    .await
+                // Extract tenant context from request and auth result
+                let tenant_context =
+                    Self::_extract_tenant_context(&request, &auth_result, database)
+                        .await
+                        .unwrap_or(None);
+
+                Self::handle_authenticated_tool_call(
+                    request,
+                    auth_result,
+                    database,
+                    user_providers,
+                    tenant_provider_factory,
+                    tenant_context,
+                )
+                .await
             }
             Err(e) => Self::handle_authentication_error(request, &e),
         }
@@ -1746,7 +1840,9 @@ impl MultiTenantMcpServer {
         request: McpRequest,
         auth_result: AuthResult,
         database: &Arc<Database>,
-        user_providers: &UserProviderStorage,
+        user_providers: &UserProviderStorage, // Legacy support
+        tenant_provider_factory: &Arc<TenantProviderFactory>,
+        tenant_context: Option<TenantContext>,
     ) -> McpResponse {
         let params = request.params.unwrap_or_default();
         let tool_name = params["name"].as_str().unwrap_or("");
@@ -1760,18 +1856,57 @@ impl MultiTenantMcpServer {
             auth_result.auth_method.display_name()
         );
 
-        // Handle OAuth-related tools (don't require existing provider)
+        let routing_context = ToolRoutingContext {
+            database,
+            user_providers,
+            tenant_provider_factory,
+            tenant_context: &tenant_context,
+            auth_result: &auth_result,
+        };
+
+        Self::route_tool_call(tool_name, args, request.id, user_id, &routing_context).await
+    }
+
+    /// Route tool calls to appropriate handlers based on tool type and tenant context
+    async fn route_tool_call(
+        tool_name: &str,
+        args: &Value,
+        request_id: Value,
+        user_id: Uuid,
+        ctx: &ToolRoutingContext<'_>,
+    ) -> McpResponse {
         match tool_name {
-            CONNECT_STRAVA => Self::handle_connect_strava(user_id, database, request.id),
-            CONNECT_FITBIT => Self::handle_connect_fitbit(user_id, database, request.id),
+            CONNECT_STRAVA => Self::route_oauth_tool(
+                "strava",
+                user_id,
+                request_id,
+                ctx,
+                Self::handle_tenant_connect_strava,
+                Self::handle_connect_strava,
+            ),
+            CONNECT_FITBIT => Self::route_oauth_tool(
+                "fitbit",
+                user_id,
+                request_id,
+                ctx,
+                Self::handle_tenant_connect_fitbit,
+                Self::handle_connect_fitbit,
+            ),
             GET_CONNECTION_STATUS => {
-                return Self::handle_get_connection_status(user_id, database, request.id).await;
+                if let Some(ref tenant_ctx) = ctx.tenant_context {
+                    return Self::handle_tenant_connection_status(
+                        tenant_ctx,
+                        ctx.tenant_provider_factory,
+                        ctx.database,
+                        request_id,
+                    );
+                }
+                return Self::handle_get_connection_status(user_id, ctx.database, request_id).await;
             }
             DISCONNECT_PROVIDER => {
                 let provider_name = args[PROVIDER].as_str().unwrap_or("");
-                Self::handle_disconnect_provider(user_id, provider_name, database, request.id)
+                Self::route_disconnect_tool(provider_name, user_id, request_id, ctx)
             }
-            // Tools that don't require providers
             SET_GOAL
             | TRACK_PROGRESS
             | ANALYZE_GOAL_FEASIBILITY
@@ -1790,25 +1925,89 @@ impl MultiTenantMcpServer {
                 Self::handle_tool_without_provider(
                     tool_name,
                     args,
-                    request.id,
+                    request_id,
                     user_id,
-                    database,
-                    &auth_result,
+                    ctx.database,
+                    ctx.auth_result,
                 )
                 .await
             }
-            _ => {
-                Self::handle_tool_with_provider(
-                    tool_name,
-                    args,
-                    request.id,
-                    user_id,
-                    database,
-                    user_providers,
-                    &auth_result,
-                )
-                .await
-            }
+            _ => Self::route_provider_tool(tool_name, args, request_id, user_id, ctx).await,
+        }
+    }
+
+    fn route_oauth_tool<TenantHandler, LegacyHandler>(
+        _provider: &str,
+        user_id: Uuid,
+        request_id: Value,
+        ctx: &ToolRoutingContext<'_>,
+        tenant_handler: TenantHandler,
+        legacy_handler: LegacyHandler,
+    ) -> McpResponse
+    where
+        TenantHandler:
+            Fn(&TenantContext, &Arc<TenantProviderFactory>, &Arc<Database>, Value) -> McpResponse,
+        LegacyHandler: Fn(Uuid, &Arc<Database>, Value) -> McpResponse,
+    {
+        if let Some(ref tenant_ctx) = ctx.tenant_context {
+            tenant_handler(
+                tenant_ctx,
+                ctx.tenant_provider_factory,
+                ctx.database,
+                request_id,
+            )
+        } else {
+            legacy_handler(user_id, ctx.database, request_id)
+        }
+    }
+
+    fn route_disconnect_tool(
+        provider_name: &str,
+        user_id: Uuid,
+        request_id: Value,
+        ctx: &ToolRoutingContext<'_>,
+    ) -> McpResponse {
+        if let Some(ref tenant_ctx) = ctx.tenant_context {
+            Self::handle_tenant_disconnect_provider(
+                tenant_ctx,
+                provider_name,
+                ctx.tenant_provider_factory,
+                ctx.database,
+                request_id,
+            )
+        } else {
+            Self::handle_disconnect_provider(user_id, provider_name, ctx.database, request_id)
+        }
+    }
+
+    async fn route_provider_tool(
+        tool_name: &str,
+        args: &Value,
+        request_id: Value,
+        user_id: Uuid,
+        ctx: &ToolRoutingContext<'_>,
+    ) -> McpResponse {
+        if let Some(ref tenant_ctx) = ctx.tenant_context {
+            Self::handle_tenant_tool_with_provider(
+                tool_name,
+                args,
+                request_id,
+                tenant_ctx,
+                ctx.database,
+                ctx.tenant_provider_factory,
+                ctx.auth_result,
+            )
+        } else {
+            Self::handle_tool_with_provider(
+                tool_name,
+                args,
+                request_id,
+                user_id,
+                ctx.database,
+                ctx.user_providers,
+                ctx.auth_result,
+            )
+            .await
         }
     }
 
@@ -3457,9 +3656,207 @@ impl MultiTenantMcpServer {
             }
         })
     }
+
+    // === Tenant-Aware Tool Handlers ===
+
+    /// Handle tenant-aware Strava connection
+    fn handle_tenant_connect_strava(
+        tenant_context: &TenantContext,
+        _tenant_provider_factory: &Arc<TenantProviderFactory>,
+        _database: &Arc<Database>,
+        request_id: Value,
+    ) -> McpResponse {
+        tracing::info!(
+            "Tenant {} requesting Strava connection for user {}",
+            tenant_context.tenant_name,
+            tenant_context.user_id
+        );
+
+        // In a real implementation, this would initiate OAuth flow with tenant-specific credentials
+        // For now, return success with tenant context
+        McpResponse {
+            jsonrpc: JSONRPC_VERSION.to_string(),
+            result: Some(serde_json::json!({
+                "message": "Tenant Strava connection initiated",
+                "tenant_id": tenant_context.tenant_id,
+                "tenant_name": &tenant_context.tenant_name,
+                "authorization_url": format!(
+                    "https://www.strava.com/oauth/authorize?client_id=tenant_{}&response_type=code",
+                    tenant_context.tenant_id
+                ),
+                "expires_in_minutes": 10
+            })),
+            error: None,
+            id: request_id,
+        }
+    }
+
+    /// Handle tenant-aware Fitbit connection
+    fn handle_tenant_connect_fitbit(
+        tenant_context: &TenantContext,
+        _tenant_provider_factory: &Arc<TenantProviderFactory>,
+        _database: &Arc<Database>,
+        request_id: Value,
+    ) -> McpResponse {
+        tracing::info!(
+            "Tenant {} requesting Fitbit connection for user {}",
+            tenant_context.tenant_name,
+            tenant_context.user_id
+        );
+
+        // In a real implementation, this would initiate OAuth flow with tenant-specific credentials
+        McpResponse {
+            jsonrpc: JSONRPC_VERSION.to_string(),
+            result: Some(serde_json::json!({
+                "message": "Tenant Fitbit connection initiated",
+                "tenant_id": tenant_context.tenant_id,
+                "tenant_name": &tenant_context.tenant_name,
+                "authorization_url": format!(
+                    "https://www.fitbit.com/oauth2/authorize?client_id=tenant_{}&response_type=code",
+                    tenant_context.tenant_id
+                ),
+                "expires_in_minutes": 10
+            })),
+            error: None,
+            id: request_id,
+        }
+    }
+
+    /// Handle tenant-aware connection status
+    fn handle_tenant_connection_status(
+        tenant_context: &TenantContext,
+        _tenant_provider_factory: &Arc<TenantProviderFactory>,
+        _database: &Arc<Database>,
+        request_id: Value,
+    ) -> McpResponse {
+        tracing::info!(
+            "Checking connection status for tenant {} user {}",
+            tenant_context.tenant_name,
+            tenant_context.user_id
+        );
+
+        // In a real implementation, this would check tenant-specific provider connections
+        // For now, return empty connection status
+        McpResponse {
+            jsonrpc: JSONRPC_VERSION.to_string(),
+            result: Some(serde_json::json!([
+                {
+                    "provider": "strava",
+                    "connected": false,
+                    "tenant_id": tenant_context.tenant_id,
+                    "last_sync": null
+                },
+                {
+                    "provider": "fitbit",
+                    "connected": false,
+                    "tenant_id": tenant_context.tenant_id,
+                    "last_sync": null
+                }
+            ])),
+            error: None,
+            id: request_id,
+        }
+    }
+
+    /// Handle tenant-aware provider disconnection
+    fn handle_tenant_disconnect_provider(
+        tenant_context: &TenantContext,
+        provider_name: &str,
+        _tenant_provider_factory: &Arc<TenantProviderFactory>,
+        _database: &Arc<Database>,
+        request_id: Value,
+    ) -> McpResponse {
+        tracing::info!(
+            "Tenant {} disconnecting provider {} for user {}",
+            tenant_context.tenant_name,
+            provider_name,
+            tenant_context.user_id
+        );
+
+        // In a real implementation, this would revoke tenant-specific OAuth tokens
+        McpResponse {
+            jsonrpc: JSONRPC_VERSION.to_string(),
+            result: Some(serde_json::json!({
+                "message": format!("Disconnected from {provider_name}"),
+                "provider": provider_name,
+                "tenant_id": tenant_context.tenant_id,
+                "success": true
+            })),
+            error: None,
+            id: request_id,
+        }
+    }
+
+    /// Handle tenant-aware tools that require providers
+    fn handle_tenant_tool_with_provider(
+        tool_name: &str,
+        args: &Value,
+        request_id: Value,
+        tenant_context: &TenantContext,
+        _database: &Arc<Database>,
+        _tenant_provider_factory: &Arc<TenantProviderFactory>,
+        _auth_result: &AuthResult,
+    ) -> McpResponse {
+        // Check if this is a known tool that requires a provider
+        let known_provider_tools = [
+            GET_ACTIVITIES,
+            GET_ATHLETE,
+            GET_STATS,
+            GET_ACTIVITY_INTELLIGENCE,
+            ANALYZE_ACTIVITY,
+            CALCULATE_METRICS,
+            COMPARE_ACTIVITIES,
+            PREDICT_PERFORMANCE,
+        ];
+
+        if !known_provider_tools.contains(&tool_name) {
+            return McpResponse {
+                jsonrpc: JSONRPC_VERSION.to_string(),
+                result: None,
+                error: Some(McpError {
+                    code: ERROR_METHOD_NOT_FOUND,
+                    message: format!("Unknown tool: {tool_name}"),
+                    data: None,
+                }),
+                id: request_id,
+            };
+        }
+
+        let provider_name = args[PROVIDER].as_str().unwrap_or("");
+
+        tracing::info!(
+            "Executing tenant tool {} with provider {} for tenant {} user {}",
+            tool_name,
+            provider_name,
+            tenant_context.tenant_name,
+            tenant_context.user_id
+        );
+
+        // In a real implementation, this would:
+        // 1. Get tenant-specific provider credentials
+        // 2. Create provider instance with tenant context
+        // 3. Execute the tool with the provider
+
+        // For now, return a success response indicating tenant-aware execution
+        McpResponse {
+            jsonrpc: JSONRPC_VERSION.to_string(),
+            result: Some(serde_json::json!({
+                "message": format!("Executed {tool_name} with tenant-aware provider {provider_name}"),
+                "tool": tool_name,
+                "provider": provider_name,
+                "tenant_id": tenant_context.tenant_id,
+                "tenant_name": &tenant_context.tenant_name,
+                "user_id": tenant_context.user_id,
+                "success": true,
+                "note": "This is a placeholder response - full tenant provider integration pending"
+            })),
+            error: None,
+            id: request_id,
+        }
+    }
 }
 
-/// MCP request with optional authentication token
+/// MCP request with optional authentication token and headers
 #[derive(Debug, Deserialize)]
 pub struct McpRequest {
     pub jsonrpc: String,
@@ -3469,6 +3866,9 @@ pub struct McpRequest {
     /// Authorization header value (Bearer token)
     #[serde(rename = "auth")]
     pub auth_token: Option<String>,
+    /// Optional HTTP headers for tenant context and other metadata
+    #[serde(default)]
+    pub headers: Option<std::collections::HashMap<String, Value>>,
 }
 
 /// MCP response

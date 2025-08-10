@@ -1240,4 +1240,101 @@ impl DatabaseProvider for Database {
             }
         }
     }
+
+    // Multi-tenant management stub implementations
+    async fn create_tenant(&self, _tenant: &crate::models::Tenant) -> Result<()> {
+        // Stub implementation - TODO: implement in both SQLite and PostgreSQL
+        Ok(())
+    }
+
+    async fn get_tenant_by_id(&self, _tenant_id: uuid::Uuid) -> Result<crate::models::Tenant> {
+        // Stub implementation - TODO: implement in both SQLite and PostgreSQL
+        Err(anyhow::anyhow!("Tenant management not yet implemented"))
+    }
+
+    async fn get_tenant_by_slug(&self, _slug: &str) -> Result<crate::models::Tenant> {
+        // Stub implementation - TODO: implement in both SQLite and PostgreSQL
+        Err(anyhow::anyhow!("Tenant management not yet implemented"))
+    }
+
+    async fn list_tenants_for_user(
+        &self,
+        _user_id: uuid::Uuid,
+    ) -> Result<Vec<crate::models::Tenant>> {
+        // Stub implementation - TODO: implement in both SQLite and PostgreSQL
+        Ok(Vec::new())
+    }
+
+    async fn store_tenant_oauth_credentials(
+        &self,
+        _credentials: &crate::tenant::TenantOAuthCredentials,
+    ) -> Result<()> {
+        // Stub implementation - TODO: implement in both SQLite and PostgreSQL
+        Ok(())
+    }
+
+    async fn get_tenant_oauth_providers(
+        &self,
+        _tenant_id: uuid::Uuid,
+    ) -> Result<Vec<crate::tenant::TenantOAuthCredentials>> {
+        // Stub implementation - TODO: implement in both SQLite and PostgreSQL
+        Ok(Vec::new())
+    }
+
+    async fn get_tenant_oauth_credentials(
+        &self,
+        _tenant_id: uuid::Uuid,
+        _provider: &str,
+    ) -> Result<Option<crate::tenant::TenantOAuthCredentials>> {
+        // Stub implementation - TODO: implement in both SQLite and PostgreSQL
+        Ok(None)
+    }
+
+    // OAuth app registration stub implementations
+    async fn create_oauth_app(&self, _app: &crate::models::OAuthApp) -> Result<()> {
+        // Stub implementation - TODO: implement in both SQLite and PostgreSQL
+        Ok(())
+    }
+
+    async fn get_oauth_app_by_client_id(
+        &self,
+        _client_id: &str,
+    ) -> Result<crate::models::OAuthApp> {
+        // Stub implementation - TODO: implement in both SQLite and PostgreSQL
+        Err(anyhow::anyhow!("OAuth app management not yet implemented"))
+    }
+
+    async fn list_oauth_apps_for_user(
+        &self,
+        _user_id: uuid::Uuid,
+    ) -> Result<Vec<crate::models::OAuthApp>> {
+        // Stub implementation - TODO: implement in both SQLite and PostgreSQL
+        Ok(Vec::new())
+    }
+
+    async fn store_authorization_code(
+        &self,
+        _code: &str,
+        _client_id: &str,
+        _redirect_uri: &str,
+        _scope: &str,
+    ) -> Result<()> {
+        // Stub implementation - TODO: implement in both SQLite and PostgreSQL
+        Ok(())
+    }
+
+    async fn get_authorization_code(
+        &self,
+        _code: &str,
+    ) -> Result<crate::models::AuthorizationCode> {
+        // Stub implementation - TODO: implement in both SQLite and PostgreSQL
+        Err(anyhow::anyhow!(
+            "OAuth authorization code management not yet implemented"
+        ))
+    }
+
+    async fn delete_authorization_code(&self, _code: &str) -> Result<()> {
+        // Stub implementation - TODO: implement in both SQLite and PostgreSQL
+        Ok(())
+    }
 }

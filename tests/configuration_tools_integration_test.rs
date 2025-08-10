@@ -11,6 +11,8 @@ use pierre_mcp_server::{
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::multitenant::{McpRequest, MultiTenantMcpServer},
     models::User,
+    providers::tenant_provider::TenantProviderFactory,
+    tenant::TenantOAuthClient,
 };
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -82,14 +84,18 @@ async fn make_tool_request(
         })),
         id: json!(1),
         auth_token: Some(format!("Bearer {token}")),
+        headers: None,
     };
 
+    let tenant_oauth_client = Arc::new(TenantOAuthClient::new());
+    let tenant_provider_factory = Arc::new(TenantProviderFactory::new(tenant_oauth_client));
     Ok(MultiTenantMcpServer::handle_request(
         request,
         database,
         auth_manager,
         auth_middleware,
         user_providers,
+        &tenant_provider_factory,
     )
     .await)
 }
@@ -213,14 +219,18 @@ async fn test_configuration_tools_require_authentication() -> Result<()> {
         })),
         id: json!(1),
         auth_token: None, // No authentication
+        headers: None,
     };
 
+    let tenant_oauth_client = Arc::new(TenantOAuthClient::new());
+    let tenant_provider_factory = Arc::new(TenantProviderFactory::new(tenant_oauth_client));
     let response = MultiTenantMcpServer::handle_request(
         request,
         &database,
         &auth_manager,
         &auth_middleware,
         &user_providers,
+        &tenant_provider_factory,
     )
     .await;
 
@@ -249,14 +259,18 @@ async fn test_configuration_tools_with_invalid_parameters() -> Result<()> {
         })),
         id: json!(1),
         auth_token: Some(format!("Bearer {token}")),
+        headers: None,
     };
 
+    let tenant_oauth_client = Arc::new(TenantOAuthClient::new());
+    let tenant_provider_factory = Arc::new(TenantProviderFactory::new(tenant_oauth_client));
     let response = MultiTenantMcpServer::handle_request(
         request,
         &database,
         &auth_manager,
         &auth_middleware,
         &user_providers,
+        &tenant_provider_factory,
     )
     .await;
 

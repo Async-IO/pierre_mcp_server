@@ -508,6 +508,74 @@ impl AuthManager {
             }
         }
     }
+
+    /// Generate OAuth access token for user authorization flow
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - JWT token generation fails
+    /// - System time is unavailable
+    pub fn generate_oauth_access_token(&self, user_id: &Uuid, scopes: &[String]) -> Result<String> {
+        let now = Utc::now();
+        let expiry = now + Duration::hours(24); // 24 hours for OAuth access tokens
+
+        let counter = self.token_counter.fetch_add(1, Ordering::Relaxed);
+        let unique_iat =
+            now.timestamp() * 1000 + i64::from(u32::try_from(counter % 1000).unwrap_or(0));
+
+        let claims = Claims {
+            sub: user_id.to_string(),
+            email: "oauth_token".to_string(), // Placeholder for OAuth tokens
+            iat: unique_iat,
+            exp: expiry.timestamp(),
+            providers: scopes.to_vec(),
+        };
+
+        let token = encode(
+            &Header::default(),
+            &claims,
+            &EncodingKey::from_secret(&self.jwt_secret),
+        )?;
+
+        Ok(token)
+    }
+
+    /// Generate client credentials token for A2A authentication
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - JWT token generation fails
+    /// - System time is unavailable
+    pub fn generate_client_credentials_token(
+        &self,
+        client_id: &str,
+        scopes: &[String],
+    ) -> Result<String> {
+        let now = Utc::now();
+        let expiry = now + Duration::hours(1); // 1 hour for client credentials
+
+        let counter = self.token_counter.fetch_add(1, Ordering::Relaxed);
+        let unique_iat =
+            now.timestamp() * 1000 + i64::from(u32::try_from(counter % 1000).unwrap_or(0));
+
+        let claims = Claims {
+            sub: format!("client:{client_id}"),
+            email: "client_credentials".to_string(),
+            iat: unique_iat,
+            exp: expiry.timestamp(),
+            providers: scopes.to_vec(),
+        };
+
+        let token = encode(
+            &Header::default(),
+            &claims,
+            &EncodingKey::from_secret(&self.jwt_secret),
+        )?;
+
+        Ok(token)
+    }
 }
 
 /// Generate a random `JWT` secret

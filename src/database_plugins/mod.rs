@@ -407,4 +407,68 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
     ) -> Result<Vec<serde_json::Value>>;
+
+    // ================================
+    // Multi-Tenant Management
+    // ================================
+
+    /// Create a new tenant
+    async fn create_tenant(&self, tenant: &crate::models::Tenant) -> Result<()>;
+
+    /// Get tenant by ID
+    async fn get_tenant_by_id(&self, tenant_id: Uuid) -> Result<crate::models::Tenant>;
+
+    /// Get tenant by slug
+    async fn get_tenant_by_slug(&self, slug: &str) -> Result<crate::models::Tenant>;
+
+    /// List tenants for a user
+    async fn list_tenants_for_user(&self, user_id: Uuid) -> Result<Vec<crate::models::Tenant>>;
+
+    /// Store tenant OAuth credentials
+    async fn store_tenant_oauth_credentials(
+        &self,
+        credentials: &crate::tenant::TenantOAuthCredentials,
+    ) -> Result<()>;
+
+    /// Get tenant OAuth providers
+    async fn get_tenant_oauth_providers(
+        &self,
+        tenant_id: Uuid,
+    ) -> Result<Vec<crate::tenant::TenantOAuthCredentials>>;
+
+    /// Get tenant OAuth credentials for specific provider
+    async fn get_tenant_oauth_credentials(
+        &self,
+        tenant_id: Uuid,
+        provider: &str,
+    ) -> Result<Option<crate::tenant::TenantOAuthCredentials>>;
+
+    // ================================
+    // OAuth App Registration
+    // ================================
+
+    /// Create OAuth application (for Claude Desktop, ChatGPT, etc.)
+    async fn create_oauth_app(&self, app: &crate::models::OAuthApp) -> Result<()>;
+
+    /// Get OAuth app by client ID
+    async fn get_oauth_app_by_client_id(&self, client_id: &str) -> Result<crate::models::OAuthApp>;
+
+    /// List OAuth apps for a user
+    async fn list_oauth_apps_for_user(&self, user_id: Uuid)
+        -> Result<Vec<crate::models::OAuthApp>>;
+
+    /// Store authorization code
+    async fn store_authorization_code(
+        &self,
+        code: &str,
+        client_id: &str,
+        redirect_uri: &str,
+        scope: &str,
+    ) -> Result<()>;
+
+    /// Get authorization code data
+    async fn get_authorization_code(&self, code: &str) -> Result<crate::models::AuthorizationCode>;
+
+    /// Delete authorization code (after use)
+    async fn delete_authorization_code(&self, code: &str) -> Result<()>;
 }

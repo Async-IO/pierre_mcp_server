@@ -13,7 +13,7 @@ use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
 use crate::database::A2AUsage;
 use crate::models::{DecryptedToken, User};
 use crate::rate_limiting::JwtUsage;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
@@ -919,6 +919,504 @@ impl DatabaseProvider for SqliteDatabase {
             .collect::<Vec<_>>();
 
         Ok(results)
+    }
+
+    // ================================
+    // Multi-Tenant Management
+    // ================================
+
+    /// Create a new tenant
+    async fn create_tenant(&self, tenant: &crate::models::Tenant) -> Result<()> {
+        let query = r"
+            INSERT INTO tenants (id, name, slug, domain, plan, owner_user_id, is_active, created_at, updated_at)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+        ";
+
+        sqlx::query(query)
+            .bind(tenant.id.to_string())
+            .bind(&tenant.name)
+            .bind(&tenant.slug)
+            .bind(&tenant.domain)
+            .bind(&tenant.plan)
+            .bind(tenant.owner_user_id.to_string())
+            .bind(true)
+            .bind(tenant.created_at)
+            .bind(tenant.updated_at)
+            .execute(self.inner.pool())
+            .await
+            .context("Failed to create tenant")?;
+
+        tracing::info!("Created tenant: {} ({})", tenant.name, tenant.id);
+        Ok(())
+    }
+
+    /// Get tenant by ID
+    async fn get_tenant_by_id(&self, tenant_id: Uuid) -> Result<crate::models::Tenant> {
+        let query = r"
+            SELECT id, name, slug, domain, plan, owner_user_id, created_at, updated_at
+            FROM tenants 
+            WHERE id = ?1 AND is_active = true
+        ";
+
+        let row = sqlx::query(query)
+            .bind(tenant_id.to_string())
+            .fetch_optional(self.inner.pool())
+            .await
+            .context("Failed to fetch tenant")?;
+
+        match row {
+            Some(row) => {
+                let tenant = crate::models::Tenant {
+                    id: crate::utils::uuid::parse_uuid(&row.get::<String, _>("id"))?,
+                    name: row.get("name"),
+                    slug: row.get("slug"),
+                    domain: row.get("domain"),
+                    plan: row.get("plan"),
+                    owner_user_id: crate::utils::uuid::parse_uuid(
+                        &row.get::<String, _>("owner_user_id"),
+                    )?,
+                    created_at: row.get("created_at"),
+                    updated_at: row.get("updated_at"),
+                };
+                Ok(tenant)
+            }
+            None => Err(anyhow::anyhow!("Tenant not found: {tenant_id}")),
+        }
+    }
+
+    /// Get tenant by slug
+    async fn get_tenant_by_slug(&self, slug: &str) -> Result<crate::models::Tenant> {
+        let query = r"
+            SELECT id, name, slug, domain, plan, owner_user_id, created_at, updated_at
+            FROM tenants 
+            WHERE slug = ?1 AND is_active = true
+        ";
+
+        let row = sqlx::query(query)
+            .bind(slug)
+            .fetch_optional(self.inner.pool())
+            .await
+            .context("Failed to fetch tenant by slug")?;
+
+        match row {
+            Some(row) => {
+                let tenant = crate::models::Tenant {
+                    id: crate::utils::uuid::parse_uuid(&row.get::<String, _>("id"))?,
+                    name: row.get("name"),
+                    slug: row.get("slug"),
+                    domain: row.get("domain"),
+                    plan: row.get("plan"),
+                    owner_user_id: crate::utils::uuid::parse_uuid(
+                        &row.get::<String, _>("owner_user_id"),
+                    )?,
+                    created_at: row.get("created_at"),
+                    updated_at: row.get("updated_at"),
+                };
+                Ok(tenant)
+            }
+            None => Err(anyhow::anyhow!("Tenant not found with slug: {slug}")),
+        }
+    }
+
+    /// List tenants for a user
+    async fn list_tenants_for_user(&self, user_id: Uuid) -> Result<Vec<crate::models::Tenant>> {
+        let query = r"
+            SELECT id, name, slug, domain, plan, owner_user_id, created_at, updated_at
+            FROM tenants 
+            WHERE owner_user_id = ?1 AND is_active = true
+            ORDER BY created_at DESC
+        ";
+
+        let rows = sqlx::query(query)
+            .bind(user_id.to_string())
+            .fetch_all(self.inner.pool())
+            .await
+            .context("Failed to fetch tenants for user")?;
+
+        let mut tenants = Vec::with_capacity(rows.len());
+        for row in rows {
+            let tenant = crate::models::Tenant {
+                id: crate::utils::uuid::parse_uuid(&row.get::<String, _>("id"))?,
+                name: row.get("name"),
+                slug: row.get("slug"),
+                domain: row.get("domain"),
+                plan: row.get("plan"),
+                owner_user_id: crate::utils::uuid::parse_uuid(
+                    &row.get::<String, _>("owner_user_id"),
+                )?,
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+            };
+            tenants.push(tenant);
+        }
+
+        Ok(tenants)
+    }
+
+    /// Store tenant OAuth credentials
+    async fn store_tenant_oauth_credentials(
+        &self,
+        credentials: &crate::tenant::TenantOAuthCredentials,
+    ) -> Result<()> {
+        // Encrypt the client secret
+        let encrypted_secret = self
+            .inner
+            .encrypt_data(&credentials.client_secret)
+            .context("Failed to encrypt OAuth client secret")?;
+
+        let scopes_json = serde_json::to_string(&credentials.scopes)
+            .context("Failed to serialize OAuth scopes")?;
+
+        let query = r"
+            INSERT OR REPLACE INTO tenant_oauth_credentials 
+            (tenant_id, provider, client_id, client_secret_encrypted, redirect_uri, scopes, rate_limit_per_day, is_active)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+        ";
+
+        sqlx::query(query)
+            .bind(credentials.tenant_id.to_string())
+            .bind(&credentials.provider)
+            .bind(&credentials.client_id)
+            .bind(&encrypted_secret)
+            .bind(&credentials.redirect_uri)
+            .bind(&scopes_json)
+            .bind(i32::try_from(credentials.rate_limit_per_day).unwrap_or(i32::MAX))
+            .bind(true)
+            .execute(self.inner.pool())
+            .await
+            .context("Failed to store tenant OAuth credentials")?;
+
+        tracing::info!(
+            "Stored OAuth credentials for tenant {} provider {}",
+            credentials.tenant_id,
+            credentials.provider
+        );
+        Ok(())
+    }
+
+    /// Get tenant OAuth providers
+    async fn get_tenant_oauth_providers(
+        &self,
+        tenant_id: Uuid,
+    ) -> Result<Vec<crate::tenant::TenantOAuthCredentials>> {
+        let query = r"
+            SELECT tenant_id, provider, client_id, client_secret_encrypted, redirect_uri, scopes, rate_limit_per_day
+            FROM tenant_oauth_credentials 
+            WHERE tenant_id = ?1 AND is_active = true
+            ORDER BY provider
+        ";
+
+        let rows = sqlx::query(query)
+            .bind(tenant_id.to_string())
+            .fetch_all(self.inner.pool())
+            .await
+            .context("Failed to fetch tenant OAuth providers")?;
+
+        let mut credentials = Vec::with_capacity(rows.len());
+        for row in rows {
+            // Decrypt the client secret
+            let encrypted_secret: String = row.get("client_secret_encrypted");
+            let decrypted_secret = self
+                .inner
+                .decrypt_data(&encrypted_secret)
+                .context("Failed to decrypt OAuth client secret")?;
+
+            let scopes_json: String = row.get("scopes");
+            let scopes: Vec<String> =
+                serde_json::from_str(&scopes_json).context("Failed to deserialize OAuth scopes")?;
+
+            let cred = crate::tenant::TenantOAuthCredentials {
+                tenant_id: crate::utils::uuid::parse_uuid(&row.get::<String, _>("tenant_id"))?,
+                provider: row.get("provider"),
+                client_id: row.get("client_id"),
+                client_secret: decrypted_secret,
+                redirect_uri: row.get("redirect_uri"),
+                scopes,
+                rate_limit_per_day: u32::try_from(row.get::<i32, _>("rate_limit_per_day"))
+                    .unwrap_or(0),
+            };
+            credentials.push(cred);
+        }
+
+        Ok(credentials)
+    }
+
+    /// Get tenant OAuth credentials for specific provider
+    async fn get_tenant_oauth_credentials(
+        &self,
+        tenant_id: Uuid,
+        provider: &str,
+    ) -> Result<Option<crate::tenant::TenantOAuthCredentials>> {
+        let query = r"
+            SELECT tenant_id, provider, client_id, client_secret_encrypted, redirect_uri, scopes, rate_limit_per_day
+            FROM tenant_oauth_credentials 
+            WHERE tenant_id = ?1 AND provider = ?2 AND is_active = true
+        ";
+
+        let row = sqlx::query(query)
+            .bind(tenant_id.to_string())
+            .bind(provider)
+            .fetch_optional(self.inner.pool())
+            .await
+            .context("Failed to fetch tenant OAuth credentials")?;
+
+        match row {
+            Some(row) => {
+                // Decrypt the client secret
+                let encrypted_secret: String = row.get("client_secret_encrypted");
+                let decrypted_secret = self
+                    .inner
+                    .decrypt_data(&encrypted_secret)
+                    .context("Failed to decrypt OAuth client secret")?;
+
+                let scopes_json: String = row.get("scopes");
+                let scopes: Vec<String> = serde_json::from_str(&scopes_json)
+                    .context("Failed to deserialize OAuth scopes")?;
+
+                let cred = crate::tenant::TenantOAuthCredentials {
+                    tenant_id: crate::utils::uuid::parse_uuid(&row.get::<String, _>("tenant_id"))?,
+                    provider: row.get("provider"),
+                    client_id: row.get("client_id"),
+                    client_secret: decrypted_secret,
+                    redirect_uri: row.get("redirect_uri"),
+                    scopes,
+                    rate_limit_per_day: u32::try_from(row.get::<i32, _>("rate_limit_per_day"))
+                        .unwrap_or(0),
+                };
+                Ok(Some(cred))
+            }
+            None => Ok(None),
+        }
+    }
+
+    // ================================
+    // OAuth App Registration
+    // ================================
+
+    /// Create OAuth application
+    async fn create_oauth_app(&self, app: &crate::models::OAuthApp) -> Result<()> {
+        // Hash the client secret for secure storage
+        let client_secret_hash = self
+            .inner
+            .hash_data(&app.client_secret)
+            .context("Failed to hash OAuth client secret")?;
+
+        let redirect_uris_json = serde_json::to_string(&app.redirect_uris)
+            .context("Failed to serialize redirect URIs")?;
+
+        let scopes_json =
+            serde_json::to_string(&app.scopes).context("Failed to serialize scopes")?;
+
+        let query = r"
+            INSERT INTO oauth_apps 
+            (id, client_id, client_secret_hash, name, description, redirect_uris, scopes, app_type, owner_user_id, is_active, created_at, updated_at)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+        ";
+
+        sqlx::query(query)
+            .bind(app.id.to_string())
+            .bind(&app.client_id)
+            .bind(&client_secret_hash)
+            .bind(&app.name)
+            .bind(&app.description)
+            .bind(&redirect_uris_json)
+            .bind(&scopes_json)
+            .bind(&app.app_type)
+            .bind(app.owner_user_id.to_string())
+            .bind(true)
+            .bind(app.created_at)
+            .bind(app.updated_at)
+            .execute(self.inner.pool())
+            .await
+            .context("Failed to create OAuth app")?;
+
+        tracing::info!("Created OAuth app: {} ({})", app.name, app.client_id);
+        Ok(())
+    }
+
+    /// Get OAuth app by client ID
+    async fn get_oauth_app_by_client_id(&self, client_id: &str) -> Result<crate::models::OAuthApp> {
+        let query = r"
+            SELECT id, client_id, client_secret_hash, name, description, redirect_uris, scopes, app_type, owner_user_id, created_at, updated_at
+            FROM oauth_apps 
+            WHERE client_id = ?1 AND is_active = true
+        ";
+
+        let row = sqlx::query(query)
+            .bind(client_id)
+            .fetch_optional(self.inner.pool())
+            .await
+            .context("Failed to fetch OAuth app")?;
+
+        match row {
+            Some(row) => {
+                let redirect_uris_json: String = row.get("redirect_uris");
+                let redirect_uris: Vec<String> = serde_json::from_str(&redirect_uris_json)
+                    .context("Failed to deserialize redirect URIs")?;
+
+                let scopes_json: String = row.get("scopes");
+                let scopes: Vec<String> =
+                    serde_json::from_str(&scopes_json).context("Failed to deserialize scopes")?;
+
+                let app = crate::models::OAuthApp {
+                    id: crate::utils::uuid::parse_uuid(&row.get::<String, _>("id"))?,
+                    client_id: row.get("client_id"),
+                    client_secret: row.get("client_secret_hash"), // Store hash, not original
+                    name: row.get("name"),
+                    description: row.get("description"),
+                    redirect_uris,
+                    scopes,
+                    app_type: row.get("app_type"),
+                    owner_user_id: crate::utils::uuid::parse_uuid(
+                        &row.get::<String, _>("owner_user_id"),
+                    )?,
+                    created_at: row.get("created_at"),
+                    updated_at: row.get("updated_at"),
+                };
+                Ok(app)
+            }
+            None => Err(anyhow::anyhow!("OAuth app not found: {client_id}")),
+        }
+    }
+
+    /// List OAuth apps for a user
+    async fn list_oauth_apps_for_user(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<crate::models::OAuthApp>> {
+        let query = r"
+            SELECT id, client_id, client_secret_hash, name, description, redirect_uris, scopes, app_type, owner_user_id, created_at, updated_at
+            FROM oauth_apps 
+            WHERE owner_user_id = ?1 AND is_active = true
+            ORDER BY created_at DESC
+        ";
+
+        let rows = sqlx::query(query)
+            .bind(user_id.to_string())
+            .fetch_all(self.inner.pool())
+            .await
+            .context("Failed to fetch OAuth apps for user")?;
+
+        let mut apps = Vec::with_capacity(rows.len());
+        for row in rows {
+            let redirect_uris_json: String = row.get("redirect_uris");
+            let redirect_uris: Vec<String> = serde_json::from_str(&redirect_uris_json)
+                .context("Failed to deserialize redirect URIs")?;
+
+            let scopes_json: String = row.get("scopes");
+            let scopes: Vec<String> =
+                serde_json::from_str(&scopes_json).context("Failed to deserialize scopes")?;
+
+            let app = crate::models::OAuthApp {
+                id: crate::utils::uuid::parse_uuid(&row.get::<String, _>("id"))?,
+                client_id: row.get("client_id"),
+                client_secret: "[REDACTED]".to_string(), // Never return actual secret
+                name: row.get("name"),
+                description: row.get("description"),
+                redirect_uris,
+                scopes,
+                app_type: row.get("app_type"),
+                owner_user_id: crate::utils::uuid::parse_uuid(
+                    &row.get::<String, _>("owner_user_id"),
+                )?,
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+            };
+            apps.push(app);
+        }
+
+        Ok(apps)
+    }
+
+    /// Store authorization code
+    async fn store_authorization_code(
+        &self,
+        code: &str,
+        client_id: &str,
+        redirect_uri: &str,
+        scope: &str,
+    ) -> Result<()> {
+        // Authorization codes expire in 10 minutes
+        let expires_at = chrono::Utc::now() + chrono::Duration::minutes(10);
+
+        let query = r"
+            INSERT INTO authorization_codes 
+            (code, client_id, redirect_uri, scope, expires_at, is_used)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+        ";
+
+        sqlx::query(query)
+            .bind(code)
+            .bind(client_id)
+            .bind(redirect_uri)
+            .bind(scope)
+            .bind(expires_at)
+            .bind(false)
+            .execute(self.inner.pool())
+            .await
+            .context("Failed to store authorization code")?;
+
+        tracing::debug!("Stored authorization code for client: {client_id}");
+        Ok(())
+    }
+
+    /// Get authorization code data
+    async fn get_authorization_code(&self, code: &str) -> Result<crate::models::AuthorizationCode> {
+        let query = r"
+            SELECT code, client_id, redirect_uri, scope, user_id, expires_at, is_used
+            FROM authorization_codes 
+            WHERE code = ?1 AND is_used = false AND expires_at > CURRENT_TIMESTAMP
+        ";
+
+        let row = sqlx::query(query)
+            .bind(code)
+            .fetch_optional(self.inner.pool())
+            .await
+            .context("Failed to fetch authorization code")?;
+
+        match row {
+            Some(row) => {
+                let user_id_str: Option<String> = row.get("user_id");
+                let user_id = if let Some(ref uid) = user_id_str {
+                    Some(crate::utils::uuid::parse_uuid(uid)?)
+                } else {
+                    None
+                };
+
+                let auth_code = crate::models::AuthorizationCode {
+                    code: row.get("code"),
+                    client_id: row.get("client_id"),
+                    redirect_uri: row.get("redirect_uri"),
+                    scope: row.get("scope"),
+                    user_id,
+                    expires_at: row.get("expires_at"),
+                    created_at: row.get("created_at"),
+                    is_used: row.get("is_used"),
+                };
+                Ok(auth_code)
+            }
+            None => Err(anyhow::anyhow!(
+                "Authorization code not found or expired: {code}"
+            )),
+        }
+    }
+
+    /// Delete authorization code
+    async fn delete_authorization_code(&self, code: &str) -> Result<()> {
+        let query = r"
+            UPDATE authorization_codes 
+            SET is_used = true, used_at = CURRENT_TIMESTAMP
+            WHERE code = ?1
+        ";
+
+        sqlx::query(query)
+            .bind(code)
+            .execute(self.inner.pool())
+            .await
+            .context("Failed to mark authorization code as used")?;
+
+        tracing::debug!("Marked authorization code as used: {code}");
+        Ok(())
     }
 }
 

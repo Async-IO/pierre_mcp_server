@@ -1,177 +1,476 @@
-# Pierre Fitness API
+# Pierre MCP Server - Developer Guide
 
 [![CI](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml)
 [![Frontend Tests](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/frontend-tests.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/frontend-tests.yml)
 
-**Active Development** - This project is under active development and not yet ready for production use. We welcome feedback, contributions, and early testing from the community. Please report issues and share your experiences.
+Multi-tenant MCP server providing AI assistants with secure access to fitness data (Strava, Fitbit). Supports MCP Protocol, A2A Protocol, and REST APIs with per-tenant OAuth isolation.
 
-An open source multi-protocol fitness data API providing secure access to fitness data from multiple providers (Strava, Fitbit) through the [Model Context Protocol](https://modelcontextprotocol.io/specification/draft) (MCP), [A2A](https://github.com/google-a2a/A2A) (Agent-to-Agent) Protocol, and REST APIs. Built for LLMs and AI applications with comprehensive API key management, rate limiting, OAuth integration, and real-time analytics.
+## Architecture Overview
 
-## Fitness Data Analysis
+**Two-Component Architecture**: This system has clear separation between server and client:
 
-Pierre connects fitness data to AI assistants like Claude, ChatGPT, and any agents supporting the MCP/A2A protocol, providing intelligent analysis with location, weather, and performance context.
+1. **Pierre MCP Server** (`pierre-mcp-server`) - Runs as daemon with database access
+   - Handles all fitness data operations
+   - Manages tenant OAuth credentials
+   - Encrypts and stores sensitive data
+   - Serves HTTP API and MCP endpoints
 
-| Analysis Type | Example Queries | Key Features |
-|---------------|----------------|--------------|
-| **Running** | "What was my longest run this year and where?" | Pace trends, location context, terrain analysis |
-| **Cross-Training** | "Compare my cycling vs running performance" | Multi-sport analysis, heart rate zones, consistency |
-| **Location Intelligence** | "Where do I perform best?" | GPS tracking, terrain impact, route optimization |
-| **Weather Impact** | "How does weather affect my performance?" | Temperature correlation, seasonal patterns |
-| **Activity Intelligence** | "Analyze my marathon with full context" | Insights with environmental factors |
-| **Goal Tracking** | "How close am I to my 1000km goal?" | Progress monitoring, achievement analysis |
-| **Performance Trends** | "Find patterns in my training data" | Long-term analysis, optimization suggestions |
+2. **Pierre MCP Client** (`pierre-mcp-client`) - Lightweight MCP client for Claude Desktop
+   - No database access whatsoever
+   - Connects to running server via HTTP
+   - Translates MCP protocol to HTTP API calls
+   - Stateless and secure
 
-> **See detailed examples**: Check out our [comprehensive prompt guide](docs/PROMPT_EXAMPLES.md) with 50+ real-world queries.
+**Critical**: Clients never have database access. All data operations happen server-side.
 
-## Integration Methods
+## Quick Setup Guide
 
-Pierre supports multiple integration patterns for different use cases:
+### Prerequisites
 
-| Integration Type | Best For | Setup Complexity | Authentication |
-|------------------|----------|------------------|----------------|
-| **MCP Protocol**<br/>(2025-06-18) | AI assistants ([Claude](https://claude.ai), [ChatGPT](https://chatgpt.com), any MCP compliant client) | Low | JWT Token |
-| **A2A Protocol**<br/>(v0.2.3) | AI agents & applications | Medium | API Keys |
-| **REST API** | Web apps & dashboards | Medium | OAuth2 + JWT |
-| **Single-Tenant** | Personal local use | Minimal | Optional |
+1. **Rust toolchain** (1.75+): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+2. **Strava app**: Create at [developers.strava.com](https://developers.strava.com)
+3. **Database**: SQLite (default) or PostgreSQL
 
-### Quick Setup Examples
-
-<details>
-<summary><strong>AI Assistant Integration (Claude, ChatGPT, etc.)</strong></summary>
-
-1. **Configure MCP Server**
-   ```json
-   // For Claude Desktop (~/.claude/claude_desktop_config.json)
-   {
-     "mcpServers": {
-       "pierre-fitness": {
-         "command": "path/to/pierre-mcp-server",
-         "args": ["--single-tenant", "--port", "8080"]
-       }
-     }
-   }
-   
-   // For ChatGPT or other MCP-compatible clients
-   // Use the same MCP protocol with your client's configuration
-   ```
-
-2. **Connect to Strava**
-   - Visit the OAuth URL provided by Pierre
-   - Authorize access to your Strava data
-   - Start asking questions in natural language
-
-3. **Works with any MCP/A2A compatible agent**
-   - Claude Desktop, ChatGPT with MCP support
-   - Custom AI agents, GitHub Copilot extensions
-   - Any application supporting MCP or A2A protocols
-
-</details>
-
-<details>
-<summary><strong>A2A Integration for Developers</strong></summary>
+### Local Development Setup
 
 ```bash
-# 1. Register your A2A client
+# 1. Clone and build
+git clone https://github.com/Async-IO/pierre_mcp_server.git
+cd pierre_mcp_server
+cargo build --release
+
+# 2. Start the Pierre MCP Server (runs as daemon)
+cargo run --bin pierre-mcp-server
+# Server starts on http://localhost:8081
+
+# 3. In another terminal, create your development tenant
+curl -X POST http://localhost:8081/api/tenants \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My Development Org",
+    "slug": "dev-org",
+    "domain": "localhost"
+  }'
+# Save the returned tenant_id
+
+# 4. Configure tenant OAuth with your Strava app
+curl -X POST http://localhost:8081/api/tenants/{TENANT_ID}/oauth \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider": "strava",
+    "client_id": "YOUR_STRAVA_CLIENT_ID",
+    "client_secret": "YOUR_STRAVA_CLIENT_SECRET",
+    "redirect_uri": "http://localhost:8081/oauth/callback",
+    "scopes": ["read", "activity:read_all"]
+  }'
+```
+
+## Claude Desktop Integration
+
+### Step 1: Configure Claude Desktop
+
+Add to your Claude Desktop config (`~/.claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "pierre-fitness": {
+      "command": "/path/to/pierre_mcp_server/target/release/pierre-mcp-client",
+      "env": {
+        "TENANT_ID": "YOUR_TENANT_ID_FROM_STEP_3",
+        "TENANT_JWT_TOKEN": "generated_jwt_token_here"
+      }
+    }
+  }
+}
+```
+
+**Important**: Use `pierre-mcp-client` (the lightweight client), not `pierre-mcp-server` (the database server).
+
+### Step 2: Generate Tenant JWT Token
+
+```bash
+# Generate a JWT token for your tenant
+curl -X POST http://localhost:8081/api/tenants/{TENANT_ID}/jwt \
+  -H "Content-Type: application/json" \
+  -d '{"scopes": ["fitness:read", "activity:read"]}'
+```
+
+### Step 3: Connect to Strava
+
+In Claude Desktop, ask: "Connect me to Strava". The server will:
+1. Generate OAuth URL using your tenant's credentials
+2. Open browser for Strava authorization
+3. Store encrypted tokens in your tenant's secure storage
+
+### Step 4: Start Analyzing
+
+Now you can ask natural language questions:
+- "What was my longest run this month?"
+- "Compare my cycling vs running performance"
+- "Show me my activity trends for the past year"
+
+## Python Client Integration
+
+### Installing the Client
+
+```bash
+pip install pierre-mcp-client
+# Or from source:
+pip install git+https://github.com/Async-IO/pierre_mcp_server.git#subdirectory=clients/python
+```
+
+### Basic Usage
+
+```python
+from pierre_mcp import PierreMCPClient
+import asyncio
+
+async def main():
+    client = PierreMCPClient(
+        server_url="http://localhost:8081",
+        tenant_id="your-tenant-id",
+        jwt_token="your-jwt-token"
+    )
+    
+    # Connect to server
+    await client.connect()
+    
+    # Get available tools
+    tools = await client.list_tools()
+    print(f"Available tools: {[tool.name for tool in tools]}")
+    
+    # Execute a tool
+    result = await client.call_tool(
+        "get_activities",
+        {"provider": "strava", "limit": 5}
+    )
+    
+    print(f"Recent activities: {result}")
+    
+    await client.close()
+
+asyncio.run(main())
+```
+
+### Advanced Python Usage
+
+```python
+from pierre_mcp import PierreMCPClient
+from datetime import datetime, timedelta
+
+async def analyze_performance():
+    client = PierreMCPClient(
+        server_url="http://localhost:8081",
+        tenant_id="dev-org",
+        jwt_token="your-jwt-token"
+    )
+    
+    await client.connect()
+    
+    # Get activities from last month
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=30)
+    
+    activities = await client.call_tool(
+        "get_activities",
+        {
+            "provider": "strava",
+            "after": start_date.isoformat(),
+            "before": end_date.isoformat()
+        }
+    )
+    
+    # Analyze each activity
+    for activity in activities:
+        analysis = await client.call_tool(
+            "analyze_activity",
+            {"activity_id": activity["id"], "provider": "strava"}
+        )
+        print(f"Activity {activity['name']}: {analysis}")
+    
+    await client.close()
+
+asyncio.run(analyze_performance())
+```
+
+## A2A Protocol Integration
+
+### Register A2A Client
+
+```bash
+# Register your A2A client application
 curl -X POST http://localhost:8081/a2a/clients \
   -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: YOUR_TENANT_ID" \
   -d '{
-    "name": "My Fitness App",
-    "description": "AI fitness coach",
-    "capabilities": ["fitness-data-analysis"],
-    "contact_email": "developer@myapp.com"
+    "name": "Fitness AI Assistant",
+    "description": "AI-powered fitness data analysis",
+    "capabilities": ["fitness-analysis", "activity-tracking"],
+    "contact_email": "developer@yourcompany.com"
   }'
+```
 
-# 2. Authenticate client
-curl -X POST http://localhost:8081/a2a/auth \
-  -H "Content-Type: application/json" \
-  -d '{
-    "client_id": "your_client_id",
-    "client_secret": "your_client_secret",
-    "scopes": ["read", "write"]
-  }'
+### Execute A2A Tools
 
-# 3. Execute fitness tools (requires user JWT token)
+```bash
+# Execute fitness analysis tool
 curl -X POST http://localhost:8081/a2a/execute \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer USER_JWT_TOKEN" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "X-Tenant-ID: YOUR_TENANT_ID" \
   -d '{
     "jsonrpc": "2.0",
     "method": "tools.execute",
     "params": {
       "tool_name": "get_activities",
-      "parameters": {"provider": "strava", "limit": 10}
+      "parameters": {
+        "provider": "strava",
+        "limit": 10,
+        "activity_type": "Run"
+      }
     },
     "id": 1
   }'
 ```
 
-**📚 A2A Quick Start**: See [A2A_QUICK_START.md](docs/A2A_QUICK_START.md) for complete 5-minute setup guide.
+## Environment Configuration
 
-</details>
+### Client Environment Variables
 
-> **Detailed guides**: See our [setup documentation](docs/SETUP.md) for complete integration examples.
+For MCP clients (Claude Desktop, Python client, etc.):
 
-## Documentation
-
-| Guide | Description | Key Topics |
-|-------|-------------|------------|
-| **[Documentation Index](docs/README.md)** | **Complete doc guide** | **All documentation organized by use case** |
-| **[Getting Started](docs/GETTING_STARTED.md)** | Setup and configuration | Local setup, OAuth config, Docker deployment |
-| **[API Reference](docs/API_REFERENCE.md)** | **Complete API documentation** | **MCP tools, A2A protocol, HTTP endpoints** |
-| **[A2A Quick Start](docs/A2A_QUICK_START.md)** | **5-minute A2A setup** | **Enterprise integration, client registration** |
-| **[A2A Reference](docs/A2A_REFERENCE.md)** | **Complete A2A guide** | **Authentication, tools, Python client** |
-| **[OpenAPI Specification](docs/openapi.yaml)** | **Interactive API reference** | **Complete API spec with examples** |
-| **[Database Guide](docs/DATABASE_GUIDE.md)** | Database setup | SQLite/PostgreSQL setup and database plugins |
-| **[Deployment Guide](docs/DEPLOYMENT_GUIDE.md)** | Production deployment | Docker, Kubernetes, cloud platforms |
-
-## Key Features
-
-| Category | Features |
-|----------|----------|
-| **Integrations** | Strava, Fitbit • MCP Protocol • A2A Protocol • REST APIs |
-| **Security** | OAuth2 + PKCE • JWT Authentication • Encrypted storage • Rate limiting |
-| **Intelligence** | Activity analysis • Location detection • Weather integration |
-| **Architecture** | Multi-tenant • Cloud-ready • Extensible • Production-ready |
-
-## Quick Start
-
-| Method | Command | Use Case |
-|--------|---------|----------|
-| **Local** | `cargo run --bin pierre-mcp-server` | Development, local testing |
-| **Docker** | `./docker-compose-with-envrc.sh up` | Easy deployment, cloud-ready |
-| **AI Assistants** | Add to MCP client config | Claude, ChatGPT, agent integration |
-
-### One-Minute Setup
 ```bash
-# 1. Clone and build
-git clone https://github.com/Async-IO/pierre_mcp_server.git
-cd pierre_mcp_server && cargo build --release
-
-# 2. Set up environment and run server
-# Configure your environment variables (see docs/GETTING_STARTED.md)
-cargo run --bin pierre-mcp-server
-
-# 3. Configure AI Assistant (Claude, ChatGPT, etc.)
-echo '{
-  "mcpServers": {
-    "pierre-fitness": {
-      "command": "'$(pwd)'/target/release/pierre-mcp-server",
-      "args": ["--mcp-port", "8080"]
-    }
-  }
-}' > ~/.claude/claude_desktop_config.json
+# Client connection settings
+PIERRE_SERVER_URL=http://localhost:8081
+TENANT_ID=your-tenant-id
+TENANT_JWT_TOKEN=your-jwt-token
 ```
 
-> **Fresh Start**: Need to clean your database? See our [Database Cleanup Guide](docs/DATABASE_CLEANUP.md).
+### Server Environment Variables (Server-Side Only)
 
-## Architecture
+These are only needed when running the Pierre MCP Server itself:
 
-Pierre MCP Server is built as a production-ready, multi-tenant application with comprehensive security and scalability features:
+```bash
+# Server configuration
+PIERRE_PORT=8081
+PIERRE_HOST=0.0.0.0
+JWT_SECRET=your-jwt-secret-key
 
-- **Authentication**: JWT-based user authentication with secure token management
-- **Database**: Encrypted storage with SQLite/PostgreSQL support
-- **Security**: User isolation, rate limiting, and encrypted data storage
-- **Scalability**: Cloud-ready deployment with Docker and Kubernetes support
+# Optional: External services
+WEATHER_API_KEY=your-openweathermap-key
+GOOGLE_MAPS_API_KEY=your-google-maps-key
+```
+
+**Note**: Database configuration is internal to the server and never exposed to clients.
+
+## Available Tools
+
+| Tool | Description | Parameters | Example |
+|------|-------------|------------|----------|
+| `get_activities` | Fetch activities from provider | `provider`, `limit`, `after`, `before` | Get last 10 runs |
+| `get_activity_details` | Get detailed activity data | `activity_id`, `provider` | Analyze specific workout |
+| `get_athlete_stats` | Get athlete statistics | `provider` | Overall performance metrics |
+| `analyze_activity` | AI-powered activity analysis | `activity_id`, `provider` | Performance insights |
+| `get_segments` | Get segment data | `activity_id`, `provider` | Route segment analysis |
+| `search_activities` | Search activities by criteria | `query`, `provider` | Find specific workouts |
+
+## API Endpoints
+
+### Tenant Management
+
+```bash
+# Create tenant
+POST /api/tenants
+{
+  "name": "Organization Name",
+  "slug": "org-slug",
+  "domain": "optional-domain.com"
+}
+
+# Configure tenant OAuth
+POST /api/tenants/{tenant_id}/oauth
+{
+  "provider": "strava",
+  "client_id": "your_client_id",
+  "client_secret": "your_client_secret",
+  "redirect_uri": "http://localhost:8081/oauth/callback",
+  "scopes": ["read", "activity:read_all"]
+}
+
+# Generate JWT token
+POST /api/tenants/{tenant_id}/jwt
+{
+  "scopes": ["fitness:read", "activity:read"]
+}
+```
+
+### OAuth Flow
+
+```bash
+# Start OAuth authorization (tenant-aware)
+GET /oauth/authorize/{provider}?tenant_id={tenant_id}
+
+# OAuth callback (handles token exchange)
+GET /oauth/callback?code=...&state=...
+```
+
+### Health Check
+
+```bash
+# Server health
+GET /health
+
+# Database health
+GET /health/database
+```
+
+## Troubleshooting
+
+### Common Issues
+
+**"Permission denied" errors**
+```bash
+# Ensure JWT token has correct scopes
+curl -X POST http://localhost:8081/api/tenants/{tenant_id}/jwt \
+  -d '{"scopes": ["fitness:read", "activity:read"]}'
+```
+
+**"Tenant not found" errors**
+```bash
+# Check tenant exists and use correct ID
+curl http://localhost:8081/api/tenants
+```
+
+**OAuth authorization failures**
+```bash
+# Verify Strava app settings:
+# - Authorization Callback Domain: localhost (for dev)
+# - Redirect URI: http://localhost:8081/oauth/callback
+```
+
+**Server connection errors**
+```bash
+# Check if Pierre MCP Server is running
+curl http://localhost:8081/health
+# Should return: {"status": "ok"}
+```
+
+### Debug Mode
+
+```bash
+# Run with debug logging
+RUST_LOG=debug cargo run --bin pierre-mcp-server
+
+# Or set in environment
+echo "RUST_LOG=debug" >> .env
+```
+
+### Database Reset
+
+```bash
+# Restart Pierre MCP Server to reset state
+pkill pierre-mcp-server
+cargo run --bin pierre-mcp-server
+```
+
+## Production Deployment
+
+### Docker Deployment
+
+```bash
+# Build Docker image
+docker build -t pierre-mcp-server .
+
+# Run server (database configuration is internal)
+docker run -d \
+  -p 8081:8081 \
+  -e JWT_SECRET="your-production-jwt-secret" \
+  --name pierre-mcp \
+  pierre-mcp-server
+```
+
+### Docker Compose
+
+```yaml
+version: '3.8'
+services:
+  pierre-mcp:
+    build: .
+    ports:
+      - "8081:8081"
+    environment:
+      - JWT_SECRET=your-production-jwt-secret
+    volumes:
+      - pierre_data:/app/data
+
+volumes:
+  pierre_data:
+```
+
+### Cloud Deployment (GCP)
+
+```bash
+# Build and push to GCR
+gcloud builds submit --tag gcr.io/YOUR_PROJECT/pierre-mcp-server
+
+# Deploy to Cloud Run
+gcloud run deploy pierre-mcp-server \
+  --image gcr.io/YOUR_PROJECT/pierre-mcp-server \
+  --platform managed \
+  --region us-central1 \
+  --set-env-vars JWT_SECRET="your-production-secret" \
+  --allow-unauthenticated
+```
+
+## Development
+
+### Running Tests
+
+```bash
+# Run all tests
+cargo test
+
+# Run with output
+cargo test -- --nocapture
+
+# Run specific test
+cargo test test_tenant_creation
+
+# Run linter and tests
+./scripts/lint-and-test.sh
+```
+
+### Code Quality
+
+```bash
+# Format code
+cargo fmt
+
+# Check for issues
+cargo clippy -- -D warnings
+
+# Check documentation
+cargo doc --no-deps --open
+```
+
+### Server Logs
+
+```bash
+# View server logs for debugging
+RUST_LOG=debug cargo run --bin pierre-mcp-server
+
+# Check server health
+curl http://localhost:8081/health
+```
+
+## Architecture Notes
+
+- **Multi-tenant only**: No single-tenant mode, all data isolated by tenant
+- **OAuth per tenant**: Each tenant configures their own Strava/Fitbit apps
+- **Encrypted storage**: All sensitive data encrypted with AES-256-GCM
+- **JWT authentication**: Tenant-scoped tokens with configurable permissions
+- **Database agnostic**: SQLite for development, PostgreSQL for production
 
 ## License
 
