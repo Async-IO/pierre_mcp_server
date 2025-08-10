@@ -17,6 +17,8 @@ fn test_rate_limit_error_creation() {
         reset_at: Some(Utc::now() + chrono::Duration::hours(1)),
         tier: "professional".into(),
         auth_method: "api_key".into(),
+        tenant_id: None,
+        tenant_multiplier: None,
     };
 
     let error = create_rate_limit_error(&rate_limit_info);
@@ -42,6 +44,8 @@ fn test_rate_limit_check() {
         reset_at: None,
         tier: "starter".into(),
         auth_method: "jwt".into(),
+        tenant_id: None,
+        tenant_multiplier: None,
     };
 
     assert!(check_rate_limit_and_respond(&info).is_ok());
@@ -54,6 +58,8 @@ fn test_rate_limit_check() {
         reset_at: Some(Utc::now()),
         tier: "starter".into(),
         auth_method: "jwt".into(),
+        tenant_id: None,
+        tenant_multiplier: None,
     };
 
     assert!(check_rate_limit_and_respond(&info).is_err());

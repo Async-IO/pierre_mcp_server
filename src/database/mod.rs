@@ -327,6 +327,11 @@ impl EncryptionHelper for Database {
 impl Database {
     /// Encrypt sensitive data using AES-256-GCM
     ///
+    /// # Note
+    ///
+    /// This method is kept for backward compatibility. New code should use
+    /// `security::TenantEncryptionManager` for per-tenant encryption.
+    ///
     /// # Errors
     ///
     /// Returns an error if encryption fails

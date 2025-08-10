@@ -611,7 +611,7 @@ pub struct McpAuthMiddleware {
 
 impl McpAuthMiddleware {
     /// Create new `MCP` auth middleware
-    pub const fn new(auth_manager: AuthManager, database: std::sync::Arc<Database>) -> Self {
+    pub fn new(auth_manager: AuthManager, database: std::sync::Arc<Database>) -> Self {
         Self {
             auth_manager,
             api_key_manager: ApiKeyManager::new(),

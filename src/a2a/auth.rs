@@ -230,6 +230,8 @@ impl A2AAuthenticator {
                 reset_at: Some(chrono::Utc::now() + chrono::Duration::hours(1)),
                 tier: "A2A-OAuth2".into(),
                 auth_method: "oauth2".into(),
+                tenant_id: None,
+                tenant_multiplier: None,
             },
         })
     }
