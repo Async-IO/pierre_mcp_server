@@ -3,12 +3,20 @@
 Complete Multi-Tenant MCP Server Example
 
 This example demonstrates the complete workflow for using the Pierre MCP Server
-in multi-tenant mode with proper authentication, OAuth integration, and MCP protocol usage.
+in multi-tenant mode with tenant-specific OAuth credentials, proper authentication,
+and MCP protocol usage.
 
 Prerequisites:
 1. Server running: cargo run --bin pierre-mcp-server
 2. Database cleaned: ./scripts/fresh-start.sh
 3. Admin token generated: cargo run --bin admin-setup generate-token --service "demo"
+
+Multi-Tenant Features Demonstrated:
+- Tenant creation and management
+- Per-tenant OAuth credential configuration
+- Tenant-isolated rate limiting
+- Tenant context in MCP requests
+- Enterprise-ready SaaS architecture
 
 Usage:
     python3 multitenant_mcp_example.py
@@ -25,6 +33,7 @@ class PierreMCPClient:
     Pierre MCP Server Client for Multi-Tenant Mode
     
     Supports both HTTP and stdio transports with JWT authentication
+    and tenant-specific OAuth credential management.
     """
     
     def __init__(self, 
@@ -34,6 +43,7 @@ class PierreMCPClient:
         self.mcp_base_url = mcp_base_url
         self.jwt_token: Optional[str] = None
         self.user_id: Optional[str] = None
+        self.tenant_id: Optional[str] = None
         
     def register_user(self, email: str, password: str, display_name: str) -> Dict[str, Any]:
         """Register a new user account"""
@@ -78,6 +88,60 @@ class PierreMCPClient:
         else:
             print(f"❌ Login failed: {response.text}")
             raise Exception(f"Login failed: {response.text}")
+    
+    def create_tenant(self, name: str, slug: str, domain: Optional[str] = None) -> Dict[str, Any]:
+        """Create a new tenant organization"""
+        print(f"🏢 Creating tenant: {name} ({slug})")
+        
+        payload = {
+            "name": name,
+            "slug": slug
+        }
+        if domain:
+            payload["domain"] = domain
+        
+        response = requests.post(
+            f"{self.http_base_url}/api/tenants",
+            json=payload,
+            headers={"Authorization": f"Bearer {self.jwt_token}"}
+        )
+        
+        if response.status_code == 201:
+            data = response.json()
+            self.tenant_id = data["tenant_id"]
+            print(f"✅ Tenant created successfully: {self.tenant_id}")
+            return data
+        else:
+            print(f"❌ Tenant creation failed: {response.text}")
+            raise Exception(f"Tenant creation failed: {response.text}")
+    
+    def configure_tenant_oauth(self, provider: str, client_id: str, client_secret: str, 
+                              redirect_uri: str, scopes: list) -> Dict[str, Any]:
+        """Configure OAuth credentials for the tenant"""
+        if not self.tenant_id:
+            raise Exception("Tenant ID not available. Please create tenant first.")
+            
+        print(f"🔐 Configuring {provider} OAuth for tenant: {self.tenant_id}")
+        
+        response = requests.post(
+            f"{self.http_base_url}/api/tenants/{self.tenant_id}/oauth",
+            json={
+                "provider": provider,
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "redirect_uri": redirect_uri,
+                "scopes": scopes
+            },
+            headers={"Authorization": f"Bearer {self.jwt_token}"}
+        )
+        
+        if response.status_code == 201:
+            data = response.json()
+            print(f"✅ {provider} OAuth configured for tenant")
+            return data
+        else:
+            print(f"❌ OAuth configuration failed: {response.text}")
+            raise Exception(f"OAuth configuration failed: {response.text}")
     
     def setup_strava_oauth(self) -> str:
         """Setup Strava OAuth and return authorization URL"""
@@ -213,18 +277,24 @@ class PierreMCPClient:
         return self._send_mcp_request(mcp_request)
     
     def _send_mcp_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
-        """Send MCP request via HTTP transport"""
+        """Send MCP request via HTTP transport with tenant context"""
         if not self.jwt_token:
             raise Exception("JWT token not available. Please login first.")
+        if not self.tenant_id:
+            raise Exception("Tenant ID not available. Please create/select tenant first.")
         
         try:
+            headers = {
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "Authorization": f"Bearer {self.jwt_token}",
+                "X-Tenant-ID": self.tenant_id,
+                "Origin": "http://localhost"
+            }
+            
             response = requests.post(
                 f"{self.mcp_base_url}/mcp",
-                headers={
-                    "Content-Type": "application/json",
-                    "Accept": "application/json",
-                    "Origin": "http://localhost"
-                },
+                headers=headers,
                 json=request,
                 timeout=30
             )
@@ -261,6 +331,17 @@ def main():
     password = "password123"
     display_name = "Demo User"
     
+    # Tenant configuration
+    tenant_name = "Demo Fitness Corp"
+    tenant_slug = "demo-fitness"
+    tenant_domain = "demo-fitness.example.com"
+    
+    # Strava OAuth configuration (you need to provide these)
+    strava_client_id = "your_strava_client_id"
+    strava_client_secret = "your_strava_client_secret"
+    strava_redirect_uri = "http://localhost:8080/oauth/callback"
+    strava_scopes = ["read", "activity:read_all"]
+    
     try:
         # Step 1: Register user
         client.register_user(email, password, display_name)
@@ -269,7 +350,18 @@ def main():
         login_data = client.login(email, password)
         print(f"🔑 JWT Token: {client.jwt_token[:50]}...")
         
-        # Step 3: Setup Strava OAuth
+        # Step 3: Create tenant organization
+        tenant_data = client.create_tenant(tenant_name, tenant_slug, tenant_domain)
+        print(f"🏢 Tenant ID: {client.tenant_id}")
+        
+        # Step 4: Configure tenant OAuth credentials
+        oauth_config = client.configure_tenant_oauth(
+            "strava", strava_client_id, strava_client_secret, 
+            strava_redirect_uri, strava_scopes
+        )
+        print(f"🔐 OAuth configured for tenant")
+        
+        # Step 5: Setup Strava OAuth
         auth_url = client.setup_strava_oauth()
         print(f"\\n⚠️  MANUAL STEP REQUIRED:")
         print(f"   1. Visit: {auth_url}")
@@ -338,12 +430,16 @@ def main():
         
         print("\\n🎉 Multi-tenant MCP example completed successfully!")
         print("\\n📋 Summary:")
+        print("   ✅ Multi-tenant architecture demonstration")
+        print("   ✅ Tenant creation and management")
+        print("   ✅ Per-tenant OAuth credential configuration")
         print("   ✅ User registration and authentication")
-        print("   ✅ JWT token management")
-        print("   ✅ Strava OAuth integration")
+        print("   ✅ JWT token management with tenant context")
+        print("   ✅ Tenant-isolated Strava OAuth integration")
         print("   ✅ MCP protocol usage (HTTP transport)")
         print("   ✅ Real fitness data analysis")
-        print("   ✅ Rate limiting and error handling")
+        print("   ✅ Tenant-aware rate limiting and error handling")
+        print("   ✅ Enterprise-ready SaaS architecture")
         
     except Exception as e:
         print(f"\\n❌ Example failed: {e}")

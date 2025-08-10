@@ -73,6 +73,7 @@ impl DatabaseProvider for PostgresDatabase {
         self.create_a2a_tables().await?;
         self.create_admin_tables().await?;
         self.create_jwt_usage_table().await?;
+        self.create_tenant_tables().await?; // Add tenant tables
         self.create_indexes().await?;
         Ok(())
     }
@@ -2326,6 +2327,125 @@ impl DatabaseProvider for PostgresDatabase {
             Ok(results)
         }
     }
+
+    // ================================
+    // Multi-Tenant Management
+    // ================================
+
+    /// Create a new tenant
+    async fn create_tenant(&self, _tenant: &crate::models::Tenant) -> Result<()> {
+        // Stub implementation - TODO: implement proper PostgreSQL tenant management
+        Ok(())
+    }
+
+    /// Get tenant by ID
+    async fn get_tenant_by_id(&self, _tenant_id: Uuid) -> Result<crate::models::Tenant> {
+        // Stub implementation - TODO: implement proper PostgreSQL tenant management
+        Err(anyhow::anyhow!(
+            "PostgreSQL tenant management not yet implemented"
+        ))
+    }
+
+    /// Get tenant by slug
+    async fn get_tenant_by_slug(&self, _slug: &str) -> Result<crate::models::Tenant> {
+        // Stub implementation - TODO: implement proper PostgreSQL tenant management
+        Err(anyhow::anyhow!(
+            "PostgreSQL tenant management not yet implemented"
+        ))
+    }
+
+    /// List tenants for a user
+    async fn list_tenants_for_user(&self, _user_id: Uuid) -> Result<Vec<crate::models::Tenant>> {
+        // Stub implementation - TODO: implement proper PostgreSQL tenant management
+        Ok(Vec::new())
+    }
+
+    /// Store tenant OAuth credentials
+    async fn store_tenant_oauth_credentials(
+        &self,
+        _credentials: &crate::tenant::TenantOAuthCredentials,
+    ) -> Result<()> {
+        // Stub implementation - TODO: implement proper PostgreSQL tenant OAuth management
+        Ok(())
+    }
+
+    /// Get tenant OAuth providers
+    async fn get_tenant_oauth_providers(
+        &self,
+        _tenant_id: Uuid,
+    ) -> Result<Vec<crate::tenant::TenantOAuthCredentials>> {
+        // Stub implementation - TODO: implement proper PostgreSQL tenant OAuth management
+        Ok(Vec::new())
+    }
+
+    /// Get tenant OAuth credentials for specific provider
+    async fn get_tenant_oauth_credentials(
+        &self,
+        _tenant_id: Uuid,
+        _provider: &str,
+    ) -> Result<Option<crate::tenant::TenantOAuthCredentials>> {
+        // Stub implementation - TODO: implement proper PostgreSQL tenant OAuth management
+        Ok(None)
+    }
+
+    // ================================
+    // OAuth App Registration
+    // ================================
+
+    /// Create OAuth application
+    async fn create_oauth_app(&self, _app: &crate::models::OAuthApp) -> Result<()> {
+        // Stub implementation - TODO: implement proper PostgreSQL OAuth app management
+        Ok(())
+    }
+
+    /// Get OAuth app by client ID
+    async fn get_oauth_app_by_client_id(
+        &self,
+        _client_id: &str,
+    ) -> Result<crate::models::OAuthApp> {
+        // Stub implementation - TODO: implement proper PostgreSQL OAuth app management
+        Err(anyhow::anyhow!(
+            "PostgreSQL OAuth app management not yet implemented"
+        ))
+    }
+
+    /// List OAuth apps for a user
+    async fn list_oauth_apps_for_user(
+        &self,
+        _user_id: Uuid,
+    ) -> Result<Vec<crate::models::OAuthApp>> {
+        // Stub implementation - TODO: implement proper PostgreSQL OAuth app management
+        Ok(Vec::new())
+    }
+
+    /// Store authorization code
+    async fn store_authorization_code(
+        &self,
+        _code: &str,
+        _client_id: &str,
+        _redirect_uri: &str,
+        _scope: &str,
+    ) -> Result<()> {
+        // Stub implementation - TODO: implement proper PostgreSQL OAuth code management
+        Ok(())
+    }
+
+    /// Get authorization code data
+    async fn get_authorization_code(
+        &self,
+        _code: &str,
+    ) -> Result<crate::models::AuthorizationCode> {
+        // Stub implementation - TODO: implement proper PostgreSQL OAuth code management
+        Err(anyhow::anyhow!(
+            "PostgreSQL OAuth code management not yet implemented"
+        ))
+    }
+
+    /// Delete authorization code
+    async fn delete_authorization_code(&self, _code: &str) -> Result<()> {
+        // Stub implementation - TODO: implement proper PostgreSQL OAuth code management
+        Ok(())
+    }
 }
 
 impl PostgresDatabase {
@@ -2689,6 +2809,87 @@ impl PostgresDatabase {
         Ok(())
     }
 
+    async fn create_tenant_tables(&self) -> Result<()> {
+        // Create tenants table
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS tenants (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                name VARCHAR(255) NOT NULL,
+                slug VARCHAR(100) UNIQUE NOT NULL,
+                domain VARCHAR(255) UNIQUE,
+                subscription_tier VARCHAR(50) DEFAULT 'starter' CHECK (subscription_tier IN ('starter', 'professional', 'enterprise')),
+                is_active BOOLEAN DEFAULT true,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+            "
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create tenant_oauth_apps table
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS tenant_oauth_apps (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                provider VARCHAR(50) NOT NULL,
+                client_id VARCHAR(255) NOT NULL,
+                client_secret_encrypted BYTEA NOT NULL,
+                client_secret_nonce BYTEA NOT NULL,
+                redirect_uri VARCHAR(500) NOT NULL,
+                scopes TEXT[] DEFAULT '{}',
+                rate_limit_per_day INTEGER DEFAULT 15000,
+                is_active BOOLEAN DEFAULT true,
+                configured_by UUID REFERENCES users(id),
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, provider)
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create tenant_users table
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS tenant_users (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                role VARCHAR(50) DEFAULT 'member' CHECK (role IN ('owner', 'admin', 'billing', 'member')),
+                joined_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, user_id)
+            )
+            "
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create tenant_provider_usage table
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS tenant_provider_usage (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                provider VARCHAR(50) NOT NULL,
+                usage_date DATE NOT NULL,
+                request_count INTEGER DEFAULT 0,
+                error_count INTEGER DEFAULT 0,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, provider, usage_date)
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
     async fn create_indexes(&self) -> Result<()> {
         // User and profile indexes
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
@@ -2758,6 +2959,25 @@ impl PostgresDatabase {
             .await?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_jwt_usage_timestamp ON jwt_usage(timestamp)")
+            .execute(&self.pool)
+            .await?;
+
+        // Tenant indexes
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_tenant_oauth_apps_tenant_provider ON tenant_oauth_apps(tenant_id, provider)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_tenant_users_tenant ON tenant_users(tenant_id)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_tenant_users_user ON tenant_users(user_id)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_tenant_usage_date ON tenant_provider_usage(tenant_id, provider, usage_date)")
             .execute(&self.pool)
             .await?;
 

@@ -12,6 +12,12 @@ use async_trait::async_trait;
 
 pub mod fitbit;
 pub mod strava;
+pub mod strava_tenant;
+pub mod tenant_provider;
+
+// Re-export tenant types
+pub use strava_tenant::TenantStravaProvider;
+pub use tenant_provider::{TenantFitnessProvider, TenantProviderFactory};
 
 #[async_trait]
 pub trait FitnessProvider: Send + Sync {

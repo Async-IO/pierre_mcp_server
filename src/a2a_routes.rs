@@ -14,6 +14,7 @@ use crate::auth::AuthManager;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::intelligence::ActivityIntelligence;
 use crate::protocols::universal::{UniversalRequest, UniversalToolExecutor};
+use crate::tenant::TenantOAuthClient;
 use crate::utils::auth::extract_bearer_token;
 use crate::{
     a2a::{
@@ -156,9 +157,14 @@ impl A2ARoutes {
         ));
 
         let intelligence = Self::create_a2a_intelligence();
+        let tenant_oauth_client = Arc::new(TenantOAuthClient::new());
 
-        let tool_executor =
-            UniversalToolExecutor::new(database.clone(), intelligence, config.clone());
+        let tool_executor = UniversalToolExecutor::new(
+            database.clone(),
+            intelligence,
+            config.clone(),
+            tenant_oauth_client,
+        );
 
         Self {
             database,
@@ -453,6 +459,7 @@ impl A2ARoutes {
             parameters,
             user_id,
             protocol: "a2a".into(),
+            tenant_id: None,
         };
 
         // Execute the tool
@@ -626,9 +633,14 @@ impl Clone for A2ARoutes {
     fn clone(&self) -> Self {
         // For the clone, we need to recreate the tool executor since it doesn't implement Clone
         let intelligence = Self::create_a2a_intelligence();
+        let tenant_oauth_client = Arc::new(TenantOAuthClient::new());
 
-        let tool_executor =
-            UniversalToolExecutor::new(self.database.clone(), intelligence, self.config.clone());
+        let tool_executor = UniversalToolExecutor::new(
+            self.database.clone(),
+            intelligence,
+            self.config.clone(),
+            tenant_oauth_client,
+        );
 
         Self {
             database: self.database.clone(),

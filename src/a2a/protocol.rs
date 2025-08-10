@@ -14,6 +14,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
+use std::sync::Arc;
 use uuid::Uuid;
 
 /// A2A JSON-RPC 2.0 Request
@@ -618,6 +619,7 @@ impl A2AServer {
             parameters: serde_json::Value::Object(tool_params),
             user_id: "unknown".into(), // In production, this would come from authentication
             protocol: "a2a".into(),
+            tenant_id: None,
         };
 
         // Check if we have proper dependencies injected
@@ -640,10 +642,12 @@ impl A2AServer {
 
         let server_config = self.get_or_create_config();
 
+        let tenant_oauth_client = Arc::new(crate::tenant::TenantOAuthClient::new());
         let executor = crate::protocols::universal::UniversalToolExecutor::new(
             database,
             intelligence,
             server_config,
+            tenant_oauth_client,
         );
 
         match executor.execute_tool(universal_request).await {

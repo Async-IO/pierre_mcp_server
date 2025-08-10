@@ -114,6 +114,9 @@ pub mod crypto;
 /// `HTTP` routes for user registration and `OAuth` flows
 pub mod routes;
 
+/// Multi-tenant management REST API routes
+pub mod tenant_routes;
+
 /// Production logging and structured output
 pub mod logging;
 
@@ -160,4 +163,5 @@ pub mod errors;
 pub mod tools;
 
 // Utility modules
+pub mod tenant;
 pub mod utils;

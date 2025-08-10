@@ -11,6 +11,8 @@ use pierre_mcp_server::{
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::multitenant::{McpRequest, MultiTenantMcpServer},
     models::User,
+    providers::tenant_provider::TenantProviderFactory,
+    tenant::TenantOAuthClient,
 };
 use serde_json::json;
 use std::sync::Arc;
@@ -20,6 +22,11 @@ use uuid::Uuid;
 mod common;
 
 // === Test Setup Helpers ===
+
+fn create_mock_tenant_provider_factory() -> Arc<TenantProviderFactory> {
+    let tenant_oauth_client = Arc::new(TenantOAuthClient::new());
+    Arc::new(TenantProviderFactory::new(tenant_oauth_client))
+}
 
 async fn create_test_server() -> Result<MultiTenantMcpServer> {
     let database = common::create_test_database().await?;
@@ -173,14 +180,17 @@ async fn test_mcp_initialize_request() -> Result<()> {
         params: None,
         id: json!(1),
         auth_token: None,
+        headers: None,
     };
 
+    let tenant_provider_factory = create_mock_tenant_provider_factory();
     let response = MultiTenantMcpServer::handle_request(
         request,
         &database,
         &auth_manager,
         &auth_middleware,
         &user_providers,
+        &tenant_provider_factory,
     )
     .await;
 
@@ -207,14 +217,17 @@ async fn test_mcp_ping_request() -> Result<()> {
         params: None,
         id: json!(2),
         auth_token: None,
+        headers: None,
     };
 
+    let tenant_provider_factory = create_mock_tenant_provider_factory();
     let response = MultiTenantMcpServer::handle_request(
         request,
         &database,
         &auth_manager,
         &auth_middleware,
         &user_providers,
+        &tenant_provider_factory,
     )
     .await;
 
@@ -240,14 +253,17 @@ async fn test_mcp_tools_list_request() -> Result<()> {
         params: None,
         id: json!(3),
         auth_token: None,
+        headers: None,
     };
 
+    let tenant_provider_factory = create_mock_tenant_provider_factory();
     let response = MultiTenantMcpServer::handle_request(
         request,
         &database,
         &auth_manager,
         &auth_middleware,
         &user_providers,
+        &tenant_provider_factory,
     )
     .await;
 
@@ -284,14 +300,17 @@ async fn test_mcp_authenticate_request() -> Result<()> {
         })),
         id: json!(4),
         auth_token: None,
+        headers: None,
     };
 
+    let tenant_provider_factory = create_mock_tenant_provider_factory();
     let response = MultiTenantMcpServer::handle_request(
         request,
         &database,
         &auth_manager,
         &auth_middleware,
         &user_providers,
+        &tenant_provider_factory,
     )
     .await;
 
@@ -317,14 +336,17 @@ async fn test_unknown_method_handling() -> Result<()> {
         params: None,
         id: json!(5),
         auth_token: None,
+        headers: None,
     };
 
+    let tenant_provider_factory = create_mock_tenant_provider_factory();
     let response = MultiTenantMcpServer::handle_request(
         request,
         &database,
         &auth_manager,
         &auth_middleware,
         &user_providers,
+        &tenant_provider_factory,
     )
     .await;
 
@@ -356,14 +378,17 @@ async fn test_authenticate_method_with_invalid_params() -> Result<()> {
         params: Some(json!({"invalid_field": "invalid_value"})),
         id: json!(6),
         auth_token: None,
+        headers: None,
     };
 
+    let tenant_provider_factory = create_mock_tenant_provider_factory();
     let response = MultiTenantMcpServer::handle_request(
         request,
         &database,
         &auth_manager,
         &auth_middleware,
         &user_providers,
+        &tenant_provider_factory,
     )
     .await;
 
@@ -400,14 +425,17 @@ async fn test_tools_call_without_authentication() -> Result<()> {
         })),
         id: json!(7),
         auth_token: None,
+        headers: None,
     };
 
+    let tenant_provider_factory = create_mock_tenant_provider_factory();
     let response = MultiTenantMcpServer::handle_request(
         request,
         &database,
         &auth_manager,
         &auth_middleware,
         &user_providers,
+        &tenant_provider_factory,
     )
     .await;
 
@@ -439,14 +467,17 @@ async fn test_tools_call_with_invalid_token() -> Result<()> {
         })),
         id: json!(8),
         auth_token: Some("Bearer invalid_token_123".to_string()),
+        headers: None,
     };
 
+    let tenant_provider_factory = create_mock_tenant_provider_factory();
     let response = MultiTenantMcpServer::handle_request(
         request,
         &database,
         &auth_manager,
         &auth_middleware,
         &user_providers,
+        &tenant_provider_factory,
     )
     .await;
 
@@ -478,14 +509,17 @@ async fn test_tools_call_with_valid_authentication() -> Result<()> {
         })),
         id: json!(9),
         auth_token: Some(format!("Bearer {token}")),
+        headers: None,
     };
 
+    let tenant_provider_factory = create_mock_tenant_provider_factory();
     let response = MultiTenantMcpServer::handle_request(
         request,
         &database,
         &auth_manager,
         &auth_middleware,
         &user_providers,
+        &tenant_provider_factory,
     )
     .await;
 
@@ -515,14 +549,17 @@ async fn test_tools_call_with_missing_params() -> Result<()> {
         params: None, // Missing params
         id: json!(10),
         auth_token: Some(format!("Bearer {token}")),
+        headers: None,
     };
 
+    let tenant_provider_factory = create_mock_tenant_provider_factory();
     let response = MultiTenantMcpServer::handle_request(
         request,
         &database,
         &auth_manager,
         &auth_middleware,
         &user_providers,
+        &tenant_provider_factory,
     )
     .await;
 
@@ -555,14 +592,17 @@ async fn test_connect_strava_tool() -> Result<()> {
         })),
         id: json!(11),
         auth_token: Some(format!("Bearer {token}")),
+        headers: None,
     };
 
+    let tenant_provider_factory = create_mock_tenant_provider_factory();
     let response = MultiTenantMcpServer::handle_request(
         request,
         &database,
         &auth_manager,
         &auth_middleware,
         &user_providers,
+        &tenant_provider_factory,
     )
     .await;
 
@@ -594,14 +634,17 @@ async fn test_connect_fitbit_tool() -> Result<()> {
         })),
         id: json!(12),
         auth_token: Some(format!("Bearer {token}")),
+        headers: None,
     };
 
+    let tenant_provider_factory = create_mock_tenant_provider_factory();
     let response = MultiTenantMcpServer::handle_request(
         request,
         &database,
         &auth_manager,
         &auth_middleware,
         &user_providers,
+        &tenant_provider_factory,
     )
     .await;
 
@@ -633,14 +676,17 @@ async fn test_get_connection_status_tool() -> Result<()> {
         })),
         id: json!(13),
         auth_token: Some(format!("Bearer {token}")),
+        headers: None,
     };
 
+    let tenant_provider_factory = create_mock_tenant_provider_factory();
     let response = MultiTenantMcpServer::handle_request(
         request,
         &database,
         &auth_manager,
         &auth_middleware,
         &user_providers,
+        &tenant_provider_factory,
     )
     .await;
 
@@ -674,14 +720,17 @@ async fn test_disconnect_provider_tool() -> Result<()> {
         })),
         id: json!(14),
         auth_token: Some(format!("Bearer {token}")),
+        headers: None,
     };
 
+    let tenant_provider_factory = create_mock_tenant_provider_factory();
     let response = MultiTenantMcpServer::handle_request(
         request,
         &database,
         &auth_manager,
         &auth_middleware,
         &user_providers,
+        &tenant_provider_factory,
     )
     .await;
 
@@ -725,14 +774,17 @@ async fn test_provider_tools_without_connection() -> Result<()> {
             })),
             id: json!(15 + i),
             auth_token: Some(format!("Bearer {token}")),
+            headers: None,
         };
 
+        let tenant_provider_factory = create_mock_tenant_provider_factory();
         let response = MultiTenantMcpServer::handle_request(
             request,
             &database,
             &auth_manager,
             &auth_middleware,
             &user_providers,
+            &tenant_provider_factory,
         )
         .await;
 
@@ -779,14 +831,17 @@ async fn test_intelligence_tools() -> Result<()> {
             })),
             id: json!(20),
             auth_token: Some(format!("Bearer {token}")),
+            headers: None,
         };
 
+        let tenant_provider_factory = create_mock_tenant_provider_factory();
         let response = MultiTenantMcpServer::handle_request(
             request,
             &database,
             &auth_manager,
             &auth_middleware,
             &user_providers,
+            &tenant_provider_factory,
         )
         .await;
 
@@ -818,14 +873,17 @@ async fn test_tools_call_with_whitespace_token() -> Result<()> {
         })),
         id: json!(21),
         auth_token: Some("   \t\n  ".to_string()), // Whitespace only
+        headers: None,
     };
 
+    let tenant_provider_factory = create_mock_tenant_provider_factory();
     let response = MultiTenantMcpServer::handle_request(
         request,
         &database,
         &auth_manager,
         &auth_middleware,
         &user_providers,
+        &tenant_provider_factory,
     )
     .await;
 
@@ -854,14 +912,17 @@ async fn test_tools_call_malformed_token() -> Result<()> {
         })),
         id: json!(22),
         auth_token: Some("Bearer malformed.token.here".to_string()),
+        headers: None,
     };
 
+    let tenant_provider_factory = create_mock_tenant_provider_factory();
     let response = MultiTenantMcpServer::handle_request(
         request,
         &database,
         &auth_manager,
         &auth_middleware,
         &user_providers,
+        &tenant_provider_factory,
     )
     .await;
 
@@ -894,14 +955,17 @@ async fn test_handle_authenticated_tool_call_edge_cases() -> Result<()> {
         })),
         id: json!(23),
         auth_token: Some(format!("Bearer {token}")),
+        headers: None,
     };
 
+    let tenant_provider_factory = create_mock_tenant_provider_factory();
     let response = MultiTenantMcpServer::handle_request(
         request,
         &database,
         &auth_manager,
         &auth_middleware,
         &user_providers,
+        &tenant_provider_factory,
     )
     .await;
 
@@ -978,9 +1042,19 @@ async fn test_concurrent_requests() -> Result<()> {
                 })),
                 id: json!(100 + i),
                 auth_token: Some(format!("Bearer {token}")),
+                headers: None,
             };
 
-            MultiTenantMcpServer::handle_request(request, &db, &am, &amw, &up).await
+            let tenant_provider_factory = create_mock_tenant_provider_factory();
+            MultiTenantMcpServer::handle_request(
+                request,
+                &db,
+                &am,
+                &amw,
+                &up,
+                &tenant_provider_factory,
+            )
+            .await
         }));
     }
 

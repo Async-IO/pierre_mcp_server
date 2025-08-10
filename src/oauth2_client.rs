@@ -96,6 +96,12 @@ impl OAuth2Client {
         }
     }
 
+    /// Get the `OAuth2` configuration
+    #[must_use]
+    pub const fn config(&self) -> &OAuth2Config {
+        &self.config
+    }
+
     /// Get authorization URL
     ///
     /// # Errors

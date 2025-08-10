@@ -52,6 +52,7 @@
 
 // Intelligence config will be used for future enhancements
 use crate::database_plugins::{factory::Database, DatabaseProvider};
+use crate::tenant::TenantOAuthClient;
 use crate::utils::{
     json_responses::{activity_not_found_error, provider_connection_error, serialization_error},
     uuid::parse_user_id_for_protocol,
@@ -110,6 +111,7 @@ pub struct UniversalRequest {
     pub parameters: Value,
     pub user_id: String,
     pub protocol: String,
+    pub tenant_id: Option<String>,
 }
 
 /// Universal response structure
@@ -137,6 +139,7 @@ pub struct UniversalToolExecutor {
     pub database: Arc<Database>,
     pub intelligence: Arc<ActivityIntelligence>,
     pub config: Arc<crate::config::environment::ServerConfig>,
+    pub tenant_oauth_client: Arc<TenantOAuthClient>,
     tools: HashMap<String, UniversalTool>,
 }
 
@@ -264,11 +267,13 @@ impl UniversalToolExecutor {
         database: Arc<Database>,
         intelligence: Arc<ActivityIntelligence>,
         config: Arc<crate::config::environment::ServerConfig>,
+        tenant_oauth_client: Arc<TenantOAuthClient>,
     ) -> Self {
         Self {
             database,
             intelligence,
             config,
+            tenant_oauth_client,
             tools: HashMap::new(),
         }
     }
@@ -278,7 +283,89 @@ impl UniversalToolExecutor {
         &self,
         user_id: uuid::Uuid,
         provider: &str,
+        tenant_id: Option<&str>,
     ) -> Result<Option<crate::oauth::TokenData>, crate::oauth::OAuthError> {
+        // If we have tenant context, use tenant-specific OAuth credentials
+        if let Some(tenant_id_str) = tenant_id {
+            // Convert string tenant ID to UUID and look up full tenant context
+            if let Ok(tenant_uuid) = uuid::Uuid::parse_str(tenant_id_str) {
+                // Look up tenant information from database to create proper TenantContext
+                if let Ok(tenant) = self.database.get_tenant_by_id(tenant_uuid).await {
+                    let tenant_context = crate::tenant::TenantContext {
+                        tenant_id: tenant_uuid,
+                        tenant_name: tenant.name.clone(),
+                        user_id, // Use the user_id from the request
+                        user_role: crate::tenant::TenantRole::Member, // Default role for OAuth operations
+                    };
+
+                    // Get tenant-specific OAuth credentials using proper TenantContext
+                    match self
+                        .tenant_oauth_client
+                        .get_oauth_client(&tenant_context, provider)
+                        .await
+                    {
+                        Ok(oauth_client) => {
+                            // Create OAuth manager and register provider with tenant credentials
+                            let mut oauth_manager =
+                                crate::oauth::manager::OAuthManager::new(self.database.clone());
+
+                            // Extract credentials from OAuth2Client config
+                            let config = oauth_client.config();
+
+                            match provider {
+                                "strava" => {
+                                    if let Ok(tenant_provider) =
+                                        crate::oauth::providers::StravaOAuthProvider::from_config(
+                                            &crate::config::environment::OAuthProviderConfig {
+                                                client_id: Some(config.client_id.clone()),
+                                                client_secret: Some(config.client_secret.clone()),
+                                                redirect_uri: Some(config.redirect_uri.clone()),
+                                                scopes: config.scopes.clone(),
+                                                enabled: true,
+                                            },
+                                        )
+                                    {
+                                        oauth_manager.register_provider(Box::new(tenant_provider));
+                                        return oauth_manager
+                                            .ensure_valid_token(user_id, provider)
+                                            .await;
+                                    }
+                                }
+                                "fitbit" => {
+                                    // Skip Fitbit for now until we have proper config structure
+                                    tracing::warn!(
+                                        "Fitbit provider not yet configured for tenant mode"
+                                    );
+                                }
+                                _ => {
+                                    return Err(crate::oauth::OAuthError::UnsupportedProvider(
+                                        provider.to_string(),
+                                    ))
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            tracing::warn!("Failed to get tenant OAuth client for {}: {}. Falling back to global config.", provider, e);
+                            // Fall through to global config as fallback
+                        }
+                    }
+                } else {
+                    tracing::warn!(
+                        "Tenant {} not found in database. Falling back to global config.",
+                        tenant_uuid
+                    );
+                    // Fall through to global config as fallback
+                }
+            } else {
+                tracing::warn!(
+                    "Invalid tenant ID format: {}. Falling back to global config.",
+                    tenant_id_str
+                );
+                // Fall through to global config as fallback
+            }
+        }
+
+        // Fallback to global config for backward compatibility
         let mut oauth_manager = crate::oauth::manager::OAuthManager::new(self.database.clone());
 
         // Register the appropriate provider using centralized config
@@ -560,20 +647,107 @@ impl UniversalToolExecutor {
             match crate::utils::uuid::parse_uuid(&request.user_id) {
                 Ok(user_uuid) => {
                     // Get valid Strava token (with automatic refresh if needed)
-                    match self.get_valid_token(user_uuid, "strava").await {
+                    match self
+                        .get_valid_token(user_uuid, "strava", request.tenant_id.as_deref())
+                        .await
+                    {
                         Ok(Some(token_data)) => {
-                            // Create Strava provider with real token
-                            match create_provider("strava") {
-                                Ok(mut provider) => {
-                                    let auth_data = AuthData::OAuth2 {
+                            // Get tenant-aware OAuth credentials
+                            let auth_data = if let Some(tenant_id_str) =
+                                request.tenant_id.as_deref()
+                            {
+                                if let Ok(tenant_uuid) = uuid::Uuid::parse_str(tenant_id_str) {
+                                    // Look up tenant information from database to create proper TenantContext
+                                    if let Ok(tenant) =
+                                        self.database.get_tenant_by_id(tenant_uuid).await
+                                    {
+                                        let tenant_context = crate::tenant::TenantContext {
+                                            tenant_id: tenant_uuid,
+                                            tenant_name: tenant.name.clone(),
+                                            user_id: user_uuid, // Use the user_id from the request
+                                            user_role: crate::tenant::TenantRole::Member,
+                                        };
+
+                                        // Use tenant-specific OAuth credentials
+                                        match self
+                                            .tenant_oauth_client
+                                            .get_oauth_client(&tenant_context, "strava")
+                                            .await
+                                        {
+                                            Ok(oauth_client) => {
+                                                let config = oauth_client.config();
+                                                AuthData::OAuth2 {
+                                                    client_id: config.client_id.clone(),
+                                                    client_secret: config.client_secret.clone(),
+                                                    access_token: Some(
+                                                        token_data.access_token.clone(),
+                                                    ),
+                                                    refresh_token: Some(
+                                                        token_data.refresh_token.clone(),
+                                                    ),
+                                                }
+                                            }
+                                            Err(e) => {
+                                                tracing::warn!("Failed to get tenant OAuth credentials: {}. Falling back to global config.", e);
+                                                // Fallback to global config
+                                                AuthData::OAuth2 {
+                                                    client_id: std::env::var("STRAVA_CLIENT_ID")
+                                                        .unwrap_or_default(),
+                                                    client_secret: std::env::var(
+                                                        "STRAVA_CLIENT_SECRET",
+                                                    )
+                                                    .unwrap_or_default(),
+                                                    access_token: Some(
+                                                        token_data.access_token.clone(),
+                                                    ),
+                                                    refresh_token: Some(
+                                                        token_data.refresh_token.clone(),
+                                                    ),
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        tracing::warn!(
+                                            "Tenant {} not found. Falling back to global config.",
+                                            tenant_uuid
+                                        );
+                                        // Fallback to global config
+                                        AuthData::OAuth2 {
+                                            client_id: std::env::var("STRAVA_CLIENT_ID")
+                                                .unwrap_or_default(),
+                                            client_secret: std::env::var("STRAVA_CLIENT_SECRET")
+                                                .unwrap_or_default(),
+                                            access_token: Some(token_data.access_token.clone()),
+                                            refresh_token: Some(token_data.refresh_token.clone()),
+                                        }
+                                    }
+                                } else {
+                                    tracing::warn!("Invalid tenant ID format: {}. Falling back to global config.", tenant_id_str);
+                                    // Fallback to global config
+                                    AuthData::OAuth2 {
                                         client_id: std::env::var("STRAVA_CLIENT_ID")
                                             .unwrap_or_default(),
                                         client_secret: std::env::var("STRAVA_CLIENT_SECRET")
                                             .unwrap_or_default(),
                                         access_token: Some(token_data.access_token.clone()),
                                         refresh_token: Some(token_data.refresh_token.clone()),
-                                    };
+                                    }
+                                }
+                            } else {
+                                // No tenant context, use global config for backward compatibility
+                                AuthData::OAuth2 {
+                                    client_id: std::env::var("STRAVA_CLIENT_ID")
+                                        .unwrap_or_default(),
+                                    client_secret: std::env::var("STRAVA_CLIENT_SECRET")
+                                        .unwrap_or_default(),
+                                    access_token: Some(token_data.access_token.clone()),
+                                    refresh_token: Some(token_data.refresh_token.clone()),
+                                }
+                            };
 
+                            // Create Strava provider with tenant-aware token
+                            match create_provider("strava") {
+                                Ok(mut provider) => {
                                     // Authenticate and get REAL activities
                                     match provider.authenticate(auth_data).await {
                                         Ok(()) => {
@@ -684,7 +858,10 @@ impl UniversalToolExecutor {
     ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
         // Get REAL athlete data
         let athlete_data = match crate::utils::uuid::parse_uuid(&request.user_id) {
-            Ok(user_uuid) => match self.get_valid_token(user_uuid, "strava").await {
+            Ok(user_uuid) => match self
+                .get_valid_token(user_uuid, "strava", request.tenant_id.as_deref())
+                .await
+            {
                 Ok(Some(token_data)) => match create_provider("strava") {
                     Ok(mut provider) => {
                         let auth_data = AuthData::OAuth2 {
@@ -766,7 +943,10 @@ impl UniversalToolExecutor {
         // Get real activity data async
         let activity_result = {
             // Get valid Strava token (with automatic refresh if needed)
-            match self.get_valid_token(user_uuid, "strava").await {
+            match self
+                .get_valid_token(user_uuid, "strava", request.tenant_id.as_deref())
+                .await
+            {
                 Ok(Some(token_data)) => {
                     // Create Strava provider with real token
                     match create_provider("strava") {
@@ -881,7 +1061,10 @@ impl UniversalToolExecutor {
 
         // Get REAL stats from the provider
         let stats = match crate::utils::uuid::parse_uuid(&request.user_id) {
-            Ok(user_uuid) => match self.get_valid_token(user_uuid, provider_type).await {
+            Ok(user_uuid) => match self
+                .get_valid_token(user_uuid, provider_type, request.tenant_id.as_deref())
+                .await
+            {
                 Ok(Some(token_data)) => match create_provider(provider_type) {
                     Ok(mut provider) => {
                         let auth_data = AuthData::OAuth2 {
@@ -1381,7 +1564,10 @@ impl UniversalToolExecutor {
 
         // Get activities from provider
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        if let Ok(Some(token_data)) = self.get_valid_token(user_uuid, "strava").await {
+        if let Ok(Some(token_data)) = self
+            .get_valid_token(user_uuid, "strava", request.tenant_id.as_deref())
+            .await
+        {
             match create_provider("strava") {
                 Ok(mut provider) => {
                     let auth_data = AuthData::OAuth2 {
@@ -1491,7 +1677,10 @@ impl UniversalToolExecutor {
         let mut activity1 = None;
         let mut activity2 = None;
 
-        if let Ok(Some(token_data)) = self.get_valid_token(user_uuid, "strava").await {
+        if let Ok(Some(token_data)) = self
+            .get_valid_token(user_uuid, "strava", request.tenant_id.as_deref())
+            .await
+        {
             match create_provider("strava") {
                 Ok(mut provider) => {
                     let auth_data = AuthData::OAuth2 {
@@ -1580,7 +1769,10 @@ impl UniversalToolExecutor {
 
         // Get activities from provider
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        if let Ok(Some(token_data)) = self.get_valid_token(user_uuid, "strava").await {
+        if let Ok(Some(token_data)) = self
+            .get_valid_token(user_uuid, "strava", request.tenant_id.as_deref())
+            .await
+        {
             match create_provider("strava") {
                 Ok(mut provider) => {
                     let auth_data = AuthData::OAuth2 {
@@ -1700,7 +1892,10 @@ impl UniversalToolExecutor {
 
         // Get activities from provider
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        if let Ok(Some(token_data)) = self.get_valid_token(user_uuid, "strava").await {
+        if let Ok(Some(token_data)) = self
+            .get_valid_token(user_uuid, "strava", request.tenant_id.as_deref())
+            .await
+        {
             match create_provider("strava") {
                 Ok(mut provider) => {
                     let auth_data = AuthData::OAuth2 {
@@ -1771,7 +1966,10 @@ impl UniversalToolExecutor {
 
         // Get recent activities
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        if let Ok(Some(token_data)) = self.get_valid_token(user_uuid, "strava").await {
+        if let Ok(Some(token_data)) = self
+            .get_valid_token(user_uuid, "strava", request.tenant_id.as_deref())
+            .await
+        {
             match create_provider("strava") {
                 Ok(mut provider) => {
                     let auth_data = AuthData::OAuth2 {
@@ -1911,7 +2109,10 @@ impl UniversalToolExecutor {
 
         // Get historical activities
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        if let Ok(Some(token_data)) = self.get_valid_token(user_uuid, "strava").await {
+        if let Ok(Some(token_data)) = self
+            .get_valid_token(user_uuid, "strava", request.tenant_id.as_deref())
+            .await
+        {
             match create_provider("strava") {
                 Ok(mut provider) => {
                     let auth_data = AuthData::OAuth2 {
@@ -2037,7 +2238,10 @@ impl UniversalToolExecutor {
 
         // Get recent activities
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        if let Ok(Some(token_data)) = self.get_valid_token(user_uuid, "strava").await {
+        if let Ok(Some(token_data)) = self
+            .get_valid_token(user_uuid, "strava", request.tenant_id.as_deref())
+            .await
+        {
             match create_provider("strava") {
                 Ok(mut provider) => {
                     let auth_data = AuthData::OAuth2 {
@@ -2144,7 +2348,10 @@ impl UniversalToolExecutor {
 
         // Get recent activities
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        if let Ok(Some(token_data)) = self.get_valid_token(user_uuid, "strava").await {
+        if let Ok(Some(token_data)) = self
+            .get_valid_token(user_uuid, "strava", request.tenant_id.as_deref())
+            .await
+        {
             match create_provider("strava") {
                 Ok(mut provider) => {
                     let auth_data = AuthData::OAuth2 {
@@ -2292,7 +2499,10 @@ impl UniversalToolExecutor {
 
         // Get historical activities
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        if let Ok(Some(token_data)) = self.get_valid_token(user_uuid, "strava").await {
+        if let Ok(Some(token_data)) = self
+            .get_valid_token(user_uuid, "strava", request.tenant_id.as_deref())
+            .await
+        {
             match create_provider("strava") {
                 Ok(mut provider) => {
                     let auth_data = AuthData::OAuth2 {
@@ -2422,7 +2632,10 @@ impl UniversalToolExecutor {
 
         // Get recent activities (last 4 weeks)
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        if let Ok(Some(token_data)) = self.get_valid_token(user_uuid, "strava").await {
+        if let Ok(Some(token_data)) = self
+            .get_valid_token(user_uuid, "strava", request.tenant_id.as_deref())
+            .await
+        {
             match create_provider("strava") {
                 Ok(mut provider) => {
                     let auth_data = AuthData::OAuth2 {

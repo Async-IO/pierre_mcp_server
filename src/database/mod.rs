@@ -94,6 +94,9 @@ impl Database {
         // Admin tables
         self.migrate_admin().await?;
 
+        // Tenant management tables
+        self.migrate_tenant_management().await?;
+
         Ok(())
     }
 
@@ -203,6 +206,110 @@ impl Database {
 
         Ok(())
     }
+
+    /// Create tenant management tables
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Table creation SQL fails
+    /// - Index creation fails
+    /// - Database constraints cannot be applied
+    /// - SQL syntax errors in migration statements
+    async fn migrate_tenant_management(&self) -> Result<()> {
+        // Read and execute the tenant management migration
+        let migration_sql = include_str!("../../migrations/004_tenant_management.sql");
+
+        // Execute the migration in a transaction
+        let mut tx = self.pool.begin().await?;
+
+        // Split SQL statements properly, handling triggers with BEGIN/END blocks
+        let statements = Self::split_sql_statements_properly(migration_sql);
+
+        for statement in statements {
+            let statement = statement.trim();
+            if !statement.is_empty() {
+                sqlx::query(statement).execute(&mut *tx).await?;
+            }
+        }
+
+        tx.commit().await?;
+
+        tracing::info!("Tenant management tables migration completed successfully");
+        Ok(())
+    }
+
+    /// Split SQL text into individual statements, properly handling triggers
+    fn split_sql_statements_properly(sql: &str) -> Vec<String> {
+        let mut statements = Vec::new();
+        let mut current_statement = String::new();
+        let mut in_trigger = false;
+        let mut trigger_depth = 0;
+
+        for line in sql.lines() {
+            let trimmed = line.trim();
+
+            // Skip empty lines completely
+            if trimmed.is_empty() {
+                continue;
+            }
+
+            // Handle inline comments - split line at --
+            let (code_part, _comment_part) =
+                trimmed.find("--").map_or((trimmed, ""), |comment_pos| {
+                    let code = trimmed[..comment_pos].trim();
+                    let comment = trimmed[comment_pos..].trim();
+                    (code, comment)
+                });
+
+            // Skip lines that are pure comments
+            if code_part.is_empty() {
+                continue;
+            }
+
+            // Check if we're starting a trigger
+            if code_part.to_uppercase().starts_with("CREATE TRIGGER") {
+                in_trigger = true;
+                trigger_depth = 0;
+            }
+
+            // Add line to current statement
+            if !current_statement.is_empty() {
+                current_statement.push(' ');
+            }
+            current_statement.push_str(code_part);
+
+            // Count BEGIN/END depth in triggers
+            if in_trigger {
+                if code_part.to_uppercase().contains("BEGIN") {
+                    trigger_depth += 1;
+                }
+                if code_part.to_uppercase().contains("END") {
+                    trigger_depth -= 1;
+                }
+            }
+
+            // Check if statement is complete
+            if code_part.ends_with(';') {
+                if in_trigger && trigger_depth > 0 {
+                    // Still inside trigger block, continue to next line
+                } else {
+                    // Statement is complete
+                    statements.push(current_statement.clone());
+                    current_statement.clear();
+                    in_trigger = false;
+                    trigger_depth = 0;
+                }
+            }
+        }
+
+        // Add any remaining statement
+        if !current_statement.trim().is_empty() {
+            statements.push(current_statement);
+        }
+
+        statements
+    }
 }
 
 /// Encryption helper trait for token operations
@@ -213,6 +320,86 @@ pub(crate) trait EncryptionHelper {
 impl EncryptionHelper for Database {
     fn encryption_key(&self) -> &[u8] {
         &self.encryption_key
+    }
+}
+
+/// Database encryption utilities
+impl Database {
+    /// Encrypt sensitive data using AES-256-GCM
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if encryption fails
+    pub fn encrypt_data(&self, data: &str) -> Result<String> {
+        use base64::{engine::general_purpose, Engine as _};
+        use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
+        use ring::rand::{SecureRandom, SystemRandom};
+
+        let rng = SystemRandom::new();
+
+        // Generate unique nonce
+        let mut nonce_bytes = [0u8; 12];
+        rng.fill(&mut nonce_bytes)?;
+        let nonce = Nonce::assume_unique_for_key(nonce_bytes);
+
+        // Create encryption key
+        let unbound_key = UnboundKey::new(&AES_256_GCM, &self.encryption_key)?;
+        let key = LessSafeKey::new(unbound_key);
+
+        // Encrypt data
+        let mut data_bytes = data.as_bytes().to_vec();
+        key.seal_in_place_append_tag(nonce, Aad::empty(), &mut data_bytes)?;
+
+        // Combine nonce and encrypted data, then base64 encode
+        let mut combined = nonce_bytes.to_vec();
+        combined.extend(data_bytes);
+
+        Ok(general_purpose::STANDARD.encode(combined))
+    }
+
+    /// Decrypt sensitive data
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if decryption fails or data is malformed
+    pub fn decrypt_data(&self, encrypted_data: &str) -> Result<String> {
+        use base64::{engine::general_purpose, Engine as _};
+        use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
+
+        // Decode from base64
+        let combined = general_purpose::STANDARD.decode(encrypted_data)?;
+
+        if combined.len() < 12 {
+            return Err(anyhow::anyhow!("Invalid encrypted data: too short"));
+        }
+
+        // Extract nonce and encrypted data
+        let (nonce_bytes, encrypted_bytes) = combined.split_at(12);
+        let nonce = Nonce::assume_unique_for_key(nonce_bytes.try_into()?);
+
+        // Create decryption key
+        let unbound_key = UnboundKey::new(&AES_256_GCM, &self.encryption_key)?;
+        let key = LessSafeKey::new(unbound_key);
+
+        // Decrypt data
+        let mut decrypted_data = encrypted_bytes.to_vec();
+        let decrypted = key.open_in_place(nonce, Aad::empty(), &mut decrypted_data)?;
+
+        String::from_utf8(decrypted.to_vec())
+            .map_err(|e| anyhow::anyhow!("Failed to convert decrypted data to string: {e}"))
+    }
+
+    /// Hash sensitive data using SHA-256
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if hashing fails
+    pub fn hash_data(&self, data: &str) -> Result<String> {
+        use base64::{engine::general_purpose, Engine as _};
+        use ring::digest::{digest, SHA256};
+
+        let hash = digest(&SHA256, data.as_bytes());
+        Ok(general_purpose::STANDARD.encode(hash.as_ref()))
     }
 }
 

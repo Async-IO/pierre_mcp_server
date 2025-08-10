@@ -380,10 +380,12 @@ async fn create_test_executor() -> (Arc<UniversalToolExecutor>, Arc<Database>) {
         },
     ));
 
+    let tenant_oauth_client = Arc::new(pierre_mcp_server::tenant::TenantOAuthClient::new());
     let executor = Arc::new(UniversalToolExecutor::new(
         database.clone(),
         intelligence,
         create_test_server_config(),
+        tenant_oauth_client,
     ));
 
     (executor, database)
@@ -421,10 +423,12 @@ async fn create_test_executor_without_oauth() -> (Arc<UniversalToolExecutor>, Ar
         },
     ));
 
+    let tenant_oauth_client = Arc::new(pierre_mcp_server::tenant::TenantOAuthClient::new());
     let executor = Arc::new(UniversalToolExecutor::new(
         database.clone(),
         intelligence,
         create_test_server_config_without_oauth(),
+        tenant_oauth_client,
     ));
 
     (executor, database)
@@ -477,6 +481,7 @@ async fn test_get_activities_with_expired_token() {
             "provider": "strava"
         }),
         protocol: "test".to_string(),
+        tenant_id: None,
     };
 
     // Execute tool - it should attempt to refresh the token
@@ -536,6 +541,7 @@ async fn test_connection_status_with_oauth_manager() {
         tool_name: "get_connection_status".to_string(),
         parameters: json!({}),
         protocol: "test".to_string(),
+        tenant_id: None,
     };
 
     // Execute tool
@@ -609,6 +615,7 @@ async fn test_analyze_activity_token_refresh() {
             "activity_id": "123456789"
         }),
         protocol: "test".to_string(),
+        tenant_id: None,
     };
 
     // Execute - should trigger refresh due to token expiring soon
@@ -683,6 +690,7 @@ async fn test_concurrent_token_operations() {
                 tool_name: "get_connection_status".to_string(),
                 parameters: json!({}),
                 protocol: "test".to_string(),
+                tenant_id: None,
             };
             executor_clone.execute_tool(request).await
         });
@@ -727,6 +735,7 @@ async fn test_oauth_provider_init_failure() {
         tool_name: "connect_strava".to_string(),
         parameters: json!({}),
         protocol: "test".to_string(),
+        tenant_id: None,
     };
 
     // Execute - should handle provider initialization failure gracefully
