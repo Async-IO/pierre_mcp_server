@@ -1169,7 +1169,7 @@ impl MultiTenantMcpServer {
         let mut header_map = warp::http::HeaderMap::new();
         for (name, value) in headers {
             if let Ok(header_name) = warp::http::HeaderName::from_str(name) {
-                if let Ok(header_value) = warp::http::HeaderValue::from_str(&value) {
+                if let Ok(header_value) = warp::http::HeaderValue::from_str(value) {
                     header_map.insert(header_name, header_value);
                 }
             }
