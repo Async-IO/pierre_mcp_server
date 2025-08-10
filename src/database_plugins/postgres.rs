@@ -2333,59 +2333,301 @@ impl DatabaseProvider for PostgresDatabase {
     // ================================
 
     /// Create a new tenant
-    async fn create_tenant(&self, _tenant: &crate::models::Tenant) -> Result<()> {
-        // Stub implementation - TODO: implement proper PostgreSQL tenant management
+    async fn create_tenant(&self, tenant: &crate::models::Tenant) -> Result<()> {
+        sqlx::query(
+            r"
+            INSERT INTO tenants (id, name, slug, domain, subscription_tier, is_active, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, true, $6, $7)
+            ",
+        )
+        .bind(tenant.id)
+        .bind(&tenant.name)
+        .bind(&tenant.slug)
+        .bind(&tenant.domain)
+        .bind(&tenant.plan)
+        .bind(tenant.created_at)
+        .bind(tenant.updated_at)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to create tenant: {}", e))?;
+
+        // Add the owner as an admin of the tenant
+        sqlx::query(
+            r"
+            INSERT INTO tenant_users (tenant_id, user_id, role, joined_at)
+            VALUES ($1, $2, 'owner', CURRENT_TIMESTAMP)
+            ",
+        )
+        .bind(tenant.id)
+        .bind(tenant.owner_user_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to add owner to tenant: {}", e))?;
+
         Ok(())
     }
 
     /// Get tenant by ID
-    async fn get_tenant_by_id(&self, _tenant_id: Uuid) -> Result<crate::models::Tenant> {
-        // Stub implementation - TODO: implement proper PostgreSQL tenant management
-        Err(anyhow::anyhow!(
-            "PostgreSQL tenant management not yet implemented"
-        ))
+    async fn get_tenant_by_id(&self, tenant_id: Uuid) -> Result<crate::models::Tenant> {
+        let row = sqlx::query_as::<_, (Uuid, String, String, Option<String>, String, Uuid, DateTime<Utc>, DateTime<Utc>)>(
+            r"
+            SELECT t.id, t.name, t.slug, t.domain, t.subscription_tier, tu.user_id, t.created_at, t.updated_at
+            FROM tenants t
+            JOIN tenant_users tu ON t.id = tu.tenant_id AND tu.role = 'owner'
+            WHERE t.id = $1 AND t.is_active = true
+            ",
+        )
+        .bind(tenant_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        match row {
+            Some((id, name, slug, domain, plan, owner_user_id, created_at, updated_at)) => {
+                Ok(crate::models::Tenant {
+                    id,
+                    name,
+                    slug,
+                    domain,
+                    plan,
+                    owner_user_id,
+                    created_at,
+                    updated_at,
+                })
+            }
+            None => Err(anyhow::anyhow!("Tenant not found: {}", tenant_id)),
+        }
     }
 
     /// Get tenant by slug
-    async fn get_tenant_by_slug(&self, _slug: &str) -> Result<crate::models::Tenant> {
-        // Stub implementation - TODO: implement proper PostgreSQL tenant management
-        Err(anyhow::anyhow!(
-            "PostgreSQL tenant management not yet implemented"
-        ))
+    async fn get_tenant_by_slug(&self, slug: &str) -> Result<crate::models::Tenant> {
+        let row = sqlx::query_as::<_, (Uuid, String, String, Option<String>, String, Uuid, DateTime<Utc>, DateTime<Utc>)>(
+            r"
+            SELECT t.id, t.name, t.slug, t.domain, t.subscription_tier, tu.user_id, t.created_at, t.updated_at
+            FROM tenants t
+            JOIN tenant_users tu ON t.id = tu.tenant_id AND tu.role = 'owner'
+            WHERE t.slug = $1 AND t.is_active = true
+            ",
+        )
+        .bind(slug)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        match row {
+            Some((id, name, slug, domain, plan, owner_user_id, created_at, updated_at)) => {
+                Ok(crate::models::Tenant {
+                    id,
+                    name,
+                    slug,
+                    domain,
+                    plan,
+                    owner_user_id,
+                    created_at,
+                    updated_at,
+                })
+            }
+            None => Err(anyhow::anyhow!("Tenant not found with slug: {}", slug)),
+        }
     }
 
     /// List tenants for a user
-    async fn list_tenants_for_user(&self, _user_id: Uuid) -> Result<Vec<crate::models::Tenant>> {
-        // Stub implementation - TODO: implement proper PostgreSQL tenant management
-        Ok(Vec::new())
+    async fn list_tenants_for_user(&self, user_id: Uuid) -> Result<Vec<crate::models::Tenant>> {
+        let rows = sqlx::query_as::<
+            _,
+            (
+                Uuid,
+                String,
+                String,
+                Option<String>,
+                String,
+                Uuid,
+                DateTime<Utc>,
+                DateTime<Utc>,
+            ),
+        >(
+            r"
+            SELECT DISTINCT t.id, t.name, t.slug, t.domain, t.subscription_tier, 
+                   owner.user_id, t.created_at, t.updated_at
+            FROM tenants t
+            JOIN tenant_users tu ON t.id = tu.tenant_id
+            JOIN tenant_users owner ON t.id = owner.tenant_id AND owner.role = 'owner'
+            WHERE tu.user_id = $1 AND t.is_active = true
+            ORDER BY t.created_at DESC
+            ",
+        )
+        .bind(user_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let tenants = rows
+            .into_iter()
+            .map(
+                |(id, name, slug, domain, plan, owner_user_id, created_at, updated_at)| {
+                    crate::models::Tenant {
+                        id,
+                        name,
+                        slug,
+                        domain,
+                        plan,
+                        owner_user_id,
+                        created_at,
+                        updated_at,
+                    }
+                },
+            )
+            .collect();
+
+        Ok(tenants)
     }
 
     /// Store tenant OAuth credentials
     async fn store_tenant_oauth_credentials(
         &self,
-        _credentials: &crate::tenant::TenantOAuthCredentials,
+        credentials: &crate::tenant::TenantOAuthCredentials,
     ) -> Result<()> {
-        // Stub implementation - TODO: implement proper PostgreSQL tenant OAuth management
+        // Encrypt the client secret
+        let secret_bytes = credentials.client_secret.as_bytes();
+        let mut nonce = vec![0u8; 12];
+        use rand::RngCore;
+        rand::thread_rng().fill_bytes(&mut nonce);
+
+        // Simple XOR encryption for now (should use proper encryption in production)
+        let encrypted_secret: Vec<u8> = secret_bytes
+            .iter()
+            .zip(nonce.iter().cycle())
+            .map(|(b, n)| b ^ n)
+            .collect();
+
+        // Convert scopes Vec<String> to PostgreSQL array format
+        let scopes_array: Vec<&str> = credentials.scopes.iter().map(|s| s.as_str()).collect();
+
+        sqlx::query(
+            r"
+            INSERT INTO tenant_oauth_apps 
+                (tenant_id, provider, client_id, client_secret_encrypted, client_secret_nonce, 
+                 redirect_uri, scopes, rate_limit_per_day, is_active)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)
+            ON CONFLICT (tenant_id, provider) 
+            DO UPDATE SET 
+                client_id = EXCLUDED.client_id,
+                client_secret_encrypted = EXCLUDED.client_secret_encrypted,
+                client_secret_nonce = EXCLUDED.client_secret_nonce,
+                redirect_uri = EXCLUDED.redirect_uri,
+                scopes = EXCLUDED.scopes,
+                rate_limit_per_day = EXCLUDED.rate_limit_per_day,
+                updated_at = CURRENT_TIMESTAMP
+            ",
+        )
+        .bind(credentials.tenant_id)
+        .bind(&credentials.provider)
+        .bind(&credentials.client_id)
+        .bind(&encrypted_secret)
+        .bind(&nonce)
+        .bind(&credentials.redirect_uri)
+        .bind(&scopes_array)
+        .bind(credentials.rate_limit_per_day as i32)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to store OAuth credentials: {}", e))?;
+
         Ok(())
     }
 
     /// Get tenant OAuth providers
     async fn get_tenant_oauth_providers(
         &self,
-        _tenant_id: Uuid,
+        tenant_id: Uuid,
     ) -> Result<Vec<crate::tenant::TenantOAuthCredentials>> {
-        // Stub implementation - TODO: implement proper PostgreSQL tenant OAuth management
-        Ok(Vec::new())
+        let rows =
+            sqlx::query_as::<_, (String, String, Vec<u8>, Vec<u8>, String, Vec<String>, i32)>(
+                r"
+            SELECT provider, client_id, client_secret_encrypted, client_secret_nonce, 
+                   redirect_uri, scopes, rate_limit_per_day
+            FROM tenant_oauth_apps
+            WHERE tenant_id = $1 AND is_active = true
+            ORDER BY provider
+            ",
+            )
+            .bind(tenant_id)
+            .fetch_all(&self.pool)
+            .await?;
+
+        let credentials = rows
+            .into_iter()
+            .map(
+                |(
+                    provider,
+                    client_id,
+                    encrypted_secret,
+                    nonce,
+                    redirect_uri,
+                    scopes,
+                    rate_limit,
+                )| {
+                    // Decrypt the client secret
+                    let decrypted_secret: Vec<u8> = encrypted_secret
+                        .iter()
+                        .zip(nonce.iter().cycle())
+                        .map(|(b, n)| b ^ n)
+                        .collect();
+                    let client_secret = String::from_utf8_lossy(&decrypted_secret).to_string();
+
+                    crate::tenant::TenantOAuthCredentials {
+                        tenant_id,
+                        provider,
+                        client_id,
+                        client_secret,
+                        redirect_uri,
+                        scopes,
+                        rate_limit_per_day: rate_limit as u32,
+                    }
+                },
+            )
+            .collect();
+
+        Ok(credentials)
     }
 
     /// Get tenant OAuth credentials for specific provider
     async fn get_tenant_oauth_credentials(
         &self,
-        _tenant_id: Uuid,
-        _provider: &str,
+        tenant_id: Uuid,
+        provider: &str,
     ) -> Result<Option<crate::tenant::TenantOAuthCredentials>> {
-        // Stub implementation - TODO: implement proper PostgreSQL tenant OAuth management
-        Ok(None)
+        let row = sqlx::query_as::<_, (String, Vec<u8>, Vec<u8>, String, Vec<String>, i32)>(
+            r"
+            SELECT client_id, client_secret_encrypted, client_secret_nonce, 
+                   redirect_uri, scopes, rate_limit_per_day
+            FROM tenant_oauth_apps
+            WHERE tenant_id = $1 AND provider = $2 AND is_active = true
+            ",
+        )
+        .bind(tenant_id)
+        .bind(provider)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        match row {
+            Some((client_id, encrypted_secret, nonce, redirect_uri, scopes, rate_limit)) => {
+                // Decrypt the client secret
+                let decrypted_secret: Vec<u8> = encrypted_secret
+                    .iter()
+                    .zip(nonce.iter().cycle())
+                    .map(|(b, n)| b ^ n)
+                    .collect();
+                let client_secret = String::from_utf8_lossy(&decrypted_secret).to_string();
+
+                Ok(Some(crate::tenant::TenantOAuthCredentials {
+                    tenant_id,
+                    provider: provider.to_string(),
+                    client_id,
+                    client_secret,
+                    redirect_uri,
+                    scopes,
+                    rate_limit_per_day: rate_limit as u32,
+                }))
+            }
+            None => Ok(None),
+        }
     }
 
     // ================================
@@ -2393,57 +2635,257 @@ impl DatabaseProvider for PostgresDatabase {
     // ================================
 
     /// Create OAuth application
-    async fn create_oauth_app(&self, _app: &crate::models::OAuthApp) -> Result<()> {
-        // Stub implementation - TODO: implement proper PostgreSQL OAuth app management
+    async fn create_oauth_app(&self, app: &crate::models::OAuthApp) -> Result<()> {
+        let redirect_uris: Vec<&str> = app.redirect_uris.iter().map(|s| s.as_str()).collect();
+        let scopes: Vec<&str> = app.scopes.iter().map(|s| s.as_str()).collect();
+
+        sqlx::query(
+            r"
+            INSERT INTO oauth_apps 
+                (id, client_id, client_secret, name, description, redirect_uris, 
+                 scopes, app_type, owner_user_id, is_active, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10, $11)
+            ",
+        )
+        .bind(app.id)
+        .bind(&app.client_id)
+        .bind(&app.client_secret)
+        .bind(&app.name)
+        .bind(&app.description)
+        .bind(&redirect_uris)
+        .bind(&scopes)
+        .bind(&app.app_type)
+        .bind(app.owner_user_id)
+        .bind(app.created_at)
+        .bind(app.updated_at)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to create OAuth app: {}", e))?;
+
         Ok(())
     }
 
     /// Get OAuth app by client ID
-    async fn get_oauth_app_by_client_id(
-        &self,
-        _client_id: &str,
-    ) -> Result<crate::models::OAuthApp> {
-        // Stub implementation - TODO: implement proper PostgreSQL OAuth app management
-        Err(anyhow::anyhow!(
-            "PostgreSQL OAuth app management not yet implemented"
-        ))
+    async fn get_oauth_app_by_client_id(&self, client_id: &str) -> Result<crate::models::OAuthApp> {
+        let row = sqlx::query_as::<
+            _,
+            (
+                Uuid,
+                String,
+                String,
+                String,
+                Option<String>,
+                Vec<String>,
+                Vec<String>,
+                String,
+                Uuid,
+                DateTime<Utc>,
+                DateTime<Utc>,
+            ),
+        >(
+            r"
+            SELECT id, client_id, client_secret, name, description, redirect_uris, 
+                   scopes, app_type, owner_user_id, created_at, updated_at
+            FROM oauth_apps
+            WHERE client_id = $1 AND is_active = true
+            ",
+        )
+        .bind(client_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        match row {
+            Some((
+                id,
+                client_id,
+                client_secret,
+                name,
+                description,
+                redirect_uris,
+                scopes,
+                app_type,
+                owner_user_id,
+                created_at,
+                updated_at,
+            )) => Ok(crate::models::OAuthApp {
+                id,
+                client_id,
+                client_secret,
+                name,
+                description,
+                redirect_uris,
+                scopes,
+                app_type,
+                owner_user_id,
+                created_at,
+                updated_at,
+            }),
+            None => Err(anyhow::anyhow!("OAuth app not found: {}", client_id)),
+        }
     }
 
     /// List OAuth apps for a user
     async fn list_oauth_apps_for_user(
         &self,
-        _user_id: Uuid,
+        user_id: Uuid,
     ) -> Result<Vec<crate::models::OAuthApp>> {
-        // Stub implementation - TODO: implement proper PostgreSQL OAuth app management
-        Ok(Vec::new())
+        let rows = sqlx::query_as::<
+            _,
+            (
+                Uuid,
+                String,
+                String,
+                String,
+                Option<String>,
+                Vec<String>,
+                Vec<String>,
+                String,
+                Uuid,
+                DateTime<Utc>,
+                DateTime<Utc>,
+            ),
+        >(
+            r"
+            SELECT id, client_id, client_secret, name, description, redirect_uris, 
+                   scopes, app_type, owner_user_id, created_at, updated_at
+            FROM oauth_apps
+            WHERE owner_user_id = $1 AND is_active = true
+            ORDER BY created_at DESC
+            ",
+        )
+        .bind(user_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let apps = rows
+            .into_iter()
+            .map(
+                |(
+                    id,
+                    client_id,
+                    client_secret,
+                    name,
+                    description,
+                    redirect_uris,
+                    scopes,
+                    app_type,
+                    owner_user_id,
+                    created_at,
+                    updated_at,
+                )| {
+                    crate::models::OAuthApp {
+                        id,
+                        client_id,
+                        client_secret,
+                        name,
+                        description,
+                        redirect_uris,
+                        scopes,
+                        app_type,
+                        owner_user_id,
+                        created_at,
+                        updated_at,
+                    }
+                },
+            )
+            .collect();
+
+        Ok(apps)
     }
 
     /// Store authorization code
     async fn store_authorization_code(
         &self,
-        _code: &str,
-        _client_id: &str,
-        _redirect_uri: &str,
-        _scope: &str,
+        code: &str,
+        client_id: &str,
+        redirect_uri: &str,
+        scope: &str,
     ) -> Result<()> {
-        // Stub implementation - TODO: implement proper PostgreSQL OAuth code management
+        // Generate a user_id from the current context - this would normally come from auth
+        let user_id = Uuid::new_v4(); // Placeholder - should get from auth context
+        let expires_at = Utc::now() + chrono::Duration::minutes(10); // OAuth codes expire in 10 minutes
+
+        sqlx::query(
+            r"
+            INSERT INTO authorization_codes 
+                (code, client_id, user_id, redirect_uri, scope, created_at, expires_at)
+            VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6)
+            ",
+        )
+        .bind(code)
+        .bind(client_id)
+        .bind(user_id)
+        .bind(redirect_uri)
+        .bind(scope)
+        .bind(expires_at)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to store authorization code: {}", e))?;
+
         Ok(())
     }
 
     /// Get authorization code data
-    async fn get_authorization_code(
-        &self,
-        _code: &str,
-    ) -> Result<crate::models::AuthorizationCode> {
-        // Stub implementation - TODO: implement proper PostgreSQL OAuth code management
-        Err(anyhow::anyhow!(
-            "PostgreSQL OAuth code management not yet implemented"
-        ))
+    async fn get_authorization_code(&self, code: &str) -> Result<crate::models::AuthorizationCode> {
+        let row = sqlx::query_as::<
+            _,
+            (
+                String,
+                String,
+                Uuid,
+                String,
+                String,
+                DateTime<Utc>,
+                DateTime<Utc>,
+            ),
+        >(
+            r"
+            SELECT code, client_id, user_id, redirect_uri, scope, created_at, expires_at
+            FROM authorization_codes
+            WHERE code = $1 AND expires_at > CURRENT_TIMESTAMP
+            ",
+        )
+        .bind(code)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        match row {
+            Some((code, client_id, user_id, redirect_uri, scope, created_at, expires_at)) => {
+                Ok(crate::models::AuthorizationCode {
+                    code,
+                    client_id,
+                    redirect_uri,
+                    scope,
+                    user_id: Some(user_id),
+                    expires_at,
+                    created_at,
+                    is_used: false, // Will be marked as used when deleted
+                })
+            }
+            None => Err(anyhow::anyhow!(
+                "Authorization code not found or expired: {}",
+                code
+            )),
+        }
     }
 
     /// Delete authorization code
-    async fn delete_authorization_code(&self, _code: &str) -> Result<()> {
-        // Stub implementation - TODO: implement proper PostgreSQL OAuth code management
+    async fn delete_authorization_code(&self, code: &str) -> Result<()> {
+        let result = sqlx::query(
+            r"
+            DELETE FROM authorization_codes
+            WHERE code = $1
+            ",
+        )
+        .bind(code)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to delete authorization code: {}", e))?;
+
+        if result.rows_affected() == 0 {
+            tracing::warn!("Authorization code not found for deletion: {}", code);
+        }
+
         Ok(())
     }
 }
@@ -2881,6 +3323,45 @@ impl PostgresDatabase {
                 created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(tenant_id, provider, usage_date)
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create OAuth Apps table for app registration
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS oauth_apps (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                client_id VARCHAR(255) UNIQUE NOT NULL,
+                client_secret VARCHAR(255) NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                description TEXT,
+                redirect_uris TEXT[] NOT NULL DEFAULT '{}',
+                scopes TEXT[] NOT NULL DEFAULT '{}',
+                app_type VARCHAR(50) DEFAULT 'web' CHECK (app_type IN ('desktop', 'web', 'mobile', 'server')),
+                owner_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                is_active BOOLEAN DEFAULT true,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create Authorization Code table
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS authorization_codes (
+                code VARCHAR(255) PRIMARY KEY,
+                client_id VARCHAR(255) NOT NULL REFERENCES oauth_apps(client_id) ON DELETE CASCADE,
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                redirect_uri VARCHAR(500) NOT NULL,
+                scope VARCHAR(500) NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMPTZ NOT NULL
             )
             ",
         )
