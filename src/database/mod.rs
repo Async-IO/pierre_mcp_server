@@ -97,6 +97,9 @@ impl Database {
         // Tenant management tables
         self.migrate_tenant_management().await?;
 
+        // Security and key rotation tables
+        self.migrate_security().await?;
+
         Ok(())
     }
 
@@ -236,6 +239,31 @@ impl Database {
         tx.commit().await?;
 
         tracing::info!("Tenant management tables migration completed successfully");
+        Ok(())
+    }
+
+    /// Create security and key rotation tables
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the security migration fails
+    async fn migrate_security(&self) -> Result<()> {
+        // Read and execute the security migration
+        let migration_sql = include_str!("../../migrations/005_security.sql");
+
+        // Execute the migration in a transaction
+        let mut tx = self.pool.begin().await?;
+
+        // Split SQL statements properly
+        let statements = Self::split_sql_statements_properly(migration_sql);
+
+        for statement in statements {
+            sqlx::query(&statement).execute(&mut *tx).await?;
+        }
+
+        tx.commit().await?;
+
+        tracing::info!("Security tables migration completed successfully");
         Ok(())
     }
 

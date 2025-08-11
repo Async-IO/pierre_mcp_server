@@ -1420,6 +1420,449 @@ impl DatabaseProvider for SqliteDatabase {
         tracing::debug!("Marked authorization code as used: {code}");
         Ok(())
     }
+
+    // ================================
+    // Key Rotation & Security
+    // ================================
+
+    async fn store_key_version(
+        &self,
+        version: &crate::security::key_rotation::KeyVersion,
+    ) -> Result<()> {
+        let query = r"
+            INSERT INTO key_versions (tenant_id, version, created_at, expires_at, is_active, algorithm)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            ON CONFLICT (tenant_id, version) DO UPDATE SET
+                expires_at = excluded.expires_at,
+                is_active = excluded.is_active,
+                algorithm = excluded.algorithm
+        ";
+
+        sqlx::query(query)
+            .bind(version.tenant_id.map(|id| id.to_string()))
+            .bind(i64::from(version.version))
+            .bind(version.created_at)
+            .bind(version.expires_at)
+            .bind(version.is_active)
+            .bind(&version.algorithm)
+            .execute(self.inner.pool())
+            .await
+            .context("Failed to store key version")?;
+
+        tracing::debug!(
+            "Stored key version {} for tenant {:?}",
+            version.version,
+            version.tenant_id
+        );
+        Ok(())
+    }
+
+    async fn get_key_versions(
+        &self,
+        tenant_id: Option<uuid::Uuid>,
+    ) -> Result<Vec<crate::security::key_rotation::KeyVersion>> {
+        let query = r"
+            SELECT tenant_id, version, created_at, expires_at, is_active, algorithm
+            FROM key_versions
+            WHERE CASE 
+                WHEN ?1 IS NULL THEN tenant_id IS NULL
+                ELSE tenant_id = ?1
+            END
+            ORDER BY version DESC
+        ";
+
+        let rows = sqlx::query(query)
+            .bind(tenant_id.map(|id| id.to_string()))
+            .fetch_all(self.inner.pool())
+            .await
+            .context("Failed to get key versions")?;
+
+        let versions = rows
+            .iter()
+            .map(|row| {
+                use sqlx::Row;
+                let tenant_id_str: Option<String> = row.try_get("tenant_id")?;
+                let tenant_id = tenant_id_str
+                    .map(|s| uuid::Uuid::parse_str(&s))
+                    .transpose()
+                    .context("Invalid tenant UUID")?;
+
+                Ok(crate::security::key_rotation::KeyVersion {
+                    // Safe: version numbers are always positive and well within u32 range
+                    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                    version: row.try_get::<i64, _>("version")? as u32,
+                    created_at: row.try_get("created_at")?,
+                    expires_at: row.try_get("expires_at")?,
+                    is_active: row.try_get("is_active")?,
+                    tenant_id,
+                    algorithm: row.try_get("algorithm")?,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(versions)
+    }
+
+    async fn get_current_key_version(
+        &self,
+        tenant_id: Option<uuid::Uuid>,
+    ) -> Result<Option<crate::security::key_rotation::KeyVersion>> {
+        let query = r"
+            SELECT tenant_id, version, created_at, expires_at, is_active, algorithm
+            FROM key_versions
+            WHERE CASE 
+                WHEN ?1 IS NULL THEN tenant_id IS NULL
+                ELSE tenant_id = ?1
+            END AND is_active = true
+            ORDER BY version DESC
+            LIMIT 1
+        ";
+
+        let row = sqlx::query(query)
+            .bind(tenant_id.map(|id| id.to_string()))
+            .fetch_optional(self.inner.pool())
+            .await
+            .context("Failed to get current key version")?;
+
+        if let Some(row) = row {
+            use sqlx::Row;
+            let tenant_id_str: Option<String> = row.try_get("tenant_id")?;
+            let tenant_id = tenant_id_str
+                .map(|s| uuid::Uuid::parse_str(&s))
+                .transpose()
+                .context("Invalid tenant UUID")?;
+
+            Ok(Some(crate::security::key_rotation::KeyVersion {
+                // Safe: version numbers are always positive and well within u32 range
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                version: row.try_get::<i64, _>("version")? as u32,
+                created_at: row.try_get("created_at")?,
+                expires_at: row.try_get("expires_at")?,
+                is_active: row.try_get("is_active")?,
+                tenant_id,
+                algorithm: row.try_get("algorithm")?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn update_key_version_status(
+        &self,
+        tenant_id: Option<uuid::Uuid>,
+        version: u32,
+        is_active: bool,
+    ) -> Result<()> {
+        // First, deactivate all versions for this tenant if we're activating a new one
+        if is_active {
+            let deactivate_query = r"
+                UPDATE key_versions 
+                SET is_active = false 
+                WHERE CASE 
+                    WHEN ?1 IS NULL THEN tenant_id IS NULL
+                    ELSE tenant_id = ?1
+                END
+            ";
+
+            sqlx::query(deactivate_query)
+                .bind(tenant_id.map(|id| id.to_string()))
+                .execute(self.inner.pool())
+                .await
+                .context("Failed to deactivate existing key versions")?;
+        }
+
+        // Now update the specific version
+        let query = r"
+            UPDATE key_versions 
+            SET is_active = ?3 
+            WHERE CASE 
+                WHEN ?1 IS NULL THEN tenant_id IS NULL
+                ELSE tenant_id = ?1
+            END AND version = ?2
+        ";
+
+        sqlx::query(query)
+            .bind(tenant_id.map(|id| id.to_string()))
+            .bind(i64::from(version))
+            .bind(is_active)
+            .execute(self.inner.pool())
+            .await
+            .context("Failed to update key version status")?;
+
+        tracing::debug!(
+            "Updated key version {} status to {} for tenant {:?}",
+            version,
+            is_active,
+            tenant_id
+        );
+        Ok(())
+    }
+
+    async fn delete_old_key_versions(
+        &self,
+        tenant_id: Option<uuid::Uuid>,
+        keep_count: u32,
+    ) -> Result<u64> {
+        let query = r"
+            DELETE FROM key_versions
+            WHERE CASE 
+                WHEN ?1 IS NULL THEN tenant_id IS NULL
+                ELSE tenant_id = ?1
+            END
+            AND version NOT IN (
+                SELECT version FROM key_versions 
+                WHERE CASE 
+                    WHEN ?1 IS NULL THEN tenant_id IS NULL
+                    ELSE tenant_id = ?1
+                END
+                ORDER BY version DESC 
+                LIMIT ?2
+            )
+        ";
+
+        let result = sqlx::query(query)
+            .bind(tenant_id.map(|id| id.to_string()))
+            .bind(i64::from(keep_count))
+            .execute(self.inner.pool())
+            .await
+            .context("Failed to delete old key versions")?;
+
+        let deleted_count = result.rows_affected();
+        tracing::debug!(
+            "Deleted {} old key versions for tenant {:?}",
+            deleted_count,
+            tenant_id
+        );
+        Ok(deleted_count)
+    }
+
+    async fn get_all_tenants(&self) -> Result<Vec<crate::models::Tenant>> {
+        let query = r"
+            SELECT id, slug, name, domain, plan, owner_user_id, created_at, updated_at
+            FROM tenants
+            WHERE is_active = true
+            ORDER BY created_at
+        ";
+
+        let rows = sqlx::query(query)
+            .fetch_all(self.inner.pool())
+            .await
+            .context("Failed to get all tenants")?;
+
+        let tenants = rows
+            .iter()
+            .map(|row| {
+                use sqlx::Row;
+                Ok(crate::models::Tenant {
+                    id: uuid::Uuid::parse_str(&row.try_get::<String, _>("id")?)
+                        .context("Invalid tenant UUID")?,
+                    name: row.try_get("name")?,
+                    slug: row.try_get("slug")?,
+                    domain: row.try_get("domain")?,
+                    plan: row.try_get("plan")?,
+                    owner_user_id: uuid::Uuid::parse_str(
+                        &row.try_get::<String, _>("owner_user_id")?,
+                    )
+                    .context("Invalid user UUID")?,
+                    created_at: row.try_get("created_at")?,
+                    updated_at: row.try_get("updated_at")?,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(tenants)
+    }
+
+    async fn store_audit_event(&self, event: &crate::security::audit::AuditEvent) -> Result<()> {
+        let query = r"
+            INSERT INTO audit_events (
+                id, event_type, severity, message, source, result, 
+                tenant_id, user_id, ip_address, user_agent, metadata, timestamp
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ";
+
+        let event_type_str = format!("{:?}", event.event_type);
+        let severity_str = format!("{:?}", event.severity);
+        let metadata_json = serde_json::to_string(&event.metadata)?;
+        let timestamp_str = event.timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
+
+        sqlx::query(query)
+            .bind(event.event_id.to_string())
+            .bind(&event_type_str)
+            .bind(&severity_str)
+            .bind(&event.description)
+            .bind("security") // source - using generic security source
+            .bind(&event.result)
+            .bind(event.tenant_id.map(|id| id.to_string()))
+            .bind(event.user_id.map(|id| id.to_string()))
+            .bind(&event.source_ip)
+            .bind(&event.user_agent)
+            .bind(&metadata_json)
+            .bind(&timestamp_str)
+            .execute(self.inner.pool())
+            .await?;
+
+        Ok(())
+    }
+
+    // Long function: Parses all audit event types and severity levels from database strings
+    #[allow(clippy::too_many_lines)]
+    async fn get_audit_events(
+        &self,
+        tenant_id: Option<uuid::Uuid>,
+        event_type: Option<&str>,
+        limit: Option<u32>,
+    ) -> Result<Vec<crate::security::audit::AuditEvent>> {
+        use std::fmt::Write;
+
+        let mut query = r"
+            SELECT id, event_type, severity, message, source, result,
+                   tenant_id, user_id, ip_address, user_agent, metadata, timestamp
+            FROM audit_events
+            WHERE 1=1
+        "
+        .to_string();
+
+        let mut bind_count = 0;
+        if tenant_id.is_some() {
+            bind_count += 1;
+            write!(query, " AND tenant_id = ?{bind_count}").expect("String write cannot fail");
+        }
+        if event_type.is_some() {
+            bind_count += 1;
+            write!(query, " AND event_type = ?{bind_count}").expect("String write cannot fail");
+        }
+
+        query.push_str(" ORDER BY timestamp DESC");
+
+        if let Some(_limit) = limit {
+            bind_count += 1;
+            write!(query, " LIMIT ?{bind_count}").expect("String write cannot fail");
+        }
+
+        let mut sql_query = sqlx::query(&query);
+
+        if let Some(tid) = tenant_id {
+            sql_query = sql_query.bind(tid.to_string());
+        }
+        if let Some(et) = event_type {
+            sql_query = sql_query.bind(et);
+        }
+        if let Some(l) = limit {
+            sql_query = sql_query.bind(i64::from(l));
+        }
+
+        let rows = sql_query
+            .fetch_all(self.inner.pool())
+            .await
+            .context("Failed to get audit events")?;
+
+        let events = rows
+            .iter()
+            .map(|row| {
+                use sqlx::Row;
+                let tenant_id_str: Option<String> = row.try_get("tenant_id")?;
+                let tenant_id = tenant_id_str
+                    .map(|s| uuid::Uuid::parse_str(&s))
+                    .transpose()
+                    .context("Invalid tenant UUID")?;
+
+                let user_id_str: Option<String> = row.try_get("user_id")?;
+                let user_id = user_id_str
+                    .map(|s| uuid::Uuid::parse_str(&s))
+                    .transpose()
+                    .context("Invalid user UUID")?;
+
+                let metadata_json: String = row.try_get("metadata")?;
+                let metadata = serde_json::from_str(&metadata_json)
+                    .context("Failed to deserialize audit event metadata")?;
+
+                let event_type_str: String = row.try_get("event_type")?;
+                let severity_str: String = row.try_get("severity")?;
+
+                // Parse the stored enum strings back to enums
+                let event_type = match event_type_str.as_str() {
+                    "UserLogin" => crate::security::audit::AuditEventType::UserLogin,
+                    "UserLogout" => crate::security::audit::AuditEventType::UserLogout,
+                    "AuthenticationFailed" => {
+                        crate::security::audit::AuditEventType::AuthenticationFailed
+                    }
+                    "ApiKeyUsed" => crate::security::audit::AuditEventType::ApiKeyUsed,
+                    "OAuthCredentialsAccessed" => {
+                        crate::security::audit::AuditEventType::OAuthCredentialsAccessed
+                    }
+                    "OAuthCredentialsModified" => {
+                        crate::security::audit::AuditEventType::OAuthCredentialsModified
+                    }
+                    "OAuthCredentialsCreated" => {
+                        crate::security::audit::AuditEventType::OAuthCredentialsCreated
+                    }
+                    "OAuthCredentialsDeleted" => {
+                        crate::security::audit::AuditEventType::OAuthCredentialsDeleted
+                    }
+                    "TokenRefreshed" => crate::security::audit::AuditEventType::TokenRefreshed,
+                    "TenantCreated" => crate::security::audit::AuditEventType::TenantCreated,
+                    "TenantModified" => crate::security::audit::AuditEventType::TenantModified,
+                    "TenantDeleted" => crate::security::audit::AuditEventType::TenantDeleted,
+                    "TenantUserAdded" => crate::security::audit::AuditEventType::TenantUserAdded,
+                    "TenantUserRemoved" => {
+                        crate::security::audit::AuditEventType::TenantUserRemoved
+                    }
+                    "TenantUserRoleChanged" => {
+                        crate::security::audit::AuditEventType::TenantUserRoleChanged
+                    }
+                    "DataEncrypted" => crate::security::audit::AuditEventType::DataEncrypted,
+                    "DataDecrypted" => crate::security::audit::AuditEventType::DataDecrypted,
+                    "KeyRotated" => crate::security::audit::AuditEventType::KeyRotated,
+                    "EncryptionFailed" => crate::security::audit::AuditEventType::EncryptionFailed,
+                    "ToolExecuted" => crate::security::audit::AuditEventType::ToolExecuted,
+                    "ToolExecutionFailed" => {
+                        crate::security::audit::AuditEventType::ToolExecutionFailed
+                    }
+                    "ProviderApiCalled" => {
+                        crate::security::audit::AuditEventType::ProviderApiCalled
+                    }
+                    "ConfigurationChanged" => {
+                        crate::security::audit::AuditEventType::ConfigurationChanged
+                    }
+                    "SystemMaintenance" => {
+                        crate::security::audit::AuditEventType::SystemMaintenance
+                    }
+                    "SecurityPolicyViolation" => {
+                        crate::security::audit::AuditEventType::SecurityPolicyViolation
+                    }
+                    _ => crate::security::audit::AuditEventType::SecurityPolicyViolation, // Default fallback
+                };
+
+                let severity = match severity_str.as_str() {
+                    "Warning" => crate::security::audit::AuditSeverity::Warning,
+                    "Error" => crate::security::audit::AuditSeverity::Error,
+                    "Critical" => crate::security::audit::AuditSeverity::Critical,
+                    _ => crate::security::audit::AuditSeverity::Info, // Default fallback includes "Info" and unknowns
+                };
+
+                Ok(crate::security::audit::AuditEvent {
+                    event_id: uuid::Uuid::parse_str(&row.try_get::<String, _>("id")?)
+                        .context("Invalid event UUID")?,
+                    event_type,
+                    severity,
+                    timestamp: row.try_get("timestamp")?,
+                    user_id,
+                    tenant_id,
+                    source_ip: row.try_get("ip_address")?,
+                    user_agent: row.try_get("user_agent")?,
+                    session_id: None, // Not stored in database schema
+                    description: row.try_get("message")?,
+                    metadata,
+                    resource: None, // Can be extracted from metadata if needed
+                    action: "security".to_string(), // Default action
+                    result: row.try_get("result")?,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(events)
+    }
 }
 
 impl SqliteDatabase {

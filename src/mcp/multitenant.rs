@@ -1997,6 +1997,7 @@ impl MultiTenantMcpServer {
                 ctx.tenant_provider_factory,
                 ctx.auth_result,
             )
+            .await
         } else {
             Self::handle_tool_with_provider(
                 tool_name,
@@ -3788,14 +3789,14 @@ impl MultiTenantMcpServer {
     }
 
     /// Handle tenant-aware tools that require providers
-    fn handle_tenant_tool_with_provider(
+    async fn handle_tenant_tool_with_provider(
         tool_name: &str,
         args: &Value,
         request_id: Value,
         tenant_context: &TenantContext,
-        _database: &Arc<Database>,
+        database: &Arc<Database>,
         _tenant_provider_factory: &Arc<TenantProviderFactory>,
-        _auth_result: &AuthResult,
+        auth_result: &AuthResult,
     ) -> McpResponse {
         // Check if this is a known tool that requires a provider
         let known_provider_tools = [
@@ -3832,26 +3833,186 @@ impl MultiTenantMcpServer {
             tenant_context.user_id
         );
 
-        // In a real implementation, this would:
-        // 1. Get tenant-specific provider credentials
-        // 2. Create provider instance with tenant context
-        // 3. Execute the tool with the provider
+        // Create a Universal protocol request to execute the tool
+        let universal_request = crate::protocols::universal::UniversalRequest {
+            tool_name: tool_name.to_string(),
+            parameters: args.clone(),
+            user_id: auth_result.user_id.to_string(),
+            protocol: "mcp".to_string(),
+            tenant_id: Some(tenant_context.tenant_id.to_string()),
+        };
 
-        // For now, return a success response indicating tenant-aware execution
-        McpResponse {
-            jsonrpc: JSONRPC_VERSION.to_string(),
-            result: Some(serde_json::json!({
-                "message": format!("Executed {tool_name} with tenant-aware provider {provider_name}"),
-                "tool": tool_name,
-                "provider": provider_name,
-                "tenant_id": tenant_context.tenant_id,
-                "tenant_name": &tenant_context.tenant_name,
-                "user_id": tenant_context.user_id,
-                "success": true,
-                "note": "This is a placeholder response - full tenant provider integration pending"
-            })),
-            error: None,
-            id: request_id,
+        // Create UniversalToolExecutor with necessary dependencies
+        let intelligence = Self::create_mcp_intelligence();
+        let tenant_oauth_client = std::sync::Arc::new(crate::tenant::TenantOAuthClient::new());
+        let server_config = Self::create_default_server_config();
+
+        let executor = crate::protocols::universal::UniversalToolExecutor::new(
+            database.clone(),
+            intelligence,
+            server_config,
+            tenant_oauth_client,
+        );
+
+        // Execute the tool through Universal protocol
+        match executor.execute_tool(universal_request).await {
+            Ok(response) => {
+                if response.success {
+                    McpResponse {
+                        jsonrpc: JSONRPC_VERSION.to_string(),
+                        result: response.result,
+                        error: None,
+                        id: request_id,
+                    }
+                } else {
+                    McpResponse {
+                        jsonrpc: JSONRPC_VERSION.to_string(),
+                        result: None,
+                        error: Some(McpError {
+                            code: ERROR_INTERNAL_ERROR,
+                            message: response
+                                .error
+                                .unwrap_or_else(|| "Tool execution failed".to_string()),
+                            data: None,
+                        }),
+                        id: request_id,
+                    }
+                }
+            }
+            Err(e) => McpResponse {
+                jsonrpc: JSONRPC_VERSION.to_string(),
+                result: None,
+                error: Some(McpError {
+                    code: ERROR_INTERNAL_ERROR,
+                    message: format!("Tool execution error: {e}"),
+                    data: None,
+                }),
+                id: request_id,
+            },
+        }
+    }
+
+    /// Create intelligence instance for MCP protocol
+    fn create_mcp_intelligence() -> std::sync::Arc<crate::intelligence::ActivityIntelligence> {
+        std::sync::Arc::new(crate::intelligence::ActivityIntelligence::new(
+            "MCP Intelligence".into(),
+            vec![],
+            crate::intelligence::PerformanceMetrics {
+                relative_effort: Some(7.5),
+                zone_distribution: None,
+                personal_records: vec![],
+                efficiency_score: Some(85.0),
+                trend_indicators: crate::intelligence::TrendIndicators {
+                    pace_trend: crate::intelligence::TrendDirection::Improving,
+                    effort_trend: crate::intelligence::TrendDirection::Stable,
+                    distance_trend: crate::intelligence::TrendDirection::Improving,
+                    consistency_score: 75.0,
+                },
+            },
+            crate::intelligence::ContextualFactors {
+                weather: None,
+                location: None,
+                time_of_day: crate::intelligence::TimeOfDay::Morning,
+                days_since_last_activity: None,
+                weekly_load: None,
+            },
+        ))
+    }
+
+    /// Create default server configuration for MCP protocol
+    /// Uses environment configuration if available, otherwise creates a minimal config
+    fn create_default_server_config() -> std::sync::Arc<crate::config::environment::ServerConfig> {
+        std::sync::Arc::new(
+            crate::config::environment::ServerConfig::from_env()
+                .unwrap_or_else(|_| Self::create_minimal_mcp_config()),
+        )
+    }
+
+    /// Create minimal fallback config for MCP protocol (based on A2A implementation)
+    fn create_minimal_mcp_config() -> crate::config::environment::ServerConfig {
+        crate::config::environment::ServerConfig {
+            mcp_port: 8080,
+            http_port: 8081,
+            log_level: crate::config::environment::LogLevel::Info,
+            database: crate::config::environment::DatabaseConfig {
+                url: crate::config::environment::DatabaseUrl::default(),
+                encryption_key_path: std::path::PathBuf::from("data/encryption.key"),
+                auto_migrate: true,
+                backup: crate::config::environment::BackupConfig {
+                    enabled: false,
+                    interval_seconds: 3600,
+                    retention_count: 7,
+                    directory: std::path::PathBuf::from("data/backups"),
+                },
+            },
+            auth: crate::config::environment::AuthConfig {
+                jwt_secret_path: std::path::PathBuf::from("data/jwt.secret"),
+                jwt_expiry_hours: 24,
+                enable_refresh_tokens: false,
+            },
+            oauth: crate::config::environment::OAuthConfig {
+                strava: crate::config::environment::OAuthProviderConfig {
+                    client_id: std::env::var("STRAVA_CLIENT_ID").ok(),
+                    client_secret: std::env::var("STRAVA_CLIENT_SECRET").ok(),
+                    redirect_uri: std::env::var("STRAVA_REDIRECT_URI").ok(),
+                    scopes: vec!["read".into(), "activity:read_all".into()],
+                    enabled: true,
+                },
+                fitbit: crate::config::environment::OAuthProviderConfig {
+                    client_id: std::env::var("FITBIT_CLIENT_ID").ok(),
+                    client_secret: std::env::var("FITBIT_CLIENT_SECRET").ok(),
+                    redirect_uri: std::env::var("FITBIT_REDIRECT_URI").ok(),
+                    scopes: vec!["activity".into(), "profile".into()],
+                    enabled: true,
+                },
+            },
+            security: crate::config::environment::SecurityConfig {
+                cors_origins: vec!["*".into()],
+                rate_limit: crate::config::environment::RateLimitConfig {
+                    enabled: false,
+                    requests_per_window: 100,
+                    window_seconds: 60,
+                },
+                tls: crate::config::environment::TlsConfig {
+                    enabled: false,
+                    cert_path: None,
+                    key_path: None,
+                },
+                headers: crate::config::environment::SecurityHeadersConfig {
+                    environment: crate::config::environment::Environment::Development,
+                },
+            },
+            external_services: crate::config::environment::ExternalServicesConfig {
+                weather: crate::config::environment::WeatherServiceConfig {
+                    api_key: std::env::var("OPENWEATHER_API_KEY").ok(),
+                    base_url: "https://api.openweathermap.org/data/2.5".into(),
+                    enabled: false,
+                },
+                geocoding: crate::config::environment::GeocodingServiceConfig {
+                    base_url: "https://nominatim.openstreetmap.org".into(),
+                    enabled: true,
+                },
+                strava_api: crate::config::environment::StravaApiConfig {
+                    base_url: "https://www.strava.com/api/v3".into(),
+                    auth_url: "https://www.strava.com/oauth/authorize".into(),
+                    token_url: "https://www.strava.com/oauth/token".into(),
+                },
+                fitbit_api: crate::config::environment::FitbitApiConfig {
+                    base_url: "https://api.fitbit.com".into(),
+                    auth_url: "https://www.fitbit.com/oauth2/authorize".into(),
+                    token_url: "https://api.fitbit.com/oauth2/token".into(),
+                },
+            },
+            app_behavior: crate::config::environment::AppBehaviorConfig {
+                max_activities_fetch: 100,
+                default_activities_limit: 20,
+                ci_mode: false,
+                protocol: crate::config::environment::ProtocolConfig {
+                    mcp_version: "2024-11-05".into(),
+                    server_name: "pierre-mcp-server".into(),
+                    server_version: env!("CARGO_PKG_VERSION").to_string(),
+                },
+            },
         }
     }
 }
