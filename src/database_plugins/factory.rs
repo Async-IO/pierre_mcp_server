@@ -13,6 +13,7 @@ use crate::rate_limiting::JwtUsage;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use tracing::{debug, info};
+use uuid::Uuid;
 
 #[cfg(feature = "postgresql")]
 use super::postgres::PostgresDatabase;
@@ -1318,6 +1319,7 @@ impl DatabaseProvider for Database {
         _client_id: &str,
         _redirect_uri: &str,
         _scope: &str,
+        _user_id: Uuid,
     ) -> Result<()> {
         // Stub implementation - TODO: implement in both SQLite and PostgreSQL
         Ok(())

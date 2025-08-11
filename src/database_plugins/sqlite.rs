@@ -1335,14 +1335,15 @@ impl DatabaseProvider for SqliteDatabase {
         client_id: &str,
         redirect_uri: &str,
         scope: &str,
+        user_id: Uuid,
     ) -> Result<()> {
         // Authorization codes expire in 10 minutes
         let expires_at = chrono::Utc::now() + chrono::Duration::minutes(10);
 
         let query = r"
             INSERT INTO authorization_codes 
-            (code, client_id, redirect_uri, scope, expires_at, is_used)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            (code, client_id, redirect_uri, scope, user_id, expires_at, is_used)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
         ";
 
         sqlx::query(query)
@@ -1350,6 +1351,7 @@ impl DatabaseProvider for SqliteDatabase {
             .bind(client_id)
             .bind(redirect_uri)
             .bind(scope)
+            .bind(user_id.to_string())
             .bind(expires_at)
             .bind(false)
             .execute(self.inner.pool())

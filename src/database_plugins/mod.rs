@@ -464,6 +464,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         client_id: &str,
         redirect_uri: &str,
         scope: &str,
+        user_id: Uuid,
     ) -> Result<()>;
 
     /// Get authorization code data

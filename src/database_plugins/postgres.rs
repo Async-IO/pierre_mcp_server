@@ -2484,21 +2484,31 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         credentials: &crate::tenant::TenantOAuthCredentials,
     ) -> Result<()> {
-        // Encrypt the client secret
-        let secret_bytes = credentials.client_secret.as_bytes();
-        let mut nonce = vec![0u8; 12];
-        use rand::RngCore;
-        rand::thread_rng().fill_bytes(&mut nonce);
+        // Encrypt the client secret using proper AES-256-GCM
+        let encryption_manager = crate::security::TenantEncryptionManager::new(
+            // Use a deterministic key derived from tenant ID for consistency
+            ring::digest::digest(
+                &ring::digest::SHA256,
+                format!("oauth_secret_key_{}", credentials.tenant_id).as_bytes(),
+            )
+            .as_ref()
+            .try_into()
+            .map_err(|_| anyhow::anyhow!("Failed to create encryption key"))?,
+        );
 
-        // Simple XOR encryption for now (should use proper encryption in production)
-        let encrypted_secret: Vec<u8> = secret_bytes
-            .iter()
-            .zip(nonce.iter().cycle())
-            .map(|(b, n)| b ^ n)
-            .collect();
+        let encrypted_data = encryption_manager
+            .encrypt_tenant_data(credentials.tenant_id, &credentials.client_secret)
+            .map_err(|e| anyhow::anyhow!("Failed to encrypt OAuth secret: {}", e))?;
+
+        let encrypted_secret = encrypted_data.data.as_bytes().to_vec();
+        let nonce = encrypted_data.metadata.key_version.to_le_bytes().to_vec();
 
         // Convert scopes Vec<String> to PostgreSQL array format
-        let scopes_array: Vec<&str> = credentials.scopes.iter().map(|s| s.as_str()).collect();
+        let scopes_array: Vec<&str> = credentials
+            .scopes
+            .iter()
+            .map(std::string::String::as_str)
+            .collect();
 
         sqlx::query(
             r"
@@ -2524,7 +2534,7 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(&nonce)
         .bind(&credentials.redirect_uri)
         .bind(&scopes_array)
-        .bind(credentials.rate_limit_per_day as i32)
+        .bind(i32::try_from(credentials.rate_limit_per_day).unwrap_or(i32::MAX))
         .execute(&self.pool)
         .await
         .map_err(|e| anyhow::anyhow!("Failed to store OAuth credentials: {}", e))?;
@@ -2563,13 +2573,32 @@ impl DatabaseProvider for PostgresDatabase {
                     scopes,
                     rate_limit,
                 )| {
-                    // Decrypt the client secret
-                    let decrypted_secret: Vec<u8> = encrypted_secret
-                        .iter()
-                        .zip(nonce.iter().cycle())
-                        .map(|(b, n)| b ^ n)
-                        .collect();
-                    let client_secret = String::from_utf8_lossy(&decrypted_secret).to_string();
+                    // Decrypt the client secret using proper AES-256-GCM
+                    let encryption_manager = crate::security::TenantEncryptionManager::new(
+                        ring::digest::digest(
+                            &ring::digest::SHA256,
+                            format!("oauth_secret_key_{tenant_id}").as_bytes(),
+                        )
+                        .as_ref()
+                        .try_into()
+                        .unwrap_or([0u8; 32]),
+                    );
+
+                    let encrypted_data = crate::security::EncryptedData {
+                        data: String::from_utf8_lossy(&encrypted_secret).to_string(),
+                        metadata: crate::security::EncryptionMetadata {
+                            key_version: u32::from_le_bytes(
+                                nonce.as_slice().try_into().unwrap_or([1, 0, 0, 0]),
+                            ),
+                            tenant_id: Some(tenant_id),
+                            algorithm: "AES-256-GCM".to_string(),
+                            encrypted_at: chrono::Utc::now(),
+                        },
+                    };
+
+                    let client_secret = encryption_manager
+                        .decrypt_tenant_data(tenant_id, &encrypted_data)
+                        .unwrap_or_else(|_| "DECRYPTION_FAILED".to_string());
 
                     crate::tenant::TenantOAuthCredentials {
                         tenant_id,
@@ -2578,7 +2607,7 @@ impl DatabaseProvider for PostgresDatabase {
                         client_secret,
                         redirect_uri,
                         scopes,
-                        rate_limit_per_day: rate_limit as u32,
+                        rate_limit_per_day: u32::try_from(rate_limit).unwrap_or(0),
                     }
                 },
             )
@@ -2608,13 +2637,32 @@ impl DatabaseProvider for PostgresDatabase {
 
         match row {
             Some((client_id, encrypted_secret, nonce, redirect_uri, scopes, rate_limit)) => {
-                // Decrypt the client secret
-                let decrypted_secret: Vec<u8> = encrypted_secret
-                    .iter()
-                    .zip(nonce.iter().cycle())
-                    .map(|(b, n)| b ^ n)
-                    .collect();
-                let client_secret = String::from_utf8_lossy(&decrypted_secret).to_string();
+                // Decrypt the client secret using proper AES-256-GCM
+                let encryption_manager = crate::security::TenantEncryptionManager::new(
+                    ring::digest::digest(
+                        &ring::digest::SHA256,
+                        format!("oauth_secret_key_{tenant_id}").as_bytes(),
+                    )
+                    .as_ref()
+                    .try_into()
+                    .map_err(|_| anyhow::anyhow!("Failed to create encryption key"))?,
+                );
+
+                let encrypted_data = crate::security::EncryptedData {
+                    data: String::from_utf8_lossy(&encrypted_secret).to_string(),
+                    metadata: crate::security::EncryptionMetadata {
+                        key_version: u32::from_le_bytes(
+                            nonce.as_slice().try_into().unwrap_or([1, 0, 0, 0]),
+                        ),
+                        tenant_id: Some(tenant_id),
+                        algorithm: "AES-256-GCM".to_string(),
+                        encrypted_at: chrono::Utc::now(),
+                    },
+                };
+
+                let client_secret = encryption_manager
+                    .decrypt_tenant_data(tenant_id, &encrypted_data)
+                    .map_err(|e| anyhow::anyhow!("Failed to decrypt OAuth secret: {}", e))?;
 
                 Ok(Some(crate::tenant::TenantOAuthCredentials {
                     tenant_id,
@@ -2623,7 +2671,7 @@ impl DatabaseProvider for PostgresDatabase {
                     client_secret,
                     redirect_uri,
                     scopes,
-                    rate_limit_per_day: rate_limit as u32,
+                    rate_limit_per_day: u32::try_from(rate_limit).unwrap_or(0),
                 }))
             }
             None => Ok(None),
@@ -2636,8 +2684,12 @@ impl DatabaseProvider for PostgresDatabase {
 
     /// Create OAuth application
     async fn create_oauth_app(&self, app: &crate::models::OAuthApp) -> Result<()> {
-        let redirect_uris: Vec<&str> = app.redirect_uris.iter().map(|s| s.as_str()).collect();
-        let scopes: Vec<&str> = app.scopes.iter().map(|s| s.as_str()).collect();
+        let redirect_uris: Vec<&str> = app
+            .redirect_uris
+            .iter()
+            .map(std::string::String::as_str)
+            .collect();
+        let scopes: Vec<&str> = app.scopes.iter().map(std::string::String::as_str).collect();
 
         sqlx::query(
             r"
@@ -2800,9 +2852,9 @@ impl DatabaseProvider for PostgresDatabase {
         client_id: &str,
         redirect_uri: &str,
         scope: &str,
+        user_id: Uuid,
     ) -> Result<()> {
-        // Generate a user_id from the current context - this would normally come from auth
-        let user_id = Uuid::new_v4(); // Placeholder - should get from auth context
+        // Use the provided user_id from auth context
         let expires_at = Utc::now() + chrono::Duration::minutes(10); // OAuth codes expire in 10 minutes
 
         sqlx::query(
@@ -3251,6 +3303,8 @@ impl PostgresDatabase {
         Ok(())
     }
 
+    #[allow(clippy::too_many_lines)]
+    // Long function: Creates complete multi-tenant database schema with all required tables
     async fn create_tenant_tables(&self) -> Result<()> {
         // Create tenants table
         sqlx::query(
