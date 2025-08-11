@@ -9,6 +9,7 @@
 //! - API key usage and authentication events
 //! - Encryption/decryption operations
 
+use crate::database_plugins::DatabaseProvider;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -266,17 +267,13 @@ impl SecurityAuditor {
     }
 
     /// Store audit event in database
-    #[allow(clippy::unused_self)]
     fn store_audit_event(&self, event: &AuditEvent) -> Result<()> {
-        // TODO: Implement database storage
-        // For now, we'll use the existing database structure
-        // In production, this would use a dedicated audit_events table
+        // Use async runtime to call the database method
+        let rt = tokio::runtime::Handle::current();
+        rt.block_on(self.database.store_audit_event(event))?;
 
-        let _metadata_json = serde_json::to_string(&event.metadata)?;
-
-        // This is a simplified implementation - in production we'd have a proper audit_events table
         tracing::debug!(
-            "Storing audit event {} in database: {}",
+            "Stored audit event {} in database: {}",
             event.event_id,
             event.description
         );

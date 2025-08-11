@@ -2940,6 +2940,89 @@ impl DatabaseProvider for PostgresDatabase {
 
         Ok(())
     }
+
+    // ================================
+    // Key Rotation & Security - Stub implementations for PostgreSQL
+    // ================================
+
+    async fn store_key_version(
+        &self,
+        _version: &crate::security::key_rotation::KeyVersion,
+    ) -> Result<()> {
+        // TODO: Implement PostgreSQL key rotation storage
+        Err(anyhow!(
+            "Key rotation not yet implemented for PostgreSQL. Use SQLite for now."
+        ))
+    }
+
+    async fn get_key_versions(
+        &self,
+        _tenant_id: Option<Uuid>,
+    ) -> Result<Vec<crate::security::key_rotation::KeyVersion>> {
+        // TODO: Implement PostgreSQL key rotation storage
+        Err(anyhow!(
+            "Key rotation not yet implemented for PostgreSQL. Use SQLite for now."
+        ))
+    }
+
+    async fn get_current_key_version(
+        &self,
+        _tenant_id: Option<Uuid>,
+    ) -> Result<Option<crate::security::key_rotation::KeyVersion>> {
+        // TODO: Implement PostgreSQL key rotation storage
+        Err(anyhow!(
+            "Key rotation not yet implemented for PostgreSQL. Use SQLite for now."
+        ))
+    }
+
+    async fn update_key_version_status(
+        &self,
+        _tenant_id: Option<Uuid>,
+        _version: u32,
+        _is_active: bool,
+    ) -> Result<()> {
+        // TODO: Implement PostgreSQL key rotation storage
+        Err(anyhow!(
+            "Key rotation not yet implemented for PostgreSQL. Use SQLite for now."
+        ))
+    }
+
+    async fn delete_old_key_versions(
+        &self,
+        _tenant_id: Option<Uuid>,
+        _keep_count: u32,
+    ) -> Result<u64> {
+        // TODO: Implement PostgreSQL key rotation storage
+        Err(anyhow!(
+            "Key rotation not yet implemented for PostgreSQL. Use SQLite for now."
+        ))
+    }
+
+    async fn get_all_tenants(&self) -> Result<Vec<crate::models::Tenant>> {
+        // TODO: Implement PostgreSQL tenant listing
+        Err(anyhow!(
+            "Multi-tenancy not yet implemented for PostgreSQL. Use SQLite for now."
+        ))
+    }
+
+    async fn store_audit_event(&self, _event: &crate::security::audit::AuditEvent) -> Result<()> {
+        // TODO: Implement PostgreSQL audit logging
+        Err(anyhow!(
+            "Audit logging not yet implemented for PostgreSQL. Use SQLite for now."
+        ))
+    }
+
+    async fn get_audit_events(
+        &self,
+        _tenant_id: Option<Uuid>,
+        _event_type: Option<&str>,
+        _limit: Option<u32>,
+    ) -> Result<Vec<crate::security::audit::AuditEvent>> {
+        // TODO: Implement PostgreSQL audit event retrieval
+        Err(anyhow!(
+            "Audit logging not yet implemented for PostgreSQL. Use SQLite for now."
+        ))
+    }
 }
 
 impl PostgresDatabase {

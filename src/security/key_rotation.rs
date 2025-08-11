@@ -9,6 +9,7 @@
 //! - Emergency key rotation procedures
 //! - Key lifecycle management
 
+use crate::database_plugins::DatabaseProvider;
 use anyhow::Result;
 use chrono::Timelike;
 use serde::{Deserialize, Serialize};
@@ -161,8 +162,7 @@ impl KeyRotationManager {
         tracing::info!("Checking for keys that need rotation");
 
         // Get all tenants from database
-        // TODO: Implement get_all_tenants method on Database trait
-        let tenants: Vec<crate::models::Tenant> = Vec::new(); // Temporary placeholder
+        let tenants = self.database.get_all_tenants().await?;
 
         // Check global keys first
         self.check_key_rotation(None).await?;
@@ -353,6 +353,12 @@ impl KeyRotationManager {
 
     /// Activate a specific key version
     async fn activate_key_version(&self, tenant_id: Option<Uuid>, version: u32) -> Result<()> {
+        // Update database first
+        self.database
+            .update_key_version_status(tenant_id, version, true)
+            .await?;
+
+        // Update in-memory cache
         if let Some(tenant_versions) = self.key_versions.write().await.get_mut(&tenant_id) {
             // Deactivate all versions
             for v in tenant_versions.iter_mut() {
@@ -365,28 +371,29 @@ impl KeyRotationManager {
             }
         }
 
-        // TODO: Update database
-
         Ok(())
     }
 
     /// Clean up old key versions
     async fn cleanup_old_key_versions(&self, tenant_id: Option<Uuid>) -> Result<()> {
-        if let Some(tenant_versions) = self.key_versions.write().await.get_mut(&tenant_id) {
-            // Sort by version number (descending)
-            tenant_versions.sort_by(|a, b| b.version.cmp(&a.version));
+        // Delete old key versions from database
+        let deleted_count = self
+            .database
+            .delete_old_key_versions(tenant_id, self.config.key_versions_to_retain)
+            .await?;
 
-            // Keep only the configured number of versions
-            let keep_count = self.config.key_versions_to_retain as usize;
-            if tenant_versions.len() > keep_count {
-                let to_remove = tenant_versions.len() - keep_count;
-                tenant_versions.truncate(keep_count);
+        if deleted_count > 0 {
+            tracing::info!(
+                "Cleaned up {} old key versions for tenant {:?}",
+                deleted_count,
+                tenant_id
+            );
 
-                tracing::info!(
-                    "Cleaned up {} old key versions for tenant {:?}",
-                    to_remove,
-                    tenant_id
-                );
+            // Update in-memory cache by reloading from database
+            let updated_versions = self.database.get_key_versions(tenant_id).await?;
+            {
+                let mut cache = self.key_versions.write().await;
+                cache.insert(tenant_id, updated_versions);
             }
         }
 
@@ -423,20 +430,26 @@ impl KeyRotationManager {
 
     /// Get all key versions for a tenant
     async fn get_key_versions(&self, tenant_id: Option<Uuid>) -> Result<Vec<KeyVersion>> {
-        let versions = self.key_versions.read().await;
-        Ok(versions.get(&tenant_id).cloned().unwrap_or_default())
+        // First try to get from database
+        if let Ok(versions) = self.database.get_key_versions(tenant_id).await {
+            // Update in-memory cache
+            {
+                let mut cache = self.key_versions.write().await;
+                cache.insert(tenant_id, versions.clone());
+            }
+            Ok(versions)
+        } else {
+            // Fallback to cache if database fails
+            let versions = self.key_versions.read().await;
+            Ok(versions.get(&tenant_id).cloned().unwrap_or_default())
+        }
     }
 
     /// Store key version in database
-    #[allow(
-        clippy::unused_self,
-        clippy::unnecessary_wraps,
-        clippy::missing_const_for_fn
-    )]
-    fn store_key_version(&self, _version: &KeyVersion) -> Result<()> {
-        // TODO: Implement proper database storage for key versions
-        // This would involve creating a key_versions table and storing metadata
-        Ok(())
+    fn store_key_version(&self, version: &KeyVersion) -> Result<()> {
+        // Use async runtime to call the database method
+        let rt = tokio::runtime::Handle::current();
+        rt.block_on(self.database.store_key_version(version))
     }
 
     /// Get rotation status for a tenant

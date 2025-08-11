@@ -472,4 +472,55 @@ pub trait DatabaseProvider: Send + Sync + Clone {
 
     /// Delete authorization code (after use)
     async fn delete_authorization_code(&self, code: &str) -> Result<()>;
+
+    // ================================
+    // Key Rotation & Security
+    // ================================
+
+    /// Store key version metadata
+    async fn store_key_version(
+        &self,
+        version: &crate::security::key_rotation::KeyVersion,
+    ) -> Result<()>;
+
+    /// Get all key versions for a tenant
+    async fn get_key_versions(
+        &self,
+        tenant_id: Option<Uuid>,
+    ) -> Result<Vec<crate::security::key_rotation::KeyVersion>>;
+
+    /// Get current active key version for a tenant
+    async fn get_current_key_version(
+        &self,
+        tenant_id: Option<Uuid>,
+    ) -> Result<Option<crate::security::key_rotation::KeyVersion>>;
+
+    /// Update key version status (activate/deactivate)
+    async fn update_key_version_status(
+        &self,
+        tenant_id: Option<Uuid>,
+        version: u32,
+        is_active: bool,
+    ) -> Result<()>;
+
+    /// Delete old key versions
+    async fn delete_old_key_versions(
+        &self,
+        tenant_id: Option<Uuid>,
+        keep_count: u32,
+    ) -> Result<u64>;
+
+    /// Get all tenants for key rotation check
+    async fn get_all_tenants(&self) -> Result<Vec<crate::models::Tenant>>;
+
+    /// Store audit event
+    async fn store_audit_event(&self, event: &crate::security::audit::AuditEvent) -> Result<()>;
+
+    /// Get audit events with filters
+    async fn get_audit_events(
+        &self,
+        tenant_id: Option<Uuid>,
+        event_type: Option<&str>,
+        limit: Option<u32>,
+    ) -> Result<Vec<crate::security::audit::AuditEvent>>;
 }

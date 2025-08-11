@@ -1339,4 +1339,101 @@ impl DatabaseProvider for Database {
         // Stub implementation - TODO: implement in both SQLite and PostgreSQL
         Ok(())
     }
+
+    // ================================
+    // Key Rotation & Security
+    // ================================
+
+    async fn store_key_version(
+        &self,
+        version: &crate::security::key_rotation::KeyVersion,
+    ) -> Result<()> {
+        match self {
+            Self::SQLite(db) => db.store_key_version(version).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.store_key_version(version).await,
+        }
+    }
+
+    async fn get_key_versions(
+        &self,
+        tenant_id: Option<uuid::Uuid>,
+    ) -> Result<Vec<crate::security::key_rotation::KeyVersion>> {
+        match self {
+            Self::SQLite(db) => db.get_key_versions(tenant_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_key_versions(tenant_id).await,
+        }
+    }
+
+    async fn get_current_key_version(
+        &self,
+        tenant_id: Option<uuid::Uuid>,
+    ) -> Result<Option<crate::security::key_rotation::KeyVersion>> {
+        match self {
+            Self::SQLite(db) => db.get_current_key_version(tenant_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_current_key_version(tenant_id).await,
+        }
+    }
+
+    async fn update_key_version_status(
+        &self,
+        tenant_id: Option<uuid::Uuid>,
+        version: u32,
+        is_active: bool,
+    ) -> Result<()> {
+        match self {
+            Self::SQLite(db) => {
+                db.update_key_version_status(tenant_id, version, is_active)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.update_key_version_status(tenant_id, version, is_active)
+                    .await
+            }
+        }
+    }
+
+    async fn delete_old_key_versions(
+        &self,
+        tenant_id: Option<uuid::Uuid>,
+        keep_count: u32,
+    ) -> Result<u64> {
+        match self {
+            Self::SQLite(db) => db.delete_old_key_versions(tenant_id, keep_count).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.delete_old_key_versions(tenant_id, keep_count).await,
+        }
+    }
+
+    async fn get_all_tenants(&self) -> Result<Vec<crate::models::Tenant>> {
+        match self {
+            Self::SQLite(db) => db.get_all_tenants().await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_all_tenants().await,
+        }
+    }
+
+    async fn store_audit_event(&self, event: &crate::security::audit::AuditEvent) -> Result<()> {
+        match self {
+            Self::SQLite(db) => db.store_audit_event(event).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.store_audit_event(event).await,
+        }
+    }
+
+    async fn get_audit_events(
+        &self,
+        tenant_id: Option<uuid::Uuid>,
+        event_type: Option<&str>,
+        limit: Option<u32>,
+    ) -> Result<Vec<crate::security::audit::AuditEvent>> {
+        match self {
+            Self::SQLite(db) => db.get_audit_events(tenant_id, event_type, limit).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_audit_events(tenant_id, event_type, limit).await,
+        }
+    }
 }

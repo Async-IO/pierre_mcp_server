@@ -54,7 +54,7 @@
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::tenant::TenantOAuthClient;
 use crate::utils::{
-    json_responses::{activity_not_found_error, serialization_error},
+    json_responses::{activity_not_found_error, provider_connection_error, serialization_error},
     uuid::parse_user_id_for_protocol,
 };
 // Removed unused import
@@ -151,11 +151,9 @@ impl UniversalToolExecutor {
         provider: &str,
     ) -> Result<crate::tenant::TenantOAuthCredentials, String> {
         // Get tenant-specific OAuth credentials
-        match self
-            .tenant_oauth_client
+        match self.tenant_oauth_client
             .get_tenant_credentials(tenant_id, provider)
-            .await
-        {
+            .await {
             Ok(Some(credentials)) => Ok(credentials),
             Ok(None) => Err(format!(
                 "No {} OAuth credentials configured for tenant {}",
@@ -177,10 +175,7 @@ impl UniversalToolExecutor {
         tenant_id: Option<&str>,
     ) -> Result<Box<dyn crate::providers::FitnessProvider>, UniversalResponse> {
         // Get user's access token first
-        let token_data = match self
-            .get_valid_token(user_id, provider_name, tenant_id)
-            .await
-        {
+        let token_data = match self.get_valid_token(user_id, provider_name, tenant_id).await {
             Ok(Some(token)) => token,
             Ok(None) => {
                 return Err(UniversalResponse {
@@ -202,13 +197,12 @@ impl UniversalToolExecutor {
 
         // Get tenant OAuth credentials (required in multi-tenant mode)
         let oauth_credentials = if let Some(tenant_id_str) = tenant_id {
-            let tenant_uuid =
-                uuid::Uuid::parse_str(tenant_id_str).map_err(|_| UniversalResponse {
-                    success: false,
-                    result: None,
-                    error: Some(format!("Invalid tenant ID format: {}", tenant_id_str)),
-                    metadata: None,
-                })?;
+            let tenant_uuid = uuid::Uuid::parse_str(tenant_id_str).map_err(|_| UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(format!("Invalid tenant ID format: {}", tenant_id_str)),
+                metadata: None,
+            })?;
 
             self.get_tenant_oauth_credentials(tenant_uuid, provider_name)
                 .await
@@ -237,10 +231,7 @@ impl UniversalToolExecutor {
         let mut provider = create_provider(provider_name).map_err(|e| UniversalResponse {
             success: false,
             result: None,
-            error: Some(format!(
-                "Failed to create {} provider: {}",
-                provider_name, e
-            )),
+            error: Some(format!("Failed to create {} provider: {}", provider_name, e)),
             metadata: None,
         })?;
 
@@ -251,18 +242,12 @@ impl UniversalToolExecutor {
             refresh_token: Some(token_data.refresh_token.clone()),
         };
 
-        provider
-            .authenticate(auth_data)
-            .await
-            .map_err(|e| UniversalResponse {
-                success: false,
-                result: None,
-                error: Some(format!(
-                    "Failed to authenticate with {} provider: {}",
-                    provider_name, e
-                )),
-                metadata: None,
-            })?;
+        provider.authenticate(auth_data).await.map_err(|e| UniversalResponse {
+            success: false,
+            result: None,
+            error: Some(format!("Failed to authenticate with {} provider: {}", provider_name, e)),
+            metadata: None,
+        })?;
 
         Ok(provider)
     }
@@ -823,10 +808,7 @@ impl UniversalToolExecutor {
                                             }
                                         }
                                     } else {
-                                        tracing::error!(
-                                            "Tenant {} not found in database",
-                                            tenant_uuid
-                                        );
+                                        tracing::error!("Tenant {} not found in database", tenant_uuid);
                                         return Ok(UniversalResponse {
                                             success: false,
                                             result: None,
@@ -851,10 +833,7 @@ impl UniversalToolExecutor {
                                 }
                             } else {
                                 // No tenant context - require tenant-specific configuration
-                                tracing::error!(
-                                    "No tenant context provided for {} provider authentication",
-                                    provider_type
-                                );
+                                tracing::error!("No tenant context provided for {} provider authentication", provider_type);
                                 return Ok(UniversalResponse {
                                     success: false,
                                     result: None,
@@ -977,45 +956,93 @@ impl UniversalToolExecutor {
         &self,
         request: UniversalRequest,
     ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
-        // Get REAL athlete data using the helper function
+        // Get REAL athlete data
         let athlete_data = match crate::utils::uuid::parse_uuid(&request.user_id) {
-            Ok(user_uuid) => {
-                // Use helper to get properly authenticated provider (no more hardcoded fallbacks)
-                match self
-                    .create_authenticated_provider(
-                        "strava",
-                        user_uuid,
-                        request.tenant_id.as_deref(),
-                    )
-                    .await
-                {
-                    Ok(provider) => {
-                        // Provider is already authenticated by the helper
-                        match provider.get_athlete().await {
-                            Ok(athlete) => serde_json::json!({
-                                "id": athlete.id,
-                                "username": athlete.username,
-                                "firstname": athlete.firstname,
-                                "lastname": athlete.lastname,
-                                "profile_picture": athlete.profile_picture,
-                                "provider": athlete.provider,
-                                "is_real_data": true
-                            }),
+            Ok(user_uuid) => match self
+                .get_valid_token(user_uuid, "strava", request.tenant_id.as_deref())
+                .await
+            {
+                Ok(Some(token_data)) => match create_provider("strava") {
+                    Ok(mut provider) => {
+                        // Get tenant OAuth credentials instead of hardcoded fallbacks
+                        let auth_data = if let Some(tenant_id_str) = request.tenant_id.as_deref() {
+                            if let Ok(tenant_uuid) = uuid::Uuid::parse_str(tenant_id_str) {
+                                match self.get_tenant_oauth_credentials(tenant_uuid, "strava").await {
+                                    Ok(config) => AuthData::OAuth2 {
+                                        client_id: config.client_id.clone(),
+                                        client_secret: config.client_secret.clone(),
+                                        access_token: Some(token_data.access_token.clone()),
+                                        refresh_token: Some(token_data.refresh_token.clone()),
+                                    },
+                                    Err(e) => {
+                                        return Ok(UniversalResponse {
+                                            success: false,
+                                            result: None,
+                                            error: Some(format!(
+                                                "Tenant strava OAuth credentials not configured: {}",
+                                                e
+                                            )),
+                                            metadata: None,
+                                        });
+                                    }
+                                }
+                            } else {
+                                return Ok(UniversalResponse {
+                                    success: false,
+                                    result: None,
+                                    error: Some(format!(
+                                        "Invalid tenant ID format: {}",
+                                        tenant_id_str
+                                    )),
+                                    metadata: None,
+                                });
+                            }
+                        } else {
+                            return Ok(UniversalResponse {
+                                success: false,
+                                result: None,
+                                error: Some("Tenant context required for strava provider".to_string()),
+                                metadata: None,
+                            });
+                        };
+
+                        match provider.authenticate(auth_data).await {
+                            Ok(()) => match provider.get_athlete().await {
+                                Ok(athlete) => serde_json::json!({
+                                    "id": athlete.id,
+                                    "username": athlete.username,
+                                    "firstname": athlete.firstname,
+                                    "lastname": athlete.lastname,
+                                    "profile_picture": athlete.profile_picture,
+                                    "provider": athlete.provider,
+                                    "is_real_data": true
+                                }),
+                                Err(e) => serde_json::json!({
+                                    "error": format!("Failed to get athlete data: {}", e),
+                                    "is_real_data": false
+                                }),
+                            },
                             Err(e) => serde_json::json!({
-                                "error": format!("Failed to get athlete data: {}", e),
+                                "error": format!("Authentication failed: {}", e),
                                 "is_real_data": false
                             }),
                         }
                     }
-                    Err(error_response) => {
-                        // Helper returns UniversalResponse on error, convert to JSON
-                        serde_json::json!({
-                            "error": error_response.error.unwrap_or_else(|| "Authentication failed".to_string()),
-                            "is_real_data": false
-                        })
-                    }
-                }
-            }
+                    Err(e) => serde_json::json!({
+                        "error": format!("Failed to create provider: {}", e),
+                        "is_real_data": false
+                    }),
+                },
+                Ok(None) => serde_json::json!({
+                    "error": "No Strava token found - please connect your Strava account first",
+                    "is_real_data": false,
+                    "note": "Connect your Strava account via the OAuth flow to get real data"
+                }),
+                Err(e) => serde_json::json!({
+                    "error": format!("Database error: {}", e),
+                    "is_real_data": false
+                }),
+            },
             Err(e) => serde_json::json!({
                 "error": format!("Invalid user ID: {}", e),
                 "is_real_data": false
@@ -1047,23 +1074,43 @@ impl UniversalToolExecutor {
         // Parse user ID
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
-        // Get real activity data using authenticated provider (no hardcoded fallbacks)
-        let activity_result = match self
-            .create_authenticated_provider("strava", user_uuid, request.tenant_id.as_deref())
-            .await
-        {
-            Ok(provider) => {
-                // Get all activities and find the specific one
-                provider
-                    .get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None)
-                    .await
-                    .map_or(None, |activities| {
-                        activities.into_iter().find(|a| a.id == activity_id)
-                    })
-            }
-            Err(error_response) => {
-                // Return error response for tenant configuration issues
-                return Ok(error_response);
+        // Get real activity data async
+        let activity_result = {
+            // Get valid Strava token (with automatic refresh if needed)
+            match self
+                .get_valid_token(user_uuid, "strava", request.tenant_id.as_deref())
+                .await
+            {
+                Ok(Some(token_data)) => {
+                    // Create Strava provider with real token
+                    match create_provider("strava") {
+                        Ok(mut provider) => {
+                            let auth_data = AuthData::OAuth2 {
+                                client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
+                                client_secret: std::env::var("STRAVA_CLIENT_SECRET")
+                                    .unwrap_or_default(),
+                                access_token: Some(token_data.access_token.clone()),
+                                refresh_token: Some(token_data.refresh_token.clone()),
+                            };
+
+                            // Authenticate and get real activity
+                            match provider.authenticate(auth_data).await {
+                                Ok(()) => {
+                                    // Get all activities and find the specific one
+                                    provider
+                                        .get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None)
+                                        .await
+                                        .map_or(None, |activities| {
+                                            activities.into_iter().find(|a| a.id == activity_id)
+                                        })
+                                }
+                                Err(_) => None,
+                            }
+                        }
+                        Err(_) => None,
+                    }
+                }
+                _ => None,
             }
         };
 
@@ -1146,30 +1193,48 @@ impl UniversalToolExecutor {
             .and_then(|v| v.as_str())
             .unwrap_or("strava");
 
-        // Get REAL stats using authenticated provider (no hardcoded fallbacks)
+        // Get REAL stats from the provider
         let stats = match crate::utils::uuid::parse_uuid(&request.user_id) {
-            Ok(user_uuid) => {
-                match self
-                    .create_authenticated_provider(
-                        provider_type,
-                        user_uuid,
-                        request.tenant_id.as_deref(),
-                    )
-                    .await
-                {
-                    Ok(provider) => match provider.get_stats().await {
-                        Ok(stats) => serde_json::to_value(&stats)
-                            .unwrap_or_else(|_| serialization_error("stats")),
-                        Err(e) => serde_json::json!({
-                            "error": format!("Failed to get stats: {}", e),
-                            "is_real_data": false
-                        }),
-                    },
-                    Err(error_response) => {
-                        return Ok(error_response);
+            Ok(user_uuid) => match self
+                .get_valid_token(user_uuid, provider_type, request.tenant_id.as_deref())
+                .await
+            {
+                Ok(Some(token_data)) => match create_provider(provider_type) {
+                    Ok(mut provider) => {
+                        let auth_data = AuthData::OAuth2 {
+                            client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
+                            client_secret: std::env::var("STRAVA_CLIENT_SECRET")
+                                .unwrap_or_default(),
+                            access_token: Some(token_data.access_token.clone()),
+                            refresh_token: Some(token_data.refresh_token.clone()),
+                        };
+
+                        match provider.authenticate(auth_data).await {
+                            Ok(()) => match provider.get_stats().await {
+                                Ok(stats) => serde_json::to_value(&stats)
+                                    .unwrap_or_else(|_| serialization_error("stats")),
+                                Err(e) => serde_json::json!({
+                                    "error": format!("Failed to get stats: {}", e),
+                                    "is_real_data": false
+                                }),
+                            },
+                            Err(e) => serde_json::json!({
+                                "error": format!("Authentication failed: {}", e),
+                                "is_real_data": false
+                            }),
+                        }
                     }
-                }
-            }
+                    Err(e) => serde_json::json!({
+                        "error": format!("Failed to create provider: {}", e),
+                        "is_real_data": false
+                    }),
+                },
+                Ok(None) => provider_connection_error("provider", "No token found"),
+                Err(e) => serde_json::json!({
+                    "error": format!("Database error: {}", e),
+                    "is_real_data": false
+                }),
+            },
             Err(e) => serde_json::json!({
                 "error": format!("Invalid user ID: {}", e),
                 "is_real_data": false
@@ -1631,23 +1696,31 @@ impl UniversalToolExecutor {
         // Parse user ID
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
-        // Get activities using authenticated provider (no hardcoded fallbacks)
+        // Get activities from provider
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        match self
-            .create_authenticated_provider("strava", user_uuid, request.tenant_id.as_deref())
+        if let Ok(Some(token_data)) = self
+            .get_valid_token(user_uuid, "strava", request.tenant_id.as_deref())
             .await
         {
-            Ok(provider) => {
-                if let Ok(provider_activities) = provider
-                    .get_activities(Some(LARGE_ACTIVITY_LIMIT), None)
-                    .await
-                {
-                    activities = provider_activities;
+            match create_provider("strava") {
+                Ok(mut provider) => {
+                    let auth_data = AuthData::OAuth2 {
+                        client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
+                        client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
+                        access_token: Some(token_data.access_token.clone()),
+                        refresh_token: Some(token_data.refresh_token.clone()),
+                    };
+
+                    if matches!(provider.authenticate(auth_data).await, Ok(())) {
+                        if let Ok(provider_activities) = provider
+                            .get_activities(Some(LARGE_ACTIVITY_LIMIT), None)
+                            .await
+                        {
+                            activities = provider_activities;
+                        }
+                    }
                 }
-            }
-            Err(error_response) => {
-                // Return error for tenant configuration issues
-                return Ok(error_response);
+                Err(_) => {}
             }
         }
 
@@ -1734,27 +1807,35 @@ impl UniversalToolExecutor {
         // Parse user ID
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
-        // Get activities using authenticated provider (no hardcoded fallbacks)
+        // Get activities from provider
         let mut activity1 = None;
         let mut activity2 = None;
 
-        match self
-            .create_authenticated_provider("strava", user_uuid, request.tenant_id.as_deref())
+        if let Ok(Some(token_data)) = self
+            .get_valid_token(user_uuid, "strava", request.tenant_id.as_deref())
             .await
         {
-            Ok(provider) => {
-                // Get activities
-                if let Ok(activities) = provider
-                    .get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None)
-                    .await
-                {
-                    activity1 = activities.iter().find(|a| a.id == activity_id1).cloned();
-                    activity2 = activities.iter().find(|a| a.id == activity_id2).cloned();
+            match create_provider("strava") {
+                Ok(mut provider) => {
+                    let auth_data = AuthData::OAuth2 {
+                        client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
+                        client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
+                        access_token: Some(token_data.access_token.clone()),
+                        refresh_token: Some(token_data.refresh_token.clone()),
+                    };
+
+                    if matches!(provider.authenticate(auth_data).await, Ok(())) {
+                        // Get activities
+                        if let Ok(activities) = provider
+                            .get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None)
+                            .await
+                        {
+                            activity1 = activities.iter().find(|a| a.id == activity_id1).cloned();
+                            activity2 = activities.iter().find(|a| a.id == activity_id2).cloned();
+                        }
+                    }
                 }
-            }
-            Err(error_response) => {
-                // Return error for tenant configuration issues
-                return Ok(error_response);
+                Err(_) => {}
             }
         }
 
@@ -1820,23 +1901,31 @@ impl UniversalToolExecutor {
         // Parse user ID
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
-        // Get activities using authenticated provider (no hardcoded fallbacks)
+        // Get activities from provider
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        match self
-            .create_authenticated_provider("strava", user_uuid, request.tenant_id.as_deref())
+        if let Ok(Some(token_data)) = self
+            .get_valid_token(user_uuid, "strava", request.tenant_id.as_deref())
             .await
         {
-            Ok(provider) => {
-                if let Ok(provider_activities) = provider
-                    .get_activities(Some(MAX_ACTIVITY_LIMIT), None)
-                    .await
-                {
-                    activities = provider_activities;
+            match create_provider("strava") {
+                Ok(mut provider) => {
+                    let auth_data = AuthData::OAuth2 {
+                        client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
+                        client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
+                        access_token: Some(token_data.access_token.clone()),
+                        refresh_token: Some(token_data.refresh_token.clone()),
+                    };
+
+                    if matches!(provider.authenticate(auth_data).await, Ok(())) {
+                        if let Ok(provider_activities) = provider
+                            .get_activities(Some(MAX_ACTIVITY_LIMIT), None)
+                            .await
+                        {
+                            activities = provider_activities;
+                        }
+                    }
                 }
-            }
-            Err(error_response) => {
-                // Return error for tenant configuration issues
-                return Ok(error_response);
+                Err(_) => {}
             }
         }
 
@@ -1935,23 +2024,31 @@ impl UniversalToolExecutor {
         // Parse user ID
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
-        // Get activities using authenticated provider (no hardcoded fallbacks)
+        // Get activities from provider
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        match self
-            .create_authenticated_provider("strava", user_uuid, request.tenant_id.as_deref())
+        if let Ok(Some(token_data)) = self
+            .get_valid_token(user_uuid, "strava", request.tenant_id.as_deref())
             .await
         {
-            Ok(provider) => {
-                if let Ok(provider_activities) = provider
-                    .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
-                    .await
-                {
-                    activities = provider_activities;
+            match create_provider("strava") {
+                Ok(mut provider) => {
+                    let auth_data = AuthData::OAuth2 {
+                        client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
+                        client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
+                        access_token: Some(token_data.access_token.clone()),
+                        refresh_token: Some(token_data.refresh_token.clone()),
+                    };
+
+                    if matches!(provider.authenticate(auth_data).await, Ok(())) {
+                        if let Ok(provider_activities) = provider
+                            .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
+                            .await
+                        {
+                            activities = provider_activities;
+                        }
+                    }
                 }
-            }
-            Err(error_response) => {
-                // Return error for tenant configuration issues
-                return Ok(error_response);
+                Err(_) => {}
             }
         }
 
@@ -2003,23 +2100,29 @@ impl UniversalToolExecutor {
 
         // Get recent activities
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        match self
-            .create_authenticated_provider("strava", user_uuid, request.tenant_id.as_deref())
+        if let Ok(Some(token_data)) = self
+            .get_valid_token(user_uuid, "strava", request.tenant_id.as_deref())
             .await
         {
-            Ok(provider) => {
-                if let Ok(provider_activities) = provider
-                    .get_activities(Some(SMALL_ACTIVITY_LIMIT), None)
-                    .await
-                {
-                    activities = provider_activities;
+            match create_provider("strava") {
+                Ok(mut provider) => {
+                    let auth_data = AuthData::OAuth2 {
+                        client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
+                        client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
+                        access_token: Some(token_data.access_token.clone()),
+                        refresh_token: Some(token_data.refresh_token.clone()),
+                    };
+
+                    if matches!(provider.authenticate(auth_data).await, Ok(())) {
+                        if let Ok(provider_activities) = provider
+                            .get_activities(Some(SMALL_ACTIVITY_LIMIT), None)
+                            .await
+                        {
+                            activities = provider_activities;
+                        }
+                    }
                 }
-            }
-            Err(error_response) => {
-                tracing::debug!(
-                    "Could not create authenticated provider for suggest_goals: {:?}",
-                    error_response
-                );
+                Err(_) => {}
             }
         }
 
@@ -2140,23 +2243,29 @@ impl UniversalToolExecutor {
 
         // Get historical activities
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        match self
-            .create_authenticated_provider("strava", user_uuid, request.tenant_id.as_deref())
+        if let Ok(Some(token_data)) = self
+            .get_valid_token(user_uuid, "strava", request.tenant_id.as_deref())
             .await
         {
-            Ok(provider) => {
-                if let Ok(provider_activities) = provider
-                    .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
-                    .await
-                {
-                    activities = provider_activities;
+            match create_provider("strava") {
+                Ok(mut provider) => {
+                    let auth_data = AuthData::OAuth2 {
+                        client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
+                        client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
+                        access_token: Some(token_data.access_token.clone()),
+                        refresh_token: Some(token_data.refresh_token.clone()),
+                    };
+
+                    if matches!(provider.authenticate(auth_data).await, Ok(())) {
+                        if let Ok(provider_activities) = provider
+                            .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
+                            .await
+                        {
+                            activities = provider_activities;
+                        }
+                    }
                 }
-            }
-            Err(error_response) => {
-                tracing::debug!(
-                    "Could not create authenticated provider for analyze_goal_feasibility: {:?}",
-                    error_response
-                );
+                Err(_) => {}
             }
         }
 
@@ -2263,23 +2372,29 @@ impl UniversalToolExecutor {
 
         // Get recent activities
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        match self
-            .create_authenticated_provider("strava", user_uuid, request.tenant_id.as_deref())
+        if let Ok(Some(token_data)) = self
+            .get_valid_token(user_uuid, "strava", request.tenant_id.as_deref())
             .await
         {
-            Ok(provider) => {
-                if let Ok(provider_activities) = provider
-                    .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
-                    .await
-                {
-                    activities = provider_activities;
+            match create_provider("strava") {
+                Ok(mut provider) => {
+                    let auth_data = AuthData::OAuth2 {
+                        client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
+                        client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
+                        access_token: Some(token_data.access_token.clone()),
+                        refresh_token: Some(token_data.refresh_token.clone()),
+                    };
+
+                    if matches!(provider.authenticate(auth_data).await, Ok(())) {
+                        if let Ok(provider_activities) = provider
+                            .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
+                            .await
+                        {
+                            activities = provider_activities;
+                        }
+                    }
                 }
-            }
-            Err(error_response) => {
-                tracing::debug!(
-                    "Could not create authenticated provider for generate_recommendations: {:?}",
-                    error_response
-                );
+                Err(_) => {}
             }
         }
 
@@ -2367,23 +2482,29 @@ impl UniversalToolExecutor {
 
         // Get recent activities
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        match self
-            .create_authenticated_provider("strava", user_uuid, request.tenant_id.as_deref())
+        if let Ok(Some(token_data)) = self
+            .get_valid_token(user_uuid, "strava", request.tenant_id.as_deref())
             .await
         {
-            Ok(provider) => {
-                if let Ok(provider_activities) = provider
-                    .get_activities(Some(SMALL_ACTIVITY_LIMIT), None)
-                    .await
-                {
-                    activities = provider_activities;
+            match create_provider("strava") {
+                Ok(mut provider) => {
+                    let auth_data = AuthData::OAuth2 {
+                        client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
+                        client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
+                        access_token: Some(token_data.access_token.clone()),
+                        refresh_token: Some(token_data.refresh_token.clone()),
+                    };
+
+                    if matches!(provider.authenticate(auth_data).await, Ok(())) {
+                        if let Ok(provider_activities) = provider
+                            .get_activities(Some(SMALL_ACTIVITY_LIMIT), None)
+                            .await
+                        {
+                            activities = provider_activities;
+                        }
+                    }
                 }
-            }
-            Err(error_response) => {
-                tracing::debug!(
-                    "Could not create authenticated provider for calculate_fitness_score: {:?}",
-                    error_response
-                );
+                Err(_) => {}
             }
         }
 
@@ -2512,23 +2633,29 @@ impl UniversalToolExecutor {
 
         // Get historical activities
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        match self
-            .create_authenticated_provider("strava", user_uuid, request.tenant_id.as_deref())
+        if let Ok(Some(token_data)) = self
+            .get_valid_token(user_uuid, "strava", request.tenant_id.as_deref())
             .await
         {
-            Ok(provider) => {
-                if let Ok(provider_activities) = provider
-                    .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
-                    .await
-                {
-                    activities = provider_activities;
+            match create_provider("strava") {
+                Ok(mut provider) => {
+                    let auth_data = AuthData::OAuth2 {
+                        client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
+                        client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
+                        access_token: Some(token_data.access_token.clone()),
+                        refresh_token: Some(token_data.refresh_token.clone()),
+                    };
+
+                    if matches!(provider.authenticate(auth_data).await, Ok(())) {
+                        if let Ok(provider_activities) = provider
+                            .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
+                            .await
+                        {
+                            activities = provider_activities;
+                        }
+                    }
                 }
-            }
-            Err(error_response) => {
-                tracing::debug!(
-                    "Could not create authenticated provider for predict_performance: {:?}",
-                    error_response
-                );
+                Err(_) => {}
             }
         }
 
@@ -2639,23 +2766,29 @@ impl UniversalToolExecutor {
 
         // Get recent activities (last 4 weeks)
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        match self
-            .create_authenticated_provider("strava", user_uuid, request.tenant_id.as_deref())
+        if let Ok(Some(token_data)) = self
+            .get_valid_token(user_uuid, "strava", request.tenant_id.as_deref())
             .await
         {
-            Ok(provider) => {
-                if let Ok(provider_activities) = provider
-                    .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
-                    .await
-                {
-                    activities = provider_activities;
+            match create_provider("strava") {
+                Ok(mut provider) => {
+                    let auth_data = AuthData::OAuth2 {
+                        client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
+                        client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
+                        access_token: Some(token_data.access_token.clone()),
+                        refresh_token: Some(token_data.refresh_token.clone()),
+                    };
+
+                    if matches!(provider.authenticate(auth_data).await, Ok(())) {
+                        if let Ok(provider_activities) = provider
+                            .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
+                            .await
+                        {
+                            activities = provider_activities;
+                        }
+                    }
                 }
-            }
-            Err(error_response) => {
-                tracing::debug!(
-                    "Could not create authenticated provider for analyze_training_load: {:?}",
-                    error_response
-                );
+                Err(_) => {}
             }
         }
 
