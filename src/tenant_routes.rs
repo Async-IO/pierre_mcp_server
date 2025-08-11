@@ -460,12 +460,14 @@ pub async fn oauth_authorize(
     let auth_code = format!("code_{}", Uuid::new_v4().simple());
 
     // Store auth code in database with expiration (10 minutes)
+    // Use the OAuth app owner as the user_id (this should come from user login session in real implementation)
     database
         .store_authorization_code(
             &auth_code,
             &auth_params.client_id,
             &auth_params.redirect_uri,
             &auth_params.scope,
+            oauth_app.owner_user_id, // Use the app owner's user_id
         )
         .await
         .map_err(|e| AppError::database(e.to_string()))?;
