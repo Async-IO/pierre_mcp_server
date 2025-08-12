@@ -182,6 +182,7 @@ impl A2AClientManager {
         // Create client record with real public key
         let client = A2AClient {
             id: client_id.clone(),
+            user_id: uuid::Uuid::new_v4(), // Generate consistent user ID for this A2A client
             name: request.name.clone(),
             description: request.description.clone(),
             public_key: keypair.public_key.clone(),
