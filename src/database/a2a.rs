@@ -102,6 +102,7 @@ impl Database {
             r"
             CREATE TABLE IF NOT EXISTS a2a_clients (
                 id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
                 name TEXT NOT NULL,
                 description TEXT,
                 public_key TEXT NOT NULL,
@@ -283,14 +284,15 @@ impl Database {
         sqlx::query(
             r"
             INSERT INTO a2a_clients (
-                id, name, description, public_key, client_secret, permissions,
+                id, user_id, name, description, public_key, client_secret, permissions,
                 capabilities, redirect_uris,
                 rate_limit_requests, rate_limit_window_seconds, is_active,
                 created_at, updated_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
             ",
         )
         .bind(&client.id)
+        .bind(&client.user_id.to_string())
         .bind(&client.name)
         .bind(&client.description)
         .bind(&client.public_key)
@@ -335,7 +337,7 @@ impl Database {
     pub async fn get_a2a_client(&self, client_id: &str) -> Result<Option<A2AClient>> {
         let row = sqlx::query(
             r"
-            SELECT id, name, description, public_key, permissions, capabilities, redirect_uris,
+            SELECT id, user_id, name, description, public_key, permissions, capabilities, redirect_uris,
                    rate_limit_requests, rate_limit_window_seconds, is_active,
                    created_at, updated_at
             FROM a2a_clients
@@ -359,6 +361,7 @@ impl Database {
 
             Ok(Some(A2AClient {
                 id: row.get("id"),
+                user_id: uuid::Uuid::parse_str(&row.get::<String, _>("user_id"))?,
                 name: row.get("name"),
                 description: row.get("description"),
                 public_key: row.get("public_key"),
@@ -386,7 +389,7 @@ impl Database {
         let rows = if user_id == &Uuid::nil() {
             // Admin/system-wide query - list all active A2A clients
             let query = r"
-                SELECT c.id, c.name, c.description, c.public_key, c.permissions, c.capabilities, c.redirect_uris,
+                SELECT c.id, c.user_id, c.name, c.description, c.public_key, c.permissions, c.capabilities, c.redirect_uris,
                        c.rate_limit_requests, c.rate_limit_window_seconds, c.is_active,
                        c.created_at, c.updated_at
                 FROM a2a_clients c 
@@ -398,7 +401,7 @@ impl Database {
         } else {
             // User-specific query - filter by user_id through their associated API keys
             let query = r"
-                SELECT DISTINCT c.id, c.name, c.description, c.public_key, c.permissions, c.capabilities, c.redirect_uris,
+                SELECT DISTINCT c.id, c.user_id, c.name, c.description, c.public_key, c.permissions, c.capabilities, c.redirect_uris,
                        c.rate_limit_requests, c.rate_limit_window_seconds, c.is_active,
                        c.created_at, c.updated_at
                 FROM a2a_clients c 
@@ -428,6 +431,7 @@ impl Database {
 
             clients.push(A2AClient {
                 id: row.get("id"),
+                user_id: uuid::Uuid::parse_str(&row.get::<String, _>("user_id"))?,
                 name: row.get("name"),
                 description: row.get("description"),
                 public_key: row.get("public_key"),
@@ -556,6 +560,7 @@ impl Database {
 
             Ok(Some(A2AClient {
                 id: row.get("id"),
+                user_id: uuid::Uuid::parse_str(&row.get::<String, _>("user_id"))?,
                 name: row.get("name"),
                 description: row.get("description"),
                 public_key: row.get("public_key"),

@@ -31,6 +31,7 @@ pub struct A2AToken {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct A2AClient {
     pub id: String,
+    pub user_id: uuid::Uuid, // User ID for session tracking and consistency
     pub name: String,
     pub description: String,
     pub public_key: String,
@@ -218,7 +219,7 @@ impl A2AAuthenticator {
         // Grant access based on A2A client permissions
 
         Ok(AuthResult {
-            user_id: uuid::Uuid::new_v4(), // A2A clients don't have regular user IDs
+            user_id: client.user_id, // Use consistent A2A client user ID for session tracking
             auth_method: AuthMethod::ApiKey {
                 key_id: format!("oauth2_a2a_{client_id}"),
                 tier: "A2A-OAuth2".into(),
