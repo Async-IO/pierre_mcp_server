@@ -1267,6 +1267,7 @@ impl DatabaseProvider for PostgresDatabase {
             |row| {
                 Ok(Some(A2AClient {
                     id: row.get("client_id"),
+                    user_id: row.get("user_id"),
                     name: row.get("name"),
                     description: row.get("description"),
                     public_key: row.get("client_secret_hash"), // Map client_secret_hash to public_key
@@ -1305,6 +1306,7 @@ impl DatabaseProvider for PostgresDatabase {
             |row| {
                 Ok(Some(A2AClient {
                     id: row.get("client_id"),
+                    user_id: row.get("user_id"),
                     name: row.get("name"),
                     description: row.get("description"),
                     public_key: row.get("client_secret_hash"), // Map client_secret_hash to public_key
