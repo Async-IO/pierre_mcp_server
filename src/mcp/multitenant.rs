@@ -1187,6 +1187,137 @@ impl MultiTenantMcpServer {
         })
     }
 
+    /// Create JWT authentication filter
+    fn create_auth_filter(
+        auth_manager: Arc<AuthManager>,
+    ) -> impl warp::Filter<Extract = (crate::auth::AuthResult,), Error = warp::Rejection> + Clone
+    {
+        use warp::Filter;
+        warp::header::optional::<String>("authorization")
+            .and(warp::any().map(move || auth_manager.clone()))
+            .and_then(
+                |auth_header: Option<String>, auth_mgr: Arc<AuthManager>| async move {
+                    match auth_header {
+                        Some(header) => {
+                            // Extract token from "Bearer <token>" format
+                            let Some(token) = header.strip_prefix("Bearer ") else {
+                                return Err(warp::reject::custom(crate::errors::AppError::new(
+                                    crate::errors::ErrorCode::AuthInvalid,
+                                    "Invalid authorization header format. Use 'Bearer <token>'",
+                                )));
+                            };
+
+                            // Validate JWT token using AuthManager
+                            match auth_mgr.validate_token(token) {
+                                Ok(claims) => {
+                                    // Parse user_id from claims.sub
+                                    let user_id =
+                                        uuid::Uuid::parse_str(&claims.sub).map_err(|_| {
+                                            warp::reject::custom(crate::errors::AppError::new(
+                                                crate::errors::ErrorCode::AuthInvalid,
+                                                "Invalid user ID in JWT token",
+                                            ))
+                                        })?;
+
+                                    // Convert JWT claims to AuthResult
+                                    Ok(crate::auth::AuthResult {
+                                        user_id,
+                                        auth_method: crate::auth::AuthMethod::JwtToken {
+                                            tier: "basic".to_string(),
+                                        },
+                                        rate_limit: crate::rate_limiting::UnifiedRateLimitInfo {
+                                            is_rate_limited: false,
+                                            limit: Some(1000),
+                                            remaining: Some(999),
+                                            reset_at: Some(
+                                                chrono::Utc::now() + chrono::Duration::hours(1),
+                                            ),
+                                            tier: "basic".to_string(),
+                                            auth_method: "jwt".to_string(),
+                                            tenant_id: None, // Will be determined from user context
+                                            tenant_multiplier: None,
+                                        },
+                                    })
+                                }
+                                Err(_) => Err(warp::reject::custom(crate::errors::AppError::new(
+                                    crate::errors::ErrorCode::AuthInvalid,
+                                    "Invalid or expired JWT token",
+                                ))),
+                            }
+                        }
+                        None => Err(warp::reject::custom(crate::errors::AppError::new(
+                            crate::errors::ErrorCode::AuthRequired,
+                            "Authorization header required",
+                        ))),
+                    }
+                },
+            )
+    }
+
+    /// Create tenant management routes filter
+    fn create_tenant_routes_filter(
+        database: Database,
+        auth_manager: AuthManager,
+    ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+        use warp::Filter;
+
+        let database = Arc::new(database);
+        let auth_manager = Arc::new(auth_manager);
+
+        let with_auth = Self::create_auth_filter(auth_manager);
+
+        // POST /api/tenants - Create tenant
+        let create_tenant = warp::path("api")
+            .and(warp::path("tenants"))
+            .and(warp::post())
+            .and(warp::body::json())
+            .and(with_auth.clone())
+            .and(warp::any().map({
+                let db = database.clone();
+                move || db.clone()
+            }))
+            .and_then(|req, auth, db| async move {
+                crate::tenant_routes::create_tenant(req, auth, db)
+                    .await
+                    .map(|response| warp::reply::json(&response))
+                    .map_err(warp::reject::custom)
+            });
+
+        // GET /api/tenants - List tenants
+        let list_tenants = warp::path("api")
+            .and(warp::path("tenants"))
+            .and(warp::get())
+            .and(with_auth.clone())
+            .and(warp::any().map({
+                let db = database.clone();
+                move || db.clone()
+            }))
+            .and_then(|auth, db| async move {
+                crate::tenant_routes::list_tenants(auth, db)
+                    .await
+                    .map(|response| warp::reply::json(&response))
+                    .map_err(warp::reject::custom)
+            });
+
+        // POST /api/tenants/{tenant_id}/oauth - Configure OAuth
+        let configure_oauth = warp::path("api")
+            .and(warp::path("tenants"))
+            .and(warp::path::param::<String>())
+            .and(warp::path("oauth"))
+            .and(warp::post())
+            .and(warp::body::json())
+            .and(with_auth)
+            .and(warp::any().map(move || database.clone()))
+            .and_then(|tenant_id, req, auth, db| async move {
+                crate::tenant_routes::configure_tenant_oauth(tenant_id, req, auth, db)
+                    .await
+                    .map(|response| warp::reply::json(&response))
+                    .map_err(warp::reject::custom)
+            });
+
+        create_tenant.or(list_tenants).or(configure_oauth)
+    }
+
     /// Run HTTP server for authentication endpoints
     async fn run_http_server(
         port: u16,
@@ -1222,6 +1353,12 @@ impl MultiTenantMcpServer {
             auth_manager.as_ref().clone(),
         );
         let admin_routes_filter = crate::admin_routes::admin_routes_with_rejection(admin_context);
+
+        // Setup tenant management routes
+        let tenant_routes_filter = Self::create_tenant_routes_filter(
+            database.as_ref().clone(),
+            auth_manager.as_ref().clone(),
+        );
 
         // Configure CORS
         let cors = Self::setup_cors();
@@ -1278,6 +1415,7 @@ impl MultiTenantMcpServer {
             .or(configuration_routes)
             .or(health_filter)
             .or(admin_routes_filter)
+            .or(tenant_routes_filter)
             .with(cors.clone())
             .with(security_headers_filter);
 
