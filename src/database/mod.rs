@@ -15,6 +15,7 @@ pub mod a2a;
 mod analytics;
 mod api_keys;
 mod tokens;
+mod user_oauth_tokens;
 mod users;
 
 pub mod tests;
@@ -99,6 +100,12 @@ impl Database {
 
         // Security and key rotation tables
         self.migrate_security().await?;
+
+        // UserOAuthToken tables
+        self.migrate_user_oauth_tokens().await?;
+
+        // Tenant users tables
+        self.migrate_tenant_users().await?;
 
         Ok(())
     }
@@ -264,6 +271,31 @@ impl Database {
         tx.commit().await?;
 
         tracing::info!("Security tables migration completed successfully");
+        Ok(())
+    }
+
+    /// Create tenant users tables for role-based permissions
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the tenant users migration fails
+    async fn migrate_tenant_users(&self) -> Result<()> {
+        // Read and execute the tenant users migration
+        let migration_sql = include_str!("../../migrations/007_tenant_users.sql");
+
+        // Execute the migration in a transaction
+        let mut tx = self.pool.begin().await?;
+
+        // Split SQL statements properly
+        let statements = Self::split_sql_statements_properly(migration_sql);
+
+        for statement in statements {
+            sqlx::query(&statement).execute(&mut *tx).await?;
+        }
+
+        tx.commit().await?;
+
+        tracing::info!("Tenant users tables migration completed successfully");
         Ok(())
     }
 
@@ -433,6 +465,27 @@ impl Database {
 
         let hash = digest(&SHA256, data.as_bytes());
         Ok(general_purpose::STANDARD.encode(hash.as_ref()))
+    }
+
+    /// Get user role for a specific tenant
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database query fails
+    pub async fn get_user_tenant_role(
+        &self,
+        user_id: &str,
+        tenant_id: &str,
+    ) -> Result<Option<String>> {
+        let row = sqlx::query_as::<_, (String,)>(
+            "SELECT role FROM tenant_users WHERE user_id = ? AND tenant_id = ?",
+        )
+        .bind(user_id)
+        .bind(tenant_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(|r| r.0))
     }
 }
 

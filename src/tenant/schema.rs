@@ -26,7 +26,15 @@ impl TenantRole {
             "owner" => Self::Owner,
             "admin" => Self::Admin,
             "billing" => Self::Billing,
-            _ => Self::Member, // Default fallback for member or unknown
+            "member" => Self::Member,
+            _ => {
+                // Log unknown role but fallback to member for security
+                tracing::warn!(
+                    "Unknown tenant role '{}' encountered, defaulting to Member",
+                    s
+                );
+                Self::Member
+            }
         }
     }
 

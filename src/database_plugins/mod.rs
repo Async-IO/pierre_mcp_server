@@ -5,7 +5,7 @@ use crate::a2a::auth::A2AClient;
 use crate::a2a::client::A2ASession;
 use crate::a2a::protocol::{A2ATask, TaskStatus};
 use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
-use crate::models::{DecryptedToken, User};
+use crate::models::{DecryptedToken, User, UserOAuthToken};
 use crate::rate_limiting::JwtUsage;
 use anyhow::Result;
 use async_trait::async_trait;
@@ -93,6 +93,53 @@ pub trait DatabaseProvider: Send + Sync + Clone {
 
     /// Clear Fitbit tokens for a user
     async fn clear_fitbit_token(&self, user_id: Uuid) -> Result<()>;
+
+    // ================================
+    // User OAuth Tokens (Multi-Tenant)
+    // ================================
+
+    /// Store or update user OAuth token for a tenant-provider combination
+    async fn upsert_user_oauth_token(&self, token: &UserOAuthToken) -> Result<()>;
+
+    /// Get user OAuth token for a specific tenant-provider combination
+    async fn get_user_oauth_token(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+        provider: &str,
+    ) -> Result<Option<UserOAuthToken>>;
+
+    /// Get all OAuth tokens for a user across all tenants
+    async fn get_user_oauth_tokens(&self, user_id: Uuid) -> Result<Vec<UserOAuthToken>>;
+
+    /// Get all OAuth tokens for a tenant-provider combination
+    async fn get_tenant_provider_tokens(
+        &self,
+        tenant_id: &str,
+        provider: &str,
+    ) -> Result<Vec<UserOAuthToken>>;
+
+    /// Delete user OAuth token for a tenant-provider combination
+    async fn delete_user_oauth_token(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+        provider: &str,
+    ) -> Result<()>;
+
+    /// Delete all OAuth tokens for a user (when user is deleted)
+    async fn delete_user_oauth_tokens(&self, user_id: Uuid) -> Result<()>;
+
+    /// Update OAuth token expiration and refresh info
+    async fn refresh_user_oauth_token(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+        provider: &str,
+        access_token: &str,
+        refresh_token: Option<&str>,
+        expires_at: Option<DateTime<Utc>>,
+    ) -> Result<()>;
 
     // ================================
     // User Profiles & Goals
@@ -275,6 +322,15 @@ pub trait DatabaseProvider: Send + Sync + Clone {
 
     /// Get A2A task by ID
     async fn get_a2a_task(&self, task_id: &str) -> Result<Option<A2ATask>>;
+
+    /// List A2A tasks for a client with optional filtering
+    async fn list_a2a_tasks(
+        &self,
+        client_id: Option<&str>,
+        status_filter: Option<&TaskStatus>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<Vec<A2ATask>>;
 
     /// Update A2A task status
     async fn update_a2a_task_status(
@@ -523,4 +579,11 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         event_type: Option<&str>,
         limit: Option<u32>,
     ) -> Result<Vec<crate::security::audit::AuditEvent>>;
+
+    // ================================
+    // Tenant User Management
+    // ================================
+
+    /// Get user role for a specific tenant
+    async fn get_user_tenant_role(&self, user_id: Uuid, tenant_id: Uuid) -> Result<Option<String>>;
 }

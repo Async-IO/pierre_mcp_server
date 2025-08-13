@@ -562,7 +562,11 @@ async fn test_compare_activities_tool() -> Result<()> {
         println!("Error: {:?}", response.error);
         // For test data, it's expected that activities don't exist
         assert!(response.error.is_some());
-        assert!(response.error.as_ref().unwrap().contains("not found"));
+        assert!(response
+            .error
+            .as_ref()
+            .unwrap()
+            .contains("No valid strava token found for user"));
     }
 
     Ok(())
@@ -1082,12 +1086,14 @@ async fn test_get_stats_async_no_token() -> Result<()> {
     };
 
     let response = executor.execute_tool(request).await?;
-    assert!(response.success);
-    assert!(response.result.is_some());
-
-    // Should return mock data when no token available
-    let result = response.result.unwrap();
-    assert!(result.is_object());
+    // Should fail when no OAuth token is available (no fallbacks)
+    assert!(!response.success);
+    assert!(response.error.is_some());
+    assert!(response
+        .error
+        .as_ref()
+        .unwrap()
+        .contains("No valid strava token found for user"));
 
     Ok(())
 }

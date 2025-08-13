@@ -53,6 +53,7 @@ fn create_test_user(tier: UserTier) -> User {
         display_name: Some("Test User".to_string()),
         password_hash: "test_hash".to_string(),
         tier,
+        tenant_id: Some("test-tenant".to_string()),
         strava_token: None,
         fitbit_token: None,
         created_at: Utc::now(),

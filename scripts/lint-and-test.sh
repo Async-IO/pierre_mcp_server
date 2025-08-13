@@ -242,6 +242,19 @@ else
     echo -e "${GREEN}[OK] No Arc usage found${NC}"
 fi
 
+# CRITICAL: Architectural validation to prevent facade patterns
+echo -e "${BLUE}==== Checking architectural integrity... ====${NC}"
+if [ -f "scripts/validate-architecture.sh" ]; then
+    if ./scripts/validate-architecture.sh > /dev/null 2>&1; then
+        echo -e "${GREEN}[OK] Architectural validation passed${NC}"
+    else
+        echo -e "${RED}[FAIL] Architectural validation failed - facade patterns or broken abstractions detected${NC}"
+        echo -e "${RED}   Run './scripts/validate-architecture.sh' for detailed analysis${NC}"
+        ALL_PASSED=false
+    fi
+else
+    echo -e "${YELLOW}[WARN] Architectural validation script not found${NC}"
+fi
 
 # Check for security vulnerabilities (if cargo-audit is installed)
 echo -e "${BLUE}==== Checking for security vulnerabilities... ====${NC}"

@@ -19,6 +19,7 @@ async fn create_test_user(db: &Database) -> User {
         display_name: Some("Test User".into()),
         password_hash: "hashed".into(),
         tier: UserTier::Professional,
+        tenant_id: Some("test-tenant".to_string()),
         strava_token: None,
         fitbit_token: None,
         is_active: true,

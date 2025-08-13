@@ -962,6 +962,26 @@ impl DatabaseProvider for Database {
         }
     }
 
+    async fn list_a2a_tasks(
+        &self,
+        client_id: Option<&str>,
+        status_filter: Option<&TaskStatus>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<Vec<A2ATask>> {
+        match self {
+            Self::SQLite(db) => {
+                db.list_a2a_tasks(client_id, status_filter, limit, offset)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.list_a2a_tasks(client_id, status_filter, limit, offset)
+                    .await
+            }
+        }
+    }
+
     async fn update_a2a_task_status(
         &self,
         task_id: &str,
@@ -1242,102 +1262,139 @@ impl DatabaseProvider for Database {
         }
     }
 
-    // Multi-tenant management stub implementations
-    async fn create_tenant(&self, _tenant: &crate::models::Tenant) -> Result<()> {
-        // Stub implementation - TODO: implement in both SQLite and PostgreSQL
-        Ok(())
+    // Multi-tenant management implementations
+    async fn create_tenant(&self, tenant: &crate::models::Tenant) -> Result<()> {
+        match self {
+            Self::SQLite(db) => db.create_tenant(tenant).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.create_tenant(tenant).await,
+        }
     }
 
-    async fn get_tenant_by_id(&self, _tenant_id: uuid::Uuid) -> Result<crate::models::Tenant> {
-        // Stub implementation - TODO: implement in both SQLite and PostgreSQL
-        Err(anyhow::anyhow!("Tenant management not yet implemented"))
+    async fn get_tenant_by_id(&self, tenant_id: uuid::Uuid) -> Result<crate::models::Tenant> {
+        match self {
+            Self::SQLite(db) => db.get_tenant_by_id(tenant_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_tenant_by_id(tenant_id).await,
+        }
     }
 
-    async fn get_tenant_by_slug(&self, _slug: &str) -> Result<crate::models::Tenant> {
-        // Stub implementation - TODO: implement in both SQLite and PostgreSQL
-        Err(anyhow::anyhow!("Tenant management not yet implemented"))
+    async fn get_tenant_by_slug(&self, slug: &str) -> Result<crate::models::Tenant> {
+        match self {
+            Self::SQLite(db) => db.get_tenant_by_slug(slug).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_tenant_by_slug(slug).await,
+        }
     }
 
     async fn list_tenants_for_user(
         &self,
-        _user_id: uuid::Uuid,
+        user_id: uuid::Uuid,
     ) -> Result<Vec<crate::models::Tenant>> {
-        // Stub implementation - TODO: implement in both SQLite and PostgreSQL
-        Ok(Vec::new())
+        match self {
+            Self::SQLite(db) => db.list_tenants_for_user(user_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.list_tenants_for_user(user_id).await,
+        }
     }
 
     async fn store_tenant_oauth_credentials(
         &self,
-        _credentials: &crate::tenant::TenantOAuthCredentials,
+        credentials: &crate::tenant::TenantOAuthCredentials,
     ) -> Result<()> {
-        // Stub implementation - TODO: implement in both SQLite and PostgreSQL
-        Ok(())
+        match self {
+            Self::SQLite(db) => db.store_tenant_oauth_credentials(credentials).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.store_tenant_oauth_credentials(credentials).await,
+        }
     }
 
     async fn get_tenant_oauth_providers(
         &self,
-        _tenant_id: uuid::Uuid,
+        tenant_id: uuid::Uuid,
     ) -> Result<Vec<crate::tenant::TenantOAuthCredentials>> {
-        // Stub implementation - TODO: implement in both SQLite and PostgreSQL
-        Ok(Vec::new())
+        match self {
+            Self::SQLite(db) => db.get_tenant_oauth_providers(tenant_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_tenant_oauth_providers(tenant_id).await,
+        }
     }
 
     async fn get_tenant_oauth_credentials(
         &self,
-        _tenant_id: uuid::Uuid,
-        _provider: &str,
+        tenant_id: uuid::Uuid,
+        provider: &str,
     ) -> Result<Option<crate::tenant::TenantOAuthCredentials>> {
-        // Stub implementation - TODO: implement in both SQLite and PostgreSQL
-        Ok(None)
+        match self {
+            Self::SQLite(db) => db.get_tenant_oauth_credentials(tenant_id, provider).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_tenant_oauth_credentials(tenant_id, provider).await,
+        }
     }
 
-    // OAuth app registration stub implementations
-    async fn create_oauth_app(&self, _app: &crate::models::OAuthApp) -> Result<()> {
-        // Stub implementation - TODO: implement in both SQLite and PostgreSQL
-        Ok(())
+    // OAuth app registration implementations
+    async fn create_oauth_app(&self, app: &crate::models::OAuthApp) -> Result<()> {
+        match self {
+            Self::SQLite(db) => db.create_oauth_app(app).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.create_oauth_app(app).await,
+        }
     }
 
-    async fn get_oauth_app_by_client_id(
-        &self,
-        _client_id: &str,
-    ) -> Result<crate::models::OAuthApp> {
-        // Stub implementation - TODO: implement in both SQLite and PostgreSQL
-        Err(anyhow::anyhow!("OAuth app management not yet implemented"))
+    async fn get_oauth_app_by_client_id(&self, client_id: &str) -> Result<crate::models::OAuthApp> {
+        match self {
+            Self::SQLite(db) => db.get_oauth_app_by_client_id(client_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_oauth_app_by_client_id(client_id).await,
+        }
     }
 
     async fn list_oauth_apps_for_user(
         &self,
-        _user_id: uuid::Uuid,
+        user_id: uuid::Uuid,
     ) -> Result<Vec<crate::models::OAuthApp>> {
-        // Stub implementation - TODO: implement in both SQLite and PostgreSQL
-        Ok(Vec::new())
+        match self {
+            Self::SQLite(db) => db.list_oauth_apps_for_user(user_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.list_oauth_apps_for_user(user_id).await,
+        }
     }
 
     async fn store_authorization_code(
         &self,
-        _code: &str,
-        _client_id: &str,
-        _redirect_uri: &str,
-        _scope: &str,
-        _user_id: Uuid,
+        code: &str,
+        client_id: &str,
+        redirect_uri: &str,
+        scope: &str,
+        user_id: Uuid,
     ) -> Result<()> {
-        // Stub implementation - TODO: implement in both SQLite and PostgreSQL
-        Ok(())
+        match self {
+            Self::SQLite(db) => {
+                db.store_authorization_code(code, client_id, redirect_uri, scope, user_id)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.store_authorization_code(code, client_id, redirect_uri, scope, user_id)
+                    .await
+            }
+        }
     }
 
-    async fn get_authorization_code(
-        &self,
-        _code: &str,
-    ) -> Result<crate::models::AuthorizationCode> {
-        // Stub implementation - TODO: implement in both SQLite and PostgreSQL
-        Err(anyhow::anyhow!(
-            "OAuth authorization code management not yet implemented"
-        ))
+    async fn get_authorization_code(&self, code: &str) -> Result<crate::models::AuthorizationCode> {
+        match self {
+            Self::SQLite(db) => db.get_authorization_code(code).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_authorization_code(code).await,
+        }
     }
 
-    async fn delete_authorization_code(&self, _code: &str) -> Result<()> {
-        // Stub implementation - TODO: implement in both SQLite and PostgreSQL
-        Ok(())
+    async fn delete_authorization_code(&self, code: &str) -> Result<()> {
+        match self {
+            Self::SQLite(db) => db.delete_authorization_code(code).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.delete_authorization_code(code).await,
+        }
     }
 
     // ================================
@@ -1434,6 +1491,126 @@ impl DatabaseProvider for Database {
             Self::SQLite(db) => db.get_audit_events(tenant_id, event_type, limit).await,
             #[cfg(feature = "postgresql")]
             Self::PostgreSQL(db) => db.get_audit_events(tenant_id, event_type, limit).await,
+        }
+    }
+
+    // ================================
+    // User OAuth Tokens (Multi-Tenant)
+    // ================================
+
+    async fn upsert_user_oauth_token(&self, token: &crate::models::UserOAuthToken) -> Result<()> {
+        match self {
+            Self::SQLite(db) => db.upsert_user_oauth_token(token).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.upsert_user_oauth_token(token).await,
+        }
+    }
+
+    async fn get_user_oauth_token(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+        provider: &str,
+    ) -> Result<Option<crate::models::UserOAuthToken>> {
+        match self {
+            Self::SQLite(db) => db.get_user_oauth_token(user_id, tenant_id, provider).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_user_oauth_token(user_id, tenant_id, provider).await,
+        }
+    }
+
+    async fn get_user_oauth_tokens(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<crate::models::UserOAuthToken>> {
+        match self {
+            Self::SQLite(db) => db.get_user_oauth_tokens(user_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_user_oauth_tokens(user_id).await,
+        }
+    }
+
+    async fn get_tenant_provider_tokens(
+        &self,
+        tenant_id: &str,
+        provider: &str,
+    ) -> Result<Vec<crate::models::UserOAuthToken>> {
+        match self {
+            Self::SQLite(db) => db.get_tenant_provider_tokens(tenant_id, provider).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_tenant_provider_tokens(tenant_id, provider).await,
+        }
+    }
+
+    async fn delete_user_oauth_token(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+        provider: &str,
+    ) -> Result<()> {
+        match self {
+            Self::SQLite(db) => {
+                db.delete_user_oauth_token(user_id, tenant_id, provider)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.delete_user_oauth_token(user_id, tenant_id, provider)
+                    .await
+            }
+        }
+    }
+
+    async fn delete_user_oauth_tokens(&self, user_id: Uuid) -> Result<()> {
+        match self {
+            Self::SQLite(db) => db.delete_user_oauth_tokens(user_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.delete_user_oauth_tokens(user_id).await,
+        }
+    }
+
+    async fn refresh_user_oauth_token(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+        provider: &str,
+        access_token: &str,
+        refresh_token: Option<&str>,
+        expires_at: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> Result<()> {
+        match self {
+            Self::SQLite(db) => {
+                db.refresh_user_oauth_token(
+                    user_id,
+                    tenant_id,
+                    provider,
+                    access_token,
+                    refresh_token,
+                    expires_at,
+                )
+                .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.refresh_user_oauth_token(
+                    user_id,
+                    tenant_id,
+                    provider,
+                    access_token,
+                    refresh_token,
+                    expires_at,
+                )
+                .await
+            }
+        }
+    }
+
+    /// Get user role for a specific tenant
+    async fn get_user_tenant_role(&self, user_id: Uuid, tenant_id: Uuid) -> Result<Option<String>> {
+        match self {
+            Self::SQLite(db) => db.get_user_tenant_role(user_id, tenant_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_user_tenant_role(user_id, tenant_id).await,
         }
     }
 }

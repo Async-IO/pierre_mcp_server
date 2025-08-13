@@ -11,7 +11,7 @@ use crate::a2a::client::A2ASession;
 use crate::a2a::protocol::{A2ATask, TaskStatus};
 use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
 use crate::database::A2AUsage;
-use crate::models::{DecryptedToken, User};
+use crate::models::{DecryptedToken, User, UserOAuthToken};
 use crate::rate_limiting::JwtUsage;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -433,6 +433,18 @@ impl DatabaseProvider for SqliteDatabase {
 
     async fn get_a2a_task(&self, task_id: &str) -> Result<Option<A2ATask>> {
         self.inner.get_a2a_task(task_id).await
+    }
+
+    async fn list_a2a_tasks(
+        &self,
+        client_id: Option<&str>,
+        status_filter: Option<&TaskStatus>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<Vec<A2ATask>> {
+        self.inner
+            .list_a2a_tasks(client_id, status_filter, limit, offset)
+            .await
     }
 
     async fn update_a2a_task_status(
@@ -1862,6 +1874,94 @@ impl DatabaseProvider for SqliteDatabase {
             .collect::<Result<Vec<_>>>()?;
 
         Ok(events)
+    }
+
+    // ================================
+    // User OAuth Tokens (Multi-Tenant)
+    // ================================
+
+    async fn upsert_user_oauth_token(&self, token: &UserOAuthToken) -> Result<()> {
+        self.inner
+            .upsert_user_oauth_token(
+                &token.id,
+                token.user_id,
+                &token.tenant_id,
+                &token.provider,
+                &token.access_token,
+                token.refresh_token.as_deref(),
+                &token.token_type,
+                token.expires_at,
+                token.scope.as_deref().unwrap_or(""),
+            )
+            .await
+    }
+
+    async fn get_user_oauth_token(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+        provider: &str,
+    ) -> Result<Option<UserOAuthToken>> {
+        self.inner
+            .get_user_oauth_token(user_id, tenant_id, provider)
+            .await
+    }
+
+    async fn get_user_oauth_tokens(&self, user_id: Uuid) -> Result<Vec<UserOAuthToken>> {
+        self.inner.get_user_oauth_tokens(user_id).await
+    }
+
+    async fn get_tenant_provider_tokens(
+        &self,
+        tenant_id: &str,
+        provider: &str,
+    ) -> Result<Vec<UserOAuthToken>> {
+        self.inner
+            .get_tenant_provider_tokens(tenant_id, provider)
+            .await
+    }
+
+    async fn delete_user_oauth_token(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+        provider: &str,
+    ) -> Result<()> {
+        self.inner
+            .delete_user_oauth_token(user_id, tenant_id, provider)
+            .await
+    }
+
+    async fn delete_user_oauth_tokens(&self, user_id: Uuid) -> Result<()> {
+        self.inner.delete_user_oauth_tokens(user_id).await
+    }
+
+    async fn refresh_user_oauth_token(
+        &self,
+        user_id: Uuid,
+        tenant_id: &str,
+        provider: &str,
+        access_token: &str,
+        refresh_token: Option<&str>,
+        expires_at: Option<DateTime<Utc>>,
+    ) -> Result<()> {
+        self.inner
+            .refresh_user_oauth_token(
+                user_id,
+                tenant_id,
+                provider,
+                access_token,
+                refresh_token,
+                expires_at,
+            )
+            .await
+    }
+
+    /// Get user role for a specific tenant
+    async fn get_user_tenant_role(&self, user_id: Uuid, tenant_id: Uuid) -> Result<Option<String>> {
+        self.inner
+            .get_user_tenant_role(&user_id.to_string(), &tenant_id.to_string())
+            .await
     }
 }
 

@@ -447,6 +447,7 @@ async fn get_or_create_user(database: &Database, email: &str) -> Result<User, wa
                 display_name: Some(format!("API User ({email})")),
                 password_hash: "api-key-only".into(), // API-only user
                 tier: crate::models::UserTier::Starter, // Default tier for API users
+                tenant_id: Some("default-tenant".to_string()), // Assign to default tenant
                 strava_token: None,
                 fitbit_token: None,
                 is_active: true,

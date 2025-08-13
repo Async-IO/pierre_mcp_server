@@ -591,6 +591,9 @@ async fn create_admin_user_command(
             display_name: Some(name.clone()),
             password_hash: hash(&password, DEFAULT_COST)?,
             tier: pierre_mcp_server::models::UserTier::Enterprise, // Admin gets enterprise tier
+            tenant_id: existing_user
+                .tenant_id
+                .or_else(|| Some("default-tenant".to_string())), // Preserve or set default
             strava_token: existing_user.strava_token,
             fitbit_token: existing_user.fitbit_token,
             is_active: true,
@@ -609,6 +612,7 @@ async fn create_admin_user_command(
             display_name: Some(name.clone()),
             password_hash: hash(&password, DEFAULT_COST)?,
             tier: pierre_mcp_server::models::UserTier::Enterprise, // Admin gets enterprise tier
+            tenant_id: Some("default-tenant".to_string()), // Admin belongs to default tenant
             strava_token: None,
             fitbit_token: None,
             is_active: true,
