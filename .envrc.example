@@ -1,24 +1,29 @@
-# Fitness MCP Server Environment Configuration
-# Copy this to .envrc and update with your actual credentials
-
-# Strava OAuth2 Configuration
-# Option 1: Use auth-setup command to get tokens automatically
-# Option 2: Set these manually if you already have tokens
-export STRAVA_CLIENT_ID="your_strava_client_id"
-export STRAVA_CLIENT_SECRET="your_strava_client_secret"
-# export STRAVA_ACCESS_TOKEN="your_access_token"  # Optional - use auth-setup instead
-# export STRAVA_REFRESH_TOKEN="your_refresh_token"  # Optional - use auth-setup instead
-
-# Garmin Configuration (future implementation)
-# export GARMIN_USERNAME="your_username"
-# export GARMIN_PASSWORD="your_password"
-
-# Runkeeper Configuration (future implementation)
-# export RUNKEEPER_ACCESS_TOKEN="your_access_token"
+# Pierre MCP Server - Development Environment
+# Copy this to .envrc for local development settings
+# Note: OAuth credentials are configured per-tenant via admin API, not environment variables
 
 # Server Configuration
+export PIERRE_PORT="8081"
+export PIERRE_HOST="0.0.0.0"
 export RUST_LOG="info"
-export MCP_SERVER_PORT="8080"
+
+# Database Configuration (server-side only)
+export DATABASE_URL="sqlite:data/pierre.db"
+# For PostgreSQL: export DATABASE_URL="postgres://user:pass@localhost/pierre_db"
 
 # Development settings
 export CARGO_TERM_COLOR="always"
+export RUST_BACKTRACE="1"
+
+# Security (server-side only)
+export JWT_SECRET="dev-secret-key-change-in-production"
+
+# Optional: External service API keys (server-side only)  
+# export WEATHER_API_KEY="your-openweathermap-key"
+# export GOOGLE_MAPS_API_KEY="your-google-maps-key"
+
+# MCP Client Configuration (for testing)
+# These are set when configuring Claude Desktop or Python clients
+# export TENANT_ID="your-tenant-id"
+# export TENANT_JWT_TOKEN="your-jwt-token"
+# export PIERRE_SERVER_URL="http://localhost:8081"
