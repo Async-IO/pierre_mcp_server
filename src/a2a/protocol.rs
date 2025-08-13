@@ -11,6 +11,7 @@
 //! Implements the core A2A (Agent-to-Agent) protocol for Pierre,
 //! providing JSON-RPC 2.0 based communication between AI agents.
 
+use crate::database_plugins::DatabaseProvider;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -248,11 +249,11 @@ impl A2AServer {
             "a2a/initialize" => self.handle_initialize(request),
             "message/send" | "a2a/message/send" => Self::handle_message_send(request),
             "message/stream" | "a2a/message/stream" => Self::handle_message_stream(request),
-            "tasks/create" | "a2a/tasks/create" => Self::handle_task_create(request),
-            "tasks/get" | "a2a/tasks/get" => self.handle_task_get(request),
+            "tasks/create" | "a2a/tasks/create" => self.handle_task_create(request).await,
+            "tasks/get" | "a2a/tasks/get" => self.handle_task_get(request).await,
             "tasks/cancel" => Self::handle_task_cancel(request),
             "tasks/pushNotificationConfig/set" => Self::handle_push_notification_config(request),
-            "a2a/tasks/list" => self.handle_task_list(request),
+            "a2a/tasks/list" => self.handle_task_list(request).await,
             "tools/list" | "a2a/tools/list" => Self::handle_tools_list(request),
             "tools/call" | "a2a/tools/call" => self.handle_tool_call(request).await,
             _ => Self::handle_unknown_method(request),
@@ -313,9 +314,7 @@ impl A2AServer {
         }
     }
 
-    fn handle_task_create(request: A2ARequest) -> A2AResponse {
-        let task_id = Uuid::new_v4().to_string();
-
+    async fn handle_task_create(&self, request: A2ARequest) -> A2AResponse {
         // Extract client_id and task_type from request parameters
         let params = request.params.as_ref().unwrap_or(&serde_json::Value::Null);
         let client_id = params
@@ -330,6 +329,39 @@ impl A2AServer {
             .unwrap_or("generic")
             .to_string();
 
+        // Persist task to database and get generated task_id
+        let task_id = if let Some(database) = &self.database {
+            match database
+                .create_a2a_task(
+                    &client_id, None, // session_id - optional
+                    &task_type, params,
+                )
+                .await
+            {
+                Ok(id) => {
+                    // Task successfully persisted
+                    tracing::info!("Created A2A task {} for client {}", id, client_id);
+                    id
+                }
+                Err(e) => {
+                    // Database error - return error response
+                    return A2AResponse {
+                        jsonrpc: "2.0".into(),
+                        result: None,
+                        error: Some(A2AErrorResponse {
+                            code: -32000,
+                            message: format!("Failed to persist task: {e}"),
+                            data: None,
+                        }),
+                        id: request.id,
+                    };
+                }
+            }
+        } else {
+            // No database - generate a local ID
+            Uuid::new_v4().to_string()
+        };
+
         let task = A2ATask {
             id: task_id,
             status: TaskStatus::Pending,
@@ -339,7 +371,7 @@ impl A2AServer {
             error: None,
             client_id,
             task_type,
-            input_data: request.params.unwrap_or(serde_json::Value::Null),
+            input_data: params.clone(),
             output_data: None,
             error_message: None,
             updated_at: chrono::Utc::now(),
@@ -368,7 +400,7 @@ impl A2AServer {
         }
     }
 
-    fn handle_task_get(&self, request: A2ARequest) -> A2AResponse {
+    async fn handle_task_get(&self, request: A2ARequest) -> A2AResponse {
         // Validate task ID parameter
         if let Some(params) = request.params.as_ref() {
             if let Some(serde_json::Value::String(_task_id)) = params.get("task_id") {
@@ -399,19 +431,50 @@ impl A2AServer {
         }
 
         // Query database for actual task data if available
-        if self.database.is_some() {
-            // Try to get task from database
-            // Return error - task storage requires database implementation
-            return A2AResponse {
-                jsonrpc: "2.0".into(),
-                result: None,
-                error: Some(A2AErrorResponse {
-                    code: -32000,
-                    message: "Task storage not implemented".into(),
-                    data: None,
-                }),
-                id: request.id,
-            };
+        if let Some(database) = &self.database {
+            // Extract task_id from validated params
+            let task_id = request
+                .params
+                .as_ref()
+                .and_then(|params| params.get("task_id"))
+                .and_then(|v| v.as_str())
+                .unwrap(); // Safe because we validated above
+
+            // Get task from database
+            match database.get_a2a_task(task_id).await {
+                Ok(Some(task)) => {
+                    return A2AResponse {
+                        jsonrpc: "2.0".into(),
+                        result: Some(serde_json::to_value(task).unwrap_or_default()),
+                        error: None,
+                        id: request.id,
+                    };
+                }
+                Ok(None) => {
+                    return A2AResponse {
+                        jsonrpc: "2.0".into(),
+                        result: None,
+                        error: Some(A2AErrorResponse {
+                            code: -32601,
+                            message: format!("Task not found: {task_id}"),
+                            data: None,
+                        }),
+                        id: request.id,
+                    };
+                }
+                Err(e) => {
+                    return A2AResponse {
+                        jsonrpc: "2.0".into(),
+                        result: None,
+                        error: Some(A2AErrorResponse {
+                            code: -32000,
+                            message: format!("Database error: {e}"),
+                            data: None,
+                        }),
+                        id: request.id,
+                    };
+                }
+            }
         }
 
         // No database available - return error
@@ -427,16 +490,77 @@ impl A2AServer {
         }
     }
 
-    fn handle_task_list(&self, request: A2ARequest) -> A2AResponse {
-        // Validate parameters exist
-        if let Some(params) = request.params.as_ref() {
-            // Parameters were provided, validate them
-            tracing::debug!("Task list request with parameters: {:?}", params);
-        }
-
+    async fn handle_task_list(&self, request: A2ARequest) -> A2AResponse {
         // Query database for actual tasks if available
-        if self.database.is_none() {
-            return A2AResponse {
+        if let Some(database) = &self.database {
+            // Extract optional parameters
+            let client_id = request
+                .params
+                .as_ref()
+                .and_then(|params| params.get("client_id"))
+                .and_then(|v| v.as_str());
+
+            let status_filter = request
+                .params
+                .as_ref()
+                .and_then(|params| params.get("status"))
+                .and_then(|v| v.as_str())
+                .and_then(|status_str| match status_str {
+                    "pending" => Some(TaskStatus::Pending),
+                    "running" => Some(TaskStatus::Running),
+                    "completed" => Some(TaskStatus::Completed),
+                    "failed" => Some(TaskStatus::Failed),
+                    "cancelled" => Some(TaskStatus::Cancelled),
+                    _ => None,
+                });
+
+            let limit = request
+                .params
+                .as_ref()
+                .and_then(|params| params.get("limit"))
+                .and_then(serde_json::Value::as_u64)
+                .and_then(|l| u32::try_from(l).ok())
+                .or(Some(20)); // Default limit of 20
+
+            let offset = request
+                .params
+                .as_ref()
+                .and_then(|params| params.get("offset"))
+                .and_then(serde_json::Value::as_u64)
+                .and_then(|o| u32::try_from(o).ok());
+
+            // Query database for tasks
+            match database
+                .list_a2a_tasks(client_id, status_filter.as_ref(), limit, offset)
+                .await
+            {
+                Ok(tasks) => {
+                    let tasks_json = serde_json::to_value(&tasks).unwrap_or_default();
+                    A2AResponse {
+                        jsonrpc: "2.0".into(),
+                        result: Some(serde_json::json!({
+                            "tasks": tasks_json,
+                            "total": tasks.len(),
+                            "limit": limit,
+                            "offset": offset.unwrap_or(0)
+                        })),
+                        error: None,
+                        id: request.id,
+                    }
+                }
+                Err(e) => A2AResponse {
+                    jsonrpc: "2.0".into(),
+                    result: None,
+                    error: Some(A2AErrorResponse {
+                        code: -32000,
+                        message: format!("Database error: {e}"),
+                        data: None,
+                    }),
+                    id: request.id,
+                },
+            }
+        } else {
+            A2AResponse {
                 jsonrpc: "2.0".into(),
                 result: None,
                 error: Some(A2AErrorResponse {
@@ -445,19 +569,7 @@ impl A2AServer {
                     data: None,
                 }),
                 id: request.id,
-            };
-        }
-
-        // Task storage not implemented yet
-        A2AResponse {
-            jsonrpc: "2.0".into(),
-            result: None,
-            error: Some(A2AErrorResponse {
-                code: -32000,
-                message: "Task listing not implemented".into(),
-                data: None,
-            }),
-            id: request.id,
+            }
         }
     }
 

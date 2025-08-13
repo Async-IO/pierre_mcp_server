@@ -12,10 +12,7 @@ CREATE TABLE IF NOT EXISTS key_versions (
     algorithm TEXT NOT NULL DEFAULT 'AES-256-GCM',
     
     -- Primary key is composite of tenant_id and version
-    PRIMARY KEY (tenant_id, version),
-    
-    -- Ensure only one active version per tenant
-    UNIQUE (tenant_id, is_active) WHERE is_active = true
+    PRIMARY KEY (tenant_id, version)
 );
 
 -- Create index for efficient lookups
@@ -45,11 +42,7 @@ CREATE TABLE IF NOT EXISTS audit_events (
     metadata TEXT NOT NULL DEFAULT '{}',       -- Additional structured data
     
     -- Timestamp
-    timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    
-    -- Foreign key constraints (soft references due to multi-tenant nature)
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE SET NULL,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create indexes for efficient audit queries
@@ -67,19 +60,6 @@ ON audit_events(event_type, timestamp DESC);
 
 CREATE INDEX IF NOT EXISTS idx_audit_events_severity 
 ON audit_events(severity, timestamp DESC);
-
--- Create a trigger to automatically clean up old audit events (keep last 100,000)
-CREATE TRIGGER IF NOT EXISTS audit_events_cleanup
-    AFTER INSERT ON audit_events
-    WHEN (SELECT COUNT(*) FROM audit_events) > 100000
-BEGIN
-    DELETE FROM audit_events 
-    WHERE id IN (
-        SELECT id FROM audit_events 
-        ORDER BY timestamp ASC 
-        LIMIT ((SELECT COUNT(*) FROM audit_events) - 100000)
-    );
-END;
 
 -- Insert initial global key version (version 1)
 INSERT OR IGNORE INTO key_versions (tenant_id, version, created_at, expires_at, is_active, algorithm)

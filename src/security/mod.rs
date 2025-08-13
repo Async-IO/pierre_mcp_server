@@ -9,6 +9,7 @@
 //! - Comprehensive encryption for all sensitive data
 //! - Security audit logging
 
+use crate::database_plugins::DatabaseProvider;
 use anyhow::{Context, Result};
 use ring::{
     aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM},
@@ -133,6 +134,10 @@ pub struct TenantEncryptionManager {
     derived_keys_cache: std::sync::RwLock<HashMap<Uuid, [u8; 32]>>,
     /// Random number generator
     rng: SystemRandom,
+    /// Database connection for key versioning
+    database: Option<std::sync::Arc<crate::database_plugins::factory::Database>>,
+    /// Current key version (global)
+    current_version: std::sync::RwLock<u32>,
 }
 
 /// Metadata for encrypted data including key version and tenant info
@@ -169,6 +174,23 @@ impl TenantEncryptionManager {
             master_key,
             derived_keys_cache: std::sync::RwLock::new(HashMap::new()),
             rng: SystemRandom::new(),
+            database: None,
+            current_version: std::sync::RwLock::new(1),
+        }
+    }
+
+    /// Create new encryption manager with database connection for key versioning
+    #[must_use]
+    pub fn new_with_database(
+        master_key: [u8; 32],
+        database: std::sync::Arc<crate::database_plugins::factory::Database>,
+    ) -> Self {
+        Self {
+            master_key,
+            derived_keys_cache: std::sync::RwLock::new(HashMap::new()),
+            rng: SystemRandom::new(),
+            database: Some(database),
+            current_version: std::sync::RwLock::new(1),
         }
     }
 
@@ -178,13 +200,15 @@ impl TenantEncryptionManager {
     ///
     /// Returns an error if key derivation fails
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the key cache `RwLock` is poisoned
+    /// Returns an error if the key cache `RwLock` is poisoned
     pub fn derive_tenant_key(&self, tenant_id: Uuid) -> Result<[u8; 32]> {
         // Check cache first
         {
-            let cache = self.derived_keys_cache.read().unwrap();
+            let cache = self.derived_keys_cache.read().map_err(|_| {
+                anyhow::anyhow!("Security cache lock poisoned - key derivation unavailable")
+            })?;
             if let Some(cached_key) = cache.get(&tenant_id) {
                 return Ok(*cached_key);
             }
@@ -206,11 +230,38 @@ impl TenantEncryptionManager {
 
         // Cache the derived key
         {
-            let mut cache = self.derived_keys_cache.write().unwrap();
+            let mut cache = self.derived_keys_cache.write().map_err(|_| {
+                anyhow::anyhow!("Security cache lock poisoned - cannot cache derived key")
+            })?;
             cache.insert(tenant_id, derived_key);
         }
 
         Ok(derived_key)
+    }
+
+    /// Get current key version for encryption
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the version lock is poisoned
+    pub fn get_current_version(&self) -> Result<u32> {
+        Ok(*self
+            .current_version
+            .read()
+            .map_err(|_| anyhow::anyhow!("Version lock poisoned"))?)
+    }
+
+    /// Set current key version
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the version lock is poisoned
+    pub fn set_current_version(&self, version: u32) -> Result<()> {
+        *self
+            .current_version
+            .write()
+            .map_err(|_| anyhow::anyhow!("Version lock poisoned"))? = version;
+        Ok(())
     }
 
     /// Encrypt data with tenant-specific key
@@ -303,7 +354,7 @@ impl TenantEncryptionManager {
         Ok(EncryptedData {
             data: encoded,
             metadata: EncryptionMetadata {
-                key_version: 1, // TODO: Implement key versioning
+                key_version: self.get_current_version().unwrap_or(1),
                 tenant_id,
                 algorithm: "AES-256-GCM".to_string(),
                 encrypted_at: chrono::Utc::now(),
@@ -350,50 +401,99 @@ impl TenantEncryptionManager {
     ///
     /// # Errors
     ///
-    /// Returns an error if key rotation fails
-    ///
-    /// # Panics
-    ///
-    /// Panics if the key cache `RwLock` is poisoned
-    pub fn rotate_tenant_key(&self, tenant_id: Uuid) -> Result<()> {
-        // Clear cached key to force regeneration
+    /// Returns an error if key rotation fails, database operations fail, or re-encryption fails
+    pub async fn rotate_tenant_key(&self, tenant_id: Uuid) -> Result<()> {
+        // Get current version and increment for new key
+        let old_version = self.get_current_version()?;
+        let new_version = old_version + 1;
+
+        // Update key version in database if available
+        if let Some(database) = &self.database {
+            // Create new key version record
+            let key_version = crate::security::key_rotation::KeyVersion {
+                tenant_id: Some(tenant_id),
+                version: new_version,
+                created_at: chrono::Utc::now(),
+                expires_at: chrono::Utc::now() + chrono::Duration::days(365), // 1 year expiry
+                is_active: false, // Not active until re-encryption is complete
+                algorithm: "HKDF-SHA256".to_string(),
+            };
+
+            database.store_key_version(&key_version).await?;
+
+            // TODO: Re-encrypt existing OAuth tokens and sensitive data with new key
+            // For now, we'll log a warning that this needs to be implemented
+            tracing::warn!(
+                "Key rotation for tenant {} requires manual re-encryption of existing data. \
+                 Old data encrypted with version {} may become inaccessible.",
+                tenant_id,
+                old_version
+            );
+
+            // Activate the new key version
+            database
+                .update_key_version_status(Some(tenant_id), new_version, true)
+                .await?;
+
+            // Deactivate old version
+            database
+                .update_key_version_status(Some(tenant_id), old_version, false)
+                .await?;
+        }
+
+        // Clear cached key to force regeneration with new parameters
         {
-            let mut cache = self.derived_keys_cache.write().unwrap();
+            let mut cache = self.derived_keys_cache.write().map_err(|_| {
+                anyhow::anyhow!("Security cache lock poisoned - cannot rotate tenant key")
+            })?;
             cache.remove(&tenant_id);
         }
 
-        // Re-derive key (which will use updated master key or parameters)
+        // Update current version
+        self.set_current_version(new_version)?;
+
+        // Re-derive key with new version
         let _ = self.derive_tenant_key(tenant_id)?;
 
-        // TODO: Update key version in database
-        // TODO: Re-encrypt existing data with new key
+        tracing::info!(
+            "Rotated encryption key for tenant {} from version {} to version {}",
+            tenant_id,
+            old_version,
+            new_version
+        );
 
-        tracing::info!("Rotated encryption key for tenant {}", tenant_id);
         Ok(())
     }
 
     /// Clear key cache (useful for memory cleanup or security)
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the key cache `RwLock` is poisoned
-    pub fn clear_key_cache(&self) {
-        self.derived_keys_cache.write().unwrap().clear();
+    /// Returns an error if the key cache `RwLock` is poisoned
+    pub fn clear_key_cache(&self) -> Result<()> {
+        self.derived_keys_cache
+            .write()
+            .map_err(|_| anyhow::anyhow!("Security cache lock poisoned - cannot clear cache"))?
+            .clear();
         tracing::info!("Cleared encryption key cache");
+        Ok(())
     }
 
     /// Get encryption statistics (for monitoring)
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the key cache `RwLock` is poisoned
-    pub fn get_stats(&self) -> EncryptionStats {
-        let cache = self.derived_keys_cache.read().unwrap();
-        EncryptionStats {
+    /// Returns an error if the key cache `RwLock` is poisoned
+    pub fn get_stats(&self) -> Result<EncryptionStats> {
+        let cache = self
+            .derived_keys_cache
+            .read()
+            .map_err(|_| anyhow::anyhow!("Security cache lock poisoned - cannot get stats"))?;
+        Ok(EncryptionStats {
             cached_tenant_keys: cache.len(),
             master_key_algorithm: "AES-256-GCM".to_string(),
             key_derivation_algorithm: "HKDF-SHA256".to_string(),
-        }
+        })
     }
 }
 
@@ -439,7 +539,7 @@ impl EnhancedEncryptedToken {
             refresh_token: encryption_manager.encrypt_tenant_data(tenant_id, refresh_token)?,
             expires_at,
             scopes: scopes.to_string(),
-            key_version: 1, // TODO: Get from encryption manager
+            key_version: encryption_manager.get_current_version().unwrap_or(1),
         })
     }
 

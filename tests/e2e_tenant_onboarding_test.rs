@@ -36,12 +36,44 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
             .expect("Failed to create test database"),
     );
 
-    // Step 2: Create admin users first
+    // Step 2: Create admin users first (required for tenant foreign key constraints)
     let acme_admin_id = Uuid::new_v4();
     let beta_admin_id = Uuid::new_v4();
+    let acme_tenant_id = Uuid::new_v4();
+    let beta_tenant_id = Uuid::new_v4();
+
+    let acme_admin = User {
+        id: acme_admin_id,
+        email: "admin@acmefitness.com".to_string(),
+        display_name: Some("Acme Admin".to_string()),
+        password_hash: "hashed_password".to_string(),
+        tier: UserTier::Enterprise,
+        tenant_id: Some(acme_tenant_id.to_string()),
+        strava_token: None,
+        fitbit_token: None,
+        created_at: chrono::Utc::now(),
+        last_active: chrono::Utc::now(),
+        is_active: true,
+    };
+
+    let beta_admin = User {
+        id: beta_admin_id,
+        email: "admin@betahealth.com".to_string(),
+        display_name: Some("Beta Admin".to_string()),
+        password_hash: "hashed_password".to_string(),
+        tier: UserTier::Professional,
+        tenant_id: Some(beta_tenant_id.to_string()),
+        strava_token: None,
+        fitbit_token: None,
+        created_at: chrono::Utc::now(),
+        last_active: chrono::Utc::now(),
+        is_active: true,
+    };
+
+    database.create_user(&acme_admin).await?;
+    database.create_user(&beta_admin).await?;
 
     // Step 3: Create first tenant ("Acme Fitness Co.")
-    let acme_tenant_id = Uuid::new_v4();
     let acme_tenant = Tenant {
         id: acme_tenant_id,
         name: "Acme Fitness Co.".to_string(),
@@ -56,7 +88,6 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
     database.create_tenant(&acme_tenant).await?;
 
     // Step 4: Create second tenant ("Beta Health Inc.") for isolation testing
-    let beta_tenant_id = Uuid::new_v4();
     let beta_tenant = Tenant {
         id: beta_tenant_id,
         name: "Beta Health Inc.".to_string(),
@@ -70,36 +101,6 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
 
     database.create_tenant(&beta_tenant).await?;
 
-    // Step 5: Create admin users for each tenant
-    let acme_admin = User {
-        id: acme_admin_id,
-        email: "admin@acmefitness.com".to_string(),
-        display_name: Some("Acme Admin".to_string()),
-        password_hash: "hashed_password".to_string(),
-        tier: UserTier::Enterprise,
-        strava_token: None,
-        fitbit_token: None,
-        created_at: chrono::Utc::now(),
-        last_active: chrono::Utc::now(),
-        is_active: true,
-    };
-
-    let beta_admin = User {
-        id: beta_admin_id,
-        email: "admin@betahealth.com".to_string(),
-        display_name: Some("Beta Admin".to_string()),
-        password_hash: "hashed_password".to_string(),
-        tier: UserTier::Professional,
-        strava_token: None,
-        fitbit_token: None,
-        created_at: chrono::Utc::now(),
-        last_active: chrono::Utc::now(),
-        is_active: true,
-    };
-
-    database.create_user(&acme_admin).await?;
-    database.create_user(&beta_admin).await?;
-
     // Step 5: Register OAuth applications for each tenant
     let acme_strava_app = OAuthApp {
         id: Uuid::new_v4(),
@@ -109,7 +110,7 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
         description: Some("Strava integration for Acme Fitness".to_string()),
         redirect_uris: vec!["https://acme-fitness.com/oauth/strava/callback".to_string()],
         scopes: vec!["read".to_string(), "activity:read_all".to_string()],
-        app_type: "server".to_string(),
+        app_type: "confidential".to_string(),
         owner_user_id: acme_admin_id,
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
@@ -123,7 +124,7 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
         description: Some("Strava integration for Beta Health".to_string()),
         redirect_uris: vec!["https://beta-health.com/oauth/strava/callback".to_string()],
         scopes: vec!["read".to_string(), "activity:read_all".to_string()],
-        app_type: "server".to_string(),
+        app_type: "confidential".to_string(),
         owner_user_id: beta_admin_id,
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
@@ -310,14 +311,19 @@ async fn test_tenant_context_switching() -> Result<()> {
             .expect("Failed to create test database"),
     );
 
-    // Create a user that belongs to multiple tenants
+    // Create two tenants first (for user foreign key)
+    let tenant1_id = Uuid::new_v4();
+    let tenant2_id = Uuid::new_v4();
     let user_id = Uuid::new_v4();
+
+    // Create a user that belongs to multiple tenants
     let user = User {
         id: user_id,
         email: "multi-tenant-user@example.com".to_string(),
         display_name: Some("Multi Tenant User".to_string()),
         password_hash: "hashed_password".to_string(),
         tier: UserTier::Professional,
+        tenant_id: Some(tenant1_id.to_string()),
         strava_token: None,
         fitbit_token: None,
         created_at: chrono::Utc::now(),
@@ -327,26 +333,23 @@ async fn test_tenant_context_switching() -> Result<()> {
 
     database.create_user(&user).await?;
 
-    // Create two tenants
-    let tenant1_id = Uuid::new_v4();
     let tenant1 = Tenant {
         id: tenant1_id,
         name: "Tenant One".to_string(),
         slug: "tenant-one".to_string(),
         domain: None,
-        plan: "basic".to_string(),
+        plan: "starter".to_string(),
         owner_user_id: user_id,
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
     };
 
-    let tenant2_id = Uuid::new_v4();
     let tenant2 = Tenant {
         id: tenant2_id,
         name: "Tenant Two".to_string(),
         slug: "tenant-two".to_string(),
         domain: None,
-        plan: "premium".to_string(),
+        plan: "professional".to_string(),
         owner_user_id: user_id,
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),

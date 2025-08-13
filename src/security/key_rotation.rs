@@ -303,7 +303,7 @@ impl KeyRotationManager {
 
         // 3. Rotate the key in the encryption manager
         if let Some(tid) = tenant_id {
-            self.encryption_manager.rotate_tenant_key(tid)?;
+            self.encryption_manager.rotate_tenant_key(tid).await?;
         }
 
         // 4. Update key version status

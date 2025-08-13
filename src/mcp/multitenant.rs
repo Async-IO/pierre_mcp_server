@@ -1655,44 +1655,171 @@ impl MultiTenantMcpServer {
     /// # Errors
     ///
     /// Returns an error if tenant context extraction fails
+    /// Get user's role in a tenant with proper fallback
+    async fn get_user_role_for_tenant(
+        database: &Arc<Database>,
+        user_id: uuid::Uuid,
+        tenant_id: uuid::Uuid,
+    ) -> TenantRole {
+        match database.get_user_tenant_role(user_id, tenant_id).await {
+            Ok(Some(role_str)) => TenantRole::from_db_string(&role_str),
+            Ok(None) => {
+                tracing::warn!(
+                    "User {} not found in tenant {}, defaulting to Member",
+                    user_id,
+                    tenant_id
+                );
+                TenantRole::Member
+            }
+            Err(e) => {
+                tracing::error!(
+                    "Failed to get user role for tenant {}: {}, defaulting to Member",
+                    tenant_id,
+                    e
+                );
+                TenantRole::Member
+            }
+        }
+    }
+
+    /// Extract tenant context from explicit header
+    async fn extract_tenant_from_header(
+        request: &McpRequest,
+        auth_result: &AuthResult,
+        database: &Arc<Database>,
+    ) -> Result<Option<TenantContext>, String> {
+        let Some(tenant_id_str) = request
+            .headers
+            .as_ref()
+            .and_then(|h| h.get("X-Tenant-ID"))
+            .and_then(|v| v.as_str())
+        else {
+            return Ok(None);
+        };
+
+        let tenant_id = uuid::Uuid::parse_str(tenant_id_str)
+            .map_err(|e| format!("Invalid tenant ID format: {e}"))?;
+
+        match database.get_tenant_by_id(tenant_id).await {
+            Ok(tenant) => {
+                tracing::debug!("Using explicit tenant from header: {}", tenant.name);
+                let role =
+                    Self::get_user_role_for_tenant(database, auth_result.user_id, tenant_id).await;
+                Ok(Some(TenantContext::new(
+                    tenant_id,
+                    tenant.name,
+                    auth_result.user_id,
+                    role,
+                )))
+            }
+            Err(e) => {
+                tracing::warn!("Failed to fetch explicit tenant {}: {}", tenant_id, e);
+                Err(format!("Tenant not found: {tenant_id}"))
+            }
+        }
+    }
+
+    /// Extract tenant context from user's tenant association
+    async fn extract_tenant_from_user(
+        auth_result: &AuthResult,
+        database: &Arc<Database>,
+    ) -> Result<Option<TenantContext>, String> {
+        let user = match database.get_user(auth_result.user_id).await {
+            Ok(Some(user)) => user,
+            Ok(None) => {
+                tracing::warn!("User not found: {}", auth_result.user_id);
+                return Err("User not found".to_string());
+            }
+            Err(e) => {
+                tracing::warn!("Failed to fetch user {}: {}", auth_result.user_id, e);
+                return Err(format!("User lookup failed: {e}"));
+            }
+        };
+
+        let Some(user_tenant_id) = user.tenant_id else {
+            tracing::debug!(
+                "User {} has no tenant_id, will use default tenant",
+                auth_result.user_id
+            );
+            return Ok(None);
+        };
+
+        // Try parsing as UUID first
+        if let Ok(tenant_uuid) = uuid::Uuid::parse_str(&user_tenant_id) {
+            if let Ok(tenant) = database.get_tenant_by_id(tenant_uuid).await {
+                tracing::debug!("Using user's tenant: {}", tenant.name);
+                let role =
+                    Self::get_user_role_for_tenant(database, auth_result.user_id, tenant_uuid)
+                        .await;
+                return Ok(Some(TenantContext::new(
+                    tenant_uuid,
+                    tenant.name,
+                    auth_result.user_id,
+                    role,
+                )));
+            }
+        }
+
+        // Try as slug if UUID parsing failed
+        if let Ok(tenant) = database.get_tenant_by_slug(&user_tenant_id).await {
+            tracing::debug!("Using user's tenant slug: {}", tenant.name);
+            let role =
+                Self::get_user_role_for_tenant(database, auth_result.user_id, tenant.id).await;
+            return Ok(Some(TenantContext::new(
+                tenant.id,
+                tenant.name,
+                auth_result.user_id,
+                role,
+            )));
+        }
+
+        tracing::warn!("Failed to resolve user's tenant: {}", user_tenant_id);
+        Ok(None)
+    }
+
+    /// Extract tenant context using default tenant
+    async fn extract_default_tenant(
+        auth_result: &AuthResult,
+        database: &Arc<Database>,
+    ) -> Result<Option<TenantContext>, String> {
+        match database.get_tenant_by_slug("default-tenant").await {
+            Ok(tenant) => {
+                tracing::debug!("Using default tenant for user: {}", auth_result.user_id);
+                let role =
+                    Self::get_user_role_for_tenant(database, auth_result.user_id, tenant.id).await;
+                Ok(Some(TenantContext::new(
+                    tenant.id,
+                    tenant.name,
+                    auth_result.user_id,
+                    role,
+                )))
+            }
+            Err(e) => {
+                tracing::warn!("Failed to fetch default tenant: {}", e);
+                Ok(None) // Return None to allow legacy single-tenant mode
+            }
+        }
+    }
+
     async fn _extract_tenant_context(
         request: &McpRequest,
         auth_result: &AuthResult,
         database: &Arc<Database>,
     ) -> Result<Option<TenantContext>, String> {
-        // For now, we'll support both approaches:
-        // 1. Tenant ID from request headers (when available)
-        // 2. Single tenant for the authenticated user (fallback)
-
-        if let Some(tenant_id_str) = request
-            .headers
-            .as_ref()
-            .and_then(|h| h.get("X-Tenant-ID"))
-            .and_then(|v| v.as_str())
+        // 1. Try explicit tenant from header
+        if let Some(context) =
+            Self::extract_tenant_from_header(request, auth_result, database).await?
         {
-            let tenant_id = uuid::Uuid::parse_str(tenant_id_str)
-                .map_err(|e| format!("Invalid tenant ID format: {e}"))?;
-
-            // Fetch tenant information from database
-            match database.get_tenant_by_id(tenant_id).await {
-                Ok(tenant) => {
-                    // Create tenant context for the authenticated user
-                    Ok(Some(TenantContext::new(
-                        tenant_id,
-                        tenant.name,
-                        auth_result.user_id,
-                        TenantRole::Member, // For now, default to Member role. In production, this would come from tenant_users table
-                    )))
-                }
-                Err(e) => {
-                    tracing::warn!("Failed to fetch tenant {}: {}", tenant_id, e);
-                    Err(format!("Tenant not found: {tenant_id}"))
-                }
-            }
-        } else {
-            // No tenant context - could support legacy single-tenant mode or require tenant
-            Ok(None)
+            return Ok(Some(context));
         }
+
+        // 2. Try user's tenant association
+        if let Some(context) = Self::extract_tenant_from_user(auth_result, database).await? {
+            return Ok(Some(context));
+        }
+
+        // 3. Fallback to default tenant
+        Self::extract_default_tenant(auth_result, database).await
     }
 
     /// Handle tools/list request

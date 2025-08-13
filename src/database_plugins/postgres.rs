@@ -13,6 +13,7 @@ use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
 use crate::database::A2AUsage;
 use crate::models::{DecryptedToken, EncryptedToken, User, UserTier};
 use crate::rate_limiting::JwtUsage;
+use anyhow::Context;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -108,7 +109,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_user(&self, user_id: Uuid) -> Result<Option<User>> {
         let row = sqlx::query(
             r"
-            SELECT id, email, display_name, password_hash, tier, is_active, created_at, last_active
+            SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, created_at, last_active
             FROM users
             WHERE id = $1
             ",
@@ -133,6 +134,7 @@ impl DatabaseProvider for PostgresDatabase {
                             _ => UserTier::Starter,
                         }
                     },
+                    tenant_id: row.get("tenant_id"),
                     strava_token: None, // Tokens are loaded separately
                     fitbit_token: None, // Tokens are loaded separately
                     created_at: row.get("created_at"),
@@ -146,7 +148,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_user_by_email(&self, email: &str) -> Result<Option<User>> {
         let row = sqlx::query(
             r"
-            SELECT id, email, display_name, password_hash, tier, is_active, created_at, last_active
+            SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, created_at, last_active
             FROM users
             WHERE email = $1
             ",
@@ -171,6 +173,7 @@ impl DatabaseProvider for PostgresDatabase {
                             _ => UserTier::Starter,
                         }
                     },
+                    tenant_id: row.get("tenant_id"),
                     strava_token: None, // Tokens are loaded separately
                     fitbit_token: None, // Tokens are loaded separately
                     created_at: row.get("created_at"),
@@ -1345,6 +1348,7 @@ impl DatabaseProvider for PostgresDatabase {
         for row in rows {
             clients.push(A2AClient {
                 id: row.get("client_id"),
+                user_id: *user_id, // Use the provided user_id parameter
                 name: row.get("name"),
                 description: row.get("description"),
                 public_key: row.get("client_secret_hash"), // Map client_secret_hash to public_key
@@ -1633,6 +1637,121 @@ impl DatabaseProvider for PostgresDatabase {
         } else {
             Ok(None)
         }
+    }
+
+    async fn list_a2a_tasks(
+        &self,
+        client_id: Option<&str>,
+        status_filter: Option<&TaskStatus>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<Vec<A2ATask>> {
+        use std::fmt::Write;
+        let mut query = String::from(
+            r"
+            SELECT task_id, client_id, session_id, task_type, input_data,
+                   status, result_data, method, created_at, updated_at
+            FROM a2a_tasks
+            ",
+        );
+
+        let mut conditions = Vec::new();
+        let mut bind_count = 0;
+
+        if client_id.is_some() {
+            bind_count += 1;
+            conditions.push(format!("client_id = ${bind_count}"));
+        }
+
+        if status_filter.is_some() {
+            bind_count += 1;
+            conditions.push(format!("status = ${bind_count}"));
+        }
+
+        if !conditions.is_empty() {
+            query.push_str(" WHERE ");
+            query.push_str(&conditions.join(" AND "));
+        }
+
+        query.push_str(" ORDER BY created_at DESC");
+
+        if let Some(_limit_val) = limit {
+            bind_count += 1;
+            write!(query, " LIMIT ${bind_count}").expect("String write should not fail");
+        }
+
+        if let Some(_offset_val) = offset {
+            bind_count += 1;
+            write!(query, " OFFSET ${bind_count}").expect("String write should not fail");
+        }
+
+        let mut sql_query = sqlx::query(&query);
+
+        if let Some(client_id_val) = client_id {
+            sql_query = sql_query.bind(client_id_val);
+        }
+
+        if let Some(status_val) = status_filter {
+            let status_str = match status_val {
+                TaskStatus::Pending => "pending",
+                TaskStatus::Running => "running",
+                TaskStatus::Completed => "completed",
+                TaskStatus::Failed => "failed",
+                TaskStatus::Cancelled => "cancelled",
+            };
+            sql_query = sql_query.bind(status_str);
+        }
+
+        if let Some(limit_val) = limit {
+            sql_query = sql_query.bind(i64::from(limit_val));
+        }
+
+        if let Some(offset_val) = offset {
+            sql_query = sql_query.bind(i64::from(offset_val));
+        }
+
+        let rows = sql_query.fetch_all(&self.pool).await?;
+
+        let mut tasks = Vec::new();
+        for row in rows {
+            use sqlx::Row;
+            let input_str: String = row.try_get("input_data")?;
+            let input_data: Value = serde_json::from_str(&input_str).unwrap_or(Value::Null);
+
+            let result_data = row
+                .try_get::<Option<String>, _>("result_data")
+                .map_or(None, |result_str| {
+                    result_str.and_then(|s| serde_json::from_str(&s).ok())
+                });
+
+            let status_str: String = row.try_get("status")?;
+            let status = match status_str.as_str() {
+                "running" => TaskStatus::Running,
+                "completed" => TaskStatus::Completed,
+                "failed" => TaskStatus::Failed,
+                "cancelled" => TaskStatus::Cancelled,
+                _ => TaskStatus::Pending,
+            };
+
+            tasks.push(A2ATask {
+                id: row.try_get("task_id")?,
+                status,
+                created_at: row.try_get("created_at")?,
+                completed_at: row.try_get("updated_at")?,
+                result: result_data.clone(),
+                error: row.try_get("method")?,
+                client_id: row
+                    .try_get("client_id")
+                    .unwrap_or_else(|_| "unknown".into()),
+                task_type: row.try_get("task_type")?,
+                input_data,
+                output_data: result_data,
+                error_message: row.try_get("method")?,
+                updated_at: row.try_get("updated_at")?,
+            });
+        }
+
+        Ok(tasks)
     }
 
     async fn update_a2a_task_status(
@@ -2944,90 +3063,705 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     // ================================
-    // Key Rotation & Security - Stub implementations for PostgreSQL
+    // Key Rotation & Security - PostgreSQL implementations
     // ================================
 
     async fn store_key_version(
         &self,
-        _version: &crate::security::key_rotation::KeyVersion,
+        version: &crate::security::key_rotation::KeyVersion,
     ) -> Result<()> {
-        // TODO: Implement PostgreSQL key rotation storage
-        Err(anyhow!(
-            "Key rotation not yet implemented for PostgreSQL. Use SQLite for now."
-        ))
+        let query = r"
+            INSERT INTO key_versions (tenant_id, version, created_at, expires_at, is_active, algorithm)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            ON CONFLICT (tenant_id, version) DO UPDATE SET
+                expires_at = EXCLUDED.expires_at,
+                is_active = EXCLUDED.is_active,
+                algorithm = EXCLUDED.algorithm
+        ";
+
+        sqlx::query(query)
+            .bind(version.tenant_id.map(|id| id.to_string()))
+            .bind(i32::try_from(version.version).unwrap_or(0)) // Safe: version ranges are controlled by application
+            .bind(version.created_at)
+            .bind(version.expires_at)
+            .bind(version.is_active)
+            .bind(&version.algorithm)
+            .execute(&self.pool)
+            .await
+            .context("Failed to store key version")?;
+
+        tracing::debug!(
+            "Stored key version {} for tenant {:?}",
+            version.version,
+            version.tenant_id
+        );
+        Ok(())
     }
 
     async fn get_key_versions(
         &self,
-        _tenant_id: Option<Uuid>,
+        tenant_id: Option<Uuid>,
     ) -> Result<Vec<crate::security::key_rotation::KeyVersion>> {
-        // TODO: Implement PostgreSQL key rotation storage
-        Err(anyhow!(
-            "Key rotation not yet implemented for PostgreSQL. Use SQLite for now."
-        ))
+        let query = match tenant_id {
+            Some(_) => {
+                r"
+                SELECT tenant_id, version, created_at, expires_at, is_active, algorithm
+                FROM key_versions 
+                WHERE tenant_id = $1
+                ORDER BY version DESC
+            "
+            }
+            None => {
+                r"
+                SELECT tenant_id, version, created_at, expires_at, is_active, algorithm
+                FROM key_versions 
+                WHERE tenant_id IS NULL
+                ORDER BY version DESC
+            "
+            }
+        };
+
+        let rows = if let Some(tid) = tenant_id {
+            sqlx::query(query)
+                .bind(tid.to_string())
+                .fetch_all(&self.pool)
+                .await
+        } else {
+            sqlx::query(query).fetch_all(&self.pool).await
+        }
+        .context("Failed to fetch key versions")?;
+
+        let mut versions = Vec::new();
+        for row in rows {
+            let tenant_id_str: Option<String> = row.get("tenant_id");
+            let tenant_id = if let Some(tid) = tenant_id_str {
+                Some(crate::utils::uuid::parse_uuid(&tid)?)
+            } else {
+                None
+            };
+
+            let version = crate::security::key_rotation::KeyVersion {
+                tenant_id,
+                version: u32::try_from(row.get::<i32, _>("version")).unwrap_or(0), // Safe: stored versions are always positive
+                created_at: row.get("created_at"),
+                expires_at: row.get("expires_at"),
+                is_active: row.get("is_active"),
+                algorithm: row.get("algorithm"),
+            };
+            versions.push(version);
+        }
+
+        Ok(versions)
     }
 
     async fn get_current_key_version(
         &self,
-        _tenant_id: Option<Uuid>,
+        tenant_id: Option<Uuid>,
     ) -> Result<Option<crate::security::key_rotation::KeyVersion>> {
-        // TODO: Implement PostgreSQL key rotation storage
-        Err(anyhow!(
-            "Key rotation not yet implemented for PostgreSQL. Use SQLite for now."
-        ))
+        let query = match tenant_id {
+            Some(_) => {
+                r"
+                SELECT tenant_id, version, created_at, expires_at, is_active, algorithm
+                FROM key_versions 
+                WHERE tenant_id = $1 AND is_active = true
+                ORDER BY version DESC
+                LIMIT 1
+            "
+            }
+            None => {
+                r"
+                SELECT tenant_id, version, created_at, expires_at, is_active, algorithm
+                FROM key_versions 
+                WHERE tenant_id IS NULL AND is_active = true
+                ORDER BY version DESC
+                LIMIT 1
+            "
+            }
+        };
+
+        let row = if let Some(tid) = tenant_id {
+            sqlx::query(query)
+                .bind(tid.to_string())
+                .fetch_optional(&self.pool)
+                .await
+        } else {
+            sqlx::query(query).fetch_optional(&self.pool).await
+        }
+        .context("Failed to fetch current key version")?;
+
+        if let Some(row) = row {
+            let tenant_id_str: Option<String> = row.get("tenant_id");
+            let tenant_id = if let Some(tid) = tenant_id_str {
+                Some(crate::utils::uuid::parse_uuid(&tid)?)
+            } else {
+                None
+            };
+
+            let version = crate::security::key_rotation::KeyVersion {
+                tenant_id,
+                version: u32::try_from(row.get::<i32, _>("version")).unwrap_or(0), // Safe: stored versions are always positive
+                created_at: row.get("created_at"),
+                expires_at: row.get("expires_at"),
+                is_active: row.get("is_active"),
+                algorithm: row.get("algorithm"),
+            };
+            Ok(Some(version))
+        } else {
+            Ok(None)
+        }
     }
 
     async fn update_key_version_status(
         &self,
-        _tenant_id: Option<Uuid>,
-        _version: u32,
-        _is_active: bool,
+        tenant_id: Option<Uuid>,
+        version: u32,
+        is_active: bool,
     ) -> Result<()> {
-        // TODO: Implement PostgreSQL key rotation storage
-        Err(anyhow!(
-            "Key rotation not yet implemented for PostgreSQL. Use SQLite for now."
-        ))
+        let query = match tenant_id {
+            Some(_) => {
+                r"
+                UPDATE key_versions 
+                SET is_active = $3
+                WHERE tenant_id = $1 AND version = $2
+            "
+            }
+            None => {
+                r"
+                UPDATE key_versions 
+                SET is_active = $2
+                WHERE tenant_id IS NULL AND version = $1
+            "
+            }
+        };
+
+        let result = if let Some(tid) = tenant_id {
+            sqlx::query(query)
+                .bind(tid.to_string())
+                .bind(i32::try_from(version).unwrap_or(0)) // Safe: version ranges are controlled by application
+                .bind(is_active)
+                .execute(&self.pool)
+                .await
+        } else {
+            sqlx::query(query)
+                .bind(i32::try_from(version).unwrap_or(0)) // Safe: version ranges are controlled by application
+                .bind(is_active)
+                .execute(&self.pool)
+                .await
+        }
+        .context("Failed to update key version status")?;
+
+        if result.rows_affected() == 0 {
+            tracing::warn!(
+                "No key version found to update: tenant={:?}, version={}",
+                tenant_id,
+                version
+            );
+        } else {
+            tracing::debug!(
+                "Updated key version {} status to {} for tenant {:?}",
+                version,
+                is_active,
+                tenant_id
+            );
+        }
+
+        Ok(())
     }
 
     async fn delete_old_key_versions(
         &self,
-        _tenant_id: Option<Uuid>,
-        _keep_count: u32,
+        tenant_id: Option<Uuid>,
+        keep_count: u32,
     ) -> Result<u64> {
-        // TODO: Implement PostgreSQL key rotation storage
-        Err(anyhow!(
-            "Key rotation not yet implemented for PostgreSQL. Use SQLite for now."
-        ))
+        let query = match tenant_id {
+            Some(_) => {
+                r"
+                DELETE FROM key_versions 
+                WHERE tenant_id = $1 
+                AND version NOT IN (
+                    SELECT version FROM key_versions 
+                    WHERE tenant_id = $1
+                    ORDER BY version DESC 
+                    LIMIT $2
+                )
+            "
+            }
+            None => {
+                r"
+                DELETE FROM key_versions 
+                WHERE tenant_id IS NULL 
+                AND version NOT IN (
+                    SELECT version FROM key_versions 
+                    WHERE tenant_id IS NULL
+                    ORDER BY version DESC 
+                    LIMIT $1
+                )
+            "
+            }
+        };
+
+        let result = if let Some(tid) = tenant_id {
+            sqlx::query(query)
+                .bind(tid.to_string())
+                .bind(i32::try_from(keep_count).unwrap_or(0)) // Safe: keep_count ranges are controlled by application
+                .execute(&self.pool)
+                .await
+        } else {
+            sqlx::query(query)
+                .bind(i32::try_from(keep_count).unwrap_or(0)) // Safe: keep_count ranges are controlled by application
+                .execute(&self.pool)
+                .await
+        }
+        .context("Failed to delete old key versions")?;
+
+        let deleted_count = result.rows_affected();
+        tracing::debug!(
+            "Deleted {} old key versions for tenant {:?}, kept {} most recent",
+            deleted_count,
+            tenant_id,
+            keep_count
+        );
+
+        Ok(deleted_count)
     }
 
     async fn get_all_tenants(&self) -> Result<Vec<crate::models::Tenant>> {
-        // TODO: Implement PostgreSQL tenant listing
-        Err(anyhow!(
-            "Multi-tenancy not yet implemented for PostgreSQL. Use SQLite for now."
-        ))
+        let query = r"
+            SELECT id, slug, name, domain, plan, owner_user_id, created_at, updated_at
+            FROM tenants
+            WHERE is_active = true
+            ORDER BY created_at
+        ";
+
+        let rows = sqlx::query(query)
+            .fetch_all(&self.pool)
+            .await
+            .context("Failed to get all tenants")?;
+
+        let tenants = rows
+            .iter()
+            .map(|row| {
+                use sqlx::Row;
+                Ok(crate::models::Tenant {
+                    id: uuid::Uuid::parse_str(&row.try_get::<String, _>("id")?)
+                        .context("Invalid tenant UUID")?,
+                    name: row.try_get("name")?,
+                    slug: row.try_get("slug")?,
+                    domain: row.try_get("domain")?,
+                    plan: row.try_get("plan")?,
+                    owner_user_id: uuid::Uuid::parse_str(
+                        &row.try_get::<String, _>("owner_user_id")?,
+                    )
+                    .context("Invalid user UUID")?,
+                    created_at: row.try_get("created_at")?,
+                    updated_at: row.try_get("updated_at")?,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(tenants)
     }
 
-    async fn store_audit_event(&self, _event: &crate::security::audit::AuditEvent) -> Result<()> {
-        // TODO: Implement PostgreSQL audit logging
-        Err(anyhow!(
-            "Audit logging not yet implemented for PostgreSQL. Use SQLite for now."
-        ))
+    async fn store_audit_event(&self, event: &crate::security::audit::AuditEvent) -> Result<()> {
+        let query = r"
+            INSERT INTO audit_events (
+                id, event_type, severity, message, source, result, 
+                tenant_id, user_id, ip_address, user_agent, metadata, timestamp
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        ";
+
+        let event_type_str = format!("{:?}", event.event_type);
+        let severity_str = format!("{:?}", event.severity);
+        let metadata_json = serde_json::to_string(&event.metadata)?;
+
+        sqlx::query(query)
+            .bind(event.event_id.to_string())
+            .bind(&event_type_str)
+            .bind(&severity_str)
+            .bind(&event.description)
+            .bind("security") // source - using generic security source
+            .bind(&event.result)
+            .bind(event.tenant_id.map(|id| id.to_string()))
+            .bind(event.user_id.map(|id| id.to_string()))
+            .bind(&event.source_ip)
+            .bind(&event.user_agent)
+            .bind(&metadata_json)
+            .bind(event.timestamp)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
     }
 
+    // Long function: Parses all audit event types and severity levels from database strings
+    #[allow(clippy::too_many_lines)]
     async fn get_audit_events(
         &self,
-        _tenant_id: Option<Uuid>,
-        _event_type: Option<&str>,
-        _limit: Option<u32>,
+        tenant_id: Option<Uuid>,
+        event_type: Option<&str>,
+        limit: Option<u32>,
     ) -> Result<Vec<crate::security::audit::AuditEvent>> {
-        // TODO: Implement PostgreSQL audit event retrieval
-        Err(anyhow!(
-            "Audit logging not yet implemented for PostgreSQL. Use SQLite for now."
-        ))
+        use std::fmt::Write;
+
+        let mut query = r"
+            SELECT id, event_type, severity, message, source, result,
+                   tenant_id, user_id, ip_address, user_agent, metadata, timestamp
+            FROM audit_events
+            WHERE true
+        "
+        .to_string();
+
+        let mut bind_count = 0;
+        if tenant_id.is_some() {
+            bind_count += 1;
+            write!(query, " AND tenant_id = ${bind_count}").expect("String write cannot fail");
+        }
+        if event_type.is_some() {
+            bind_count += 1;
+            write!(query, " AND event_type = ${bind_count}").expect("String write cannot fail");
+        }
+
+        query.push_str(" ORDER BY timestamp DESC");
+
+        if limit.is_some() {
+            bind_count += 1;
+            write!(query, " LIMIT ${bind_count}").expect("String write cannot fail");
+        }
+
+        let mut sql_query = sqlx::query(&query);
+
+        if let Some(tid) = tenant_id {
+            sql_query = sql_query.bind(tid.to_string());
+        }
+        if let Some(et) = event_type {
+            sql_query = sql_query.bind(et);
+        }
+        if let Some(l) = limit {
+            sql_query = sql_query.bind(i32::try_from(l).unwrap_or(0)); // Safe: limit ranges are controlled by application
+        }
+
+        let rows = sql_query
+            .fetch_all(&self.pool)
+            .await
+            .context("Failed to get audit events")?;
+
+        let mut events = Vec::new();
+        for row in rows {
+            let event_id_str: String = row.get("id");
+            let event_id =
+                uuid::Uuid::parse_str(&event_id_str).context("Invalid audit event UUID")?;
+
+            let event_type_str: String = row.get("event_type");
+            let event_type = match event_type_str.as_str() {
+                "UserLogin" => crate::security::audit::AuditEventType::UserLogin,
+                "UserLogout" => crate::security::audit::AuditEventType::UserLogout,
+                "AuthenticationFailed" => {
+                    crate::security::audit::AuditEventType::AuthenticationFailed
+                }
+                "ApiKeyUsed" => crate::security::audit::AuditEventType::ApiKeyUsed,
+                "OAuthCredentialsAccessed" => {
+                    crate::security::audit::AuditEventType::OAuthCredentialsAccessed
+                }
+                "OAuthCredentialsModified" => {
+                    crate::security::audit::AuditEventType::OAuthCredentialsModified
+                }
+                "OAuthCredentialsCreated" => {
+                    crate::security::audit::AuditEventType::OAuthCredentialsCreated
+                }
+                "OAuthCredentialsDeleted" => {
+                    crate::security::audit::AuditEventType::OAuthCredentialsDeleted
+                }
+                "TokenRefreshed" => crate::security::audit::AuditEventType::TokenRefreshed,
+                "TenantCreated" => crate::security::audit::AuditEventType::TenantCreated,
+                "TenantModified" => crate::security::audit::AuditEventType::TenantModified,
+                "TenantDeleted" => crate::security::audit::AuditEventType::TenantDeleted,
+                "TenantUserAdded" => crate::security::audit::AuditEventType::TenantUserAdded,
+                "TenantUserRemoved" => crate::security::audit::AuditEventType::TenantUserRemoved,
+                "TenantUserRoleChanged" => {
+                    crate::security::audit::AuditEventType::TenantUserRoleChanged
+                }
+                "DataEncrypted" => crate::security::audit::AuditEventType::DataEncrypted,
+                "DataDecrypted" => crate::security::audit::AuditEventType::DataDecrypted,
+                "KeyRotated" => crate::security::audit::AuditEventType::KeyRotated,
+                "EncryptionFailed" => crate::security::audit::AuditEventType::EncryptionFailed,
+                "ToolExecutionFailed" => {
+                    crate::security::audit::AuditEventType::ToolExecutionFailed
+                }
+                "ProviderApiCalled" => crate::security::audit::AuditEventType::ProviderApiCalled,
+                "ConfigurationChanged" => {
+                    crate::security::audit::AuditEventType::ConfigurationChanged
+                }
+                "SystemMaintenance" => crate::security::audit::AuditEventType::SystemMaintenance,
+                "SecurityPolicyViolation" => {
+                    crate::security::audit::AuditEventType::SecurityPolicyViolation
+                }
+                _ => crate::security::audit::AuditEventType::ToolExecuted, // Default fallback
+            };
+
+            let severity_str: String = row.get("severity");
+            let severity = match severity_str.as_str() {
+                "Warning" => crate::security::audit::AuditSeverity::Warning,
+                "Error" => crate::security::audit::AuditSeverity::Error,
+                "Critical" => crate::security::audit::AuditSeverity::Critical,
+                _ => crate::security::audit::AuditSeverity::Info, // Default fallback
+            };
+
+            let tenant_id_str: Option<String> = row.get("tenant_id");
+            let tenant_id = if let Some(tid) = tenant_id_str {
+                Some(crate::utils::uuid::parse_uuid(&tid)?)
+            } else {
+                None
+            };
+
+            let user_id_str: Option<String> = row.get("user_id");
+            let user_id = if let Some(uid) = user_id_str {
+                Some(crate::utils::uuid::parse_uuid(&uid)?)
+            } else {
+                None
+            };
+
+            let metadata_json: String = row.get("metadata");
+            let metadata: serde_json::Value = serde_json::from_str(&metadata_json)
+                .unwrap_or_else(|_| serde_json::Value::Object(serde_json::Map::new()));
+
+            let event = crate::security::audit::AuditEvent {
+                event_id,
+                event_type,
+                severity,
+                timestamp: row.get("timestamp"),
+                user_id,
+                tenant_id,
+                source_ip: row.get("ip_address"),
+                user_agent: row.get("user_agent"),
+                session_id: None, // Not stored in current schema
+                description: row.get("message"),
+                metadata,
+                resource: None,              // Not stored in current schema
+                action: "audit".to_string(), // Default action
+                result: row.get("result"),
+            };
+            events.push(event);
+        }
+
+        Ok(events)
+    }
+
+    // UserOAuthToken Methods - PostgreSQL implementations
+    // ================================
+
+    async fn upsert_user_oauth_token(&self, token: &crate::models::UserOAuthToken) -> Result<()> {
+        sqlx::query(
+            r"
+            INSERT INTO user_oauth_tokens (
+                id, user_id, tenant_id, provider, access_token, refresh_token,
+                token_type, expires_at, scopes, created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            ON CONFLICT (user_id, tenant_id, provider) 
+            DO UPDATE SET
+                id = EXCLUDED.id,
+                access_token = EXCLUDED.access_token,
+                refresh_token = EXCLUDED.refresh_token,
+                token_type = EXCLUDED.token_type,
+                expires_at = EXCLUDED.expires_at,
+                scopes = EXCLUDED.scopes,
+                updated_at = EXCLUDED.updated_at
+            ",
+        )
+        .bind(&token.id)
+        .bind(token.user_id)
+        .bind(&token.tenant_id)
+        .bind(&token.provider)
+        .bind(&token.access_token)
+        .bind(token.refresh_token.as_deref())
+        .bind(&token.token_type)
+        .bind(token.expires_at)
+        .bind(token.scope.as_deref().unwrap_or(""))
+        .bind(token.created_at)
+        .bind(token.updated_at)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    async fn get_user_oauth_token(
+        &self,
+        user_id: uuid::Uuid,
+        tenant_id: &str,
+        provider: &str,
+    ) -> Result<Option<crate::models::UserOAuthToken>> {
+        let row = sqlx::query(
+            r"
+            SELECT id, user_id, tenant_id, provider, access_token, refresh_token,
+                   token_type, expires_at, scope, created_at, updated_at
+            FROM user_oauth_tokens
+            WHERE user_id = $1 AND tenant_id = $2 AND provider = $3
+            ",
+        )
+        .bind(user_id)
+        .bind(tenant_id)
+        .bind(provider)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        row.map_or_else(
+            || Ok(None),
+            |row| Ok(Some(Self::row_to_user_oauth_token(&row)?)),
+        )
+    }
+
+    async fn get_user_oauth_tokens(
+        &self,
+        user_id: uuid::Uuid,
+    ) -> Result<Vec<crate::models::UserOAuthToken>> {
+        let rows = sqlx::query(
+            r"
+            SELECT id, user_id, tenant_id, provider, access_token, refresh_token,
+                   token_type, expires_at, scope, created_at, updated_at
+            FROM user_oauth_tokens
+            WHERE user_id = $1
+            ORDER BY created_at DESC
+            ",
+        )
+        .bind(user_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut tokens = Vec::with_capacity(rows.len());
+        for row in rows {
+            tokens.push(Self::row_to_user_oauth_token(&row)?);
+        }
+        Ok(tokens)
+    }
+
+    async fn get_tenant_provider_tokens(
+        &self,
+        tenant_id: &str,
+        provider: &str,
+    ) -> Result<Vec<crate::models::UserOAuthToken>> {
+        let rows = sqlx::query(
+            r"
+            SELECT id, user_id, tenant_id, provider, access_token, refresh_token,
+                   token_type, expires_at, scope, created_at, updated_at
+            FROM user_oauth_tokens
+            WHERE tenant_id = $1 AND provider = $2
+            ORDER BY created_at DESC
+            ",
+        )
+        .bind(tenant_id)
+        .bind(provider)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut tokens = Vec::with_capacity(rows.len());
+        for row in rows {
+            tokens.push(Self::row_to_user_oauth_token(&row)?);
+        }
+        Ok(tokens)
+    }
+
+    async fn delete_user_oauth_token(
+        &self,
+        user_id: uuid::Uuid,
+        tenant_id: &str,
+        provider: &str,
+    ) -> Result<()> {
+        sqlx::query(
+            r"
+            DELETE FROM user_oauth_tokens
+            WHERE user_id = $1 AND tenant_id = $2 AND provider = $3
+            ",
+        )
+        .bind(user_id)
+        .bind(tenant_id)
+        .bind(provider)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    async fn delete_user_oauth_tokens(&self, user_id: uuid::Uuid) -> Result<()> {
+        sqlx::query(
+            r"
+            DELETE FROM user_oauth_tokens
+            WHERE user_id = $1
+            ",
+        )
+        .bind(user_id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    async fn refresh_user_oauth_token(
+        &self,
+        user_id: uuid::Uuid,
+        tenant_id: &str,
+        provider: &str,
+        access_token: &str,
+        refresh_token: Option<&str>,
+        expires_at: Option<DateTime<Utc>>,
+    ) -> Result<()> {
+        sqlx::query(
+            r"
+            UPDATE user_oauth_tokens
+            SET access_token = $4,
+                refresh_token = $5,
+                expires_at = $6,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE user_id = $1 AND tenant_id = $2 AND provider = $3
+            ",
+        )
+        .bind(user_id)
+        .bind(tenant_id)
+        .bind(provider)
+        .bind(access_token)
+        .bind(refresh_token)
+        .bind(expires_at)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Get user role for a specific tenant
+    async fn get_user_tenant_role(&self, user_id: Uuid, tenant_id: Uuid) -> Result<Option<String>> {
+        let row = sqlx::query_as::<_, (String,)>(
+            "SELECT role FROM tenant_users WHERE user_id = $1 AND tenant_id = $2",
+        )
+        .bind(user_id)
+        .bind(tenant_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(|r| r.0))
     }
 }
 
 impl PostgresDatabase {
+    /// Convert database row to `UserOAuthToken`
+    fn row_to_user_oauth_token(
+        row: &sqlx::postgres::PgRow,
+    ) -> Result<crate::models::UserOAuthToken> {
+        use sqlx::Row;
+
+        Ok(crate::models::UserOAuthToken {
+            id: row.try_get("id")?,
+            user_id: row.try_get("user_id")?,
+            tenant_id: row.try_get("tenant_id")?,
+            provider: row.try_get("provider")?,
+            access_token: row.try_get("access_token")?,
+            refresh_token: row.try_get("refresh_token")?,
+            token_type: row.try_get("token_type")?,
+            expires_at: row.try_get("expires_at")?,
+            scope: row.try_get("scope").ok(),
+            created_at: row.try_get("created_at")?,
+            updated_at: row.try_get("updated_at")?,
+        })
+    }
+
     /// Convert database row to `AdminToken`
     fn row_to_admin_token(row: &sqlx::postgres::PgRow) -> Result<crate::admin::models::AdminToken> {
         use crate::admin::models::{AdminPermissions, AdminToken};
@@ -3507,6 +4241,28 @@ impl PostgresDatabase {
         .execute(&self.pool)
         .await?;
 
+        // Create user_oauth_tokens table for per-user, per-tenant OAuth tokens
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS user_oauth_tokens (
+                id VARCHAR(255) PRIMARY KEY,
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                tenant_id VARCHAR(255) NOT NULL,
+                provider VARCHAR(50) NOT NULL,
+                access_token TEXT NOT NULL,
+                refresh_token TEXT,
+                token_type VARCHAR(50) DEFAULT 'bearer',
+                expires_at TIMESTAMPTZ,
+                scope TEXT,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, tenant_id, provider)
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
         Ok(())
     }
 
@@ -3592,6 +4348,16 @@ impl PostgresDatabase {
         )
         .execute(&self.pool)
         .await?;
+
+        // UserOAuthToken indexes
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_user_oauth_tokens_user ON user_oauth_tokens(user_id)",
+        )
+        .execute(&self.pool)
+        .await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_user_oauth_tokens_tenant_provider ON user_oauth_tokens(tenant_id, provider)")
+            .execute(&self.pool)
+            .await?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_tenant_users_user ON tenant_users(user_id)")
             .execute(&self.pool)

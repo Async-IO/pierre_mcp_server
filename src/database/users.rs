@@ -26,6 +26,7 @@ impl Database {
                 display_name TEXT,
                 password_hash TEXT NOT NULL,
                 tier TEXT NOT NULL DEFAULT 'starter' CHECK (tier IN ('starter', 'professional', 'enterprise')),
+                tenant_id TEXT,
                 strava_access_token TEXT,
                 strava_refresh_token TEXT,
                 strava_expires_at INTEGER,
@@ -121,17 +122,18 @@ impl Database {
                     display_name = $2,
                     password_hash = $3,
                     tier = $4,
-                    strava_access_token = $5,
-                    strava_refresh_token = $6,
-                    strava_expires_at = $7,
-                    strava_scope = $8,
-                    strava_nonce = $9,
-                    fitbit_access_token = $10,
-                    fitbit_refresh_token = $11,
-                    fitbit_expires_at = $12,
-                    fitbit_scope = $13,
-                    fitbit_nonce = $14,
-                    is_active = $15,
+                    tenant_id = $5,
+                    strava_access_token = $6,
+                    strava_refresh_token = $7,
+                    strava_expires_at = $8,
+                    strava_scope = $9,
+                    strava_nonce = $10,
+                    fitbit_access_token = $11,
+                    fitbit_refresh_token = $12,
+                    fitbit_expires_at = $13,
+                    fitbit_scope = $14,
+                    fitbit_nonce = $15,
+                    is_active = $16,
                     last_active = CURRENT_TIMESTAMP
                 WHERE id = $1
                 ",
@@ -140,6 +142,7 @@ impl Database {
             .bind(&user.display_name)
             .bind(&user.password_hash)
             .bind(user.tier.as_str())
+            .bind(&user.tenant_id)
             .bind(strava_access)
             .bind(strava_refresh)
             .bind(strava_expires)
@@ -184,11 +187,11 @@ impl Database {
             sqlx::query(
                 r"
                 INSERT INTO users (
-                    id, email, display_name, password_hash, tier, 
+                    id, email, display_name, password_hash, tier, tenant_id,
                     strava_access_token, strava_refresh_token, strava_expires_at, strava_scope, strava_nonce,
                     fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope, fitbit_nonce,
                     is_active, created_at, last_active
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
                 ",
             )
             .bind(user.id.to_string())
@@ -196,6 +199,7 @@ impl Database {
             .bind(&user.display_name)
             .bind(&user.password_hash)
             .bind(user.tier.as_str())
+            .bind(&user.tenant_id)
             .bind(strava_access)
             .bind(strava_refresh)
             .bind(strava_expires)
@@ -260,7 +264,7 @@ impl Database {
     async fn get_user_impl(&self, field: &str, value: &str) -> Result<Option<User>> {
         let query = format!(
             r"
-            SELECT id, email, display_name, password_hash, tier,
+            SELECT id, email, display_name, password_hash, tier, tenant_id,
                    strava_access_token, strava_refresh_token, strava_expires_at, strava_scope, strava_nonce,
                    fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope, fitbit_nonce,
                    is_active, created_at, last_active
@@ -288,6 +292,7 @@ impl Database {
         let display_name: Option<String> = row.get("display_name");
         let password_hash: String = row.get("password_hash");
         let tier: String = row.get("tier");
+        let tenant_id: Option<String> = row.get("tenant_id");
         let is_active: bool = row.get("is_active");
         let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
         let last_active: chrono::DateTime<chrono::Utc> = row.get("last_active");
@@ -338,6 +343,7 @@ impl Database {
             display_name,
             password_hash,
             tier: tier.parse()?,
+            tenant_id,
             strava_token,
             fitbit_token,
             is_active,

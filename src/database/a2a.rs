@@ -292,7 +292,7 @@ impl Database {
             ",
         )
         .bind(&client.id)
-        .bind(&client.user_id.to_string())
+        .bind(client.user_id.to_string())
         .bind(&client.name)
         .bind(&client.description)
         .bind(&client.public_key)
@@ -764,6 +764,117 @@ impl Database {
         .await?;
 
         Ok(task_id)
+    }
+
+    /// List A2A tasks with optional filtering
+    ///
+    /// # Errors
+    /// Returns an error if database operations fail or JSON deserialization fails
+    pub async fn list_a2a_tasks(
+        &self,
+        client_id: Option<&str>,
+        status_filter: Option<&TaskStatus>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<Vec<A2ATask>> {
+        use std::fmt::Write;
+        let mut query = String::from(
+            r"
+            SELECT id, client_id, task_type, input_data, output_data,
+                   status, error_message, created_at, updated_at, completed_at
+            FROM a2a_tasks
+            ",
+        );
+
+        let mut conditions = Vec::new();
+        let mut bind_count = 0;
+
+        if client_id.is_some() {
+            bind_count += 1;
+            conditions.push(format!("client_id = ${bind_count}"));
+        }
+
+        if status_filter.is_some() {
+            bind_count += 1;
+            conditions.push(format!("status = ${bind_count}"));
+        }
+
+        if !conditions.is_empty() {
+            query.push_str(" WHERE ");
+            query.push_str(&conditions.join(" AND "));
+        }
+
+        query.push_str(" ORDER BY created_at DESC");
+
+        if limit.is_some() {
+            bind_count += 1;
+            write!(query, " LIMIT ${bind_count}").expect("String write should not fail");
+        }
+
+        if offset.is_some() {
+            bind_count += 1;
+            write!(query, " OFFSET ${bind_count}").expect("String write should not fail");
+        }
+
+        let mut sql_query = sqlx::query(&query);
+
+        if let Some(client_id_val) = client_id {
+            sql_query = sql_query.bind(client_id_val);
+        }
+
+        if let Some(status_val) = status_filter {
+            sql_query = sql_query.bind(status_val.to_string());
+        }
+
+        if let Some(limit_val) = limit {
+            sql_query = sql_query.bind(safe_u32_to_i32(limit_val)?);
+        }
+
+        if let Some(offset_val) = offset {
+            sql_query = sql_query.bind(safe_u32_to_i32(offset_val)?);
+        }
+
+        let rows = sql_query.fetch_all(&self.pool).await?;
+
+        let mut tasks = Vec::new();
+        for row in rows {
+            let input_data_json: String = row.get("input_data");
+            let input_data = serde_json::from_str(&input_data_json)?;
+
+            let output_data = if let Some(output_json) = row.get::<Option<String>, _>("output_data")
+            {
+                Some(serde_json::from_str(&output_json)?)
+            } else {
+                None
+            };
+
+            let status_str: String = row.get("status");
+            let status = match status_str.as_str() {
+                "pending" => TaskStatus::Pending,
+                "running" => TaskStatus::Running,
+                "completed" => TaskStatus::Completed,
+                "failed" => TaskStatus::Failed,
+                "cancelled" => TaskStatus::Cancelled,
+                _ => return Err(anyhow!("Invalid task status: {}", status_str)),
+            };
+
+            tasks.push(A2ATask {
+                id: row.get("id"),
+                status,
+                created_at: row.get("created_at"),
+                completed_at: row.get("completed_at"),
+                result: output_data.clone(),
+                error: row.get("error_message"),
+                client_id: row.get("client_id"),
+                task_type: row.get("task_type"),
+                input_data,
+                output_data,
+                error_message: row.get("error_message"),
+                updated_at: row.get("updated_at"),
+            });
+        }
+
+        Ok(tasks)
     }
 
     /// Get an A2A task by ID

@@ -125,6 +125,7 @@ async fn create_test_user(
         display_name: Some(format!("Test User ({email})")),
         password_hash: "test_hash".to_string(),
         tier,
+        tenant_id: Some("test-tenant".to_string()),
         strava_token: None,
         fitbit_token: None,
         is_active: true,

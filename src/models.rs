@@ -919,6 +919,8 @@ pub struct User {
     pub password_hash: String,
     /// User tier for rate limiting
     pub tier: UserTier,
+    /// Tenant this user belongs to for multi-tenant architecture
+    pub tenant_id: Option<String>,
     /// Encrypted Strava tokens
     pub strava_token: Option<EncryptedToken>,
     /// Encrypted Fitbit tokens
@@ -1052,6 +1054,97 @@ pub struct DecryptedToken {
     pub scope: String,
 }
 
+/// User OAuth token for tenant-provider combination
+///
+/// Stores user's personal OAuth tokens for accessing fitness providers
+/// within their tenant's application context. Each user can have one token
+/// per tenant-provider combination (e.g., user's Strava token in tenant A).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserOAuthToken {
+    /// Unique identifier for this token record
+    pub id: String,
+    /// User who owns this token
+    pub user_id: Uuid,
+    /// Tenant context for this token
+    pub tenant_id: String,
+    /// Provider name (strava, fitbit, etc.)
+    pub provider: String,
+    /// Encrypted OAuth access token
+    pub access_token: String,
+    /// Encrypted OAuth refresh token (optional for some providers)
+    pub refresh_token: Option<String>,
+    /// Token type (usually "Bearer")
+    pub token_type: String,
+    /// When the access token expires
+    pub expires_at: Option<DateTime<Utc>>,
+    /// Granted OAuth scopes
+    pub scope: Option<String>,
+    /// When this token was first stored
+    pub created_at: DateTime<Utc>,
+    /// When this token was last updated
+    pub updated_at: DateTime<Utc>,
+}
+
+impl UserOAuthToken {
+    /// Create a new user OAuth token
+    #[must_use]
+    pub fn new(
+        user_id: Uuid,
+        tenant_id: String,
+        provider: String,
+        access_token: String,
+        refresh_token: Option<String>,
+        expires_at: Option<DateTime<Utc>>,
+        scope: Option<String>,
+    ) -> Self {
+        let now = Utc::now();
+        Self {
+            id: uuid::Uuid::new_v4().to_string(),
+            user_id,
+            tenant_id,
+            provider,
+            access_token,
+            refresh_token,
+            token_type: "Bearer".to_string(),
+            expires_at,
+            scope,
+            created_at: now,
+            updated_at: now,
+        }
+    }
+
+    /// Check if the access token is expired
+    #[must_use]
+    pub fn is_expired(&self) -> bool {
+        self.expires_at
+            .is_some_and(|expires_at| Utc::now() > expires_at)
+    }
+
+    /// Check if token needs refresh (expires within 5 minutes)
+    #[must_use]
+    pub fn needs_refresh(&self) -> bool {
+        self.expires_at.is_some_and(|expires_at| {
+            let refresh_threshold = Utc::now() + chrono::Duration::minutes(5);
+            refresh_threshold >= expires_at
+        })
+    }
+
+    /// Update token with new values
+    pub fn update_token(
+        &mut self,
+        access_token: String,
+        refresh_token: Option<String>,
+        expires_at: Option<DateTime<Utc>>,
+        scope: Option<String>,
+    ) {
+        self.access_token = access_token;
+        self.refresh_token = refresh_token;
+        self.expires_at = expires_at;
+        self.scope = scope;
+        self.updated_at = Utc::now();
+    }
+}
+
 /// User session for `MCP` protocol authentication
 ///
 /// Contains `JWT` token and user context for secure `MCP` communication.
@@ -1104,6 +1197,7 @@ impl User {
             display_name,
             password_hash,
             tier: UserTier::Starter, // Default to starter tier
+            tenant_id: Some("default-tenant".to_string()), // Assign to default tenant
             strava_token: None,
             fitbit_token: None,
             created_at: now,
