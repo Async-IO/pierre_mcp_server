@@ -495,8 +495,8 @@ impl ServerConfig {
             } else {
                 "PostgreSQL"
             },
-            "Multi-Tenant (Per-Tenant Configuration)",
-            "Multi-Tenant (Per-Tenant Configuration)",
+            "API-Configured",
+            "API-Configured",
             if self.external_services.weather.enabled
                 && self.external_services.weather.api_key.is_some()
             {

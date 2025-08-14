@@ -200,7 +200,7 @@ impl UniversalToolExecutor {
             }
         };
 
-        // Get tenant OAuth credentials (required in multi-tenant mode)
+        // Get OAuth credentials for the provider
         let oauth_credentials = if let Some(tenant_id_str) = tenant_id {
             let tenant_uuid =
                 uuid::Uuid::parse_str(tenant_id_str).map_err(|_| UniversalResponse {
@@ -226,7 +226,7 @@ impl UniversalToolExecutor {
                 success: false,
                 result: None,
                 error: Some(format!(
-                    "Tenant context required for {} provider. Multi-tenant mode requires proper tenant configuration.",
+                    "Authentication required for {} provider access",
                     provider_name
                 )),
                 metadata: None,
@@ -859,7 +859,7 @@ impl UniversalToolExecutor {
                                     success: false,
                                     result: None,
                                     error: Some(format!(
-                                        "Tenant context required for {} provider. Multi-tenant mode requires proper tenant configuration.",
+                                        "Authentication required for {} provider access",
                                         provider_type
                                     )),
                                     metadata: None,
