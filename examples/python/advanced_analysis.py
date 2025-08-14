@@ -158,12 +158,22 @@ async def main():
         ) as client:
             print(f"Connected to Pierre MCP Server for advanced analysis")
             
-            # Check OAuth status first
-            oauth_status = await client.get_oauth_status("strava")
-            if not oauth_status.get("connected"):
+            # Check OAuth status via MCP protocol
+            connection_status = await client.call_tool("get_connection_status", {})
+            strava_connected = False
+            if isinstance(connection_status, list):
+                for provider in connection_status:
+                    if provider.get("provider") == "strava" and provider.get("connected"):
+                        strava_connected = True
+                        break
+            
+            if not strava_connected:
                 print("Error: Strava OAuth not connected")
-                auth_url = await client.get_authorization_url("strava")
-                print(f"Connect at: {auth_url}")
+                try:
+                    auth_url = await client.get_authorization_url("strava")
+                    print(f"Connect at: {auth_url}")
+                except Exception as e:
+                    print(f"Failed to get authorization URL: {e}")
                 return
             
             # Run all analysis functions

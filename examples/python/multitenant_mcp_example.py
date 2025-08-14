@@ -145,19 +145,21 @@ class PierreMCPClient:
     
     def setup_strava_oauth(self) -> str:
         """Setup Strava OAuth and return authorization URL"""
-        if not self.user_id:
-            raise Exception("User ID not available. Please login first.")
+        if not self.tenant_id:
+            raise Exception("Tenant ID not available. Please create tenant first.")
             
-        print(f"🔗 Setting up Strava OAuth for user: {self.user_id}")
+        print(f"🔗 Setting up Strava OAuth for tenant: {self.tenant_id}")
         
-        response = requests.get(f"{self.http_base_url}/oauth/auth/strava/{self.user_id}")
+        response = requests.get(
+            f"{self.http_base_url}/api/tenants/{self.tenant_id}/oauth/strava/authorize",
+            headers={"Authorization": f"Bearer {self.jwt_token}"}
+        )
         
         if response.status_code == 200:
             data = response.json()
             auth_url = data["authorization_url"]
             print(f"✅ Strava OAuth URL generated")
             print(f"🌐 Visit this URL to authorize: {auth_url}")
-            print(f"⏰ URL expires in: {data['expires_in_minutes']} minutes")
             return auth_url
         else:
             print(f"❌ OAuth setup failed: {response.text}")
