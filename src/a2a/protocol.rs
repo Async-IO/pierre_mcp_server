@@ -731,7 +731,6 @@ impl A2AServer {
             parameters: serde_json::Value::Object(tool_params),
             user_id: "unknown".into(), // In production, this would come from authentication
             protocol: "a2a".into(),
-            tenant_id: None,
         };
 
         // Check if we have proper dependencies injected

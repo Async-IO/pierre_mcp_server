@@ -140,7 +140,6 @@ pub struct OAuthTokenResponse {
     pub token_type: String,
     pub expires_in: u64,
     pub scope: String,
-    pub tenant_id: Option<String>,
 }
 
 // Route Handler Implementations
@@ -540,7 +539,6 @@ pub async fn oauth_token(
                 token_type: "Bearer".to_string(),
                 expires_in: 86400, // 24 hours
                 scope: oauth_app.scopes.join(" "),
-                tenant_id: None, // Could be set based on user's default tenant
             })
         }
         "client_credentials" => {
@@ -553,7 +551,6 @@ pub async fn oauth_token(
                 token_type: "Bearer".to_string(),
                 expires_in: 3600, // 1 hour for client credentials
                 scope: oauth_app.scopes.join(" "),
-                tenant_id: None,
             })
         }
         _ => Err(AppError::invalid_input(

@@ -459,7 +459,6 @@ impl A2ARoutes {
             parameters,
             user_id,
             protocol: "a2a".into(),
-            tenant_id: None,
         };
 
         // Execute the tool

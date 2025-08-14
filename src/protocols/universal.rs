@@ -111,7 +111,6 @@ pub struct UniversalRequest {
     pub parameters: Value,
     pub user_id: String,
     pub protocol: String,
-    pub tenant_id: Option<String>,
 }
 
 /// Universal response structure
@@ -770,13 +769,13 @@ impl UniversalToolExecutor {
                 Ok(user_uuid) => {
                     // Get valid Strava token (with automatic refresh if needed)
                     match self
-                        .get_valid_token(user_uuid, "strava", request.tenant_id.as_deref())
+                        .get_valid_token(user_uuid, "strava", None)
                         .await
                     {
                         Ok(Some(token_data)) => {
                             // Get tenant-aware OAuth credentials
                             let auth_data = if let Some(tenant_id_str) =
-                                request.tenant_id.as_deref()
+                                None
                             {
                                 if let Ok(tenant_uuid) = uuid::Uuid::parse_str(tenant_id_str) {
                                     // Look up tenant information from database to create proper TenantContext
@@ -985,7 +984,7 @@ impl UniversalToolExecutor {
                     .create_authenticated_provider(
                         "strava",
                         user_uuid,
-                        request.tenant_id.as_deref(),
+                        None,
                     )
                     .await
                 {
@@ -1049,7 +1048,7 @@ impl UniversalToolExecutor {
 
         // Get real activity data using authenticated provider (no hardcoded fallbacks)
         let activity_result = match self
-            .create_authenticated_provider("strava", user_uuid, request.tenant_id.as_deref())
+            .create_authenticated_provider("strava", user_uuid, None)
             .await
         {
             Ok(provider) => {
@@ -1153,7 +1152,7 @@ impl UniversalToolExecutor {
                     .create_authenticated_provider(
                         provider_type,
                         user_uuid,
-                        request.tenant_id.as_deref(),
+                        None,
                     )
                     .await
                 {
@@ -1634,7 +1633,7 @@ impl UniversalToolExecutor {
         // Get activities using authenticated provider (no hardcoded fallbacks)
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
         match self
-            .create_authenticated_provider("strava", user_uuid, request.tenant_id.as_deref())
+            .create_authenticated_provider("strava", user_uuid, None)
             .await
         {
             Ok(provider) => {
@@ -1739,7 +1738,7 @@ impl UniversalToolExecutor {
         let mut activity2 = None;
 
         match self
-            .create_authenticated_provider("strava", user_uuid, request.tenant_id.as_deref())
+            .create_authenticated_provider("strava", user_uuid, None)
             .await
         {
             Ok(provider) => {
@@ -1823,7 +1822,7 @@ impl UniversalToolExecutor {
         // Get activities using authenticated provider (no hardcoded fallbacks)
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
         match self
-            .create_authenticated_provider("strava", user_uuid, request.tenant_id.as_deref())
+            .create_authenticated_provider("strava", user_uuid, None)
             .await
         {
             Ok(provider) => {
@@ -1938,7 +1937,7 @@ impl UniversalToolExecutor {
         // Get activities using authenticated provider (no hardcoded fallbacks)
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
         match self
-            .create_authenticated_provider("strava", user_uuid, request.tenant_id.as_deref())
+            .create_authenticated_provider("strava", user_uuid, None)
             .await
         {
             Ok(provider) => {
@@ -2004,7 +2003,7 @@ impl UniversalToolExecutor {
         // Get recent activities
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
         match self
-            .create_authenticated_provider("strava", user_uuid, request.tenant_id.as_deref())
+            .create_authenticated_provider("strava", user_uuid, None)
             .await
         {
             Ok(provider) => {
@@ -2141,7 +2140,7 @@ impl UniversalToolExecutor {
         // Get historical activities
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
         match self
-            .create_authenticated_provider("strava", user_uuid, request.tenant_id.as_deref())
+            .create_authenticated_provider("strava", user_uuid, None)
             .await
         {
             Ok(provider) => {
@@ -2264,7 +2263,7 @@ impl UniversalToolExecutor {
         // Get recent activities
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
         match self
-            .create_authenticated_provider("strava", user_uuid, request.tenant_id.as_deref())
+            .create_authenticated_provider("strava", user_uuid, None)
             .await
         {
             Ok(provider) => {
@@ -2368,7 +2367,7 @@ impl UniversalToolExecutor {
         // Get recent activities
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
         match self
-            .create_authenticated_provider("strava", user_uuid, request.tenant_id.as_deref())
+            .create_authenticated_provider("strava", user_uuid, None)
             .await
         {
             Ok(provider) => {
@@ -2513,7 +2512,7 @@ impl UniversalToolExecutor {
         // Get historical activities
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
         match self
-            .create_authenticated_provider("strava", user_uuid, request.tenant_id.as_deref())
+            .create_authenticated_provider("strava", user_uuid, None)
             .await
         {
             Ok(provider) => {
@@ -2640,7 +2639,7 @@ impl UniversalToolExecutor {
         // Get recent activities (last 4 weeks)
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
         match self
-            .create_authenticated_provider("strava", user_uuid, request.tenant_id.as_deref())
+            .create_authenticated_provider("strava", user_uuid, None)
             .await
         {
             Ok(provider) => {
