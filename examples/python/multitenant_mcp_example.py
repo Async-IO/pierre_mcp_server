@@ -1,25 +1,24 @@
 #!/usr/bin/env python3
 """
-Complete Multi-Tenant MCP Server Example
+Pierre MCP Server Usage Example
 
 This example demonstrates the complete workflow for using the Pierre MCP Server
-in multi-tenant mode with tenant-specific OAuth credentials, proper authentication,
-and MCP protocol usage.
+with per-user OAuth credentials, authentication, and MCP protocol usage.
 
 Prerequisites:
 1. Server running: cargo run --bin pierre-mcp-server
 2. Database cleaned: ./scripts/fresh-start.sh
-3. Admin token generated: cargo run --bin admin-setup generate-token --service "demo"
+3. User OAuth credentials configured in database
 
-Multi-Tenant Features Demonstrated:
-- Tenant creation and management
-- Per-tenant OAuth credential configuration
-- Tenant-isolated rate limiting
-- Tenant context in MCP requests
-- Enterprise-ready SaaS architecture
+Features Demonstrated:
+- User registration and authentication
+- Per-user OAuth credential configuration
+- API key creation and management
+- MCP protocol usage with API key authentication
+- Real fitness data analysis
 
 Usage:
-    python3 multitenant_mcp_example.py
+    python3 basic_mcp_example.py
 """
 
 import json
@@ -30,10 +29,10 @@ from typing import Optional, Dict, Any
 
 class PierreMCPClient:
     """
-    Pierre MCP Server Client for Multi-Tenant Mode
+    Pierre MCP Server Client
     
-    Supports both HTTP and stdio transports with JWT authentication
-    and tenant-specific OAuth credential management.
+    Supports HTTP transport with API key authentication
+    and per-user OAuth credential management.
     """
     
     def __init__(self, 
@@ -42,8 +41,8 @@ class PierreMCPClient:
         self.http_base_url = http_base_url
         self.mcp_base_url = mcp_base_url
         self.jwt_token: Optional[str] = None
+        self.api_key: Optional[str] = None
         self.user_id: Optional[str] = None
-        self.tenant_id: Optional[str] = None
         
     def register_user(self, email: str, password: str, display_name: str) -> Dict[str, Any]:
         """Register a new user account"""
