@@ -50,10 +50,6 @@ pub struct UnifiedRateLimitInfo {
     pub tier: String,
     /// The authentication method used
     pub auth_method: String,
-    /// Tenant ID if applicable
-    pub tenant_id: Option<Uuid>,
-    /// Tenant-specific rate limit multiplier applied
-    pub tenant_multiplier: Option<f32>,
 }
 
 /// Tenant-specific rate limit tier configuration
@@ -274,8 +270,6 @@ impl UnifiedRateLimitCalculator {
                 reset_at: None,
                 tier: "enterprise".into(),
                 auth_method: "api_key".into(),
-                tenant_id: None,
-                tenant_multiplier: None,
             }
         } else {
             let limit = api_key.rate_limit_requests;
@@ -289,8 +283,6 @@ impl UnifiedRateLimitCalculator {
                 reset_at: Some(Self::calculate_monthly_reset()),
                 tier: format!("{:?}", api_key.tier).to_lowercase(),
                 auth_method: "api_key".into(),
-                tenant_id: None,
-                tenant_multiplier: None,
             }
         }
     }
@@ -310,8 +302,6 @@ impl UnifiedRateLimitCalculator {
                 reset_at: None,
                 tier: "enterprise".into(),
                 auth_method: "jwt_token".into(),
-                tenant_id: None,
-                tenant_multiplier: None,
             }
         } else {
             let limit = user.tier.monthly_limit().unwrap_or(u32::MAX);
@@ -325,8 +315,6 @@ impl UnifiedRateLimitCalculator {
                 reset_at: Some(Self::calculate_monthly_reset()),
                 tier: format!("{:?}", user.tier).to_lowercase(),
                 auth_method: "jwt_token".into(),
-                tenant_id: None,
-                tenant_multiplier: None,
             }
         }
     }
@@ -346,8 +334,6 @@ impl UnifiedRateLimitCalculator {
                 reset_at: None,
                 tier: "enterprise".into(),
                 auth_method: "jwt_token".into(),
-                tenant_id: None,
-                tenant_multiplier: None,
             }
         } else {
             let limit = tier.monthly_limit().unwrap_or(u32::MAX);
@@ -361,8 +347,6 @@ impl UnifiedRateLimitCalculator {
                 reset_at: Some(Self::calculate_monthly_reset()),
                 tier: format!("{tier:?}").to_lowercase(),
                 auth_method: "jwt_token".into(),
-                tenant_id: None,
-                tenant_multiplier: None,
             }
         }
     }
@@ -399,8 +383,6 @@ impl UnifiedRateLimitCalculator {
                 reset_at: None,
                 tier: tenant.plan.clone(),
                 auth_method: "tenant_token".into(),
-                tenant_id: Some(tenant.id),
-                tenant_multiplier: Some(tenant_config.multiplier),
             }
         } else {
             let limit = tenant_config.effective_monthly_limit();
@@ -414,8 +396,6 @@ impl UnifiedRateLimitCalculator {
                 reset_at: Some(Self::calculate_monthly_reset()),
                 tier: tenant.plan.clone(),
                 auth_method: "tenant_token".into(),
-                tenant_id: Some(tenant.id),
-                tenant_multiplier: Some(tenant_config.multiplier),
             }
         }
     }
@@ -447,8 +427,6 @@ impl UnifiedRateLimitCalculator {
             base_info.is_rate_limited = current_usage >= effective_limit;
         }
 
-        base_info.tenant_id = Some(tenant_id);
-        base_info.tenant_multiplier = Some(tenant_config.multiplier);
         base_info
     }
 
@@ -479,8 +457,6 @@ impl UnifiedRateLimitCalculator {
             base_info.is_rate_limited = current_usage >= effective_limit;
         }
 
-        base_info.tenant_id = Some(tenant_id);
-        base_info.tenant_multiplier = Some(tenant_config.multiplier);
         base_info
     }
 

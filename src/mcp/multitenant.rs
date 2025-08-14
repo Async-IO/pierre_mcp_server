@@ -1235,8 +1235,6 @@ impl MultiTenantMcpServer {
                                             ),
                                             tier: "basic".to_string(),
                                             auth_method: "jwt".to_string(),
-                                            tenant_id: None, // Will be determined from user context
-                                            tenant_multiplier: None,
                                         },
                                     })
                                 }
@@ -4105,7 +4103,6 @@ impl MultiTenantMcpServer {
             parameters: args.clone(),
             user_id: auth_result.user_id.to_string(),
             protocol: "mcp".to_string(),
-            tenant_id: Some(tenant_context.tenant_id.to_string()),
         };
 
         // Create UniversalToolExecutor with necessary dependencies

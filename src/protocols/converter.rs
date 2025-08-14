@@ -71,7 +71,6 @@ impl ProtocolConverter {
             parameters,
             user_id: user_id.to_string(),
             protocol: "a2a".into(),
-            tenant_id: None,
         })
     }
 
@@ -109,7 +108,6 @@ impl ProtocolConverter {
                 .unwrap_or_else(|| Value::Object(serde_json::Map::new())),
             user_id: user_id.to_string(),
             protocol: "mcp".into(),
-            tenant_id: None,
         }
     }
 
