@@ -41,12 +41,12 @@ async fn test_mcp_request_processing_flow() -> Result<()> {
         display_name: Some("Test User".to_string()),
         password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
         tier: UserTier::Starter,
-        tenant_id: Some("test-tenant".to_string()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,
         strava_token: None,
         fitbit_token: None,
+        tenant_id: Some("test-tenant".to_string()),
     };
     server.database().create_user(&user).await?;
 
@@ -117,7 +117,6 @@ async fn test_model_serialization_coverage() -> Result<()> {
         display_name: None, // Test None case
         password_hash: "hash".to_string(),
         tier: UserTier::Enterprise, // Test different tier
-        tenant_id: Some("test-tenant".to_string()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: false, // Test inactive user
@@ -129,6 +128,7 @@ async fn test_model_serialization_coverage() -> Result<()> {
             nonce: "test_nonce".to_string(),
         }),
         fitbit_token: None,
+        tenant_id: Some("test-tenant".to_string()),
     };
 
     // Test serialization
@@ -161,12 +161,12 @@ async fn test_admin_auth_flow() -> Result<()> {
         display_name: Some("Admin User".to_string()),
         password_hash: bcrypt::hash(admin_password, bcrypt::DEFAULT_COST)?,
         tier: UserTier::Enterprise, // Admins typically have enterprise tier
-        tenant_id: Some("admin-tenant".to_string()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,
         strava_token: None,
         fitbit_token: None,
+        tenant_id: Some("test-tenant".to_string()),
     };
 
     database.create_user(&admin_user).await?;
@@ -205,12 +205,12 @@ async fn test_mcp_multitenant_request_routing() -> Result<()> {
             } else {
                 UserTier::Starter
             },
-            tenant_id: Some(format!("tenant-{i}")),
             created_at: chrono::Utc::now(),
             last_active: chrono::Utc::now(),
             is_active: true,
             strava_token: None,
             fitbit_token: None,
+            tenant_id: Some("test-tenant".to_string()),
         };
         server.database().create_user(&user).await?;
         users.push(user);
@@ -241,12 +241,12 @@ async fn test_production_database_scenarios() -> Result<()> {
         display_name: Some("User 1".to_string()),
         password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
         tier: UserTier::Starter,
-        tenant_id: Some("test-tenant".to_string()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,
         strava_token: None,
         fitbit_token: None,
+        tenant_id: Some("test-tenant".to_string()),
     };
 
     // Create first user
@@ -259,12 +259,12 @@ async fn test_production_database_scenarios() -> Result<()> {
         display_name: Some("User 2".to_string()),
         password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
         tier: UserTier::Starter,
-        tenant_id: Some("test-tenant".to_string()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,
         strava_token: None,
         fitbit_token: None,
+        tenant_id: Some("test-tenant".to_string()),
     };
 
     let result = database.create_user(&user2).await;
@@ -286,12 +286,12 @@ async fn test_production_rate_limiting() -> Result<()> {
         display_name: Some("Rate Limited User".to_string()),
         password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
         tier: UserTier::Starter, // Starter tier has limits
-        tenant_id: Some("ratelimited-tenant".to_string()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,
         strava_token: None,
         fitbit_token: None,
+        tenant_id: Some("test-tenant".to_string()),
     };
 
     database.create_user(&user).await?;

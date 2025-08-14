@@ -35,12 +35,12 @@ async fn test_unknown_method_handler() -> Result<()> {
         display_name: Some("Test User".to_string()),
         password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
         tier: UserTier::Starter,
-        tenant_id: Some("test-tenant".to_string()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,
         strava_token: None,
         fitbit_token: None,
+        tenant_id: Some("test-tenant".to_string()),
     };
     server.database().create_user(&user).await?;
 
@@ -83,12 +83,12 @@ async fn test_connect_strava_handler_errors() -> Result<()> {
         display_name: Some("Test User".to_string()),
         password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
         tier: UserTier::Starter,
-        tenant_id: Some("test-tenant".to_string()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,
         strava_token: None,
         fitbit_token: None,
+        tenant_id: Some("test-tenant".to_string()),
     };
     server.database().create_user(&user).await?;
 
@@ -116,12 +116,12 @@ async fn test_disconnect_provider_handler() -> Result<()> {
         display_name: Some("Test User".to_string()),
         password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
         tier: UserTier::Starter,
-        tenant_id: Some("test-tenant".to_string()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,
         strava_token: None,
         fitbit_token: None,
+        tenant_id: Some("test-tenant".to_string()),
     };
     server.database().create_user(&user).await?;
 
@@ -178,12 +178,12 @@ async fn test_rate_limiting_enforcement() -> Result<()> {
         display_name: Some("Test User".to_string()),
         password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
         tier: UserTier::Starter,
-        tenant_id: Some("test-tenant".to_string()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,
         strava_token: None,
         fitbit_token: None,
+        tenant_id: Some("test-tenant".to_string()),
     };
     server.database().create_user(&user).await?;
 
@@ -218,12 +218,12 @@ async fn test_provider_initialization_errors() -> Result<()> {
         display_name: Some("Test User".to_string()),
         password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
         tier: UserTier::Starter,
-        tenant_id: Some("test-tenant".to_string()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,
         strava_token: None,
         fitbit_token: None,
+        tenant_id: Some("test-tenant".to_string()),
     };
     server.database().create_user(&user).await?;
 
@@ -306,12 +306,12 @@ async fn test_tool_call_parameter_validation() -> Result<()> {
         display_name: Some("Test User".to_string()),
         password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
         tier: UserTier::Starter,
-        tenant_id: Some("test-tenant".to_string()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,
         strava_token: None,
         fitbit_token: None,
+        tenant_id: Some("test-tenant".to_string()),
     };
     server.database().create_user(&user).await?;
 

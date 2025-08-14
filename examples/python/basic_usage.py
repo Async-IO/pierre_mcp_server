@@ -45,21 +45,35 @@ async def main():
             for tool in tools:
                 print(f"  - {tool['name']}: {tool.get('description', 'No description')}")
             
-            # Check OAuth status
+            # Check OAuth status via MCP protocol
             print("\nChecking OAuth status...")
             try:
-                oauth_status = await client.get_oauth_status("strava")
-                if oauth_status.get("connected"):
-                    print("✓ Strava OAuth connected")
-                else:
+                # Use get_connection_status tool instead of direct OAuth endpoints
+                connection_status = await client.call_tool("get_connection_status", {})
+                
+                # Check if Strava is connected
+                strava_connected = False
+                if isinstance(connection_status, list):
+                    for provider in connection_status:
+                        if provider.get("provider") == "strava" and provider.get("connected"):
+                            strava_connected = True
+                            print("✓ Strava OAuth connected")
+                            break
+                
+                if not strava_connected:
                     print("✗ Strava OAuth not connected")
-                    auth_url = await client.get_authorization_url("strava")
-                    print(f"Connect at: {auth_url}")
+                    try:
+                        auth_url = await client.get_authorization_url("strava")
+                        print(f"Connect at: {auth_url}")
+                    except TenantError:
+                        print("✗ Tenant OAuth not configured. Configure with:")
+                        print(f"  curl -X POST {server_url}/api/tenants/{tenant_id}/oauth \\")
+                        print('    -H "Authorization: Bearer {jwt_token}" \\')
+                        print('    -d \'{"provider": "strava", "client_id": "...", "client_secret": "...", "redirect_uri": "...", "scopes": ["read", "activity:read_all"]}\'')
                     return
-            except TenantError:
-                print("✗ Tenant OAuth not configured. Configure with:")
-                print(f"  curl -X POST {server_url}/api/tenants/{tenant_id}/oauth \\")
-                print('    -d \'{"provider": "strava", "client_id": "...", "client_secret": "..."}\'')
+            except Exception as e:
+                print(f"✗ Failed to check OAuth status: {e}")
+                print("Make sure tenant is configured and JWT token is valid")
                 return
             
             # Get recent activities

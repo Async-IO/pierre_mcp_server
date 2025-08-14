@@ -48,9 +48,9 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
         display_name: Some("Acme Admin".to_string()),
         password_hash: "hashed_password".to_string(),
         tier: UserTier::Enterprise,
-        tenant_id: Some(acme_tenant_id.to_string()),
         strava_token: None,
         fitbit_token: None,
+        tenant_id: Some("test-tenant".to_string()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,
@@ -62,9 +62,9 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
         display_name: Some("Beta Admin".to_string()),
         password_hash: "hashed_password".to_string(),
         tier: UserTier::Professional,
-        tenant_id: Some(beta_tenant_id.to_string()),
         strava_token: None,
         fitbit_token: None,
+        tenant_id: Some("test-tenant".to_string()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,
@@ -209,7 +209,6 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
         parameters: json!({}),
         user_id: acme_admin_id.to_string(),
         protocol: "test".to_string(),
-        tenant_id: Some(acme_tenant_id.to_string()),
     };
 
     let acme_response = executor.execute_tool(acme_request).await?;
@@ -229,7 +228,6 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
         parameters: json!({}),
         user_id: beta_admin_id.to_string(),
         protocol: "test".to_string(),
-        tenant_id: Some(beta_tenant_id.to_string()),
     };
 
     let beta_response = executor.execute_tool(beta_request).await?;
@@ -323,9 +321,9 @@ async fn test_tenant_context_switching() -> Result<()> {
         display_name: Some("Multi Tenant User".to_string()),
         password_hash: "hashed_password".to_string(),
         tier: UserTier::Professional,
-        tenant_id: Some(tenant1_id.to_string()),
         strava_token: None,
         fitbit_token: None,
+        tenant_id: Some("test-tenant".to_string()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,

@@ -23,9 +23,9 @@ async fn test_tenant_operations_work_through_factory() {
         display_name: Some("Tenant Owner".to_string()),
         password_hash: "hashed_password".to_string(),
         tier: UserTier::Professional,
-        tenant_id: None, // Will be set after tenant creation
         strava_token: None,
         fitbit_token: None,
+        tenant_id: Some("test-tenant".to_string()),
         is_active: true,
         created_at: Utc::now(),
         last_active: Utc::now(),

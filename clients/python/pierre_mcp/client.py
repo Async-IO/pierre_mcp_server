@@ -157,24 +157,8 @@ class PierreMCPClient:
         Returns:
             OAuth status information
         """
-        if not self.session:
-            raise PierreMCPError("Client not connected. Call connect() first.")
-        
-        try:
-            async with self.session.get(
-                f'{self.server_url}/oauth/status/{provider}'
-            ) as response:
-                if response.status == 401:
-                    raise AuthenticationError("Invalid JWT token")
-                elif response.status == 404:
-                    raise TenantError("Tenant OAuth not configured")
-                elif response.status != 200:
-                    raise PierreMCPError(f"Failed to get OAuth status: {response.status}")
-                
-                return await response.json()
-                
-        except aiohttp.ClientError as e:
-            raise PierreMCPError(f"Network error: {e}")
+        # Use MCP protocol to get connection status
+        return await self.call_tool("get_connection_status", {"provider": provider})
     
     async def get_authorization_url(self, provider: str = "strava") -> str:
         """
@@ -190,9 +174,9 @@ class PierreMCPClient:
             raise PierreMCPError("Client not connected. Call connect() first.")
         
         try:
+            # Use tenant-aware OAuth endpoint
             async with self.session.get(
-                f'{self.server_url}/oauth/authorize/{provider}',
-                params={'tenant_id': self.tenant_id}
+                f'{self.server_url}/api/tenants/{self.tenant_id}/oauth/{provider}/authorize'
             ) as response:
                 if response.status == 401:
                     raise AuthenticationError("Invalid JWT token")
@@ -201,8 +185,8 @@ class PierreMCPClient:
                 elif response.status != 200:
                     raise PierreMCPError(f"Failed to get authorization URL: {response.status}")
                 
-                # Server returns redirect, extract URL from location header
-                return str(response.url)
+                data = await response.json()
+                return data.get("authorization_url", "")
                 
         except aiohttp.ClientError as e:
             raise PierreMCPError(f"Network error: {e}")
