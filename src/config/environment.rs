@@ -495,16 +495,8 @@ impl ServerConfig {
             } else {
                 "PostgreSQL"
             },
-            if self.oauth.strava.enabled && self.oauth.strava.client_id.is_some() {
-                "Enabled"
-            } else {
-                "Disabled"
-            },
-            if self.oauth.fitbit.enabled && self.oauth.fitbit.client_id.is_some() {
-                "Enabled"
-            } else {
-                "Disabled"
-            },
+            "Multi-Tenant (Per-Tenant Configuration)",
+            "Multi-Tenant (Per-Tenant Configuration)",
             if self.external_services.weather.enabled
                 && self.external_services.weather.api_key.is_some()
             {
