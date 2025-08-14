@@ -23,6 +23,18 @@ examples/python/
 
 ## 🚀 Quick Start
 
+### Basic Usage Examples
+```bash
+# Basic MCP client usage
+python examples/python/basic_usage.py
+
+# Advanced fitness analysis with MCP
+python examples/python/advanced_analysis.py
+
+# Complete multi-tenant setup demonstration
+python examples/python/multitenant_mcp_example.py
+```
+
 ### Enterprise Provisioning (B2B Setup)
 ```bash
 # Complete enterprise provisioning workflow
@@ -30,15 +42,6 @@ python examples/python/provisioning/provisioning_example.py
 
 # Generate mock fitness data for testing
 python examples/python/provisioning/mock_strava_provider.py
-```
-
-### MCP Protocol (Real-time Analysis)
-```bash
-# Collect fitness data via MCP
-python examples/python/mcp/data_collection.py
-
-# Full investor demonstration with real-time analysis
-python examples/python/mcp/investor_demo.py
 ```
 
 ### A2A Protocol (Enterprise Integration)
@@ -84,17 +87,20 @@ pip install requests websockets aiohttp pandas matplotlib
 ### Environment Variables
 ```bash
 # For MCP examples
-export MCP_SERVER_HOST=localhost
-export MCP_SERVER_PORT=8080
+export PIERRE_SERVER_URL=http://localhost:8081
+export PIERRE_TENANT_ID=your_tenant_id
+export PIERRE_JWT_TOKEN=your_jwt_token
 
 # For A2A examples  
 export PIERRE_API_BASE=http://localhost:8081
-export PIERRE_API_KEY=your_api_key_here
+export PIERRE_A2A_CLIENT_ID=your_client_id
+export PIERRE_A2A_CLIENT_SECRET=your_client_secret
 ```
 
 ### Authentication Setup
-1. **JWT Authentication** (MCP): Use login credentials
-2. **API Key Authentication** (A2A): Generate via dashboard or API
+1. **JWT Authentication** (MCP): Login with user credentials and create/select tenant
+2. **A2A Client Authentication**: Register A2A client with admin API
+3. **Tenant OAuth**: Configure OAuth per tenant for fitness providers
 
 ## 📈 Performance Guidelines
 

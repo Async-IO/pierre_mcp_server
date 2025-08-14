@@ -53,7 +53,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 // Constants are now imported from the constants module
@@ -1437,35 +1437,42 @@ impl MultiTenantMcpServer {
 
         // Clone server for both transports
         let server_for_stdio = self.clone();
-        let server_for_http = self;
+        let server_for_http = self.clone();
 
-        // Start stdio transport
-        let stdio_handle =
-            tokio::spawn(async move { server_for_stdio.run_stdio_transport().await });
-
-        // Start HTTP transport
-        let http_handle =
-            tokio::spawn(async move { server_for_http.run_http_transport(port).await });
-
-        // Wait for either transport to fail
-        tokio::select! {
-            result = stdio_handle => {
-                match result {
-                    Ok(Ok(())) => info!("stdio transport completed successfully"),
-                    Ok(Err(e)) => warn!("stdio transport failed: {}", e),
-                    Err(e) => warn!("stdio transport task failed: {}", e),
-                }
+        // Start stdio transport in background - don't wait for it to complete
+        let stdio_handle = tokio::spawn(async move {
+            match server_for_stdio.run_stdio_transport().await {
+                Ok(()) => info!("stdio transport completed successfully"),
+                Err(e) => warn!("stdio transport failed: {}", e),
             }
-            result = http_handle => {
-                match result {
-                    Ok(Ok(())) => info!("HTTP transport completed successfully"),
-                    Ok(Err(e)) => warn!("HTTP transport failed: {}", e),
-                    Err(e) => warn!("HTTP transport task failed: {}", e),
+        });
+
+        // Monitor stdio transport in background but don't exit server when it completes
+        tokio::spawn(async move {
+            match stdio_handle.await {
+                Ok(()) => info!("stdio transport task completed"),
+                Err(e) => warn!("stdio transport task failed: {}", e),
+            }
+        });
+
+        // Run HTTP transport - this should run indefinitely
+        loop {
+            info!("Starting HTTP transport on port {}", port);
+
+            // Clone server for each iteration since run_http_transport takes ownership
+            match server_for_http.clone().run_http_transport(port).await {
+                Ok(()) => {
+                    error!("HTTP transport unexpectedly completed - this should never happen");
+                    error!("HTTP server should run indefinitely. Restarting in 5 seconds...");
+                    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                }
+                Err(e) => {
+                    error!("HTTP transport failed: {}", e);
+                    error!("Restarting HTTP server in 10 seconds...");
+                    tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
                 }
             }
         }
-
-        Ok(())
     }
 
     /// Run MCP server with only HTTP transport (for testing)
