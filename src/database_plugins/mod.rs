@@ -5,7 +5,7 @@ use crate::a2a::auth::A2AClient;
 use crate::a2a::client::A2ASession;
 use crate::a2a::protocol::{A2ATask, TaskStatus};
 use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
-use crate::models::{DecryptedToken, User, UserOAuthToken};
+use crate::models::{DecryptedToken, User, UserOAuthApp, UserOAuthToken};
 use crate::rate_limiting::JwtUsage;
 use anyhow::Result;
 use async_trait::async_trait;
@@ -140,6 +140,33 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         refresh_token: Option<&str>,
         expires_at: Option<DateTime<Utc>>,
     ) -> Result<()>;
+
+    // ================================
+    // User OAuth App Credentials
+    // ================================
+
+    /// Store user OAuth app credentials (client_id, client_secret)
+    async fn store_user_oauth_app(
+        &self,
+        user_id: Uuid,
+        provider: &str,
+        client_id: &str,
+        client_secret: &str,
+        redirect_uri: &str,
+    ) -> Result<()>;
+
+    /// Get user OAuth app credentials for a provider
+    async fn get_user_oauth_app(
+        &self,
+        user_id: Uuid,
+        provider: &str,
+    ) -> Result<Option<UserOAuthApp>>;
+
+    /// List all OAuth app providers configured for a user
+    async fn list_user_oauth_apps(&self, user_id: Uuid) -> Result<Vec<UserOAuthApp>>;
+
+    /// Remove user OAuth app credentials for a provider
+    async fn remove_user_oauth_app(&self, user_id: Uuid, provider: &str) -> Result<()>;
 
     // ================================
     // User Profiles & Goals

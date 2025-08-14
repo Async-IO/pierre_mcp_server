@@ -62,6 +62,25 @@ impl Database {
         .execute(&self.pool)
         .await?;
 
+        // Create user_oauth_app_credentials table for per-user OAuth app configurations
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS user_oauth_app_credentials (
+                id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                provider TEXT NOT NULL CHECK (provider IN ('strava', 'fitbit', 'garmin', 'runkeeper')),
+                client_id TEXT NOT NULL,
+                client_secret TEXT NOT NULL,
+                redirect_uri TEXT NOT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, provider)
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
         // Create indexes
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
             .execute(&self.pool)
@@ -70,6 +89,35 @@ impl Database {
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active)")
             .execute(&self.pool)
             .await?;
+
+        // Create indexes for user_oauth_app_credentials table
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_user_oauth_apps_user ON user_oauth_app_credentials(user_id)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_user_oauth_apps_provider ON user_oauth_app_credentials(provider)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_user_oauth_apps_user_provider ON user_oauth_app_credentials(user_id, provider)")
+            .execute(&self.pool)
+            .await?;
+
+        // Create trigger to automatically update updated_at timestamp
+        sqlx::query(
+            r"
+            CREATE TRIGGER IF NOT EXISTS update_user_oauth_app_credentials_updated_at
+                AFTER UPDATE ON user_oauth_app_credentials
+                FOR EACH ROW
+            BEGIN
+                UPDATE user_oauth_app_credentials 
+                SET updated_at = CURRENT_TIMESTAMP 
+                WHERE id = NEW.id;
+            END
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
 
         Ok(())
     }

@@ -11,7 +11,7 @@ use crate::a2a::client::A2ASession;
 use crate::a2a::protocol::{A2ATask, TaskStatus};
 use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
 use crate::database::A2AUsage;
-use crate::models::{DecryptedToken, User, UserOAuthToken};
+use crate::models::{DecryptedToken, User, UserOAuthApp, UserOAuthToken};
 use crate::rate_limiting::JwtUsage;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -1962,6 +1962,126 @@ impl DatabaseProvider for SqliteDatabase {
         self.inner
             .get_user_tenant_role(&user_id.to_string(), &tenant_id.to_string())
             .await
+    }
+
+    // ================================
+    // User OAuth App Credentials Implementation
+    // ================================
+
+    /// Store user OAuth app credentials (client_id, client_secret)
+    async fn store_user_oauth_app(
+        &self,
+        user_id: Uuid,
+        provider: &str,
+        client_id: &str,
+        client_secret: &str,
+        redirect_uri: &str,
+    ) -> Result<()> {
+        let encrypted_client_secret = self.inner.encrypt_data(client_secret)?;
+
+        sqlx::query(
+            r"
+            INSERT OR REPLACE INTO user_oauth_app_credentials 
+            (user_id, provider, client_id, client_secret, redirect_uri, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ",
+        )
+        .bind(user_id.to_string())
+        .bind(provider)
+        .bind(client_id)
+        .bind(encrypted_client_secret)
+        .bind(redirect_uri)
+        .execute(self.inner.pool())
+        .await?;
+
+        Ok(())
+    }
+
+    /// Get user OAuth app credentials for a provider
+    async fn get_user_oauth_app(
+        &self,
+        user_id: Uuid,
+        provider: &str,
+    ) -> Result<Option<UserOAuthApp>> {
+        let row = sqlx::query(
+            r"
+            SELECT id, user_id, provider, client_id, client_secret, redirect_uri, created_at, updated_at
+            FROM user_oauth_app_credentials
+            WHERE user_id = ? AND provider = ?
+            ",
+        )
+        .bind(user_id.to_string())
+        .bind(provider)
+        .fetch_optional(self.inner.pool())
+        .await?;
+
+        if let Some(row) = row {
+            let encrypted_client_secret: String = row.try_get("client_secret")?;
+            let decrypted_client_secret = self.inner.decrypt_data(&encrypted_client_secret)?;
+
+            Ok(Some(UserOAuthApp {
+                id: row.try_get("id")?,
+                user_id: Uuid::parse_str(&row.try_get::<String, _>("user_id")?)?,
+                provider: row.try_get("provider")?,
+                client_id: row.try_get("client_id")?,
+                client_secret: decrypted_client_secret,
+                redirect_uri: row.try_get("redirect_uri")?,
+                created_at: row.try_get("created_at")?,
+                updated_at: row.try_get("updated_at")?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// List all OAuth app providers configured for a user
+    async fn list_user_oauth_apps(&self, user_id: Uuid) -> Result<Vec<UserOAuthApp>> {
+        let rows = sqlx::query(
+            r"
+            SELECT id, user_id, provider, client_id, client_secret, redirect_uri, created_at, updated_at
+            FROM user_oauth_app_credentials
+            WHERE user_id = ?
+            ORDER BY provider ASC
+            ",
+        )
+        .bind(user_id.to_string())
+        .fetch_all(self.inner.pool())
+        .await?;
+
+        let mut apps = Vec::new();
+        for row in rows {
+            let encrypted_client_secret: String = row.try_get("client_secret")?;
+            let decrypted_client_secret = self.inner.decrypt_data(&encrypted_client_secret)?;
+
+            apps.push(UserOAuthApp {
+                id: row.try_get("id")?,
+                user_id: Uuid::parse_str(&row.try_get::<String, _>("user_id")?)?,
+                provider: row.try_get("provider")?,
+                client_id: row.try_get("client_id")?,
+                client_secret: decrypted_client_secret,
+                redirect_uri: row.try_get("redirect_uri")?,
+                created_at: row.try_get("created_at")?,
+                updated_at: row.try_get("updated_at")?,
+            });
+        }
+
+        Ok(apps)
+    }
+
+    /// Remove user OAuth app credentials for a provider
+    async fn remove_user_oauth_app(&self, user_id: Uuid, provider: &str) -> Result<()> {
+        sqlx::query(
+            r"
+            DELETE FROM user_oauth_app_credentials
+            WHERE user_id = ? AND provider = ?
+            ",
+        )
+        .bind(user_id.to_string())
+        .bind(provider)
+        .execute(self.inner.pool())
+        .await?;
+
+        Ok(())
     }
 }
 

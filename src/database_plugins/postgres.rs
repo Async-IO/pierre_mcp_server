@@ -3738,6 +3738,54 @@ impl DatabaseProvider for PostgresDatabase {
 
         Ok(row.map(|r| r.0))
     }
+
+    // ================================
+    // User OAuth App Credentials Implementation
+    // ================================
+
+    /// Store user OAuth app credentials (client_id, client_secret)
+    async fn store_user_oauth_app(
+        &self,
+        _user_id: Uuid,
+        _provider: &str,
+        _client_id: &str,
+        _client_secret: &str,
+        _redirect_uri: &str,
+    ) -> Result<()> {
+        // TODO: Implement PostgreSQL user OAuth app credentials storage
+        // For now, return an error indicating this feature is not yet implemented
+        Err(anyhow::anyhow!(
+            "User OAuth app credentials storage not yet implemented for PostgreSQL"
+        ))
+    }
+
+    /// Get user OAuth app credentials for a provider
+    async fn get_user_oauth_app(
+        &self,
+        _user_id: Uuid,
+        _provider: &str,
+    ) -> Result<Option<crate::models::UserOAuthApp>> {
+        // TODO: Implement PostgreSQL user OAuth app credentials retrieval
+        // For now, return None indicating no credentials found
+        Ok(None)
+    }
+
+    /// List all OAuth app providers configured for a user
+    async fn list_user_oauth_apps(
+        &self,
+        _user_id: Uuid,
+    ) -> Result<Vec<crate::models::UserOAuthApp>> {
+        // TODO: Implement PostgreSQL user OAuth app credentials listing
+        // For now, return empty list
+        Ok(vec![])
+    }
+
+    /// Remove user OAuth app credentials for a provider
+    async fn remove_user_oauth_app(&self, _user_id: Uuid, _provider: &str) -> Result<()> {
+        // TODO: Implement PostgreSQL user OAuth app credentials removal
+        // For now, return success (no-op)
+        Ok(())
+    }
 }
 
 impl PostgresDatabase {

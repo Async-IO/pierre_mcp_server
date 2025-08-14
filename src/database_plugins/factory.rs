@@ -9,6 +9,7 @@ use super::DatabaseProvider;
 use crate::a2a::auth::A2AClient;
 use crate::a2a::client::A2ASession;
 use crate::a2a::protocol::{A2ATask, TaskStatus};
+use crate::models::UserOAuthApp;
 use crate::rate_limiting::JwtUsage;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
@@ -1611,6 +1612,63 @@ impl DatabaseProvider for Database {
             Self::SQLite(db) => db.get_user_tenant_role(user_id, tenant_id).await,
             #[cfg(feature = "postgresql")]
             Self::PostgreSQL(db) => db.get_user_tenant_role(user_id, tenant_id).await,
+        }
+    }
+
+    // ================================
+    // User OAuth App Credentials
+    // ================================
+
+    /// Store user OAuth app credentials (client_id, client_secret)
+    async fn store_user_oauth_app(
+        &self,
+        user_id: Uuid,
+        provider: &str,
+        client_id: &str,
+        client_secret: &str,
+        redirect_uri: &str,
+    ) -> Result<()> {
+        match self {
+            Self::SQLite(db) => {
+                db.store_user_oauth_app(user_id, provider, client_id, client_secret, redirect_uri)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.store_user_oauth_app(user_id, provider, client_id, client_secret, redirect_uri)
+                    .await
+            }
+        }
+    }
+
+    /// Get user OAuth app credentials for a provider
+    async fn get_user_oauth_app(
+        &self,
+        user_id: Uuid,
+        provider: &str,
+    ) -> Result<Option<UserOAuthApp>> {
+        match self {
+            Self::SQLite(db) => db.get_user_oauth_app(user_id, provider).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_user_oauth_app(user_id, provider).await,
+        }
+    }
+
+    /// List all OAuth app providers configured for a user
+    async fn list_user_oauth_apps(&self, user_id: Uuid) -> Result<Vec<UserOAuthApp>> {
+        match self {
+            Self::SQLite(db) => db.list_user_oauth_apps(user_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.list_user_oauth_apps(user_id).await,
+        }
+    }
+
+    /// Remove user OAuth app credentials for a provider
+    async fn remove_user_oauth_app(&self, user_id: Uuid, provider: &str) -> Result<()> {
+        match self {
+            Self::SQLite(db) => db.remove_user_oauth_app(user_id, provider).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.remove_user_oauth_app(user_id, provider).await,
         }
     }
 }
