@@ -3,7 +3,7 @@
 [![CI](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml)
 [![Frontend Tests](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/frontend-tests.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/frontend-tests.yml)
 
-Multi-tenant MCP server for fitness data access. Connects AI assistants to Strava and Fitbit APIs through MCP Protocol, A2A Protocol, and REST APIs with per-tenant OAuth isolation and encrypted storage.
+MCP server for fitness data access. Connects AI assistants to Strava and Fitbit APIs through MCP Protocol, A2A Protocol, and REST APIs with secure OAuth and encrypted storage.
 
 ## Technical Architecture
 
@@ -13,14 +13,14 @@ Multi-tenant MCP server for fitness data access. Connects AI assistants to Strav
 - Manages fitness data operations and OAuth credentials
 - SQLite/PostgreSQL database with encrypted storage (AES-256-GCM)
 - HTTP API server and MCP protocol handler
-- Multi-tenant isolation with per-tenant JWT authentication
+- Secure user isolation with JWT authentication
 
 **Pierre MCP Client** (`pierre-mcp-client`) - Protocol adapter
 - Translates MCP protocol to server HTTP API calls
 - Stateless design with no local data storage
-- Configured via environment variables for tenant access
+- Configured via environment variables for server access
 
-**Data Flow**: Clients authenticate with tenant JWT → Server validates and executes → Returns fitness data via MCP protocol
+**Data Flow**: Clients authenticate with JWT → Server validates and executes → Returns fitness data via MCP protocol
 
 ## Quick Setup Guide
 
@@ -41,17 +41,18 @@ cargo build --release
 # Start server (default: http://localhost:8081)
 cargo run --bin pierre-mcp-server
 
-# Create development tenant
-curl -X POST http://localhost:8081/api/tenants \
+# Create your account
+curl -X POST http://localhost:8081/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "Dev Org",
-    "slug": "dev-org", 
-    "domain": "localhost"
+    "email": "your@email.com",
+    "password": "your_password", 
+    "name": "Your Name"
   }'
 
-# Configure OAuth credentials
-curl -X POST http://localhost:8081/api/tenants/{TENANT_ID}/oauth \
+# Configure OAuth credentials (authenticated request)
+curl -X POST http://localhost:8081/api/oauth/configure \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "provider": "strava",
@@ -72,8 +73,8 @@ curl -X POST http://localhost:8081/api/tenants/{TENANT_ID}/oauth \
     "pierre-fitness": {
       "command": "/path/to/pierre_mcp_server/target/release/pierre-mcp-client",
       "env": {
-        "TENANT_ID": "YOUR_TENANT_ID",
-        "TENANT_JWT_TOKEN": "YOUR_JWT_TOKEN"
+        "PIERRE_JWT_TOKEN": "YOUR_JWT_TOKEN",
+        "PIERRE_SERVER_URL": "http://localhost:8081"
       }
     }
   }
@@ -82,9 +83,12 @@ curl -X POST http://localhost:8081/api/tenants/{TENANT_ID}/oauth \
 
 **Generate JWT Token**:
 ```bash
-curl -X POST http://localhost:8081/api/tenants/{TENANT_ID}/jwt \
+curl -X POST http://localhost:8081/api/auth/token \
   -H "Content-Type: application/json" \
-  -d '{"scopes": ["fitness:read", "activity:read"]}'
+  -d '{
+    "email": "your@email.com",
+    "password": "your_password"
+  }'
 ```
 
 **Connect to Strava**: Ask Claude "Connect me to Strava" to complete OAuth flow.
@@ -113,7 +117,6 @@ import asyncio
 async def main():
     client = PierreMCPClient(
         server_url="http://localhost:8081",
-        tenant_id="your-tenant-id",
         jwt_token="your-jwt-token"
     )
     
@@ -146,7 +149,6 @@ from datetime import datetime, timedelta
 async def analyze_performance():
     client = PierreMCPClient(
         server_url="http://localhost:8081",
-        tenant_id="dev-org",
         jwt_token="your-jwt-token"
     )
     
@@ -186,7 +188,7 @@ asyncio.run(analyze_performance())
 # Register your A2A client application
 curl -X POST http://localhost:8081/a2a/clients \
   -H "Content-Type: application/json" \
-  -H "X-Tenant-ID: YOUR_TENANT_ID" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{
     "name": "Fitness AI Assistant",
     "description": "AI-powered fitness data analysis",
@@ -202,7 +204,7 @@ curl -X POST http://localhost:8081/a2a/clients \
 curl -X POST http://localhost:8081/a2a/execute \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -H "X-Tenant-ID: YOUR_TENANT_ID" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{
     "jsonrpc": "2.0",
     "method": "tools.execute",
@@ -227,8 +229,7 @@ For MCP clients (Claude Desktop, Python client, etc.):
 ```bash
 # Client connection settings
 PIERRE_SERVER_URL=http://localhost:8081
-TENANT_ID=your-tenant-id
-TENANT_JWT_TOKEN=your-jwt-token
+PIERRE_JWT_TOKEN=your-jwt-token
 ```
 
 ### Server Environment Variables (Server-Side Only)
@@ -267,19 +268,27 @@ Core fitness data access tools available via MCP protocol:
 
 ## API Endpoints
 
-### Tenant Management
+### User Management
 
 ```bash
-# Create tenant
-POST /api/tenants
+# Register user
+POST /api/auth/register
 {
-  "name": "Organization Name",
-  "slug": "org-slug",
-  "domain": "optional-domain.com"
+  "email": "user@example.com",
+  "password": "secure_password",
+  "name": "User Name"
 }
 
-# Configure tenant OAuth
-POST /api/tenants/{tenant_id}/oauth
+# Login (get JWT token)
+POST /api/auth/token
+{
+  "email": "user@example.com",
+  "password": "secure_password"
+}
+
+# Configure OAuth for your account
+POST /api/oauth/configure
+Authorization: Bearer YOUR_JWT_TOKEN
 {
   "provider": "strava",
   "client_id": "your_client_id",
@@ -287,19 +296,13 @@ POST /api/tenants/{tenant_id}/oauth
   "redirect_uri": "http://localhost:8081/oauth/callback",
   "scopes": ["read", "activity:read_all"]
 }
-
-# Generate JWT token
-POST /api/tenants/{tenant_id}/jwt
-{
-  "scopes": ["fitness:read", "activity:read"]
-}
 ```
 
 ### OAuth Flow
 
 ```bash
-# Start OAuth authorization (tenant-aware)
-GET /oauth/authorize/{provider}?tenant_id={tenant_id}
+# Start OAuth authorization
+GET /oauth/authorize/{provider}
 
 # OAuth callback (handles token exchange)
 GET /oauth/callback?code=...&state=...
@@ -321,15 +324,16 @@ GET /health/database
 
 **"Permission denied" errors**
 ```bash
-# Ensure JWT token has correct scopes
-curl -X POST http://localhost:8081/api/tenants/{tenant_id}/jwt \
-  -d '{"scopes": ["fitness:read", "activity:read"]}'
+# Ensure JWT token is valid
+curl -X POST http://localhost:8081/api/auth/token \
+  -d '{"email": "your@email.com", "password": "your_password"}'
 ```
 
-**"Tenant not found" errors**
+**"Authentication failed" errors**
 ```bash
-# Check tenant exists and use correct ID
-curl http://localhost:8081/api/tenants
+# Verify JWT token is valid and not expired
+curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  http://localhost:8081/api/profile
 ```
 
 **OAuth authorization failures**
@@ -425,7 +429,7 @@ cargo test
 cargo test -- --nocapture
 
 # Run specific test
-cargo test test_tenant_creation
+cargo test test_user_creation
 
 # Run linter and tests
 ./scripts/lint-and-test.sh
@@ -456,9 +460,9 @@ curl http://localhost:8081/health
 
 ## Technical Implementation
 
-**Multi-tenancy**: Strict tenant data isolation with per-tenant OAuth credentials and encrypted storage
+**Data Isolation**: Strict user data isolation with secure OAuth credentials and encrypted storage
 
-**Authentication**: JWT-based authentication with tenant-scoped permissions and API key support
+**Authentication**: JWT-based authentication with user-scoped permissions and API key support
 
 **Database**: Plugin-based architecture supporting SQLite (development) and PostgreSQL (deployment) with AES-256-GCM encryption
 

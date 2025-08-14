@@ -46,12 +46,12 @@ async fn test_mcp_multitenant_comprehensive() -> Result<()> {
             display_name: Some("Starter User".to_string()),
             password_hash: "hash1".to_string(),
             tier: UserTier::Starter,
-            tenant_id: Some("test-tenant".to_string()),
             created_at: chrono::Utc::now(),
             last_active: chrono::Utc::now(),
             is_active: true,
             strava_token: None,
             fitbit_token: None,
+            tenant_id: Some("test-tenant".to_string()),
         },
         User {
             id: Uuid::new_v4(),
@@ -59,7 +59,6 @@ async fn test_mcp_multitenant_comprehensive() -> Result<()> {
             display_name: Some("Pro User".to_string()),
             password_hash: "hash2".to_string(),
             tier: UserTier::Professional,
-            tenant_id: Some("test-tenant".to_string()),
             created_at: chrono::Utc::now(),
             last_active: chrono::Utc::now(),
             is_active: true,
@@ -71,6 +70,7 @@ async fn test_mcp_multitenant_comprehensive() -> Result<()> {
                 nonce: "test_nonce".to_string(),
             }),
             fitbit_token: None,
+            tenant_id: Some("test-tenant".to_string()),
         },
         User {
             id: Uuid::new_v4(),
@@ -78,7 +78,6 @@ async fn test_mcp_multitenant_comprehensive() -> Result<()> {
             display_name: Some("Enterprise User".to_string()),
             password_hash: "hash3".to_string(),
             tier: UserTier::Enterprise,
-            tenant_id: Some("test-tenant".to_string()),
             created_at: chrono::Utc::now(),
             last_active: chrono::Utc::now(),
             is_active: true,
@@ -90,6 +89,7 @@ async fn test_mcp_multitenant_comprehensive() -> Result<()> {
                 scope: "activity,profile".to_string(),
                 nonce: "fitbit_nonce".to_string(),
             }),
+            tenant_id: Some("test-tenant".to_string()),
         },
     ];
 

@@ -23,13 +23,13 @@ async fn create_test_user(db: &Database) -> Uuid {
         email: "test@example.com".to_string(),
         display_name: Some("Test User".to_string()),
         password_hash: "hashed_password".to_string(),
-        tenant_id: Some("test-tenant".to_string()),
         tier: pierre_mcp_server::models::UserTier::Starter,
         created_at: Utc::now(),
         last_active: Utc::now(),
         is_active: true,
         strava_token: None,
         fitbit_token: None,
+        tenant_id: Some("test-tenant".to_string()),
     };
 
     db.create_user(&user).await.expect("Failed to create user");
@@ -255,13 +255,13 @@ async fn test_database_trait_abstraction() {
                 email: format!("test{i}@example.com"),
                 display_name: Some(format!("Test User {i}")),
                 password_hash: "hashed_password".to_string(),
-                tenant_id: Some("test-tenant".to_string()),
                 tier: pierre_mcp_server::models::UserTier::Starter,
                 created_at: Utc::now(),
                 last_active: Utc::now(),
                 is_active: true,
                 strava_token: None,
                 fitbit_token: None,
+                tenant_id: Some("test-tenant".to_string()),
             };
 
             db_clone.create_user(&user).await
@@ -297,13 +297,13 @@ async fn test_system_stats() {
             email: format!("user{i}@example.com"),
             display_name: Some(format!("User {i}")),
             password_hash: "hashed_password".to_string(),
-            tenant_id: Some("test-tenant".to_string()),
             tier: pierre_mcp_server::models::UserTier::Starter,
             created_at: Utc::now(),
             last_active: Utc::now(),
             is_active: true,
             strava_token: None,
             fitbit_token: None,
+            tenant_id: Some("test-tenant".to_string()),
         };
 
         db.create_user(&user).await.expect("Failed to create user");

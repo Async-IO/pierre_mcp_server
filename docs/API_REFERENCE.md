@@ -27,9 +27,9 @@ Complete API documentation for the Pierre Fitness API platform, including MCP to
 | **Authentication** | JWT in `auth` field | JWT in `Authorization` header |
 | **Tools** | `tools/call` method | Direct endpoint calls |
 
-### Multi-Tenant Authentication
+### Authentication
 
-Multi-tenant mode requires JWT authentication for all MCP tool calls:
+MCP tool calls require JWT authentication for user data access:
 
 ```json
 {
@@ -319,7 +319,7 @@ A2A protocol supports all MCP tools via the `tools.execute` method:
 - **API Key Authentication**: Production API keys
 - **Encrypted Storage**: AES-256-GCM for OAuth tokens at rest
 - **CORS Support**: Full cross-origin resource sharing configuration
-- **User Isolation**: Complete data separation between tenants
+- **User Isolation**: Complete data separation between users
 
 ### Admin API Endpoints
 

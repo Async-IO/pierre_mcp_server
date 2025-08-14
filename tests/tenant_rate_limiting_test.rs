@@ -53,9 +53,9 @@ fn create_test_user(tier: UserTier) -> User {
         display_name: Some("Test User".to_string()),
         password_hash: "test_hash".to_string(),
         tier,
-        tenant_id: Some("test-tenant".to_string()),
         strava_token: None,
         fitbit_token: None,
+        tenant_id: Some("test-tenant".to_string()),
         created_at: Utc::now(),
         last_active: Utc::now(),
         is_active: true,
@@ -133,8 +133,6 @@ fn test_tenant_specific_rate_limiting() {
         rate_limit_info.remaining,
         Some(TENANT_PROFESSIONAL_LIMIT - current_usage)
     );
-    assert_eq!(rate_limit_info.tenant_id, Some(tenant.id));
-    assert_eq!(rate_limit_info.tenant_multiplier, Some(1.0));
     assert_eq!(rate_limit_info.tier, "professional");
     assert_eq!(rate_limit_info.auth_method, "tenant_token");
 }
@@ -159,7 +157,6 @@ fn test_tenant_rate_limiting_with_multiplier() {
         rate_limit_info.remaining,
         Some((TENANT_PROFESSIONAL_LIMIT * 2) - current_usage)
     );
-    assert_eq!(rate_limit_info.tenant_multiplier, Some(2.0));
 }
 
 #[test]
@@ -183,8 +180,6 @@ fn test_tenant_aware_api_key_rate_limiting() {
     // Safe: API key limits are reasonable values, multiplier is controlled
     let expected_limit = (api_key.rate_limit_requests as f32 * 1.5) as u32;
     assert_eq!(rate_limit_info.limit, Some(expected_limit));
-    assert_eq!(rate_limit_info.tenant_id, Some(tenant_id));
-    assert_eq!(rate_limit_info.tenant_multiplier, Some(1.5));
 }
 
 #[test]
@@ -209,8 +204,6 @@ fn test_tenant_aware_jwt_rate_limiting() {
     // Safe: User limits are reasonable values, multiplier is controlled
     let expected_limit = (user_limit as f32 * 0.5) as u32;
     assert_eq!(rate_limit_info.limit, Some(expected_limit));
-    assert_eq!(rate_limit_info.tenant_id, Some(tenant_id));
-    assert_eq!(rate_limit_info.tenant_multiplier, Some(0.5));
 }
 
 #[test]
@@ -273,7 +266,6 @@ fn test_tenant_rate_limiting_edge_cases() {
 fn test_unified_rate_limit_info_serialization() {
     use pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo;
 
-    let tenant_id = Uuid::new_v4();
     let info = UnifiedRateLimitInfo {
         is_rate_limited: true,
         limit: Some(10_000),
@@ -281,13 +273,11 @@ fn test_unified_rate_limit_info_serialization() {
         reset_at: Some(Utc::now()),
         tier: "professional".to_string(),
         auth_method: "tenant_token".to_string(),
-        tenant_id: Some(tenant_id),
-        tenant_multiplier: Some(1.5),
     };
 
     // Test serialization
     let serialized = serde_json::to_string(&info).expect("Should serialize");
-    assert!(serialized.contains("tenant_id"));
-    assert!(serialized.contains("tenant_multiplier"));
-    assert!(serialized.contains("1.5"));
+    assert!(serialized.contains("is_rate_limited"));
+    assert!(serialized.contains("limit"));
+    assert!(serialized.contains("10000"));
 }

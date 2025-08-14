@@ -768,15 +768,10 @@ impl UniversalToolExecutor {
             match crate::utils::uuid::parse_uuid(&request.user_id) {
                 Ok(user_uuid) => {
                     // Get valid Strava token (with automatic refresh if needed)
-                    match self
-                        .get_valid_token(user_uuid, "strava", None)
-                        .await
-                    {
+                    match self.get_valid_token(user_uuid, "strava", None).await {
                         Ok(Some(token_data)) => {
                             // Get tenant-aware OAuth credentials
-                            let auth_data = if let Some(tenant_id_str) =
-                                None
-                            {
+                            let auth_data = if let Some(tenant_id_str) = None {
                                 if let Ok(tenant_uuid) = uuid::Uuid::parse_str(tenant_id_str) {
                                     // Look up tenant information from database to create proper TenantContext
                                     if let Ok(tenant) =
@@ -981,11 +976,7 @@ impl UniversalToolExecutor {
             Ok(user_uuid) => {
                 // Use helper to get properly authenticated provider (no more hardcoded fallbacks)
                 match self
-                    .create_authenticated_provider(
-                        "strava",
-                        user_uuid,
-                        None,
-                    )
+                    .create_authenticated_provider("strava", user_uuid, None)
                     .await
                 {
                     Ok(provider) => {
@@ -1149,11 +1140,7 @@ impl UniversalToolExecutor {
         let stats = match crate::utils::uuid::parse_uuid(&request.user_id) {
             Ok(user_uuid) => {
                 match self
-                    .create_authenticated_provider(
-                        provider_type,
-                        user_uuid,
-                        None,
-                    )
+                    .create_authenticated_provider(provider_type, user_uuid, None)
                     .await
                 {
                     Ok(provider) => match provider.get_stats().await {

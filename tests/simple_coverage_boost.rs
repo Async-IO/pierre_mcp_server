@@ -33,12 +33,12 @@ async fn test_user_model_serialization() -> Result<()> {
             display_name: None,
             password_hash: "hash".to_string(),
             tier: UserTier::Starter,
-            tenant_id: Some("test-tenant".to_string()),
             created_at: chrono::Utc::now(),
             last_active: chrono::Utc::now(),
             is_active: true,
             strava_token: None,
             fitbit_token: None,
+            tenant_id: Some("test-tenant".to_string()),
         },
         // User with encrypted tokens
         User {
@@ -47,7 +47,6 @@ async fn test_user_model_serialization() -> Result<()> {
             display_name: Some("Token User".to_string()),
             password_hash: "complex_hash".to_string(),
             tier: UserTier::Enterprise,
-            tenant_id: Some("test-tenant".to_string()),
             created_at: chrono::Utc::now() - chrono::Duration::days(30),
             last_active: chrono::Utc::now() - chrono::Duration::hours(1),
             is_active: true,
@@ -59,6 +58,7 @@ async fn test_user_model_serialization() -> Result<()> {
                 nonce: "test_nonce".to_string(),
             }),
             fitbit_token: None,
+            tenant_id: Some("test-tenant".to_string()),
         },
         // Inactive user
         User {
@@ -67,12 +67,12 @@ async fn test_user_model_serialization() -> Result<()> {
             display_name: Some("Inactive".to_string()),
             password_hash: "old_hash".to_string(),
             tier: UserTier::Professional,
-            tenant_id: Some("test-tenant".to_string()),
             created_at: chrono::Utc::now() - chrono::Duration::days(365),
             last_active: chrono::Utc::now() - chrono::Duration::days(30),
             is_active: false,
             strava_token: None,
             fitbit_token: None,
+            tenant_id: Some("test-tenant".to_string()),
         },
     ];
 
@@ -264,12 +264,12 @@ async fn test_auth_edge_cases() -> Result<()> {
             display_name: Some("Starter".to_string()),
             password_hash: "hash".to_string(),
             tier: UserTier::Starter,
-            tenant_id: Some("test-tenant".to_string()),
             created_at: chrono::Utc::now(),
             last_active: chrono::Utc::now(),
             is_active: true,
             strava_token: None,
             fitbit_token: None,
+            tenant_id: Some("test-tenant".to_string()),
         },
         User {
             id: Uuid::new_v4(),
@@ -277,12 +277,12 @@ async fn test_auth_edge_cases() -> Result<()> {
             display_name: Some("Enterprise".to_string()),
             password_hash: "hash".to_string(),
             tier: UserTier::Enterprise,
-            tenant_id: Some("test-tenant".to_string()),
             created_at: chrono::Utc::now(),
             last_active: chrono::Utc::now(),
             is_active: true,
             strava_token: None,
             fitbit_token: None,
+            tenant_id: Some("test-tenant".to_string()),
         },
     ];
 
@@ -308,7 +308,6 @@ async fn test_model_combinations() -> Result<()> {
         display_name: Some("Both Tokens".to_string()),
         password_hash: "hash".to_string(),
         tier: UserTier::Professional,
-        tenant_id: Some("test-tenant".to_string()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,
@@ -326,6 +325,7 @@ async fn test_model_combinations() -> Result<()> {
             scope: "activity,profile".to_string(),
             nonce: "fitbit_nonce".to_string(),
         }),
+        tenant_id: Some("test-tenant".to_string()),
     };
 
     // Test serialization
