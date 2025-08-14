@@ -1,130 +1,115 @@
-# Getting Started with Pierre Fitness API
+# Getting Started
 
-This comprehensive guide covers installation, configuration, and authentication setup for the Pierre Fitness API platform.
+Pierre MCP Server setup and configuration.
 
-## Quick Start
-
-### Local Development
+## Installation
 
 ```bash
-# Build the project
+git clone https://github.com/Async-IO/pierre_mcp_server.git
+cd pierre_mcp_server
 cargo build --release
-
-# Run the server (requires environment configuration)
-cargo run --bin pierre-mcp-server
 ```
 
-### Production Setup
+## Database Setup
 
-Pierre MCP Server provides user authentication, OAuth integration, and MCP protocol compliance with both stdio and HTTP transports.
-
-**Step 1: Fresh Database Setup**
 ```bash
-# Clean database and start fresh
 ./scripts/fresh-start.sh
-```
-
-**Step 2: Generate Admin Token**
-```bash
-# Generate admin token for API key management
-cargo run --bin admin-setup generate-token --service "my-service"
-# Save the JWT token from output - shown only once!
-```
-
-**Step 3: Start Production Server**
-```bash
-# Server runs on ports 8080 (MCP) and 8081 (HTTP)
 cargo run --bin pierre-mcp-server
 ```
 
-**Step 4: Create User Account**
+Server runs on:
+- Port 8080: MCP protocol endpoint
+- Port 8081: HTTP REST API
+
+## User Registration
+
 ```bash
-# Register new user
 curl -X POST http://localhost:8081/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"email":"user@example.com","password":"password123","display_name":"Test User"}'
+  -d '{
+    "email": "user@example.com",
+    "password": "password123",
+    "display_name": "User Name"
+  }'
+```
 
-# Login to get JWT token
+## Authentication
+
+```bash
+# Get JWT token
 curl -X POST http://localhost:8081/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"user@example.com","password":"password123"}'
-```
+  -d '{
+    "email": "user@example.com",
+    "password": "password123"
+  }'
 
-**Step 5: Setup OAuth (Optional)**
-```bash
-# Generate Strava OAuth URL (replace USER_ID with actual user ID)
-curl -X GET "http://localhost:8081/oauth/auth/strava/YOUR_USER_ID"
-# Visit the returned URL to authorize Strava access
-```
-
-### MCP Protocol Usage
-
-The multi-tenant server supports both MCP-compliant transports as specified in the MCP 2024-11-05 specification:
-
-#### MCP stdio Transport (Primary)
-The stdio transport is the primary MCP transport for local AI assistant connections:
-
-```bash
-# Example: pipe MCP requests to server
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{"roots":{"listChanged":true}},"clientInfo":{"name":"test-client","version":"1.0.0"}}}
-{"jsonrpc":"2.0","id":2,"method":"tools/call","auth":"Bearer YOUR_JWT_TOKEN","params":{"name":"get_connection_status","arguments":{}}}' | cargo run --bin pierre-mcp-server
-```
-
-#### MCP Streamable HTTP Transport
-The HTTP transport enables remote MCP connections:
-
-```bash
-# Initialize MCP connection
-curl -X POST http://localhost:8080/mcp \
+# Create API key for MCP access
+curl -X POST http://localhost:8081/api/keys \
+  -H "Authorization: Bearer JWT_TOKEN" \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{"roots":{"listChanged":true}},"clientInfo":{"name":"test-client","version":"1.0.0"}}}'
+  -d '{
+    "name": "MCP Client",
+    "tier": "professional",
+    "description": "API key for MCP protocol",
+    "rate_limit_requests": 10000,
+    "expires_in_days": 90
+  }'
+```
 
+## OAuth Configuration
+
+Configure your Strava app credentials in the database:
+
+```python
+import sqlite3
+conn = sqlite3.connect("data/users.db")
+conn.execute("""
+    INSERT INTO user_oauth_app_credentials 
+    (id, user_id, provider, client_id, client_secret, redirect_uri, created_at, updated_at)
+    VALUES (?, ?, 'strava', ?, ?, ?, datetime('now'), datetime('now'))
+""", [
+    "unique_id", "your_user_id", "your_client_id", 
+    "your_client_secret", "http://localhost:8081/auth/strava/callback"
+])
+conn.commit()
+```
+
+## MCP Protocol Testing
+
+Test MCP endpoints with API key authentication:
+
+```bash
 # List available tools
 curl -X POST http://localhost:8080/mcp \
+  -H "Authorization: API_KEY" \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost" \
-  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","auth":"Bearer YOUR_JWT_TOKEN"}'
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "tools/list",
+    "params": {},
+    "id": 1
+  }'
 
-# Call a tool (get connection status)
+# Call a tool
 curl -X POST http://localhost:8080/mcp \
+  -H "Authorization: API_KEY" \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost" \
-  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","auth":"Bearer YOUR_JWT_TOKEN","params":{"name":"get_connection_status","arguments":{}}}'
-
-# Get athlete profile
-curl -X POST http://localhost:8080/mcp \
-  -H "Content-Type: application/json" \
-  -H "Origin: http://localhost" \
-  -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","auth":"Bearer YOUR_JWT_TOKEN","params":{"name":"get_athlete","arguments":{"provider":"strava"}}}'
-
-# Get recent activities
-curl -X POST http://localhost:8080/mcp \
-  -H "Content-Type: application/json" \
-  -H "Origin: http://localhost" \
-  -d '{"jsonrpc":"2.0","id":5,"method":"tools/call","auth":"Bearer YOUR_JWT_TOKEN","params":{"name":"get_activities","arguments":{"provider":"strava","limit":5}}}'
-```
-
-#### MCP Authentication
-Multi-tenant mode requires JWT authentication in the `auth` field:
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "tools/call",
-  "auth": "Bearer YOUR_JWT_TOKEN",
-  "params": {
-    "name": "get_activities",
-    "arguments": {"provider": "strava", "limit": 5}
-  }
-}
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "tools/call",
+    "params": {
+      "name": "get_activities",
+      "arguments": {"provider": "strava", "limit": 5}
+    },
+    "id": 2
+  }'
 ```
 
 **Important Notes:**
 - **Protocol Version**: Use `2024-11-05` for MCP protocol version
 - **Transport Ports**: stdio (same process), HTTP (port 8080)
-- **Authentication**: JWT token required for all tool calls
+- **Authentication**: API key required for all tool calls
 - **Error Handling**: Follow JSON-RPC 2.0 error format
 - **Rate Limiting**: Applied per user account, not per connection
 
@@ -194,31 +179,20 @@ LOG_FORMAT=json                      # Log format (json, text)
 
 #### OAuth Provider Configuration
 
-OAuth providers are configured through the admin API, not environment variables:
+OAuth providers are configured per user in the database. Each user stores their own OAuth app credentials:
 
-```bash
-# Generate admin token first
-cargo run --bin admin-setup generate-token --service "my-service"
-
-# Configure OAuth providers via admin API
-curl -X POST http://localhost:8081/admin/oauth/providers/strava \
-  -H "Authorization: Bearer ADMIN_JWT_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "client_id": "your_strava_client_id",
-    "client_secret": "your_strava_client_secret",
-    "redirect_uri": "http://localhost:8081/oauth/callback/strava"
-  }'
-
-# Configure Fitbit provider
-curl -X POST http://localhost:8081/admin/oauth/providers/fitbit \
-  -H "Authorization: Bearer ADMIN_JWT_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "client_id": "your_fitbit_client_id",
-    "client_secret": "your_fitbit_client_secret",
-    "redirect_uri": "http://localhost:8081/oauth/callback/fitbit"
-  }'
+```python
+import sqlite3
+conn = sqlite3.connect("data/users.db")
+conn.execute("""
+    INSERT INTO user_oauth_app_credentials 
+    (id, user_id, provider, client_id, client_secret, redirect_uri, created_at, updated_at)
+    VALUES (?, ?, 'strava', ?, ?, ?, datetime('now'), datetime('now'))
+""", [
+    "unique_id", "your_user_id", "your_client_id", 
+    "your_client_secret", "http://localhost:8081/auth/strava/callback"
+])
+conn.commit()
 ```
 
 #### Weather Integration
@@ -316,34 +290,30 @@ curl -X GET http://localhost:8081/api/activities \\
 1. **Create Strava Application**:
    - Go to https://www.strava.com/settings/api
    - Create a new API application
-   - Set redirect URI to: `http://localhost:8081/oauth/callback/strava`
+   - Set redirect URI to: `http://localhost:8081/auth/strava/callback`
 
-2. **Configure Environment Variables**:
-   ```bash
-   STRAVA_CLIENT_ID=your_strava_client_id
-   STRAVA_CLIENT_SECRET=your_strava_client_secret
+2. **Store OAuth Credentials in Database**:
+   ```python
+   import sqlite3
+   conn = sqlite3.connect("data/users.db")
+   conn.execute("""
+       INSERT INTO user_oauth_app_credentials 
+       (id, user_id, provider, client_id, client_secret, redirect_uri, created_at, updated_at)
+       VALUES (?, ?, 'strava', ?, ?, ?, datetime('now'), datetime('now'))
+   """, [
+       "unique_id", "your_user_id", "your_strava_client_id", 
+       "your_strava_client_secret", "http://localhost:8081/auth/strava/callback"
+   ])
+   conn.commit()
    ```
 
 3. **Test OAuth Flow**:
    ```bash
    # Get OAuth authorization URL
-   curl -X GET "http://localhost:8081/oauth/auth/strava?user_id=user_123"
+   curl -X GET "http://localhost:8081/auth/strava?user_id=user_123"
    
    # Visit the returned URL in browser to authorize
    # User will be redirected back with authorization code
-   ```
-
-#### Fitbit OAuth Setup
-
-1. **Create Fitbit Application**:
-   - Go to https://dev.fitbit.com/apps
-   - Create a new application
-   - Set redirect URI to: `http://localhost:8081/oauth/callback/fitbit`
-
-2. **Configure Environment Variables**:
-   ```bash
-   FITBIT_CLIENT_ID=your_fitbit_client_id
-   FITBIT_CLIENT_SECRET=your_fitbit_client_secret
    ```
 
 ## Available Binaries

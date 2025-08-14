@@ -14,44 +14,77 @@ This example shows how to:
 
 import asyncio
 import os
-from pierre_mcp import PierreMCPClient, AuthenticationError, TenantError
+import requests
+from typing import Optional, Dict, Any
 
 
-async def main():
+def main():
     # Configuration from environment variables
-    server_url = os.getenv("PIERRE_SERVER_URL", "http://localhost:8081")
-    tenant_id = os.getenv("PIERRE_TENANT_ID")
-    jwt_token = os.getenv("PIERRE_JWT_TOKEN")
+    http_base_url = os.getenv("PIERRE_HTTP_URL", "http://localhost:8081")
+    mcp_base_url = os.getenv("PIERRE_MCP_URL", "http://localhost:8080")
+    api_key = os.getenv("PIERRE_API_KEY")
     
-    if not tenant_id or not jwt_token:
-        print("Error: Set PIERRE_TENANT_ID and PIERRE_JWT_TOKEN environment variables")
+    if not api_key:
+        print("Error: Set PIERRE_API_KEY environment variable")
         print("Example:")
-        print("  export PIERRE_TENANT_ID=your-tenant-id")
-        print("  export PIERRE_JWT_TOKEN=your-jwt-token")
+        print("  export PIERRE_API_KEY=pk_live_YOUR_API_KEY")
         return
     
     try:
-        # Connect to Pierre MCP Server
-        async with PierreMCPClient(
-            server_url=server_url,
-            tenant_id=tenant_id,
-            jwt_token=jwt_token
-        ) as client:
-            print(f"Connected to Pierre MCP Server at {server_url}")
+        print(f"Testing Pierre MCP Server at {mcp_base_url}")
+        
+        # Test MCP tools/list endpoint
+        mcp_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/list",
+            "params": {},
+            "id": 1
+        }
+        
+        response = requests.post(
+            f"{mcp_base_url}/mcp",
+            headers={
+                "Authorization": api_key,
+                "Content-Type": "application/json"
+            },
+            json=mcp_request
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            tools = result.get("result", {}).get("tools", [])
+            print(f"Connected to Pierre MCP Server")
             
             # List available tools
             print("\nAvailable tools:")
-            tools = await client.list_tools()
             for tool in tools:
                 print(f"  - {tool['name']}: {tool.get('description', 'No description')}")
             
-            # Check OAuth status via MCP protocol
+            # Check OAuth connection status
             print("\nChecking OAuth status...")
-            try:
-                # Use get_connection_status tool instead of direct OAuth endpoints
-                connection_status = await client.call_tool("get_connection_status", {})
+            status_request = {
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {
+                    "name": "get_connection_status",
+                    "arguments": {}
+                },
+                "id": 2
+            }
+            
+            status_response = requests.post(
+                f"{mcp_base_url}/mcp",
+                headers={
+                    "Authorization": api_key,
+                    "Content-Type": "application/json"
+                },
+                json=status_request
+            )
+            
+            if status_response.status_code == 200:
+                status_result = status_response.json()
+                connection_status = status_result.get("result", [])
                 
-                # Check if Strava is connected
                 strava_connected = False
                 if isinstance(connection_status, list):
                     for provider in connection_status:
@@ -62,57 +95,52 @@ async def main():
                 
                 if not strava_connected:
                     print("✗ Strava OAuth not connected")
-                    try:
-                        auth_url = await client.get_authorization_url("strava")
-                        print(f"Connect at: {auth_url}")
-                    except TenantError:
-                        print("✗ Tenant OAuth not configured. Configure with:")
-                        print(f"  curl -X POST {server_url}/api/tenants/{tenant_id}/oauth \\")
-                        print('    -H "Authorization: Bearer {jwt_token}" \\')
-                        print('    -d \'{"provider": "strava", "client_id": "...", "client_secret": "...", "redirect_uri": "...", "scopes": ["read", "activity:read_all"]}\'')
+                    print("Configure OAuth credentials in database first")
                     return
-            except Exception as e:
-                print(f"✗ Failed to check OAuth status: {e}")
-                print("Make sure tenant is configured and JWT token is valid")
+            else:
+                print(f"✗ Failed to check OAuth status: {status_response.text}")
                 return
             
             # Get recent activities
             print("\nFetching recent activities...")
-            activities = await client.call_tool(
-                "get_activities",
-                {"provider": "strava", "limit": 5}
+            activities_request = {
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {
+                    "name": "get_activities",
+                    "arguments": {"provider": "strava", "limit": 5}
+                },
+                "id": 3
+            }
+            
+            activities_response = requests.post(
+                f"{mcp_base_url}/mcp",
+                headers={
+                    "Authorization": api_key,
+                    "Content-Type": "application/json"
+                },
+                json=activities_request
             )
             
-            if activities:
-                print(f"Found {len(activities)} recent activities:")
-                for activity in activities[:3]:  # Show first 3
-                    print(f"  - {activity.get('name', 'Unnamed')}: {activity.get('distance', 0)} meters")
+            if activities_response.status_code == 200:
+                activities_result = activities_response.json()
+                activities = activities_result.get("result", [])
                 
-                # Analyze first activity
                 if activities:
-                    activity_id = activities[0].get('id')
-                    if activity_id:
-                        print(f"\nAnalyzing activity {activity_id}...")
-                        analysis = await client.call_tool(
-                            "analyze_activity",
-                            {"activity_id": activity_id, "provider": "strava"}
-                        )
-                        print(f"Analysis: {analysis}")
+                    print(f"Found {len(activities)} recent activities:")
+                    for activity in activities[:3]:  # Show first 3
+                        print(f"  - {activity.get('name', 'Unnamed')}: {activity.get('distance', 0)} meters")
+                else:
+                    print("No activities found")
             else:
-                print("No activities found")
-    
-    except AuthenticationError:
-        print("Error: Invalid JWT token. Generate a new one with:")
-        print(f"  curl -X POST {server_url}/api/tenants/{tenant_id}/jwt \\")
-        print('    -d \'{"scopes": ["fitness:read", "activity:read"]}\'')
-    
-    except TenantError as e:
-        print(f"Error: Tenant issue - {e}")
-        print("Make sure your tenant exists and you have access")
+                print(f"✗ Failed to fetch activities: {activities_response.text}")
+        else:
+            print(f"✗ Failed to connect to MCP server: {response.text}")
     
     except Exception as e:
-        print(f"Unexpected error: {e}")
+        print(f"Error: {e}")
+        print("Make sure the server is running and API key is valid")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
