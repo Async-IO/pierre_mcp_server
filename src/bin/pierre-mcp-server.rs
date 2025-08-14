@@ -1,5 +1,5 @@
-// ABOUTME: Multi-tenant server implementation for serving multiple users with isolated data access
-// ABOUTME: Production-ready server with authentication, user isolation, and tenant management capabilities
+// ABOUTME: Server implementation for serving users with isolated data access
+// ABOUTME: Production-ready server with authentication and user isolation capabilities
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
@@ -115,16 +115,16 @@ async fn main() -> Result<()> {
         };
         info!("Authentication manager initialized");
 
-        // Create and run multi-tenant server
+        // Create and run server
         let server = MultiTenantMcpServer::new(database, auth_manager, Arc::new(config.clone()));
 
         info!(
-            "Multi-tenant MCP server starting on ports {} (MCP) and {} (HTTP)",
+            "MCP server starting on ports {} (MCP) and {} (HTTP)",
             config.mcp_port, config.http_port
         );
-        info!("Ready to serve fitness data with user authentication!");
+        info!("Ready to serve fitness data!");
 
-        // Run the multi-tenant server directly (includes all routes)
+        // Run the server (includes all routes)
         if let Err(e) = server.run(config.mcp_port).await {
             error!("Server error: {}", e);
             return Err(e);

@@ -1,4 +1,4 @@
-// ABOUTME: Multi-tenant MCP server implementation with tenant isolation
+// ABOUTME: MCP server implementation with tenant isolation and user authentication
 // ABOUTME: Handles MCP protocol with per-tenant data isolation and access control
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
@@ -6,9 +6,9 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-//! # Multi-Tenant MCP Server
+//! # MCP Server
 //!
-//! This module provides a multi-tenant MCP server that supports user authentication,
+//! This module provides an MCP server that supports user authentication,
 //! secure token storage, and user-scoped data access.
 
 use crate::a2a_routes::A2ARoutes;
@@ -79,7 +79,7 @@ struct ToolRoutingContext<'a> {
     auth_result: &'a AuthResult,
 }
 
-/// Multi-tenant MCP server supporting user authentication and tenant isolation
+/// MCP server supporting user authentication and isolated data access
 #[derive(Clone)]
 pub struct MultiTenantMcpServer {
     database: Arc<Database>,
@@ -88,7 +88,7 @@ pub struct MultiTenantMcpServer {
     websocket_manager: Arc<WebSocketManager>,
     // Legacy per-user provider instances (deprecated)
     user_providers: UserProviderStorage,
-    // Tenant-aware OAuth client for multi-tenant provider management
+    // OAuth client for provider management
     _tenant_oauth_client: Arc<TenantOAuthClient>,
     // Tenant provider factory
     tenant_provider_factory: Arc<TenantProviderFactory>,
@@ -96,7 +96,7 @@ pub struct MultiTenantMcpServer {
 }
 
 impl MultiTenantMcpServer {
-    /// Create a new multi-tenant MCP server
+    /// Create a new MCP server
     pub fn new(
         database: Database,
         auth_manager: AuthManager,
@@ -128,17 +128,14 @@ impl MultiTenantMcpServer {
         }
     }
 
-    /// Run the multi-tenant server with both HTTP and MCP endpoints
+    /// Run the server with both HTTP and MCP endpoints
     ///
     /// # Errors
     ///
     /// Returns an error if the server fails to start or bind to the specified port
     pub async fn run(self, port: u16) -> Result<()> {
         // Create HTTP + MCP server
-        info!(
-            "Starting multi-tenant server with HTTP and MCP on port {}",
-            port
-        );
+        info!("Starting server with HTTP and MCP on port {}", port);
 
         // Clone references for HTTP handlers
         let database = self.database.clone();
@@ -149,7 +146,11 @@ impl MultiTenantMcpServer {
         let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
 
         // Validate route handlers are properly initialized
-        tracing::debug!("Initialized auth and OAuth route handlers for multi-tenant server - auth routes: {:p}, oauth routes: {:p}", &auth_routes, &oauth_routes);
+        tracing::debug!(
+            "Initialized auth and OAuth route handlers - auth routes: {:p}, oauth routes: {:p}",
+            &auth_routes,
+            &oauth_routes
+        );
 
         // Start HTTP server for auth endpoints in background
         let http_port = port + 1; // Use port+1 for HTTP
