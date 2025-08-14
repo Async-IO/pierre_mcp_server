@@ -1145,6 +1145,55 @@ impl UserOAuthToken {
     }
 }
 
+/// User OAuth app credentials for cloud deployment
+///
+/// Each user can configure their own OAuth application credentials
+/// for each provider (Strava, Fitbit, etc.) to work in cloud deployments
+/// where server-wide environment variables won't work.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserOAuthApp {
+    /// Unique identifier for this OAuth app configuration
+    pub id: String,
+    /// User who owns this OAuth app configuration
+    pub user_id: Uuid,
+    /// OAuth provider name (strava, fitbit, etc.)
+    pub provider: String,
+    /// OAuth client ID from the provider
+    pub client_id: String,
+    /// OAuth client secret from the provider (encrypted)
+    pub client_secret: String,
+    /// OAuth redirect URI configured with the provider
+    pub redirect_uri: String,
+    /// When this configuration was created
+    pub created_at: DateTime<Utc>,
+    /// When this configuration was last updated
+    pub updated_at: DateTime<Utc>,
+}
+
+impl UserOAuthApp {
+    /// Create a new user OAuth app configuration
+    #[must_use]
+    pub fn new(
+        user_id: Uuid,
+        provider: String,
+        client_id: String,
+        client_secret: String,
+        redirect_uri: String,
+    ) -> Self {
+        let now = Utc::now();
+        Self {
+            id: uuid::Uuid::new_v4().to_string(),
+            user_id,
+            provider,
+            client_id,
+            client_secret,
+            redirect_uri,
+            created_at: now,
+            updated_at: now,
+        }
+    }
+}
+
 /// User session for `MCP` protocol authentication
 ///
 /// Contains `JWT` token and user context for secure `MCP` communication.
