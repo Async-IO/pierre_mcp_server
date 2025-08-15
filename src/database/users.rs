@@ -2,7 +2,7 @@
 // ABOUTME: Handles user registration, authentication, and profile management
 
 use super::Database;
-use crate::models::{EncryptedToken, User};
+use crate::models::{EncryptedToken, User, UserStatus};
 use anyhow::{anyhow, Result};
 use sqlx::Row;
 use uuid::Uuid;
@@ -40,6 +40,9 @@ impl Database {
                 fitbit_nonce TEXT,
                 fitbit_last_sync DATETIME,
                 is_active BOOLEAN NOT NULL DEFAULT 1,
+                user_status TEXT NOT NULL DEFAULT 'pending' CHECK (user_status IN ('pending', 'active', 'suspended')),
+                approved_by TEXT REFERENCES users(id),
+                approved_at DATETIME,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 last_active DATETIME DEFAULT CURRENT_TIMESTAMP
             )
@@ -87,6 +90,10 @@ impl Database {
             .await?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_users_status ON users(user_status)")
             .execute(&self.pool)
             .await?;
 
@@ -182,6 +189,9 @@ impl Database {
                     fitbit_scope = $14,
                     fitbit_nonce = $15,
                     is_active = $16,
+                    user_status = $17,
+                    approved_by = $18,
+                    approved_at = $19,
                     last_active = CURRENT_TIMESTAMP
                 WHERE id = $1
                 ",
@@ -202,6 +212,13 @@ impl Database {
             .bind(fitbit_scope)
             .bind(fitbit_nonce)
             .bind(user.is_active)
+            .bind(match user.user_status {
+                UserStatus::Pending => "pending",
+                UserStatus::Active => "active",
+                UserStatus::Suspended => "suspended",
+            })
+            .bind(user.approved_by.map(|id| id.to_string()))
+            .bind(user.approved_at)
             .execute(&self.pool)
             .await?;
         } else {
@@ -238,8 +255,8 @@ impl Database {
                     id, email, display_name, password_hash, tier, tenant_id,
                     strava_access_token, strava_refresh_token, strava_expires_at, strava_scope, strava_nonce,
                     fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope, fitbit_nonce,
-                    is_active, created_at, last_active
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+                    is_active, user_status, approved_by, approved_at, created_at, last_active
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
                 ",
             )
             .bind(user.id.to_string())
@@ -259,6 +276,13 @@ impl Database {
             .bind(fitbit_scope)
             .bind(fitbit_nonce)
             .bind(user.is_active)
+            .bind(match user.user_status {
+                UserStatus::Pending => "pending",
+                UserStatus::Active => "active",
+                UserStatus::Suspended => "suspended",
+            })
+            .bind(user.approved_by.map(|id| id.to_string()))
+            .bind(user.approved_at)
             .bind(user.created_at)
             .bind(user.last_active)
             .execute(&self.pool)
@@ -315,7 +339,7 @@ impl Database {
             SELECT id, email, display_name, password_hash, tier, tenant_id,
                    strava_access_token, strava_refresh_token, strava_expires_at, strava_scope, strava_nonce,
                    fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope, fitbit_nonce,
-                   is_active, created_at, last_active
+                   is_active, user_status, approved_by, approved_at, created_at, last_active
             FROM users WHERE {field} = $1
             "
         );
@@ -342,6 +366,14 @@ impl Database {
         let tier: String = row.get("tier");
         let tenant_id: Option<String> = row.get("tenant_id");
         let is_active: bool = row.get("is_active");
+        let user_status_str: String = row.get("user_status");
+        let user_status = match user_status_str.as_str() {
+            "active" => UserStatus::Active,
+            "suspended" => UserStatus::Suspended,
+            _ => UserStatus::Pending, // Default fallback for "pending" and unknown values
+        };
+        let approved_by: Option<String> = row.get("approved_by");
+        let approved_at: Option<chrono::DateTime<chrono::Utc>> = row.get("approved_at");
         let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
         let last_active: chrono::DateTime<chrono::Utc> = row.get("last_active");
 
@@ -395,6 +427,9 @@ impl Database {
             strava_token,
             fitbit_token,
             is_active,
+            user_status,
+            approved_by: approved_by.and_then(|id_str| Uuid::parse_str(&id_str).ok()),
+            approved_at,
             created_at,
             last_active,
         })
@@ -596,5 +631,77 @@ impl Database {
             .await?;
 
         Ok(())
+    }
+
+    /// Get users by status
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    pub async fn get_users_by_status(&self, status: &str) -> Result<Vec<User>> {
+        let rows =
+            sqlx::query("SELECT * FROM users WHERE user_status = ?1 ORDER BY created_at DESC")
+                .bind(status)
+                .fetch_all(&self.pool)
+                .await?;
+
+        let mut users = Vec::new();
+        for row in rows {
+            users.push(Self::row_to_user(&row)?);
+        }
+
+        Ok(users)
+    }
+
+    /// Update user status (approve/suspend)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the user is not found or database update fails
+    pub async fn update_user_status(
+        &self,
+        user_id: Uuid,
+        new_status: UserStatus,
+        admin_token_id: &str,
+    ) -> Result<User> {
+        let status_str = match new_status {
+            UserStatus::Pending => "pending",
+            UserStatus::Active => "active",
+            UserStatus::Suspended => "suspended",
+        };
+
+        let admin_uuid = if new_status == UserStatus::Active {
+            Some(admin_token_id)
+        } else {
+            None
+        };
+
+        let approved_at = if new_status == UserStatus::Active {
+            Some(chrono::Utc::now())
+        } else {
+            None
+        };
+
+        sqlx::query(
+            r"
+            UPDATE users SET 
+                user_status = ?1,
+                approved_by = ?2,
+                approved_at = ?3,
+                last_active = CURRENT_TIMESTAMP
+            WHERE id = ?4
+            ",
+        )
+        .bind(status_str)
+        .bind(admin_uuid)
+        .bind(approved_at)
+        .bind(user_id.to_string())
+        .execute(&self.pool)
+        .await?;
+
+        // Return updated user
+        self.get_user(user_id)
+            .await?
+            .ok_or_else(|| anyhow!("User not found after status update"))
     }
 }

@@ -58,6 +58,17 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// Get total number of users
     async fn get_user_count(&self) -> Result<i64>;
 
+    /// Get users by status (pending, active, suspended)
+    async fn get_users_by_status(&self, status: &str) -> Result<Vec<User>>;
+
+    /// Update user status and approval information
+    async fn update_user_status(
+        &self,
+        user_id: Uuid,
+        new_status: crate::models::UserStatus,
+        admin_token_id: &str,
+    ) -> Result<User>;
+
     // ================================
     // OAuth Token Management
     // ================================

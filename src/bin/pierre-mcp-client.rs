@@ -124,7 +124,7 @@ async fn handle_mcp_request(
                 "jsonrpc": "2.0",
                 "id": id,
                 "result": {
-                    "protocolVersion": "2024-11-05",
+                    "protocolVersion": "2025-06-18",
                     "capabilities": {
                         "tools": {}
                     },

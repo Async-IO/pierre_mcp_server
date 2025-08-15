@@ -81,6 +81,21 @@ impl DatabaseProvider for SqliteDatabase {
         self.inner.get_user_count().await
     }
 
+    async fn get_users_by_status(&self, status: &str) -> Result<Vec<User>> {
+        self.inner.get_users_by_status(status).await
+    }
+
+    async fn update_user_status(
+        &self,
+        user_id: Uuid,
+        new_status: crate::models::UserStatus,
+        admin_token_id: &str,
+    ) -> Result<User> {
+        self.inner
+            .update_user_status(user_id, new_status, admin_token_id)
+            .await
+    }
+
     async fn update_strava_token(
         &self,
         user_id: Uuid,

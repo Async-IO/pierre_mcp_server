@@ -18,6 +18,9 @@ async fn test_create_and_get_user() {
         fitbit_token: None,
         tenant_id: Some("test-tenant".to_string()),
         is_active: true,
+        user_status: pierre_mcp_server::models::UserStatus::Active,
+        approved_by: None,
+        approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
     };
@@ -62,6 +65,9 @@ async fn test_last_active_update() {
         fitbit_token: None,
         tenant_id: Some("test-tenant".to_string()),
         is_active: true,
+        user_status: pierre_mcp_server::models::UserStatus::Active,
+        approved_by: None,
+        approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now() - chrono::Duration::hours(1),
     };

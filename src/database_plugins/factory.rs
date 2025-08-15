@@ -275,6 +275,33 @@ impl DatabaseProvider for Database {
         }
     }
 
+    async fn get_users_by_status(&self, status: &str) -> Result<Vec<crate::models::User>> {
+        match self {
+            Self::SQLite(db) => db.get_users_by_status(status).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_users_by_status(status).await,
+        }
+    }
+
+    async fn update_user_status(
+        &self,
+        user_id: uuid::Uuid,
+        new_status: crate::models::UserStatus,
+        admin_token_id: &str,
+    ) -> Result<crate::models::User> {
+        match self {
+            Self::SQLite(db) => {
+                db.update_user_status(user_id, new_status, admin_token_id)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.update_user_status(user_id, new_status, admin_token_id)
+                    .await
+            }
+        }
+    }
+
     /// Update or store Strava OAuth tokens for a user
     ///
     /// # Errors

@@ -56,9 +56,12 @@ fn create_test_user(tier: UserTier) -> User {
         strava_token: None,
         fitbit_token: None,
         tenant_id: Some("test-tenant".to_string()),
+        is_active: true,
+        user_status: pierre_mcp_server::models::UserStatus::Active,
+        approved_by: None,
+        approved_at: Some(Utc::now()),
         created_at: Utc::now(),
         last_active: Utc::now(),
-        is_active: true,
     }
 }
 

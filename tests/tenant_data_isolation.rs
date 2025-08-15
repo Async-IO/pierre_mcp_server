@@ -129,6 +129,9 @@ async fn create_test_user(
         fitbit_token: None,
         tenant_id: Some("test-tenant".to_string()),
         is_active: true,
+        user_status: pierre_mcp_server::models::UserStatus::Active,
+        approved_by: None,
+        approved_at: Some(chrono::Utc::now()),
         created_at: Utc::now(),
         last_active: Utc::now(),
     };

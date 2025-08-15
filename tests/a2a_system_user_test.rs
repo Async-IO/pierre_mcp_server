@@ -7,13 +7,16 @@
 // except according to those terms.
 
 use pierre_mcp_server::a2a::system_user::A2ASystemUserService;
-use pierre_mcp_server::database_plugins::factory::Database;
+use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
 use std::sync::Arc;
 
 async fn create_test_database() -> Arc<Database> {
     let database = Database::new("sqlite::memory:", vec![0u8; 32])
         .await
         .expect("Failed to create test database");
+
+    database.migrate().await.expect("Failed to run migrations");
+
     Arc::new(database)
 }
 
@@ -70,11 +73,11 @@ async fn test_get_existing_system_user() {
 
 #[tokio::test]
 async fn test_password_generation() {
-    let database = Arc::new(
-        Database::new("sqlite::memory:", vec![0u8; 32])
-            .await
-            .expect("Failed to create test database"),
-    );
+    let database = Database::new("sqlite::memory:", vec![0u8; 32])
+        .await
+        .expect("Failed to create test database");
+    database.migrate().await.expect("Failed to run migrations");
+    let database = Arc::new(database);
     let _service = A2ASystemUserService::new(database);
 
     let password1 = A2ASystemUserService::generate_secure_system_password();

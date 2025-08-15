@@ -336,7 +336,7 @@ impl KeyRotationManager {
             algorithm: "AES-256-GCM".to_string(),
         };
 
-        // Store in database (TODO: implement proper database storage)
+        // Store in database
         self.store_key_version(&new_version)?;
 
         // Update in-memory cache

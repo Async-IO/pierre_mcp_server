@@ -54,6 +54,9 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,
+        user_status: pierre_mcp_server::models::UserStatus::Active,
+        approved_by: None,
+        approved_at: Some(chrono::Utc::now()),
     };
 
     let beta_admin = User {
@@ -68,6 +71,9 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,
+        user_status: pierre_mcp_server::models::UserStatus::Active,
+        approved_by: None,
+        approved_at: Some(chrono::Utc::now()),
     };
 
     database.create_user(&acme_admin).await?;
@@ -327,6 +333,9 @@ async fn test_tenant_context_switching() -> Result<()> {
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,
+        user_status: pierre_mcp_server::models::UserStatus::Active,
+        approved_by: None,
+        approved_at: Some(chrono::Utc::now()),
     };
 
     database.create_user(&user).await?;
