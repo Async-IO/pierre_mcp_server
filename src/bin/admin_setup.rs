@@ -597,6 +597,9 @@ async fn create_admin_user_command(
             strava_token: existing_user.strava_token,
             fitbit_token: existing_user.fitbit_token,
             is_active: true,
+            user_status: pierre_mcp_server::models::UserStatus::Active, // Admin is always active
+            approved_by: existing_user.approved_by, // Preserve existing approval
+            approved_at: existing_user.approved_at, // Preserve existing approval
             created_at: existing_user.created_at,
             last_active: chrono::Utc::now(),
         };
@@ -616,6 +619,9 @@ async fn create_admin_user_command(
             strava_token: None,
             fitbit_token: None,
             is_active: true,
+            user_status: pierre_mcp_server::models::UserStatus::Active, // Admin is always active
+            approved_by: None,                     // Admin doesn't need approval
+            approved_at: Some(chrono::Utc::now()), // Auto-approved
             created_at: chrono::Utc::now(),
             last_active: chrono::Utc::now(),
         };

@@ -183,7 +183,7 @@ impl AuthRoutes {
 
         Ok(RegisterResponse {
             user_id: user_id.to_string(),
-            message: "User registered successfully".into(),
+            message: "User registered successfully. Your account is pending admin approval.".into(),
         })
     }
 
@@ -210,6 +210,15 @@ impl AuthRoutes {
         if !bcrypt::verify(&request.password, &user.password_hash)? {
             error!("Invalid password for user: {}", request.email);
             return Err(anyhow::anyhow!("Invalid email or password"));
+        }
+
+        // Check if user is approved to login
+        if !user.user_status.can_login() {
+            warn!(
+                "Login blocked for user: {} - status: {:?}",
+                request.email, user.user_status
+            );
+            return Err(anyhow::anyhow!("{}", user.user_status.to_message()));
         }
 
         // Update last active timestamp

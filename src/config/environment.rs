@@ -830,7 +830,7 @@ impl ServerConfig {
     /// Load protocol configuration from environment
     fn load_protocol_config() -> ProtocolConfig {
         ProtocolConfig {
-            mcp_version: env_var_or("MCP_PROTOCOL_VERSION", "2024-11-05"),
+            mcp_version: env_var_or("MCP_PROTOCOL_VERSION", "2025-06-18"),
             server_name: env_var_or("SERVER_NAME", "pierre-mcp-server"),
             server_version: env!("CARGO_PKG_VERSION").to_string(),
         }

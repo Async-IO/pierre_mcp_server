@@ -583,7 +583,7 @@ pub mod network_config {
     pub const DEFAULT_TEST_PORT: u16 = 3000;
 
     /// Default `MCP` protocol version string
-    pub const DEFAULT_MCP_VERSION: &str = "2024-11-05";
+    pub const DEFAULT_MCP_VERSION: &str = "2025-06-18";
 
     /// Default host for development
     pub const DEFAULT_HOST: &str = "localhost";

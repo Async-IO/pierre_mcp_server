@@ -13,7 +13,7 @@ use crate::{
         SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MONTH, SECONDS_PER_WEEK,
     },
     database_plugins::{factory::Database, DatabaseProvider},
-    models::User,
+    models::{User, UserStatus},
     utils::auth::extract_bearer_token_owned,
 };
 use anyhow::{anyhow, Result};
@@ -103,6 +103,42 @@ pub struct AdminTokenInfoResponse {
     pub usage_count: u64,
 }
 
+/// User management request
+#[derive(Debug, Deserialize)]
+pub struct ApproveUserRequest {
+    pub reason: Option<String>,
+}
+
+/// User management response
+#[derive(Debug, Serialize)]
+pub struct UserManagementResponse {
+    pub success: bool,
+    pub message: String,
+    pub user: Option<UserInfo>,
+}
+
+/// User information for admin responses
+#[derive(Debug, Serialize)]
+pub struct UserInfo {
+    pub id: String,
+    pub email: String,
+    pub display_name: Option<String>,
+    pub user_status: String,
+    pub tier: String,
+    pub created_at: String,
+    pub last_active: String,
+    pub approved_by: Option<String>,
+    pub approved_at: Option<String>,
+}
+
+/// Pending users list response
+#[derive(Debug, Serialize)]
+pub struct PendingUsersResponse {
+    pub success: bool,
+    pub users: Vec<UserInfo>,
+    pub count: usize,
+}
+
 /// Create admin routes filter
 pub fn admin_routes(
     context: AdminApiContext,
@@ -118,7 +154,12 @@ pub fn admin_routes(
     let admin_tokens_create_route = admin_tokens_create_route(context.clone());
     let admin_tokens_details_route = admin_tokens_details_route(context.clone());
     let admin_tokens_revoke_route = admin_tokens_revoke_route(context.clone());
-    let admin_tokens_rotate_route = admin_tokens_rotate_route(context);
+    let admin_tokens_rotate_route = admin_tokens_rotate_route(context.clone());
+
+    // User management routes
+    let pending_users_route = pending_users_route(context.clone());
+    let approve_user_route = approve_user_route(context.clone());
+    let suspend_user_route = suspend_user_route(context);
 
     let health_route = admin_health_route();
 
@@ -132,6 +173,9 @@ pub fn admin_routes(
         .or(admin_tokens_details_route)
         .or(admin_tokens_revoke_route)
         .or(admin_tokens_rotate_route)
+        .or(pending_users_route)
+        .or(approve_user_route)
+        .or(suspend_user_route)
         .or(health_route);
 
     warp::path("admin")
@@ -155,7 +199,12 @@ pub fn admin_routes_with_scoped_recovery(
     let admin_tokens_create_route = admin_tokens_create_route(context.clone());
     let admin_tokens_details_route = admin_tokens_details_route(context.clone());
     let admin_tokens_revoke_route = admin_tokens_revoke_route(context.clone());
-    let admin_tokens_rotate_route = admin_tokens_rotate_route(context);
+    let admin_tokens_rotate_route = admin_tokens_rotate_route(context.clone());
+
+    // User management routes
+    let pending_users_route = pending_users_route(context.clone());
+    let approve_user_route = approve_user_route(context.clone());
+    let suspend_user_route = suspend_user_route(context);
 
     let health_route = admin_health_route();
 
@@ -169,6 +218,9 @@ pub fn admin_routes_with_scoped_recovery(
         .or(admin_tokens_details_route)
         .or(admin_tokens_revoke_route)
         .or(admin_tokens_rotate_route)
+        .or(pending_users_route)
+        .or(approve_user_route)
+        .or(suspend_user_route)
         .or(health_route);
 
     warp::path("admin")
@@ -192,7 +244,12 @@ pub fn admin_routes_with_rejection(
     let admin_tokens_create_route = admin_tokens_create_route(context.clone());
     let admin_tokens_details_route = admin_tokens_details_route(context.clone());
     let admin_tokens_revoke_route = admin_tokens_revoke_route(context.clone());
-    let admin_tokens_rotate_route = admin_tokens_rotate_route(context);
+    let admin_tokens_rotate_route = admin_tokens_rotate_route(context.clone());
+
+    // User management routes
+    let pending_users_route = pending_users_route(context.clone());
+    let approve_user_route = approve_user_route(context.clone());
+    let suspend_user_route = suspend_user_route(context);
 
     let health_route = admin_health_route();
 
@@ -206,6 +263,9 @@ pub fn admin_routes_with_rejection(
         .or(admin_tokens_details_route)
         .or(admin_tokens_revoke_route)
         .or(admin_tokens_rotate_route)
+        .or(pending_users_route)
+        .or(approve_user_route)
+        .or(suspend_user_route)
         .or(health_route);
 
     warp::path("admin").and(admin_routes)
@@ -451,6 +511,9 @@ async fn get_or_create_user(database: &Database, email: &str) -> Result<User, wa
                 strava_token: None,
                 fitbit_token: None,
                 is_active: true,
+                user_status: UserStatus::Active, // Admin-created users are automatically active
+                approved_by: None,               // No approval needed for admin-created users
+                approved_at: Some(chrono::Utc::now()),
                 created_at: chrono::Utc::now(),
                 last_active: chrono::Utc::now(),
             };
@@ -1298,4 +1361,243 @@ async fn handle_admin_tokens_rotate(
             ))
         }
     }
+}
+
+/// Pending users route
+fn pending_users_route(
+    context: AdminApiContext,
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    warp::path!("pending-users")
+        .and(warp::get())
+        .and(admin_auth_filter(
+            context.clone(),
+            AdminPermission::ManageUsers,
+        ))
+        .and(with_context(context))
+        .and_then(handle_pending_users)
+}
+
+/// Approve user route  
+fn approve_user_route(
+    context: AdminApiContext,
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    warp::path!("approve-user" / String)
+        .and(warp::post())
+        .and(admin_auth_filter(
+            context.clone(),
+            AdminPermission::ManageUsers,
+        ))
+        .and(warp::body::json())
+        .and(with_context(context))
+        .and_then(handle_approve_user)
+}
+
+/// Suspend user route
+fn suspend_user_route(
+    context: AdminApiContext,
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    warp::path!("suspend-user" / String)
+        .and(warp::post())
+        .and(admin_auth_filter(
+            context.clone(),
+            AdminPermission::ManageUsers,
+        ))
+        .and(warp::body::json())
+        .and(with_context(context))
+        .and_then(handle_suspend_user)
+}
+
+/// Handle pending users list
+async fn handle_pending_users(
+    _admin_token: crate::admin::models::ValidatedAdminToken,
+    context: AdminApiContext,
+) -> Result<impl Reply, Rejection> {
+    info!("Admin requesting pending users list");
+
+    match get_users_by_status(&context.database, UserStatus::Pending).await {
+        Ok(users) => {
+            let user_infos: Vec<UserInfo> = users.into_iter().map(user_to_info).collect();
+
+            let count = user_infos.len();
+            let response = PendingUsersResponse {
+                success: true,
+                users: user_infos,
+                count,
+            };
+            Ok(with_status(json(&response), StatusCode::OK))
+        }
+        Err(e) => {
+            warn!("Failed to get pending users: {}", e);
+            let response = AdminResponse {
+                success: false,
+                message: format!("Failed to get pending users: {e}"),
+                data: None,
+            };
+            Ok(with_status(
+                json(&response),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ))
+        }
+    }
+}
+
+/// Handle user approval
+async fn handle_approve_user(
+    user_id: String,
+    admin_token: crate::admin::models::ValidatedAdminToken,
+    request: ApproveUserRequest,
+    context: AdminApiContext,
+) -> Result<impl Reply, Rejection> {
+    info!(
+        "Admin approving user: {} by service: {}",
+        user_id, admin_token.service_name
+    );
+
+    let Ok(user_uuid) = Uuid::parse_str(&user_id) else {
+        let response = UserManagementResponse {
+            success: false,
+            message: "Invalid user ID format".into(),
+            user: None,
+        };
+        return Ok(with_status(json(&response), StatusCode::BAD_REQUEST));
+    };
+
+    match approve_user_status(&context.database, user_uuid, &admin_token.token_id).await {
+        Ok(user) => {
+            info!("✅ User approved successfully: {}", user.email);
+            let response = UserManagementResponse {
+                success: true,
+                message: format!(
+                    "User {} approved successfully{}",
+                    user.email,
+                    request
+                        .reason
+                        .map(|r| format!(" (Reason: {r})"))
+                        .unwrap_or_default()
+                ),
+                user: Some(user_to_info(user)),
+            };
+            Ok(with_status(json(&response), StatusCode::OK))
+        }
+        Err(e) => {
+            warn!("Failed to approve user {}: {}", user_id, e);
+            let response = UserManagementResponse {
+                success: false,
+                message: format!("Failed to approve user: {e}"),
+                user: None,
+            };
+            Ok(with_status(
+                json(&response),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ))
+        }
+    }
+}
+
+/// Handle user suspension
+async fn handle_suspend_user(
+    user_id: String,
+    admin_token: crate::admin::models::ValidatedAdminToken,
+    request: ApproveUserRequest,
+    context: AdminApiContext,
+) -> Result<impl Reply, Rejection> {
+    info!(
+        "Admin suspending user: {} by service: {}",
+        user_id, admin_token.service_name
+    );
+
+    let Ok(user_uuid) = Uuid::parse_str(&user_id) else {
+        let response = UserManagementResponse {
+            success: false,
+            message: "Invalid user ID format".into(),
+            user: None,
+        };
+        return Ok(with_status(json(&response), StatusCode::BAD_REQUEST));
+    };
+
+    match suspend_user_status(&context.database, user_uuid, &admin_token.token_id).await {
+        Ok(user) => {
+            info!("✅ User suspended successfully: {}", user.email);
+            let response = UserManagementResponse {
+                success: true,
+                message: format!(
+                    "User {} suspended successfully{}",
+                    user.email,
+                    request
+                        .reason
+                        .map(|r| format!(" (Reason: {r})"))
+                        .unwrap_or_default()
+                ),
+                user: Some(user_to_info(user)),
+            };
+            Ok(with_status(json(&response), StatusCode::OK))
+        }
+        Err(e) => {
+            warn!("Failed to suspend user {}: {}", user_id, e);
+            let response = UserManagementResponse {
+                success: false,
+                message: format!("Failed to suspend user: {e}"),
+                user: None,
+            };
+            Ok(with_status(
+                json(&response),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ))
+        }
+    }
+}
+
+/// Convert User to `UserInfo`
+fn user_to_info(user: User) -> UserInfo {
+    UserInfo {
+        id: user.id.to_string(),
+        email: user.email,
+        display_name: user.display_name,
+        user_status: match user.user_status {
+            UserStatus::Pending => "pending".into(),
+            UserStatus::Active => "active".into(),
+            UserStatus::Suspended => "suspended".into(),
+        },
+        tier: format!("{:?}", user.tier).to_lowercase(),
+        created_at: user.created_at.to_rfc3339(),
+        last_active: user.last_active.to_rfc3339(),
+        approved_by: user.approved_by.map(|id| id.to_string()),
+        approved_at: user.approved_at.map(|dt| dt.to_rfc3339()),
+    }
+}
+
+/// Get users by status
+async fn get_users_by_status(database: &Database, status: UserStatus) -> Result<Vec<User>> {
+    let status_str = match status {
+        UserStatus::Pending => "pending",
+        UserStatus::Active => "active",
+        UserStatus::Suspended => "suspended",
+    };
+
+    let users = database.get_users_by_status(status_str).await?;
+    Ok(users)
+}
+
+/// Approve user and update status
+async fn approve_user_status(
+    database: &Database,
+    user_id: Uuid,
+    admin_token_id: &str,
+) -> Result<User> {
+    let user = database
+        .update_user_status(user_id, UserStatus::Active, admin_token_id)
+        .await?;
+    Ok(user)
+}
+
+/// Suspend user and update status
+async fn suspend_user_status(
+    database: &Database,
+    user_id: Uuid,
+    admin_token_id: &str,
+) -> Result<User> {
+    let user = database
+        .update_user_status(user_id, UserStatus::Suspended, admin_token_id)
+        .await?;
+    Ok(user)
 }

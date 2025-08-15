@@ -112,6 +112,42 @@ pub enum UserTier {
     Enterprise,
 }
 
+/// User account status for admin approval workflow
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum UserStatus {
+    /// Account pending admin approval (new registrations)
+    Pending,
+    /// Account approved and active
+    Active,
+    /// Account suspended by admin
+    Suspended,
+}
+
+impl UserStatus {
+    /// Check if user can login
+    #[must_use]
+    pub const fn can_login(&self) -> bool {
+        matches!(self, Self::Active)
+    }
+
+    /// Get user-friendly status message
+    #[must_use]
+    pub const fn to_message(&self) -> &'static str {
+        match self {
+            Self::Pending => "Your account is pending admin approval",
+            Self::Active => "Account is active",
+            Self::Suspended => "Your account has been suspended",
+        }
+    }
+}
+
+impl Default for UserStatus {
+    fn default() -> Self {
+        Self::Pending
+    }
+}
+
 impl UserTier {
     /// Get monthly request limit for this tier
     #[must_use]
@@ -931,6 +967,12 @@ pub struct User {
     pub last_active: DateTime<Utc>,
     /// Whether the user account is active
     pub is_active: bool,
+    /// User account status for admin approval workflow
+    pub user_status: UserStatus,
+    /// Admin who approved this user (if approved)
+    pub approved_by: Option<Uuid>,
+    /// When the user was approved by admin
+    pub approved_at: Option<DateTime<Utc>>,
 }
 
 /// User physiological profile for personalized analysis
@@ -1252,6 +1294,9 @@ impl User {
             created_at: now,
             last_active: now,
             is_active: true,
+            user_status: UserStatus::Pending, // New users need admin approval
+            approved_by: None,
+            approved_at: None,
         }
     }
 

@@ -25,6 +25,9 @@ async fn create_test_client(db: &Database) -> (A2AClient, Uuid) {
         fitbit_token: None,
         tenant_id: Some("test-tenant".to_string()),
         is_active: true,
+        user_status: pierre_mcp_server::models::UserStatus::Active,
+        approved_by: None,
+        approved_at: Some(Utc::now()),
         created_at: Utc::now(),
         last_active: Utc::now(),
     };

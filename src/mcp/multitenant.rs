@@ -1688,7 +1688,7 @@ impl MultiTenantMcpServer {
                     let reply = warp::reply::json(&serde_json::json!({
                         "status": "ready",
                         "transport": "streamable-http",
-                        "version": "2024-11-05"
+                        "version": protocol::mcp_protocol_version()
                     }));
                     Ok(Box::new(warp::reply::with_status(
                         reply,
@@ -4278,7 +4278,7 @@ impl MultiTenantMcpServer {
                 default_activities_limit: 20,
                 ci_mode: false,
                 protocol: crate::config::environment::ProtocolConfig {
-                    mcp_version: "2024-11-05".into(),
+                    mcp_version: crate::constants::network_config::DEFAULT_MCP_VERSION.to_string(),
                     server_name: "pierre-mcp-server".into(),
                     server_version: env!("CARGO_PKG_VERSION").to_string(),
                 },
@@ -4306,7 +4306,9 @@ pub struct McpRequest {
 #[derive(Debug, Serialize)]
 pub struct McpResponse {
     pub jsonrpc: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<McpError>,
     pub id: Value,
 }

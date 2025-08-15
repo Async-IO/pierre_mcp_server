@@ -137,9 +137,12 @@ impl DatabaseProvider for PostgresDatabase {
                     tenant_id: row.get("tenant_id"),
                     strava_token: None, // Tokens are loaded separately
                     fitbit_token: None, // Tokens are loaded separately
+                    is_active: row.get("is_active"),
+                    user_status: crate::models::UserStatus::Active, // Default for existing users
+                    approved_by: None,                              // Not tracked in PostgreSQL yet
+                    approved_at: None,                              // Not tracked in PostgreSQL yet
                     created_at: row.get("created_at"),
                     last_active: row.get("last_active"),
-                    is_active: row.get("is_active"),
                 }))
             },
         )
@@ -176,9 +179,12 @@ impl DatabaseProvider for PostgresDatabase {
                     tenant_id: row.get("tenant_id"),
                     strava_token: None, // Tokens are loaded separately
                     fitbit_token: None, // Tokens are loaded separately
+                    is_active: row.get("is_active"),
+                    user_status: crate::models::UserStatus::Active, // Default for existing users
+                    approved_by: None,                              // Not tracked in PostgreSQL yet
+                    approved_at: None,                              // Not tracked in PostgreSQL yet
                     created_at: row.get("created_at"),
                     last_active: row.get("last_active"),
-                    is_active: row.get("is_active"),
                 }))
             },
         )
@@ -211,6 +217,27 @@ impl DatabaseProvider for PostgresDatabase {
             .await?;
 
         Ok(row.get("count"))
+    }
+
+    async fn get_users_by_status(&self, status: &str) -> Result<Vec<User>> {
+        // PostgreSQL doesn't support user status yet - return empty for now
+        // TODO: Add user_status columns to PostgreSQL schema
+        let _ = status;
+        Ok(vec![])
+    }
+
+    async fn update_user_status(
+        &self,
+        user_id: Uuid,
+        new_status: crate::models::UserStatus,
+        admin_token_id: &str,
+    ) -> Result<User> {
+        // PostgreSQL doesn't support user status yet - return error for now
+        // TODO: Add user_status columns to PostgreSQL schema
+        let _ = (user_id, new_status, admin_token_id);
+        Err(anyhow!(
+            "User status management not implemented for PostgreSQL yet"
+        ))
     }
 
     async fn update_strava_token(

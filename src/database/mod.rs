@@ -1,22 +1,11 @@
-// ABOUTME: Core database operations module with encrypted storage and query management
-// ABOUTME: Provides unified database interface, migrations, and encrypted data persistence
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
-
-//! # Database Management
-//!
-//! This module provides database functionality for the multi-tenant Pierre MCP Server.
-//! It handles user storage, token encryption, and secure data access patterns.
+// ABOUTME: Core database management with migration system for SQLite and PostgreSQL
+// ABOUTME: Handles schema setup, user management, API keys, analytics, and A2A authentication
 
 pub mod a2a;
-mod analytics;
-mod api_keys;
-mod tokens;
-mod user_oauth_tokens;
-mod users;
+pub mod analytics;
+pub mod api_keys;
+pub mod user_oauth_tokens;
+pub mod users;
 
 pub mod tests;
 
@@ -25,7 +14,6 @@ pub use a2a::{A2AUsage, A2AUsageStats};
 use anyhow::Result;
 use sqlx::{Pool, Sqlite, SqlitePool};
 
-/// Database manager for user and token storage
 #[derive(Clone)]
 pub struct Database {
     pool: Pool<Sqlite>,
@@ -70,13 +58,13 @@ impl Database {
         &self.pool
     }
 
-    /// Run database migrations
+    /// Run all database migrations
     ///
     /// # Errors
     ///
     /// Returns an error if:
-    /// - Migration SQL statements fail to execute
-    /// - Database schema creation fails
+    /// - Any migration fails
+    /// - Database connection is lost during migration
     /// - Insufficient database permissions
     /// - Database connection is lost during migration
     pub async fn migrate(&self) -> Result<()> {
@@ -95,18 +83,207 @@ impl Database {
         // Admin tables
         self.migrate_admin().await?;
 
-        // Tenant management tables
-        self.migrate_tenant_management().await?;
-
-        // Security and key rotation tables
-        self.migrate_security().await?;
-
         // UserOAuthToken tables
         self.migrate_user_oauth_tokens().await?;
 
-        // Tenant users tables
-        self.migrate_tenant_users().await?;
+        // Tenant management tables
+        self.migrate_tenant_management().await?;
 
+        Ok(())
+    }
+
+    /// Create tenant management tables
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Table creation SQL fails
+    /// - Index creation fails
+    /// - Database constraints cannot be applied
+    /// - SQL syntax errors in migration statements
+    #[allow(clippy::too_many_lines)] // Long function: Defines complete tenant management schema
+    async fn migrate_tenant_management(&self) -> Result<()> {
+        // Create tenants table
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS tenants (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                slug TEXT UNIQUE NOT NULL,
+                domain TEXT UNIQUE,
+                plan TEXT NOT NULL DEFAULT 'starter' CHECK (plan IN ('starter', 'professional', 'enterprise')),
+                owner_user_id TEXT NOT NULL,
+                is_active BOOLEAN NOT NULL DEFAULT 1,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create tenant_oauth_credentials table
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS tenant_oauth_credentials (
+                id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+                tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                provider TEXT NOT NULL CHECK (provider IN ('strava', 'fitbit', 'garmin', 'runkeeper')),
+                client_id TEXT NOT NULL,
+                client_secret_encrypted TEXT NOT NULL,
+                redirect_uri TEXT NOT NULL,
+                scopes TEXT NOT NULL, -- JSON array
+                rate_limit_per_day INTEGER DEFAULT 1000,
+                is_active BOOLEAN NOT NULL DEFAULT 1,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, provider)
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create oauth_apps table for OAuth application registration
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS oauth_apps (
+                id TEXT PRIMARY KEY,
+                client_id TEXT UNIQUE NOT NULL,
+                client_secret_hash TEXT NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT,
+                redirect_uris TEXT NOT NULL, -- JSON array
+                scopes TEXT NOT NULL, -- JSON array
+                app_type TEXT NOT NULL DEFAULT 'public' CHECK (app_type IN ('public', 'confidential')),
+                owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                is_active BOOLEAN NOT NULL DEFAULT 1,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create key_versions table for tenant encryption
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS key_versions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant_id TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+                version INTEGER NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                expires_at DATETIME,
+                is_active BOOLEAN NOT NULL DEFAULT 1,
+                algorithm TEXT NOT NULL DEFAULT 'AES-256-GCM',
+                UNIQUE(tenant_id, version)
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create audit_events table
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS audit_events (
+                id TEXT PRIMARY KEY,
+                event_type TEXT NOT NULL,
+                severity TEXT NOT NULL,
+                message TEXT NOT NULL,
+                source TEXT NOT NULL,
+                result TEXT NOT NULL,
+                tenant_id TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+                user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+                ip_address TEXT,
+                user_agent TEXT,
+                metadata TEXT, -- JSON
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create tenant_users table for role-based permissions
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS tenant_users (
+                id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+                tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('owner', 'admin', 'member', 'viewer')),
+                permissions TEXT, -- JSON array of specific permissions
+                invited_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+                invited_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                joined_at DATETIME,
+                is_active BOOLEAN NOT NULL DEFAULT 1,
+                UNIQUE(tenant_id, user_id)
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create indexes for tenant tables
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_tenants_slug ON tenants(slug)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_tenants_owner ON tenants(owner_user_id)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_tenant_oauth_tenant ON tenant_oauth_credentials(tenant_id)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_tenant_oauth_provider ON tenant_oauth_credentials(provider)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_key_versions_tenant ON key_versions(tenant_id)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_key_versions_active ON key_versions(tenant_id, is_active)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_audit_events_tenant ON audit_events(tenant_id)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_audit_events_timestamp ON audit_events(timestamp)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_tenant_users_tenant ON tenant_users(tenant_id)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_tenant_users_user ON tenant_users(user_id)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_oauth_apps_client_id ON oauth_apps(client_id)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_oauth_apps_owner ON oauth_apps(owner_user_id)")
+            .execute(&self.pool)
+            .await?;
+
+        tracing::info!("Tenant management tables migration completed successfully");
         Ok(())
     }
 
@@ -217,180 +394,7 @@ impl Database {
         Ok(())
     }
 
-    /// Create tenant management tables
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - Table creation SQL fails
-    /// - Index creation fails
-    /// - Database constraints cannot be applied
-    /// - SQL syntax errors in migration statements
-    async fn migrate_tenant_management(&self) -> Result<()> {
-        // Read and execute the tenant management migration
-        let migration_sql = include_str!("../../migrations/004_tenant_management.sql");
-
-        // Execute the migration in a transaction
-        let mut tx = self.pool.begin().await?;
-
-        // Split SQL statements properly, handling triggers with BEGIN/END blocks
-        let statements = Self::split_sql_statements_properly(migration_sql);
-
-        for statement in statements {
-            let statement = statement.trim();
-            if !statement.is_empty() {
-                sqlx::query(statement).execute(&mut *tx).await?;
-            }
-        }
-
-        tx.commit().await?;
-
-        tracing::info!("Tenant management tables migration completed successfully");
-        Ok(())
-    }
-
-    /// Create security and key rotation tables
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the security migration fails
-    async fn migrate_security(&self) -> Result<()> {
-        // Read and execute the security migration
-        let migration_sql = include_str!("../../migrations/005_security.sql");
-
-        // Execute the migration in a transaction
-        let mut tx = self.pool.begin().await?;
-
-        // Split SQL statements properly
-        let statements = Self::split_sql_statements_properly(migration_sql);
-
-        for statement in statements {
-            sqlx::query(&statement).execute(&mut *tx).await?;
-        }
-
-        tx.commit().await?;
-
-        tracing::info!("Security tables migration completed successfully");
-        Ok(())
-    }
-
-    /// Create tenant users tables for role-based permissions
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the tenant users migration fails
-    async fn migrate_tenant_users(&self) -> Result<()> {
-        // Read and execute the tenant users migration
-        let migration_sql = include_str!("../../migrations/007_tenant_users.sql");
-
-        // Execute the migration in a transaction
-        let mut tx = self.pool.begin().await?;
-
-        // Split SQL statements properly
-        let statements = Self::split_sql_statements_properly(migration_sql);
-
-        for statement in statements {
-            sqlx::query(&statement).execute(&mut *tx).await?;
-        }
-
-        tx.commit().await?;
-
-        tracing::info!("Tenant users tables migration completed successfully");
-        Ok(())
-    }
-
-    /// Split SQL text into individual statements, properly handling triggers
-    fn split_sql_statements_properly(sql: &str) -> Vec<String> {
-        let mut statements = Vec::new();
-        let mut current_statement = String::new();
-        let mut in_trigger = false;
-        let mut trigger_depth = 0;
-
-        for line in sql.lines() {
-            let trimmed = line.trim();
-
-            // Skip empty lines completely
-            if trimmed.is_empty() {
-                continue;
-            }
-
-            // Handle inline comments - split line at --
-            let (code_part, _comment_part) =
-                trimmed.find("--").map_or((trimmed, ""), |comment_pos| {
-                    let code = trimmed[..comment_pos].trim();
-                    let comment = trimmed[comment_pos..].trim();
-                    (code, comment)
-                });
-
-            // Skip lines that are pure comments
-            if code_part.is_empty() {
-                continue;
-            }
-
-            // Check if we're starting a trigger
-            if code_part.to_uppercase().starts_with("CREATE TRIGGER") {
-                in_trigger = true;
-                trigger_depth = 0;
-            }
-
-            // Add line to current statement
-            if !current_statement.is_empty() {
-                current_statement.push(' ');
-            }
-            current_statement.push_str(code_part);
-
-            // Count BEGIN/END depth in triggers
-            if in_trigger {
-                if code_part.to_uppercase().contains("BEGIN") {
-                    trigger_depth += 1;
-                }
-                if code_part.to_uppercase().contains("END") {
-                    trigger_depth -= 1;
-                }
-            }
-
-            // Check if statement is complete
-            if code_part.ends_with(';') {
-                if in_trigger && trigger_depth > 0 {
-                    // Still inside trigger block, continue to next line
-                } else {
-                    // Statement is complete
-                    statements.push(current_statement.clone());
-                    current_statement.clear();
-                    in_trigger = false;
-                    trigger_depth = 0;
-                }
-            }
-        }
-
-        // Add any remaining statement
-        if !current_statement.trim().is_empty() {
-            statements.push(current_statement);
-        }
-
-        statements
-    }
-}
-
-/// Encryption helper trait for token operations
-pub(crate) trait EncryptionHelper {
-    fn encryption_key(&self) -> &[u8];
-}
-
-impl EncryptionHelper for Database {
-    fn encryption_key(&self) -> &[u8] {
-        &self.encryption_key
-    }
-}
-
-/// Database encryption utilities
-impl Database {
     /// Encrypt sensitive data using AES-256-GCM
-    ///
-    /// # Note
-    ///
-    /// This method is kept for backward compatibility. New code should use
-    /// `security::TenantEncryptionManager` for per-tenant encryption.
     ///
     /// # Errors
     ///
@@ -454,19 +458,6 @@ impl Database {
             .map_err(|e| anyhow::anyhow!("Failed to convert decrypted data to string: {e}"))
     }
 
-    /// Hash sensitive data using SHA-256
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if hashing fails
-    pub fn hash_data(&self, data: &str) -> Result<String> {
-        use base64::{engine::general_purpose, Engine as _};
-        use ring::digest::{digest, SHA256};
-
-        let hash = digest(&SHA256, data.as_bytes());
-        Ok(general_purpose::STANDARD.encode(hash.as_ref()))
-    }
-
     /// Get user role for a specific tenant
     ///
     /// # Errors
@@ -486,6 +477,189 @@ impl Database {
         .await?;
 
         Ok(row.map(|r| r.0))
+    }
+
+    /// Hash sensitive data using SHA-256
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if hashing fails
+    pub fn hash_data(&self, data: &str) -> Result<String> {
+        use base64::{engine::general_purpose, Engine as _};
+        use ring::digest::{digest, SHA256};
+
+        let hash = digest(&SHA256, data.as_bytes());
+        Ok(general_purpose::STANDARD.encode(hash.as_ref()))
+    }
+
+    /// Update Strava token for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database update fails
+    pub async fn update_strava_token(
+        &self,
+        user_id: uuid::Uuid,
+        token: &crate::models::DecryptedToken,
+    ) -> Result<()> {
+        // Encrypt the tokens before storing
+        let encrypted_access = self.encrypt_data(&token.access_token)?;
+        let encrypted_refresh = self.encrypt_data(&token.refresh_token)?;
+
+        sqlx::query(
+            r"
+            UPDATE users SET
+                strava_access_token = $1,
+                strava_refresh_token = $2,
+                strava_expires_at = $3,
+                strava_scope = $4,
+                strava_nonce = $5
+            WHERE id = $6
+            ",
+        )
+        .bind(encrypted_access)
+        .bind(encrypted_refresh)
+        .bind(token.expires_at.timestamp())
+        .bind(&token.scope)
+        .bind("v1") // Default nonce value for new tokens
+        .bind(user_id.to_string())
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Get Strava token for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    pub async fn get_strava_token(
+        &self,
+        user_id: uuid::Uuid,
+    ) -> Result<Option<crate::models::DecryptedToken>> {
+        let user = self.get_user(user_id).await?;
+        if let Some(encrypted_token) = user.and_then(|u| u.strava_token) {
+            // Decrypt the tokens
+            let decrypted_access = self.decrypt_data(&encrypted_token.access_token)?;
+            let decrypted_refresh = self.decrypt_data(&encrypted_token.refresh_token)?;
+
+            Ok(Some(crate::models::DecryptedToken {
+                access_token: decrypted_access,
+                refresh_token: decrypted_refresh,
+                expires_at: encrypted_token.expires_at,
+                scope: encrypted_token.scope,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Update Fitbit token for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database update fails
+    pub async fn update_fitbit_token(
+        &self,
+        user_id: uuid::Uuid,
+        token: &crate::models::DecryptedToken,
+    ) -> Result<()> {
+        // Encrypt the tokens before storing
+        let encrypted_access = self.encrypt_data(&token.access_token)?;
+        let encrypted_refresh = self.encrypt_data(&token.refresh_token)?;
+
+        sqlx::query(
+            r"
+            UPDATE users SET
+                fitbit_access_token = $1,
+                fitbit_refresh_token = $2,
+                fitbit_expires_at = $3,
+                fitbit_scope = $4,
+                fitbit_nonce = $5
+            WHERE id = $6
+            ",
+        )
+        .bind(encrypted_access)
+        .bind(encrypted_refresh)
+        .bind(token.expires_at.timestamp())
+        .bind(&token.scope)
+        .bind("v1") // Default nonce value for new tokens
+        .bind(user_id.to_string())
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Get Fitbit token for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    pub async fn get_fitbit_token(
+        &self,
+        user_id: uuid::Uuid,
+    ) -> Result<Option<crate::models::DecryptedToken>> {
+        let user = self.get_user(user_id).await?;
+        if let Some(encrypted_token) = user.and_then(|u| u.fitbit_token) {
+            // Decrypt the tokens
+            let decrypted_access = self.decrypt_data(&encrypted_token.access_token)?;
+            let decrypted_refresh = self.decrypt_data(&encrypted_token.refresh_token)?;
+
+            Ok(Some(crate::models::DecryptedToken {
+                access_token: decrypted_access,
+                refresh_token: decrypted_refresh,
+                expires_at: encrypted_token.expires_at,
+                scope: encrypted_token.scope,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Clear Strava token for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database update fails
+    pub async fn clear_strava_token(&self, user_id: uuid::Uuid) -> Result<()> {
+        sqlx::query(
+            r"
+            UPDATE users SET
+                strava_access_token = NULL,
+                strava_refresh_token = NULL,
+                strava_expires_at = NULL,
+                strava_scope = NULL,
+                strava_nonce = NULL
+            WHERE id = $1
+            ",
+        )
+        .bind(user_id.to_string())
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Clear Fitbit token for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database update fails
+    pub async fn clear_fitbit_token(&self, user_id: uuid::Uuid) -> Result<()> {
+        sqlx::query(
+            r"
+            UPDATE users SET
+                fitbit_access_token = NULL,
+                fitbit_refresh_token = NULL,
+                fitbit_expires_at = NULL,
+                fitbit_scope = NULL,
+                fitbit_nonce = NULL
+            WHERE id = $1
+            ",
+        )
+        .bind(user_id.to_string())
+        .execute(&self.pool)
+        .await?;
+        Ok(())
     }
 }
 

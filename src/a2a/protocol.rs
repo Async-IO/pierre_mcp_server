@@ -702,7 +702,7 @@ impl A2AServer {
                 default_activities_limit: 20,
                 ci_mode: false,
                 protocol: crate::config::environment::ProtocolConfig {
-                    mcp_version: "2024-11-05".into(),
+                    mcp_version: crate::constants::network_config::DEFAULT_MCP_VERSION.to_string(),
                     server_name: "pierre-mcp-server".into(),
                     server_version: env!("CARGO_PKG_VERSION").to_string(),
                 },
