@@ -149,6 +149,9 @@ async fn main() -> anyhow::Result<()> {
         strava_token: None,
         fitbit_token: None,
         is_active: true,
+        user_status: pierre_mcp_server::models::UserStatus::Active,
+        approved_by: None,
+        approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
     };

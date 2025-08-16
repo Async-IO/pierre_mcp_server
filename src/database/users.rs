@@ -670,7 +670,7 @@ impl Database {
             UserStatus::Suspended => "suspended",
         };
 
-        let admin_uuid = if new_status == UserStatus::Active {
+        let admin_uuid = if new_status == UserStatus::Active && !admin_token_id.is_empty() {
             Some(admin_token_id)
         } else {
             None
@@ -682,7 +682,7 @@ impl Database {
             None
         };
 
-        sqlx::query(
+        let result = sqlx::query(
             r"
             UPDATE users SET 
                 user_status = ?1,
@@ -698,6 +698,10 @@ impl Database {
         .bind(user_id.to_string())
         .execute(&self.pool)
         .await?;
+
+        if result.rows_affected() == 0 {
+            return Err(anyhow!("No user found with ID: {user_id}"));
+        }
 
         // Return updated user
         self.get_user(user_id)

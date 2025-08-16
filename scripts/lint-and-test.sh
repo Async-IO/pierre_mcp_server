@@ -198,28 +198,58 @@ UNWRAPS=$(rg "unwrap\(\)" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END 
 EXPECTS=$(rg "expect\(" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
 PANICS=$(rg "panic!\(" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
 CLONES=$(rg "\.clone\(\)" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
-MOCKS=$(rg -i "mock|placeholder|todo|fixme" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
+
+# Enhanced pattern detection for better dev standards compliance
+TODOS=$(rg -i "todo|fixme" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+PLACEHOLDERS=$(rg -i "placeholder" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+STUBS=$(rg -i "not.*implemented|stub" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+UNDERSCORE_NAMES=$(rg "fn _|let _[a-zA-Z]|struct _|enum _" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+
 ARCS=$(rg "Arc<" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
 
-echo "Found: $UNWRAPS unwraps, $EXPECTS expects, $PANICS panics, $CLONES clones, $MOCKS incomplete code, $ARCS Arc usages"
+echo "Found: $UNWRAPS unwraps, $EXPECTS expects, $PANICS panics, $CLONES clones"
+echo "       $TODOS TODOs/FIXMEs, $PLACEHOLDERS placeholders, $STUBS stubs, $UNDERSCORE_NAMES underscore names, $ARCS Arc usages"
 
 if [ "$UNWRAPS" -gt 0 ]; then 
     echo -e "${RED}[FAIL] Found $UNWRAPS unwrap() calls (dev standards violation)${NC}"
+    rg "unwrap\(\)" src/ -n | head -5
     ALL_PASSED=false
 fi
 if [ "$EXPECTS" -gt 0 ]; then 
     echo -e "${RED}[FAIL] Found $EXPECTS expect() calls (dev standards violation)${NC}"
+    rg "expect\(" src/ -n | head -5
     ALL_PASSED=false
 fi
 if [ "$PANICS" -gt 0 ]; then 
     echo -e "${RED}[FAIL] Found $PANICS panic!() calls (dev standards violation)${NC}"
+    rg "panic!\(" src/ -n | head -5
     ALL_PASSED=false
 fi
-if [ "$MOCKS" -gt 0 ]; then 
-    echo -e "${RED}[FAIL] Found $MOCKS incomplete implementations (dev standards violation)${NC}"
+if [ "$TODOS" -gt 0 ]; then 
+    echo -e "${RED}[FAIL] Found $TODOS TODO/FIXME comments (dev standards violation)${NC}"
+    echo -e "${YELLOW}   Examples:${NC}"
+    rg -i "todo|fixme" src/ -n | head -3
     ALL_PASSED=false
 fi
-if [ "$UNWRAPS" -eq 0 ] && [ "$EXPECTS" -eq 0 ] && [ "$PANICS" -eq 0 ] && [ "$MOCKS" -eq 0 ]; then
+if [ "$PLACEHOLDERS" -gt 0 ]; then 
+    echo -e "${RED}[FAIL] Found $PLACEHOLDERS placeholder implementations (dev standards violation)${NC}"
+    echo -e "${YELLOW}   Examples:${NC}"
+    rg -i "placeholder" src/ -n | head -3
+    ALL_PASSED=false
+fi
+if [ "$STUBS" -gt 0 ]; then 
+    echo -e "${RED}[FAIL] Found $STUBS stub/unimplemented functions (dev standards violation)${NC}"
+    echo -e "${YELLOW}   Examples:${NC}"
+    rg -i "not.*implemented|stub" src/ -n | head -3
+    ALL_PASSED=false
+fi
+if [ "$UNDERSCORE_NAMES" -gt 0 ]; then 
+    echo -e "${RED}[FAIL] Found $UNDERSCORE_NAMES underscore-prefixed names (dev standards violation)${NC}"
+    echo -e "${YELLOW}   Examples:${NC}"
+    rg "fn _|let _[a-zA-Z]|struct _|enum _" src/ -n | head -3
+    ALL_PASSED=false
+fi
+if [ "$UNWRAPS" -eq 0 ] && [ "$EXPECTS" -eq 0 ] && [ "$PANICS" -eq 0 ] && [ "$TODOS" -eq 0 ] && [ "$PLACEHOLDERS" -eq 0 ] && [ "$STUBS" -eq 0 ] && [ "$UNDERSCORE_NAMES" -eq 0 ]; then
     echo -e "${GREEN}[OK] All prohibited patterns check passed${NC}"
 fi
 
@@ -238,8 +268,13 @@ echo -e "${BLUE}==== Checking Arc usage patterns... ====${NC}"
 if [ "$ARCS" -gt 0 ]; then
     echo -e "${YELLOW}[INFO] Found $ARCS Arc usages - verify each is documented and justified${NC}"
     echo -e "${YELLOW}   Good practice: Document why shared ownership is needed${NC}"
+    echo -e "${YELLOW}   Arc locations:${NC}"
+    rg "Arc<" src/ -n | head -5 | while read line; do
+        echo -e "${YELLOW}     $line${NC}"
+    done
+    echo -e "${YELLOW}   Consider alternatives: &T (borrowing), Rc<T> (single-threaded), channels${NC}"
 else
-    echo -e "${GREEN}[OK] No Arc usage found${NC}"
+    echo -e "${GREEN}[OK] No Arc usage found - excellent memory management${NC}"
 fi
 
 # CRITICAL: Architectural validation to prevent facade patterns
