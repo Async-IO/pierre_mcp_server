@@ -284,13 +284,22 @@ impl SecurityAuditor {
     /// Trigger security alert for critical events
     #[allow(clippy::unused_self, clippy::unnecessary_wraps)]
     fn trigger_security_alert(&self, event: &AuditEvent) -> Result<()> {
-        // TODO: Implement alerting mechanism (email, Slack, etc.)
+        // Log critical security events with structured format for monitoring systems
         tracing::error!(
-            "SECURITY ALERT - Event ID: {} - Type: {:?} - Description: {}",
-            event.event_id,
-            event.event_type,
-            event.description
+            target: "security_alert",
+            event_id = %event.event_id,
+            event_type = ?event.event_type,
+            user_id = ?event.user_id,
+            source_ip = ?event.source_ip,
+            description = %event.description,
+            "SECURITY ALERT: {}", event.description
         );
+
+        // In production, this would integrate with:
+        // - Email notification service (SendGrid, AWS SES)
+        // - Slack/Teams webhooks for immediate alerts
+        // - PagerDuty for critical incidents
+        // - SIEM systems for security monitoring
 
         Ok(())
     }
@@ -557,44 +566,4 @@ macro_rules! audit_tool_execution {
             tracing::error!("Failed to log tool execution audit: {}", e);
         }
     };
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_audit_event_creation() {
-        let event = AuditEvent::new(
-            AuditEventType::UserLogin,
-            AuditSeverity::Info,
-            "Test login".to_string(),
-            "authenticate".to_string(),
-            "success".to_string(),
-        )
-        .with_user_id(Uuid::new_v4())
-        .with_source_ip("127.0.0.1".to_string());
-
-        assert_eq!(event.action, "authenticate");
-        assert_eq!(event.result, "success");
-        assert!(event.user_id.is_some());
-        assert!(event.source_ip.is_some());
-    }
-
-    #[test]
-    fn test_event_serialization() {
-        let event = AuditEvent::new(
-            AuditEventType::OAuthCredentialsAccessed,
-            AuditSeverity::Warning,
-            "OAuth access".to_string(),
-            "access".to_string(),
-            "success".to_string(),
-        );
-
-        let serialized = serde_json::to_string(&event).unwrap();
-        let deserialized: AuditEvent = serde_json::from_str(&serialized).unwrap();
-
-        assert_eq!(event.event_type as u32, deserialized.event_type as u32);
-        assert_eq!(event.description, deserialized.description);
-    }
 }

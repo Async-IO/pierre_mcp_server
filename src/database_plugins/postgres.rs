@@ -220,10 +220,62 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     async fn get_users_by_status(&self, status: &str) -> Result<Vec<User>> {
-        // PostgreSQL doesn't support user status yet - return empty for now
-        // TODO: Add user_status columns to PostgreSQL schema
-        let _ = status;
-        Ok(vec![])
+        // Query users by status from PostgreSQL
+        let status_enum = match status {
+            "active" => "active",
+            "pending" => "pending",
+            "suspended" => "suspended",
+            _ => return Err(anyhow!("Invalid user status: {}", status)),
+        };
+
+        let rows = sqlx::query(
+            r"
+            SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, 
+                   COALESCE(user_status, 'active') as user_status, approved_by, approved_at, created_at, last_active
+            FROM users
+            WHERE COALESCE(user_status, 'active') = $1
+            ORDER BY created_at DESC
+            ",
+        )
+        .bind(status_enum)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut users = Vec::new();
+        for row in rows {
+            let user_status_str: String = row.get("user_status");
+            let user_status = match user_status_str.as_str() {
+                "pending" => crate::models::UserStatus::Pending,
+                "suspended" => crate::models::UserStatus::Suspended,
+                _ => crate::models::UserStatus::Active,
+            };
+
+            users.push(User {
+                id: row.get("id"),
+                email: row.get("email"),
+                display_name: row.get("display_name"),
+                password_hash: row.get("password_hash"),
+                tier: {
+                    let tier_str: String = row.get("tier");
+                    match tier_str.as_str() {
+                        "professional" => UserTier::Professional,
+                        "enterprise" => UserTier::Enterprise,
+                        _ => UserTier::Starter,
+                    }
+                },
+                tenant_id: row.get("tenant_id"),
+                strava_token: None,
+                fitbit_token: None,
+                is_active: row.get("is_active"),
+                user_status,
+                approved_by: row.get("approved_by"),
+                approved_at: row.get("approved_at"),
+                created_at: row.get("created_at"),
+                last_active: row.get("last_active"),
+            });
+        }
+
+        Ok(users)
     }
 
     async fn update_user_status(
@@ -232,12 +284,59 @@ impl DatabaseProvider for PostgresDatabase {
         new_status: crate::models::UserStatus,
         admin_token_id: &str,
     ) -> Result<User> {
-        // PostgreSQL doesn't support user status yet - return error for now
-        // TODO: Add user_status columns to PostgreSQL schema
-        let _ = (user_id, new_status, admin_token_id);
-        Err(anyhow!(
-            "User status management not implemented for PostgreSQL yet"
-        ))
+        let status_str = match new_status {
+            crate::models::UserStatus::Active => "active",
+            crate::models::UserStatus::Pending => "pending",
+            crate::models::UserStatus::Suspended => "suspended",
+        };
+
+        let admin_uuid =
+            if new_status == crate::models::UserStatus::Active && !admin_token_id.is_empty() {
+                Some(admin_token_id)
+            } else {
+                None
+            };
+
+        let approved_at = if new_status == crate::models::UserStatus::Active {
+            Some(chrono::Utc::now())
+        } else {
+            None
+        };
+
+        // First ensure the user_status column exists, create if needed
+        let _ = sqlx::query(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS user_status TEXT DEFAULT 'active'",
+        )
+        .execute(&self.pool)
+        .await;
+
+        let _ = sqlx::query("ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_by TEXT")
+            .execute(&self.pool)
+            .await;
+
+        let _ = sqlx::query("ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ")
+            .execute(&self.pool)
+            .await;
+
+        // Update user status
+        sqlx::query(
+            r"
+            UPDATE users 
+            SET user_status = $1, approved_by = $2, approved_at = $3
+            WHERE id = $4
+            ",
+        )
+        .bind(status_str)
+        .bind(admin_uuid)
+        .bind(approved_at)
+        .bind(user_id)
+        .execute(&self.pool)
+        .await?;
+
+        // Return updated user
+        self.get_user(user_id)
+            .await?
+            .ok_or_else(|| anyhow!("User not found after status update"))
     }
 
     async fn update_strava_token(
@@ -1704,12 +1803,16 @@ impl DatabaseProvider for PostgresDatabase {
 
         if let Some(_limit_val) = limit {
             bind_count += 1;
-            write!(query, " LIMIT ${bind_count}").expect("String write should not fail");
+            if write!(query, " LIMIT ${bind_count}").is_err() {
+                return Err(anyhow::anyhow!("Failed to write LIMIT clause to query"));
+            }
         }
 
         if let Some(_offset_val) = offset {
             bind_count += 1;
-            write!(query, " OFFSET ${bind_count}").expect("String write should not fail");
+            if write!(query, " OFFSET ${bind_count}").is_err() {
+                return Err(anyhow::anyhow!("Failed to write OFFSET clause to query"));
+            }
         }
 
         let mut sql_query = sqlx::query(&query);
@@ -3441,18 +3544,26 @@ impl DatabaseProvider for PostgresDatabase {
         let mut bind_count = 0;
         if tenant_id.is_some() {
             bind_count += 1;
-            write!(query, " AND tenant_id = ${bind_count}").expect("String write cannot fail");
+            if write!(query, " AND tenant_id = ${bind_count}").is_err() {
+                return Err(anyhow::anyhow!("Failed to write tenant_id clause to query"));
+            }
         }
         if event_type.is_some() {
             bind_count += 1;
-            write!(query, " AND event_type = ${bind_count}").expect("String write cannot fail");
+            if write!(query, " AND event_type = ${bind_count}").is_err() {
+                return Err(anyhow::anyhow!(
+                    "Failed to write event_type clause to query"
+                ));
+            }
         }
 
         query.push_str(" ORDER BY timestamp DESC");
 
         if limit.is_some() {
             bind_count += 1;
-            write!(query, " LIMIT ${bind_count}").expect("String write cannot fail");
+            if write!(query, " LIMIT ${bind_count}").is_err() {
+                return Err(anyhow::anyhow!("Failed to write LIMIT clause to query"));
+            }
         }
 
         let mut sql_query = sqlx::query(&query);
@@ -3773,44 +3884,137 @@ impl DatabaseProvider for PostgresDatabase {
     /// Store user OAuth app credentials (client_id, client_secret)
     async fn store_user_oauth_app(
         &self,
-        _user_id: Uuid,
-        _provider: &str,
-        _client_id: &str,
-        _client_secret: &str,
-        _redirect_uri: &str,
+        user_id: Uuid,
+        provider: &str,
+        client_id: &str,
+        client_secret: &str,
+        redirect_uri: &str,
     ) -> Result<()> {
-        // TODO: Implement PostgreSQL user OAuth app credentials storage
-        // For now, return an error indicating this feature is not yet implemented
-        Err(anyhow::anyhow!(
-            "User OAuth app credentials storage not yet implemented for PostgreSQL"
-        ))
+        // Create user_oauth_apps table if it doesn't exist
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS user_oauth_apps (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                provider TEXT NOT NULL,
+                client_id TEXT NOT NULL,
+                client_secret TEXT NOT NULL,
+                redirect_uri TEXT NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(user_id, provider)
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Insert or update OAuth app credentials
+        sqlx::query(
+            r"
+            INSERT INTO user_oauth_apps (user_id, provider, client_id, client_secret, redirect_uri)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (user_id, provider)
+            DO UPDATE SET 
+                client_id = EXCLUDED.client_id,
+                client_secret = EXCLUDED.client_secret,
+                redirect_uri = EXCLUDED.redirect_uri,
+                updated_at = NOW()
+            ",
+        )
+        .bind(user_id)
+        .bind(provider)
+        .bind(client_id)
+        .bind(client_secret)
+        .bind(redirect_uri)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
     }
 
     /// Get user OAuth app credentials for a provider
     async fn get_user_oauth_app(
         &self,
-        _user_id: Uuid,
-        _provider: &str,
+        user_id: Uuid,
+        provider: &str,
     ) -> Result<Option<crate::models::UserOAuthApp>> {
-        // TODO: Implement PostgreSQL user OAuth app credentials retrieval
-        // For now, return None indicating no credentials found
-        Ok(None)
+        let row = sqlx::query(
+            r"
+            SELECT id, user_id, provider, client_id, client_secret, redirect_uri, created_at, updated_at
+            FROM user_oauth_apps
+            WHERE user_id = $1 AND provider = $2
+            "
+        )
+        .bind(user_id)
+        .bind(provider)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        row.map_or_else(
+            || Ok(None),
+            |row| {
+                Ok(Some(crate::models::UserOAuthApp {
+                    id: row.get("id"),
+                    user_id: row.get("user_id"),
+                    provider: row.get("provider"),
+                    client_id: row.get("client_id"),
+                    client_secret: row.get("client_secret"),
+                    redirect_uri: row.get("redirect_uri"),
+                    created_at: row.get("created_at"),
+                    updated_at: row.get("updated_at"),
+                }))
+            },
+        )
     }
 
     /// List all OAuth app providers configured for a user
     async fn list_user_oauth_apps(
         &self,
-        _user_id: Uuid,
+        user_id: Uuid,
     ) -> Result<Vec<crate::models::UserOAuthApp>> {
-        // TODO: Implement PostgreSQL user OAuth app credentials listing
-        // For now, return empty list
-        Ok(vec![])
+        let rows = sqlx::query(
+            r"
+            SELECT id, user_id, provider, client_id, client_secret, redirect_uri, created_at, updated_at
+            FROM user_oauth_apps
+            WHERE user_id = $1
+            ORDER BY provider
+            "
+        )
+        .bind(user_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut apps = Vec::new();
+        for row in rows {
+            apps.push(crate::models::UserOAuthApp {
+                id: row.get("id"),
+                user_id: row.get("user_id"),
+                provider: row.get("provider"),
+                client_id: row.get("client_id"),
+                client_secret: row.get("client_secret"),
+                redirect_uri: row.get("redirect_uri"),
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+            });
+        }
+
+        Ok(apps)
     }
 
     /// Remove user OAuth app credentials for a provider
-    async fn remove_user_oauth_app(&self, _user_id: Uuid, _provider: &str) -> Result<()> {
-        // TODO: Implement PostgreSQL user OAuth app credentials removal
-        // For now, return success (no-op)
+    async fn remove_user_oauth_app(&self, user_id: Uuid, provider: &str) -> Result<()> {
+        sqlx::query(
+            r"
+            DELETE FROM user_oauth_apps
+            WHERE user_id = $1 AND provider = $2
+            ",
+        )
+        .bind(user_id)
+        .bind(provider)
+        .execute(&self.pool)
+        .await?;
+
         Ok(())
     }
 }

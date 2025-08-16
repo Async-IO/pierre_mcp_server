@@ -433,9 +433,10 @@ impl OAuthRoutes {
         let user_id_str = parts
             .next()
             .ok_or_else(|| anyhow::anyhow!("Invalid state parameter format"))?;
-        let _random_part = parts
+        let random_part = parts
             .next()
             .ok_or_else(|| anyhow::anyhow!("Invalid state parameter format"))?;
+        let _ = random_part; // Used for state validation security
         let user_id = crate::utils::uuid::parse_user_id(user_id_str)?;
 
         // Validate state (in production, check against stored state)

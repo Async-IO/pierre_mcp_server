@@ -808,12 +808,16 @@ impl Database {
 
         if limit.is_some() {
             bind_count += 1;
-            write!(query, " LIMIT ${bind_count}").expect("String write should not fail");
+            if write!(query, " LIMIT ${bind_count}").is_err() {
+                return Err(anyhow::anyhow!("Failed to write LIMIT clause to query"));
+            }
         }
 
         if offset.is_some() {
             bind_count += 1;
-            write!(query, " OFFSET ${bind_count}").expect("String write should not fail");
+            if write!(query, " OFFSET ${bind_count}").is_err() {
+                return Err(anyhow::anyhow!("Failed to write OFFSET clause to query"));
+            }
         }
 
         let mut sql_query = sqlx::query(&query);

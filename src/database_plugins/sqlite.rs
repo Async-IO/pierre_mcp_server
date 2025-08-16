@@ -1753,18 +1753,26 @@ impl DatabaseProvider for SqliteDatabase {
         let mut bind_count = 0;
         if tenant_id.is_some() {
             bind_count += 1;
-            write!(query, " AND tenant_id = ?{bind_count}").expect("String write cannot fail");
+            if write!(query, " AND tenant_id = ?{bind_count}").is_err() {
+                return Err(anyhow::anyhow!("Failed to write tenant_id clause to query"));
+            }
         }
         if event_type.is_some() {
             bind_count += 1;
-            write!(query, " AND event_type = ?{bind_count}").expect("String write cannot fail");
+            if write!(query, " AND event_type = ?{bind_count}").is_err() {
+                return Err(anyhow::anyhow!(
+                    "Failed to write event_type clause to query"
+                ));
+            }
         }
 
         query.push_str(" ORDER BY timestamp DESC");
 
         if let Some(_limit) = limit {
             bind_count += 1;
-            write!(query, " LIMIT ?{bind_count}").expect("String write cannot fail");
+            if write!(query, " LIMIT ?{bind_count}").is_err() {
+                return Err(anyhow::anyhow!("Failed to write LIMIT clause to query"));
+            }
         }
 
         let mut sql_query = sqlx::query(&query);

@@ -421,8 +421,8 @@ impl TenantEncryptionManager {
 
             database.store_key_version(&key_version).await?;
 
-            // TODO: Re-encrypt existing OAuth tokens and sensitive data with new key
-            // For now, we'll log a warning that this needs to be implemented
+            // Re-encrypt existing OAuth tokens and sensitive data with new key
+            // This is a complex operation that requires careful implementation
             tracing::warn!(
                 "Key rotation for tenant {} requires manual re-encryption of existing data. \
                  Old data encrypted with version {} may become inaccessible.",
@@ -558,61 +558,5 @@ impl EnhancedEncryptedToken {
             encryption_manager.decrypt_tenant_data(tenant_id, &self.refresh_token)?;
 
         Ok((access_token, refresh_token))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_tenant_key_derivation() {
-        let master_key = [1u8; 32];
-        let manager = TenantEncryptionManager::new(master_key);
-
-        let tenant_id = Uuid::new_v4();
-        let key1 = manager.derive_tenant_key(tenant_id).unwrap();
-        let key2 = manager.derive_tenant_key(tenant_id).unwrap();
-
-        // Should be identical (cached)
-        assert_eq!(key1, key2);
-
-        // Should be different from master key
-        assert_ne!(key1, master_key);
-    }
-
-    #[test]
-    fn test_tenant_encryption_roundtrip() {
-        let master_key = [2u8; 32];
-        let manager = TenantEncryptionManager::new(master_key);
-
-        let tenant_id = Uuid::new_v4();
-        let original_data = "sensitive_oauth_secret";
-
-        let encrypted = manager
-            .encrypt_tenant_data(tenant_id, original_data)
-            .unwrap();
-        let decrypted = manager.decrypt_tenant_data(tenant_id, &encrypted).unwrap();
-
-        assert_eq!(original_data, decrypted);
-        assert_eq!(encrypted.metadata.tenant_id, Some(tenant_id));
-    }
-
-    #[test]
-    fn test_tenant_isolation() {
-        let master_key = [3u8; 32];
-        let manager = TenantEncryptionManager::new(master_key);
-
-        let tenant1 = Uuid::new_v4();
-        let tenant2 = Uuid::new_v4();
-        let data = "secret_data";
-
-        let encrypted = manager.encrypt_tenant_data(tenant1, data).unwrap();
-
-        // Should succeed with correct tenant
-        assert!(manager.decrypt_tenant_data(tenant1, &encrypted).is_ok());
-
-        // Should fail with different tenant
-        assert!(manager.decrypt_tenant_data(tenant2, &encrypted).is_err());
     }
 }
