@@ -438,7 +438,10 @@ impl A2AServer {
                 .as_ref()
                 .and_then(|params| params.get("task_id"))
                 .and_then(|v| v.as_str())
-                .unwrap(); // Safe because we validated above
+                .unwrap_or_else(|| {
+                    tracing::error!("Missing task_id parameter after validation");
+                    "" // Return empty string, which will cause database lookup to fail gracefully
+                });
 
             // Get task from database
             match database.get_a2a_task(task_id).await {

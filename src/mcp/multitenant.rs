@@ -1945,7 +1945,7 @@ impl MultiTenantMcpServer {
         }
     }
 
-    async fn _extract_tenant_context(
+    async fn extract_tenant_context_internal(
         request: &McpRequest,
         auth_result: &AuthResult,
         database: &Arc<Database>,
@@ -2007,7 +2007,7 @@ impl MultiTenantMcpServer {
 
                 // Extract tenant context from request and auth result
                 let tenant_context =
-                    Self::_extract_tenant_context(&request, &auth_result, database)
+                    Self::extract_tenant_context_internal(&request, &auth_result, database)
                         .await
                         .unwrap_or(None);
 

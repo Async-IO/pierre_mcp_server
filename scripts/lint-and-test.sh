@@ -123,6 +123,15 @@ if [ "$ENABLE_COVERAGE" = true ]; then
     fi
 fi
 
+# Run SDK integration tests specifically
+echo -e "${BLUE}==== Running SDK integration tests... ====${NC}"
+if cargo test --test sdk_integration_test --quiet; then
+    echo -e "${GREEN}[OK] SDK integration tests passed${NC}"
+else
+    echo -e "${RED}[FAIL] SDK integration tests failed${NC}"
+    ALL_PASSED=false
+fi
+
 # Run A2A compliance tests specifically
 echo -e "${BLUE}==== Running A2A compliance tests... ====${NC}"
 if cargo test --test a2a_compliance_test --quiet; then
@@ -204,11 +213,13 @@ TODOS=$(rg -i "todo|fixme" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {pr
 PLACEHOLDERS=$(rg -i "placeholder" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 STUBS=$(rg -i "not.*implemented|stub" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 UNDERSCORE_NAMES=$(rg "fn _|let _[a-zA-Z]|struct _|enum _" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+CFG_TESTS=$(rg "#\[cfg\(test\)\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 
 ARCS=$(rg "Arc<" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
 
 echo "Found: $UNWRAPS unwraps, $EXPECTS expects, $PANICS panics, $CLONES clones"
-echo "       $TODOS TODOs/FIXMEs, $PLACEHOLDERS placeholders, $STUBS stubs, $UNDERSCORE_NAMES underscore names, $ARCS Arc usages"
+echo "       $TODOS TODOs/FIXMEs, $PLACEHOLDERS placeholders, $STUBS stubs, $UNDERSCORE_NAMES underscore names"
+echo "       $CFG_TESTS #[cfg(test)] modules, $ARCS Arc usages"
 
 if [ "$UNWRAPS" -gt 0 ]; then 
     echo -e "${RED}[FAIL] Found $UNWRAPS unwrap() calls (dev standards violation)${NC}"
@@ -249,7 +260,14 @@ if [ "$UNDERSCORE_NAMES" -gt 0 ]; then
     rg "fn _|let _[a-zA-Z]|struct _|enum _" src/ -n | head -3
     ALL_PASSED=false
 fi
-if [ "$UNWRAPS" -eq 0 ] && [ "$EXPECTS" -eq 0 ] && [ "$PANICS" -eq 0 ] && [ "$TODOS" -eq 0 ] && [ "$PLACEHOLDERS" -eq 0 ] && [ "$STUBS" -eq 0 ] && [ "$UNDERSCORE_NAMES" -eq 0 ]; then
+if [ "$CFG_TESTS" -gt 0 ]; then 
+    echo -e "${RED}[FAIL] Found $CFG_TESTS #[cfg(test)] modules in src/ (dev standards violation)${NC}"
+    echo -e "${YELLOW}   Tests must be in tests/ directory, not as #[cfg(test)] modules in src/${NC}"
+    echo -e "${YELLOW}   Examples:${NC}"
+    rg "#\[cfg\(test\)\]" src/ -n | head -3
+    ALL_PASSED=false
+fi
+if [ "$UNWRAPS" -eq 0 ] && [ "$EXPECTS" -eq 0 ] && [ "$PANICS" -eq 0 ] && [ "$TODOS" -eq 0 ] && [ "$PLACEHOLDERS" -eq 0 ] && [ "$STUBS" -eq 0 ] && [ "$UNDERSCORE_NAMES" -eq 0 ] && [ "$CFG_TESTS" -eq 0 ]; then
     echo -e "${GREEN}[OK] All prohibited patterns check passed${NC}"
 fi
 

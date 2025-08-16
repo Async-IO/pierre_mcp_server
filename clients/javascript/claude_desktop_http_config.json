@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "pierre-fitness": {
+      "command": "node",
+      "args": ["-e", "const http = require('http'); const rl = require('readline').createInterface({input: process.stdin, output: process.stdout, terminal: false}); rl.on('line', async (line) => { try { const req = JSON.parse(line); const options = { hostname: 'localhost', port: 8080, path: '/mcp', method: 'POST', headers: { 'Authorization': 'pk_live_akODQjOwjSStpvyRd0GQvSEvEyfklRNy', 'Content-Type': 'application/json' } }; const httpReq = http.request(options, (res) => { let data = ''; res.on('data', (chunk) => data += chunk); res.on('end', () => process.stdout.write(data + '\\n')); }); httpReq.on('error', (e) => process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:req.id,error:{code:-32603,message:e.message}}) + '\\n')); httpReq.write(JSON.stringify(req)); httpReq.end(); } catch(e) { process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:null,error:{code:-32700,message:e.message}}) + '\\n'); } });"]
+    }
+  }
+}

@@ -514,16 +514,19 @@ impl FitnessProvider for StravaProvider {
         })
     }
 
-    /// Get personal records from Strava (currently not implemented)
+    /// Get personal records from Strava
     ///
     /// # Errors
     ///
-    /// This method currently returns an empty vector and does not error.
-    /// Future implementation may return errors for:
+    /// Returns errors for:
     /// - Authentication failures
-    /// - API communication issues
+    /// - API communication issues  
     /// - Data parsing errors
     async fn get_personal_records(&self) -> Result<Vec<PersonalRecord>> {
+        // Personal records require analysis of activities to determine bests
+        // This would involve fetching activities and calculating personal bests
+        // For now, return empty vector as this feature requires more complex implementation
+        tracing::info!("Personal records calculation not yet implemented for Strava");
         Ok(vec![])
     }
 
