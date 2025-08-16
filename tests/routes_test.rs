@@ -58,7 +58,7 @@ async fn test_register_user() {
 
     let response = routes.register(request).await.unwrap();
     assert!(!response.user_id.is_empty());
-    assert_eq!(response.message, "User registered successfully");
+    assert_eq!(response.message, "User registered successfully. Your account is pending admin approval.");
 }
 
 #[tokio::test]
