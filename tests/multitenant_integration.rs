@@ -181,7 +181,10 @@ async fn test_multitenant_auth_flow() -> Result<()> {
 
     let register_response = auth_routes.register(register_request).await?;
     assert!(!register_response.user_id.is_empty());
-    assert_eq!(register_response.message, "User registered successfully");
+    assert_eq!(
+        register_response.message,
+        "User registered successfully. Your account is pending admin approval."
+    );
 
     // Parse user ID
     let user_id = Uuid::parse_str(&register_response.user_id)?;
@@ -191,6 +194,39 @@ async fn test_multitenant_auth_flow() -> Result<()> {
     assert_eq!(user.email, "test@multitenant.com");
     assert_eq!(user.display_name, Some("Multi-Tenant User".to_string()));
     assert!(user.is_active);
+    assert_eq!(
+        user.user_status,
+        pierre_mcp_server::models::UserStatus::Pending
+    );
+
+    // Create admin user and approve the user for testing
+    let admin_id = uuid::Uuid::new_v4();
+    let admin_user = pierre_mcp_server::models::User {
+        id: admin_id,
+        email: "admin@test.com".to_string(),
+        display_name: Some("Test Admin".to_string()),
+        password_hash: "$2b$10$hashedpassword".to_string(),
+        tier: pierre_mcp_server::models::UserTier::Enterprise,
+        tenant_id: Some("test-tenant".to_string()),
+        strava_token: None,
+        fitbit_token: None,
+        is_active: true,
+        user_status: pierre_mcp_server::models::UserStatus::Active,
+        approved_by: None,
+        approved_at: Some(chrono::Utc::now()),
+        created_at: chrono::Utc::now(),
+        last_active: chrono::Utc::now(),
+    };
+    database.create_user(&admin_user).await?;
+
+    // Approve the user
+    database
+        .update_user_status(
+            user_id,
+            pierre_mcp_server::models::UserStatus::Active,
+            &admin_id.to_string(),
+        )
+        .await?;
 
     // Test user login
     let login_request = LoginRequest {

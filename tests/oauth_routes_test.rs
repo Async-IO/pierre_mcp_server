@@ -11,7 +11,7 @@
 use pierre_mcp_server::{
     auth::AuthManager,
     database::generate_encryption_key,
-    database_plugins::factory::Database,
+    database_plugins::{factory::Database, DatabaseProvider},
     routes::{AuthRoutes, LoginRequest, RegisterRequest},
 };
 
@@ -143,7 +143,7 @@ async fn test_login_with_correct_credentials() {
         .await
         .unwrap();
     let auth_manager = AuthManager::new(vec![0u8; 64], 24);
-    let auth_routes = AuthRoutes::new(database, auth_manager);
+    let auth_routes = AuthRoutes::new(database.clone(), auth_manager);
 
     // Register user
     let register_request = RegisterRequest {
@@ -152,7 +152,37 @@ async fn test_login_with_correct_credentials() {
         display_name: Some("Login Test".to_string()),
     };
 
-    auth_routes.register(register_request).await.unwrap();
+    let register_response = auth_routes.register(register_request).await.unwrap();
+
+    // Create admin user and approve the registered user for testing
+    let user_id = uuid::Uuid::parse_str(&register_response.user_id).unwrap();
+    let admin_id = uuid::Uuid::new_v4();
+    let admin_user = pierre_mcp_server::models::User {
+        id: admin_id,
+        email: "admin@test.com".to_string(),
+        display_name: Some("Test Admin".to_string()),
+        password_hash: "$2b$10$hashedpassword".to_string(),
+        tier: pierre_mcp_server::models::UserTier::Enterprise,
+        tenant_id: Some("test-tenant".to_string()),
+        strava_token: None,
+        fitbit_token: None,
+        is_active: true,
+        user_status: pierre_mcp_server::models::UserStatus::Active,
+        approved_by: None,
+        approved_at: Some(chrono::Utc::now()),
+        created_at: chrono::Utc::now(),
+        last_active: chrono::Utc::now(),
+    };
+    database.create_user(&admin_user).await.unwrap();
+
+    database
+        .update_user_status(
+            user_id,
+            pierre_mcp_server::models::UserStatus::Active,
+            &admin_id.to_string(),
+        )
+        .await
+        .unwrap();
 
     // Login with correct credentials
     let login_request = LoginRequest {

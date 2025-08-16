@@ -370,30 +370,105 @@ curl -X POST "http://localhost:8081/api/keys" \
    - API key management with tier-based rate limiting
    - Ready for MCP protocol access
 
-### 🎯 Current Status - Ready for MCP Integration
+## Update: Phase 5 - Fresh Testing Session Complete
 
-**Server Status**: ✅ Running on ports 8080 (MCP) and 8081 (HTTP)
-**User Account**: ✅ ChefFamille configured with all credentials
-**OAuth Configuration**: ✅ Strava app credentials stored in database
-**API Access**: ✅ API key ready for Claude Code MCP client
+### Date: August 15, 2025 (Fresh Start)
 
-### Next Steps - MCP Integration
+#### Complete Environment Reset ✅
+- Database cleaned with `./scripts/fresh-start.sh`
+- Server restarted on ports 8080 (MCP) and 8081 (HTTP)
+- All previous testing artifacts removed
+
+#### User Account Setup ✅
+```bash
+# User Registration
+curl -X POST "http://localhost:8081/auth/register" \
+  -d '{"email":"cheffamille@example.com","password":"SecurePassword123","display_name":"ChefFamille"}'
+```
+**Result**: User ID `cfa2abb5-ecf2-4112-9b3e-eea3fb869bb7`
+
+#### Authentication Flow ✅
+```bash
+# JWT Login
+curl -X POST "http://localhost:8081/auth/login" \
+  -d '{"email":"cheffamille@example.com","password":"SecurePassword123"}'
+```
+**Result**: JWT Token with 24-hour expiry
+
+#### API Key Creation ✅
+```bash
+# API Key for MCP Access
+curl -X POST "http://localhost:8081/api/keys" \
+  -H "Authorization: Bearer JWT_TOKEN" \
+  -d '{"name":"ChefFamille Claude Code Client","tier":"professional","description":"API key for Claude Code MCP integration","rate_limit_requests":10000,"expires_in_days":90}'
+```
+**Result**: API Key `pk_live_L2Q5HCWtDGl8tLvZXILnNmyPSnqynHg7`
+- Tier: Starter (10,000 requests/month)
+- Expires: November 13, 2025
+
+#### OAuth Configuration ✅
+```python
+# Stored ChefFamille's Strava OAuth app credentials in database
+conn.execute('''
+    INSERT INTO user_oauth_app_credentials 
+    (id, user_id, provider, client_id, client_secret, redirect_uri)
+    VALUES (?, ?, 'strava', ?, ?, ?)
+''', [
+    'cheffamille_strava_app', 
+    'cfa2abb5-ecf2-4112-9b3e-eea3fb869bb7', 
+    '163846', 
+    '1dfc45ad0a1f6983b835e4495aa9473d111d03bc', 
+    'http://localhost:8081/auth/strava/callback'
+])
+```
+**Result**: OAuth app credentials encrypted and stored successfully
+
+#### MCP Protocol Testing ✅
+```bash
+# Test tools/list endpoint
+curl -X POST "http://localhost:8080/mcp" \
+  -H "Authorization: pk_live_L2Q5HCWtDGl8tLvZXILnNmyPSnqynHg7" \
+  -d '{"jsonrpc":"2.0","method":"tools/list","params":{},"id":1}'
+```
+**Result**: ✅ 26 fitness tools available including:
+- `get_activities` - Fetch fitness activities
+- `get_athlete` - Get athlete profile  
+- `get_stats` - Fitness statistics
+- `get_activity_intelligence` - AI-powered activity analysis
+- `connect_strava` - Strava OAuth flow
+- `analyze_activity` - Deep activity analysis
+- `generate_recommendations` - Training recommendations
+- `calculate_fitness_score` - Comprehensive fitness scoring
+
+### 🎯 Current Status - Ready for Claude Code Integration
+
+**Server Status**: ✅ Running continuously on ports 8080 (MCP) and 8081 (HTTP)
+**User Account**: ✅ ChefFamille account configured and authenticated
+**OAuth Configuration**: ✅ Strava app credentials (Client ID: 163846) stored in database
+**API Access**: ✅ API key `pk_live_L2Q5HCWtDGl8tLvZXILnNmyPSnqynHg7` ready for Claude Code
+**MCP Protocol**: ✅ All 26 fitness tools verified and accessible
+
+### Next Steps - Claude Code Integration
 
 1. **Configure Claude Code MCP Client**
-   - Server URL: `http://localhost:8080`
-   - API Key: `pk_live_1CA8AW5EC270UJlmKaGDBuMNkRQj1Br2`
+   - Server URL: `http://localhost:8080/mcp`
+   - API Key: `pk_live_L2Q5HCWtDGl8tLvZXILnNmyPSnqynHg7`
+   - Transport: HTTP
+   - Authentication: API key in Authorization header
 
-2. **Test MCP Protocol Handshake**
-   - Verify tools/list endpoint
-   - Confirm all 26 fitness tools available
+2. **Test MCP Protocol Handshake from Claude Code**
+   - Verify tools/list works from Claude Code
+   - Confirm all 26 fitness tools are accessible
 
 3. **Complete Strava OAuth Flow**
-   - Use stored OAuth app credentials
-   - Obtain and store user's Strava access tokens
+   - Use `connect_strava` tool to initiate OAuth
+   - Complete authorization in browser
+   - Verify access tokens are stored
 
-4. **Execute Fitness Data Retrieval**
-   - Test get_activities MCP tool
-   - Generate comprehensive fitness report
+4. **Execute Fitness Data Analysis**
+   - Test `get_activities` tool to retrieve last 100 activities
+   - Use `get_activity_intelligence` for AI analysis
+   - Generate comprehensive fitness report with recommendations
 
 ## Conclusion
 

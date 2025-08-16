@@ -6,8 +6,9 @@
 //! all critical authentication, registration, and OAuth functionality.
 
 use anyhow::Result;
-use pierre_mcp_server::routes::{
-    AuthRoutes, LoginRequest, OAuthRoutes, RefreshTokenRequest, RegisterRequest,
+use pierre_mcp_server::{
+    database_plugins::DatabaseProvider,
+    routes::{AuthRoutes, LoginRequest, OAuthRoutes, RefreshTokenRequest, RegisterRequest},
 };
 use uuid::Uuid;
 
@@ -149,7 +150,10 @@ async fn test_user_registration_edge_cases() -> Result<()> {
 
 #[tokio::test]
 async fn test_user_login_success() -> Result<()> {
-    let auth_routes = create_test_auth_routes().await?;
+    let database = common::create_test_database().await?;
+    let auth_manager = common::create_test_auth_manager();
+    let auth_routes =
+        pierre_mcp_server::routes::AuthRoutes::new((*database).clone(), (*auth_manager).clone());
 
     // First register a user
     let register_request = RegisterRequest {
@@ -158,7 +162,17 @@ async fn test_user_login_success() -> Result<()> {
         display_name: Some("Login User".to_string()),
     };
 
-    auth_routes.register(register_request).await?;
+    let register_response = auth_routes.register(register_request).await?;
+    let user_id = uuid::Uuid::parse_str(&register_response.user_id)?;
+
+    // Approve the user for testing
+    database
+        .update_user_status(
+            user_id,
+            pierre_mcp_server::models::UserStatus::Active,
+            "", // Empty string for test admin
+        )
+        .await?;
 
     // Now test login
     let login_request = LoginRequest {
@@ -257,7 +271,10 @@ async fn test_user_login_case_sensitivity() -> Result<()> {
 
 #[tokio::test]
 async fn test_token_refresh_success() -> Result<()> {
-    let auth_routes = create_test_auth_routes().await?;
+    let database = common::create_test_database().await?;
+    let auth_manager = common::create_test_auth_manager();
+    let auth_routes =
+        pierre_mcp_server::routes::AuthRoutes::new((*database).clone(), (*auth_manager).clone());
 
     // Register and login to get initial token
     let register_request = RegisterRequest {
@@ -268,6 +285,16 @@ async fn test_token_refresh_success() -> Result<()> {
 
     let register_response = auth_routes.register(register_request).await?;
     let user_id = register_response.user_id;
+    let user_uuid = uuid::Uuid::parse_str(&user_id)?;
+
+    // Approve the user for testing
+    database
+        .update_user_status(
+            user_uuid,
+            pierre_mcp_server::models::UserStatus::Active,
+            "", // Empty string for test admin
+        )
+        .await?;
 
     let login_request = LoginRequest {
         email: "refresh@example.com".to_string(),
@@ -310,7 +337,10 @@ async fn test_token_refresh_invalid_token() -> Result<()> {
 
 #[tokio::test]
 async fn test_token_refresh_mismatched_user() -> Result<()> {
-    let auth_routes = create_test_auth_routes().await?;
+    let database = common::create_test_database().await?;
+    let auth_manager = common::create_test_auth_manager();
+    let auth_routes =
+        pierre_mcp_server::routes::AuthRoutes::new((*database).clone(), (*auth_manager).clone());
 
     // Register and login to get a valid token
     let register_request = RegisterRequest {
@@ -319,7 +349,17 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
         display_name: Some("Mismatch User".to_string()),
     };
 
-    auth_routes.register(register_request).await?;
+    let register_response = auth_routes.register(register_request).await?;
+    let user_id = uuid::Uuid::parse_str(&register_response.user_id)?;
+
+    // Approve the user for testing
+    database
+        .update_user_status(
+            user_id,
+            pierre_mcp_server::models::UserStatus::Active,
+            "", // Empty string for test admin
+        )
+        .await?;
 
     let login_request = LoginRequest {
         email: "mismatch@example.com".to_string(),
@@ -531,8 +571,17 @@ async fn test_password_validation_comprehensive() -> Result<()> {
 
 #[tokio::test]
 async fn test_complete_auth_flow() -> Result<()> {
-    let auth_routes = create_test_auth_routes().await?;
-    let oauth_routes = create_test_oauth_routes().await?;
+    // Set required environment variables for OAuth
+    std::env::set_var("STRAVA_CLIENT_ID", "test_client_id");
+    std::env::set_var("STRAVA_CLIENT_SECRET", "test_client_secret");
+    std::env::set_var("FITBIT_CLIENT_ID", "test_fitbit_client_id");
+    std::env::set_var("FITBIT_CLIENT_SECRET", "test_fitbit_client_secret");
+
+    let database = common::create_test_database().await?;
+    let auth_manager = common::create_test_auth_manager();
+    let auth_routes =
+        pierre_mcp_server::routes::AuthRoutes::new((*database).clone(), (*auth_manager).clone());
+    let oauth_routes = pierre_mcp_server::routes::OAuthRoutes::new((*database).clone());
 
     // 1. Register user
     let register_request = RegisterRequest {
@@ -543,6 +592,15 @@ async fn test_complete_auth_flow() -> Result<()> {
 
     let register_response = auth_routes.register(register_request).await?;
     let user_id = Uuid::parse_str(&register_response.user_id)?;
+
+    // Approve the user for testing
+    database
+        .update_user_status(
+            user_id,
+            pierre_mcp_server::models::UserStatus::Active,
+            "", // Empty string for test admin
+        )
+        .await?;
 
     // 2. Login
     let login_request = LoginRequest {
@@ -607,16 +665,29 @@ async fn test_concurrent_registrations() -> Result<()> {
 
 #[tokio::test]
 async fn test_concurrent_logins() -> Result<()> {
-    let auth_routes = create_test_auth_routes().await?;
+    let database = common::create_test_database().await?;
+    let auth_manager = common::create_test_auth_manager();
+    let auth_routes =
+        pierre_mcp_server::routes::AuthRoutes::new((*database).clone(), (*auth_manager).clone());
 
-    // First register users
+    // First register and approve users
     for i in 0..3 {
         let request = RegisterRequest {
             email: format!("login_concurrent{i}@example.com"),
             password: "loginpass123".to_string(),
             display_name: Some(format!("Login User {i}")),
         };
-        auth_routes.register(request).await?;
+        let register_response = auth_routes.register(request).await?;
+        let user_id = uuid::Uuid::parse_str(&register_response.user_id)?;
+
+        // Approve the user
+        database
+            .update_user_status(
+                user_id,
+                pierre_mcp_server::models::UserStatus::Active,
+                "", // Empty string for test admin
+            )
+            .await?;
     }
 
     let mut handles = vec![];

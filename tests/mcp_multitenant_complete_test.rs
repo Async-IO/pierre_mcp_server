@@ -7,6 +7,7 @@ use anyhow::Result;
 use pierre_mcp_server::auth::AuthManager;
 use pierre_mcp_server::database::generate_encryption_key;
 use pierre_mcp_server::database_plugins::factory::Database;
+use pierre_mcp_server::database_plugins::DatabaseProvider;
 use pierre_mcp_server::mcp::multitenant::MultiTenantMcpServer;
 use rand::Rng;
 use reqwest::Client;
@@ -159,6 +160,50 @@ impl MultiTenantMcpClient {
                 response.status()
             ))
         }
+    }
+
+    /// Register a new user and auto-approve for testing
+    async fn register_and_approve_user(
+        &self,
+        database: &Database,
+        email: &str,
+        password: &str,
+        display_name: &str,
+    ) -> Result<String> {
+        // Register user normally
+        let user_id = self.register_user(email, password, display_name).await?;
+
+        // Create a test admin user for approval
+        let admin_id = uuid::Uuid::new_v4();
+        let test_admin = pierre_mcp_server::models::User {
+            id: admin_id,
+            email: "test-admin@example.com".to_string(),
+            display_name: Some("Test Admin".to_string()),
+            password_hash: "admin_hash".to_string(),
+            tier: pierre_mcp_server::models::UserTier::Enterprise,
+            tenant_id: Some("test-tenant".to_string()),
+            strava_token: None,
+            fitbit_token: None,
+            is_active: true,
+            user_status: pierre_mcp_server::models::UserStatus::Active,
+            approved_by: None,
+            approved_at: Some(chrono::Utc::now()),
+            created_at: chrono::Utc::now(),
+            last_active: chrono::Utc::now(),
+        };
+        database.create_user(&test_admin).await?;
+
+        // Auto-approve user for testing by directly updating database
+        let user_uuid = Uuid::parse_str(&user_id)?;
+        database
+            .update_user_status(
+                user_uuid,
+                pierre_mcp_server::models::UserStatus::Active,
+                &admin_id.to_string(),
+            )
+            .await?;
+
+        Ok(user_id)
     }
 
     /// Login and get JWT token
@@ -336,6 +381,9 @@ async fn test_complete_multitenant_workflow() -> Result<()> {
 
     let (database, auth_manager, server_port, temp_dir) = setup_test_environment().await?;
 
+    // Clone database for user approval operations
+    let database_for_approval = database.clone();
+
     // Start the server
     let jwt_secret_path = temp_dir.path().join("jwt.secret");
     let encryption_key_path = temp_dir.path().join("encryption.key");
@@ -376,7 +424,9 @@ async fn test_complete_multitenant_workflow() -> Result<()> {
     let password = "testpassword123";
     let display_name = "Test User";
 
-    let user_id = client.register_user(email, password, display_name).await?;
+    let user_id = client
+        .register_and_approve_user(&database_for_approval, email, password, display_name)
+        .await?;
     assert!(!user_id.is_empty());
     assert!(Uuid::parse_str(&user_id).is_ok());
 
@@ -597,6 +647,9 @@ async fn test_mcp_initialization_no_auth() -> Result<()> {
 async fn test_mcp_concurrent_requests() -> Result<()> {
     let (database, auth_manager, server_port, temp_dir) = setup_test_environment().await?;
 
+    // Clone database for user approval operations
+    let database_for_approval = database.clone();
+
     // Start the server
     let jwt_secret_path = temp_dir.path().join("jwt.secret");
     let encryption_key_path = temp_dir.path().join("encryption.key");
@@ -634,7 +687,12 @@ async fn test_mcp_concurrent_requests() -> Result<()> {
 
     // Register and login
     let _user_id = client
-        .register_user("concurrent@example.com", "password123", "Concurrent User")
+        .register_and_approve_user(
+            &database_for_approval,
+            "concurrent@example.com",
+            "password123",
+            "Concurrent User",
+        )
         .await?;
     client
         .login("concurrent@example.com", "password123")
