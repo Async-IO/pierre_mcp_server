@@ -5,7 +5,7 @@
 
 > ⚠️ **Development Status**: This project is under active development. APIs and features may change.
 
-Multi-tenant MCP server providing AI assistants with secure access to fitness data (Strava, Fitbit). Supports MCP Protocol, A2A Protocol, and REST APIs with per-tenant OAuth isolation and admin approval system.
+**Universal MCP server** providing AI assistants and applications with secure access to fitness data (Strava, Fitbit). Fully compatible with any MCP client including Claude Desktop, ChatGPT, Cursor, and custom agents. Features multi-tenant architecture, A2A Protocol, REST APIs, per-tenant OAuth isolation, and admin approval system.
 
 ## Architecture Overview
 
@@ -95,40 +95,117 @@ curl -X POST http://localhost:8081/api/tenants/{TENANT_ID}/oauth \
   }'
 ```
 
-## Claude Desktop Integration
+## MCP Client Integration
 
-### Step 1: Configure Claude Desktop
+Pierre is a **universal MCP server** compatible with any MCP client following the Model Context Protocol specification.
 
-Add to your Claude Desktop config (`~/.claude/claude_desktop_config.json`):
+### Supported MCP Clients
 
+| Client | Platform | Configuration |
+|--------|----------|---------------|
+| **Claude Desktop** | Desktop app | JSON config file |
+| **ChatGPT** | With MCP support | Custom integration |
+| **Cursor** | IDE | MCP extension |
+| **Continue.dev** | VS Code | MCP plugin |
+| **Custom agents** | Any platform | Direct MCP protocol |
+
+### Universal MCP Configuration
+
+Pierre provides the standard MCP client binary that works with any MCP-compatible application:
+
+#### Option 1: Direct MCP Binary (Recommended)
 ```json
 {
   "mcpServers": {
     "pierre-fitness": {
       "command": "/path/to/pierre_mcp_server/target/release/pierre-mcp-client",
       "env": {
-        "TENANT_ID": "YOUR_TENANT_ID_FROM_STEP_3",
-        "TENANT_JWT_TOKEN": "generated_jwt_token_here"
+        "TENANT_ID": "YOUR_TENANT_ID",
+        "TENANT_JWT_TOKEN": "YOUR_JWT_TOKEN"
       }
     }
   }
 }
 ```
 
-**Important**: Use `pierre-mcp-client` (the lightweight client), not `pierre-mcp-server` (the database server).
-
-### Step 2: Generate Tenant JWT Token
-
+#### Option 2: HTTP MCP Transport
 ```bash
-# Generate a JWT token for your tenant
-curl -X POST http://localhost:8081/api/tenants/{TENANT_ID}/jwt \
+# For clients that support HTTP MCP transport
+curl -X POST http://localhost:8080/mcp \
+  -H "Authorization: Bearer JWT_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"scopes": ["fitness:read", "activity:read"]}'
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "tools/list",
+    "params": {},
+    "id": 1
+  }'
 ```
 
-### Step 3: Connect to Strava
+### Client-Specific Examples
 
-When you first ask Claude about your fitness data, it will provide an OAuth URL. Visit it to authorize Strava access.
+<details>
+<summary><strong>Claude Desktop</strong></summary>
+
+Add to `~/.claude/claude_desktop_config.json`:
+```json
+{
+  "mcpServers": {
+    "pierre-fitness": {
+      "command": "/path/to/pierre_mcp_server/target/release/pierre-mcp-client",
+      "env": {
+        "TENANT_ID": "your-tenant-id",
+        "TENANT_JWT_TOKEN": "your-jwt-token"
+      }
+    }
+  }
+}
+```
+</details>
+
+<details>
+<summary><strong>Custom MCP Clients</strong></summary>
+
+Use the MCP protocol directly:
+```python
+import asyncio
+import json
+from mcp import ClientSession, StdioServerParameters
+
+async def main():
+    server_params = StdioServerParameters(
+        command="/path/to/pierre-mcp-client",
+        env={"TENANT_ID": "your-tenant-id", "TENANT_JWT_TOKEN": "your-jwt-token"}
+    )
+    
+    async with ClientSession(server_params) as session:
+        await session.initialize()
+        tools = await session.list_tools()
+        print(f"Available tools: {[tool.name for tool in tools]}")
+```
+</details>
+
+### Generate Tenant Credentials
+
+Generate JWT token for MCP client authentication:
+
+```bash
+# Generate tenant JWT token for MCP access
+curl -X POST http://localhost:8081/api/tenants/{TENANT_ID}/jwt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "scopes": ["fitness:read", "activity:read", "mcp:access"],
+    "expires_in_hours": 8760
+  }'
+```
+
+### First Time Setup
+
+1. Configure your MCP client with pierre-mcp-client binary
+2. Start your MCP-compatible application
+3. Ask about fitness data: "What were my recent activities?"
+4. Follow the OAuth URL to authorize Strava access
+5. Your fitness data is now available through MCP protocol
 
 ## User Management with Admin Approval
 
