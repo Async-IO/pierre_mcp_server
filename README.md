@@ -1,20 +1,32 @@
 # Pierre MCP Server
 
-MCP server for fitness data access. Provides HTTP and MCP protocol endpoints for Strava and Fitbit integration with encrypted OAuth credential storage.
+> ⚠️ **Development Status**: This project is under active development. APIs and features may change.
+
+MCP server for fitness data access with multi-tenant support, admin approval system, and per-user OAuth credential storage.
 
 ## Architecture
 
-- **Server**: HTTP API (port 8081) and MCP protocol (port 8080)
-- **Database**: SQLite with AES-256-GCM encrypted OAuth credentials
-- **Authentication**: JWT tokens and API keys
-- **OAuth**: Per-user credential storage for cloud deployment
+- **Multi-tenant**: Complete tenant isolation with per-user OAuth credentials
+- **Admin Approval**: New users require admin approval before accessing tools
+- **Security**: AES-256-GCM encryption for OAuth credentials, JWT authentication
+- **Protocols**: HTTP REST API (port 8081) and MCP protocol (port 8080)
+- **Database**: SQLite/PostgreSQL with encrypted credential storage
 
-## Setup
+## Documentation
+
+- [Getting Started](docs/GETTING_STARTED.md) - Installation and setup
+- [API Reference](docs/API_REFERENCE.md) - Complete API documentation
+- [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) - Production deployment
+- [Database Guide](docs/DATABASE_GUIDE.md) - Database architecture
+- [A2A Protocol](docs/A2A_REFERENCE.md) - Agent-to-Agent communication
+
+## Quick Start
 
 ### Prerequisites
 
 - Rust 1.75+
-- Strava Developer App (register at developers.strava.com)
+- Node.js 18+ (for JavaScript SDK)
+- Strava Developer App (register at [developers.strava.com](https://developers.strava.com))
 
 ### Installation
 
@@ -24,68 +36,88 @@ cd pierre_mcp_server
 cargo build --release
 ```
 
-### Database Setup
+### Basic Setup
 
 ```bash
-# Clean database
+# Initialize database
 ./scripts/fresh-start.sh
 
 # Start server
 cargo run --bin pierre-mcp-server
 ```
 
-### User Registration
+### User Onboarding Flow
 
+1. **Register User** (creates user with "pending" status):
 ```bash
 curl -X POST http://localhost:8081/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "user@example.com",
-    "password": "password123",
+    "password": "secure_password",
     "display_name": "User Name"
   }'
 ```
 
-### Authentication
-
+2. **Admin Approval** (required before user can access tools):
 ```bash
-# Login to get JWT token
+# Admin approves the user
+curl -X POST http://localhost:8081/admin/users/{user_id}/approve \
+  -H "Authorization: Bearer ADMIN_JWT_TOKEN"
+```
+
+3. **User Login** (after approval):
+```bash
 curl -X POST http://localhost:8081/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "user@example.com",
-    "password": "password123"
-  }'
-
-# Create API key for MCP access
-curl -X POST http://localhost:8081/api/keys \
-  -H "Authorization: Bearer JWT_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "MCP Client",
-    "tier": "professional",
-    "description": "API key for MCP protocol",
-    "rate_limit_requests": 10000,
-    "expires_in_days": 90
+    "password": "secure_password"
   }'
 ```
 
 ### OAuth Configuration
 
-Store your Strava app credentials directly in database:
+After user approval, configure OAuth credentials through the API:
 
-```python
-import sqlite3
-conn = sqlite3.connect("data/users.db")
-conn.execute("""
-    INSERT INTO user_oauth_app_credentials 
-    (id, user_id, provider, client_id, client_secret, redirect_uri, created_at, updated_at)
-    VALUES (?, ?, 'strava', ?, ?, ?, datetime('now'), datetime('now'))
-""", [
-    "unique_id", "your_user_id", "your_client_id", 
-    "your_client_secret", "http://localhost:8081/auth/strava/callback"
-])
-conn.commit()
+```bash
+# Store Strava OAuth credentials for the user
+curl -X POST http://localhost:8081/oauth/credentials \
+  -H "Authorization: Bearer USER_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider": "strava",
+    "client_id": "your_strava_client_id",
+    "client_secret": "your_strava_client_secret",
+    "redirect_uri": "http://localhost:8081/auth/strava/callback"
+  }'
+```
+
+### JavaScript SDK Usage
+
+```javascript
+const { PierreClientSDK } = require('./sdk/pierre-client-sdk');
+
+const sdk = new PierreClientSDK('http://localhost:8081');
+
+// Register and wait for admin approval
+await sdk.register({
+  email: 'user@example.com',
+  password: 'secure_password',
+  displayName: 'User Name'
+});
+
+// After admin approval, login
+const session = await sdk.login('user@example.com', 'secure_password');
+
+// Configure OAuth
+await sdk.setOAuthCredentials('strava', {
+  clientId: 'your_strava_client_id',
+  clientSecret: 'your_strava_client_secret'
+});
+
+// Use the API
+const activities = await sdk.getStravaActivities();
 ```
 
 ## MCP Protocol Usage

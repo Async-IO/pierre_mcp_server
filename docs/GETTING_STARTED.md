@@ -59,20 +59,35 @@ curl -X POST http://localhost:8081/api/keys \
 
 ## OAuth Configuration
 
-Configure your Strava app credentials in the database:
+Configure OAuth credentials through the API after user approval:
 
-```python
-import sqlite3
-conn = sqlite3.connect("data/users.db")
-conn.execute("""
-    INSERT INTO user_oauth_app_credentials 
-    (id, user_id, provider, client_id, client_secret, redirect_uri, created_at, updated_at)
-    VALUES (?, ?, 'strava', ?, ?, ?, datetime('now'), datetime('now'))
-""", [
-    "unique_id", "your_user_id", "your_client_id", 
-    "your_client_secret", "http://localhost:8081/auth/strava/callback"
-])
-conn.commit()
+```bash
+# Store Strava OAuth credentials for the authenticated user
+curl -X POST http://localhost:8081/oauth/credentials \
+  -H "Authorization: Bearer USER_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider": "strava",
+    "client_id": "your_strava_client_id",
+    "client_secret": "your_strava_client_secret",
+    "redirect_uri": "http://localhost:8081/auth/strava/callback"
+  }'
+```
+
+For programmatic access, use the JavaScript SDK:
+
+```javascript
+const { PierreClientSDK } = require('../sdk/pierre-client-sdk');
+
+const sdk = new PierreClientSDK('http://localhost:8081');
+await sdk.login('user@example.com', 'password');
+
+// Configure OAuth credentials
+await sdk.setOAuthCredentials('strava', {
+  clientId: 'your_strava_client_id',
+  clientSecret: 'your_strava_client_secret',
+  redirectUri: 'http://localhost:8081/auth/strava/callback'
+});
 ```
 
 ## MCP Protocol Testing
