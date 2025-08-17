@@ -479,99 +479,113 @@ impl OAuthRoutes {
 
         // Exchange code for tokens (implementation depends on provider)
         match provider {
-            "strava" => {
-                let token_response = self.exchange_strava_code(tenant_id, code).await?;
-
-                // Validate token type
-                if token_response.token_type.to_lowercase() != "bearer" {
-                    warn!(
-                        "Unexpected Strava token type: {}",
-                        token_response.token_type
-                    );
-                }
-
-                // Log athlete information for debugging (without sensitive data)
-                if !token_response.athlete.is_null() {
-                    info!("Strava athlete data received for user: {}", user_id);
-                }
-
-                // Store encrypted tokens in database - use expires_in as fallback for expires_at
-                let expires_at = if token_response.expires_at > 0 {
-                    chrono::DateTime::<chrono::Utc>::from_timestamp(token_response.expires_at, 0)
-                        .unwrap_or_else(|| {
-                            chrono::Utc::now()
-                                + chrono::Duration::seconds(token_response.expires_in)
-                        })
-                } else {
-                    chrono::Utc::now() + chrono::Duration::seconds(token_response.expires_in)
-                };
-
-                self.database
-                    .update_strava_token(
-                        user_id,
-                        &token_response.access_token,
-                        &token_response.refresh_token,
-                        expires_at,
-                        token_response
-                            .scope
-                            .clone()
-                            .unwrap_or_else(|| "read,activity:read_all".into()),
-                    )
-                    .await?;
-
-                info!("Strava tokens stored successfully for user: {}", user_id);
-
-                Ok(OAuthCallbackResponse {
-                    user_id: user_id.to_string(),
-                    provider: "strava".into(),
-                    expires_at: expires_at.to_rfc3339(),
-                    scopes: token_response
-                        .scope
-                        .unwrap_or_else(|| "read,activity:read_all".into()),
-                })
-            }
-            "fitbit" => {
-                let token_response = self.exchange_fitbit_code(tenant_id, code).await?;
-
-                // Validate token type
-                if token_response.token_type.to_lowercase() != "bearer" {
-                    warn!(
-                        "Unexpected Fitbit token type: {}",
-                        token_response.token_type
-                    );
-                }
-
-                // Log user_id for tracking
-                info!(
-                    "Fitbit token received for user_id: {}",
-                    token_response.user_id
-                );
-
-                // Store encrypted tokens in database
-                let expires_at =
-                    chrono::Utc::now() + chrono::Duration::seconds(token_response.expires_in);
-
-                self.database
-                    .update_fitbit_token(
-                        user_id,
-                        &token_response.access_token,
-                        &token_response.refresh_token,
-                        expires_at,
-                        token_response.scope.clone(),
-                    )
-                    .await?;
-
-                info!("Fitbit tokens stored successfully for user: {}", user_id);
-
-                Ok(OAuthCallbackResponse {
-                    user_id: user_id.to_string(),
-                    provider: "fitbit".into(),
-                    expires_at: expires_at.to_rfc3339(),
-                    scopes: token_response.scope,
-                })
-            }
+            "strava" => self.handle_strava_callback(user_id, tenant_id, code).await,
+            "fitbit" => self.handle_fitbit_callback(user_id, tenant_id, code).await,
             _ => Err(anyhow::anyhow!("Unsupported provider: {}", provider)),
         }
+    }
+
+    /// Handle Strava OAuth callback
+    async fn handle_strava_callback(
+        &self,
+        user_id: uuid::Uuid,
+        tenant_id: uuid::Uuid,
+        code: &str,
+    ) -> Result<OAuthCallbackResponse> {
+        let token_response = self.exchange_strava_code(tenant_id, code).await?;
+
+        // Validate token type
+        if token_response.token_type.to_lowercase() != "bearer" {
+            warn!(
+                "Unexpected Strava token type: {}",
+                token_response.token_type
+            );
+        }
+
+        // Log athlete information for debugging (without sensitive data)
+        if !token_response.athlete.is_null() {
+            info!("Strava athlete data received for user: {}", user_id);
+        }
+
+        // Store encrypted tokens in database - use expires_in as fallback for expires_at
+        let expires_at = if token_response.expires_at > 0 {
+            chrono::DateTime::<chrono::Utc>::from_timestamp(token_response.expires_at, 0)
+                .unwrap_or_else(|| {
+                    chrono::Utc::now() + chrono::Duration::seconds(token_response.expires_in)
+                })
+        } else {
+            chrono::Utc::now() + chrono::Duration::seconds(token_response.expires_in)
+        };
+
+        self.database
+            .update_strava_token(
+                user_id,
+                &token_response.access_token,
+                &token_response.refresh_token,
+                expires_at,
+                token_response
+                    .scope
+                    .clone()
+                    .unwrap_or_else(|| "read,activity:read_all".into()),
+            )
+            .await?;
+
+        info!("Strava tokens stored successfully for user: {}", user_id);
+
+        Ok(OAuthCallbackResponse {
+            user_id: user_id.to_string(),
+            provider: "strava".into(),
+            expires_at: expires_at.to_rfc3339(),
+            scopes: token_response
+                .scope
+                .unwrap_or_else(|| "read,activity:read_all".into()),
+        })
+    }
+
+    /// Handle Fitbit OAuth callback
+    async fn handle_fitbit_callback(
+        &self,
+        user_id: uuid::Uuid,
+        tenant_id: uuid::Uuid,
+        code: &str,
+    ) -> Result<OAuthCallbackResponse> {
+        let token_response = self.exchange_fitbit_code(tenant_id, code).await?;
+
+        // Validate token type
+        if token_response.token_type.to_lowercase() != "bearer" {
+            warn!(
+                "Unexpected Fitbit token type: {}",
+                token_response.token_type
+            );
+        }
+
+        // Log user_id for tracking
+        info!(
+            "Fitbit token received for user_id: {}",
+            token_response.user_id
+        );
+
+        // Store encrypted tokens in database
+        let expires_at = chrono::Utc::now() + chrono::Duration::seconds(token_response.expires_in);
+
+        self.database
+            .update_fitbit_token(
+                user_id,
+                &token_response.access_token,
+                &token_response.refresh_token,
+                expires_at,
+                token_response.scope.clone(),
+            )
+            .await?;
+
+        info!("Fitbit tokens stored successfully for user: {}", user_id);
+
+        Ok(OAuthCallbackResponse {
+            user_id: user_id.to_string(),
+            provider: "fitbit".into(),
+            expires_at: expires_at.to_rfc3339(),
+            scopes: token_response.scope,
+        })
     }
 
     /// Exchange Strava authorization code for tokens

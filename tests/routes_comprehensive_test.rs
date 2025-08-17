@@ -8,7 +8,9 @@
 use anyhow::Result;
 use pierre_mcp_server::{
     database_plugins::DatabaseProvider,
+    models::{Tenant, User, UserStatus},
     routes::{AuthRoutes, LoginRequest, OAuthRoutes, RefreshTokenRequest, RegisterRequest},
+    tenant::TenantOAuthCredentials,
 };
 use uuid::Uuid;
 
@@ -26,16 +28,70 @@ async fn create_test_auth_routes() -> Result<AuthRoutes> {
     ))
 }
 
-async fn create_test_oauth_routes() -> Result<OAuthRoutes> {
-    // Set required environment variables for OAuth
-    std::env::set_var("STRAVA_CLIENT_ID", "test_client_id");
-    std::env::set_var("STRAVA_CLIENT_SECRET", "test_client_secret");
-    std::env::set_var("FITBIT_CLIENT_ID", "test_fitbit_client_id");
-    std::env::set_var("FITBIT_CLIENT_SECRET", "test_fitbit_client_secret");
-
+async fn create_test_oauth_routes() -> Result<(OAuthRoutes, Uuid)> {
     let database = common::create_test_database().await?;
 
-    Ok(OAuthRoutes::new((*database).clone()))
+    // Create admin user first
+    let admin_user = User {
+        id: Uuid::new_v4(),
+        email: "admin@example.com".to_string(),
+        display_name: Some("Admin".to_string()),
+        password_hash: "hash".to_string(),
+        tier: pierre_mcp_server::models::UserTier::Starter,
+        tenant_id: None,
+        strava_token: None,
+        fitbit_token: None,
+        created_at: chrono::Utc::now(),
+        last_active: chrono::Utc::now(),
+        is_active: true,
+        user_status: UserStatus::Active,
+        approved_by: None,
+        approved_at: None,
+    };
+    let admin_id = database.create_user(&admin_user).await?;
+
+    // Create tenant
+    let tenant_id = Uuid::new_v4();
+    let tenant = Tenant {
+        id: tenant_id,
+        name: "Test Tenant".to_string(),
+        slug: "test-tenant".to_string(),
+        domain: None,
+        plan: "starter".to_string(),
+        owner_user_id: admin_id,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+    };
+    database.create_tenant(&tenant).await?;
+
+    // Store tenant OAuth credentials
+    let strava_credentials = TenantOAuthCredentials {
+        tenant_id,
+        provider: "strava".to_string(),
+        client_id: "test_client_id".to_string(),
+        client_secret: "test_client_secret".to_string(),
+        redirect_uri: "http://localhost:8080/oauth/callback/strava".to_string(),
+        scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+        rate_limit_per_day: 15000,
+    };
+    database
+        .store_tenant_oauth_credentials(&strava_credentials)
+        .await?;
+
+    let fitbit_credentials = TenantOAuthCredentials {
+        tenant_id,
+        provider: "fitbit".to_string(),
+        client_id: "test_fitbit_client_id".to_string(),
+        client_secret: "test_fitbit_client_secret".to_string(),
+        redirect_uri: "http://localhost:8080/oauth/callback/fitbit".to_string(),
+        scopes: vec!["activity".to_string(), "profile".to_string()],
+        rate_limit_per_day: 15000,
+    };
+    database
+        .store_tenant_oauth_credentials(&fitbit_credentials)
+        .await?;
+
+    Ok((OAuthRoutes::new((*database).clone()), tenant_id))
 }
 
 // === AuthRoutes Registration Tests ===
@@ -385,10 +441,12 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
 
 #[tokio::test]
 async fn test_oauth_get_auth_url_strava() -> Result<()> {
-    let oauth_routes = create_test_oauth_routes().await?;
+    let (oauth_routes, tenant_id) = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
-    let response = oauth_routes.get_auth_url(user_id, "strava")?;
+    let response = oauth_routes
+        .get_auth_url(user_id, tenant_id, "strava")
+        .await?;
 
     assert!(response.authorization_url.contains("strava.com"));
     assert!(response.authorization_url.contains("authorize"));
@@ -401,10 +459,12 @@ async fn test_oauth_get_auth_url_strava() -> Result<()> {
 
 #[tokio::test]
 async fn test_oauth_get_auth_url_fitbit() -> Result<()> {
-    let oauth_routes = create_test_oauth_routes().await?;
+    let (oauth_routes, tenant_id) = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
-    let response = oauth_routes.get_auth_url(user_id, "fitbit")?;
+    let response = oauth_routes
+        .get_auth_url(user_id, tenant_id, "fitbit")
+        .await?;
 
     assert!(response.authorization_url.contains("fitbit.com"));
     assert!(response.authorization_url.contains("authorize"));
@@ -417,10 +477,12 @@ async fn test_oauth_get_auth_url_fitbit() -> Result<()> {
 
 #[tokio::test]
 async fn test_oauth_get_auth_url_unsupported_provider() -> Result<()> {
-    let oauth_routes = create_test_oauth_routes().await?;
+    let (oauth_routes, tenant_id) = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
-    let result = oauth_routes.get_auth_url(user_id, "unsupported_provider");
+    let result = oauth_routes
+        .get_auth_url(user_id, tenant_id, "unsupported_provider")
+        .await;
 
     assert!(result.is_err());
     assert!(result
@@ -433,7 +495,7 @@ async fn test_oauth_get_auth_url_unsupported_provider() -> Result<()> {
 
 #[tokio::test]
 async fn test_oauth_connection_status_no_connections() -> Result<()> {
-    let oauth_routes = create_test_oauth_routes().await?;
+    let (oauth_routes, _tenant_id) = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
     let status = oauth_routes.get_connection_status(user_id).await?;
@@ -452,7 +514,7 @@ async fn test_oauth_connection_status_no_connections() -> Result<()> {
 
 #[tokio::test]
 async fn test_oauth_disconnect_provider_success() -> Result<()> {
-    let oauth_routes = create_test_oauth_routes().await?;
+    let (oauth_routes, _tenant_id) = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
     // Disconnecting a provider that wasn't connected should succeed (idempotent)
@@ -465,7 +527,7 @@ async fn test_oauth_disconnect_provider_success() -> Result<()> {
 
 #[tokio::test]
 async fn test_oauth_disconnect_invalid_provider() -> Result<()> {
-    let oauth_routes = create_test_oauth_routes().await?;
+    let (oauth_routes, _tenant_id) = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
     let result = oauth_routes.disconnect_provider(user_id, "invalid_provider");
@@ -621,8 +683,55 @@ async fn test_complete_auth_flow() -> Result<()> {
     // 4. Check OAuth connection status
     let connections = oauth_routes.get_connection_status(user_id).await?;
 
-    // 5. Get OAuth authorization URL
-    let auth_url = oauth_routes.get_auth_url(user_id, "strava")?;
+    // 5. Get OAuth authorization URL (need tenant credentials first)
+    // Create admin user and tenant for OAuth
+    let admin_user = User {
+        id: Uuid::new_v4(),
+        email: "admin_integration@example.com".to_string(),
+        display_name: Some("Admin".to_string()),
+        password_hash: "hash".to_string(),
+        tier: pierre_mcp_server::models::UserTier::Starter,
+        tenant_id: None,
+        strava_token: None,
+        fitbit_token: None,
+        created_at: chrono::Utc::now(),
+        last_active: chrono::Utc::now(),
+        is_active: true,
+        user_status: pierre_mcp_server::models::UserStatus::Active,
+        approved_by: None,
+        approved_at: None,
+    };
+    let admin_id = database.create_user(&admin_user).await?;
+
+    let tenant_id = Uuid::new_v4();
+    let tenant = pierre_mcp_server::models::Tenant {
+        id: tenant_id,
+        name: "Integration Test Tenant".to_string(),
+        slug: "integration-tenant".to_string(),
+        domain: None,
+        plan: "starter".to_string(),
+        owner_user_id: admin_id,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+    };
+    database.create_tenant(&tenant).await?;
+
+    let strava_credentials = pierre_mcp_server::tenant::TenantOAuthCredentials {
+        tenant_id,
+        provider: "strava".to_string(),
+        client_id: "test_client_id".to_string(),
+        client_secret: "test_client_secret".to_string(),
+        redirect_uri: "http://localhost:8080/oauth/callback/strava".to_string(),
+        scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+        rate_limit_per_day: 15000,
+    };
+    database
+        .store_tenant_oauth_credentials(&strava_credentials)
+        .await?;
+
+    let auth_url = oauth_routes
+        .get_auth_url(user_id, tenant_id, "strava")
+        .await?;
 
     // Verify everything worked
     assert!(!register_response.user_id.is_empty());
