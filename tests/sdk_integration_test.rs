@@ -6,31 +6,88 @@ use pierre_mcp_server::{
     auth::AuthManager,
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
+    models::{Tenant, User, UserStatus},
     routes::{AuthRoutes, OAuthRoutes},
+    tenant::TenantOAuthCredentials,
 };
 use serde_json::json;
 use std::sync::Arc;
 
 /// Test setup for SDK integration tests
-async fn setup_test_environment() -> Result<(Arc<Database>, AuthRoutes, OAuthRoutes)> {
-    // Set required environment variables for OAuth
-    std::env::set_var("STRAVA_CLIENT_ID", "test_client_id");
-    std::env::set_var("STRAVA_CLIENT_SECRET", "test_client_secret");
-    std::env::set_var("FITBIT_CLIENT_ID", "test_fitbit_client_id");
-    std::env::set_var("FITBIT_CLIENT_SECRET", "test_fitbit_client_secret");
-
+async fn setup_test_environment() -> Result<(Arc<Database>, AuthRoutes, OAuthRoutes, uuid::Uuid)> {
     let database =
         Arc::new(Database::new("sqlite::memory:", generate_encryption_key().to_vec()).await?);
+    database.migrate().await?;
 
     let auth_manager = Arc::new(AuthManager::new(
         pierre_mcp_server::auth::generate_jwt_secret().to_vec(),
         24,
     ));
 
+    // Create admin user first
+    let admin_user = User {
+        id: uuid::Uuid::new_v4(),
+        email: "admin@example.com".to_string(),
+        display_name: Some("Admin".to_string()),
+        password_hash: "hash".to_string(),
+        tier: pierre_mcp_server::models::UserTier::Starter,
+        tenant_id: None,
+        strava_token: None,
+        fitbit_token: None,
+        created_at: chrono::Utc::now(),
+        last_active: chrono::Utc::now(),
+        is_active: true,
+        user_status: UserStatus::Active,
+        approved_by: None,
+        approved_at: None,
+    };
+    let admin_id = database.create_user(&admin_user).await?;
+
+    // Create tenant
+    let tenant_id = uuid::Uuid::new_v4();
+    let tenant = Tenant {
+        id: tenant_id,
+        name: "Test Tenant".to_string(),
+        slug: "test-tenant".to_string(),
+        domain: None,
+        plan: "starter".to_string(),
+        owner_user_id: admin_id,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+    };
+    database.create_tenant(&tenant).await?;
+
+    // Store tenant OAuth credentials
+    let strava_credentials = TenantOAuthCredentials {
+        tenant_id,
+        provider: "strava".to_string(),
+        client_id: "test_client_id".to_string(),
+        client_secret: "test_client_secret".to_string(),
+        redirect_uri: "http://localhost:8080/oauth/callback/strava".to_string(),
+        scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+        rate_limit_per_day: 15000,
+    };
+    database
+        .store_tenant_oauth_credentials(&strava_credentials)
+        .await?;
+
+    let fitbit_credentials = TenantOAuthCredentials {
+        tenant_id,
+        provider: "fitbit".to_string(),
+        client_id: "test_fitbit_client_id".to_string(),
+        client_secret: "test_fitbit_client_secret".to_string(),
+        redirect_uri: "http://localhost:8080/oauth/callback/fitbit".to_string(),
+        scopes: vec!["activity".to_string(), "profile".to_string()],
+        rate_limit_per_day: 15000,
+    };
+    database
+        .store_tenant_oauth_credentials(&fitbit_credentials)
+        .await?;
+
     let auth_routes = AuthRoutes::new((*database).clone(), (*auth_manager).clone());
     let oauth_routes = OAuthRoutes::new((*database).clone());
 
-    Ok((database, auth_routes, oauth_routes))
+    Ok((database, auth_routes, oauth_routes, tenant_id))
 }
 
 /// Helper to create and approve a test user
@@ -57,7 +114,7 @@ async fn create_approved_test_user(
 
 #[tokio::test]
 async fn test_sdk_user_registration_flow() -> Result<()> {
-    let (database, auth_routes, _oauth_routes) = setup_test_environment().await?;
+    let (database, auth_routes, _oauth_routes, _tenant_id) = setup_test_environment().await?;
 
     // Test 1: Register user (should create with pending status)
     let register_request = pierre_mcp_server::routes::RegisterRequest {
@@ -114,22 +171,24 @@ async fn test_sdk_user_registration_flow() -> Result<()> {
 
 #[tokio::test]
 async fn test_sdk_oauth_credentials_storage() -> Result<()> {
-    let (database, _auth_routes, oauth_routes) = setup_test_environment().await?;
+    let (database, _auth_routes, oauth_routes, tenant_id) = setup_test_environment().await?;
 
     // Create and approve a test user
     let user_id_str =
         create_approved_test_user(&database, "oauth_test@example.com", "TestPassword123").await?;
     let user_id = uuid::Uuid::parse_str(&user_id_str)?;
 
-    // Test 1: Get OAuth authorization URL (uses environment variables)
-    // This tests the OAuth flow without requiring database storage
+    // Test 1: Get OAuth authorization URL (uses tenant credentials)
+    // This tests the OAuth flow with tenant-based credentials
 
     // Test 2: Get OAuth authorization URL
-    let auth_url_response = oauth_routes.get_auth_url(user_id, "strava")?;
+    let auth_url_response = oauth_routes
+        .get_auth_url(user_id, tenant_id, "strava")
+        .await?;
     assert!(auth_url_response.authorization_url.contains("strava.com"));
     assert!(auth_url_response
         .authorization_url
-        .contains("test_client_id")); // From env var
+        .contains("test_client_id")); // From tenant credentials
     assert!(!auth_url_response.state.is_empty());
 
     Ok(())
@@ -137,7 +196,7 @@ async fn test_sdk_oauth_credentials_storage() -> Result<()> {
 
 #[tokio::test]
 async fn test_sdk_api_key_management() -> Result<()> {
-    let (database, _auth_routes, _oauth_routes) = setup_test_environment().await?;
+    let (database, _auth_routes, _oauth_routes, _tenant_id) = setup_test_environment().await?;
 
     // Create and approve a test user
     let user_id_str =
@@ -173,7 +232,7 @@ async fn test_sdk_api_key_management() -> Result<()> {
 
 #[tokio::test]
 async fn test_sdk_error_handling() -> Result<()> {
-    let (database, auth_routes, oauth_routes) = setup_test_environment().await?;
+    let (database, auth_routes, oauth_routes, tenant_id) = setup_test_environment().await?;
 
     // Test 1: Invalid email format
     let invalid_email_request = pierre_mcp_server::routes::RegisterRequest {
@@ -234,7 +293,9 @@ async fn test_sdk_error_handling() -> Result<()> {
             .await?;
     let user_id = uuid::Uuid::parse_str(&user_id_str)?;
 
-    let result = oauth_routes.get_auth_url(user_id, "unsupported_provider");
+    let result = oauth_routes
+        .get_auth_url(user_id, tenant_id, "unsupported_provider")
+        .await;
     assert!(result.is_err());
     assert!(result
         .unwrap_err()
@@ -246,7 +307,7 @@ async fn test_sdk_error_handling() -> Result<()> {
 
 #[tokio::test]
 async fn test_sdk_complete_onboarding_simulation() -> Result<()> {
-    let (database, auth_routes, oauth_routes) = setup_test_environment().await?;
+    let (database, auth_routes, oauth_routes, tenant_id) = setup_test_environment().await?;
 
     // Simulate complete SDK onboarding flow
 
@@ -305,8 +366,10 @@ async fn test_sdk_complete_onboarding_simulation() -> Result<()> {
     assert_eq!(stored_api_key.user_id, user_id);
 
     // Step 7: Test OAuth URL generation
-    let auth_url = oauth_routes.get_auth_url(user_id, "strava")?;
-    assert!(auth_url.authorization_url.contains("test_client_id")); // Uses env var
+    let auth_url = oauth_routes
+        .get_auth_url(user_id, tenant_id, "strava")
+        .await?;
+    assert!(auth_url.authorization_url.contains("test_client_id")); // Uses tenant credentials
 
     // Step 8: Test connection status
     let connections = oauth_routes.get_connection_status(user_id).await?;
@@ -329,7 +392,7 @@ async fn test_sdk_complete_onboarding_simulation() -> Result<()> {
 
 #[tokio::test]
 async fn test_sdk_mcp_config_generation() -> Result<()> {
-    let (_database, _auth_routes, _oauth_routes) = setup_test_environment().await?;
+    let (_database, _auth_routes, _oauth_routes, _tenant_id) = setup_test_environment().await?;
 
     // Test MCP configuration generation (simulates SDK generateMcpConfig function)
     let api_key = "pk_test_example_api_key_for_mcp_config";

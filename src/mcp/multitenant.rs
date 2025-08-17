@@ -332,16 +332,15 @@ impl MultiTenantMcpServer {
         register.or(login).or(refresh)
     }
 
-    /// Create OAuth endpoint routes
-    fn create_oauth_routes(
+    /// Create OAuth authorization endpoint
+    fn create_oauth_auth_route(
         oauth_routes: &OAuthRoutes,
-        database: Arc<Database>,
+        database: &Arc<Database>,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
 
-        // OAuth authorization URL endpoint
-        let oauth_auth = warp::path("oauth")
-            .and(warp::path!("auth" / String / String)) // /oauth/auth/{provider}/{user_id}
+        warp::path("oauth")
+            .and(warp::path!("auth" / String / String))
             .and(warp::get())
             .and_then({
                 let oauth_routes = oauth_routes.clone();
@@ -350,15 +349,11 @@ impl MultiTenantMcpServer {
                     let oauth_routes = oauth_routes.clone();
                     let database = database.clone();
                     async move {
-                        let user_id = match Uuid::parse_str(&user_id_str) {
-                            Ok(id) => id,
-                            Err(_) => {
-                                let error = api_error("Invalid user ID format");
-                                return Err(warp::reject::custom(ApiError(error)));
-                            }
+                        let Ok(user_id) = Uuid::parse_str(&user_id_str) else {
+                            let error = api_error("Invalid user ID format");
+                            return Err(warp::reject::custom(ApiError(error)));
                         };
 
-                        // Get user's tenant from database
                         let user = match database.get_user(user_id).await {
                             Ok(Some(user)) => user,
                             Ok(None) => {
@@ -371,16 +366,13 @@ impl MultiTenantMcpServer {
                             }
                         };
 
-                        let tenant_id = match user
+                        let Some(tenant_id) = user
                             .tenant_id
                             .as_ref()
                             .and_then(|id| Uuid::parse_str(id).ok())
-                        {
-                            Some(id) => id,
-                            None => {
-                                let error = api_error("User has no valid tenant");
-                                return Err(warp::reject::custom(ApiError(error)));
-                            }
+                        else {
+                            let error = api_error("User has no valid tenant");
+                            return Err(warp::reject::custom(ApiError(error)));
                         };
 
                         match oauth_routes
@@ -395,12 +387,18 @@ impl MultiTenantMcpServer {
                         }
                     }
                 }
-            });
+            })
+    }
 
-        // OAuth callback endpoint
-        let oauth_callback = warp::path("oauth")
+    /// Create OAuth callback endpoint
+    fn create_oauth_callback_route(
+        oauth_routes: &OAuthRoutes,
+    ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+        use warp::Filter;
+
+        warp::path("oauth")
             .and(warp::path("callback"))
-            .and(warp::path!(String)) // /oauth/callback/{provider}
+            .and(warp::path!(String))
             .and(warp::query::<std::collections::HashMap<String, String>>())
             .and(warp::get())
             .and_then({
@@ -410,11 +408,11 @@ impl MultiTenantMcpServer {
                     async move {
                         let code = params.get("code").cloned().unwrap_or_default();
                         let state = params.get("state").cloned().unwrap_or_default();
-                        let error = params.get("error").cloned();
-                        if let Some(error_msg) = error {
+
+                        if let Some(error_msg) = params.get("error") {
                             let error_response = oauth_error(
                                 "OAuth authorization failed",
-                                &error_msg,
+                                error_msg,
                                 Some(&provider)
                             );
                             return Ok(warp::reply::with_status(
@@ -447,8 +445,18 @@ impl MultiTenantMcpServer {
                         }
                     }
                 }
-            });
+            })
+    }
 
+    /// Create OAuth endpoint routes
+    fn create_oauth_routes(
+        oauth_routes: &OAuthRoutes,
+        database: &Arc<Database>,
+    ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+        use warp::Filter;
+
+        let oauth_auth = Self::create_oauth_auth_route(oauth_routes, database);
+        let oauth_callback = Self::create_oauth_callback_route(oauth_routes);
         oauth_auth.or(oauth_callback)
     }
 
@@ -1397,7 +1405,7 @@ impl MultiTenantMcpServer {
 
         // Create all route groups using helper functions
         let auth_route_filter = Self::create_auth_routes(&auth_routes);
-        let oauth_route_filter = Self::create_oauth_routes(&oauth_routes, database.clone());
+        let oauth_route_filter = Self::create_oauth_routes(&oauth_routes, &database);
         let api_key_route_filter = Self::create_api_key_routes(&api_key_routes);
         let api_key_usage_filter = Self::create_api_key_usage_route(api_key_routes.clone());
         let health_filter = Self::create_health_route();

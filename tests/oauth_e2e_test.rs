@@ -156,8 +156,12 @@
 //! End-to-end tests for OAuth flow with MCP integration
 
 use pierre_mcp_server::{
-    auth::AuthManager, database::generate_encryption_key, database_plugins::factory::Database,
+    auth::AuthManager,
+    database::generate_encryption_key,
+    database_plugins::{factory::Database, DatabaseProvider},
     mcp::multitenant::MultiTenantMcpServer,
+    models::{Tenant, User, UserStatus},
+    tenant::TenantOAuthCredentials,
 };
 use serde_json::json;
 use tokio::time::{sleep, Duration};
@@ -329,6 +333,59 @@ async fn test_oauth_callback_error_handling() {
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
+    database.migrate().await.unwrap();
+
+    // Create admin user and tenant for the test
+    let admin_user = User {
+        id: uuid::Uuid::new_v4(),
+        email: "admin@example.com".to_string(),
+        display_name: Some("Admin".to_string()),
+        password_hash: "hash".to_string(),
+        tier: pierre_mcp_server::models::UserTier::Starter,
+        tenant_id: None,
+        strava_token: None,
+        fitbit_token: None,
+        created_at: chrono::Utc::now(),
+        last_active: chrono::Utc::now(),
+        is_active: true,
+        user_status: UserStatus::Active,
+        approved_by: None,
+        approved_at: None,
+    };
+    let admin_id = database.create_user(&admin_user).await.unwrap();
+
+    let tenant_id = uuid::Uuid::new_v4();
+    let tenant = Tenant {
+        id: tenant_id,
+        name: "Test Tenant".to_string(),
+        slug: "test-tenant".to_string(),
+        domain: None,
+        plan: "starter".to_string(),
+        owner_user_id: admin_id,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+    };
+    database.create_tenant(&tenant).await.unwrap();
+
+    // Create a test user with tenant association
+    let test_user = User {
+        id: uuid::Uuid::new_v4(),
+        email: "test@example.com".to_string(),
+        display_name: Some("Test User".to_string()),
+        password_hash: "hash".to_string(),
+        tier: pierre_mcp_server::models::UserTier::Starter,
+        tenant_id: Some(tenant_id.to_string()),
+        strava_token: None,
+        fitbit_token: None,
+        created_at: chrono::Utc::now(),
+        last_active: chrono::Utc::now(),
+        is_active: true,
+        user_status: UserStatus::Active,
+        approved_by: None,
+        approved_at: None,
+    };
+    let test_user_id = database.create_user(&test_user).await.unwrap();
+
     let oauth_routes = pierre_mcp_server::routes::OAuthRoutes::new(database);
 
     // Test invalid state parameter
@@ -347,35 +404,82 @@ async fn test_oauth_callback_error_handling() {
         .await;
     assert!(result.is_err());
 
-    // Test unsupported provider
-    let valid_state = format!("{}:{}", uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
+    // Test unsupported provider (with valid user)
+    let valid_state = format!("{}:{}", test_user_id, uuid::Uuid::new_v4());
     let result = oauth_routes
         .handle_callback("test_code", &valid_state, "unsupported")
         .await;
     assert!(result.is_err());
-    assert!(result
-        .unwrap_err()
-        .to_string()
-        .contains("Unsupported provider"));
+    let error_msg = result.unwrap_err().to_string();
+    assert!(error_msg.contains("Unsupported provider"));
 }
 
 /// Test OAuth state security
 #[tokio::test]
 async fn test_oauth_state_csrf_protection() {
-    // Set required environment variables for OAuth
-    std::env::set_var("STRAVA_CLIENT_ID", "test_client_id");
-    std::env::set_var("STRAVA_CLIENT_SECRET", "test_client_secret");
-
     let encryption_key = generate_encryption_key().to_vec();
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
+    database.migrate().await.unwrap();
+
+    // Create admin user first
+    let admin_user = User {
+        id: uuid::Uuid::new_v4(),
+        email: "admin@example.com".to_string(),
+        display_name: Some("Admin".to_string()),
+        password_hash: "hash".to_string(),
+        tier: pierre_mcp_server::models::UserTier::Starter,
+        tenant_id: None,
+        strava_token: None,
+        fitbit_token: None,
+        created_at: chrono::Utc::now(),
+        last_active: chrono::Utc::now(),
+        is_active: true,
+        user_status: UserStatus::Active,
+        approved_by: None,
+        approved_at: None,
+    };
+    let admin_id = database.create_user(&admin_user).await.unwrap();
+
+    // Create tenant
+    let tenant_id = uuid::Uuid::new_v4();
+    let tenant = Tenant {
+        id: tenant_id,
+        name: "Test Tenant".to_string(),
+        slug: "test-tenant".to_string(),
+        domain: None,
+        plan: "starter".to_string(),
+        owner_user_id: admin_id,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+    };
+    database.create_tenant(&tenant).await.unwrap();
+
+    // Store tenant OAuth credentials
+    let strava_credentials = TenantOAuthCredentials {
+        tenant_id,
+        provider: "strava".to_string(),
+        client_id: "test_client_id".to_string(),
+        client_secret: "test_client_secret".to_string(),
+        redirect_uri: "http://localhost:8080/oauth/callback/strava".to_string(),
+        scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+        rate_limit_per_day: 15000,
+    };
+    database
+        .store_tenant_oauth_credentials(&strava_credentials)
+        .await
+        .unwrap();
+
     let oauth_routes = pierre_mcp_server::routes::OAuthRoutes::new(database);
 
     let user_id = uuid::Uuid::new_v4();
 
     // Generate OAuth URL and get state
-    let auth_response = oauth_routes.get_auth_url(user_id, "strava").unwrap();
+    let auth_response = oauth_routes
+        .get_auth_url(user_id, tenant_id, "strava")
+        .await
+        .unwrap();
 
     // Verify state contains user ID
     assert!(auth_response.state.contains(&user_id.to_string()));
@@ -387,7 +491,10 @@ async fn test_oauth_state_csrf_protection() {
     assert!(uuid::Uuid::parse_str(state_parts[1]).is_ok());
 
     // Verify each request generates unique state
-    let auth_response2 = oauth_routes.get_auth_url(user_id, "strava").unwrap();
+    let auth_response2 = oauth_routes
+        .get_auth_url(user_id, tenant_id, "strava")
+        .await
+        .unwrap();
     assert_ne!(auth_response.state, auth_response2.state);
 }
 

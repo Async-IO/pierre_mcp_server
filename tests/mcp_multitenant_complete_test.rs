@@ -131,37 +131,6 @@ impl MultiTenantMcpClient {
         }
     }
 
-    /// Register a new user
-    async fn register_user(
-        &self,
-        email: &str,
-        password: &str,
-        display_name: &str,
-    ) -> Result<String> {
-        let response = timeout(
-            Duration::from_secs(10),
-            self.http_client
-                .post(format!("{}/auth/register", self.base_url))
-                .json(&json!({
-                    "email": email,
-                    "password": password,
-                    "display_name": display_name
-                }))
-                .send(),
-        )
-        .await??;
-
-        if response.status().is_success() {
-            let data: Value = response.json().await?;
-            Ok(data["user_id"].as_str().unwrap().to_string())
-        } else {
-            Err(anyhow::anyhow!(
-                "Registration failed: {}",
-                response.status()
-            ))
-        }
-    }
-
     /// Register a new user and auto-approve for testing
     async fn register_and_approve_user(
         &self,
