@@ -331,9 +331,10 @@ impl OAuthRoutes {
     /// Returns an error if:
     /// - Provider is not supported
     /// - Database operation fails when storing OAuth state
-    pub fn get_auth_url(
+    pub async fn get_auth_url(
         &self,
         user_id: uuid::Uuid,
+        tenant_id: uuid::Uuid,
         provider: &str,
     ) -> Result<OAuthAuthorizationResponse> {
         // Store state in database for CSRF protection
@@ -343,10 +344,19 @@ impl OAuthRoutes {
 
         match provider {
             "strava" => {
-                let client_id =
-                    crate::constants::env_config::strava_client_id().ok_or_else(|| {
-                        AppError::internal("STRAVA_CLIENT_ID environment variable not set")
+                // Get tenant OAuth credentials for Strava
+                let credentials = self
+                    .database
+                    .get_tenant_oauth_credentials(tenant_id, "strava")
+                    .await
+                    .map_err(|e| {
+                        AppError::internal(format!("Failed to get tenant Strava credentials: {e}"))
+                    })?
+                    .ok_or_else(|| {
+                        AppError::internal("No Strava OAuth credentials configured for tenant")
                     })?;
+
+                let client_id = credentials.client_id;
 
                 let redirect_uri = crate::constants::env_config::strava_redirect_uri();
 
@@ -368,10 +378,19 @@ impl OAuthRoutes {
                 })
             }
             "fitbit" => {
-                let client_id =
-                    crate::constants::env_config::fitbit_client_id().ok_or_else(|| {
-                        AppError::internal("FITBIT_CLIENT_ID environment variable not set")
+                // Get tenant OAuth credentials for Fitbit
+                let credentials = self
+                    .database
+                    .get_tenant_oauth_credentials(tenant_id, "fitbit")
+                    .await
+                    .map_err(|e| {
+                        AppError::internal(format!("Failed to get tenant Fitbit credentials: {e}"))
+                    })?
+                    .ok_or_else(|| {
+                        AppError::internal("No Fitbit OAuth credentials configured for tenant")
                     })?;
+
+                let client_id = credentials.client_id;
 
                 let redirect_uri = crate::constants::env_config::fitbit_redirect_uri();
 
@@ -445,10 +464,23 @@ impl OAuthRoutes {
             user_id, provider
         );
 
+        // Get user's tenant for OAuth credentials lookup
+        let user = self
+            .database
+            .get_user(user_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("User not found: {}", user_id))?;
+
+        let tenant_id = user
+            .tenant_id
+            .as_ref()
+            .and_then(|id| uuid::Uuid::parse_str(id).ok())
+            .ok_or_else(|| anyhow::anyhow!("User has no valid tenant: {}", user_id))?;
+
         // Exchange code for tokens (implementation depends on provider)
         match provider {
             "strava" => {
-                let token_response = self.exchange_strava_code(code).await?;
+                let token_response = self.exchange_strava_code(tenant_id, code).await?;
 
                 // Validate token type
                 if token_response.token_type.to_lowercase() != "bearer" {
@@ -499,7 +531,7 @@ impl OAuthRoutes {
                 })
             }
             "fitbit" => {
-                let token_response = self.exchange_fitbit_code(code).await?;
+                let token_response = self.exchange_fitbit_code(tenant_id, code).await?;
 
                 // Validate token type
                 if token_response.token_type.to_lowercase() != "bearer" {
@@ -543,14 +575,21 @@ impl OAuthRoutes {
     }
 
     /// Exchange Strava authorization code for tokens
-    async fn exchange_strava_code(&self, code: &str) -> Result<StravaTokenResponse> {
-        let client_id = std::env::var("STRAVA_CLIENT_ID")
-            .or_else(|_| std::env::var("strava_client_id"))
-            .unwrap_or_else(|_| "163846".into()); // Default for testing
+    async fn exchange_strava_code(
+        &self,
+        tenant_id: uuid::Uuid,
+        code: &str,
+    ) -> Result<StravaTokenResponse> {
+        // Get tenant OAuth credentials for Strava
+        let credentials = self
+            .database
+            .get_tenant_oauth_credentials(tenant_id, "strava")
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to get tenant Strava credentials: {e}"))?
+            .ok_or_else(|| anyhow::anyhow!("No Strava OAuth credentials configured for tenant"))?;
 
-        let client_secret = std::env::var("STRAVA_CLIENT_SECRET")
-            .or_else(|_| std::env::var("strava_client_secret"))
-            .unwrap_or_else(|_| "1dfc45ad0a1f6983b835e4495aa9473d111d03bc".into()); // Default for testing
+        let client_id = credentials.client_id;
+        let client_secret = credentials.client_secret;
 
         let params = [
             ("client_id", client_id.as_str()),
@@ -595,14 +634,21 @@ impl OAuthRoutes {
     }
 
     /// Exchange Fitbit authorization code for tokens
-    async fn exchange_fitbit_code(&self, code: &str) -> Result<FitbitTokenResponse> {
-        let client_id = std::env::var("FITBIT_CLIENT_ID")
-            .or_else(|_| std::env::var("fitbit_client_id"))
-            .unwrap_or_else(|_| "YOUR_FITBIT_CLIENT_ID".into());
+    async fn exchange_fitbit_code(
+        &self,
+        tenant_id: uuid::Uuid,
+        code: &str,
+    ) -> Result<FitbitTokenResponse> {
+        // Get tenant OAuth credentials for Fitbit
+        let credentials = self
+            .database
+            .get_tenant_oauth_credentials(tenant_id, "fitbit")
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to get tenant Fitbit credentials: {e}"))?
+            .ok_or_else(|| anyhow::anyhow!("No Fitbit OAuth credentials configured for tenant"))?;
 
-        let client_secret = std::env::var("FITBIT_CLIENT_SECRET")
-            .or_else(|_| std::env::var("fitbit_client_secret"))
-            .unwrap_or_else(|_| "YOUR_FITBIT_CLIENT_SECRET".into());
+        let client_id = credentials.client_id;
+        let client_secret = credentials.client_secret;
 
         let redirect_uri = crate::constants::env_config::fitbit_redirect_uri();
 

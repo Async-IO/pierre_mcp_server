@@ -91,38 +91,14 @@ pub mod env_config {
             .unwrap_or(24)
     }
 
-    /// Get Strava `client_id` from environment
-    #[must_use]
-    pub fn strava_client_id() -> Option<String> {
-        env::var("STRAVA_CLIENT_ID").ok()
-    }
-
-    /// Get Strava client secret from environment
-    #[must_use]
-    pub fn strava_client_secret() -> Option<String> {
-        env::var("STRAVA_CLIENT_SECRET").ok()
-    }
-
-    /// Get Strava redirect `URI` from environment or default
+    /// Get Strava redirect `URI` from environment or default (for tenant-based OAuth)
     #[must_use]
     pub fn strava_redirect_uri() -> String {
         env::var("STRAVA_REDIRECT_URI")
             .unwrap_or_else(|_| format!("{}/oauth/callback/strava", base_url()))
     }
 
-    /// Get Fitbit `client_id` from environment
-    #[must_use]
-    pub fn fitbit_client_id() -> Option<String> {
-        env::var("FITBIT_CLIENT_ID").ok()
-    }
-
-    /// Get Fitbit client secret from environment
-    #[must_use]
-    pub fn fitbit_client_secret() -> Option<String> {
-        env::var("FITBIT_CLIENT_SECRET").ok()
-    }
-
-    /// Get Fitbit redirect `URI` from environment or default
+    /// Get Fitbit redirect `URI` from environment or default (for tenant-based OAuth)
     #[must_use]
     pub fn fitbit_redirect_uri() -> String {
         env::var("FITBIT_REDIRECT_URI")

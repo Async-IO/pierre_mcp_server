@@ -73,31 +73,6 @@ impl StravaOAuthProvider {
             redirect_uri,
         })
     }
-
-    /// Legacy constructor that reads from environment variables (deprecated)
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - `STRAVA_CLIENT_ID` environment variable is not set
-    /// - `STRAVA_CLIENT_SECRET` environment variable is not set
-    /// - Environment variable values are invalid
-    #[deprecated(note = "Use from_config() instead for centralized configuration")]
-    pub fn new() -> Result<Self, OAuthError> {
-        let client_id = std::env::var("STRAVA_CLIENT_ID")
-            .map_err(|_| OAuthError::ConfigurationError("STRAVA_CLIENT_ID not set".into()))?;
-
-        let client_secret = std::env::var("STRAVA_CLIENT_SECRET")
-            .map_err(|_| OAuthError::ConfigurationError("STRAVA_CLIENT_SECRET not set".into()))?;
-
-        let redirect_uri = crate::constants::env_config::strava_redirect_uri();
-
-        Ok(Self {
-            client_id,
-            client_secret,
-            redirect_uri,
-        })
-    }
 }
 
 #[async_trait::async_trait]
@@ -266,31 +241,6 @@ impl FitbitOAuthProvider {
             .redirect_uri
             .clone()
             .unwrap_or_else(crate::constants::env_config::fitbit_redirect_uri);
-
-        Ok(Self {
-            client_id,
-            client_secret,
-            redirect_uri,
-        })
-    }
-
-    /// Legacy constructor that reads from environment variables (deprecated)
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - `FITBIT_CLIENT_ID` environment variable is not set
-    /// - `FITBIT_CLIENT_SECRET` environment variable is not set
-    /// - Environment variable values are invalid
-    #[deprecated(note = "Use from_config() instead for centralized configuration")]
-    pub fn new() -> Result<Self, OAuthError> {
-        let client_id = std::env::var("FITBIT_CLIENT_ID")
-            .map_err(|_| OAuthError::ConfigurationError("FITBIT_CLIENT_ID not set".into()))?;
-
-        let client_secret = std::env::var("FITBIT_CLIENT_SECRET")
-            .map_err(|_| OAuthError::ConfigurationError("FITBIT_CLIENT_SECRET not set".into()))?;
-
-        let redirect_uri = crate::constants::env_config::fitbit_redirect_uri();
 
         Ok(Self {
             client_id,

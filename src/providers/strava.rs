@@ -37,9 +37,11 @@ pub struct StravaConfig {
 
 impl Default for StravaConfig {
     fn default() -> Self {
+        // OAuth credentials are now tenant-based, not environment-based
+        // Use empty strings for client credentials - they should be provided via tenant configuration
         Self {
-            client_id: env_config::strava_client_id().unwrap_or_default(),
-            client_secret: env_config::strava_client_secret().unwrap_or_default(),
+            client_id: String::new(),
+            client_secret: String::new(),
             base_url: env_config::strava_api_base(),
             auth_url: env_config::strava_auth_url(),
             token_url: env_config::strava_token_url(),

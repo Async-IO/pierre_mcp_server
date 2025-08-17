@@ -335,6 +335,7 @@ impl MultiTenantMcpServer {
     /// Create OAuth endpoint routes
     fn create_oauth_routes(
         oauth_routes: &OAuthRoutes,
+        database: Arc<Database>,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
 
@@ -344,22 +345,54 @@ impl MultiTenantMcpServer {
             .and(warp::get())
             .and_then({
                 let oauth_routes = oauth_routes.clone();
+                let database = database.clone();
                 move |provider: String, user_id_str: String| {
                     let oauth_routes = oauth_routes.clone();
+                    let database = database.clone();
                     async move {
-                        Uuid::parse_str(&user_id_str).map_or_else(
-                            |_| {
+                        let user_id = match Uuid::parse_str(&user_id_str) {
+                            Ok(id) => id,
+                            Err(_) => {
                                 let error = api_error("Invalid user ID format");
+                                return Err(warp::reject::custom(ApiError(error)));
+                            }
+                        };
+
+                        // Get user's tenant from database
+                        let user = match database.get_user(user_id).await {
+                            Ok(Some(user)) => user,
+                            Ok(None) => {
+                                let error = api_error("User not found");
+                                return Err(warp::reject::custom(ApiError(error)));
+                            }
+                            Err(e) => {
+                                let error = api_error(&format!("Database error: {e}"));
+                                return Err(warp::reject::custom(ApiError(error)));
+                            }
+                        };
+
+                        let tenant_id = match user
+                            .tenant_id
+                            .as_ref()
+                            .and_then(|id| Uuid::parse_str(id).ok())
+                        {
+                            Some(id) => id,
+                            None => {
+                                let error = api_error("User has no valid tenant");
+                                return Err(warp::reject::custom(ApiError(error)));
+                            }
+                        };
+
+                        match oauth_routes
+                            .get_auth_url(user_id, tenant_id, &provider)
+                            .await
+                        {
+                            Ok(auth_response) => Ok(warp::reply::json(&auth_response)),
+                            Err(e) => {
+                                let error = serde_json::json!({"error": e.to_string()});
                                 Err(warp::reject::custom(ApiError(error)))
-                            },
-                            |user_id| match oauth_routes.get_auth_url(user_id, &provider) {
-                                Ok(auth_response) => Ok(warp::reply::json(&auth_response)),
-                                Err(e) => {
-                                    let error = serde_json::json!({"error": e.to_string()});
-                                    Err(warp::reject::custom(ApiError(error)))
-                                }
-                            },
-                        )
+                            }
+                        }
                     }
                 }
             });
@@ -1364,7 +1397,7 @@ impl MultiTenantMcpServer {
 
         // Create all route groups using helper functions
         let auth_route_filter = Self::create_auth_routes(&auth_routes);
-        let oauth_route_filter = Self::create_oauth_routes(&oauth_routes);
+        let oauth_route_filter = Self::create_oauth_routes(&oauth_routes, database.clone());
         let api_key_route_filter = Self::create_api_key_routes(&api_key_routes);
         let api_key_usage_filter = Self::create_api_key_usage_route(api_key_routes.clone());
         let health_filter = Self::create_health_route();
@@ -2432,11 +2465,11 @@ impl MultiTenantMcpServer {
         };
 
         if let Some(decrypted_token) = token {
-            // Authenticate provider with user's token
+            // OAuth credentials are now tenant-based, not environment-based
+            // Use empty credentials for now - this needs tenant context to work properly
             let auth_data = AuthData::OAuth2 {
-                client_id: crate::constants::env_config::strava_client_id().unwrap_or_default(),
-                client_secret: crate::constants::env_config::strava_client_secret()
-                    .unwrap_or_default(),
+                client_id: String::new(),
+                client_secret: String::new(),
                 access_token: Some(decrypted_token.access_token),
                 refresh_token: Some(decrypted_token.refresh_token),
             };
@@ -2461,10 +2494,11 @@ impl MultiTenantMcpServer {
         // Return a new instance with current authentication
         let mut new_provider = create_provider(provider_name)?;
         if let Some(decrypted_token) = database.get_strava_token(user_id).await? {
+            // OAuth credentials are now tenant-based, not environment-based
+            // Use empty credentials for now - this needs tenant context to work properly
             let auth_data = AuthData::OAuth2 {
-                client_id: crate::constants::env_config::strava_client_id().unwrap_or_default(),
-                client_secret: crate::constants::env_config::strava_client_secret()
-                    .unwrap_or_default(),
+                client_id: String::new(),
+                client_secret: String::new(),
                 access_token: Some(decrypted_token.access_token),
                 refresh_token: Some(decrypted_token.refresh_token),
             };
@@ -2474,51 +2508,33 @@ impl MultiTenantMcpServer {
         Ok(new_provider)
     }
 
-    /// Handle `connect_strava` tool call
-    fn handle_connect_strava(user_id: Uuid, database: &Arc<Database>, id: Value) -> McpResponse {
-        let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
-
-        match oauth_routes.get_auth_url(user_id, "strava") {
-            Ok(auth_response) => McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_string(),
-                result: serde_json::to_value(&auth_response).ok(),
-                error: None,
-                id,
-            },
-            Err(e) => McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_string(),
-                result: None,
-                error: Some(McpError {
-                    code: ERROR_INTERNAL_ERROR,
-                    message: format!("Failed to generate Strava authorization URL: {e}"),
-                    data: None,
-                }),
-                id,
-            },
+    /// Handle `connect_strava` tool call (legacy - use tenant handlers instead)
+    fn handle_connect_strava(_user_id: Uuid, _database: &Arc<Database>, id: Value) -> McpResponse {
+        // Legacy handler - OAuth credentials should be configured at tenant level
+        McpResponse {
+            jsonrpc: JSONRPC_VERSION.to_string(),
+            result: None,
+            error: Some(McpError {
+                code: -32001,
+                message: "Legacy OAuth not supported. Please configure OAuth credentials at tenant level.".into(),
+                data: None,
+            }),
+            id,
         }
     }
 
-    /// Handle `connect_fitbit` tool call
-    fn handle_connect_fitbit(user_id: Uuid, database: &Arc<Database>, id: Value) -> McpResponse {
-        let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
-
-        match oauth_routes.get_auth_url(user_id, "fitbit") {
-            Ok(auth_response) => McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_string(),
-                result: serde_json::to_value(&auth_response).ok(),
-                error: None,
-                id,
-            },
-            Err(e) => McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_string(),
-                result: None,
-                error: Some(McpError {
-                    code: ERROR_INTERNAL_ERROR,
-                    message: format!("Failed to generate Fitbit authorization URL: {e}"),
-                    data: None,
-                }),
-                id,
-            },
+    /// Handle `connect_fitbit` tool call (legacy - use tenant handlers instead)
+    fn handle_connect_fitbit(_user_id: Uuid, _database: &Arc<Database>, id: Value) -> McpResponse {
+        // Legacy handler - OAuth credentials should be configured at tenant level
+        McpResponse {
+            jsonrpc: JSONRPC_VERSION.to_string(),
+            result: None,
+            error: Some(McpError {
+                code: -32001,
+                message: "Legacy OAuth not supported. Please configure OAuth credentials at tenant level.".into(),
+                data: None,
+            }),
+            id,
         }
     }
 
@@ -3935,7 +3951,7 @@ impl MultiTenantMcpServer {
     fn handle_tenant_connect_strava(
         tenant_context: &TenantContext,
         _tenant_provider_factory: &Arc<TenantProviderFactory>,
-        _database: &Arc<Database>,
+        database: &Arc<Database>,
         request_id: Value,
     ) -> McpResponse {
         tracing::info!(
@@ -3944,22 +3960,37 @@ impl MultiTenantMcpServer {
             tenant_context.user_id
         );
 
-        // In a real implementation, this would initiate OAuth flow with tenant-specific credentials
-        // For now, return success with tenant context
-        McpResponse {
-            jsonrpc: JSONRPC_VERSION.to_string(),
-            result: Some(serde_json::json!({
-                "message": "Tenant Strava connection initiated",
-                "tenant_id": tenant_context.tenant_id,
-                "tenant_name": &tenant_context.tenant_name,
-                "authorization_url": format!(
-                    "https://www.strava.com/oauth/authorize?client_id=tenant_{}&response_type=code",
-                    tenant_context.tenant_id
-                ),
-                "expires_in_minutes": 10
-            })),
-            error: None,
-            id: request_id,
+        // Use async block to handle tenant OAuth flow
+        let database = database.clone();
+        let tenant_id = tenant_context.tenant_id;
+        let user_id = tenant_context.user_id;
+
+        // We need to spawn this as a task since we're in a sync context
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(async move {
+            let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
+            oauth_routes
+                .get_auth_url(user_id, tenant_id, "strava")
+                .await
+        });
+
+        match result {
+            Ok(auth_response) => McpResponse {
+                jsonrpc: JSONRPC_VERSION.to_string(),
+                result: serde_json::to_value(&auth_response).ok(),
+                error: None,
+                id: request_id,
+            },
+            Err(e) => McpResponse {
+                jsonrpc: JSONRPC_VERSION.to_string(),
+                result: None,
+                error: Some(McpError {
+                    code: -32001,
+                    message: format!("Failed to get Strava auth URL: {e}"),
+                    data: None,
+                }),
+                id: request_id,
+            },
         }
     }
 
@@ -3967,7 +3998,7 @@ impl MultiTenantMcpServer {
     fn handle_tenant_connect_fitbit(
         tenant_context: &TenantContext,
         _tenant_provider_factory: &Arc<TenantProviderFactory>,
-        _database: &Arc<Database>,
+        database: &Arc<Database>,
         request_id: Value,
     ) -> McpResponse {
         tracing::info!(
@@ -3976,21 +4007,37 @@ impl MultiTenantMcpServer {
             tenant_context.user_id
         );
 
-        // In a real implementation, this would initiate OAuth flow with tenant-specific credentials
-        McpResponse {
-            jsonrpc: JSONRPC_VERSION.to_string(),
-            result: Some(serde_json::json!({
-                "message": "Tenant Fitbit connection initiated",
-                "tenant_id": tenant_context.tenant_id,
-                "tenant_name": &tenant_context.tenant_name,
-                "authorization_url": format!(
-                    "https://www.fitbit.com/oauth2/authorize?client_id=tenant_{}&response_type=code",
-                    tenant_context.tenant_id
-                ),
-                "expires_in_minutes": 10
-            })),
-            error: None,
-            id: request_id,
+        // Use async block to handle tenant OAuth flow
+        let database = database.clone();
+        let tenant_id = tenant_context.tenant_id;
+        let user_id = tenant_context.user_id;
+
+        // We need to spawn this as a task since we're in a sync context
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(async move {
+            let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
+            oauth_routes
+                .get_auth_url(user_id, tenant_id, "fitbit")
+                .await
+        });
+
+        match result {
+            Ok(auth_response) => McpResponse {
+                jsonrpc: JSONRPC_VERSION.to_string(),
+                result: serde_json::to_value(&auth_response).ok(),
+                error: None,
+                id: request_id,
+            },
+            Err(e) => McpResponse {
+                jsonrpc: JSONRPC_VERSION.to_string(),
+                result: None,
+                error: Some(McpError {
+                    code: -32001,
+                    message: format!("Failed to get Fitbit auth URL: {e}"),
+                    data: None,
+                }),
+                id: request_id,
+            },
         }
     }
 
@@ -4222,18 +4269,18 @@ impl MultiTenantMcpServer {
             },
             oauth: crate::config::environment::OAuthConfig {
                 strava: crate::config::environment::OAuthProviderConfig {
-                    client_id: std::env::var("STRAVA_CLIENT_ID").ok(),
-                    client_secret: std::env::var("STRAVA_CLIENT_SECRET").ok(),
-                    redirect_uri: std::env::var("STRAVA_REDIRECT_URI").ok(),
+                    client_id: None,     // Use tenant-based OAuth credentials
+                    client_secret: None, // Use tenant-based OAuth credentials
+                    redirect_uri: None,
                     scopes: vec!["read".into(), "activity:read_all".into()],
-                    enabled: true,
+                    enabled: false, // Disabled - use tenant OAuth instead
                 },
                 fitbit: crate::config::environment::OAuthProviderConfig {
-                    client_id: std::env::var("FITBIT_CLIENT_ID").ok(),
-                    client_secret: std::env::var("FITBIT_CLIENT_SECRET").ok(),
-                    redirect_uri: std::env::var("FITBIT_REDIRECT_URI").ok(),
+                    client_id: None,     // Use tenant-based OAuth credentials
+                    client_secret: None, // Use tenant-based OAuth credentials
+                    redirect_uri: None,
                     scopes: vec!["activity".into(), "profile".into()],
-                    enabled: true,
+                    enabled: false, // Disabled - use tenant OAuth instead
                 },
             },
             security: crate::config::environment::SecurityConfig {

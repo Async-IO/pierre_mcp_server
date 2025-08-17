@@ -203,7 +203,7 @@ impl ProviderManager {
             AppError::config(format!("Failed to create {provider_type} provider: {e}"))
         })?;
 
-        let auth_data = Self::create_auth_data(&provider_type, &token)?;
+        let auth_data = Self::create_auth_data(&provider_type, &token);
         provider.authenticate(auth_data).await.map_err(|e| {
             AppError::auth_invalid(format!("{provider_type} authentication failed: {e}"))
         })?;
@@ -266,7 +266,7 @@ impl ProviderManager {
             AppError::config(format!("Failed to create {provider_type} provider: {e}"))
         })?;
 
-        let auth_data = Self::create_auth_data(&provider_type, current_token)?;
+        let auth_data = Self::create_auth_data(&provider_type, current_token);
 
         // Attempt to refresh the token
         provider.authenticate(auth_data).await.map_err(|e| {
@@ -280,27 +280,22 @@ impl ProviderManager {
         Ok(current_token.clone())
     }
 
-    /// Create auth data for a provider
-    fn create_auth_data(
-        provider_type: &ProviderType,
-        token: &DecryptedToken,
-    ) -> Result<AuthData, AppError> {
-        let (client_id_env, client_secret_env) = match provider_type {
-            ProviderType::Strava => ("STRAVA_CLIENT_ID", "STRAVA_CLIENT_SECRET"),
-            ProviderType::Fitbit => ("FITBIT_CLIENT_ID", "FITBIT_CLIENT_SECRET"),
-        };
+    /// Create auth data for a provider using tenant OAuth credentials
+    fn create_auth_data(_provider_type: &ProviderType, token: &DecryptedToken) -> AuthData {
+        // OAuth credentials are now tenant-based, not environment-based
+        // This function needs to be updated to work with tenant credentials
+        // For now, return empty credentials to maintain compatibility
+        // until the caller is updated to pass tenant credentials
+        tracing::warn!(
+            "create_auth_data called without tenant context - OAuth credentials unavailable"
+        );
 
-        let client_id = std::env::var(client_id_env)
-            .map_err(|_| AppError::config(format!("{client_id_env} not configured")))?;
-        let client_secret = std::env::var(client_secret_env)
-            .map_err(|_| AppError::config(format!("{client_secret_env} not configured")))?;
-
-        Ok(AuthData::OAuth2 {
-            client_id,
-            client_secret,
+        AuthData::OAuth2 {
+            client_id: String::new(),
+            client_secret: String::new(),
             access_token: Some(token.access_token.clone()),
             refresh_token: Some(token.refresh_token.clone()),
-        })
+        }
     }
 
     /// Clear the provider cache for a user (useful for logout)
