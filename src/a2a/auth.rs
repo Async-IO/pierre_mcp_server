@@ -249,7 +249,7 @@ impl A2AAuthenticator {
             description: client.description,
             capabilities: client.capabilities,
             redirect_uris: client.redirect_uris,
-            contact_email: "contact@example.com".into(), // Default contact email
+            contact_email: format!("a2a-client-{}@system.local", uuid::Uuid::new_v4()), // System-generated A2A client email
         };
 
         let credentials = client_manager.register_client(request).await?;

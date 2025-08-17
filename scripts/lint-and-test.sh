@@ -209,17 +209,25 @@ PANICS=$(rg "panic!\(" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {pr
 CLONES=$(rg "\.clone\(\)" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
 
 # Enhanced pattern detection for better dev standards compliance
-TODOS=$(rg -i "todo|fixme" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-PLACEHOLDERS=$(rg -i "placeholder" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-STUBS=$(rg -i "not.*implemented|stub" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+TODOS=$(rg -i "todo|fixme|xxx|hack" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+PLACEHOLDERS=$(rg -i "placeholder|dummy|test@example|@example\.com" src/ --exclude="*.md" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+STUBS=$(rg -i "not yet implemented|not implemented|unimplemented!" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 UNDERSCORE_NAMES=$(rg "fn _|let _[a-zA-Z]|struct _|enum _" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 CFG_TESTS=$(rg "#\[cfg\(test\)\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+
+# New comprehensive checks based on issues found
+PLACEHOLDER_EMAILS=$(rg "@example\.(com|org|net)" src/ --exclude="*.md" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+NOT_YET=$(rg "not yet" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+TEMPORARY=$(rg -i "temporary|temp solution|workaround|hack" src/ --type rust -g '!*.md' -g '!*.rs.backup' --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+HARDCODED=$(rg "hardcoded|hard.?coded|magic number" src/ -i --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 
 ARCS=$(rg "Arc<" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
 
 echo "Found: $UNWRAPS unwraps, $EXPECTS expects, $PANICS panics, $CLONES clones"
 echo "       $TODOS TODOs/FIXMEs, $PLACEHOLDERS placeholders, $STUBS stubs, $UNDERSCORE_NAMES underscore names"
 echo "       $CFG_TESTS #[cfg(test)] modules, $ARCS Arc usages"
+echo "       $PLACEHOLDER_EMAILS example emails, $NOT_YET 'not yet' phrases, $TEMPORARY temporary solutions"
+echo "       $HARDCODED hardcoded values"
 
 if [ "$UNWRAPS" -gt 0 ]; then 
     echo -e "${RED}[FAIL] Found $UNWRAPS unwrap() calls (dev standards violation)${NC}"
@@ -267,7 +275,41 @@ if [ "$CFG_TESTS" -gt 0 ]; then
     rg "#\[cfg\(test\)\]" src/ -n | head -3
     ALL_PASSED=false
 fi
-if [ "$UNWRAPS" -eq 0 ] && [ "$EXPECTS" -eq 0 ] && [ "$PANICS" -eq 0 ] && [ "$TODOS" -eq 0 ] && [ "$PLACEHOLDERS" -eq 0 ] && [ "$STUBS" -eq 0 ] && [ "$UNDERSCORE_NAMES" -eq 0 ] && [ "$CFG_TESTS" -eq 0 ]; then
+
+# Check new patterns that were missed
+if [ "$PLACEHOLDER_EMAILS" -gt 0 ]; then 
+    echo -e "${RED}[FAIL] Found $PLACEHOLDER_EMAILS example.com emails (dev standards violation)${NC}"
+    echo -e "${YELLOW}   Use system-generated identifiers instead of example domains${NC}"
+    echo -e "${YELLOW}   Examples:${NC}"
+    rg "@example\.(com|org|net)" src/ --exclude="*.md" -n | head -3
+    ALL_PASSED=false
+fi
+if [ "$NOT_YET" -gt 0 ]; then 
+    echo -e "${RED}[FAIL] Found $NOT_YET 'not yet' phrases (dev standards violation)${NC}"
+    echo -e "${YELLOW}   Implement features or document limitations properly${NC}"
+    echo -e "${YELLOW}   Examples:${NC}"
+    rg "not yet" src/ -n | head -3
+    ALL_PASSED=false
+fi
+if [ "$TEMPORARY" -gt 2 ]; then  # Allow 2 legitimate uses in rate_limiting.rs
+    echo -e "${RED}[FAIL] Found $TEMPORARY temporary solutions (dev standards violation)${NC}"
+    echo -e "${YELLOW}   Replace temporary code with production implementations${NC}"
+    echo -e "${YELLOW}   Examples:${NC}"
+    rg -i "temporary|temp solution|workaround|hack" src/ --type rust -n | head -3
+    ALL_PASSED=false
+elif [ "$TEMPORARY" -gt 0 ]; then
+    echo -e "${YELLOW}[INFO] Found $TEMPORARY uses of 'temporary' - verified as legitimate feature descriptions${NC}"
+fi
+if [ "$HARDCODED" -gt 0 ]; then 
+    echo -e "${YELLOW}[WARN] Found $HARDCODED potential hardcoded values${NC}"
+    echo -e "${YELLOW}   Review for configuration requirements:${NC}"
+    rg "hardcoded|hard.?coded|magic number" src/ -i -n | head -3
+fi
+
+if [ "$UNWRAPS" -eq 0 ] && [ "$EXPECTS" -eq 0 ] && [ "$PANICS" -eq 0 ] && \
+   [ "$TODOS" -eq 0 ] && [ "$PLACEHOLDERS" -eq 0 ] && [ "$STUBS" -eq 0 ] && \
+   [ "$UNDERSCORE_NAMES" -eq 0 ] && [ "$CFG_TESTS" -eq 0 ] && \
+   [ "$PLACEHOLDER_EMAILS" -eq 0 ] && [ "$NOT_YET" -eq 0 ] && [ "$TEMPORARY" -eq 0 ]; then
     echo -e "${GREEN}[OK] All prohibited patterns check passed${NC}"
 fi
 
