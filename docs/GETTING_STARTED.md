@@ -1,6 +1,12 @@
 # Getting Started
 
-Pierre MCP Server setup and configuration.
+Pierre MCP Server setup and configuration for multi-tenant architecture.
+
+## Architecture Overview
+
+Pierre uses a **two-component architecture**:
+1. **Pierre MCP Server** - Backend daemon with database access
+2. **Pierre MCP Client** - Lightweight MCP client for Claude Desktop
 
 ## Installation
 
@@ -10,69 +16,146 @@ cd pierre_mcp_server
 cargo build --release
 ```
 
-## Database Setup
+This builds both binaries:
+- `target/release/pierre-mcp-server` - Backend server
+- `target/release/pierre-mcp-client` - Claude Desktop client
+
+## Step 1: Start the Server
 
 ```bash
+# Initialize database
 ./scripts/fresh-start.sh
+
+# Start the Pierre MCP Server (backend daemon)
 cargo run --bin pierre-mcp-server
 ```
 
 Server runs on:
-- Port 8080: MCP protocol endpoint
-- Port 8081: HTTP REST API
+- Port 8080: MCP protocol endpoint  
+- Port 8081: HTTP REST API and A2A protocol
 
-## User Registration
+## Step 2: Create a Tenant
+
+Every organization needs a tenant for OAuth isolation:
+
+```bash
+# Create your organization's tenant
+curl -X POST http://localhost:8081/api/tenants \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My Organization",
+    "slug": "my-org",
+    "domain": "localhost",
+    "plan": "enterprise"
+  }'
+```
+
+Save the `tenant_id` from the response - you'll need it for all subsequent operations.
+
+## Step 3: Configure Tenant OAuth
+
+Configure OAuth credentials for your tenant (not individual users):
+
+```bash
+# Configure Strava OAuth for the tenant
+curl -X POST http://localhost:8081/api/tenants/{TENANT_ID}/oauth \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider": "strava",
+    "client_id": "YOUR_STRAVA_CLIENT_ID",
+    "client_secret": "YOUR_STRAVA_CLIENT_SECRET", 
+    "redirect_uri": "http://localhost:8081/oauth/callback",
+    "scopes": ["read", "activity:read_all"],
+    "rate_limit_per_day": 40000
+  }'
+```
+
+## Step 4: Generate Tenant JWT Token
+
+Create a JWT token for the tenant to use with MCP client:
+
+```bash
+# Generate tenant JWT token
+curl -X POST http://localhost:8081/api/tenants/{TENANT_ID}/jwt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "scopes": ["fitness:read", "activity:read", "mcp:access"],
+    "expires_in_hours": 8760
+  }'
+```
+
+Save the JWT token for Claude Desktop configuration.
+
+## Step 5: User Registration & Admin Approval
+
+### Register Users (Creates "Pending" Status)
 
 ```bash
 curl -X POST http://localhost:8081/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "user@example.com",
-    "password": "password123",
+    "password": "secure_password",
     "display_name": "User Name"
   }'
 ```
 
-## Authentication
+### Admin Approval Required
+
+New users are created with "pending" status and need admin approval:
 
 ```bash
-# Get JWT token
+# Admin approves the user
+curl -X POST http://localhost:8081/admin/users/{user_id}/approve \
+  -H "Authorization: Bearer ADMIN_JWT_TOKEN"
+```
+
+### User Login (After Approval)
+
+```bash
 curl -X POST http://localhost:8081/auth/login \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "user@example.com",
-    "password": "password123"
-  }'
-
-# Create API key for MCP access
-curl -X POST http://localhost:8081/api/keys \
-  -H "Authorization: Bearer JWT_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "MCP Client",
-    "tier": "professional",
-    "description": "API key for MCP protocol",
-    "rate_limit_requests": 10000,
-    "expires_in_days": 90
+    "email": "user@example.com", 
+    "password": "secure_password"
   }'
 ```
 
-## OAuth Configuration
+## Step 6: Configure Claude Desktop
 
-Configure OAuth credentials through the API after user approval:
+Now configure Claude Desktop to use the lightweight pierre-mcp-client:
 
-```bash
-# Store Strava OAuth credentials for the authenticated user
-curl -X POST http://localhost:8081/oauth/credentials \
-  -H "Authorization: Bearer USER_JWT_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "provider": "strava",
-    "client_id": "your_strava_client_id",
-    "client_secret": "your_strava_client_secret",
-    "redirect_uri": "http://localhost:8081/auth/strava/callback"
-  }'
+### Claude Desktop Configuration
+
+Add to your Claude Desktop config (`~/.claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "pierre-fitness": {
+      "command": "/path/to/pierre_mcp_server/target/release/pierre-mcp-client",
+      "env": {
+        "TENANT_ID": "YOUR_TENANT_ID_FROM_STEP_2",
+        "TENANT_JWT_TOKEN": "YOUR_JWT_TOKEN_FROM_STEP_4"
+      }
+    }
+  }
+}
 ```
+
+**Critical Notes:**
+- Use `pierre-mcp-client` (lightweight client), NOT `pierre-mcp-server` (database server)
+- The client requires TENANT_ID and TENANT_JWT_TOKEN environment variables
+- OAuth is configured at the tenant level, not per user
+
+### First Time Usage
+
+1. Start Claude Desktop
+2. Ask a fitness question: "What were my recent activities?"
+3. Claude will provide a Strava OAuth URL - visit it to authorize
+4. Your Strava data will now be available to Claude
+
+## Alternative: JavaScript SDK Integration
 
 For programmatic access, use the JavaScript SDK:
 
@@ -80,14 +163,17 @@ For programmatic access, use the JavaScript SDK:
 const { PierreClientSDK } = require('../sdk/pierre-client-sdk');
 
 const sdk = new PierreClientSDK('http://localhost:8081');
-await sdk.login('user@example.com', 'password');
 
-// Configure OAuth credentials
-await sdk.setOAuthCredentials('strava', {
-  clientId: 'your_strava_client_id',
-  clientSecret: 'your_strava_client_secret',
-  redirectUri: 'http://localhost:8081/auth/strava/callback'
+// Register user
+await sdk.register({
+  email: 'user@example.com',
+  password: 'secure_password',
+  displayName: 'User Name'
 });
+
+// After admin approval, login and use
+const session = await sdk.login('user@example.com', 'secure_password');
+const activities = await sdk.getStravaActivities();
 ```
 
 ## MCP Protocol Testing
