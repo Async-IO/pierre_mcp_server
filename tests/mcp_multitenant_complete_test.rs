@@ -170,10 +170,10 @@ impl MultiTenantMcpClient {
         password: &str,
         display_name: &str,
     ) -> Result<String> {
-        // Register user normally
-        let user_id = self.register_user(email, password, display_name).await?;
+        // Store tenant OAuth credentials for testing
+        let tenant_uuid = Uuid::new_v4();
 
-        // Create a test admin user for approval
+        // Create a test admin user for approval first (needed for tenant owner)
         let admin_id = uuid::Uuid::new_v4();
         let test_admin = pierre_mcp_server::models::User {
             id: admin_id,
@@ -181,7 +181,7 @@ impl MultiTenantMcpClient {
             display_name: Some("Test Admin".to_string()),
             password_hash: "admin_hash".to_string(),
             tier: pierre_mcp_server::models::UserTier::Enterprise,
-            tenant_id: Some("test-tenant".to_string()),
+            tenant_id: Some(tenant_uuid.to_string()),
             strava_token: None,
             fitbit_token: None,
             is_active: true,
@@ -193,17 +193,68 @@ impl MultiTenantMcpClient {
         };
         database.create_user(&test_admin).await?;
 
-        // Auto-approve user for testing by directly updating database
-        let user_uuid = Uuid::parse_str(&user_id)?;
+        // Create a test tenant for OAuth credentials
+        let test_tenant = pierre_mcp_server::models::Tenant {
+            id: tenant_uuid,
+            name: "Test Tenant".to_string(),
+            slug: "test-tenant".to_string(),
+            domain: None,
+            plan: "starter".to_string(),
+            owner_user_id: admin_id,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+        database.create_tenant(&test_tenant).await?;
+
+        let strava_credentials = pierre_mcp_server::tenant::TenantOAuthCredentials {
+            tenant_id: tenant_uuid,
+            provider: "strava".to_string(),
+            client_id: "test_client_id".to_string(),
+            client_secret: "test_client_secret".to_string(),
+            redirect_uri: "http://localhost:3000/auth/callback".to_string(),
+            scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+            rate_limit_per_day: 1000,
+        };
         database
-            .update_user_status(
-                user_uuid,
-                pierre_mcp_server::models::UserStatus::Active,
-                &admin_id.to_string(),
-            )
+            .store_tenant_oauth_credentials(&strava_credentials)
             .await?;
 
-        Ok(user_id)
+        let fitbit_credentials = pierre_mcp_server::tenant::TenantOAuthCredentials {
+            tenant_id: tenant_uuid,
+            provider: "fitbit".to_string(),
+            client_id: "test_fitbit_client_id".to_string(),
+            client_secret: "test_fitbit_client_secret".to_string(),
+            redirect_uri: "http://localhost:3000/auth/callback".to_string(),
+            scopes: vec!["activity".to_string(), "profile".to_string()],
+            rate_limit_per_day: 1000,
+        };
+        database
+            .store_tenant_oauth_credentials(&fitbit_credentials)
+            .await?;
+
+        // Now create the actual test user directly with the correct tenant_id
+        // instead of using the regular registration flow
+        let user_id = uuid::Uuid::new_v4();
+        let password_hash = bcrypt::hash(password, bcrypt::DEFAULT_COST)?;
+        let test_user = pierre_mcp_server::models::User {
+            id: user_id,
+            email: email.to_string(),
+            display_name: Some(display_name.to_string()),
+            password_hash,
+            tier: pierre_mcp_server::models::UserTier::Starter,
+            tenant_id: Some(tenant_uuid.to_string()), // Associate with the tenant that has OAuth credentials
+            strava_token: None,
+            fitbit_token: None,
+            is_active: true,
+            user_status: pierre_mcp_server::models::UserStatus::Active, // Already active
+            approved_by: Some(admin_id),
+            approved_at: Some(chrono::Utc::now()),
+            created_at: chrono::Utc::now(),
+            last_active: chrono::Utc::now(),
+        };
+        database.create_user(&test_user).await?;
+
+        Ok(user_id.to_string())
     }
 
     /// Login and get JWT token

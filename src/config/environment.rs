@@ -400,7 +400,7 @@ impl ServerConfig {
             log_level: LogLevel::from_str_or_default(&env_config::log_level()),
             database: Self::load_database_config()?,
             auth: Self::load_auth_config()?,
-            oauth: Self::load_oauth_config()?,
+            oauth: Self::load_oauth_config(),
             security: Self::load_security_config()?,
             external_services: Self::load_external_services_config()?,
             app_behavior: Self::load_app_behavior_config()?,
@@ -634,49 +634,37 @@ impl ServerConfig {
     }
 
     /// Load OAuth configuration from environment
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if OAuth environment variables are invalid
-    fn load_oauth_config() -> Result<OAuthConfig> {
-        Ok(OAuthConfig {
-            strava: Self::load_strava_oauth_config()?,
-            fitbit: Self::load_fitbit_oauth_config()?,
-        })
+    fn load_oauth_config() -> OAuthConfig {
+        OAuthConfig {
+            strava: Self::load_strava_oauth_config(),
+            fitbit: Self::load_fitbit_oauth_config(),
+        }
     }
 
-    /// Load Strava OAuth configuration from environment
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if Strava OAuth environment variables are invalid
-    fn load_strava_oauth_config() -> Result<OAuthProviderConfig> {
-        Ok(OAuthProviderConfig {
-            client_id: env_config::strava_client_id(),
-            client_secret: env_config::strava_client_secret(),
-            redirect_uri: Some(env_config::strava_redirect_uri()),
+    /// Load Strava OAuth configuration from environment (disabled for tenant-based OAuth)
+    fn load_strava_oauth_config() -> OAuthProviderConfig {
+        // OAuth configuration is now tenant-based, not environment-based
+        // Return disabled configuration to maintain compatibility
+        OAuthProviderConfig {
+            client_id: None,
+            client_secret: None,
+            redirect_uri: None,
             scopes: parse_scopes(oauth::STRAVA_DEFAULT_SCOPES),
-            enabled: env_var_or("STRAVA_ENABLED", "true")
-                .parse()
-                .context("Invalid STRAVA_ENABLED value")?,
-        })
+            enabled: false, // Disabled for tenant-based OAuth
+        }
     }
 
-    /// Load Fitbit OAuth configuration from environment
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if Fitbit OAuth environment variables are invalid
-    fn load_fitbit_oauth_config() -> Result<OAuthProviderConfig> {
-        Ok(OAuthProviderConfig {
-            client_id: env::var("FITBIT_CLIENT_ID").ok(),
-            client_secret: env::var("FITBIT_CLIENT_SECRET").ok(),
-            redirect_uri: env::var("FITBIT_REDIRECT_URI").ok(),
+    /// Load Fitbit OAuth configuration from environment (disabled for tenant-based OAuth)
+    fn load_fitbit_oauth_config() -> OAuthProviderConfig {
+        // OAuth configuration is now tenant-based, not environment-based
+        // Return disabled configuration to maintain compatibility
+        OAuthProviderConfig {
+            client_id: None,
+            client_secret: None,
+            redirect_uri: None,
             scopes: parse_scopes(oauth::FITBIT_DEFAULT_SCOPES),
-            enabled: env_var_or("FITBIT_ENABLED", "true")
-                .parse()
-                .context("Invalid FITBIT_ENABLED value")?,
-        })
+            enabled: false, // Disabled for tenant-based OAuth
+        }
     }
 
     /// Load security configuration from environment

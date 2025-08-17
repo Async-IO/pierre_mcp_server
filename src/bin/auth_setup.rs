@@ -133,18 +133,20 @@ async fn setup_strava_auth(client_id: String, client_secret: String, port: u16) 
 
         let (access_token, refresh_token) = provider.exchange_code(&code).await?;
 
-        // In the new config system, authentication is handled via environment variables
-        // Store credentials securely in environment or recommend .env file usage
+        // OAuth credentials are now tenant-based, not environment-based
+        // Store credentials using the tenant OAuth system
         println!("Success Authentication successful!");
         println!("Access token: {access_token}");
         println!("Refresh token: {refresh_token}");
 
-        // Provide instructions for environment variable setup
-        println!("\nSummary To complete setup, add these environment variables:");
-        println!("STRAVA_CLIENT_ID=your_client_id");
-        println!("STRAVA_CLIENT_SECRET=your_client_secret");
-        println!("STRAVA_ACCESS_TOKEN={access_token}");
-        println!("STRAVA_REFRESH_TOKEN={refresh_token}");
+        // Provide instructions for tenant-based OAuth setup
+        println!("\nNote: OAuth configuration is now tenant-based.");
+        println!("To complete setup:");
+        println!("1. Create a tenant in the database");
+        println!("2. Store OAuth credentials using the tenant OAuth system");
+        println!("3. Associate users with the tenant");
+        println!("Client ID: {client_id}");
+        println!("Client Secret: {client_secret}");
 
         // Create or load basic config for non-auth settings
         let config = Config::load(None).unwrap_or_else(|_| Config::default());
