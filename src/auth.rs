@@ -526,7 +526,7 @@ impl AuthManager {
 
         let claims = Claims {
             sub: user_id.to_string(),
-            email: "oauth_token".to_string(), // Placeholder for OAuth tokens
+            email: format!("oauth_{user_id}@system.local"), // System-generated OAuth token identifier
             iat: unique_iat,
             exp: expiry.timestamp(),
             providers: scopes.to_vec(),

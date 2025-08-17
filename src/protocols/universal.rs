@@ -454,9 +454,7 @@ impl UniversalToolExecutor {
                                 }
                                 "fitbit" => {
                                     // Skip Fitbit for now until we have proper config structure
-                                    tracing::warn!(
-                                        "Fitbit provider not yet configured for tenant mode"
-                                    );
+                                    tracing::warn!("Fitbit provider requires tenant configuration");
                                 }
                                 _ => {
                                     return Err(crate::oauth::OAuthError::UnsupportedProvider(

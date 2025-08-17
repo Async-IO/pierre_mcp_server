@@ -39,7 +39,7 @@ pub struct SqliteDatabase {
 }
 
 impl SqliteDatabase {
-    /// Get a reference to the inner database for methods not yet migrated
+    /// Get a reference to the inner database for shared functionality
     #[must_use]
     pub const fn inner(&self) -> &crate::database::Database {
         &self.inner

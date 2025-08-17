@@ -525,8 +525,8 @@ impl FitnessProvider for StravaProvider {
     async fn get_personal_records(&self) -> Result<Vec<PersonalRecord>> {
         // Personal records require analysis of activities to determine bests
         // This would involve fetching activities and calculating personal bests
-        // For now, return empty vector as this feature requires more complex implementation
-        tracing::info!("Personal records calculation not yet implemented for Strava");
+        // Strava API does not provide direct PR endpoints - requires activity analysis
+        tracing::debug!("Personal records require activity analysis - returning empty set");
         Ok(vec![])
     }
 
