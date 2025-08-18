@@ -289,7 +289,6 @@ class PierreMCPClient:
                 "Content-Type": "application/json",
                 "Accept": "application/json",
                 "Authorization": f"Bearer {self.jwt_token}",
-                "X-Tenant-ID": self.tenant_id,
                 "Origin": "http://localhost"
             }
             

@@ -143,17 +143,15 @@ async def get_athlete_overview(client: PierreMCPClient):
 async def main():
     # Configuration
     server_url = os.getenv("PIERRE_SERVER_URL", "http://localhost:8081")
-    tenant_id = os.getenv("PIERRE_TENANT_ID")
     jwt_token = os.getenv("PIERRE_JWT_TOKEN")
     
-    if not tenant_id or not jwt_token:
-        print("Error: Set PIERRE_TENANT_ID and PIERRE_JWT_TOKEN environment variables")
+    if not jwt_token:
+        print("Error: Set PIERRE_JWT_TOKEN environment variable")
         return
     
     try:
         async with PierreMCPClient(
             server_url=server_url,
-            tenant_id=tenant_id,
             jwt_token=jwt_token
         ) as client:
             print(f"Connected to Pierre MCP Server for advanced analysis")
