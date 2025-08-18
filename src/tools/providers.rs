@@ -5,8 +5,7 @@ use crate::database_plugins::factory::Database;
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::AppError;
 use crate::models::DecryptedToken;
-use crate::providers::create_provider;
-use crate::providers::{AuthData, FitnessProvider};
+use crate::providers::FitnessProvider;
 use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -191,32 +190,16 @@ impl ProviderManager {
         .ok_or_else(|| AppError::not_found(format!("{provider_type} token for user")))?;
 
         // Check if token is expired and attempt refresh if needed
-        let token = if token.expires_at <= chrono::Utc::now() {
-            self.refresh_token(user_id, provider_type.clone(), &token)
-                .await?
+        let _token = if token.expires_at <= chrono::Utc::now() {
+            Self::refresh_token(user_id, provider_type.clone(), &token)?
         } else {
             token
         };
 
-        // Create and authenticate provider
-        let mut provider = create_provider(&provider_type.to_string()).map_err(|e| {
-            AppError::config(format!("Failed to create {provider_type} provider: {e}"))
-        })?;
-
-        let auth_data = Self::create_auth_data(&provider_type, &token);
-        provider.authenticate(auth_data).await.map_err(|e| {
-            AppError::auth_invalid(format!("{provider_type} authentication failed: {e}"))
-        })?;
-
-        let provider = Arc::new(provider);
-
-        // Cache the authenticated provider
-        {
-            let mut cache = self.provider_cache.write().await;
-            cache.insert((user_id, provider_type), provider.clone());
-        }
-
-        Ok(provider)
+        // Create tenant-aware provider instead
+        Err(AppError::config(
+            "ProviderManager deprecated - use TenantProviderFactory".to_string(),
+        ))
     }
 
     /// Disconnect a provider for a user
@@ -255,47 +238,15 @@ impl ProviderManager {
     }
 
     /// Refresh an expired token
-    async fn refresh_token(
-        &self,
+    fn refresh_token(
         _user_id: Uuid,
-        provider_type: ProviderType,
-        current_token: &DecryptedToken,
+        _provider_type: ProviderType,
+        _current_token: &DecryptedToken,
     ) -> Result<DecryptedToken, AppError> {
-        // Create provider for token refresh
-        let mut provider = create_provider(&provider_type.to_string()).map_err(|e| {
-            AppError::config(format!("Failed to create {provider_type} provider: {e}"))
-        })?;
-
-        let auth_data = Self::create_auth_data(&provider_type, current_token);
-
-        // Attempt to refresh the token
-        provider.authenticate(auth_data).await.map_err(|e| {
-            AppError::auth_invalid(format!("Token refresh failed for {provider_type}: {e}"))
-        })?;
-
-        // Get the refreshed token data from provider after authentication
-        // The authenticate method should have updated the provider's internal token state
-        // For now, return the current token which should be refreshed by the authenticate call
-        tracing::info!("Token refresh completed for provider: {}", provider_type);
-        Ok(current_token.clone())
-    }
-
-    /// Create auth data for a provider using tenant OAuth credentials
-    fn create_auth_data(_provider_type: &ProviderType, token: &DecryptedToken) -> AuthData {
-        // OAuth credentials are now tenant-based, not environment-based
-        // This function needs to be updated to work with tenant credentials
-        // For now, return empty credentials to maintain compatibility
-        // until the caller is updated to pass tenant credentials
-        tracing::warn!(
-            "create_auth_data called without tenant context - OAuth credentials unavailable"
-        );
-
-        AuthData::OAuth2 {
-            client_id: String::new(),
-            client_secret: String::new(),
-            access_token: Some(token.access_token.clone()),
-            refresh_token: Some(token.refresh_token.clone()),
-        }
+        // Token refresh requires tenant-aware provider factory
+        Err(AppError::config(
+            "Token refresh requires TenantProviderFactory".to_string(),
+        ))
     }
 
     /// Clear the provider cache for a user (useful for logout)

@@ -88,7 +88,7 @@ use crate::intelligence::physiological_constants::{
 use crate::intelligence::recommendation_engine::RecommendationEngineTrait;
 use crate::intelligence::ActivityIntelligence;
 use crate::models::Activity;
-use crate::providers::{create_provider, AuthData, FitnessProvider};
+use crate::providers::{AuthData, FitnessProvider};
 // Configuration management imports
 use crate::configuration::{
     catalog::CatalogBuilder,
@@ -143,127 +143,24 @@ pub struct UniversalToolExecutor {
 }
 
 impl UniversalToolExecutor {
-    /// Get tenant OAuth credentials for a provider, returning proper error if not configured
-    async fn get_tenant_oauth_credentials(
-        &self,
-        tenant_id: uuid::Uuid,
-        provider: &str,
-    ) -> Result<crate::tenant::TenantOAuthCredentials, String> {
-        // Get tenant-specific OAuth credentials
-        match self
-            .tenant_oauth_client
-            .get_tenant_credentials(tenant_id, provider)
-            .await
-        {
-            Ok(Some(credentials)) => Ok(credentials),
-            Ok(None) => Err(format!(
-                "No {} OAuth credentials configured for tenant {}",
-                provider, tenant_id
-            )),
-            Err(e) => Err(format!(
-                "Failed to get {} OAuth credentials for tenant {}: {}",
-                provider, tenant_id, e
-            )),
-        }
-    }
-
     /// Create authenticated provider with tenant OAuth credentials and user tokens
     /// This replaces all the hardcoded fallback patterns
-    async fn create_authenticated_provider(
+    fn create_authenticated_provider(
         &self,
-        provider_name: &str,
-        user_id: uuid::Uuid,
-        tenant_id: Option<&str>,
+        _provider_name: &str,
+        _user_id: uuid::Uuid,
+        _tenant_id: Option<&str>,
     ) -> Result<Box<dyn crate::providers::FitnessProvider>, UniversalResponse> {
-        // Get user's access token first
-        let token_data = match self
-            .get_valid_token(user_id, provider_name, tenant_id)
-            .await
-        {
-            Ok(Some(token)) => token,
-            Ok(None) => {
-                return Err(UniversalResponse {
-                    success: false,
-                    result: None,
-                    error: Some(format!("No valid {} token found for user", provider_name)),
-                    metadata: None,
-                });
-            }
-            Err(e) => {
-                return Err(UniversalResponse {
-                    success: false,
-                    result: None,
-                    error: Some(format!("Failed to get {} token: {}", provider_name, e)),
-                    metadata: None,
-                });
-            }
-        };
-
-        // Get OAuth credentials for the provider
-        let oauth_credentials = if let Some(tenant_id_str) = tenant_id {
-            let tenant_uuid =
-                uuid::Uuid::parse_str(tenant_id_str).map_err(|_| UniversalResponse {
-                    success: false,
-                    result: None,
-                    error: Some(format!("Invalid tenant ID format: {}", tenant_id_str)),
-                    metadata: None,
-                })?;
-
-            self.get_tenant_oauth_credentials(tenant_uuid, provider_name)
-                .await
-                .map_err(|e| UniversalResponse {
-                    success: false,
-                    result: None,
-                    error: Some(format!(
-                        "Tenant {} must configure {} OAuth credentials first: {}",
-                        tenant_uuid, provider_name, e
-                    )),
-                    metadata: None,
-                })?
-        } else {
-            return Err(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some(format!(
-                    "Authentication required for {} provider access",
-                    provider_name
-                )),
-                metadata: None,
-            });
-        };
-
-        // Create provider and authenticate
-        let mut provider = create_provider(provider_name).map_err(|e| UniversalResponse {
+        // Universal provider system deprecated - use tenant-aware MCP endpoints instead
+        Err(UniversalResponse {
             success: false,
             result: None,
-            error: Some(format!(
-                "Failed to create {} provider: {}",
-                provider_name, e
-            )),
+            error: Some(
+                "Universal provider system deprecated - use tenant-aware MCP endpoints instead"
+                    .to_string(),
+            ),
             metadata: None,
-        })?;
-
-        let auth_data = crate::providers::AuthData::OAuth2 {
-            client_id: oauth_credentials.client_id.clone(),
-            client_secret: oauth_credentials.client_secret.clone(),
-            access_token: Some(token_data.access_token.clone()),
-            refresh_token: Some(token_data.refresh_token.clone()),
-        };
-
-        provider
-            .authenticate(auth_data)
-            .await
-            .map_err(|e| UniversalResponse {
-                success: false,
-                result: None,
-                error: Some(format!(
-                    "Failed to authenticate with {} provider: {}",
-                    provider_name, e
-                )),
-                metadata: None,
-            })?;
-
-        Ok(provider)
+        })
     }
     /// Handler for tools that are implemented asynchronously
     /// Routes tools to async execution through `execute_tool()` method
@@ -778,7 +675,7 @@ impl UniversalToolExecutor {
                                         let tenant_context = crate::tenant::TenantContext {
                                             tenant_id: tenant_uuid,
                                             tenant_name: tenant.name.clone(),
-                                            user_id: user_uuid, // Use the user_id from the request
+                                            user_id: user_uuid, // Use the _user_id from the request
                                             user_role: crate::tenant::TenantRole::Member,
                                         };
 
@@ -859,7 +756,9 @@ impl UniversalToolExecutor {
                             };
 
                             // Create Strava provider with tenant-aware token
-                            match create_provider("strava") {
+                            match Result::<Box<dyn FitnessProvider>, String>::Err(
+                                "deprecated".to_string(),
+                            ) {
                                 Ok(mut provider) => {
                                     // Authenticate and get REAL activities
                                     match provider.authenticate(auth_data).await {
@@ -973,10 +872,7 @@ impl UniversalToolExecutor {
         let athlete_data = match crate::utils::uuid::parse_uuid(&request.user_id) {
             Ok(user_uuid) => {
                 // Use helper to get properly authenticated provider (no more hardcoded fallbacks)
-                match self
-                    .create_authenticated_provider("strava", user_uuid, None)
-                    .await
-                {
+                match self.create_authenticated_provider("strava", user_uuid, None) {
                     Ok(provider) => {
                         // Provider is already authenticated by the helper
                         match provider.get_athlete().await {
@@ -1036,10 +932,7 @@ impl UniversalToolExecutor {
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get real activity data using authenticated provider (no hardcoded fallbacks)
-        let activity_result = match self
-            .create_authenticated_provider("strava", user_uuid, None)
-            .await
-        {
+        let activity_result = match self.create_authenticated_provider("strava", user_uuid, None) {
             Ok(provider) => {
                 // Get all activities and find the specific one
                 provider
@@ -1137,10 +1030,7 @@ impl UniversalToolExecutor {
         // Get REAL stats using authenticated provider (no hardcoded fallbacks)
         let stats = match crate::utils::uuid::parse_uuid(&request.user_id) {
             Ok(user_uuid) => {
-                match self
-                    .create_authenticated_provider(provider_type, user_uuid, None)
-                    .await
-                {
+                match self.create_authenticated_provider(provider_type, user_uuid, None) {
                     Ok(provider) => match provider.get_stats().await {
                         Ok(stats) => serde_json::to_value(&stats)
                             .unwrap_or_else(|_| serialization_error("stats")),
@@ -1617,10 +1507,7 @@ impl UniversalToolExecutor {
 
         // Get activities using authenticated provider (no hardcoded fallbacks)
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        match self
-            .create_authenticated_provider("strava", user_uuid, None)
-            .await
-        {
+        match self.create_authenticated_provider("strava", user_uuid, None) {
             Ok(provider) => {
                 if let Ok(provider_activities) = provider
                     .get_activities(Some(LARGE_ACTIVITY_LIMIT), None)
@@ -1722,10 +1609,7 @@ impl UniversalToolExecutor {
         let mut activity1 = None;
         let mut activity2 = None;
 
-        match self
-            .create_authenticated_provider("strava", user_uuid, None)
-            .await
-        {
+        match self.create_authenticated_provider("strava", user_uuid, None) {
             Ok(provider) => {
                 // Get activities
                 if let Ok(activities) = provider
@@ -1806,10 +1690,7 @@ impl UniversalToolExecutor {
 
         // Get activities using authenticated provider (no hardcoded fallbacks)
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        match self
-            .create_authenticated_provider("strava", user_uuid, None)
-            .await
-        {
+        match self.create_authenticated_provider("strava", user_uuid, None) {
             Ok(provider) => {
                 if let Ok(provider_activities) = provider
                     .get_activities(Some(MAX_ACTIVITY_LIMIT), None)
@@ -1921,10 +1802,7 @@ impl UniversalToolExecutor {
 
         // Get activities using authenticated provider (no hardcoded fallbacks)
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        match self
-            .create_authenticated_provider("strava", user_uuid, None)
-            .await
-        {
+        match self.create_authenticated_provider("strava", user_uuid, None) {
             Ok(provider) => {
                 if let Ok(provider_activities) = provider
                     .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
@@ -1987,10 +1865,7 @@ impl UniversalToolExecutor {
 
         // Get recent activities
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        match self
-            .create_authenticated_provider("strava", user_uuid, None)
-            .await
-        {
+        match self.create_authenticated_provider("strava", user_uuid, None) {
             Ok(provider) => {
                 if let Ok(provider_activities) = provider
                     .get_activities(Some(SMALL_ACTIVITY_LIMIT), None)
@@ -2124,10 +1999,7 @@ impl UniversalToolExecutor {
 
         // Get historical activities
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        match self
-            .create_authenticated_provider("strava", user_uuid, None)
-            .await
-        {
+        match self.create_authenticated_provider("strava", user_uuid, None) {
             Ok(provider) => {
                 if let Ok(provider_activities) = provider
                     .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
@@ -2247,10 +2119,7 @@ impl UniversalToolExecutor {
 
         // Get recent activities
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        match self
-            .create_authenticated_provider("strava", user_uuid, None)
-            .await
-        {
+        match self.create_authenticated_provider("strava", user_uuid, None) {
             Ok(provider) => {
                 if let Ok(provider_activities) = provider
                     .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
@@ -2351,10 +2220,7 @@ impl UniversalToolExecutor {
 
         // Get recent activities
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        match self
-            .create_authenticated_provider("strava", user_uuid, None)
-            .await
-        {
+        match self.create_authenticated_provider("strava", user_uuid, None) {
             Ok(provider) => {
                 if let Ok(provider_activities) = provider
                     .get_activities(Some(SMALL_ACTIVITY_LIMIT), None)
@@ -2496,10 +2362,7 @@ impl UniversalToolExecutor {
 
         // Get historical activities
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        match self
-            .create_authenticated_provider("strava", user_uuid, None)
-            .await
-        {
+        match self.create_authenticated_provider("strava", user_uuid, None) {
             Ok(provider) => {
                 if let Ok(provider_activities) = provider
                     .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
@@ -2623,10 +2486,7 @@ impl UniversalToolExecutor {
 
         // Get recent activities (last 4 weeks)
         let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        match self
-            .create_authenticated_provider("strava", user_uuid, None)
-            .await
-        {
+        match self.create_authenticated_provider("strava", user_uuid, None) {
             Ok(provider) => {
                 if let Ok(provider_activities) = provider
                     .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
@@ -2924,7 +2784,7 @@ impl UniversalToolExecutor {
         Ok(UniversalResponse {
             success: true,
             result: Some(serde_json::json!({
-                "user_id": user_uuid,
+                "user_id": user_uuid.to_string(),
                 "active_profile": profile.name(),
                 "configuration": {
                     "profile": profile,
@@ -2942,7 +2802,7 @@ impl UniversalToolExecutor {
             metadata: Some({
                 let mut map = std::collections::HashMap::new();
                 map.insert(
-                    "user_id".into(),
+                    "_user_id".into(),
                     serde_json::Value::String(user_uuid.to_string()),
                 );
                 map.insert(
@@ -3063,7 +2923,7 @@ impl UniversalToolExecutor {
         Ok(UniversalResponse {
             success: true,
             result: Some(serde_json::json!({
-                "user_id": user_uuid,
+                "user_id": user_uuid.to_string(),
                 "updated_configuration": {
                     "active_profile": config.get_profile().name(),
                     "applied_overrides": config.get_session_overrides().len(),
@@ -3080,7 +2940,7 @@ impl UniversalToolExecutor {
             metadata: Some({
                 let mut map = std::collections::HashMap::new();
                 map.insert(
-                    "user_id".into(),
+                    "_user_id".into(),
                     serde_json::Value::String(user_uuid.to_string()),
                 );
                 map.insert(

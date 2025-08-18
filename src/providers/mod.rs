@@ -50,18 +50,3 @@ pub enum AuthData {
     },
     ApiKey(String),
 }
-
-/// Create a fitness provider instance based on the provider type
-///
-/// # Errors
-///
-/// Returns an error if the provider type is not supported
-pub fn create_provider(provider_type: &str) -> Result<Box<dyn FitnessProvider>> {
-    match provider_type.to_lowercase().as_str() {
-        "strava" => Ok(Box::new(strava::StravaProvider::new())),
-        "fitbit" => Ok(Box::new(fitbit::FitbitProvider::new())),
-        _ => Err(anyhow::anyhow!(
-            "Unknown provider: {provider_type}. Currently supported: strava, fitbit"
-        )),
-    }
-}

@@ -985,8 +985,7 @@ async fn test_get_user_provider_not_connected() -> Result<()> {
 
     // Try to get provider when user hasn't connected
     let result =
-        MultiTenantMcpServer::get_user_provider(user_id, "strava", &database, &user_providers)
-            .await;
+        MultiTenantMcpServer::get_user_provider(user_id, "strava", &database, &user_providers);
 
     // Should return an error (provider not connected or method not found)
     assert!(result.is_err());
