@@ -90,7 +90,6 @@ pub struct KeyRotationManager {
     /// Encryption manager for performing key operations
     encryption_manager: Arc<super::TenantEncryptionManager>,
     /// Database for storing key metadata
-    #[allow(dead_code)]
     database: Arc<crate::database_plugins::factory::Database>,
     /// Audit logger
     auditor: Arc<super::audit::SecurityAuditor>,
