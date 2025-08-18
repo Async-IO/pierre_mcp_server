@@ -157,32 +157,8 @@ async fn test_strava_mock_server_setup() -> Result<()> {
     Ok(())
 }
 
-#[tokio::test]
-async fn test_provider_factory() -> Result<()> {
-    use pierre_mcp_server::providers::create_provider;
-
-    // Test creating a Strava provider
-    let provider = create_provider("strava");
-    assert!(provider.is_ok());
-
-    // Test creating a Fitbit provider
-    let provider = create_provider("fitbit");
-    assert!(provider.is_ok());
-
-    // Test creating an invalid provider
-    let provider_result = create_provider("invalid_provider");
-    assert!(provider_result.is_err());
-
-    match provider_result {
-        Err(error) => {
-            let error_msg = error.to_string();
-            assert!(error_msg.contains("Unknown provider"));
-        }
-        Ok(_) => panic!("Expected error for invalid provider"),
-    }
-
-    Ok(())
-}
+// Legacy test removed - create_provider() function deprecated
+// Use tenant-aware TenantProviderFactory instead
 
 #[tokio::test]
 async fn test_auth_data_variants() -> Result<()> {

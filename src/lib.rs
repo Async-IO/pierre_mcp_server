@@ -38,7 +38,7 @@
 //! ## Example Usage
 //!
 //! ```rust,no_run
-//! use pierre_mcp_server::providers::{FitnessProvider, create_provider, AuthData};
+//! use pierre_mcp_server::providers::{FitnessProvider, AuthData};
 //! use pierre_mcp_server::config::environment::ServerConfig;
 //!
 //! #[tokio::main]
@@ -46,8 +46,9 @@
 //!     // Load configuration
 //!     let config = ServerConfig::from_env()?;
 //!     
-//!     // Create provider
-//!     let mut provider = create_provider("strava")?;
+//!     // Use TenantProviderFactory for provider creation
+//!     // let factory = TenantProviderFactory::new(oauth_client);
+//!     // let mut provider = factory.create_provider("strava", &tenant_context).await?;
 //!     
 //!     // Authenticate with OAuth2
 //!     let auth_data = AuthData::OAuth2 {
