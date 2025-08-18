@@ -88,7 +88,6 @@ pip install requests websockets aiohttp pandas matplotlib
 ```bash
 # For MCP examples
 export PIERRE_SERVER_URL=http://localhost:8081
-export PIERRE_TENANT_ID=your_tenant_id
 export PIERRE_JWT_TOKEN=your_jwt_token
 
 # For A2A examples  
