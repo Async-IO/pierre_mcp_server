@@ -1,6 +1,6 @@
 # Getting Started
 
-Pierre MCP Server setup and configuration for multi-tenant architecture.
+Pierre MCP Server setup and configuration guide.
 
 ## Architecture Overview
 
@@ -34,59 +34,45 @@ Server runs on:
 - Port 8080: MCP protocol endpoint  
 - Port 8081: HTTP REST API and A2A protocol
 
-## Step 2: Create a Tenant
+## Step 2: Create the Default Tenant
 
-Every organization needs a tenant for OAuth isolation:
+Create the default tenant that all users will be assigned to:
 
 ```bash
-# Create your organization's tenant
+# Create the default tenant (users are automatically assigned to "default-tenant" slug)
 curl -X POST http://localhost:8081/api/tenants \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "My Organization",
-    "slug": "my-org",
-    "domain": "localhost",
-    "plan": "enterprise"
+    "name": "Default Organization",
+    "slug": "default-tenant",
+    "plan": "starter"
   }'
 ```
 
-Save the `tenant_id` from the response - you'll need it for all subsequent operations.
+**Important**: Save the `id` (UUID) from the response - you'll need it for OAuth configuration.
 
-## Step 3: Configure Tenant OAuth
+## Step 3: Configure OAuth Credentials for Default Tenant
 
-Configure OAuth credentials for your tenant (not individual users):
+Store OAuth credentials for the default tenant:
 
 ```bash
-# Configure Strava OAuth for the tenant
-curl -X POST http://localhost:8081/api/tenants/{TENANT_ID}/oauth \
+# Configure Strava OAuth for the default tenant
+curl -X POST http://localhost:8081/api/tenants/{TENANT_UUID}/oauth \
   -H "Content-Type: application/json" \
   -d '{
     "provider": "strava",
     "client_id": "YOUR_STRAVA_CLIENT_ID",
-    "client_secret": "YOUR_STRAVA_CLIENT_SECRET", 
-    "redirect_uri": "http://localhost:8081/oauth/callback",
+    "client_secret": "YOUR_STRAVA_CLIENT_SECRET",
+    "redirect_uri": "http://localhost:8081/oauth/callback/strava",
     "scopes": ["read", "activity:read_all"],
-    "rate_limit_per_day": 40000
+    "rate_limit_per_day": 15000
   }'
 ```
 
-## Step 4: Generate Tenant JWT Token
+Replace `{TENANT_UUID}` with the UUID returned from Step 2.
+Get your Strava OAuth credentials from [developers.strava.com](https://developers.strava.com).
 
-Create a JWT token for the tenant to use with MCP client:
-
-```bash
-# Generate tenant JWT token
-curl -X POST http://localhost:8081/api/tenants/{TENANT_ID}/jwt \
-  -H "Content-Type: application/json" \
-  -d '{
-    "scopes": ["fitness:read", "activity:read", "mcp:access"],
-    "expires_in_hours": 8760
-  }'
-```
-
-Save the JWT token for Claude Desktop configuration.
-
-## Step 5: User Registration & Admin Approval
+## Step 4: User Registration & Admin Approval
 
 ### Register Users (Creates "Pending" Status)
 
@@ -121,7 +107,7 @@ curl -X POST http://localhost:8081/auth/login \
   }'
 ```
 
-## Step 6: Configure Claude Desktop
+## Step 5: Configure Claude Desktop
 
 Now configure Claude Desktop to use the lightweight pierre-mcp-client:
 
@@ -134,19 +120,20 @@ Add to your Claude Desktop config (`~/.claude/claude_desktop_config.json`):
   "mcpServers": {
     "pierre-fitness": {
       "command": "/path/to/pierre_mcp_server/target/release/pierre-mcp-client",
+      "args": ["--server-url", "http://localhost:8081"],
       "env": {
-        "TENANT_ID": "YOUR_TENANT_ID_FROM_STEP_2",
-        "TENANT_JWT_TOKEN": "YOUR_JWT_TOKEN_FROM_STEP_4"
+        "PIERRE_JWT_TOKEN": "YOUR_JWT_TOKEN_FROM_LOGIN"
       }
     }
   }
 }
 ```
 
-**Critical Notes:**
-- Use `pierre-mcp-client` (lightweight client), NOT `pierre-mcp-server` (database server)
-- The client requires TENANT_ID and TENANT_JWT_TOKEN environment variables
-- OAuth is configured at the tenant level, not per user
+**Important Notes:**
+- Use `pierre-mcp-client` (lightweight client), NOT `pierre-mcp-server` (database server)  
+- The client only requires PIERRE_JWT_TOKEN environment variable
+- Tenant context is automatically resolved from your JWT token
+- Get your JWT token from the login response in Step 4
 
 ### First Time Usage
 
@@ -280,21 +267,22 @@ LOG_FORMAT=json                      # Log format (json, text)
 
 #### OAuth Provider Configuration
 
-OAuth providers are configured per user in the database. Each user stores their own OAuth app credentials:
+OAuth providers are configured per tenant in the database:
 
-```python
-import sqlite3
-conn = sqlite3.connect("data/users.db")
-conn.execute("""
-    INSERT INTO user_oauth_app_credentials 
-    (id, user_id, provider, client_id, client_secret, redirect_uri, created_at, updated_at)
-    VALUES (?, ?, 'strava', ?, ?, ?, datetime('now'), datetime('now'))
-""", [
-    "unique_id", "your_user_id", "your_client_id", 
-    "your_client_secret", "http://localhost:8081/auth/strava/callback"
-])
-conn.commit()
+```bash
+# Store OAuth credentials for a tenant via API
+curl -X POST http://localhost:8081/api/tenants/{TENANT_ID}/oauth \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider": "strava",
+    "client_id": "your_client_id",
+    "client_secret": "your_client_secret",
+    "redirect_uri": "http://localhost:8081/oauth/callback/strava",
+    "scopes": ["read", "activity:read_all"]
+  }'
 ```
+
+Note: OAuth credentials are stored encrypted in the database using AES-256-GCM encryption.
 
 #### Weather Integration
 ```bash
@@ -394,19 +382,8 @@ curl -X GET http://localhost:8081/api/activities \\
    - Set redirect URI to: `http://localhost:8081/auth/strava/callback`
 
 2. **Store OAuth Credentials in Database**:
-   ```python
-   import sqlite3
-   conn = sqlite3.connect("data/users.db")
-   conn.execute("""
-       INSERT INTO user_oauth_app_credentials 
-       (id, user_id, provider, client_id, client_secret, redirect_uri, created_at, updated_at)
-       VALUES (?, ?, 'strava', ?, ?, ?, datetime('now'), datetime('now'))
-   """, [
-       "unique_id", "your_user_id", "your_strava_client_id", 
-       "your_strava_client_secret", "http://localhost:8081/auth/strava/callback"
-   ])
-   conn.commit()
-   ```
+   OAuth credentials must be stored for a tenant using the API or database. 
+   See Step 3 above for configuration details.
 
 3. **Test OAuth Flow**:
    ```bash

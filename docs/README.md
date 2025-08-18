@@ -1,6 +1,6 @@
-# Pierre Fitness API Documentation
+# Pierre MCP Server Documentation
 
-Complete documentation for the Pierre Fitness API platform.
+Complete documentation for the Pierre MCP Server platform.
 
 ## Documentation Index
 
@@ -9,10 +9,12 @@ Complete documentation for the Pierre Fitness API platform.
 
 ### **API References**
 - [**API Reference**](API_REFERENCE.md) - Complete API documentation including MCP tools, endpoints, error handling, and integration examples
+- [**A2A Quick Start**](A2A_QUICK_START.md) - Quick 5-minute guide to get started with A2A protocol
+- [**A2A Reference**](A2A_REFERENCE.md) - Complete A2A protocol reference and implementation guide
 - [**OpenAPI Specification**](openapi.yaml) - Complete API reference
 
 ### **Deployment & Operations**
-- [**Deployment Guide**](DEPLOYMENT_GUIDE.md) - Production deployment, architecture, testing, and B2B provisioning
+- [**Deployment Guide**](DEPLOYMENT_GUIDE.md) - Production deployment, architecture, testing, and provisioning
 
 ### **Database & Storage**
 - [**Database Guide**](DATABASE_GUIDE.md) - SQLite/PostgreSQL setup and database plugins architecture
@@ -43,36 +45,35 @@ Complete documentation for the Pierre Fitness API platform.
 - Updated Python examples with working A2A authentication
 - Consolidated documentation (removed outdated files)
 
-### Removed Documentation
-The following files were outdated and have been removed:
-- `OPENAPI.md` → Content merged into OpenAPI spec
-- `API_KEY_DESIGN.md` → Covered in AUTHENTICATION.md
-- `A2A_PROTOCOL.md` → Superseded by OpenAPI spec
-- `A2A_COMPLIANCE.md` → Outdated protocol version
+### Architecture Notes
+- **OAuth Configuration**: OAuth credentials are stored per-tenant in the database (not environment variables)
+- **User Authentication**: Users must be approved by admin before accessing the system
+- **MCP Protocol**: Available on port 8080 with JWT authentication
+- **A2A Protocol**: Enterprise integration protocol on port 8081
 
 ## Reading Guide
 
 ### First Time Setup
-1. [Setup Guide](SETUP.md) - Get the server running
-2. [Authentication](AUTHENTICATION.md) - Understand auth methods
-3. [MCP Tools](TOOLS.md) - Learn available tools
+1. [Getting Started Guide](GETTING_STARTED.md) - Get the server running
+2. [API Reference](API_REFERENCE.md) - Understand available tools and endpoints
+3. [Database Guide](DATABASE_GUIDE.md) - Set up your database
 
 ### Integration Development
 1. [OpenAPI Specification](openapi.yaml) - Complete API reference
-2. [Error Handling](ERROR_HANDLING.md) - Handle errors properly
-3. [Configuration](CONFIGURATION.md) - Configure for your needs
+2. [A2A Quick Start](A2A_QUICK_START.md) - For agent-to-agent integration
+3. [API Reference](API_REFERENCE.md) - MCP tools and REST endpoints
 
 ### Production Deployment
-1. [Architecture](ARCHITECTURE.md) - Understand the system
-2. [Deployment](DEPLOYMENT.md) - Deploy to production
-3. [Provisioning](PROVISIONING.md) - Onboard customers
+1. [Deployment Guide](DEPLOYMENT_GUIDE.md) - Deploy to production
+2. [Database Guide](DATABASE_GUIDE.md) - Database configuration
+3. [A2A Reference](A2A_REFERENCE.md) - For enterprise integrations
 
 ## Getting Help
 
-- **Setup Issues**: Check [Setup Guide](SETUP.md) and [Configuration](CONFIGURATION.md)
-- **API Errors**: See [Error Handling](ERROR_HANDLING.md)
-- **Authentication**: Review [Authentication](AUTHENTICATION.md)
-- **Integration**: Use [OpenAPI Specification](openapi.yaml) and examples
+- **Setup Issues**: Check [Getting Started Guide](GETTING_STARTED.md)
+- **API Errors**: See [API Reference](API_REFERENCE.md) error handling section
+- **Database Issues**: Review [Database Guide](DATABASE_GUIDE.md) and [Database Cleanup](DATABASE_CLEANUP.md)
+- **Integration**: Use [OpenAPI Specification](openapi.yaml) and [A2A Reference](A2A_REFERENCE.md)
 
 ---
 

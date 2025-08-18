@@ -5,7 +5,7 @@
 
 > ⚠️ **Development Status**: This project is under active development. APIs and features may change.
 
-**Universal MCP server** providing AI assistants and applications with secure access to fitness data (Strava, Fitbit). Fully compatible with any MCP client including Claude Desktop, ChatGPT, Cursor, and custom agents. Features multi-tenant architecture, A2A Protocol, REST APIs, per-tenant OAuth isolation, and admin approval system.
+**Universal MCP server** providing AI assistants and applications with secure access to fitness data (Strava, Fitbit). Fully compatible with any MCP client including Claude Desktop, ChatGPT, Cursor, and custom agents. Features user authentication, A2A Protocol, REST APIs, secure OAuth credential storage, and admin approval system.
 
 ## Architecture Overview
 
@@ -13,17 +13,14 @@
 
 1. **Pierre MCP Server** (`pierre-mcp-server`) - Runs as daemon with database access
    - Handles all fitness data operations
-   - Manages tenant OAuth credentials with AES-256-GCM encryption
+   - Manages OAuth credentials with AES-256-GCM encryption
    - Enforces admin approval for new users
    - Serves HTTP API and MCP endpoints
 
 2. **Pierre MCP Client** (`pierre-mcp-client`) - Lightweight MCP client for Claude Desktop
-   - No database access whatsoever
    - Connects to running server via HTTP
    - Translates MCP protocol to HTTP API calls
    - Stateless and secure
-
-**Critical**: Clients never have database access. All data operations happen server-side.
 
 ## Protocol Support
 
@@ -71,28 +68,29 @@ cargo build --release
 
 # 2. Start the Pierre MCP Server (runs as daemon)
 cargo run --bin pierre-mcp-server
-# Server starts on http://localhost:8081
+# Server starts on http://localhost:8081 (HTTP) and http://localhost:8080 (MCP)
 
-# 3. In another terminal, create your development tenant
+# 3. Create the default tenant (required for user registration)
 curl -X POST http://localhost:8081/api/tenants \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "My Development Org",
-    "slug": "dev-org",
-    "domain": "localhost"
+    "name": "Default Organization", 
+    "slug": "default-tenant",
+    "plan": "starter"
   }'
-# Save the returned tenant_id
+# Save the tenant "id" (UUID) from the response - you'll need it for OAuth configuration
 
-# 4. Configure tenant OAuth with your Strava app
-curl -X POST http://localhost:8081/api/tenants/{TENANT_ID}/oauth \
+# 4. Configure OAuth credentials for the default tenant
+curl -X POST http://localhost:8081/api/tenants/{TENANT_UUID}/oauth \
   -H "Content-Type: application/json" \
   -d '{
     "provider": "strava",
-    "client_id": "YOUR_STRAVA_CLIENT_ID",
+    "client_id": "YOUR_STRAVA_CLIENT_ID", 
     "client_secret": "YOUR_STRAVA_CLIENT_SECRET",
-    "redirect_uri": "http://localhost:8081/oauth/callback",
+    "redirect_uri": "http://localhost:8081/oauth/callback/strava",
     "scopes": ["read", "activity:read_all"]
   }'
+# Replace {TENANT_UUID} with the UUID returned from step 3
 ```
 
 ## MCP Client Integration
@@ -119,9 +117,9 @@ Pierre provides the standard MCP client binary that works with any MCP-compatibl
   "mcpServers": {
     "pierre-fitness": {
       "command": "/path/to/pierre_mcp_server/target/release/pierre-mcp-client",
+      "args": ["--server-url", "http://localhost:8081"],
       "env": {
-        "TENANT_ID": "YOUR_TENANT_ID",
-        "TENANT_JWT_TOKEN": "YOUR_JWT_TOKEN"
+        "PIERRE_JWT_TOKEN": "YOUR_JWT_TOKEN"
       }
     }
   }
@@ -153,9 +151,9 @@ Add to `~/.claude/claude_desktop_config.json`:
   "mcpServers": {
     "pierre-fitness": {
       "command": "/path/to/pierre_mcp_server/target/release/pierre-mcp-client",
+      "args": ["--server-url", "http://localhost:8081"],
       "env": {
-        "TENANT_ID": "your-tenant-id",
-        "TENANT_JWT_TOKEN": "your-jwt-token"
+        "PIERRE_JWT_TOKEN": "your-jwt-token"
       }
     }
   }
@@ -175,7 +173,8 @@ from mcp import ClientSession, StdioServerParameters
 async def main():
     server_params = StdioServerParameters(
         command="/path/to/pierre-mcp-client",
-        env={"TENANT_ID": "your-tenant-id", "TENANT_JWT_TOKEN": "your-jwt-token"}
+        args=["--server-url", "http://localhost:8081"],
+        env={"PIERRE_JWT_TOKEN": "your-jwt-token"}
     )
     
     async with ClientSession(server_params) as session:
@@ -185,27 +184,41 @@ async def main():
 ```
 </details>
 
-### Generate Tenant Credentials
+### Get User JWT Token
 
-Generate JWT token for MCP client authentication:
+After user registration and login, get JWT token for MCP client authentication:
 
 ```bash
-# Generate tenant JWT token for MCP access
-curl -X POST http://localhost:8081/api/tenants/{TENANT_ID}/jwt \
+# First register user (creates pending status)
+curl -X POST http://localhost:8081/auth/register \
   -H "Content-Type: application/json" \
   -d '{
-    "scopes": ["fitness:read", "activity:read", "mcp:access"],
-    "expires_in_hours": 8760
+    "email": "user@example.com",
+    "password": "secure_password",
+    "display_name": "User Name"
   }'
+
+# Admin approves user (see User Management section)
+# Then user can login to get JWT token
+curl -X POST http://localhost:8081/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "secure_password"
+  }'
+# Returns jwt_token for MCP client configuration
 ```
 
 ### First Time Setup
 
-1. Configure your MCP client with pierre-mcp-client binary
-2. Start your MCP-compatible application
-3. Ask about fitness data: "What were my recent activities?"
-4. Follow the OAuth URL to authorize Strava access
-5. Your fitness data is now available through MCP protocol
+1. Start the Pierre MCP Server
+2. Create a tenant and configure OAuth credentials
+3. Register a user account and get admin approval  
+4. Configure your MCP client with the user's JWT token
+5. Start your MCP-compatible application
+6. Ask about fitness data: "What were my recent activities?"
+7. Follow the OAuth URL to authorize Strava access
+8. Your fitness data is now available through MCP protocol
 
 ## User Management with Admin Approval
 
@@ -297,25 +310,20 @@ const activities = await sdk.getStravaActivities();
 
 | Mode | Best For | Features |
 |------|----------|----------|
-| **Multi-Tenant** | Production, organizations | Tenant isolation, admin approval, encrypted OAuth storage |
-| **Single-Tenant** | Development, personal use | Simplified setup, no tenant management |
+| **Production** | Organizations, teams | User authentication, admin approval, encrypted OAuth storage |
+| **Development** | Personal use, testing | Simplified setup, environment variable configuration |
 
 ## Key Features
 
 | Category | Features |
 |----------|----------|
-| **Architecture** | Multi-tenant isolation • Admin approval system • Two-component design |
-| **Security** | AES-256-GCM encryption • JWT authentication • Per-tenant OAuth credentials |
+| **Architecture** | User authentication • Admin approval system • Two-component design |
+| **Security** | AES-256-GCM encryption • JWT authentication • Secure OAuth credential storage |
 | **Protocols** | MCP Protocol • A2A Protocol • REST APIs |
 | **Integrations** | Strava • Fitbit • Claude Desktop • ChatGPT • Custom agents |
 | **Intelligence** | Activity analysis • Location detection • Weather integration |
 
 ## Core API Endpoints
-
-### Tenant Management (Port 8081)
-- `POST /api/tenants` - Create tenant
-- `POST /api/tenants/{id}/oauth` - Configure tenant OAuth
-- `POST /api/tenants/{id}/jwt` - Generate tenant JWT token
 
 ### User Management (Port 8081)
 - `POST /auth/register` - User registration (creates "pending" status)
