@@ -38,14 +38,12 @@ async fn main() -> Result<()> {
         tracing_subscriber::fmt().with_env_filter("warn").init();
     }
 
-    // Get tenant credentials from environment
-    let tenant_id = env::var("TENANT_ID").context("TENANT_ID environment variable is required")?;
-    let jwt_token = env::var("TENANT_JWT_TOKEN")
-        .context("TENANT_JWT_TOKEN environment variable is required")?;
+    // Get JWT token from environment
+    let jwt_token = env::var("PIERRE_JWT_TOKEN")
+        .context("PIERRE_JWT_TOKEN environment variable is required")?;
 
     info!("Pierre MCP Client starting");
     debug!("Server URL: {}", args.server_url);
-    debug!("Tenant ID: {}", tenant_id);
 
     // Create HTTP client
     let client = reqwest::Client::new();
@@ -94,8 +92,7 @@ async fn main() -> Result<()> {
         };
 
         // Handle the request
-        let response =
-            handle_mcp_request(&client, &args.server_url, &tenant_id, &jwt_token, request).await;
+        let response = handle_mcp_request(&client, &args.server_url, &jwt_token, request).await;
 
         // Send response
         let response_json = serde_json::to_string(&response)?;
@@ -111,7 +108,6 @@ async fn main() -> Result<()> {
 async fn handle_mcp_request(
     client: &reqwest::Client,
     server_url: &str,
-    tenant_id: &str,
     jwt_token: &str,
     request: Value,
 ) -> Value {
@@ -135,7 +131,7 @@ async fn handle_mcp_request(
                 }
             })
         }
-        "tools/list" => match list_tools(client, server_url, tenant_id, jwt_token).await {
+        "tools/list" => match list_tools(client, server_url, jwt_token).await {
             Ok(tools) => json!({
                 "jsonrpc": "2.0",
                 "id": id,
@@ -156,11 +152,7 @@ async fn handle_mcp_request(
             let tool_name = request["params"]["name"].as_str().unwrap_or("");
             let arguments = &request["params"]["arguments"];
 
-            match call_tool(
-                client, server_url, tenant_id, jwt_token, tool_name, arguments,
-            )
-            .await
-            {
+            match call_tool(client, server_url, jwt_token, tool_name, arguments).await {
                 Ok(result) => json!({
                     "jsonrpc": "2.0",
                     "id": id,
@@ -197,16 +189,10 @@ async fn handle_mcp_request(
     }
 }
 
-async fn list_tools(
-    client: &reqwest::Client,
-    server_url: &str,
-    tenant_id: &str,
-    jwt_token: &str,
-) -> Result<Value> {
+async fn list_tools(client: &reqwest::Client, server_url: &str, jwt_token: &str) -> Result<Value> {
     let response = client
         .post(format!("{server_url}/mcp"))
         .header("Authorization", format!("Bearer {jwt_token}"))
-        .header("X-Tenant-ID", tenant_id)
         .header("Content-Type", "application/json")
         .json(&json!({
             "jsonrpc": "2.0",
@@ -230,7 +216,6 @@ async fn list_tools(
 async fn call_tool(
     client: &reqwest::Client,
     server_url: &str,
-    tenant_id: &str,
     jwt_token: &str,
     tool_name: &str,
     arguments: &Value,
@@ -238,7 +223,6 @@ async fn call_tool(
     let response = client
         .post(format!("{server_url}/mcp"))
         .header("Authorization", format!("Bearer {jwt_token}"))
-        .header("X-Tenant-ID", tenant_id)
         .header("Content-Type", "application/json")
         .json(&json!({
             "jsonrpc": "2.0",
