@@ -181,7 +181,6 @@ impl AuditEvent {
 /// Audit logger for security events
 pub struct SecurityAuditor {
     /// Database connection for storing audit events
-    #[allow(dead_code)]
     database: Arc<crate::database_plugins::factory::Database>,
 }
 
