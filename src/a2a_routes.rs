@@ -116,6 +116,7 @@ impl A2ARoutes {
                 zone_distribution: None,
                 personal_records: vec![],
                 efficiency_score: Some({
+                    // Safe: clamped to f32 range before cast, value represents percentage (0-100)
                     #[allow(clippy::cast_possible_truncation)]
                     {
                         DEMO_EFFICIENCY_SCORE.clamp(f64::from(f32::MIN), f64::from(f32::MAX)) as f32
@@ -126,6 +127,7 @@ impl A2ARoutes {
                     effort_trend: crate::intelligence::TrendDirection::Improving,
                     distance_trend: crate::intelligence::TrendDirection::Stable,
                     consistency_score: {
+                        // Safe: clamped to f32 range before cast, value represents percentage (0-100)
                         #[allow(clippy::cast_possible_truncation)]
                         {
                             DEMO_CONSISTENCY_SCORE.clamp(f64::from(f32::MIN), f64::from(f32::MAX))

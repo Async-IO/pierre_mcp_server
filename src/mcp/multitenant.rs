@@ -47,31 +47,24 @@ use base64::{engine::general_purpose, Engine as _};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
 // Constants are now imported from the constants module
-
-/// Type alias for the complex provider storage type
-type UserProviderStorage = Arc<RwLock<HashMap<String, HashMap<String, Box<dyn FitnessProvider>>>>>;
 
 /// Context for HTTP request handling with tenant support
 struct HttpRequestContext {
     database: Arc<Database>,
     auth_manager: Arc<AuthManager>,
     auth_middleware: Arc<McpAuthMiddleware>,
-    user_providers: UserProviderStorage, // Legacy support
     tenant_provider_factory: Arc<TenantProviderFactory>,
 }
 
 /// Context for tool routing with all required components
 struct ToolRoutingContext<'a> {
     database: &'a Arc<Database>,
-    user_providers: &'a UserProviderStorage,
     tenant_provider_factory: &'a Arc<TenantProviderFactory>,
     tenant_context: &'a Option<TenantContext>,
     auth_result: &'a AuthResult,
@@ -84,8 +77,6 @@ pub struct MultiTenantMcpServer {
     auth_manager: Arc<AuthManager>,
     auth_middleware: Arc<McpAuthMiddleware>,
     websocket_manager: Arc<WebSocketManager>,
-    // Legacy per-user provider instances (deprecated)
-    user_providers: UserProviderStorage,
     // OAuth client for provider management
     _tenant_oauth_client: Arc<TenantOAuthClient>,
     // Tenant provider factory
@@ -119,7 +110,6 @@ impl MultiTenantMcpServer {
             auth_manager: auth_manager_arc,
             auth_middleware: Arc::new(auth_middleware),
             websocket_manager,
-            user_providers: Arc::new(RwLock::new(HashMap::new())),
             _tenant_oauth_client: tenant_oauth_client,
             tenant_provider_factory,
             config,
@@ -1572,7 +1562,6 @@ impl MultiTenantMcpServer {
                     &self.database,
                     &self.auth_manager,
                     &self.auth_middleware,
-                    &self.user_providers,
                     &self.tenant_provider_factory,
                 )
                 .await;
@@ -1615,7 +1604,6 @@ impl MultiTenantMcpServer {
         let database = self.database.clone();
         let auth_manager = self.auth_manager.clone();
         let auth_middleware = self.auth_middleware.clone();
-        let user_providers = self.user_providers.clone();
         let tenant_provider_factory = self.tenant_provider_factory.clone();
 
         // MCP endpoint for both POST and GET
@@ -1636,7 +1624,6 @@ impl MultiTenantMcpServer {
                     let database = database.clone();
                     let auth_manager = auth_manager.clone();
                     let auth_middleware = auth_middleware.clone();
-                    let user_providers = user_providers.clone();
                     let tenant_provider_factory = tenant_provider_factory.clone();
 
                     async move {
@@ -1644,7 +1631,6 @@ impl MultiTenantMcpServer {
                             database,
                             auth_manager,
                             auth_middleware,
-                            user_providers,
                             tenant_provider_factory,
                         };
                         Self::handle_mcp_http_request(method, origin, accept, body, &ctx).await
@@ -1692,7 +1678,6 @@ impl MultiTenantMcpServer {
                         &ctx.database,
                         &ctx.auth_manager,
                         &ctx.auth_middleware,
-                        &ctx.user_providers,
                         &ctx.tenant_provider_factory,
                     )
                     .await;
@@ -1785,7 +1770,6 @@ impl MultiTenantMcpServer {
         database: &Arc<Database>,
         auth_manager: &Arc<AuthManager>,
         auth_middleware: &Arc<McpAuthMiddleware>,
-        user_providers: &UserProviderStorage, // Legacy support
         tenant_provider_factory: &Arc<TenantProviderFactory>,
     ) -> McpResponse {
         match request.method.as_str() {
@@ -1794,14 +1778,8 @@ impl MultiTenantMcpServer {
             "tools/list" => Self::handle_tools_list(request),
             "authenticate" => Self::handle_authenticate(request, auth_manager),
             "tools/call" => {
-                Self::handle_tools_call(
-                    request,
-                    database,
-                    auth_middleware,
-                    user_providers,
-                    tenant_provider_factory,
-                )
-                .await
+                Self::handle_tools_call(request, database, auth_middleware, tenant_provider_factory)
+                    .await
             }
             _ => Self::handle_unknown_method(request),
         }
@@ -2023,7 +2001,6 @@ impl MultiTenantMcpServer {
         request: McpRequest,
         database: &Arc<Database>,
         auth_middleware: &Arc<McpAuthMiddleware>,
-        user_providers: &UserProviderStorage, // Legacy support
         tenant_provider_factory: &Arc<TenantProviderFactory>,
     ) -> McpResponse {
         let auth_token = request.auth_token.as_deref();
@@ -2054,7 +2031,6 @@ impl MultiTenantMcpServer {
                     request,
                     auth_result,
                     database,
-                    user_providers,
                     tenant_provider_factory,
                     tenant_context,
                 )
@@ -2150,7 +2126,6 @@ impl MultiTenantMcpServer {
         request: McpRequest,
         auth_result: AuthResult,
         database: &Arc<Database>,
-        user_providers: &UserProviderStorage, // Legacy support
         tenant_provider_factory: &Arc<TenantProviderFactory>,
         tenant_context: Option<TenantContext>,
     ) -> McpResponse {
@@ -2168,7 +2143,6 @@ impl MultiTenantMcpServer {
 
         let routing_context = ToolRoutingContext {
             database,
-            user_providers,
             tenant_provider_factory,
             tenant_context: &tenant_context,
             auth_result: &auth_result,
@@ -2315,7 +2289,6 @@ impl MultiTenantMcpServer {
                 request_id,
                 user_id,
                 ctx.database,
-                ctx.user_providers,
                 ctx.auth_result,
             )
         }
@@ -2362,7 +2335,6 @@ impl MultiTenantMcpServer {
         request_id: Value,
         _user_id: Uuid,
         _database: &Arc<Database>,
-        _user_providers: &UserProviderStorage,
         _auth_result: &AuthResult,
     ) -> McpResponse {
         McpResponse {
@@ -2388,7 +2360,6 @@ impl MultiTenantMcpServer {
         _user_id: Uuid,
         provider_name: &str,
         _database: &Arc<Database>,
-        _user_providers: &UserProviderStorage,
     ) -> Result<Box<dyn FitnessProvider>> {
         Err(anyhow::anyhow!(
             "Legacy provider '{}' deprecated - use TenantProviderFactory instead",
@@ -2970,11 +2941,13 @@ impl MultiTenantMcpServer {
             .get("vo2_max")
             .and_then(serde_json::Value::as_f64)
             .unwrap_or(50.0);
+        // Safe: heart rate values are small positive integers (80-220 bpm)
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let max_hr = args
             .get("max_hr")
             .and_then(serde_json::Value::as_f64)
             .map_or(190, |v| v as u16);
+        // Safe: heart rate values are small positive integers (40-100 bpm)
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let resting_hr = args
             .get("resting_hr")
