@@ -745,6 +745,7 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
                 ];
 
                 // Add strategy-based recovery recommendations using the strategy field
+                // Safe: weeks count is small integer value in training period ranges (0-52)
                 #[allow(clippy::cast_possible_truncation)]
                 if self.strategy.should_recommend_recovery(weeks as i32) {
                     recs.push("Your training strategy recommends prioritizing recovery at this load level".into());

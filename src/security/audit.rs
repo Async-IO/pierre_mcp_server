@@ -196,7 +196,6 @@ impl SecurityAuditor {
     /// # Errors
     ///
     /// Returns an error if the audit event cannot be stored
-    #[allow(clippy::unused_async)]
     pub async fn log_event(&self, event: AuditEvent) -> Result<()> {
         // Log to structured logger first (for immediate visibility)
         match event.severity {
@@ -255,21 +254,20 @@ impl SecurityAuditor {
         }
 
         // Store in database for persistence and analysis
-        self.store_audit_event(&event)?;
+        self.store_audit_event(&event).await?;
 
         // For critical events, also trigger alerts
         if matches!(event.severity, AuditSeverity::Critical) {
-            self.trigger_security_alert(&event)?;
+            Self::trigger_security_alert(&event);
         }
 
         Ok(())
     }
 
     /// Store audit event in database
-    fn store_audit_event(&self, event: &AuditEvent) -> Result<()> {
-        // Use async runtime to call the database method
-        let rt = tokio::runtime::Handle::current();
-        rt.block_on(self.database.store_audit_event(event))?;
+    async fn store_audit_event(&self, event: &AuditEvent) -> Result<()> {
+        // Store audit event in database
+        self.database.store_audit_event(event).await?;
 
         tracing::debug!(
             "Stored audit event {} in database: {}",
@@ -281,8 +279,7 @@ impl SecurityAuditor {
     }
 
     /// Trigger security alert for critical events
-    #[allow(clippy::unused_self, clippy::unnecessary_wraps)]
-    fn trigger_security_alert(&self, event: &AuditEvent) -> Result<()> {
+    fn trigger_security_alert(event: &AuditEvent) {
         // Log critical security events with structured format for monitoring systems
         tracing::error!(
             target: "security_alert",
@@ -299,8 +296,6 @@ impl SecurityAuditor {
         // - Slack/Teams webhooks for immediate alerts
         // - PagerDuty for critical incidents
         // - SIEM systems for security monitoring
-
-        Ok(())
     }
 
     /// Log OAuth credential access

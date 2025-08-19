@@ -155,6 +155,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
                 .or_insert(0) += 1;
 
             let duration = activity.duration_seconds;
+            // Safe: duration represents time in seconds, precision loss acceptable for hour calculations
             #[allow(clippy::cast_precision_loss)]
             {
                 weekly_load += duration as f64 / 3600.0;
@@ -164,11 +165,13 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
             if let Some(avg_hr) = activity.average_heart_rate {
                 // Use configurable heart rate thresholds
                 let hr_config = &self.config.thresholds;
+                // Safe: heart rate thresholds are small positive values (80-220 bpm)
                 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
                 let intensity_threshold = {
                     u32::try_from((hr_config.intensity_threshold * ASSUMED_MAX_HR) as u64)
                         .unwrap_or(u32::MAX)
                 };
+                // Safe: heart rate thresholds are small positive values (60-150 bpm)
                 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
                 let recovery_threshold = {
                     u32::try_from((RECOVERY_HR_PERCENTAGE * ASSUMED_MAX_HR) as u64)
@@ -188,6 +191,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
         let intensity_balance = if recent_activities.is_empty() {
             0.0
         } else {
+            // Safe: activity count precision loss acceptable for ratio calculations
             #[allow(clippy::cast_precision_loss)]
             {
                 f64::from(high_intensity_count) / recent_activities.len() as f64
@@ -195,16 +199,19 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
         };
 
         // Use configurable frequency thresholds for consistency scoring
+        // Safe: frequency threshold is small positive value representing weekly activities (0-20)
         #[allow(clippy::cast_possible_truncation)]
         let high_freq = usize::try_from(
             (f64::from(self.config.thresholds.high_weekly_frequency) * 4.0).round() as i64,
         )
         .unwrap_or(usize::MAX); // 4 weeks
+                                // Safe: frequency threshold is small positive value representing weekly activities (0-20)
         #[allow(clippy::cast_possible_truncation)]
         let low_freq = usize::try_from(
             (f64::from(self.config.thresholds.low_weekly_frequency) * 4.0).round() as i64,
         )
         .unwrap_or(usize::MAX);
+        // Safe: frequency threshold is small positive value representing weekly activities (0-20)
         #[allow(clippy::cast_possible_truncation)]
         let ideal_freq = usize::try_from(
             (f64::midpoint(
@@ -724,6 +731,7 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
     ) -> Result<Vec<TrainingRecommendation>> {
         let mut recommendations = Vec::new();
 
+        // Safe: duration conversion to hours, precision loss acceptable for nutrition calculations
         #[allow(clippy::cast_precision_loss)]
         let duration_hours = activity.duration_seconds as f64 / 3600.0;
         let high_intensity =
@@ -802,6 +810,7 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
         }
 
         // Running-specific equipment
+        // Safe: weekly frequency is small positive value (1-20 activities)
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         if sport_counts.get("Run").unwrap_or(&0) > &(MAX_WEEKLY_FREQUENCY as usize) {
             recommendations.push(TrainingRecommendation {
@@ -825,6 +834,7 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
         }
 
         // Cycling-specific equipment
+        // Safe: weekly frequency is small positive value (1-20 activities)
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         if sport_counts.get("Ride").unwrap_or(&0) > &(MAX_WEEKLY_FREQUENCY as usize) {
             recommendations.push(TrainingRecommendation {
@@ -845,6 +855,7 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
 
         // General monitoring equipment
         let has_hr_data = activities.iter().any(|a| a.average_heart_rate.is_some());
+        // Safe: weekly frequency is small positive value (1-20 activities)
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         if !has_hr_data && activities.len() > (MAX_WEEKLY_FREQUENCY as usize) {
             recommendations.push(TrainingRecommendation {

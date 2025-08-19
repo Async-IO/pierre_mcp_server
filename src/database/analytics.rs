@@ -386,6 +386,7 @@ impl Database {
         _insight_type: Option<&str>,
         limit: Option<u32>,
     ) -> Result<Vec<serde_json::Value>> {
+        // Safe: limit represents small positive query limit (1-1000)
         #[allow(clippy::cast_possible_wrap)]
         let actual_limit = limit.unwrap_or(10) as i32;
         self.get_user_insights_simple(user_id, actual_limit).await

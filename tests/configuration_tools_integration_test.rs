@@ -15,37 +15,23 @@ use pierre_mcp_server::{
     tenant::TenantOAuthClient,
 };
 use serde_json::{json, Value};
-use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use uuid::Uuid;
 
 mod common;
 use common::*;
 
-/// Type alias for complex provider storage
-type UserProviderStorage = Arc<
-    RwLock<
-        HashMap<String, HashMap<String, Box<dyn pierre_mcp_server::providers::FitnessProvider>>>,
-    >,
->;
-
 /// Helper to create test server components
-async fn create_test_components() -> Result<(
-    Arc<Database>,
-    Arc<AuthManager>,
-    Arc<McpAuthMiddleware>,
-    UserProviderStorage,
-)> {
+async fn create_test_components(
+) -> Result<(Arc<Database>, Arc<AuthManager>, Arc<McpAuthMiddleware>)> {
     let database = create_test_database().await?;
     let auth_manager = create_test_auth_manager();
     let auth_middleware = Arc::new(McpAuthMiddleware::new(
         (*auth_manager).clone(),
         database.clone(),
     ));
-    let user_providers = Arc::new(RwLock::new(HashMap::new()));
 
-    Ok((database, auth_manager, auth_middleware, user_providers))
+    Ok((database, auth_manager, auth_middleware))
 }
 
 /// Helper to create authenticated user and return token
@@ -73,7 +59,6 @@ async fn make_tool_request(
     database: &Arc<Database>,
     auth_manager: &Arc<AuthManager>,
     auth_middleware: &Arc<McpAuthMiddleware>,
-    user_providers: &UserProviderStorage,
 ) -> Result<pierre_mcp_server::mcp::multitenant::McpResponse> {
     let request = McpRequest {
         jsonrpc: "2.0".to_string(),
@@ -94,7 +79,6 @@ async fn make_tool_request(
         database,
         auth_manager,
         auth_middleware,
-        user_providers,
         &tenant_provider_factory,
     )
     .await)
@@ -102,8 +86,7 @@ async fn make_tool_request(
 
 #[tokio::test]
 async fn test_all_configuration_tools_available() -> Result<()> {
-    let (database, auth_manager, auth_middleware, user_providers) =
-        create_test_components().await?;
+    let (database, auth_manager, auth_middleware) = create_test_components().await?;
     let (user_id, token) = create_authenticated_user(&database, &auth_manager).await?;
 
     // Test that all 6 configuration tools are available and respond
@@ -144,7 +127,6 @@ async fn test_all_configuration_tools_available() -> Result<()> {
             &database,
             &auth_manager,
             &auth_middleware,
-            &user_providers,
         )
         .await?;
 
@@ -169,8 +151,7 @@ async fn test_all_configuration_tools_available() -> Result<()> {
 
 #[tokio::test]
 async fn test_configuration_catalog_has_expected_structure() -> Result<()> {
-    let (database, auth_manager, auth_middleware, user_providers) =
-        create_test_components().await?;
+    let (database, auth_manager, auth_middleware) = create_test_components().await?;
     let (user_id, token) = create_authenticated_user(&database, &auth_manager).await?;
 
     let response = make_tool_request(
@@ -180,7 +161,6 @@ async fn test_configuration_catalog_has_expected_structure() -> Result<()> {
         &database,
         &auth_manager,
         &auth_middleware,
-        &user_providers,
     )
     .await?;
 
@@ -206,8 +186,7 @@ async fn test_configuration_catalog_has_expected_structure() -> Result<()> {
 
 #[tokio::test]
 async fn test_configuration_tools_require_authentication() -> Result<()> {
-    let (database, auth_manager, auth_middleware, user_providers) =
-        create_test_components().await?;
+    let (database, auth_manager, auth_middleware) = create_test_components().await?;
 
     // Try to call a configuration tool without authentication
     let request = McpRequest {
@@ -229,7 +208,6 @@ async fn test_configuration_tools_require_authentication() -> Result<()> {
         &database,
         &auth_manager,
         &auth_middleware,
-        &user_providers,
         &tenant_provider_factory,
     )
     .await;
@@ -245,8 +223,7 @@ async fn test_configuration_tools_require_authentication() -> Result<()> {
 
 #[tokio::test]
 async fn test_configuration_tools_with_invalid_parameters() -> Result<()> {
-    let (database, auth_manager, auth_middleware, user_providers) =
-        create_test_components().await?;
+    let (database, auth_manager, auth_middleware) = create_test_components().await?;
     let (_user_id, token) = create_authenticated_user(&database, &auth_manager).await?;
 
     // Test missing required parameters for calculate_personalized_zones
@@ -269,7 +246,6 @@ async fn test_configuration_tools_with_invalid_parameters() -> Result<()> {
         &database,
         &auth_manager,
         &auth_middleware,
-        &user_providers,
         &tenant_provider_factory,
     )
     .await;
@@ -286,8 +262,7 @@ async fn test_configuration_tools_with_invalid_parameters() -> Result<()> {
 
 #[tokio::test]
 async fn test_multitenant_isolation_for_configuration_tools() -> Result<()> {
-    let (database, auth_manager, auth_middleware, user_providers) =
-        create_test_components().await?;
+    let (database, auth_manager, auth_middleware) = create_test_components().await?;
 
     // Create two different users
     let (user1_id, token1) = create_authenticated_user(&database, &auth_manager).await?;
@@ -309,7 +284,6 @@ async fn test_multitenant_isolation_for_configuration_tools() -> Result<()> {
         &database,
         &auth_manager,
         &auth_middleware,
-        &user_providers,
     )
     .await?;
 
@@ -320,7 +294,6 @@ async fn test_multitenant_isolation_for_configuration_tools() -> Result<()> {
         &database,
         &auth_manager,
         &auth_middleware,
-        &user_providers,
     )
     .await?;
 
@@ -341,8 +314,7 @@ async fn test_multitenant_isolation_for_configuration_tools() -> Result<()> {
 
 #[tokio::test]
 async fn test_configuration_tools_integration_summary() -> Result<()> {
-    let (database, auth_manager, auth_middleware, user_providers) =
-        create_test_components().await?;
+    let (database, auth_manager, auth_middleware) = create_test_components().await?;
     let (user_id, token) = create_authenticated_user(&database, &auth_manager).await?;
 
     println!("🔧 Configuration Tools Integration Test Summary");
@@ -389,7 +361,6 @@ async fn test_configuration_tools_integration_summary() -> Result<()> {
             &database,
             &auth_manager,
             &auth_middleware,
-            &user_providers,
         )
         .await?;
 

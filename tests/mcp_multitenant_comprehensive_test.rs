@@ -16,7 +16,6 @@ use pierre_mcp_server::{
 };
 use serde_json::json;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use uuid::Uuid;
 
 mod common;
@@ -172,7 +171,6 @@ async fn test_mcp_initialize_request() -> Result<()> {
         (*auth_manager).clone(),
         database.clone(),
     ));
-    let user_providers = Arc::new(RwLock::new(std::collections::HashMap::new()));
 
     let request = McpRequest {
         jsonrpc: "2.0".to_string(),
@@ -189,7 +187,6 @@ async fn test_mcp_initialize_request() -> Result<()> {
         &database,
         &auth_manager,
         &auth_middleware,
-        &user_providers,
         &tenant_provider_factory,
     )
     .await;
@@ -209,7 +206,6 @@ async fn test_mcp_ping_request() -> Result<()> {
         (*auth_manager).clone(),
         database.clone(),
     ));
-    let user_providers = Arc::new(RwLock::new(std::collections::HashMap::new()));
 
     let request = McpRequest {
         jsonrpc: "2.0".to_string(),
@@ -226,7 +222,6 @@ async fn test_mcp_ping_request() -> Result<()> {
         &database,
         &auth_manager,
         &auth_middleware,
-        &user_providers,
         &tenant_provider_factory,
     )
     .await;
@@ -245,7 +240,6 @@ async fn test_mcp_tools_list_request() -> Result<()> {
         (*auth_manager).clone(),
         database.clone(),
     ));
-    let user_providers = Arc::new(RwLock::new(std::collections::HashMap::new()));
 
     let request = McpRequest {
         jsonrpc: "2.0".to_string(),
@@ -262,7 +256,6 @@ async fn test_mcp_tools_list_request() -> Result<()> {
         &database,
         &auth_manager,
         &auth_middleware,
-        &user_providers,
         &tenant_provider_factory,
     )
     .await;
@@ -281,7 +274,6 @@ async fn test_mcp_authenticate_request() -> Result<()> {
         (*auth_manager).clone(),
         database.clone(),
     ));
-    let user_providers = Arc::new(RwLock::new(std::collections::HashMap::new()));
 
     // Create user with known credentials
     let user = User::new(
@@ -309,7 +301,6 @@ async fn test_mcp_authenticate_request() -> Result<()> {
         &database,
         &auth_manager,
         &auth_middleware,
-        &user_providers,
         &tenant_provider_factory,
     )
     .await;
@@ -328,7 +319,6 @@ async fn test_unknown_method_handling() -> Result<()> {
         (*auth_manager).clone(),
         database.clone(),
     ));
-    let user_providers = Arc::new(RwLock::new(std::collections::HashMap::new()));
 
     let request = McpRequest {
         jsonrpc: "2.0".to_string(),
@@ -345,7 +335,6 @@ async fn test_unknown_method_handling() -> Result<()> {
         &database,
         &auth_manager,
         &auth_middleware,
-        &user_providers,
         &tenant_provider_factory,
     )
     .await;
@@ -370,7 +359,6 @@ async fn test_authenticate_method_with_invalid_params() -> Result<()> {
         (*auth_manager).clone(),
         database.clone(),
     ));
-    let user_providers = Arc::new(RwLock::new(std::collections::HashMap::new()));
 
     let request = McpRequest {
         jsonrpc: "2.0".to_string(),
@@ -387,7 +375,6 @@ async fn test_authenticate_method_with_invalid_params() -> Result<()> {
         &database,
         &auth_manager,
         &auth_middleware,
-        &user_providers,
         &tenant_provider_factory,
     )
     .await;
@@ -411,7 +398,6 @@ async fn test_tools_call_without_authentication() -> Result<()> {
         (*auth_manager).clone(),
         database.clone(),
     ));
-    let user_providers = Arc::new(RwLock::new(std::collections::HashMap::new()));
 
     let request = McpRequest {
         jsonrpc: "2.0".to_string(),
@@ -434,7 +420,6 @@ async fn test_tools_call_without_authentication() -> Result<()> {
         &database,
         &auth_manager,
         &auth_middleware,
-        &user_providers,
         &tenant_provider_factory,
     )
     .await;
@@ -453,7 +438,6 @@ async fn test_tools_call_with_invalid_token() -> Result<()> {
         (*auth_manager).clone(),
         database.clone(),
     ));
-    let user_providers = Arc::new(RwLock::new(std::collections::HashMap::new()));
 
     let request = McpRequest {
         jsonrpc: "2.0".to_string(),
@@ -476,7 +460,6 @@ async fn test_tools_call_with_invalid_token() -> Result<()> {
         &database,
         &auth_manager,
         &auth_middleware,
-        &user_providers,
         &tenant_provider_factory,
     )
     .await;
@@ -495,7 +478,6 @@ async fn test_tools_call_with_valid_authentication() -> Result<()> {
         (*auth_manager).clone(),
         database.clone(),
     ));
-    let user_providers = Arc::new(RwLock::new(std::collections::HashMap::new()));
 
     // Create authenticated user
     let (_user, token) = create_test_user_with_auth(&database).await?;
@@ -518,7 +500,6 @@ async fn test_tools_call_with_valid_authentication() -> Result<()> {
         &database,
         &auth_manager,
         &auth_middleware,
-        &user_providers,
         &tenant_provider_factory,
     )
     .await;
@@ -537,7 +518,6 @@ async fn test_tools_call_with_missing_params() -> Result<()> {
         (*auth_manager).clone(),
         database.clone(),
     ));
-    let user_providers = Arc::new(RwLock::new(std::collections::HashMap::new()));
 
     // Create authenticated user
     let (_user, token) = create_test_user_with_auth(&database).await?;
@@ -558,7 +538,6 @@ async fn test_tools_call_with_missing_params() -> Result<()> {
         &database,
         &auth_manager,
         &auth_middleware,
-        &user_providers,
         &tenant_provider_factory,
     )
     .await;
@@ -578,7 +557,6 @@ async fn test_connect_strava_tool() -> Result<()> {
         (*auth_manager).clone(),
         database.clone(),
     ));
-    let user_providers = Arc::new(RwLock::new(std::collections::HashMap::new()));
 
     // Create authenticated user
     let (_user, token) = create_test_user_with_auth(&database).await?;
@@ -601,7 +579,6 @@ async fn test_connect_strava_tool() -> Result<()> {
         &database,
         &auth_manager,
         &auth_middleware,
-        &user_providers,
         &tenant_provider_factory,
     )
     .await;
@@ -620,7 +597,6 @@ async fn test_connect_fitbit_tool() -> Result<()> {
         (*auth_manager).clone(),
         database.clone(),
     ));
-    let user_providers = Arc::new(RwLock::new(std::collections::HashMap::new()));
 
     // Create authenticated user
     let (_user, token) = create_test_user_with_auth(&database).await?;
@@ -643,7 +619,6 @@ async fn test_connect_fitbit_tool() -> Result<()> {
         &database,
         &auth_manager,
         &auth_middleware,
-        &user_providers,
         &tenant_provider_factory,
     )
     .await;
@@ -662,7 +637,6 @@ async fn test_get_connection_status_tool() -> Result<()> {
         (*auth_manager).clone(),
         database.clone(),
     ));
-    let user_providers = Arc::new(RwLock::new(std::collections::HashMap::new()));
 
     // Create authenticated user
     let (_user, token) = create_test_user_with_auth(&database).await?;
@@ -685,7 +659,6 @@ async fn test_get_connection_status_tool() -> Result<()> {
         &database,
         &auth_manager,
         &auth_middleware,
-        &user_providers,
         &tenant_provider_factory,
     )
     .await;
@@ -704,7 +677,6 @@ async fn test_disconnect_provider_tool() -> Result<()> {
         (*auth_manager).clone(),
         database.clone(),
     ));
-    let user_providers = Arc::new(RwLock::new(std::collections::HashMap::new()));
 
     // Create authenticated user
     let (_user, token) = create_test_user_with_auth(&database).await?;
@@ -729,7 +701,6 @@ async fn test_disconnect_provider_tool() -> Result<()> {
         &database,
         &auth_manager,
         &auth_middleware,
-        &user_providers,
         &tenant_provider_factory,
     )
     .await;
@@ -750,7 +721,6 @@ async fn test_provider_tools_without_connection() -> Result<()> {
         (*auth_manager).clone(),
         database.clone(),
     ));
-    let user_providers = Arc::new(RwLock::new(std::collections::HashMap::new()));
 
     // Create authenticated user
     let (_user, token) = create_test_user_with_auth(&database).await?;
@@ -783,7 +753,6 @@ async fn test_provider_tools_without_connection() -> Result<()> {
             &database,
             &auth_manager,
             &auth_middleware,
-            &user_providers,
             &tenant_provider_factory,
         )
         .await;
@@ -805,7 +774,6 @@ async fn test_intelligence_tools() -> Result<()> {
         (*auth_manager).clone(),
         database.clone(),
     ));
-    let user_providers = Arc::new(RwLock::new(std::collections::HashMap::new()));
 
     // Create authenticated user
     let (_user, token) = create_test_user_with_auth(&database).await?;
@@ -840,7 +808,6 @@ async fn test_intelligence_tools() -> Result<()> {
             &database,
             &auth_manager,
             &auth_middleware,
-            &user_providers,
             &tenant_provider_factory,
         )
         .await;
@@ -862,7 +829,6 @@ async fn test_tools_call_with_whitespace_token() -> Result<()> {
         (*auth_manager).clone(),
         database.clone(),
     ));
-    let user_providers = Arc::new(RwLock::new(std::collections::HashMap::new()));
 
     let request = McpRequest {
         jsonrpc: "2.0".to_string(),
@@ -882,7 +848,6 @@ async fn test_tools_call_with_whitespace_token() -> Result<()> {
         &database,
         &auth_manager,
         &auth_middleware,
-        &user_providers,
         &tenant_provider_factory,
     )
     .await;
@@ -901,7 +866,6 @@ async fn test_tools_call_malformed_token() -> Result<()> {
         (*auth_manager).clone(),
         database.clone(),
     ));
-    let user_providers = Arc::new(RwLock::new(std::collections::HashMap::new()));
 
     let request = McpRequest {
         jsonrpc: "2.0".to_string(),
@@ -921,7 +885,6 @@ async fn test_tools_call_malformed_token() -> Result<()> {
         &database,
         &auth_manager,
         &auth_middleware,
-        &user_providers,
         &tenant_provider_factory,
     )
     .await;
@@ -940,7 +903,6 @@ async fn test_handle_authenticated_tool_call_edge_cases() -> Result<()> {
         (*auth_manager).clone(),
         database.clone(),
     ));
-    let user_providers = Arc::new(RwLock::new(std::collections::HashMap::new()));
 
     // Create authenticated user
     let (_user, token) = create_test_user_with_auth(&database).await?;
@@ -964,7 +926,6 @@ async fn test_handle_authenticated_tool_call_edge_cases() -> Result<()> {
         &database,
         &auth_manager,
         &auth_middleware,
-        &user_providers,
         &tenant_provider_factory,
     )
     .await;
@@ -979,13 +940,11 @@ async fn test_handle_authenticated_tool_call_edge_cases() -> Result<()> {
 #[tokio::test]
 async fn test_get_user_provider_not_connected() -> Result<()> {
     let database = common::create_test_database().await?;
-    let user_providers = Arc::new(RwLock::new(std::collections::HashMap::new()));
 
     let user_id = Uuid::new_v4();
 
     // Try to get provider when user hasn't connected
-    let result =
-        MultiTenantMcpServer::get_user_provider(user_id, "strava", &database, &user_providers);
+    let result = MultiTenantMcpServer::get_user_provider(user_id, "strava", &database);
 
     // Should return an error (provider not connected or method not found)
     assert!(result.is_err());
@@ -1003,7 +962,6 @@ async fn test_concurrent_requests() -> Result<()> {
         (*auth_manager).clone(),
         database.clone(),
     ));
-    let user_providers = Arc::new(RwLock::new(std::collections::HashMap::new()));
 
     // Create multiple users
     let mut user_tokens = vec![];
@@ -1026,7 +984,6 @@ async fn test_concurrent_requests() -> Result<()> {
         let db = database.clone();
         let am = auth_manager.clone();
         let amw = auth_middleware.clone();
-        let up = user_providers.clone();
 
         handles.push(tokio::spawn(async move {
             // Add small delay to stagger requests
@@ -1045,15 +1002,8 @@ async fn test_concurrent_requests() -> Result<()> {
             };
 
             let tenant_provider_factory = create_mock_tenant_provider_factory();
-            MultiTenantMcpServer::handle_request(
-                request,
-                &db,
-                &am,
-                &amw,
-                &up,
-                &tenant_provider_factory,
-            )
-            .await
+            MultiTenantMcpServer::handle_request(request, &db, &am, &amw, &tenant_provider_factory)
+                .await
         }));
     }
 
