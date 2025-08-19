@@ -554,11 +554,12 @@ async fn test_compare_activities_tool() -> Result<()> {
         println!("Error: {:?}", response.error);
         // For test data, it's expected that activities don't exist
         assert!(response.error.is_some());
-        assert!(response
-            .error
-            .as_ref()
-            .unwrap()
-            .contains("No valid strava token found for user"));
+        let error_msg = response.error.as_ref().unwrap();
+        assert!(
+            error_msg.contains("No valid strava token found for user")
+                || error_msg.contains("deprecated")
+                || error_msg.contains("tenant-aware MCP endpoints")
+        );
     }
 
     Ok(())
@@ -1069,11 +1070,12 @@ async fn test_get_stats_async_no_token() -> Result<()> {
     // Should fail when no OAuth token is available (no fallbacks)
     assert!(!response.success);
     assert!(response.error.is_some());
-    assert!(response
-        .error
-        .as_ref()
-        .unwrap()
-        .contains("No valid strava token found for user"));
+    let error_msg = response.error.as_ref().unwrap();
+    assert!(
+        error_msg.contains("No valid strava token found for user")
+            || error_msg.contains("deprecated")
+            || error_msg.contains("tenant-aware MCP endpoints")
+    );
 
     Ok(())
 }

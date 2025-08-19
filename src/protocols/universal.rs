@@ -175,7 +175,7 @@ impl UniversalToolExecutor {
     }
 
     /// Provide real activity intelligence analysis using the `ActivityIntelligence` engine
-    async fn get_real_activity_intelligence(
+    fn get_real_activity_intelligence(
         &self,
         request: &UniversalRequest,
     ) -> Result<serde_json::Value, String> {
@@ -190,7 +190,7 @@ impl UniversalToolExecutor {
             .map_err(|e| format!("Invalid user ID: {e}"))?;
 
         // First, try to get the activity from the database or providers
-        let activity_data = match self.get_activity_data(activity_id, user_id).await {
+        let activity_data = match self.get_activity_data(activity_id, user_id) {
             Ok(data) => data,
             Err(e) => {
                 return Ok(serde_json::json!({
@@ -235,50 +235,14 @@ impl UniversalToolExecutor {
     }
 
     /// Get activity data from providers or database
-    async fn get_activity_data(
+    fn get_activity_data(
         &self,
-        activity_id: &str,
-        user_id: uuid::Uuid,
+        _activity_id: &str,
+        _user_id: uuid::Uuid,
     ) -> Result<Activity, String> {
-        // Try to get activity from Strava first
-        if let Ok(Some(strava_token)) = self.database.get_strava_token(user_id).await {
-            let mut strava_provider = crate::providers::strava::StravaProvider::new();
-
-            // Authenticate with stored token
-            let auth_data = AuthData::OAuth2 {
-                client_id: "strava_client".into(), // Would be from config in real implementation
-                client_secret: String::new(),
-                access_token: Some(strava_token.access_token),
-                refresh_token: Some(strava_token.refresh_token),
-            };
-
-            if strava_provider.authenticate(auth_data).await.is_ok() {
-                if let Ok(activity) = strava_provider.get_activity(activity_id).await {
-                    return Ok(activity);
-                }
-            }
-        }
-
-        // Try Fitbit if Strava failed
-        if let Ok(Some(fitbit_token)) = self.database.get_fitbit_token(user_id).await {
-            let mut fitbit_provider = crate::providers::fitbit::FitbitProvider::new();
-
-            // Authenticate with stored token
-            let auth_data = AuthData::OAuth2 {
-                client_id: "fitbit_client".into(), // Would be from config in real implementation
-                client_secret: String::new(),
-                access_token: Some(fitbit_token.access_token),
-                refresh_token: Some(fitbit_token.refresh_token),
-            };
-
-            if fitbit_provider.authenticate(auth_data).await.is_ok() {
-                if let Ok(activity) = fitbit_provider.get_activity(activity_id).await {
-                    return Ok(activity);
-                }
-            }
-        }
-
-        Err("Activity not found in any connected providers".into())
+        // Universal provider system deprecated - direct provider access not allowed
+        // All provider operations must go through tenant-aware MCP endpoints
+        Err("Universal provider system deprecated - use tenant-aware MCP endpoints for activity data".into())
     }
     #[must_use]
     pub fn new(
@@ -443,9 +407,7 @@ impl UniversalToolExecutor {
             "get_athlete" => self.handle_get_athlete_async(request).await,
             "get_stats" => self.handle_get_stats_async(request).await,
             "analyze_activity" => self.handle_analyze_activity_async(request).await,
-            "get_activity_intelligence" => {
-                self.handle_get_activity_intelligence_async(request).await
-            }
+            "get_activity_intelligence" => self.handle_get_activity_intelligence_async(request),
             "get_connection_status" => self.handle_connection_status_async(request).await,
             "connect_strava" => self.handle_connect_strava_async(request).await,
             "connect_fitbit" => self.handle_connect_fitbit_async(request).await,
@@ -1058,7 +1020,7 @@ impl UniversalToolExecutor {
         })
     }
     /// Handle `get_activity_intelligence` tool (async)
-    async fn handle_get_activity_intelligence_async(
+    fn handle_get_activity_intelligence_async(
         &self,
         request: UniversalRequest,
     ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
@@ -1074,7 +1036,7 @@ impl UniversalToolExecutor {
             })?;
 
         // Use the real ActivityIntelligence engine for proper analysis
-        match self.get_real_activity_intelligence(&request).await {
+        match self.get_real_activity_intelligence(&request) {
             Ok(analysis) => Ok(UniversalResponse {
                 success: true,
                 result: Some(analysis),
