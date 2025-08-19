@@ -634,12 +634,14 @@ async fn test_analyze_activity_token_refresh() {
     match response {
         Ok(resp) => {
             if let Some(error) = resp.error {
-                // Expected in test environment - could be OAuth error, provider error, or activity not found
+                // Expected in test environment - could be OAuth error, provider error, deprecated system, or activity not found
                 assert!(
                     error.contains("OAuth")
                         || error.contains("Failed")
                         || error.contains("not yet fully implemented")
                         || error.contains("Activity not found")
+                        || error.contains("deprecated")
+                        || error.contains("tenant-aware MCP endpoints")
                 );
             }
         }

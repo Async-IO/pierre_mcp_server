@@ -3088,7 +3088,21 @@ impl MultiTenantMcpServer {
         let user_id = tenant_context.user_id;
 
         // We need to spawn this as a task since we're in a sync context
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = match tokio::runtime::Runtime::new() {
+            Ok(runtime) => runtime,
+            Err(e) => {
+                return McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    result: None,
+                    error: Some(McpError {
+                        code: ERROR_INTERNAL_ERROR,
+                        message: format!("Failed to create runtime: {e}"),
+                        data: None,
+                    }),
+                    id: request_id,
+                };
+            }
+        };
         let result = rt.block_on(async move {
             let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
             oauth_routes
@@ -3135,7 +3149,21 @@ impl MultiTenantMcpServer {
         let user_id = tenant_context.user_id;
 
         // We need to spawn this as a task since we're in a sync context
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = match tokio::runtime::Runtime::new() {
+            Ok(runtime) => runtime,
+            Err(e) => {
+                return McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    result: None,
+                    error: Some(McpError {
+                        code: ERROR_INTERNAL_ERROR,
+                        message: format!("Failed to create runtime: {e}"),
+                        data: None,
+                    }),
+                    id: request_id,
+                };
+            }
+        };
         let result = rt.block_on(async move {
             let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
             oauth_routes
