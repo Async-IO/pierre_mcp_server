@@ -190,11 +190,10 @@ impl ProviderManager {
         .ok_or_else(|| AppError::not_found(format!("{provider_type} token for user")))?;
 
         // Check if token is expired and attempt refresh if needed
-        let _token = if token.expires_at <= chrono::Utc::now() {
-            Self::refresh_token(user_id, provider_type.clone(), &token)?
-        } else {
-            token
-        };
+        // Note: Token refresh handled by tenant provider internally
+        if token.expires_at <= chrono::Utc::now() {
+            Self::refresh_token(user_id, provider_type.clone(), &token)?;
+        }
 
         // Create tenant-aware provider instead
         Err(AppError::config(

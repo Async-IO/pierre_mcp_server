@@ -73,6 +73,7 @@ fn safe_f64_to_u32(value: f64) -> u32 {
     } else if value > f64::from(u32::MAX) {
         u32::MAX
     } else {
+        // Safe: value range checked above to be within u32 bounds
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         {
             value as u32
