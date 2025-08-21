@@ -304,7 +304,8 @@ impl TenantFitnessProvider for TenantStravaProvider {
     }
 
     async fn get_stats(&self) -> Result<Stats> {
-        let _token = self.get_access_token()?;
+        // Verify token is available
+        self.get_access_token()?;
 
         // Strava doesn't have a single stats endpoint, so we'll return empty stats
         // In a real implementation, you'd aggregate data from multiple endpoints

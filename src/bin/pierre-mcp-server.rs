@@ -108,6 +108,7 @@ async fn main() -> Result<()> {
 
         // Initialize authentication manager
         let auth_manager = {
+            // Safe: JWT expiry hours are small positive configuration values (1-168)
             #[allow(clippy::cast_possible_wrap)]
             {
                 AuthManager::new(jwt_secret.to_vec(), config.auth.jwt_expiry_hours as i64)

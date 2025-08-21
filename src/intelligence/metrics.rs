@@ -21,6 +21,7 @@ use std::collections::HashMap;
 
 /// Safe casting helper functions to avoid clippy warnings
 #[inline]
+// Safe: value clamped to u16 range within function
 #[allow(clippy::cast_possible_truncation)]
 fn safe_u32_to_u16(value: u32) -> u16 {
     value.min(u32::from(u16::MAX)) as u16

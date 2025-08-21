@@ -54,9 +54,7 @@ fn safe_f64_to_f32(value: f64) -> f32 {
         v if v <= f64::from(f32::MIN) => f32::MIN,
         v if v >= f64::from(f32::MAX) => f32::MAX,
         v => {
-            // This is the fundamental conversion that clippy warns about
-            // There is no way to convert f64 to f32 without potential precision loss
-            // The bounds checking above ensures we're within safe ranges
+            // Safe: bounds checked above to ensure value is within f32 range
             #[allow(clippy::cast_possible_truncation)]
             {
                 v as f32
