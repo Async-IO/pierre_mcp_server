@@ -166,8 +166,22 @@ async fn main() -> Result<()> {
             .decode(&key_str)
             .map_err(|e| anyhow!("Invalid encryption key format: {}", e))?
     } else {
-        warn!("No encryption key provided, generating a new one");
-        generate_encryption_key().to_vec()
+        // Use the same encryption key file as the server
+        let key_file = std::path::PathBuf::from("./data/encryption.key");
+        if key_file.exists() {
+            info!("Loading encryption key from: {}", key_file.display());
+            std::fs::read(&key_file)
+                .map_err(|e| anyhow!("Failed to read encryption key file: {}", e))?
+        } else {
+            warn!("No encryption key file found, generating a new one");
+            let key = generate_encryption_key();
+            std::fs::create_dir_all("./data")
+                .map_err(|e| anyhow!("Failed to create data directory: {}", e))?;
+            std::fs::write(&key_file, key)
+                .map_err(|e| anyhow!("Failed to write encryption key file: {}", e))?;
+            info!("Generated new encryption key: {}", key_file.display());
+            key.to_vec()
+        }
     };
 
     // Initialize database
