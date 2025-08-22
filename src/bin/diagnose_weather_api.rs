@@ -141,7 +141,7 @@ async fn test_error_conditions(
     client: &Client,
     api_key: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    println!("\n🔍 Test 3: Error Condition Tests");
+    println!("\nTest 3: Error Condition Tests");
     println!("=================================");
 
     // Test with invalid coordinates
