@@ -19,19 +19,19 @@ use uuid::Uuid;
 #[tokio::main]
 #[allow(clippy::too_many_lines)]
 async fn main() -> anyhow::Result<()> {
-    println!("🔧 Testing Pierre MCP Server Admin API Implementation");
+    println!("Testing Pierre MCP Server Admin API Implementation");
     println!("{}", "=".repeat(60));
 
     // 1. Setup database and auth systems
-    println!("📁 Setting up in-memory database...");
+    println!("Setting up in-memory database...");
     let database = Database::new("sqlite::memory:", generate_encryption_key().to_vec()).await?;
 
-    println!("🔐 Setting up authentication systems...");
+    println!("Setting up authentication systems...");
     let jwt_secret = "test_jwt_secret_for_admin_demo";
     let auth_manager = AuthManager::new(jwt_secret.as_bytes().to_vec(), 24);
 
     // 2. Generate admin token manually using our JWT secret
-    println!("\n🔑 Generating admin token...");
+    println!("\nGenerating admin token...");
     let jwt_manager = pierre_mcp_server::admin::jwt::AdminJwtManager::with_secret(jwt_secret);
     let permissions = pierre_mcp_server::admin::models::AdminPermissions::default_admin();
     let token_id = format!("admin_{}", uuid::Uuid::new_v4().simple());
@@ -118,13 +118,13 @@ async fn main() -> anyhow::Result<()> {
         expires_at: Some(chrono::Utc::now() + chrono::Duration::days(365)),
     };
 
-    println!("✅ Admin token generated:");
+    println!("Admin token generated:");
     println!("   Token ID: {}", generated_token.token_id);
     println!("   Service: {}", generated_token.service_name);
     println!("   JWT: {}...", &generated_token.jwt_token[..50]);
 
     // 4. Test admin authentication
-    println!("\n🛡️  Testing admin authentication...");
+    println!("\nTesting admin authentication...");
     let validated_token = auth_service
         .authenticate_and_authorize(
             &generated_token.jwt_token,
@@ -133,12 +133,12 @@ async fn main() -> anyhow::Result<()> {
         )
         .await?;
 
-    println!("✅ Authentication successful:");
+    println!("Authentication successful:");
     println!("   Service: {}", validated_token.service_name);
     println!("   Permissions: {:?}", validated_token.permissions.to_vec());
 
     // 4. Create test user
-    println!("\n👤 Creating test user...");
+    println!("\nCreating test user...");
     let test_user = User {
         id: Uuid::new_v4(),
         email: "testuser@example.com".to_string(),
@@ -157,10 +157,10 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let user_id = database.create_user(&test_user).await?;
-    println!("✅ User created: {}", test_user.email);
+    println!("User created: {}", test_user.email);
 
     // 5. Test API key provisioning
-    println!("\n🔑 Testing API key provisioning...");
+    println!("\nTesting API key provisioning...");
     let api_key_manager = ApiKeyManager::new();
     let create_request = CreateApiKeyRequest {
         name: "Admin-provisioned API key".to_string(),
@@ -173,7 +173,7 @@ async fn main() -> anyhow::Result<()> {
     let (api_key, api_key_string) = api_key_manager.create_api_key(user_id, create_request)?;
     database.create_api_key(&api_key).await?;
 
-    println!("✅ API key provisioned:");
+    println!("API key provisioned:");
     println!("   API Key ID: {}", api_key.id);
     println!("   Key: {}...", &api_key_string[..20]);
     println!("   Tier: {:?}", api_key.tier);
@@ -183,17 +183,17 @@ async fn main() -> anyhow::Result<()> {
     );
 
     // 6. Test admin API context
-    println!("\n🌐 Testing admin API context...");
+    println!("\nTesting admin API context...");
     let _admin_context = AdminApiContext::new(database.clone(), jwt_secret, auth_manager);
-    println!("✅ Admin API context created successfully");
+    println!("Admin API context created successfully");
 
     // 7. Test token info retrieval
-    println!("\n📊 Testing token info retrieval...");
+    println!("\nTesting token info retrieval...");
     let token_details = database
         .get_admin_token_by_id(&generated_token.token_id)
         .await?;
     if let Some(details) = token_details {
-        println!("✅ Token details retrieved:");
+        println!("Token details retrieved:");
         println!("   Usage Count: {}", details.usage_count);
         println!("   Is Active: {}", details.is_active);
         println!(
@@ -203,7 +203,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // 8. Test audit logging
-    println!("\n📝 Testing audit logging...");
+    println!("\nTesting audit logging...");
     database
         .record_admin_provisioned_key(
             &generated_token.token_id,
@@ -214,20 +214,20 @@ async fn main() -> anyhow::Result<()> {
             "month",
         )
         .await?;
-    println!("✅ Admin action logged for audit trail");
+    println!("Admin action logged for audit trail");
 
     // 9. Summary
-    println!("\n🎉 Admin API Test Complete!");
+    println!("\nAdmin API Test Complete!");
     println!("{}", "=".repeat(60));
-    println!("✅ Admin token generation: WORKING");
-    println!("✅ JWT authentication: WORKING");
-    println!("✅ Permission validation: WORKING");
-    println!("✅ API key provisioning: WORKING");
-    println!("✅ Database operations: WORKING");
-    println!("✅ Audit logging: WORKING");
-    println!("✅ Admin API context: WORKING");
+    println!("Admin token generation: WORKING");
+    println!("JWT authentication: WORKING");
+    println!("Permission validation: WORKING");
+    println!("API key provisioning: WORKING");
+    println!("Database operations: WORKING");
+    println!("Audit logging: WORKING");
+    println!("Admin API context: WORKING");
     println!();
-    println!("🚀 The admin API is ready for production use!");
+    println!("The admin API is ready for production use!");
     println!("   External admin services can now:");
     println!("   • Generate admin tokens using admin-setup binary");
     println!("   • Authenticate with JWT tokens");
