@@ -296,6 +296,8 @@ impl Database {
     /// - Index creation fails
     /// - Database constraints cannot be applied
     /// - SQL syntax errors in migration statements
+    // Long function: Defines complete admin database schema with multiple tables and indices
+    #[allow(clippy::too_many_lines)]
     async fn migrate_admin(&self) -> Result<()> {
         // Create admin_tokens table
         sqlx::query(
@@ -364,6 +366,20 @@ impl Database {
         .execute(&self.pool)
         .await?;
 
+        // Create system_secrets table for centralized secret management
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS system_secrets (
+                secret_type TEXT PRIMARY KEY,
+                secret_value TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
         // Create indexes for admin tables
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_admin_tokens_service ON admin_tokens(service_name)",
@@ -390,6 +406,12 @@ impl Database {
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_admin_provisioned_token ON admin_provisioned_keys(admin_token_id)")
             .execute(&self.pool)
             .await?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_system_secrets_type ON system_secrets(secret_type)",
+        )
+        .execute(&self.pool)
+        .await?;
 
         Ok(())
     }

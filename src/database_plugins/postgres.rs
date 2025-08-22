@@ -2209,8 +2209,8 @@ impl DatabaseProvider for PostgresDatabase {
         let uuid = Uuid::new_v4().simple();
         let token_id = format!("admin_{uuid}");
 
-        // Generate JWT secret and manager
-        let jwt_secret = AdminJwtManager::generate_jwt_secret();
+        // Get or create JWT secret from database
+        let jwt_secret = self.get_or_create_system_secret("admin_jwt_secret").await?;
         let jwt_manager = AdminJwtManager::with_secret(&jwt_secret);
 
         // Get permissions
@@ -4012,6 +4012,56 @@ impl DatabaseProvider for PostgresDatabase {
         )
         .bind(user_id)
         .bind(provider)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    // ================================
+    // System Secret Management Implementation
+    // ================================
+
+    /// Get or create system secret (generates if not exists)
+    async fn get_or_create_system_secret(&self, secret_type: &str) -> Result<String> {
+        // Try to get existing secret
+        if let Ok(secret) = self.get_system_secret(secret_type).await {
+            return Ok(secret);
+        }
+
+        // Generate new secret
+        let secret_value = match secret_type {
+            "admin_jwt_secret" => crate::admin::jwt::AdminJwtManager::generate_jwt_secret(),
+            _ => return Err(anyhow::anyhow!("Unknown secret type: {}", secret_type)),
+        };
+
+        // Store in database
+        sqlx::query("INSERT INTO system_secrets (secret_type, secret_value) VALUES ($1, $2)")
+            .bind(secret_type)
+            .bind(&secret_value)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(secret_value)
+    }
+
+    /// Get existing system secret
+    async fn get_system_secret(&self, secret_type: &str) -> Result<String> {
+        let row = sqlx::query("SELECT secret_value FROM system_secrets WHERE secret_type = $1")
+            .bind(secret_type)
+            .fetch_one(&self.pool)
+            .await?;
+
+        Ok(row.try_get("secret_value")?)
+    }
+
+    /// Update system secret (for rotation)
+    async fn update_system_secret(&self, secret_type: &str, new_value: &str) -> Result<()> {
+        sqlx::query(
+            "UPDATE system_secrets SET secret_value = $1, updated_at = CURRENT_TIMESTAMP WHERE secret_type = $2",
+        )
+        .bind(new_value)
+        .bind(secret_type)
         .execute(&self.pool)
         .await?;
 

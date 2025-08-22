@@ -6,6 +6,7 @@
 //! Tokens are signed with strong secrets and include proper claims for authorization.
 
 use crate::admin::models::{AdminPermissions, ValidatedAdminToken};
+use crate::database_plugins::DatabaseProvider;
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Duration, Utc};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
@@ -46,6 +47,19 @@ impl AdminJwtManager {
             decoding_key,
             algorithm: Algorithm::HS256, // HMAC with SHA-256
         }
+    }
+
+    /// Create JWT manager with database secret
+    ///
+    /// # Errors
+    /// Returns an error if database secret retrieval fails
+    pub async fn from_database(
+        database: &crate::database_plugins::factory::Database,
+    ) -> Result<Self> {
+        let jwt_secret = database
+            .get_or_create_system_secret("admin_jwt_secret")
+            .await?;
+        Ok(Self::with_secret(&jwt_secret))
     }
 
     /// Generate a cryptographically secure JWT secret
