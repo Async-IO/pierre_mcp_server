@@ -19,7 +19,7 @@ use crate::{
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 use warp::{
     http::StatusCode,
@@ -650,7 +650,7 @@ async fn handle_provision_api_key(
     }
 
     info!(
-        "✅ API key provisioned successfully: {} for user: {}",
+        "API key provisioned successfully: {} for user: {}",
         final_api_key.id, user.email
     );
 
@@ -704,7 +704,7 @@ async fn handle_revoke_api_key(
         .await
     {
         Ok(()) => {
-            info!("✅ API key revoked successfully: {}", request.api_key_id);
+            info!("API key revoked successfully: {}", request.api_key_id);
 
             let response = AdminResponse {
                 success: true,
@@ -971,7 +971,7 @@ fn setup_status_route(
 
 /// Handle setup status check
 async fn handle_setup_status(context: AdminApiContext) -> Result<impl Reply, Rejection> {
-    info!("🔍 Checking setup status - admin user existence");
+    info!("Checking setup status - admin user existence");
 
     match context
         .auth_manager
@@ -1199,7 +1199,7 @@ async fn handle_admin_tokens_create(
     match context.database.create_admin_token(&token_request).await {
         Ok(generated_token) => {
             info!(
-                "✅ Admin token created successfully: {}",
+                "Admin token created successfully: {}",
                 generated_token.token_id
             );
             let response = AdminResponse {
@@ -1230,7 +1230,7 @@ async fn handle_admin_tokens_details(
     _admin_token: crate::admin::models::ValidatedAdminToken,
     context: AdminApiContext,
 ) -> Result<impl Reply, Rejection> {
-    info!("🔍 Getting admin token details: {}", token_id);
+    info!("Getting admin token details: {}", token_id);
 
     match context.database.get_admin_token_by_id(&token_id).await {
         Ok(Some(token)) => {
@@ -1274,7 +1274,7 @@ async fn handle_admin_tokens_revoke(
 
     match context.database.deactivate_admin_token(&token_id).await {
         Ok(()) => {
-            info!("✅ Admin token revoked successfully: {}", token_id);
+            info!("Admin token revoked successfully: {}", token_id);
             let response = AdminResponse {
                 success: true,
                 message: "Admin token revoked successfully".into(),
@@ -1361,7 +1361,7 @@ async fn handle_admin_tokens_rotate(
             }
 
             info!(
-                "✅ Admin token rotated successfully: {} -> {}",
+                "Admin token rotated successfully: {} -> {}",
                 token_id, new_token.token_id
             );
             let response = AdminResponse {
@@ -1420,7 +1420,7 @@ async fn handle_rotate_jwt_secret(
     {
         Ok(()) => {
             info!(
-                "✅ JWT secret rotated successfully by admin: {}",
+                "JWT secret rotated successfully by admin: {}",
                 admin_token.service_name
             );
 
@@ -1595,7 +1595,7 @@ async fn handle_approve_user(
 
     match approve_user_status(&context.database, user_uuid, &admin_token.token_id).await {
         Ok(user) => {
-            info!("✅ User approved successfully: {}", user.email);
+            info!("User approved successfully: {}", user.email);
             let response = UserManagementResponse {
                 success: true,
                 message: format!(
@@ -1611,7 +1611,13 @@ async fn handle_approve_user(
             Ok(with_status(json(&response), StatusCode::OK))
         }
         Err(e) => {
-            warn!("Failed to approve user {}: {}", user_id, e);
+            error!("Failed to approve user {}: {}", user_id, e);
+            error!(
+                "Error context - admin token: {}, user UUID: {}",
+                admin_token.token_id, user_uuid
+            );
+            error!("Full error chain: {:#}", e);
+
             let response = UserManagementResponse {
                 success: false,
                 message: format!("Failed to approve user: {e}"),
@@ -1648,7 +1654,7 @@ async fn handle_suspend_user(
 
     match suspend_user_status(&context.database, user_uuid, &admin_token.token_id).await {
         Ok(user) => {
-            info!("✅ User suspended successfully: {}", user.email);
+            info!("User suspended successfully: {}", user.email);
             let response = UserManagementResponse {
                 success: true,
                 message: format!(
@@ -1715,10 +1721,25 @@ async fn approve_user_status(
     user_id: Uuid,
     admin_token_id: &str,
 ) -> Result<User> {
-    let user = database
+    info!(
+        "Attempting to approve user: {} with admin token: {}",
+        user_id, admin_token_id
+    );
+
+    match database
         .update_user_status(user_id, UserStatus::Active, admin_token_id)
-        .await?;
-    Ok(user)
+        .await
+    {
+        Ok(user) => {
+            info!("Successfully approved user: {} ({})", user.email, user_id);
+            Ok(user)
+        }
+        Err(e) => {
+            error!("Failed to approve user {}: {}", user_id, e);
+            error!("Error details: {:?}", e);
+            Err(e)
+        }
+    }
 }
 
 /// Suspend user and update status
