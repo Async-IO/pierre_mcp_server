@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: Pierre MCP Fitness API
   description: |
-    **The leading AI-powered fitness data intelligence platform** that connects fitness enthusiasts' data across multiple providers through a unified MCP (Model Context Protocol) interface.
+    Multi-tenant fitness data API platform that aggregates data across multiple providers through a unified MCP (Model Context Protocol) interface.
     
     ## What is MCP?
     Model Context Protocol (MCP) is an open standard for connecting AI assistants with external data sources and tools. This API provides 21 specialized fitness tools accessible via MCP protocol.
@@ -64,7 +64,7 @@ paths:
                   method: "initialize"
                   id: 1
                   params:
-                    protocolVersion: "2024-11-05"
+                    protocolVersion: "2025-06-18"
                     capabilities: {}
                     clientInfo:
                       name: "my-fitness-app"
@@ -106,7 +106,7 @@ paths:
                     jsonrpc: "2.0"
                     id: 1
                     result:
-                      protocolVersion: "2024-11-05"
+                      protocolVersion: "2025-06-18"
                       serverInfo:
                         name: "pierre-mcp-server"
                         version: "1.0.0"

@@ -43,12 +43,21 @@
 
 ## Documentation
 
-- [Getting Started](docs/GETTING_STARTED.md) - Installation and setup
-- [API Reference](docs/API_REFERENCE.md) - Complete API documentation
-- [A2A Quick Start](docs/A2A_QUICK_START.md) - 5-minute A2A setup guide
-- [A2A Reference](docs/A2A_REFERENCE.md) - Complete A2A guide
-- [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) - Production deployment
-- [Database Guide](docs/DATABASE_GUIDE.md) - Database architecture
+### 📚 Developer Guide
+**[Complete Developer Guide](docs/developer-guide/README.md)** - Comprehensive technical documentation with 17 sections covering architecture, protocols, API reference, testing, and more.
+
+#### Quick Links
+- [Getting Started](docs/developer-guide/15-getting-started.md) - Setup and development guide
+- [API Reference](docs/developer-guide/14-api-reference.md) - Complete REST API documentation
+- [System Architecture](docs/developer-guide/01-architecture.md) - Design patterns and structure
+- [MCP Protocol](docs/developer-guide/04-mcp-protocol.md) - Model Context Protocol implementation
+- [A2A Protocol](docs/developer-guide/05-a2a-protocol.md) - Agent-to-Agent protocol
+- [A2A Integration Examples](docs/developer-guide/A2A-INTEGRATION-GUIDE.md) - Discord bots, IoT, analytics
+
+### 🚀 Quick Start
+- [A2A Quick Start](docs/A2A_QUICK_START.md) - 5-minute A2A setup
+- [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) - Docker & Kubernetes deployment
+- [Database Guide](docs/DATABASE_GUIDE.md) - Database setup and migrations
 
 ## Quick Setup Guide
 
