@@ -1256,7 +1256,7 @@ async fn test_special_characters_in_requests() -> Result<()> {
     let request_body = json!({
         "user_email": "test+special@example.com",
         "tier": "starter",
-        "description": "Special chars: åäö 中文 🚀",
+        "description": "Special chars: åäö 中文 unicode",
         "expires_in_days": 30,
         "rate_limit_requests": 1000,
         "rate_limit_period": "day"

@@ -201,7 +201,7 @@ async fn test_cross_tenant_api_key_access_blocked() -> Result<()> {
     assert_eq!(user1_keys.len(), 1, "User 1 should have exactly 1 API key");
     assert_eq!(user2_keys.len(), 0, "User 2 should have no API keys");
 
-    tracing::info!("✅ Cross-tenant API key access isolation verified");
+    tracing::info!("Cross-tenant API key access isolation verified");
     Ok(())
 }
 
@@ -241,7 +241,7 @@ async fn test_oauth_token_isolation() -> Result<()> {
         "Users should have different IDs"
     );
 
-    println!("✅ User data isolation verified");
+    println!("User data isolation verified");
     Ok(())
 }
 
@@ -303,7 +303,7 @@ async fn test_admin_cross_tenant_access_prevention() -> Result<()> {
     // Cross-tenant key access should not be possible
     assert_ne!(tenant1_keys[0].id, tenant2_keys[0].id);
 
-    tracing::info!("✅ Admin cross-tenant access prevention verified");
+    tracing::info!("Admin cross-tenant access prevention verified");
     Ok(())
 }
 
@@ -369,7 +369,7 @@ async fn test_concurrent_tenant_isolation() -> Result<()> {
         );
     }
 
-    tracing::info!("✅ Concurrent tenant isolation verified");
+    tracing::info!("Concurrent tenant isolation verified");
     Ok(())
 }
 
@@ -429,7 +429,7 @@ async fn test_database_encryption_isolation() -> Result<()> {
         "User 2 should not exist in database 1"
     );
 
-    tracing::info!("✅ Database encryption isolation verified");
+    tracing::info!("Database encryption isolation verified");
     Ok(())
 }
 
@@ -497,6 +497,6 @@ async fn test_mcp_server_tenant_isolation() -> Result<()> {
         "Token 2 should not validate to user 1"
     );
 
-    tracing::info!("✅ MCP server tenant isolation verified");
+    tracing::info!("MCP server tenant isolation verified");
     Ok(())
 }

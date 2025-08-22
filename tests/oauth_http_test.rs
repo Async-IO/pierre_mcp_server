@@ -111,7 +111,7 @@ async fn test_oauth_callback_success_html() {
     </style>
 </head>
 <body>
-    <h1 class="success">✅ OAuth Authorization Successful!</h1>
+    <h1 class="success">OAuth Authorization Successful!</h1>
     <p>Your Strava account has been successfully connected.</p>
 </body>
 </html>"#;
@@ -145,7 +145,7 @@ async fn test_oauth_callback_error_html() {
     </style>
 </head>
 <body>
-    <h1 class="error">❌ OAuth Authorization Failed</h1>
+    <h1 class="error">OAuth Authorization Failed</h1>
     <p>Invalid authorization code</p>
 </body>
 </html>"#;

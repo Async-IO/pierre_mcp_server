@@ -49,7 +49,7 @@ async fn test_jwt_tokens_now_have_rate_limiting() {
         .await
         .expect("JWT authentication should succeed");
 
-    // ✅ CRITICAL SECURITY FIX VERIFICATION
+    // CRITICAL SECURITY FIX VERIFICATION
     // Before: JWT tokens had rate_limit: None (unlimited access)
     // After: JWT tokens have proper rate limiting based on user tier
 
@@ -65,7 +65,7 @@ async fn test_jwt_tokens_now_have_rate_limiting() {
     assert_eq!(
         rate_limit.limit,
         Some(10_000),
-        "🚨 SECURITY FIX: JWT should have Starter tier limit, not unlimited!"
+        "SECURITY FIX: JWT should have Starter tier limit, not unlimited!"
     );
 
     // Verify remaining requests are tracked
@@ -87,7 +87,7 @@ async fn test_jwt_tokens_now_have_rate_limiting() {
         "Should identify as JWT token authentication"
     );
 
-    println!("✅ SECURITY FIX VERIFIED: JWT tokens now have proper rate limiting!");
+    println!("SECURITY FIX VERIFIED: JWT tokens now have proper rate limiting!");
     println!("   Before: Unlimited access (critical vulnerability)");
     println!("   After: {:?} requests/month limit", rate_limit.limit);
     println!("   Tier: {}", rate_limit.tier);
