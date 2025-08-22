@@ -445,7 +445,7 @@ async fn test_token_encryption_roundtrip() -> Result<()> {
     let special_tokens = vec![
         ("token_with_special_chars_!@#$%^&*()", "refresh_token_äöü"),
         (long_token.as_str(), "short_refresh"),
-        ("unicode_token_🚀🔐", "emoji_refresh_⭐"),
+        ("unicode_token_test", "unicode_refresh_test"),
     ];
 
     for (access_token, refresh_token) in special_tokens {

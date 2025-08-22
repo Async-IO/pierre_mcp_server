@@ -52,7 +52,7 @@ async fn test_jwt_token_security() -> Result<()> {
         "Malformed token should fail validation"
     );
 
-    println!("✅ JWT token security verified");
+    println!("JWT token security verified");
     Ok(())
 }
 
@@ -94,7 +94,7 @@ async fn test_api_key_user_isolation() -> Result<()> {
         "API key should belong to user 1"
     );
 
-    println!("✅ API key user isolation verified");
+    println!("API key user isolation verified");
     Ok(())
 }
 
@@ -134,7 +134,7 @@ async fn test_basic_input_validation() -> Result<()> {
         }
     }
 
-    println!("✅ Basic input validation verified");
+    println!("Basic input validation verified");
     Ok(())
 }
 
@@ -179,7 +179,7 @@ async fn test_error_message_security() -> Result<()> {
         "Error should not reveal JWT secret info"
     );
 
-    println!("✅ Error message security verified");
+    println!("Error message security verified");
     Ok(())
 }
 
@@ -222,7 +222,7 @@ async fn test_token_uniqueness() -> Result<()> {
         assert_eq!(token_user_id, user_id);
     }
 
-    println!("✅ Token uniqueness verified");
+    println!("Token uniqueness verified");
     Ok(())
 }
 
@@ -255,6 +255,6 @@ async fn test_api_key_uniqueness() -> Result<()> {
         );
     }
 
-    println!("✅ API key uniqueness verified");
+    println!("API key uniqueness verified");
     Ok(())
 }

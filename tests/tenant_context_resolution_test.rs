@@ -61,7 +61,7 @@ async fn test_tenant_operations_work_through_factory() {
     let retrieved_by_slug = database.get_tenant_by_slug("test-tenant").await.unwrap();
     assert_eq!(retrieved_by_slug.id, tenant_id);
 
-    println!("✅ SUCCESS: Factory delegation is FIXED!");
+    println!("SUCCESS: Factory delegation is FIXED!");
     println!("   - create_tenant() works (was stubbed)");
     println!("   - get_tenant_by_id() works (was stubbed)");
     println!("   - get_tenant_by_slug() works (was stubbed)");

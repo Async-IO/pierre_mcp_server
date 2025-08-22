@@ -195,7 +195,7 @@ async fn test_get_configuration_catalog_e2e() {
     assert!(category_names.contains(&"analysis_settings"));
     assert!(category_names.contains(&"safety_constraints"));
 
-    println!("✅ get_configuration_catalog E2E test passed");
+    println!("get_configuration_catalog E2E test passed");
 }
 
 #[tokio::test]
@@ -240,7 +240,7 @@ async fn test_get_configuration_profiles_e2e() {
     assert!(profile_names.contains(&"Recreational Athlete"));
     assert!(profile_names.contains(&"Beginner"));
 
-    println!("✅ get_configuration_profiles E2E test passed");
+    println!("get_configuration_profiles E2E test passed");
 }
 
 #[tokio::test]
@@ -292,7 +292,7 @@ async fn test_calculate_personalized_zones_e2e() {
     assert!(calculations["pace_formula"].is_string());
     assert!(calculations["power_estimation"].is_string());
 
-    println!("✅ calculate_personalized_zones E2E test passed");
+    println!("calculate_personalized_zones E2E test passed");
 }
 
 #[tokio::test]
@@ -329,7 +329,7 @@ async fn test_validate_configuration_e2e() {
     // Should pass validation for valid parameters
     assert_eq!(result["validation_passed"], true);
 
-    println!("✅ validate_configuration E2E test passed");
+    println!("validate_configuration E2E test passed");
 }
 
 #[tokio::test]
@@ -371,7 +371,7 @@ async fn test_update_user_configuration_e2e() {
     let changes_applied = result["changes_applied"].as_u64().unwrap();
     assert!(changes_applied >= 1); // At least the profile change
 
-    println!("✅ update_user_configuration E2E test passed");
+    println!("update_user_configuration E2E test passed");
 }
 
 #[tokio::test]
@@ -407,7 +407,7 @@ async fn test_get_user_configuration_e2e() {
     // Should have Default profile by default
     assert_eq!(result["active_profile"], "default");
 
-    println!("✅ get_user_configuration E2E test passed");
+    println!("get_user_configuration E2E test passed");
 }
 
 #[tokio::test]
@@ -452,7 +452,7 @@ async fn test_configuration_tools_via_different_protocols() {
         a2a_result["catalog"]["total_parameters"]
     );
 
-    println!("✅ Configuration tools work via both MCP and A2A protocols");
+    println!("Configuration tools work via both MCP and A2A protocols");
 }
 
 #[tokio::test]
@@ -503,5 +503,5 @@ async fn test_configuration_system_error_handling() {
     let result = validation_response.result.expect("Should have result");
     assert_eq!(result["validation_passed"], false); // But validation should fail
 
-    println!("✅ Configuration system error handling works correctly");
+    println!("Configuration system error handling works correctly");
 }

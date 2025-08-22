@@ -34,7 +34,7 @@ fn test_configuration_tools_in_mcp_schema() {
     }
 
     println!(
-        "✅ All {} configuration tools found in MCP schema",
+        "All {} configuration tools found in MCP schema",
         expected_config_tools.len()
     );
 
@@ -45,7 +45,7 @@ fn test_configuration_tools_in_mcp_schema() {
         "Expected at least 27 tools (21 fitness + 6 configuration), but found {total_tools}"
     );
 
-    println!("✅ Total of {total_tools} tools available in MCP schema");
+    println!("Total of {total_tools} tools available in MCP schema");
 }
 
 #[test]
@@ -120,7 +120,7 @@ fn test_configuration_tool_schemas() {
         Some(vec!["parameters".to_string()])
     );
 
-    println!("✅ All configuration tool schemas are properly defined");
+    println!("All configuration tool schemas are properly defined");
 }
 
 #[test]
@@ -168,7 +168,7 @@ fn test_configuration_tools_have_proper_parameter_types() {
         }
     }
 
-    println!("✅ All configuration tool parameters have correct types");
+    println!("All configuration tool parameters have correct types");
 }
 
 #[tokio::test]

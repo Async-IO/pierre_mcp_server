@@ -382,9 +382,9 @@ async fn test_sdk_complete_onboarding_simulation() -> Result<()> {
         .expect("Should have strava connection");
     assert!(!strava_connection.connected); // Not connected yet (no tokens exchanged)
 
-    println!("✅ Complete SDK onboarding simulation successful!");
-    println!("📧 User: complete_test@example.com");
-    println!("🔑 API Key: {}", &api_key_string[..20]);
+    println!("Complete SDK onboarding simulation successful!");
+    println!("User: complete_test@example.com");
+    println!("API Key: {}", &api_key_string[..20]);
     println!("🔗 OAuth App: strava (complete_test_client_id)");
 
     Ok(())
@@ -426,9 +426,9 @@ async fn test_sdk_mcp_config_generation() -> Result<()> {
     assert!(bridge_code.contains(server_url));
     assert!(bridge_code.contains("X-API-Key"));
 
-    println!("✅ MCP config generation test successful!");
+    println!("MCP config generation test successful!");
     println!(
-        "📝 Generated config: {}",
+        "Generated config: {}",
         serde_json::to_string_pretty(&mcp_config)?
     );
 

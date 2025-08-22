@@ -219,7 +219,7 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
 
     let acme_response = executor.execute_tool(acme_request).await?;
     assert!(acme_response.success);
-    println!("✅ Acme tenant tool execution successful");
+    println!("Acme tenant tool execution successful");
 
     // Step 9: Test tenant-aware tool execution for Beta
     let beta_context = TenantContext::new(
@@ -238,7 +238,7 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
 
     let beta_response = executor.execute_tool(beta_request).await?;
     assert!(beta_response.success);
-    println!("✅ Beta tenant tool execution successful");
+    println!("Beta tenant tool execution successful");
 
     // Step 10: Verify tenant isolation - check OAuth credentials
     let acme_oauth_creds = tenant_oauth_client
@@ -259,7 +259,7 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
     assert_eq!(beta_creds.client_id, "beta_strava_client_456");
     assert_ne!(acme_creds.client_secret, beta_creds.client_secret);
 
-    println!("✅ Tenant OAuth credential isolation verified");
+    println!("Tenant OAuth credential isolation verified");
 
     // Step 11: Test rate limiting isolation
     let (acme_usage, acme_limit) = tenant_oauth_client
@@ -275,7 +275,7 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
     assert_eq!(acme_limit, 15000); // Default Strava limit
     assert_eq!(beta_limit, 15000);
 
-    println!("✅ Tenant rate limiting isolation verified");
+    println!("Tenant rate limiting isolation verified");
 
     // Step 12: Test OAuth authorization URL generation for each tenant
     let acme_auth_url = tenant_oauth_client
@@ -290,18 +290,18 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
     assert!(acme_auth_url.contains("acme_strava_client_123"));
     assert!(beta_auth_url.contains("beta_strava_client_456"));
 
-    println!("✅ Tenant-specific OAuth authorization URLs generated");
+    println!("Tenant-specific OAuth authorization URLs generated");
 
     // Step 13: Comprehensive workflow validation
-    println!("\n🎉 END-TO-END TENANT ONBOARDING WORKFLOW COMPLETED SUCCESSFULLY!");
-    println!("   ✅ Multi-tenant database setup");
-    println!("   ✅ Tenant creation and user management");
-    println!("   ✅ OAuth application registration per tenant");
-    println!("   ✅ Tenant-specific credential configuration");
-    println!("   ✅ Isolated tool execution per tenant");
-    println!("   ✅ OAuth credential isolation verification");
-    println!("   ✅ Rate limiting isolation");
-    println!("   ✅ Tenant-specific OAuth URLs");
+    println!("\nEND-TO-END TENANT ONBOARDING WORKFLOW COMPLETED SUCCESSFULLY!");
+    println!("   Multi-tenant database setup");
+    println!("   Tenant creation and user management");
+    println!("   OAuth application registration per tenant");
+    println!("   Tenant-specific credential configuration");
+    println!("   Isolated tool execution per tenant");
+    println!("   OAuth credential isolation verification");
+    println!("   Rate limiting isolation");
+    println!("   Tenant-specific OAuth URLs");
 
     Ok(())
 }
@@ -418,7 +418,7 @@ async fn test_tenant_context_switching() -> Result<()> {
     assert_eq!(oauth2.config().client_id, "tenant2_client");
     assert_ne!(oauth1.config().client_secret, oauth2.config().client_secret);
 
-    println!("✅ Tenant context switching validated");
+    println!("Tenant context switching validated");
 
     Ok(())
 }

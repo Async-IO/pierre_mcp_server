@@ -23,7 +23,7 @@ async fn test_self_service_api_key_creation_blocked() -> Result<()> {
     // 4. Try to POST to /api/keys/trial
     // 5. Verify it returns 404 Not Found
 
-    println!("✅ Self-service API key creation endpoints have been removed from the codebase");
+    println!("Self-service API key creation endpoints have been removed from the codebase");
     Ok(())
 }
 
@@ -37,8 +37,8 @@ async fn test_admin_api_key_provisioning_available() -> Result<()> {
     // For now, we verify that the admin routes module compiles and contains
     // the necessary provisioning functionality
 
-    println!("✅ Admin API key provisioning endpoints are available");
-    println!("✅ Admin routes module compiles successfully");
+    println!("Admin API key provisioning endpoints are available");
+    println!("Admin routes module compiles successfully");
 
     Ok(())
 }
@@ -64,9 +64,9 @@ async fn test_enterprise_security_model() -> Result<()> {
         jwt_manager.generate_token("test_admin", "test_service", &admin_perms, false, None)?;
     assert!(!token.is_empty());
 
-    println!("✅ Enterprise security model is properly implemented");
-    println!("✅ Admin token system is functional");
-    println!("✅ Admin permissions include ProvisionKeys");
+    println!("Enterprise security model is properly implemented");
+    println!("Admin token system is functional");
+    println!("Admin permissions include ProvisionKeys");
 
     Ok(())
 }
@@ -83,7 +83,7 @@ async fn test_user_api_key_management_available() -> Result<()> {
     // These endpoints should remain available as they're read-only or
     // manage existing keys, not create new ones
 
-    println!("✅ User API key management endpoints (list/usage/deactivate) remain available");
+    println!("User API key management endpoints (list/usage/deactivate) remain available");
     Ok(())
 }
 
@@ -97,7 +97,7 @@ mod enterprise_model_tests {
         // If this test compiles, it means we successfully removed
         // the problematic endpoints from the HTTP route definitions
 
-        println!("✅ Self-service API key creation routes have been removed");
-        println!("✅ Enterprise security model is enforced at compile time");
+        println!("Self-service API key creation routes have been removed");
+        println!("Enterprise security model is enforced at compile time");
     }
 }

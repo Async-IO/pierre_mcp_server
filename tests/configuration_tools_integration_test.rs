@@ -132,9 +132,9 @@ async fn test_all_configuration_tools_available() -> Result<()> {
 
         if response.result.is_some() && response.error.is_none() {
             successful_tools += 1;
-            println!("✅ {tool_name} - SUCCESS");
+            println!("{tool_name} - SUCCESS");
         } else {
-            println!("❌ {} - FAILED: {:?}", tool_name, response.error);
+            println!("{} - FAILED: {:?}", tool_name, response.error);
         }
     }
 
@@ -144,8 +144,8 @@ async fn test_all_configuration_tools_available() -> Result<()> {
         "Expected all 6 configuration tools to work"
     );
 
-    println!("✅ All configuration tools integration test passed - User ID: {user_id}");
-    println!("✅ Successfully tested {successful_tools} configuration tools");
+    println!("All configuration tools integration test passed - User ID: {user_id}");
+    println!("Successfully tested {successful_tools} configuration tools");
     Ok(())
 }
 
@@ -180,7 +180,7 @@ async fn test_configuration_catalog_has_expected_structure() -> Result<()> {
     let categories = catalog["categories"].as_array().unwrap();
     assert!(!categories.is_empty());
 
-    println!("✅ Configuration catalog structure test passed - User ID: {user_id}");
+    println!("Configuration catalog structure test passed - User ID: {user_id}");
     Ok(())
 }
 
@@ -217,7 +217,7 @@ async fn test_configuration_tools_require_authentication() -> Result<()> {
     assert!(response.result.is_none());
     assert!(response.error.is_some());
 
-    println!("✅ Configuration tools authentication test passed");
+    println!("Configuration tools authentication test passed");
     Ok(())
 }
 
@@ -256,7 +256,7 @@ async fn test_configuration_tools_with_invalid_parameters() -> Result<()> {
     // Either way is acceptable as long as it doesn't crash
     assert!(response.error.is_some() || response.result.is_some());
 
-    println!("✅ Configuration tools invalid parameters test passed");
+    println!("Configuration tools invalid parameters test passed");
     Ok(())
 }
 
@@ -306,7 +306,7 @@ async fn test_multitenant_isolation_for_configuration_tools() -> Result<()> {
     assert_eq!(response1.jsonrpc, "2.0");
     assert_eq!(response2.jsonrpc, "2.0");
 
-    println!("✅ Multitenant isolation test passed");
+    println!("Multitenant isolation test passed");
     println!("  User 1 ID: {user1_id} - Configuration accessed");
     println!("  User 2 ID: {user2_id} - Configuration accessed");
     Ok(())
@@ -317,7 +317,7 @@ async fn test_configuration_tools_integration_summary() -> Result<()> {
     let (database, auth_manager, auth_middleware) = create_test_components().await?;
     let (user_id, token) = create_authenticated_user(&database, &auth_manager).await?;
 
-    println!("🔧 Configuration Tools Integration Test Summary");
+    println!("Configuration Tools Integration Test Summary");
     println!("================================================");
 
     // Test each configuration tool and count successes
@@ -366,9 +366,9 @@ async fn test_configuration_tools_integration_summary() -> Result<()> {
 
         if response.result.is_some() && response.error.is_none() {
             working_tools += 1;
-            println!("  ✅ {tool_name} - Working");
+            println!("  {tool_name} - Working");
         } else {
-            println!("  ❌ {} - Failed: {:?}", tool_name, response.error);
+            println!("  {} - Failed: {:?}", tool_name, response.error);
         }
     }
 
@@ -388,7 +388,7 @@ async fn test_configuration_tools_integration_summary() -> Result<()> {
     );
 
     if working_tools == total_tools {
-        println!("🎉 SUCCESS: All configuration tools are properly integrated!");
+        println!("SUCCESS: All configuration tools are properly integrated!");
     }
 
     Ok(())

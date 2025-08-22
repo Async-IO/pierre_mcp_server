@@ -529,7 +529,7 @@ async fn test_complete_multitenant_workflow() -> Result<()> {
     assert!(!invalid_tool_response["error"].is_null());
     assert_eq!(invalid_tool_response["error"]["code"], -32601); // Method not found
 
-    println!("✅ All multi-tenant MCP server tests passed!");
+    println!("All multi-tenant MCP server tests passed!");
 
     // Clean up server
     server_handle.abort();
@@ -598,7 +598,7 @@ async fn test_mcp_authentication_required() -> Result<()> {
     assert!(!tool_call_response["error"].is_null());
     assert_eq!(tool_call_response["error"]["code"], -32000); // Authentication error
 
-    println!("✅ Authentication requirement test passed!");
+    println!("Authentication requirement test passed!");
 
     // Clean up server
     server_handle.abort();
@@ -654,7 +654,7 @@ async fn test_mcp_initialization_no_auth() -> Result<()> {
     assert!(!init_response["result"]["serverInfo"]["name"].is_null());
     assert_eq!(init_response["result"]["protocolVersion"], "2025-06-18");
 
-    println!("✅ MCP initialization without auth test passed!");
+    println!("MCP initialization without auth test passed!");
 
     // Clean up server
     server_handle.abort();
@@ -748,7 +748,7 @@ async fn test_mcp_concurrent_requests() -> Result<()> {
     // All requests should succeed
     assert_eq!(success_count, 5);
 
-    println!("✅ Concurrent requests test passed!");
+    println!("Concurrent requests test passed!");
 
     // Clean up server
     server_handle.abort();
@@ -779,7 +779,7 @@ async fn test_multitenant_server_config() -> Result<()> {
         "pierre-mcp-server-test"
     );
 
-    println!("✅ Multi-tenant server configuration test passed!");
+    println!("Multi-tenant server configuration test passed!");
     Ok(())
 }
 
@@ -791,5 +791,5 @@ fn test_mcp_client_creation() {
     assert_eq!(client.base_url, "http://127.0.0.1:8081");
     assert!(client.jwt_token.is_none());
 
-    println!("✅ MCP client creation test passed!");
+    println!("MCP client creation test passed!");
 }
