@@ -43,7 +43,6 @@ use crate::utils::json_responses::{api_error, invalid_format_error, oauth_error}
 use crate::websocket::WebSocketManager;
 
 use anyhow::Result;
-use base64::{engine::general_purpose, Engine as _};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -206,27 +205,6 @@ impl MultiTenantMcpServer {
             a2a_routes,
             configuration_routes,
         )
-    }
-
-    /// Load JWT secret from file system
-    fn load_jwt_secret(config: &crate::config::environment::ServerConfig) -> Result<String> {
-        let jwt_secret = if config.auth.jwt_secret_path.exists() {
-            std::fs::read(&config.auth.jwt_secret_path).map_err(|e| {
-                anyhow::anyhow!(
-                    "Failed to read JWT secret from {}: {}. This is required for security.",
-                    config.auth.jwt_secret_path.display(),
-                    e
-                )
-            })?
-        } else {
-            return Err(anyhow::anyhow!(
-                "JWT secret file not found at {}. This is required for security.",
-                config.auth.jwt_secret_path.display()
-            ));
-        };
-
-        // JWT secret is stored as binary data (64 bytes), convert to base64 string for admin routes
-        Ok(general_purpose::STANDARD.encode(jwt_secret))
     }
 
     /// Configure CORS settings
@@ -1371,8 +1349,10 @@ impl MultiTenantMcpServer {
             configuration_routes,
         ) = Self::setup_route_handlers(&database, &auth_manager, &config);
 
-        // Load JWT secret for admin routes
-        let jwt_secret_str = Self::load_jwt_secret(&config)?;
+        // Get JWT secret from database for admin routes
+        let jwt_secret_str = database
+            .get_or_create_system_secret("admin_jwt_secret")
+            .await?;
 
         // Setup admin routes
         let admin_context = crate::admin_routes::AdminApiContext::new(

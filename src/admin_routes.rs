@@ -156,6 +156,9 @@ pub fn admin_routes(
     let admin_tokens_revoke_route = admin_tokens_revoke_route(context.clone());
     let admin_tokens_rotate_route = admin_tokens_rotate_route(context.clone());
 
+    // JWT secret management routes
+    let rotate_jwt_secret_route = rotate_jwt_secret_route(context.clone());
+
     // User management routes
     let pending_users_route = pending_users_route(context.clone());
     let approve_user_route = approve_user_route(context.clone());
@@ -173,6 +176,7 @@ pub fn admin_routes(
         .or(admin_tokens_details_route)
         .or(admin_tokens_revoke_route)
         .or(admin_tokens_rotate_route)
+        .or(rotate_jwt_secret_route)
         .or(pending_users_route)
         .or(approve_user_route)
         .or(suspend_user_route)
@@ -201,6 +205,9 @@ pub fn admin_routes_with_scoped_recovery(
     let admin_tokens_revoke_route = admin_tokens_revoke_route(context.clone());
     let admin_tokens_rotate_route = admin_tokens_rotate_route(context.clone());
 
+    // JWT secret management routes
+    let rotate_jwt_secret_route = rotate_jwt_secret_route(context.clone());
+
     // User management routes
     let pending_users_route = pending_users_route(context.clone());
     let approve_user_route = approve_user_route(context.clone());
@@ -218,6 +225,7 @@ pub fn admin_routes_with_scoped_recovery(
         .or(admin_tokens_details_route)
         .or(admin_tokens_revoke_route)
         .or(admin_tokens_rotate_route)
+        .or(rotate_jwt_secret_route)
         .or(pending_users_route)
         .or(approve_user_route)
         .or(suspend_user_route)
@@ -246,6 +254,9 @@ pub fn admin_routes_with_rejection(
     let admin_tokens_revoke_route = admin_tokens_revoke_route(context.clone());
     let admin_tokens_rotate_route = admin_tokens_rotate_route(context.clone());
 
+    // JWT secret management routes
+    let rotate_jwt_secret_route = rotate_jwt_secret_route(context.clone());
+
     // User management routes
     let pending_users_route = pending_users_route(context.clone());
     let approve_user_route = approve_user_route(context.clone());
@@ -263,6 +274,7 @@ pub fn admin_routes_with_rejection(
         .or(admin_tokens_details_route)
         .or(admin_tokens_revoke_route)
         .or(admin_tokens_rotate_route)
+        .or(rotate_jwt_secret_route)
         .or(pending_users_route)
         .or(approve_user_route)
         .or(suspend_user_route)
@@ -1062,6 +1074,20 @@ fn admin_tokens_rotate_route(
         .and_then(handle_admin_tokens_rotate)
 }
 
+/// JWT secret rotation endpoint
+fn rotate_jwt_secret_route(
+    context: AdminApiContext,
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    warp::path!("jwt-secret" / "rotate")
+        .and(warp::post())
+        .and(admin_auth_filter(
+            context.clone(),
+            AdminPermission::ManageAdminTokens, // Only super admins can rotate JWT secrets
+        ))
+        .and(with_context(context))
+        .and_then(handle_rotate_jwt_secret)
+}
+
 #[derive(Debug, serde::Deserialize)]
 struct CreateAdminTokenRequest {
     service_name: String,
@@ -1353,6 +1379,111 @@ async fn handle_admin_tokens_rotate(
             let response = AdminResponse {
                 success: false,
                 message: format!("Failed to rotate admin token: {e}"),
+                data: None,
+            };
+            Ok(with_status(
+                json(&response),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ))
+        }
+    }
+}
+
+/// Handle JWT secret rotation
+async fn handle_rotate_jwt_secret(
+    admin_token: crate::admin::models::ValidatedAdminToken,
+    context: AdminApiContext,
+) -> Result<impl Reply, Rejection> {
+    info!(
+        "🔄 Rotating JWT secret requested by admin: {}",
+        admin_token.service_name
+    );
+
+    // Only super admins can rotate JWT secrets
+    if !admin_token.is_super_admin {
+        let response = AdminResponse {
+            success: false,
+            message: "Only super admin tokens can rotate JWT secrets".into(),
+            data: None,
+        };
+        return Ok(with_status(json(&response), StatusCode::FORBIDDEN));
+    }
+
+    // Generate new JWT secret
+    let new_jwt_secret = crate::admin::jwt::AdminJwtManager::generate_jwt_secret();
+
+    // Update the secret in database
+    match context
+        .database
+        .update_system_secret("admin_jwt_secret", &new_jwt_secret)
+        .await
+    {
+        Ok(()) => {
+            info!(
+                "✅ JWT secret rotated successfully by admin: {}",
+                admin_token.service_name
+            );
+
+            // Record admin action for audit trail
+            let usage = crate::admin::models::AdminTokenUsage {
+                id: None,
+                admin_token_id: admin_token.token_id,
+                timestamp: chrono::Utc::now(),
+                action: crate::admin::models::AdminAction::ViewAuditLogs, // Closest available action
+                target_resource: Some("jwt_secret".to_string()),
+                ip_address: None,
+                user_agent: None,
+                request_size_bytes: None,
+                success: true,
+                error_message: None,
+                response_time_ms: None,
+            };
+
+            // Record usage (ignore errors for audit)
+            if let Err(e) = context.database.record_admin_token_usage(&usage).await {
+                warn!("Failed to record admin token usage for JWT rotation: {}", e);
+            }
+
+            let response = AdminResponse {
+                success: true,
+                message: "JWT secret rotated successfully. All existing admin tokens are now invalid and must be regenerated.".into(),
+                data: Some(serde_json::json!({
+                    "rotated_at": chrono::Utc::now(),
+                    "rotated_by": admin_token.service_name,
+                    "warning": "All existing admin tokens are now invalid and must be regenerated"
+                })),
+            };
+            Ok(with_status(json(&response), StatusCode::OK))
+        }
+        Err(e) => {
+            warn!("Failed to rotate JWT secret: {}", e);
+
+            // Record failed action for audit trail
+            let usage = crate::admin::models::AdminTokenUsage {
+                id: None,
+                admin_token_id: admin_token.token_id,
+                timestamp: chrono::Utc::now(),
+                action: crate::admin::models::AdminAction::ViewAuditLogs,
+                target_resource: Some("jwt_secret".to_string()),
+                ip_address: None,
+                user_agent: None,
+                request_size_bytes: None,
+                success: false,
+                error_message: Some(e.to_string()),
+                response_time_ms: None,
+            };
+
+            // Record usage (ignore errors for audit)
+            if let Err(e) = context.database.record_admin_token_usage(&usage).await {
+                warn!(
+                    "Failed to record admin token usage for failed JWT rotation: {}",
+                    e
+                );
+            }
+
+            let response = AdminResponse {
+                success: false,
+                message: format!("Failed to rotate JWT secret: {e}"),
                 data: None,
             };
             Ok(with_status(

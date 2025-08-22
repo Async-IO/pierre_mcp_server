@@ -10,7 +10,7 @@
 //!
 //! This module contains the core data structures used throughout the Pierre MCP Server.
 //! These models provide a unified representation of fitness data from various providers
-//! like Strava, Garmin Connect, and RunKeeper.
+//! like Strava and Fitbit.
 //!
 //! ## Design Principles
 //!

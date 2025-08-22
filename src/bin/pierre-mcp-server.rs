@@ -14,10 +14,10 @@
 use anyhow::Result;
 use clap::Parser;
 use pierre_mcp_server::{
-    auth::{generate_jwt_secret, AuthManager},
+    auth::AuthManager,
     config::environment::ServerConfig,
     database::generate_encryption_key,
-    database_plugins::factory::Database,
+    database_plugins::{factory::Database, DatabaseProvider},
     logging,
     mcp::multitenant::MultiTenantMcpServer,
 };
@@ -84,14 +84,7 @@ async fn main() -> Result<()> {
             config.database.encryption_key_path.display()
         );
 
-        // Load or generate JWT secret
-        let jwt_secret = load_or_generate_jwt_secret(&config.auth.jwt_secret_path)?;
-        info!(
-            "JWT secret loaded from: {}",
-            config.auth.jwt_secret_path.display()
-        );
-
-        // Initialize database
+        // Initialize database first
         let database = Database::new(
             &config.database.url.to_connection_string(),
             encryption_key.to_vec(),
@@ -106,12 +99,21 @@ async fn main() -> Result<()> {
             &config.database.url.to_connection_string()
         );
 
+        // Get or create JWT secret from database
+        let jwt_secret_string = database
+            .get_or_create_system_secret("admin_jwt_secret")
+            .await?;
+        info!("Admin JWT secret loaded from database");
+
         // Initialize authentication manager
         let auth_manager = {
             // Safe: JWT expiry hours are small positive configuration values (1-168)
             #[allow(clippy::cast_possible_wrap)]
             {
-                AuthManager::new(jwt_secret.to_vec(), config.auth.jwt_expiry_hours as i64)
+                AuthManager::new(
+                    jwt_secret_string.into_bytes(),
+                    config.auth.jwt_expiry_hours as i64,
+                )
             }
         };
         info!("Authentication manager initialized");
@@ -161,34 +163,5 @@ fn load_or_generate_key(key_file: &PathBuf) -> Result<[u8; 32]> {
         std::fs::write(key_file, key)?;
         info!("Generated new encryption key: {}", key_file.display());
         Ok(key)
-    }
-}
-
-/// Load JWT secret from file or generate a new one
-fn load_or_generate_jwt_secret(secret_file: &PathBuf) -> Result<[u8; 64]> {
-    // Create parent directory if it doesn't exist
-    if let Some(parent) = secret_file.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-
-    if secret_file.exists() {
-        // Load existing secret
-        let secret_data = std::fs::read(secret_file)?;
-        if secret_data.len() != 64 {
-            return Err(anyhow::anyhow!(
-                "Invalid JWT secret length: expected 64 bytes, got {}",
-                secret_data.len()
-            ));
-        }
-
-        let mut secret = [0u8; 64];
-        secret.copy_from_slice(&secret_data);
-        Ok(secret)
-    } else {
-        // Generate new secret
-        let secret = generate_jwt_secret();
-        std::fs::write(secret_file, secret)?;
-        info!("Generated new JWT secret: {}", secret_file.display());
-        Ok(secret)
     }
 }

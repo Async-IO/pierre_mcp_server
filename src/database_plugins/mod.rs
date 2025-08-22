@@ -624,4 +624,17 @@ pub trait DatabaseProvider: Send + Sync + Clone {
 
     /// Get user role for a specific tenant
     async fn get_user_tenant_role(&self, user_id: Uuid, tenant_id: Uuid) -> Result<Option<String>>;
+
+    // ================================
+    // System Secret Management
+    // ================================
+
+    /// Get or create system secret (generates if not exists)
+    async fn get_or_create_system_secret(&self, secret_type: &str) -> Result<String>;
+
+    /// Get existing system secret
+    async fn get_system_secret(&self, secret_type: &str) -> Result<String>;
+
+    /// Update system secret (for rotation)
+    async fn update_system_secret(&self, secret_type: &str, new_value: &str) -> Result<()>;
 }

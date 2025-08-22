@@ -1698,4 +1698,35 @@ impl DatabaseProvider for Database {
             Self::PostgreSQL(db) => db.remove_user_oauth_app(user_id, provider).await,
         }
     }
+
+    // ================================
+    // System Secret Management
+    // ================================
+
+    /// Get or create system secret (generates if not exists)
+    async fn get_or_create_system_secret(&self, secret_type: &str) -> Result<String> {
+        match self {
+            Self::SQLite(db) => db.get_or_create_system_secret(secret_type).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_or_create_system_secret(secret_type).await,
+        }
+    }
+
+    /// Get existing system secret
+    async fn get_system_secret(&self, secret_type: &str) -> Result<String> {
+        match self {
+            Self::SQLite(db) => db.get_system_secret(secret_type).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_system_secret(secret_type).await,
+        }
+    }
+
+    /// Update system secret (for rotation)
+    async fn update_system_secret(&self, secret_type: &str, new_value: &str) -> Result<()> {
+        match self {
+            Self::SQLite(db) => db.update_system_secret(secret_type, new_value).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.update_system_secret(secret_type, new_value).await,
+        }
+    }
 }
