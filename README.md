@@ -105,7 +105,7 @@ curl -X POST http://localhost:8081/api/tenants/{TENANT_UUID}/oauth \
     "provider": "strava",
     "client_id": "YOUR_STRAVA_CLIENT_ID", 
     "client_secret": "YOUR_STRAVA_CLIENT_SECRET",
-    "redirect_uri": "http://localhost:8081/oauth/callback/strava",
+    "redirect_uri": "http://localhost:8081/api/oauth/callback/strava",
     "scopes": ["read", "activity:read_all"]
   }'
 # Replace {TENANT_UUID} with the UUID returned from step 3
@@ -208,7 +208,7 @@ After user registration and login, get JWT token for MCP client authentication:
 
 ```bash
 # First register user (creates pending status)
-curl -X POST http://localhost:8081/auth/register \
+curl -X POST http://localhost:8081/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "user@example.com",
@@ -218,7 +218,7 @@ curl -X POST http://localhost:8081/auth/register \
 
 # Admin approves user (see User Management section)
 # Then user can login to get JWT token
-curl -X POST http://localhost:8081/auth/login \
+curl -X POST http://localhost:8081/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "user@example.com",
@@ -243,7 +243,7 @@ curl -X POST http://localhost:8081/auth/login \
 ### Register New Users (Creates "Pending" Status)
 
 ```bash
-curl -X POST http://localhost:8081/auth/register \
+curl -X POST http://localhost:8081/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "user@example.com",
@@ -258,14 +258,14 @@ New users are created with "pending" status and cannot access tools until approv
 
 ```bash
 # Admin approves the user
-curl -X POST http://localhost:8081/admin/users/{user_id}/approve \
+curl -X POST http://localhost:8081/api/admin/users/{user_id}/approve \
   -H "Authorization: Bearer ADMIN_JWT_TOKEN"
 ```
 
 ### User Login (After Approval)
 
 ```bash
-curl -X POST http://localhost:8081/auth/login \
+curl -X POST http://localhost:8081/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "user@example.com",
@@ -344,9 +344,9 @@ const activities = await sdk.getStravaActivities();
 ## Core API Endpoints
 
 ### User Management (Port 8081)
-- `POST /auth/register` - User registration (creates "pending" status)
-- `POST /auth/login` - User authentication (after admin approval)
-- `POST /admin/users/{id}/approve` - Admin approves pending user
+- `POST /api/auth/register` - User registration (creates "pending" status)
+- `POST /api/auth/login` - User authentication (after admin approval)
+- `POST /api/admin/users/{id}/approve` - Admin approves pending user
 
 ### MCP Protocol (Port 8080)
 - `POST /mcp` - All MCP protocol communications (JSON-RPC 2.0)

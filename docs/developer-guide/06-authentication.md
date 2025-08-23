@@ -56,10 +56,10 @@ graph TB
 ### Cloud Deployment Setup
 
 For these examples, assume Pierre is deployed at:
-- **API Base URL**: `https://pierre-api.example.com`
-- **Web UI**: `https://pierre.example.com`
-- **MCP Port**: `8080` (behind load balancer)
-- **HTTP Port**: `8081` (behind load balancer)
+- **Production HTTP API**: `https://pierre-api.example.com` (port 8081 behind load balancer)
+- **Production MCP**: `https://pierre-api.example.com:8080` (MCP protocol)
+- **Development HTTP API**: `http://localhost:8081` (authentication and admin)
+- **Development MCP**: `http://localhost:8080` (MCP protocol)
 
 ### 1. Admin Setup Flow
 
@@ -142,78 +142,142 @@ curl -X POST https://pierre-api.example.com/api/auth/login \
 }
 ```
 
-### 2. User Registration Flow
+### 2. User Registration and Approval Flow
 
 #### Step 2.1: User Self-Registration
 
 ```bash
-# New user registers for an account
+# New user registers for an account (creates pending status)
 curl -X POST https://pierre-api.example.com/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "user@example.com",
     "password": "UserPassword123!",
-    "firstname": "John",
-    "lastname": "Doe"
+    "display_name": "John Doe"
   }'
 ```
 
-**Registration Flow:**
+**Registration and Approval Flow:**
 ```mermaid
 sequenceDiagram
     participant User as New User
     participant API as Auth API
     participant DB as Database
-    participant Tenant as Tenant Manager
+    participant Admin as Administrator
     participant Crypto as Crypto Service
     
     User->>API: POST /api/auth/register
-    API->>Crypto: Hash password
+    API->>Crypto: Hash password (bcrypt)
     Crypto-->>API: Password hash
     
-    API->>Tenant: Create tenant
-    Tenant->>DB: Create tenant record
-    DB-->>Tenant: Tenant ID
-    
-    API->>DB: Create user with tenant
+    API->>DB: Create user (status: pending)
     DB-->>API: User created
     
-    API->>Crypto: Generate JWT token
-    Crypto-->>API: JWT token
+    API-->>User: Registration success (pending approval)
     
-    API-->>User: Registration success + token
+    Note over Admin: Admin receives notification
+    Admin->>API: GET /api/admin/pending-users
+    API->>DB: List pending users
+    DB-->>API: Pending users list
+    API-->>Admin: Users awaiting approval
+    
+    Admin->>API: POST /api/admin/approve-user/{user_id}
+    API->>DB: Update user status to active
+    DB-->>API: User approved
+    API-->>Admin: Approval confirmation
+    
+    Note over User: User can now login
 ```
 
-**Response:**
+**Registration Response:**
+```json
+{
+  "user_id": "550e8400-e29b-41d4-a716-446655440000",
+  "message": "User registered successfully. Your account is pending admin approval."
+}
+```
+
+#### Step 2.2: Admin Approval Process
+
+Administrators must approve new users before they can access the system:
+
+```bash
+# Admin lists pending users
+curl -X GET https://pierre-api.example.com/api/admin/pending-users \
+  -H "Authorization: Bearer admin_jwt_token"
+
+# Admin approves a specific user
+curl -X POST https://pierre-api.example.com/api/admin/approve-user/550e8400-e29b-41d4-a716-446655440000 \
+  -H "Authorization: Bearer admin_jwt_token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "reason": "Approved for production access"
+  }'
+```
+
+**Admin Approval Response:**
 ```json
 {
   "success": true,
-  "message": "Registration successful",
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "refresh_token": "rt_def789ghi012...",
-  "expires_at": "2024-01-16T11:30:00Z",
+  "message": "User user@example.com approved successfully",
   "user": {
-    "id": "660f9511-f3ac-52e5-b827-557766551111",
+    "user_id": "550e8400-e29b-41d4-a716-446655440000",
     "email": "user@example.com",
-    "firstname": "John",
-    "lastname": "Doe",
-    "role": "owner",
-    "tenant_id": "660f9511-f3ac-52e5-b827-557766551111",
-    "created_at": "2024-01-15T11:30:00Z"
+    "display_name": "John Doe",
+    "user_status": "active",
+    "approved_by": "admin-user-id",
+    "approved_at": "2024-01-15T11:30:00Z"
   }
 }
 ```
 
-#### Step 2.2: User Login
+#### Step 2.3: User Login (After Approval)
+
+Only users with `active` status can successfully login:
 
 ```bash
-# User logs in to get JWT token
+# User logs in to get JWT token (only works after admin approval)
 curl -X POST https://pierre-api.example.com/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "user@example.com",
     "password": "UserPassword123!"
   }'
+```
+
+**Login Response (Success):**
+```json
+{
+  "jwt_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expires_at": "2024-01-16T10:30:00Z",
+  "user": {
+    "user_id": "550e8400-e29b-41d4-a716-446655440000",
+    "email": "user@example.com",
+    "display_name": "John Doe"
+  }
+}
+```
+
+**Login Response (Pending Approval):**
+```json
+{
+  "error": "authentication_failed",
+  "message": "Your account is pending admin approval",
+  "details": {
+    "user_status": "pending"
+  }
+}
+```
+
+**Login Response (Suspended):**
+```json
+{
+  "error": "authentication_failed", 
+  "message": "Your account has been suspended",
+  "details": {
+    "user_status": "suspended"
+  }
+}
 ```
 
 ### 3. Provider Connection Flow (OAuth)
@@ -831,7 +895,7 @@ curl -X POST https://pierre-api.example.com/api/auth/refresh \
     "message": "Strava account not connected",
     "details": {
       "provider": "strava",
-      "connect_url": "https://pierre-api.example.com/oauth/strava/auth"
+      "connect_url": "https://pierre-api.example.com/api/oauth/strava/auth"
     }
   }
 }
@@ -844,7 +908,7 @@ curl -X POST https://pierre-api.example.com/api/auth/refresh \
     "details": {
       "provider": "strava",
       "expired_at": "2024-01-10T15:30:00Z",
-      "reconnect_url": "https://pierre-api.example.com/oauth/strava/auth"
+      "reconnect_url": "https://pierre-api.example.com/api/oauth/strava/auth"
     }
   }
 }
@@ -1033,7 +1097,7 @@ volumes:
 
 ```bash
 # Check authentication system health
-curl -X GET https://pierre-api.example.com/health/auth \
+curl -X GET https://pierre-api.example.com/api/health/auth \
   -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 ```
 

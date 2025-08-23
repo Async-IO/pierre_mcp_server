@@ -149,7 +149,7 @@ CRITICAL SECURITY NOTES:
 Register a test user account via the HTTP API (port 8081):
 
 ```bash
-curl -X POST http://localhost:8081/auth/register \
+curl -X POST http://localhost:8081/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "testuser@example.com",
@@ -171,7 +171,7 @@ curl -X POST http://localhost:8081/auth/register \
 Use the admin token to approve the registered user:
 
 ```bash
-curl -X PUT http://localhost:8081/admin/users/e13aeeb8-b7cb-4498-aeb7-b211284c1d37/approve \
+curl -X PUT http://localhost:8081/api/admin/users/e13aeeb8-b7cb-4498-aeb7-b211284c1d37/approve \
   -H "Authorization: Bearer YOUR_JWT_TOKEN_HERE" \
   -H "Content-Type: application/json"
 ```
@@ -228,10 +228,10 @@ lsof -i :8080
 
 ```bash
 # Correct (HTTP API)
-curl -X POST http://localhost:8081/auth/register ...
+curl -X POST http://localhost:8081/api/auth/register ...
 
 # Incorrect (MCP protocol port)
-curl -X POST http://localhost:8080/auth/register ...
+curl -X POST http://localhost:8080/api/auth/register ...
 ```
 
 ### Issue 3: Two-Tier Key Management Issues
@@ -335,7 +335,7 @@ export RUST_LOG="info"  # Don't use debug in production
 ### 1. Basic Server Health
 
 ```bash
-curl http://localhost:8081/health
+curl http://localhost:8081/api/health
 # Should return: {"status": "healthy"}
 ```
 
@@ -350,7 +350,7 @@ curl -X POST http://localhost:8080 \
 ### 3. Admin API Test
 
 ```bash
-curl -X GET http://localhost:8081/admin/tokens \
+curl -X GET http://localhost:8081/api/admin/tokens \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 

@@ -22,8 +22,9 @@ This document provides a comprehensive reference for all Pierre MCP Server REST 
 ## Base URL and Versioning
 
 ```
-Production: https://api.pierremcp.com
-Development: http://localhost:3000
+Production: https://api.pierremcp.com (port 8081 behind load balancer)
+Development: http://localhost:8081 (HTTP API and authentication)
+MCP Protocol: http://localhost:8080 (MCP JSON-RPC)
 ```
 
 **API Version**: All endpoints are currently version 1.0. Future versions will be indicated in the URL path.
@@ -71,6 +72,46 @@ All API errors follow a consistent JSON format:
 }
 ```
 
+### Common Authentication Errors
+
+**User Account Pending Approval:**
+```json
+{
+  "error": "authentication_failed",
+  "message": "Your account is pending admin approval",
+  "details": {
+    "error_code": "E_USER_001",
+    "user_status": "pending",
+    "timestamp": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
+**User Account Suspended:**
+```json
+{
+  "error": "authentication_failed",
+  "message": "Your account has been suspended",
+  "details": {
+    "error_code": "E_USER_002", 
+    "user_status": "suspended",
+    "timestamp": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
+**Invalid Credentials:**
+```json
+{
+  "error": "authentication_failed",
+  "message": "Invalid email or password",
+  "details": {
+    "error_code": "E_AUTH_002",
+    "timestamp": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
 ## Rate Limiting
 
 Rate limits are enforced per API key/user with the following headers included in all responses:
@@ -84,7 +125,7 @@ Retry-After: 60
 
 ## Authentication Routes
 
-### POST /auth/register
+### POST /api/auth/register
 
 Register a new user account.
 
@@ -110,7 +151,7 @@ Register a new user account.
 - Password must be at least 8 characters
 - Email must be unique
 
-### POST /auth/login
+### POST /api/auth/login
 
 Authenticate user and receive JWT token.
 
@@ -135,7 +176,7 @@ Authenticate user and receive JWT token.
 }
 ```
 
-### POST /auth/refresh-token
+### POST /api/auth/refresh-token
 
 Refresh an expired JWT token.
 
@@ -162,7 +203,7 @@ Refresh an expired JWT token.
 
 ## OAuth Routes
 
-### GET /oauth/{provider}/authorize
+### GET /api/oauth/{provider}/authorize
 
 Get OAuth authorization URL for fitness provider.
 
@@ -187,7 +228,7 @@ Authorization: Bearer jwt_token
 }
 ```
 
-### GET /oauth/{provider}/callback
+### GET /api/oauth/{provider}/callback
 
 Handle OAuth callback after user authorization.
 
@@ -208,7 +249,7 @@ Handle OAuth callback after user authorization.
 }
 ```
 
-### GET /oauth/status
+### GET /api/oauth/status
 
 Get connection status for all OAuth providers.
 
@@ -235,7 +276,7 @@ Authorization: Bearer jwt_token
 ]
 ```
 
-### DELETE /oauth/{provider}/disconnect
+### DELETE /api/oauth/{provider}/disconnect
 
 Disconnect from an OAuth provider.
 
@@ -417,7 +458,7 @@ Authorization: Bearer jwt_token
 
 ## Dashboard Routes
 
-### GET /dashboard/overview
+### GET /api/dashboard/overview
 
 Get dashboard overview with key metrics.
 
@@ -459,7 +500,7 @@ Authorization: Bearer jwt_token
 }
 ```
 
-### GET /dashboard/analytics
+### GET /api/dashboard/analytics
 
 Get usage analytics for charts and visualization.
 
@@ -495,7 +536,7 @@ Authorization: Bearer jwt_token
 }
 ```
 
-### GET /dashboard/rate-limits
+### GET /api/dashboard/rate-limits
 
 Get rate limit overview for all API keys.
 
@@ -519,7 +560,7 @@ Authorization: Bearer jwt_token
 ]
 ```
 
-### GET /dashboard/logs
+### GET /api/dashboard/logs
 
 Get request logs with filtering options.
 
@@ -552,7 +593,7 @@ Authorization: Bearer jwt_token
 ]
 ```
 
-### GET /dashboard/stats
+### GET /api/dashboard/stats
 
 Get request statistics summary.
 
@@ -850,7 +891,7 @@ Authorization: Bearer jwt_token
 
 ## Admin Routes
 
-### GET /admin/setup/status
+### GET /api/admin/setup/status
 
 Check if initial admin setup is required.
 
@@ -863,7 +904,7 @@ Check if initial admin setup is required.
 }
 ```
 
-### POST /admin/setup
+### POST /api/admin/setup
 
 Initialize the system with first admin user.
 
@@ -884,7 +925,7 @@ Initialize the system with first admin user.
 }
 ```
 
-### GET /admin/users
+### GET /api/admin/users
 
 List all users in the system.
 
@@ -921,7 +962,7 @@ Authorization: Bearer admin_jwt_token
 }
 ```
 
-### PUT /admin/users/{user_id}/status
+### PUT /api/admin/users/{user_id}/status
 
 Update user account status.
 
@@ -950,9 +991,104 @@ Authorization: Bearer admin_jwt_token
 }
 ```
 
+### GET /api/admin/pending-users
+
+List all users awaiting admin approval.
+
+**Headers**:
+```http
+Authorization: Bearer admin_jwt_token
+```
+
+**Response** (200):
+```json
+{
+  "users": [
+    {
+      "user_id": "550e8400-e29b-41d4-a716-446655440000",
+      "email": "user@example.com",
+      "display_name": "John Doe",
+      "user_status": "pending",
+      "created_at": "2024-01-15T10:30:00Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+### POST /api/admin/approve-user/{user_id}
+
+Approve a pending user account.
+
+**Parameters**:
+- `user_id`: User identifier
+
+**Headers**:
+```http
+Authorization: Bearer admin_jwt_token
+```
+
+**Request**:
+```json
+{
+  "reason": "Approved for production access"
+}
+```
+
+**Response** (200):
+```json
+{
+  "success": true,
+  "message": "User user@example.com approved successfully",
+  "user": {
+    "user_id": "550e8400-e29b-41d4-a716-446655440000",
+    "email": "user@example.com",
+    "display_name": "John Doe",
+    "user_status": "active",
+    "approved_by": "admin-user-id",
+    "approved_at": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
+### POST /api/admin/suspend-user/{user_id}
+
+Suspend a user account.
+
+**Parameters**:
+- `user_id`: User identifier
+
+**Headers**:
+```http
+Authorization: Bearer admin_jwt_token
+```
+
+**Request**:
+```json
+{
+  "reason": "Policy violation - inappropriate content"
+}
+```
+
+**Response** (200):
+```json
+{
+  "success": true,
+  "message": "User user@example.com suspended successfully",
+  "user": {
+    "user_id": "550e8400-e29b-41d4-a716-446655440000",
+    "email": "user@example.com",
+    "display_name": "John Doe", 
+    "user_status": "suspended",
+    "suspended_by": "admin-user-id",
+    "suspended_at": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
 ## Tenant Management Routes
 
-### POST /tenants
+### POST /api/tenants
 
 Create a new tenant.
 
@@ -989,7 +1125,7 @@ Authorization: Bearer admin_jwt_token
 }
 ```
 
-### GET /tenants
+### GET /api/tenants
 
 List all tenants.
 
@@ -1012,7 +1148,7 @@ Authorization: Bearer admin_jwt_token
 ]
 ```
 
-### PUT /tenants/{tenant_id}/oauth
+### PUT /api/tenants/{tenant_id}/oauth
 
 Configure OAuth settings for a tenant.
 
@@ -1050,7 +1186,7 @@ Authorization: Bearer admin_jwt_token
 
 ## Configuration Routes
 
-### GET /config/fitness
+### GET /api/config/fitness
 
 Get fitness configuration settings.
 
@@ -1083,7 +1219,7 @@ Authorization: Bearer jwt_token
 }
 ```
 
-### PUT /config/fitness
+### PUT /api/config/fitness
 
 Update fitness configuration (Admin only).
 
