@@ -21,6 +21,14 @@ pub struct DatabaseEncryptionKey {
 
 impl MasterEncryptionKey {
     /// Load MEK from environment variable or generate for development
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The environment variable contains invalid base64 encoding
+    /// - The decoded key is not exactly 32 bytes
+    /// - Random key generation fails in development mode
+    #[allow(clippy::cognitive_complexity)] // Long function: Bootstrap sequence with mode detection
     pub fn load_or_generate() -> Result<Self> {
         // Try to load from environment first
         if let Ok(encoded_key) = env::var("PIERRE_MASTER_ENCRYPTION_KEY") {
@@ -63,11 +71,16 @@ impl MasterEncryptionKey {
     }
 
     /// Get the raw key bytes for encryption operations
-    pub fn as_bytes(&self) -> &[u8; 32] {
+    #[must_use]
+    pub const fn as_bytes(&self) -> &[u8; 32] {
         &self.key
     }
 
     /// Encrypt data with the MEK (used to encrypt DEK)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if encryption fails
     pub fn encrypt(&self, plaintext: &[u8]) -> Result<Vec<u8>> {
         use aes_gcm::aead::generic_array::GenericArray;
         use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit};
@@ -94,6 +107,12 @@ impl MasterEncryptionKey {
     }
 
     /// Decrypt data with the MEK (used to decrypt DEK)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The encrypted data is too short to contain a nonce
+    /// - Decryption fails due to invalid data or wrong key
     pub fn decrypt(&self, encrypted_data: &[u8]) -> Result<Vec<u8>> {
         use aes_gcm::aead::generic_array::GenericArray;
         use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit};
@@ -119,27 +138,40 @@ impl MasterEncryptionKey {
 
 impl DatabaseEncryptionKey {
     /// Create a new random DEK
+    #[must_use]
     pub fn generate() -> Self {
         let key = crate::database::generate_encryption_key();
         Self { key }
     }
 
     /// Create DEK from existing key bytes
-    pub fn from_bytes(bytes: [u8; 32]) -> Self {
+    #[must_use]
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
         Self { key: bytes }
     }
 
     /// Get the raw key bytes for database encryption
-    pub fn as_bytes(&self) -> &[u8; 32] {
+    #[must_use]
+    pub const fn as_bytes(&self) -> &[u8; 32] {
         &self.key
     }
 
     /// Encrypt DEK using MEK for storage in database
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if MEK encryption fails
     pub fn encrypt_with_mek(&self, mek: &MasterEncryptionKey) -> Result<Vec<u8>> {
         mek.encrypt(&self.key)
     }
 
     /// Decrypt DEK from database using MEK
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - MEK decryption fails
+    /// - Decrypted data is not exactly 32 bytes
     pub fn decrypt_with_mek(encrypted_dek: &[u8], mek: &MasterEncryptionKey) -> Result<Self> {
         let decrypted_bytes = mek.decrypt(encrypted_dek)?;
 
@@ -165,6 +197,10 @@ pub struct KeyManager {
 
 impl KeyManager {
     /// Bootstrap initialization: Load MEK and generate temporary DEK for database initialization
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if MEK loading fails
     pub fn bootstrap() -> Result<(Self, [u8; 32])> {
         info!("Bootstrapping two-tier key management system");
 
@@ -183,6 +219,12 @@ impl KeyManager {
     }
 
     /// Complete initialization after database is available
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database operations fail
+    /// - DEK encryption/decryption fails
     pub async fn complete_initialization(
         &mut self,
         database: &crate::database_plugins::factory::Database,
@@ -190,35 +232,34 @@ impl KeyManager {
         info!("Completing two-tier key management initialization");
 
         // Try to load existing DEK from database
-        match database.get_system_secret("database_encryption_key").await {
-            Ok(encrypted_dek_base64) => {
-                info!("Loading existing Database Encryption Key from database");
+        if let Ok(encrypted_dek_base64) =
+            database.get_system_secret("database_encryption_key").await
+        {
+            info!("Loading existing Database Encryption Key from database");
 
-                // Decode from base64
-                let encrypted_dek = base64::engine::general_purpose::STANDARD
-                    .decode(&encrypted_dek_base64)
-                    .map_err(|e| anyhow!("Invalid base64 encoding for stored DEK: {}", e))?;
+            // Decode from base64
+            let encrypted_dek = base64::engine::general_purpose::STANDARD
+                .decode(&encrypted_dek_base64)
+                .map_err(|e| anyhow!("Invalid base64 encoding for stored DEK: {}", e))?;
 
-                // Decrypt with MEK and replace temporary DEK
-                self.dek = DatabaseEncryptionKey::decrypt_with_mek(&encrypted_dek, &self.mek)?;
+            // Decrypt with MEK and replace temporary DEK
+            self.dek = DatabaseEncryptionKey::decrypt_with_mek(&encrypted_dek, &self.mek)?;
 
-                info!("Existing Database Encryption Key loaded successfully");
-            }
-            Err(_) => {
-                info!("No existing DEK found, storing current Database Encryption Key");
+            info!("Existing Database Encryption Key loaded successfully");
+        } else {
+            info!("No existing DEK found, storing current Database Encryption Key");
 
-                // Encrypt current DEK with MEK
-                let encrypted_dek = self.dek.encrypt_with_mek(&self.mek)?;
+            // Encrypt current DEK with MEK
+            let encrypted_dek = self.dek.encrypt_with_mek(&self.mek)?;
 
-                // Store encrypted DEK in database
-                let encrypted_dek_base64 =
-                    base64::engine::general_purpose::STANDARD.encode(&encrypted_dek);
-                database
-                    .update_system_secret("database_encryption_key", &encrypted_dek_base64)
-                    .await?;
+            // Store encrypted DEK in database
+            let encrypted_dek_base64 =
+                base64::engine::general_purpose::STANDARD.encode(&encrypted_dek);
+            database
+                .update_system_secret("database_encryption_key", &encrypted_dek_base64)
+                .await?;
 
-                info!("Database Encryption Key stored successfully");
-            }
+            info!("Database Encryption Key stored successfully");
         }
 
         info!("Two-tier key management system fully initialized");
@@ -226,6 +267,13 @@ impl KeyManager {
     }
 
     /// Initialize key manager with MEK from environment and DEK from database (for existing systems)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - MEK loading fails
+    /// - Database operations fail
+    /// - DEK encryption/decryption fails
     pub async fn initialize(database: &crate::database_plugins::factory::Database) -> Result<Self> {
         info!("Initializing two-tier key management system");
 
@@ -233,37 +281,36 @@ impl KeyManager {
         let mek = MasterEncryptionKey::load_or_generate()?;
 
         // Try to load existing DEK from database
-        let dek = match database.get_system_secret("database_encryption_key").await {
-            Ok(encrypted_dek_base64) => {
-                info!("Loading existing Database Encryption Key from database");
+        let dek = if let Ok(encrypted_dek_base64) =
+            database.get_system_secret("database_encryption_key").await
+        {
+            info!("Loading existing Database Encryption Key from database");
 
-                // Decode from base64
-                let encrypted_dek = base64::engine::general_purpose::STANDARD
-                    .decode(&encrypted_dek_base64)
-                    .map_err(|e| anyhow!("Invalid base64 encoding for stored DEK: {}", e))?;
+            // Decode from base64
+            let encrypted_dek = base64::engine::general_purpose::STANDARD
+                .decode(&encrypted_dek_base64)
+                .map_err(|e| anyhow!("Invalid base64 encoding for stored DEK: {}", e))?;
 
-                // Decrypt with MEK
-                DatabaseEncryptionKey::decrypt_with_mek(&encrypted_dek, &mek)?
-            }
-            Err(_) => {
-                info!("No existing DEK found, generating new Database Encryption Key");
+            // Decrypt with MEK
+            DatabaseEncryptionKey::decrypt_with_mek(&encrypted_dek, &mek)?
+        } else {
+            info!("No existing DEK found, generating new Database Encryption Key");
 
-                // Generate new DEK
-                let dek = DatabaseEncryptionKey::generate();
+            // Generate new DEK
+            let dek = DatabaseEncryptionKey::generate();
 
-                // Encrypt DEK with MEK
-                let encrypted_dek = dek.encrypt_with_mek(&mek)?;
+            // Encrypt DEK with MEK
+            let encrypted_dek = dek.encrypt_with_mek(&mek)?;
 
-                // Store encrypted DEK in database
-                let encrypted_dek_base64 =
-                    base64::engine::general_purpose::STANDARD.encode(&encrypted_dek);
-                database
-                    .update_system_secret("database_encryption_key", &encrypted_dek_base64)
-                    .await?;
+            // Store encrypted DEK in database
+            let encrypted_dek_base64 =
+                base64::engine::general_purpose::STANDARD.encode(&encrypted_dek);
+            database
+                .update_system_secret("database_encryption_key", &encrypted_dek_base64)
+                .await?;
 
-                info!("Generated and stored new Database Encryption Key");
-                dek
-            }
+            info!("Generated and stored new Database Encryption Key");
+            dek
         };
 
         info!("Two-tier key management system initialized successfully");
@@ -272,16 +319,24 @@ impl KeyManager {
     }
 
     /// Get the DEK for database operations (what we previously called "encryption key")
-    pub fn database_key(&self) -> &[u8; 32] {
+    #[must_use]
+    pub const fn database_key(&self) -> &[u8; 32] {
         self.dek.as_bytes()
     }
 
     /// Get the MEK for key encryption operations
-    pub fn master_key(&self) -> &MasterEncryptionKey {
+    #[must_use]
+    pub const fn master_key(&self) -> &MasterEncryptionKey {
         &self.mek
     }
 
     /// Rotate the DEK (generate new one, encrypt with MEK, store in database)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - DEK encryption fails
+    /// - Database storage fails
     pub async fn rotate_database_key(
         &mut self,
         database: &crate::database_plugins::factory::Database,
