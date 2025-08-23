@@ -231,7 +231,7 @@ impl MultiTenantMcpClient {
         let response = timeout(
             Duration::from_secs(10),
             self.http_client
-                .post(format!("{}/auth/login", self.base_url))
+                .post(format!("{}/api/auth/login", self.base_url))
                 .json(&json!({
                     "email": email,
                     "password": password

@@ -514,7 +514,7 @@ impl RateLimitingMiddleware {
 
 ```bash
 # Get tenant overview
-curl -X GET https://pierre-api.example.com/api/admin/tenants/550e8400-e29b-41d4-a716-446655440000 \
+curl -X GET https://pierre-api.example.com/admin/tenants/550e8400-e29b-41d4-a716-446655440000 \
   -H "Authorization: Bearer admin_token..."
 ```
 

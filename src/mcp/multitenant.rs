@@ -230,7 +230,8 @@ impl MultiTenantMcpServer {
         use warp::Filter;
 
         // Registration endpoint
-        let register = warp::path("auth")
+        let register = warp::path("api")
+            .and(warp::path("auth"))
             .and(warp::path("register"))
             .and(warp::path::end())
             .and(warp::post())
@@ -252,7 +253,8 @@ impl MultiTenantMcpServer {
             });
 
         // Login endpoint
-        let login = warp::path("auth")
+        let login = warp::path("api")
+            .and(warp::path("auth"))
             .and(warp::path("login"))
             .and(warp::path::end())
             .and(warp::post())
@@ -274,7 +276,8 @@ impl MultiTenantMcpServer {
             });
 
         // Token refresh endpoint
-        let refresh = warp::path("auth")
+        let refresh = warp::path("api")
+            .and(warp::path("auth"))
             .and(warp::path("refresh"))
             .and(warp::path::end())
             .and(warp::post())

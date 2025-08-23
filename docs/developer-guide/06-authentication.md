@@ -176,12 +176,12 @@ sequenceDiagram
     API-->>User: Registration success (pending approval)
     
     Note over Admin: Admin receives notification
-    Admin->>API: GET /api/admin/pending-users
+    Admin->>API: GET /admin/pending-users
     API->>DB: List pending users
     DB-->>API: Pending users list
     API-->>Admin: Users awaiting approval
     
-    Admin->>API: POST /api/admin/approve-user/{user_id}
+    Admin->>API: POST /admin/approve-user/{user_id}
     API->>DB: Update user status to active
     DB-->>API: User approved
     API-->>Admin: Approval confirmation
@@ -203,11 +203,11 @@ Administrators must approve new users before they can access the system:
 
 ```bash
 # Admin lists pending users
-curl -X GET https://pierre-api.example.com/api/admin/pending-users \
+curl -X GET https://pierre-api.example.com/admin/pending-users \
   -H "Authorization: Bearer admin_jwt_token"
 
 # Admin approves a specific user
-curl -X POST https://pierre-api.example.com/api/admin/approve-user/550e8400-e29b-41d4-a716-446655440000 \
+curl -X POST https://pierre-api.example.com/admin/approve-user/550e8400-e29b-41d4-a716-446655440000 \
   -H "Authorization: Bearer admin_jwt_token" \
   -H "Content-Type: application/json" \
   -d '{

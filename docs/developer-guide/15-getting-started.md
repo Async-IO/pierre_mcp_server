@@ -204,11 +204,11 @@ cargo run --bin pierre-mcp-server
 
 ### 2. Initialize Admin User
 
-Visit: `http://localhost:8081/api/admin/setup/status`
+Visit: `http://localhost:8081/admin/setup/status`
 
 If setup is needed, create admin user:
 ```bash
-curl -X POST http://localhost:8081/api/admin/setup \
+curl -X POST http://localhost:8081/admin/setup \
   -H "Content-Type: application/json" \
   -d '{
     "email": "admin@example.com",
@@ -242,7 +242,7 @@ curl -X POST http://localhost:8081/api/auth/register \
 New users require admin approval before they can login:
 
 ```bash
-curl -X POST http://localhost:8081/api/admin/approve-user/550e8400-e29b-41d4-a716-446655440000 \
+curl -X POST http://localhost:8081/admin/approve-user/550e8400-e29b-41d4-a716-446655440000 \
   -H "Authorization: Bearer ADMIN_JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{

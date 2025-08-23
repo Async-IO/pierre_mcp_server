@@ -208,13 +208,13 @@ async fn run_http_server(&self, port: u16) -> Result<()> {
         .route("/api/dashboard/stats", get(stats_handler))
         
         // A2A routes
-        .route("/api/a2a/register", post(a2a_register))
-        .route("/api/a2a/agent-card", get(agent_card_handler))
-        .route("/api/a2a/tools", post(tools_handler))
+        .route("/a2a/register", post(a2a_register))
+        .route("/a2a/agent-card", get(agent_card_handler))
+        .route("/a2a/tools", post(tools_handler))
         
         // Admin routes
-        .route("/api/admin/tokens", get(list_tokens))
-        .route("/api/admin/users", get(list_users))
+        .route("/admin/tokens", get(list_tokens))
+        .route("/admin/users", get(list_users))
         
         // Health check
         .route("/health", get(health_check))

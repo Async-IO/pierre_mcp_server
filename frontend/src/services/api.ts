@@ -113,12 +113,12 @@ class ApiService {
   }
 
   async login(email: string, password: string) {
-    const response = await axios.post('/auth/login', { email, password });
+    const response = await axios.post('/api/auth/login', { email, password });
     return response.data;
   }
 
   async register(email: string, password: string, displayName?: string) {
-    const response = await axios.post('/auth/register', {
+    const response = await axios.post('/api/auth/register', {
       email,
       password,
       display_name: displayName,
@@ -265,7 +265,7 @@ class ApiService {
 
     try {
       // Make refresh request without interceptors to avoid infinite loop
-      const response = await axios.post('/auth/refresh', {
+      const response = await axios.post('/api/auth/refresh', {
         token: currentToken,
         user_id: user.id
       }, {
@@ -523,6 +523,40 @@ class ApiService {
 
   async getAdminTokenProvisionedKeys(tokenId: string) {
     const response = await axios.get(`/admin/tokens/${tokenId}/provisioned-keys`);
+    return response.data;
+  }
+
+  // User Management Endpoints
+  async getPendingUsers() {
+    const response = await axios.get('/admin/pending-users');
+    return response.data;
+  }
+
+  async approveUser(userId: string, reason?: string) {
+    const response = await axios.post(`/admin/approve-user/${userId}`, {
+      reason
+    });
+    return response.data;
+  }
+
+  async suspendUser(userId: string, reason?: string) {
+    const response = await axios.post(`/admin/suspend-user/${userId}`, {
+      reason
+    });
+    return response.data;
+  }
+
+  async getAllUsers(params?: {
+    status?: 'pending' | 'active' | 'suspended';
+    limit?: number;
+    offset?: number;
+  }) {
+    const queryParams = new URLSearchParams();
+    if (params?.status) queryParams.append('status', params.status);
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.offset) queryParams.append('offset', params.offset.toString());
+    
+    const response = await axios.get(`/admin/users?${queryParams}`);
     return response.data;
   }
 }

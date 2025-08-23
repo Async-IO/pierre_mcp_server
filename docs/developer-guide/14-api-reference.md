@@ -891,7 +891,7 @@ Authorization: Bearer jwt_token
 
 ## Admin Routes
 
-### GET /api/admin/setup/status
+### GET /admin/setup/status
 
 Check if initial admin setup is required.
 
@@ -904,7 +904,7 @@ Check if initial admin setup is required.
 }
 ```
 
-### POST /api/admin/setup
+### POST /admin/setup
 
 Initialize the system with first admin user.
 
@@ -925,7 +925,7 @@ Initialize the system with first admin user.
 }
 ```
 
-### GET /api/admin/users
+### GET /admin/users
 
 List all users in the system.
 
@@ -962,7 +962,7 @@ Authorization: Bearer admin_jwt_token
 }
 ```
 
-### PUT /api/admin/users/{user_id}/status
+### PUT /admin/users/{user_id}/status
 
 Update user account status.
 
@@ -991,7 +991,7 @@ Authorization: Bearer admin_jwt_token
 }
 ```
 
-### GET /api/admin/pending-users
+### GET /admin/pending-users
 
 List all users awaiting admin approval.
 
@@ -1016,7 +1016,7 @@ Authorization: Bearer admin_jwt_token
 }
 ```
 
-### POST /api/admin/approve-user/{user_id}
+### POST /admin/approve-user/{user_id}
 
 Approve a pending user account.
 
@@ -1051,7 +1051,7 @@ Authorization: Bearer admin_jwt_token
 }
 ```
 
-### POST /api/admin/suspend-user/{user_id}
+### POST /admin/suspend-user/{user_id}
 
 Suspend a user account.
 

@@ -23,29 +23,37 @@ MCP server implementation for fitness data access from Strava and Fitbit provide
    - Translates MCP protocol to HTTP API calls
    - Stateless design
 
-## Protocol Support
+## Quick Reference
 
-### MCP Protocol (Model Context Protocol)
-- **Version**: Draft specification (2025-06-18)
-- **Endpoint**: Port 8080
-- **Authentication**: JWT tokens
-- **Use Cases**: AI assistants (Claude, ChatGPT), LLM applications
+### API Endpoints
+| Purpose | Port | Endpoint | Auth Required | Example |
+|---------|------|----------|---------------|----------|
+| **Health check** | 8081 | `GET /api/health` | None | `curl localhost:8081/api/health` |
+| **User registration** | 8081 | `POST /api/auth/register` | None | User signup |
+| **User login** | 8081 | `POST /api/auth/login` | None | Get JWT token |
+| **Admin actions** | 8081 | `POST /admin/*` | Admin JWT | Approve users, etc. |
+| **A2A protocol** | 8081 | `POST /a2a/*` | Client credentials | Agent-to-agent comms |
+| **MCP protocol** | 8080 | All MCP calls | User JWT | Claude Desktop integration |
 
-### A2A Protocol (Agent-to-Agent)
-- **Version**: v0.2.3
-- **Endpoint**: Port 8081 `/a2a/*`
-- **Authentication**: Client credentials + JWT
-- **Use Cases**: Enterprise integrations, autonomous agents
+### Binaries
+| Binary | Purpose | When to Use |
+|--------|---------|-------------|
+| `pierre-mcp-server` | Main server daemon | Always running (ports 8080 + 8081) |
+| `pierre-mcp-client` | MCP client for Claude | Claude Desktop integration |
+| `admin-setup` | Admin user management | Initial setup, user approval |
 
-### REST API
-- **Endpoint**: Port 8081
-- **Authentication**: JWT tokens
-- **Use Cases**: Web applications, dashboards
+### Protocol Support
+- **MCP Protocol**: Port 8080 - AI assistants (Claude, ChatGPT), LLM applications  
+- **A2A Protocol**: Port 8081 `/a2a/*` - Enterprise integrations, autonomous agents
+- **REST API**: Port 8081 `/api/*` - Web applications, dashboards
 
 ## Documentation
 
-### 📚 Developer Guide
-**[Complete Developer Guide](docs/developer-guide/README.md)** - Comprehensive technical documentation with 17 sections covering architecture, protocols, API reference, testing, and more.
+### **New Developer? [Start Here!](docs/NEW_DEVELOPER_START_HERE.md)**
+Choose your path: contribute code, understand the system, or integrate with Pierre.
+
+### **[Complete Developer Guide](docs/developer-guide/README.md)**
+Technical documentation covering architecture, protocols, API reference, testing, and more.
 
 #### Quick Links
 - [Getting Started](docs/developer-guide/15-getting-started.md) - Setup and development guide
@@ -56,60 +64,71 @@ MCP server implementation for fitness data access from Strava and Fitbit provide
 - [A2A Integration Examples](docs/developer-guide/A2A-INTEGRATION-GUIDE.md) - Discord bots, IoT, analytics
 - [Security Guide](docs/developer-guide/17-security-guide.md) - Two-tier key management, encryption, production security
 
-### 🚀 Quick Start
+### **[Contributing Guide](CONTRIBUTING.md)**
+Code standards, development workflow, and submission process.
+
+### **Specialized Guides**
 - [A2A Quick Start](docs/A2A_QUICK_START.md) - 5-minute A2A setup
 - [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) - Docker & Kubernetes deployment
 - [Database Guide](docs/DATABASE_GUIDE.md) - Database setup and migrations
 
-## Quick Setup Guide
+## Quick Setup
 
-### Prerequisites
+### Prerequisites (Choose One)
 
-1. **Rust toolchain** (1.75+): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
-2. **Strava app**: Create at [developers.strava.com](https://developers.strava.com)
-3. **Database**: SQLite (default) or PostgreSQL
-4. **Master Encryption Key**: Optional for development (auto-generated), required for production security
+**👥 New Contributor** (Recommended)
+- Only **Rust 1.75+** required: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+- SQLite auto-created, no external dependencies
+- Perfect for: Contributing code, testing, learning
 
-### Local Development Setup
+**🚀 Full Development**  
+- **Rust 1.75+** + **Strava app** (create at [developers.strava.com](https://developers.strava.com))
+- Optional: PostgreSQL, Redis
+- Perfect for: Production deployment, full feature testing
+
+### Setup
 
 ```bash
-# 1. Clone and build
+# 1. Clone and build (2 minutes)
 git clone https://github.com/Async-IO/pierre_mcp_server.git
 cd pierre_mcp_server
 cargo build --release
 
-# 2. (Optional) Set Master Encryption Key for production  
-# For development, system auto-generates MEK with warning messages
-# For production, set explicit MEK:
-export PIERRE_MASTER_ENCRYPTION_KEY="$(openssl rand -base64 32)"
-echo "Save this MEK securely: $PIERRE_MASTER_ENCRYPTION_KEY"
-
-# 3. Start the Pierre MCP Server (runs as daemon)
+# 2. Start server (1 minute)
 cargo run --bin pierre-mcp-server
-# Server starts on http://localhost:8081 (HTTP) and http://localhost:8080 (MCP)
+# ✅ Server ready on ports 8080 (MCP) and 8081 (HTTP)
+# ✅ Database auto-created at ./data/users.db
+# ✅ MEK auto-generated for development
 
-# 4. Create the default tenant (required for user registration)
+# 3. Verify it works (30 seconds)
+curl http://localhost:8081/api/health
+# Should return: {"status":"healthy"}
+
+# 4. Ready! (30 seconds)
+./scripts/lint-and-test.sh  # Run full test suite
+# Ready to contribute
+```
+
+### Advanced Setup (Full Features)
+<details>
+<summary>Click for production-ready setup with Strava integration</summary>
+
+```bash
+# Set production encryption key
+export PIERRE_MASTER_ENCRYPTION_KEY="$(openssl rand -base64 32)"
+echo "Save this MEK: $PIERRE_MASTER_ENCRYPTION_KEY"
+
+# Create default tenant
 curl -X POST http://localhost:8081/api/tenants \
   -H "Content-Type: application/json" \
-  -d '{
-    "name": "Default Organization", 
-    "slug": "default-tenant",
-    "plan": "starter"
-  }'
-# Save the tenant "id" (UUID) from the response - you'll need it for OAuth configuration
+  -d '{"name": "My Organization", "slug": "default", "plan": "starter"}'
 
-# 5. Configure OAuth credentials for the default tenant
+# Configure Strava OAuth (get credentials from developers.strava.com)
 curl -X POST http://localhost:8081/api/tenants/{TENANT_UUID}/oauth \
   -H "Content-Type: application/json" \
-  -d '{
-    "provider": "strava",
-    "client_id": "YOUR_STRAVA_CLIENT_ID", 
-    "client_secret": "YOUR_STRAVA_CLIENT_SECRET",
-    "redirect_uri": "http://localhost:8081/api/oauth/callback/strava",
-    "scopes": ["read", "activity:read_all"]
-  }'
-# Replace {TENANT_UUID} with the UUID returned from step 3
+  -d '{"provider": "strava", "client_id": "YOUR_CLIENT_ID", "client_secret": "YOUR_CLIENT_SECRET", "redirect_uri": "http://localhost:8081/api/oauth/callback/strava", "scopes": ["read", "activity:read_all"]}'
 ```
+</details>
 
 ## MCP Client Integration
 
@@ -202,29 +221,28 @@ async def main():
 ```
 </details>
 
-### Get User JWT Token
+## Common Workflows
 
-After user registration and login, get JWT token for MCP client authentication:
-
+### New Contributor Workflow
 ```bash
-# First register user (creates pending status)
-curl -X POST http://localhost:8081/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "user@example.com",
-    "password": "secure_password",
-    "display_name": "User Name"
-  }'
+git clone YOUR_FORK && cd pierre_mcp_server
+cargo build && cargo run --bin pierre-mcp-server
+curl http://localhost:8081/api/health  # ✅ Should work
+./scripts/lint-and-test.sh              # ✅ Should pass
+# Make changes, test, submit PR
+```
 
-# Admin approves user (see User Management section)
-# Then user can login to get JWT token
+### User Management Workflow  
+```bash
+# 1. Register user
+curl -X POST http://localhost:8081/api/auth/register \
+  -d '{"email":"user@example.com", "password":"pass123", "display_name":"User"}'
+
+# 2. Admin approval needed (creates admin token via admin-setup binary)
+# 3. User login
 curl -X POST http://localhost:8081/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "user@example.com",
-    "password": "secure_password"
-  }'
-# Returns jwt_token for MCP client configuration
+  -d '{"email":"user@example.com", "password":"pass123"}'
+# Returns JWT for MCP client
 ```
 
 ### First Time Setup
@@ -258,7 +276,7 @@ New users are created with "pending" status and cannot access tools until approv
 
 ```bash
 # Admin approves the user
-curl -X POST http://localhost:8081/api/admin/users/{user_id}/approve \
+curl -X POST http://localhost:8081/admin/approve-user/{user_id} \
   -H "Authorization: Bearer ADMIN_JWT_TOKEN"
 ```
 
@@ -346,7 +364,7 @@ const activities = await sdk.getStravaActivities();
 ### User Management (Port 8081)
 - `POST /api/auth/register` - User registration (creates "pending" status)
 - `POST /api/auth/login` - User authentication (after admin approval)
-- `POST /api/admin/users/{id}/approve` - Admin approves pending user
+- `POST /admin/approve-user/{id}` - Admin approves pending user
 
 ### MCP Protocol (Port 8080)
 - `POST /mcp` - All MCP protocol communications (JSON-RPC 2.0)
