@@ -95,14 +95,14 @@ pub mod env_config {
     #[must_use]
     pub fn strava_redirect_uri() -> String {
         env::var("STRAVA_REDIRECT_URI")
-            .unwrap_or_else(|_| format!("{}/oauth/callback/strava", base_url()))
+            .unwrap_or_else(|_| format!("{}/api/oauth/callback/strava", base_url()))
     }
 
     /// Get Fitbit redirect `URI` from environment or default (for tenant-based OAuth)
     #[must_use]
     pub fn fitbit_redirect_uri() -> String {
         env::var("FITBIT_REDIRECT_URI")
-            .unwrap_or_else(|_| format!("{}/oauth/callback/fitbit", base_url()))
+            .unwrap_or_else(|_| format!("{}/api/oauth/callback/fitbit", base_url()))
     }
 
     /// Get `OpenWeather` `API` key from environment

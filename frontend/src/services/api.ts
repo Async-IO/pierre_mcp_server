@@ -173,17 +173,17 @@ class ApiService {
 
   // Dashboard endpoints
   async getDashboardOverview() {
-    const response = await axios.get('/dashboard/overview');
+    const response = await axios.get('/api/dashboard/overview');
     return response.data;
   }
 
   async getUsageAnalytics(days: number = 30) {
-    const response = await axios.get(`/dashboard/analytics?days=${days}`);
+    const response = await axios.get(`/api/dashboard/analytics?days=${days}`);
     return response.data;
   }
 
   async getRateLimitOverview() {
-    const response = await axios.get('/dashboard/rate-limits');
+    const response = await axios.get('/api/dashboard/rate-limits');
     return response.data;
   }
 
@@ -199,7 +199,7 @@ class ApiService {
     if (filter?.status && filter.status !== 'all') params.append('status', filter.status);
     if (filter?.tool && filter.tool !== 'all') params.append('tool', filter.tool);
     
-    const response = await axios.get(`/dashboard/request-logs?${params}`);
+    const response = await axios.get(`/api/dashboard/request-logs?${params}`);
     return response.data;
   }
 
@@ -208,7 +208,7 @@ class ApiService {
     if (apiKeyId) params.append('api_key_id', apiKeyId);
     params.append('time_range', timeRange);
     
-    const response = await axios.get(`/dashboard/request-stats?${params}`);
+    const response = await axios.get(`/api/dashboard/request-stats?${params}`);
     return response.data;
   }
 
@@ -217,7 +217,7 @@ class ApiService {
     if (apiKeyId) params.append('api_key_id', apiKeyId);
     params.append('time_range', timeRange);
     
-    const response = await axios.get(`/dashboard/tool-usage?${params}`);
+    const response = await axios.get(`/api/dashboard/tool-usage?${params}`);
     return response.data;
   }
 
