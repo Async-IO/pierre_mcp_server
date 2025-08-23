@@ -253,7 +253,10 @@ impl MultiTenantMcpClient {
     async fn get_strava_oauth_url(&self, user_id: &str) -> Result<String> {
         let response = self
             .http_client
-            .get(format!("{}/oauth/auth/strava/{}", self.base_url, user_id))
+            .get(format!(
+                "{}/api/oauth/auth/strava/{}",
+                self.base_url, user_id
+            ))
             .send()
             .await?;
 

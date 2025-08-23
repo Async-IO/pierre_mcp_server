@@ -308,7 +308,8 @@ impl MultiTenantMcpServer {
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
 
-        warp::path("oauth")
+        warp::path("api")
+            .and(warp::path("oauth"))
             .and(warp::path!("auth" / String / String))
             .and(warp::get())
             .and_then({
@@ -365,7 +366,8 @@ impl MultiTenantMcpServer {
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
 
-        warp::path("oauth")
+        warp::path("api")
+            .and(warp::path("oauth"))
             .and(warp::path("callback"))
             .and(warp::path!(String))
             .and(warp::query::<std::collections::HashMap<String, String>>())
@@ -583,7 +585,8 @@ impl MultiTenantMcpServer {
         use warp::Filter;
 
         // Dashboard overview
-        let dashboard_overview = warp::path("dashboard")
+        let dashboard_overview = warp::path("api")
+            .and(warp::path("dashboard"))
             .and(warp::path("overview"))
             .and(warp::get())
             .and(warp::header::optional::<String>("authorization"))
@@ -607,7 +610,8 @@ impl MultiTenantMcpServer {
             });
 
         // Dashboard analytics
-        let dashboard_analytics = warp::path("dashboard")
+        let dashboard_analytics = warp::path("api")
+            .and(warp::path("dashboard"))
             .and(warp::path("analytics"))
             .and(warp::get())
             .and(warp::header::optional::<String>("authorization"))
@@ -637,7 +641,8 @@ impl MultiTenantMcpServer {
             });
 
         // Dashboard rate limits
-        let dashboard_rate_limits = warp::path("dashboard")
+        let dashboard_rate_limits = warp::path("api")
+            .and(warp::path("dashboard"))
             .and(warp::path("rate-limits"))
             .and(warp::get())
             .and(warp::header::optional::<String>("authorization"))
@@ -672,7 +677,8 @@ impl MultiTenantMcpServer {
         use warp::Filter;
 
         // Dashboard request logs
-        let dashboard_request_logs = warp::path("dashboard")
+        let dashboard_request_logs = warp::path("api")
+            .and(warp::path("dashboard"))
             .and(warp::path("request-logs"))
             .and(warp::get())
             .and(warp::header::optional::<String>("authorization"))
@@ -709,7 +715,8 @@ impl MultiTenantMcpServer {
             });
 
         // Dashboard request stats
-        let dashboard_request_stats = warp::path("dashboard")
+        let dashboard_request_stats = warp::path("api")
+            .and(warp::path("dashboard"))
             .and(warp::path("request-stats"))
             .and(warp::get())
             .and(warp::header::optional::<String>("authorization"))
@@ -738,7 +745,8 @@ impl MultiTenantMcpServer {
             });
 
         // Dashboard tool usage
-        let dashboard_tool_usage = warp::path("dashboard")
+        let dashboard_tool_usage = warp::path("api")
+            .and(warp::path("dashboard"))
             .and(warp::path("tool-usage"))
             .and(warp::get())
             .and(warp::header::optional::<String>("authorization"))
