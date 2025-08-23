@@ -1603,10 +1603,13 @@ async fn handle_approve_user(
                 message: "Failed to get system admin user for approval".into(),
                 user: None,
             };
-            return Ok(with_status(json(&response), StatusCode::INTERNAL_SERVER_ERROR));
+            return Ok(with_status(
+                json(&response),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ));
         }
     };
-    
+
     match approve_user_status(&context.database, user_uuid, &admin_user_id).await {
         Ok(user) => {
             info!("User approved successfully: {}", user.email);
@@ -1773,17 +1776,17 @@ async fn get_system_admin_user_id(database: &Database) -> Result<String> {
     // For admin token operations, we need to use the system admin user ID
     // Look for an active admin user with enterprise tier
     let users = database.get_users_by_status("active").await?;
-    
+
     for user in &users {
         if user.tier == crate::models::UserTier::Enterprise {
             return Ok(user.id.to_string());
         }
     }
-    
+
     // Fallback: use the first active user if no enterprise user found
     if let Some(user) = users.first() {
         return Ok(user.id.to_string());
     }
-    
+
     anyhow::bail!("No active admin user found for approval operations")
 }

@@ -1615,7 +1615,15 @@ impl MultiTenantMcpServer {
                             auth_middleware,
                             tenant_provider_factory,
                         };
-                        Self::handle_mcp_http_request(method, origin, accept, authorization, body, &ctx).await
+                        Self::handle_mcp_http_request(
+                            method,
+                            origin,
+                            accept,
+                            authorization,
+                            body,
+                            &ctx,
+                        )
+                        .await
                     }
                 }
             });
@@ -1660,7 +1668,7 @@ impl MultiTenantMcpServer {
                     if request.auth_token.is_none() {
                         request.auth_token = authorization;
                     }
-                    
+
                     let response = Self::handle_request(
                         request,
                         &ctx.database,
