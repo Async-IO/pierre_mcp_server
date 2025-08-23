@@ -597,7 +597,7 @@ RATE_LIMIT_WARNING_THRESHOLD=0.9
 
 ```bash
 # View user rate limit status
-curl -X GET https://pierre-api.example.com/api/admin/rate-limits/user/550e8400-e29b-41d4-a716-446655440000 \
+curl -X GET https://pierre-api.example.com/admin/rate-limits/user/550e8400-e29b-41d4-a716-446655440000 \
   -H "Authorization: Bearer admin_token..."
 ```
 
@@ -633,7 +633,7 @@ curl -X GET https://pierre-api.example.com/api/admin/rate-limits/user/550e8400-e
 
 ```bash
 # Increase user's rate limit temporarily
-curl -X POST https://pierre-api.example.com/api/admin/rate-limits/user/550e8400-e29b-41d4-a716-446655440000/adjust \
+curl -X POST https://pierre-api.example.com/admin/rate-limits/user/550e8400-e29b-41d4-a716-446655440000/adjust \
   -H "Authorization: Bearer admin_token..." \
   -H "Content-Type: application/json" \
   -d '{
@@ -647,7 +647,7 @@ curl -X POST https://pierre-api.example.com/api/admin/rate-limits/user/550e8400-
 
 ```bash
 # Reset user's rate limit counter
-curl -X POST https://pierre-api.example.com/api/admin/rate-limits/user/550e8400-e29b-41d4-a716-446655440000/reset \
+curl -X POST https://pierre-api.example.com/admin/rate-limits/user/550e8400-e29b-41d4-a716-446655440000/reset \
   -H "Authorization: Bearer admin_token..." \
   -H "Content-Type: application/json" \
   -d '{

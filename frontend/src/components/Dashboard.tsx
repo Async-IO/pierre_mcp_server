@@ -8,6 +8,7 @@ import UsageAnalytics from './UsageAnalytics';
 import RequestMonitor from './RequestMonitor';
 import ToolUsageBreakdown from './ToolUsageBreakdown';
 import UnifiedConnections from './UnifiedConnections';
+import UserManagement from './UserManagement';
 import { Line } from 'react-chartjs-2';
 import { useWebSocketContext } from '../hooks/useWebSocketContext';
 import { useEffect } from 'react';
@@ -38,6 +39,12 @@ export default function Dashboard() {
   const { data: a2aOverview } = useQuery({
     queryKey: ['a2a-dashboard-overview'],
     queryFn: () => apiService.getA2ADashboardOverview(),
+  });
+
+  const { data: pendingUsers = [] } = useQuery({
+    queryKey: ['pending-users'],
+    queryFn: () => apiService.getPendingUsers(),
+    refetchInterval: 30000,
   });
 
   // Prepare mini chart data for the overview
@@ -119,6 +126,11 @@ export default function Dashboard() {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
       </svg>
     ) },
+    { id: 'users', name: 'Users', icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+      </svg>
+    ), badge: pendingUsers.length > 0 ? pendingUsers.length : undefined },
   ];
 
   return (
@@ -158,15 +170,20 @@ export default function Dashboard() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={clsx(
-                'w-full flex flex-col items-center px-2 py-2 rounded-lg text-sm font-medium transition-colors',
+                'w-full flex flex-col items-center px-2 py-2 rounded-lg text-sm font-medium transition-colors relative',
                 {
                   'bg-pierre-blue-50 text-pierre-blue-600 border border-pierre-blue-200': activeTab === tab.id,
                   'text-pierre-gray-600 hover:text-pierre-gray-900 hover:bg-pierre-gray-50': activeTab !== tab.id,
                 }
               )}
             >
-              <div className="mb-1">
+              <div className="mb-1 relative">
                 {tab.icon}
+                {tab.badge && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
+                    {tab.badge}
+                  </span>
+                )}
               </div>
               <span className="text-xs text-center">{tab.name}</span>
             </button>
@@ -347,6 +364,17 @@ export default function Dashboard() {
               </p>
             </Card>
             <ToolUsageBreakdown />
+          </div>
+        )}
+        {activeTab === 'users' && (
+          <div className="space-y-6">
+            <Card>
+              <h2 className="text-xl font-semibold mb-4">User Management</h2>
+              <p className="text-pierre-gray-600 mb-4">
+                Manage user registrations, approve pending users, and monitor user activity across the platform.
+              </p>
+            </Card>
+            <UserManagement />
           </div>
         )}
         </div>

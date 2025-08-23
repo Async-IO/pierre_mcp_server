@@ -247,6 +247,33 @@ export interface A2AUsageStats {
   }>;
 }
 
+// User Management Types
+export interface User {
+  id: string;
+  email: string;
+  display_name?: string;
+  user_status: 'pending' | 'active' | 'suspended';
+  tier: 'starter' | 'professional' | 'enterprise';
+  created_at: string;
+  last_active: string;
+  approved_by?: string;
+  approved_at?: string;
+}
+
+export interface UserManagementResponse {
+  success: boolean;
+  message: string;
+  user?: User;
+}
+
+export interface ApproveUserRequest {
+  reason?: string;
+}
+
+export interface SuspendUserRequest {
+  reason?: string;
+}
+
 export interface A2AUsageRecord {
   id: number;
   client_id: string;

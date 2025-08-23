@@ -624,14 +624,14 @@ Authorization: Bearer <jwt_token>
 }
 ```
 
-### 5. Admin Routes (`/api/admin`)
+### 5. Admin Routes (`/admin`)
 
 Administrative endpoints for user and system management.
 
 #### List All Users
 
 ```http
-GET /api/admin/users?status=pending&page=1&limit=20
+GET /admin/users?status=pending&page=1&limit=20
 Authorization: Bearer <admin_jwt_token>
 ```
 
@@ -696,7 +696,7 @@ impl AdminRoutes {
 #### Approve User
 
 ```http
-POST /api/admin/users/550e8400-e29b-41d4-a716-446655440000/approve
+POST /admin/users/550e8400-e29b-41d4-a716-446655440000/approve
 Authorization: Bearer <admin_jwt_token>
 Content-Type: application/json
 
@@ -717,14 +717,14 @@ Content-Type: application/json
 }
 ```
 
-### 6. A2A Routes (`/api/a2a`)
+### 6. A2A Routes (`/a2a`)
 
 Agent-to-Agent system registration and management.
 
 #### Register A2A System
 
 ```http
-POST /api/a2a/register
+POST /a2a/register
 Authorization: Bearer <admin_jwt_token>
 Content-Type: application/json
 
@@ -802,7 +802,7 @@ impl A2ARoutes {
 #### Get Agent Card
 
 ```http
-GET /api/a2a/agent-card
+GET /a2a/agent-card
 X-API-Key: A2A_abc123def456ghi789jkl012mno345pqr678stu901vwx234yz
 ```
 
@@ -823,7 +823,7 @@ X-API-Key: A2A_abc123def456ghi789jkl012mno345pqr678stu901vwx234yz
         "api_key": {
             "header_name": "X-API-Key",
             "prefix": "A2A_",
-            "registration_url": "https://pierre-api.example.com/api/a2a/register"
+            "registration_url": "https://pierre-api.example.com/a2a/register"
         }
     },
     "tools": [

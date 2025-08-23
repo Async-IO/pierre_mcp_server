@@ -1,14 +1,74 @@
-# Contributing to Pierre Fitness API
+# Contributing to Pierre MCP Server
 
-Thank you for your interest in contributing to Pierre! This project is built by the community, for the community. We welcome contributions from developers of all skill levels.
+Thank you for your interest in contributing! This guide will get you from zero to your first contribution in **30 minutes**.
 
-## Quick Start
+## New Contributor Quick Start
 
-1. **Fork** the repository on GitHub
-2. **Clone** your fork locally: `git clone https://github.com/YOUR_USERNAME/pierre_mcp_server.git`
-3. **Create a branch**: `git checkout -b feature/your-feature-name`
-4. **Make your changes** and test them
-5. **Submit a pull request** with a clear description
+### Step 1: Get the Code (2 minutes)
+```bash
+# Fork on GitHub, then clone your fork
+git clone https://github.com/YOUR_USERNAME/pierre_mcp_server.git
+cd pierre_mcp_server
+```
+
+### Step 2: Environment Setup (5 minutes)
+**Prerequisites**: Only Rust 1.75+ required
+```bash
+# Install Rust if needed
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source ~/.cargo/env
+
+# Build the project
+cargo build --release
+```
+
+### Step 3: Verify Setup (3 minutes)
+```bash
+# Start the server
+cargo run --bin pierre-mcp-server
+# Wait for: "Server ready on ports 8080 (MCP) and 8081 (HTTP)"
+
+# In another terminal, test it works
+curl http://localhost:8081/api/health
+# Should return: {"status":"healthy"}
+```
+
+### Step 4: Run Full Test Suite (10 minutes)
+```bash
+# Run all tests and linting (this is what CI runs)
+./scripts/lint-and-test.sh
+# Should end with: ✅ All checks passed!
+```
+
+### Step 5: Make Your First Change (10 minutes)
+```bash
+# Create a branch
+git checkout -b your-feature-name
+
+# Make a small change (try adding a comment or fixing a typo)
+# Then test it still works
+cargo test
+
+# Commit and push
+git add .
+git commit -m "Your change description"
+git push origin your-feature-name
+```
+
+Ready to contribute - create a pull request from your branch.
+
+## API Reference for Contributors
+
+| Purpose | Port | Endpoint | Auth Needed | Use Case |
+|---------|------|----------|-------------|----------|
+| Health check | 8081 | `GET /api/health` | None | Verify server running |
+| User registration | 8081 | `POST /api/auth/register` | None | New user signup |
+| User login | 8081 | `POST /api/auth/login` | None | Get JWT token |
+| Admin actions | 8081 | `POST /admin/*` | Admin JWT | User approval, etc. |
+| A2A protocol | 8081 | `POST /a2a/*` | Client credentials | Agent-to-agent |
+| MCP protocol | 8080 | All MCP calls | User JWT | Claude Desktop, AI tools |
+
+## Good First Contributions
 
 ## Ways to Contribute
 
@@ -44,52 +104,92 @@ Thank you for your interest in contributing to Pierre! This project is built by 
 
 ## Development Setup
 
-### Prerequisites
-- **Rust** 1.70+ (install via [rustup](https://rustup.rs/))
-- **Node.js** 18+ for frontend development
-- **Python** 3.8+ for examples and tooling
+### Easy (30 minutes)
+- **Fix documentation typos** - Look for typos in `README.md` or `docs/`
+- **Add API examples** - Add curl examples to `docs/developer-guide/14-api-reference.md`
+- **Improve error messages** - Make error messages more helpful in `src/errors.rs`
 
-### Local Development
+### Medium (2-4 hours)
+- **Add new MCP tool** - Add fitness tool in `src/tools/` (see existing tools as examples)
+- **Add test coverage** - Find untested code with `cargo tarpaulin`
+- **Frontend improvements** - Add features to admin dashboard in `frontend/src/`
+
+### Advanced (1+ days)
+- **New fitness provider** - Add Garmin/Polar support in `src/providers/`
+- **Performance optimization** - Profile and optimize database queries
+- **Security improvements** - Enhance authentication or encryption
+
+## Development Environment
+
+### Minimal Setup (Most Contributors)
+**Prerequisites**: Only Rust 1.75+
 ```bash
-# Clone and setup
-git clone https://github.com/YOUR_USERNAME/pierre_mcp_server.git
-cd pierre_mcp_server
-
-# Backend development
-cargo build          # Build the project
-cargo test           # Run tests
-cargo run --bin pierre-mcp-server -- --single-tenant --port 8080
-
-# Frontend development (optional)
-cd frontend
-npm install
-npm run dev          # Development server
-npm test             # Run tests
-
-# Verify everything works
-./scripts/lint-and-test.sh
+# Everything you need
+cargo build
+cargo run --bin pierre-mcp-server
+# Database auto-created, no external dependencies
 ```
 
-## Code Guidelines
+### Full Development Setup (Advanced)
+**Additional**: PostgreSQL, Redis, Strava API credentials
+```bash
+# See docs/developer-guide/15-getting-started.md for complete setup
+```
 
-### Rust Backend
-- Follow Rust naming conventions and idioms
-- Use `cargo fmt` for formatting
-- Pass `cargo clippy` without warnings
-- Add tests for new functionality
-- Document public APIs with doc comments
+### Frontend Development (Optional)
+```bash
+cd frontend
+npm install
+npm run dev    # Development server on :5173
+npm test       # Component tests
+```
+
+## Code Standards
+
+### Rust Backend (Enforced by CI)
+```bash
+# These must pass before your PR is merged
+cargo fmt --check          # Code formatting
+cargo clippy -- -D warnings # Linting
+cargo test                  # All tests pass
+./scripts/lint-and-test.sh  # Full validation
+```
+
+### Key Rules from [CLAUDE.md](CLAUDE.md)
+- **No `unwrap()` or `panic!()`** - Use proper error handling with `Result<T, E>`
+- **No placeholder code** - No TODOs, FIXMEs, or unimplemented features
+- **Test everything** - New code needs comprehensive tests
+- **Document public APIs** - Use `///` doc comments
 
 ### TypeScript Frontend
-- Use ESLint configuration provided
-- Follow React best practices
-- Add tests for new components
-- Maintain type safety
+- **ESLint must pass**: `npm run lint`
+- **Tests required**: `npm test`
+- **Type safety**: No `any` types
 
-### Python Examples
-- Follow PEP 8 style guidelines
-- Include type hints where helpful  
-- Add docstrings for classes and functions
-- Test examples work in isolation
+## Development Workflow
+
+### Before Starting Work
+1. **Check existing issues** - Avoid duplicate work
+2. **Discuss big changes** - Comment on issue or create discussion
+3. **Update dependencies** - `cargo update && npm update`
+
+### While Developing
+```bash
+# Continuous testing during development
+cargo watch -x test           # Auto-run tests on changes
+cargo watch -x clippy          # Auto-run linting
+npm run dev                    # Frontend dev server with hot reload
+```
+
+### Before Submitting PR
+```bash
+# This is what CI will run - make sure it passes
+./scripts/lint-and-test.sh
+
+# Check your changes don't break anything
+cargo build --release
+cargo run --bin pierre-mcp-server  # Should start without errors
+```
 
 ## Pull Request Process
 
@@ -153,10 +253,31 @@ Contributors are recognized through:
 
 ## Getting Help
 
-- **Documentation**: Start with [README.md](README.md) and [docs/SETUP.md](docs/SETUP.md)
-- **GitHub Discussions**: Questions, ideas, and general discussion
-- **GitHub Issues**: Bug reports and feature requests
-- **Maintainers**: Tag `@maintainers` for architectural questions
+### When You're Stuck
+1. **Check existing docs** - [docs/developer-guide/15-getting-started.md](docs/developer-guide/15-getting-started.md)
+2. **Search closed issues** - Someone may have had the same problem
+3. **Enable debug logging** - `RUST_LOG=debug cargo run --bin pierre-mcp-server`
+4. **Ask in GitHub Discussions** - We're friendly and responsive!
+
+### Common Issues & Solutions
+
+**"cargo build fails"**
+```bash
+rustup update              # Update Rust
+cargo clean && cargo build # Clean rebuild
+```
+
+**"Server won't start"**
+```bash
+./scripts/fresh-start.sh   # Clean database restart
+lsof -i :8080 -i :8081     # Check if ports are in use
+```
+
+**"Tests failing"**
+```bash
+export RUST_LOG=debug      # More verbose test output
+cargo test -- --nocapture  # See test output
+```
 
 ## Good First Issues
 
@@ -183,4 +304,25 @@ By contributing to Pierre, you agree that your contributions will be licensed un
 
 ---
 
-**Thank you for contributing to Pierre! Together we're building the future of intelligent fitness applications.**
+---
+
+## TL;DR for Experienced Developers
+
+```bash
+# Clone, build, test, contribute
+git clone YOUR_FORK
+cd pierre_mcp_server
+cargo build --release
+./scripts/lint-and-test.sh  # Must pass
+# Make changes, test, submit PR
+```
+
+**Key files to know:**
+- `src/main.rs` - Server entry point (doesn't exist, uses bin/)
+- `src/bin/pierre-mcp-server.rs` - Main server binary  
+- `src/routes.rs` - HTTP API routes
+- `src/mcp/multitenant.rs` - MCP protocol implementation
+- `src/providers/strava.rs` - Example fitness provider
+- `CLAUDE.md` - Development standards (must read)
+
+Thank you for contributing.

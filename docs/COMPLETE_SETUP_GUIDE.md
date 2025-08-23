@@ -171,7 +171,7 @@ curl -X POST http://localhost:8081/api/auth/register \
 Use the admin token to approve the registered user:
 
 ```bash
-curl -X PUT http://localhost:8081/api/admin/users/e13aeeb8-b7cb-4498-aeb7-b211284c1d37/approve \
+curl -X POST http://localhost:8081/admin/approve-user/e13aeeb8-b7cb-4498-aeb7-b211284c1d37 \
   -H "Authorization: Bearer YOUR_JWT_TOKEN_HERE" \
   -H "Content-Type: application/json"
 ```
@@ -350,7 +350,7 @@ curl -X POST http://localhost:8080 \
 ### 3. Admin API Test
 
 ```bash
-curl -X GET http://localhost:8081/api/admin/tokens \
+curl -X GET http://localhost:8081/admin/tokens \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
