@@ -1591,6 +1591,7 @@ impl MultiTenantMcpServer {
             .and(warp::method())
             .and(warp::header::optional::<String>("origin"))
             .and(warp::header::optional::<String>("accept"))
+            .and(warp::header::optional::<String>("authorization"))
             .and(
                 warp::body::json()
                     .or(warp::any().map(|| serde_json::Value::Null))
@@ -1600,6 +1601,7 @@ impl MultiTenantMcpServer {
                 move |method: warp::http::Method,
                       origin: Option<String>,
                       accept: Option<String>,
+                      authorization: Option<String>,
                       body: serde_json::Value| {
                     let database = database.clone();
                     let auth_manager = auth_manager.clone();
@@ -1613,7 +1615,7 @@ impl MultiTenantMcpServer {
                             auth_middleware,
                             tenant_provider_factory,
                         };
-                        Self::handle_mcp_http_request(method, origin, accept, body, &ctx).await
+                        Self::handle_mcp_http_request(method, origin, accept, authorization, body, &ctx).await
                     }
                 }
             });
@@ -1639,6 +1641,7 @@ impl MultiTenantMcpServer {
         method: warp::http::Method,
         origin: Option<String>,
         accept: Option<String>,
+        authorization: Option<String>,
         body: serde_json::Value,
         ctx: &HttpRequestContext,
     ) -> Result<Box<dyn warp::Reply>, warp::Rejection> {
@@ -1652,7 +1655,12 @@ impl MultiTenantMcpServer {
         match method {
             warp::http::Method::POST => {
                 // Handle JSON-RPC request
-                if let Ok(request) = serde_json::from_value::<McpRequest>(body) {
+                if let Ok(mut request) = serde_json::from_value::<McpRequest>(body) {
+                    // If no auth_token in the request body, use the Authorization header
+                    if request.auth_token.is_none() {
+                        request.auth_token = authorization;
+                    }
+                    
                     let response = Self::handle_request(
                         request,
                         &ctx.database,

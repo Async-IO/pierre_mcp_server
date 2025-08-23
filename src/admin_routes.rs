@@ -1593,7 +1593,21 @@ async fn handle_approve_user(
         return Ok(with_status(json(&response), StatusCode::BAD_REQUEST));
     };
 
-    match approve_user_status(&context.database, user_uuid, &admin_token.token_id).await {
+    // Get admin user ID for approval (use system admin for admin token operations)
+    let admin_user_id = match get_system_admin_user_id(&context.database).await {
+        Ok(id) => id,
+        Err(e) => {
+            error!("Failed to get system admin user ID: {}", e);
+            let response = UserManagementResponse {
+                success: false,
+                message: "Failed to get system admin user for approval".into(),
+                user: None,
+            };
+            return Ok(with_status(json(&response), StatusCode::INTERNAL_SERVER_ERROR));
+        }
+    };
+    
+    match approve_user_status(&context.database, user_uuid, &admin_user_id).await {
         Ok(user) => {
             info!("User approved successfully: {}", user.email);
             let response = UserManagementResponse {
@@ -1752,4 +1766,24 @@ async fn suspend_user_status(
         .update_user_status(user_id, UserStatus::Suspended, admin_token_id)
         .await?;
     Ok(user)
+}
+
+/// Get system admin user ID for approval operations
+async fn get_system_admin_user_id(database: &Database) -> Result<String> {
+    // For admin token operations, we need to use the system admin user ID
+    // Look for an active admin user with enterprise tier
+    let users = database.get_users_by_status("active").await?;
+    
+    for user in &users {
+        if user.tier == crate::models::UserTier::Enterprise {
+            return Ok(user.id.to_string());
+        }
+    }
+    
+    // Fallback: use the first active user if no enterprise user found
+    if let Some(user) = users.first() {
+        return Ok(user.id.to_string());
+    }
+    
+    anyhow::bail!("No active admin user found for approval operations")
 }

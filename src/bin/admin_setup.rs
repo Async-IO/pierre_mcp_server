@@ -25,12 +25,10 @@
 //! ```
 
 use anyhow::{anyhow, Result};
-use base64::Engine;
 use bcrypt::{hash, DEFAULT_COST};
 use clap::{Parser, Subcommand};
 use pierre_mcp_server::{
     admin::models::{CreateAdminTokenRequest, GeneratedAdminToken},
-    database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
 };
 use std::env;
@@ -158,35 +156,18 @@ async fn main() -> Result<()> {
         .or_else(|| env::var("DATABASE_URL").ok())
         .unwrap_or_else(|| "sqlite:./data/users.db".into());
 
-    let encryption_key = if let Some(key_str) = args
-        .encryption_key
-        .or_else(|| env::var("ENCRYPTION_KEY").ok())
-    {
-        base64::engine::general_purpose::STANDARD
-            .decode(&key_str)
-            .map_err(|e| anyhow!("Invalid encryption key format: {}", e))?
-    } else {
-        // Use the same encryption key file as the server
-        let key_file = std::path::PathBuf::from("./data/encryption.key");
-        if key_file.exists() {
-            info!("Loading encryption key from: {}", key_file.display());
-            std::fs::read(&key_file)
-                .map_err(|e| anyhow!("Failed to read encryption key file: {}", e))?
-        } else {
-            warn!("No encryption key file found, generating a new one");
-            let key = generate_encryption_key();
-            std::fs::create_dir_all("./data")
-                .map_err(|e| anyhow!("Failed to create data directory: {}", e))?;
-            std::fs::write(&key_file, key)
-                .map_err(|e| anyhow!("Failed to write encryption key file: {}", e))?;
-            info!("Generated new encryption key: {}", key_file.display());
-            key.to_vec()
-        }
-    };
+    // Initialize two-tier key management system
+    let (mut key_manager, database_encryption_key) =
+        pierre_mcp_server::key_management::KeyManager::bootstrap()?;
+    info!("Two-tier key management system initialized for admin-setup");
 
     // Initialize database
     info!("Connecting to database: {}", database_url);
-    let database = Database::new(&database_url, encryption_key).await?;
+    let database = Database::new(&database_url, database_encryption_key.to_vec()).await?;
+
+    // Complete key manager initialization
+    key_manager.complete_initialization(&database).await?;
+    info!("Two-tier key management system fully initialized for admin-setup");
 
     // Run database migrations to ensure admin_tokens table exists
     info!("Running database migrations...");

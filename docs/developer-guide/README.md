@@ -18,7 +18,8 @@
 14. [API Reference](./14-api-reference.md)
 15. [Getting Started](./15-getting-started.md)
 16. [Testing Strategy](./16-testing-strategy.md)
-17. [A2A Integration Guide](./A2A-INTEGRATION-GUIDE.md)
+17. [Security Guide](./17-security-guide.md)
+18. [A2A Integration Guide](./A2A-INTEGRATION-GUIDE.md)
 
 ## Overview
 
@@ -54,11 +55,12 @@ Business logic is separated from protocol handlers, allowing multiple interfaces
 Fitness data providers (Strava, Fitbit, etc.) are abstracted behind a common interface.
 
 ### 4. Security First
-- JWT-based authentication
-- Encrypted token storage
-- Per-tenant isolation
-- Rate limiting
-- Audit logging
+- Two-tier key management system (MEK/DEK)
+- JWT-based authentication with database-stored secrets
+- AES-256-GCM encrypted token storage
+- Per-tenant data isolation
+- Multi-layer rate limiting
+- Comprehensive audit logging
 
 ### 5. Intelligence Layer
 Advanced analytics and recommendations powered by physiological models and ML algorithms.
@@ -95,6 +97,7 @@ pierre_mcp_server/
 │   ├── database/         # Database layer
 │   ├── database_plugins/ # Database backends (SQLite/PostgreSQL)
 │   ├── intelligence/     # Analytics and recommendations
+│   ├── key_management/   # Two-tier key management system
 │   ├── mcp/             # MCP protocol implementation
 │   ├── oauth/           # OAuth management
 │   ├── protocols/       # Protocol converters and universal handlers

@@ -1,14 +1,25 @@
 #!/usr/bin/env node
-
+// ABOUTME: Advanced MCP bridge for Claude Desktop with environment variable configuration
+// ABOUTME: Translates between Claude Desktop MCP protocol and Pierre HTTP server
 // Pierre MCP Bridge for Claude Desktop
 // Translates between Claude Desktop MCP protocol and Pierre HTTP server
 
 const http = require('http');
+const https = require('https');
 const readline = require('readline');
 
-const API_KEY = 'pk_live_akODQjOwjSStpvyRd0GQvSEvEyfklRNy';
-const SERVER_HOST = 'localhost';
-const SERVER_PORT = 8080;
+// Get configuration from environment variables
+const SERVER_URL = process.env.PIERRE_MCP_SERVER_URL || 'http://localhost:8080';
+const USER_EMAIL = process.env.PIERRE_USER_EMAIL;
+const USER_PASSWORD = process.env.PIERRE_USER_PASSWORD;
+const API_KEY = process.env.PIERRE_API_KEY || 'YOUR_API_KEY_HERE';
+
+// Parse server URL
+const url = new URL(SERVER_URL);
+const isHttps = url.protocol === 'https:';
+const client = isHttps ? https : http;
+const SERVER_HOST = url.hostname;
+const SERVER_PORT = parseInt(url.port) || (isHttps ? 443 : 80);
 
 // Debug logging to stderr (visible in Claude Desktop logs)
 function debug(msg) {
@@ -39,13 +50,13 @@ rl.on('line', async (line) => {
       path: '/mcp',
       method: 'POST',
       headers: {
-        'Authorization': API_KEY,
+        'Authorization': `Bearer ${API_KEY}`,
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(postData)
       }
     };
     
-    const req = http.request(options, (res) => {
+    const req = client.request(options, (res) => {
       let data = '';
       
       res.on('data', (chunk) => {

@@ -1,8 +1,10 @@
 #!/usr/bin/env node
+// ABOUTME: Basic MCP bridge implementation for HTTP transport to Pierre MCP Server
+// ABOUTME: Handles MCP protocol translation and request forwarding with error handling
 const http = require('http');
 const readline = require('readline');
 
-const API_KEY = 'pk_live_L2Q5HCWtDGl8tLvZXILnNmyPSnqynHg7';
+const API_KEY = process.env.PIERRE_API_KEY || 'YOUR_API_KEY_HERE';
 
 const rl = readline.createInterface({
   input: process.stdin,

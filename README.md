@@ -5,7 +5,7 @@
 
 > ⚠️ **Development Status**: This project is under active development. APIs and features may change.
 
-**Universal MCP server** providing AI assistants and applications with secure access to fitness data (Strava, Fitbit). Fully compatible with any MCP client including Claude Desktop, ChatGPT, Cursor, and custom agents. Features user authentication, A2A Protocol, REST APIs, secure OAuth credential storage, and admin approval system.
+MCP server implementation for fitness data access from Strava and Fitbit providers. Supports MCP protocol, A2A protocol, and REST APIs with OAuth credential management and user authentication.
 
 ## Architecture Overview
 
@@ -13,6 +13,7 @@
 
 1. **Pierre MCP Server** (`pierre-mcp-server`) - Runs as daemon with database access
    - Handles all fitness data operations
+   - Two-tier key management system (MEK/DEK)
    - Manages OAuth credentials with AES-256-GCM encryption
    - Enforces admin approval for new users
    - Serves HTTP API and MCP endpoints
@@ -20,7 +21,7 @@
 2. **Pierre MCP Client** (`pierre-mcp-client`) - Lightweight MCP client for Claude Desktop
    - Connects to running server via HTTP
    - Translates MCP protocol to HTTP API calls
-   - Stateless and secure
+   - Stateless design
 
 ## Protocol Support
 
@@ -53,6 +54,7 @@
 - [MCP Protocol](docs/developer-guide/04-mcp-protocol.md) - Model Context Protocol implementation
 - [A2A Protocol](docs/developer-guide/05-a2a-protocol.md) - Agent-to-Agent protocol
 - [A2A Integration Examples](docs/developer-guide/A2A-INTEGRATION-GUIDE.md) - Discord bots, IoT, analytics
+- [Security Guide](docs/developer-guide/17-security-guide.md) - Two-tier key management, encryption, production security
 
 ### 🚀 Quick Start
 - [A2A Quick Start](docs/A2A_QUICK_START.md) - 5-minute A2A setup
@@ -66,6 +68,7 @@
 1. **Rust toolchain** (1.75+): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
 2. **Strava app**: Create at [developers.strava.com](https://developers.strava.com)
 3. **Database**: SQLite (default) or PostgreSQL
+4. **Master Encryption Key**: Optional for development (auto-generated), required for production security
 
 ### Local Development Setup
 
@@ -75,11 +78,17 @@ git clone https://github.com/Async-IO/pierre_mcp_server.git
 cd pierre_mcp_server
 cargo build --release
 
-# 2. Start the Pierre MCP Server (runs as daemon)
+# 2. (Optional) Set Master Encryption Key for production  
+# For development, system auto-generates MEK with warning messages
+# For production, set explicit MEK:
+export PIERRE_MASTER_ENCRYPTION_KEY="$(openssl rand -base64 32)"
+echo "Save this MEK securely: $PIERRE_MASTER_ENCRYPTION_KEY"
+
+# 3. Start the Pierre MCP Server (runs as daemon)
 cargo run --bin pierre-mcp-server
 # Server starts on http://localhost:8081 (HTTP) and http://localhost:8080 (MCP)
 
-# 3. Create the default tenant (required for user registration)
+# 4. Create the default tenant (required for user registration)
 curl -X POST http://localhost:8081/api/tenants \
   -H "Content-Type: application/json" \
   -d '{
@@ -89,7 +98,7 @@ curl -X POST http://localhost:8081/api/tenants \
   }'
 # Save the tenant "id" (UUID) from the response - you'll need it for OAuth configuration
 
-# 4. Configure OAuth credentials for the default tenant
+# 5. Configure OAuth credentials for the default tenant
 curl -X POST http://localhost:8081/api/tenants/{TENANT_UUID}/oauth \
   -H "Content-Type: application/json" \
   -d '{
@@ -104,9 +113,9 @@ curl -X POST http://localhost:8081/api/tenants/{TENANT_UUID}/oauth \
 
 ## MCP Client Integration
 
-Pierre is a **universal MCP server** compatible with any MCP client following the Model Context Protocol specification.
+MCP server implementation compatible with MCP clients following the Model Context Protocol specification.
 
-### Supported MCP Clients
+### MCP Client Compatibility
 
 | Client | Platform | Configuration |
 |--------|----------|---------------|
@@ -116,11 +125,11 @@ Pierre is a **universal MCP server** compatible with any MCP client following th
 | **Continue.dev** | VS Code | MCP plugin |
 | **Custom agents** | Any platform | Direct MCP protocol |
 
-### Universal MCP Configuration
+### MCP Configuration
 
-Pierre provides the standard MCP client binary that works with any MCP-compatible application:
+Standard MCP client binary for MCP-compatible applications:
 
-#### Option 1: Direct MCP Binary (Recommended)
+#### Option 1: Direct MCP Binary
 ```json
 {
   "mcpServers": {
@@ -317,17 +326,17 @@ const activities = await sdk.getStravaActivities();
 
 ## Deployment Modes
 
-| Mode | Best For | Features |
+| Mode | Use Case | Features |
 |------|----------|----------|
 | **Production** | Organizations, teams | User authentication, admin approval, encrypted OAuth storage |
 | **Development** | Personal use, testing | Simplified setup, environment variable configuration |
 
-## Key Features
+## Features
 
 | Category | Features |
 |----------|----------|
 | **Architecture** | User authentication • Admin approval system • Two-component design |
-| **Security** | AES-256-GCM encryption • JWT authentication • Secure OAuth credential storage |
+| **Security** | Two-tier key management (MEK/DEK) • AES-256-GCM encryption • JWT authentication • Secure OAuth credential storage |
 | **Protocols** | MCP Protocol • A2A Protocol • REST APIs |
 | **Integrations** | Strava • Fitbit • Claude Desktop • ChatGPT • Custom agents |
 | **Intelligence** | Activity analysis • Location detection • Weather integration |

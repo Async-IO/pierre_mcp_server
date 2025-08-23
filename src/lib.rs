@@ -163,6 +163,9 @@ pub mod errors;
 /// Unified tool execution engine for fitness analysis and data processing
 pub mod tools;
 
+/// Two-tier key management system for secure database encryption
+pub mod key_management;
+
 // Utility modules
 pub mod tenant;
 pub mod utils;

@@ -907,21 +907,63 @@ impl UserRateLimiter {
 
 ## Production Security Considerations
 
+### Two-Tier Key Management System
+
+Pierre implements a secure two-tier key management system with automatic bootstrap and mode detection:
+
+**Tier 1: Master Encryption Key (MEK)**
+- Loaded from `PIERRE_MASTER_ENCRYPTION_KEY` environment variable (production)
+- Auto-generated with warnings if not set (development)
+- Used exclusively to encrypt/decrypt the Database Encryption Key
+- Must be stored securely (HSM, Kubernetes secrets, etc.) in production
+- Never stored in database or application files
+
+**Tier 2: Database Encryption Key (DEK)**
+- Generated automatically on first startup using secure random
+- Stored encrypted with MEK in database as base64-encoded value
+- Used for all actual data encryption operations (OAuth tokens, user data)
+- Can be rotated independently without changing MEK
+- Seamlessly loads from database on subsequent starts
+
+**Bootstrap Process:**
+1. **Phase 1**: Load MEK from environment, generate temporary DEK
+2. **Phase 2**: Initialize database with temporary DEK  
+3. **Phase 3**: Load existing encrypted DEK or store current DEK encrypted with MEK
+
+**Development to Production Migration:**
+- Copy generated MEK from development logs to production environment
+- Database transfers seamlessly - no data migration required
+
 ### Environment Variables
 
+**Development Environment** (MEK auto-generated):
+```bash
+# Development - no MEK required, system generates and logs it
+export DATABASE_URL="sqlite:./data/users.db"
+
+# OAuth credentials for testing
+export STRAVA_CLIENT_ID="your_test_strava_client_id"
+export STRAVA_CLIENT_SECRET="your_test_strava_client_secret"
+
+# System will log: "Generated MEK (save for production): PIERRE_MASTER_ENCRYPTION_KEY=<key>"
+```
+
+**Production Environment** (explicit MEK):
 ```bash
 # Production deployment environment
 export DATABASE_URL="postgresql://pierre:$DB_PASSWORD@db.pierre.com:5432/pierre_prod"
-export DATABASE_ENCRYPTION_KEY_PATH="/secrets/encryption.key"
-export JWT_SECRET_PATH="/secrets/jwt.secret"
+
+# Two-tier key management - CRITICAL for production
+export PIERRE_MASTER_ENCRYPTION_KEY="base64_encoded_32_byte_key"  # From development logs or newly generated
+
 export JWT_EXPIRY_HOURS=24
 export REFRESH_TOKEN_EXPIRY_DAYS=30
 
 # OAuth credentials
-export STRAVA_CLIENT_ID="your_strava_client_id"
-export STRAVA_CLIENT_SECRET="your_strava_client_secret"
-export FITBIT_CLIENT_ID="your_fitbit_client_id"
-export FITBIT_CLIENT_SECRET="your_fitbit_client_secret"
+export STRAVA_CLIENT_ID="your_production_strava_client_id"
+export STRAVA_CLIENT_SECRET="your_production_strava_client_secret"
+export FITBIT_CLIENT_ID="your_production_fitbit_client_id"
+export FITBIT_CLIENT_SECRET="your_production_fitbit_client_secret"
 
 # Server configuration
 export PIERRE_MCP_PORT=8080
@@ -933,6 +975,13 @@ export BCRYPT_COST=12
 export RATE_LIMIT_ENABLED=true
 export AUDIT_LOGGING=true
 export CORS_ORIGINS="https://pierre.example.com"
+```
+
+**Generate New Production MEK:**
+```bash
+# Generate a new MEK for production
+export PIERRE_MASTER_ENCRYPTION_KEY="$(openssl rand -base64 32)"
+echo "Store securely: $PIERRE_MASTER_ENCRYPTION_KEY"
 ```
 
 ### Docker Compose with Security
@@ -949,11 +998,10 @@ services:
       - "8081:8081"
     environment:
       - DATABASE_URL=postgresql://pierre:${DB_PASSWORD}@postgres:5432/pierre
-      - JWT_SECRET_PATH=/secrets/jwt.secret
-      - DATABASE_ENCRYPTION_KEY_PATH=/secrets/encryption.key
+      # Two-tier key management - MEK from secure source
+      - PIERRE_MASTER_ENCRYPTION_KEY_FILE=/run/secrets/master_encryption_key
     secrets:
-      - jwt_secret
-      - encryption_key
+      - master_encryption_key
       - db_password
     depends_on:
       - postgres
@@ -972,10 +1020,8 @@ services:
     restart: unless-stopped
 
 secrets:
-  jwt_secret:
-    file: ./secrets/jwt.secret
-  encryption_key:
-    file: ./secrets/encryption.key
+  master_encryption_key:
+    file: ./secrets/master_encryption_key
   db_password:
     file: ./secrets/db_password
 
