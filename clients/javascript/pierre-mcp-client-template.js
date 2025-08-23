@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// ABOUTME: Template for creating custom MCP clients with Pierre MCP Server integration
+// ABOUTME: Production-ready client template with HTTPS support and configurable endpoints
 // Pierre MCP Client for Claude Desktop
 // Download from: https://github.com/your-org/pierre-mcp-client
 // 

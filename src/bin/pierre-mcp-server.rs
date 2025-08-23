@@ -16,12 +16,10 @@ use clap::Parser;
 use pierre_mcp_server::{
     auth::AuthManager,
     config::environment::ServerConfig,
-    database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
     logging,
     mcp::multitenant::MultiTenantMcpServer,
 };
-use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{error, info};
 
@@ -77,17 +75,15 @@ async fn main() -> Result<()> {
         info!("Starting Pierre Fitness API - Production Mode");
         info!("{}", config.summary());
 
-        // Load or generate encryption key
-        let encryption_key = load_or_generate_key(&config.database.encryption_key_path)?;
-        info!(
-            "Encryption key loaded from: {}",
-            config.database.encryption_key_path.display()
-        );
+        // Initialize two-tier key management system
+        let (mut key_manager, database_encryption_key) =
+            pierre_mcp_server::key_management::KeyManager::bootstrap()?;
+        info!("Two-tier key management system bootstrapped");
 
-        // Initialize database first
+        // Initialize database with DEK from key manager
         let database = Database::new(
             &config.database.url.to_connection_string(),
-            encryption_key.to_vec(),
+            database_encryption_key.to_vec(),
         )
         .await?;
         info!(
@@ -98,6 +94,10 @@ async fn main() -> Result<()> {
             "Database URL: {}",
             &config.database.url.to_connection_string()
         );
+
+        // Complete key manager initialization with database
+        key_manager.complete_initialization(&database).await?;
+        info!("Two-tier key management system fully initialized");
 
         // Get or create JWT secret from database
         let jwt_secret_string = database
@@ -135,33 +135,4 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
-}
-
-/// Load encryption key from file or generate a new one
-fn load_or_generate_key(key_file: &PathBuf) -> Result<[u8; 32]> {
-    // Create parent directory if it doesn't exist
-    if let Some(parent) = key_file.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-
-    if key_file.exists() {
-        // Load existing key
-        let key_data = std::fs::read(key_file)?;
-        if key_data.len() != 32 {
-            return Err(anyhow::anyhow!(
-                "Invalid encryption key length: expected 32 bytes, got {}",
-                key_data.len()
-            ));
-        }
-
-        let mut key = [0u8; 32];
-        key.copy_from_slice(&key_data);
-        Ok(key)
-    } else {
-        // Generate new key
-        let key = generate_encryption_key();
-        std::fs::write(key_file, key)?;
-        info!("Generated new encryption key: {}", key_file.display());
-        Ok(key)
-    }
 }

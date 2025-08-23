@@ -3,12 +3,20 @@
 // ABOUTME: Provides production-ready HTTP transport without local bridges
 
 const http = require('http');
+const https = require('https');
+const { URL } = require('url');
 const readline = require('readline');
 
-const API_KEY = 'pk_live_akODQjOwjSStpvyRd0GQvSEvEyfklRNy';
-const SERVER_HOST = 'localhost';
-const SERVER_PORT = 8080;
-const SERVER_PATH = '/mcp';
+const API_KEY = process.env.PIERRE_API_KEY || 'YOUR_API_KEY_HERE';
+const SERVER_URL = process.env.PIERRE_MCP_SERVER_URL || 'http://localhost:8080/mcp';
+
+// Parse server URL to get protocol, host, port, and path
+const url = new URL(SERVER_URL);
+const isHttps = url.protocol === 'https:';
+const client = isHttps ? https : http;
+const SERVER_HOST = url.hostname;
+const SERVER_PORT = parseInt(url.port) || (isHttps ? 443 : 80);
+const SERVER_PATH = url.pathname;
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -23,13 +31,13 @@ rl.on('line', (line) => {
     path: SERVER_PATH,
     method: 'POST',
     headers: {
-      'Authorization': API_KEY,
+      'Authorization': `Bearer ${API_KEY}`,
       'Content-Type': 'application/json',
       'Content-Length': Buffer.byteLength(line)
     }
   };
 
-  const req = http.request(options, (res) => {
+  const req = client.request(options, (res) => {
     let data = '';
     res.on('data', (chunk) => data += chunk);
     res.on('end', () => process.stdout.write(data + '\n'));
