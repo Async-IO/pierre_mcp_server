@@ -91,11 +91,11 @@ REDIS_URL="redis://localhost:6379"
 # OAuth Credentials (get these from provider developer consoles)
 STRAVA_CLIENT_ID="your_strava_client_id"
 STRAVA_CLIENT_SECRET="your_strava_client_secret"
-STRAVA_REDIRECT_URI="http://localhost:3000/oauth/strava/callback"
+STRAVA_REDIRECT_URI="http://localhost:8081/api/oauth/strava/callback"
 
 FITBIT_CLIENT_ID="your_fitbit_client_id"
 FITBIT_CLIENT_SECRET="your_fitbit_client_secret"
-FITBIT_REDIRECT_URI="http://localhost:3000/oauth/fitbit/callback"
+FITBIT_REDIRECT_URI="http://localhost:8081/api/oauth/fitbit/callback"
 
 # Logging
 RUST_LOG="info,pierre_mcp_server=debug"
@@ -204,11 +204,11 @@ cargo run --bin pierre-mcp-server
 
 ### 2. Initialize Admin User
 
-Visit: `http://localhost:3000/admin/setup/status`
+Visit: `http://localhost:8081/api/admin/setup/status`
 
 If setup is needed, create admin user:
 ```bash
-curl -X POST http://localhost:3000/admin/setup \
+curl -X POST http://localhost:8081/api/admin/setup \
   -H "Content-Type: application/json" \
   -d '{
     "email": "admin@example.com",
@@ -217,10 +217,10 @@ curl -X POST http://localhost:3000/admin/setup \
   }'
 ```
 
-### 3. Create Your First User
+### 3. Register Your First User
 
 ```bash
-curl -X POST http://localhost:3000/auth/register \
+curl -X POST http://localhost:8081/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "developer@example.com",
@@ -229,10 +229,33 @@ curl -X POST http://localhost:3000/auth/register \
   }'
 ```
 
-### 4. Login and Get JWT Token
+**Response:**
+```json
+{
+  "user_id": "550e8400-e29b-41d4-a716-446655440000",
+  "message": "User registered successfully. Your account is pending admin approval."
+}
+```
+
+### 4. Approve the User (Admin Action)
+
+New users require admin approval before they can login:
 
 ```bash
-curl -X POST http://localhost:3000/auth/login \
+curl -X POST http://localhost:8081/api/admin/approve-user/550e8400-e29b-41d4-a716-446655440000 \
+  -H "Authorization: Bearer ADMIN_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "reason": "Development team member"
+  }'
+```
+
+### 5. Login and Get JWT Token
+
+After approval, users can login:
+
+```bash
+curl -X POST http://localhost:8081/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "developer@example.com",
@@ -242,10 +265,10 @@ curl -X POST http://localhost:3000/auth/login \
 
 Save the `jwt_token` from the response for API calls.
 
-### 5. Create Your First API Key
+### 6. Create Your First API Key
 
 ```bash
-curl -X POST http://localhost:3000/api/keys/create-simple \
+curl -X POST http://localhost:8081/api/keys/create-simple \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{
@@ -262,11 +285,11 @@ Save the `api_key` from the response for MCP/A2A clients.
 
 ```bash
 # Test API key listing
-curl -X GET http://localhost:3000/api/keys/list \
+curl -X GET http://localhost:8081/api/keys/list \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
 
 # Test dashboard overview
-curl -X GET http://localhost:3000/dashboard/overview \
+curl -X GET http://localhost:8081/api/dashboard/overview \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
@@ -277,7 +300,7 @@ Create a test file `test_mcp.js`:
 ```javascript
 const WebSocket = require('ws');
 
-const ws = new WebSocket('ws://localhost:3000/ws', {
+const ws = new WebSocket('ws://localhost:8080/ws', {
   headers: {
     'X-API-Key': 'YOUR_API_KEY'
   }
@@ -316,7 +339,7 @@ Run with: `node test_mcp.js`
 
 ```bash
 # Register A2A client
-curl -X POST http://localhost:3000/a2a/register \
+curl -X POST http://localhost:8081/a2a/register \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Test Agent",
@@ -326,7 +349,7 @@ curl -X POST http://localhost:3000/a2a/register \
   }'
 
 # Authenticate A2A client
-curl -X POST http://localhost:3000/a2a/auth \
+curl -X POST http://localhost:8081/a2a/auth \
   -H "Content-Type: application/json" \
   -d '{
     "client_id": "YOUR_CLIENT_ID",
@@ -489,7 +512,7 @@ cargo run --bin pierre-mcp-server
       "command": "wscat",
       "args": [
         "-c",
-        "ws://localhost:3000/ws",
+        "ws://localhost:8080/ws",
         "--header",
         "X-API-Key: YOUR_API_KEY"
       ]
@@ -643,8 +666,8 @@ const bot = new PierreBot();
 **Error**: `WebSocket connection failed`
 
 **Solutions**:
-- Check API key is valid: `curl -X GET http://localhost:3000/api/keys/list -H "Authorization: Bearer JWT"`
-- Verify WebSocket endpoint: `ws://localhost:3000/ws`
+- Check API key is valid: `curl -X GET http://localhost:8081/api/keys/list -H "Authorization: Bearer JWT"`
+- Verify WebSocket endpoint: `ws://localhost:8080/ws`
 - Check server logs for authentication errors
 - Ensure API key header format: `X-API-Key: your_key`
 
