@@ -415,7 +415,7 @@ async fn test_complete_multitenant_workflow() -> Result<()> {
     let server = MultiTenantMcpServer::new(
         database,
         auth_manager,
-        TEST_JWT_SECRET.to_string(),
+        TEST_JWT_SECRET,
         create_test_config(&jwt_secret_path, &encryption_key_path),
     );
     let server_handle = tokio::spawn(async move {
@@ -554,7 +554,7 @@ async fn test_mcp_authentication_required() -> Result<()> {
     let server = MultiTenantMcpServer::new(
         database,
         auth_manager,
-        TEST_JWT_SECRET.to_string(),
+        TEST_JWT_SECRET,
         create_test_config(&jwt_secret_path, &encryption_key_path),
     );
     let server_handle = tokio::spawn(async move {
@@ -624,7 +624,7 @@ async fn test_mcp_initialization_no_auth() -> Result<()> {
     let server = MultiTenantMcpServer::new(
         database,
         auth_manager,
-        TEST_JWT_SECRET.to_string(),
+        TEST_JWT_SECRET,
         create_test_config(&jwt_secret_path, &encryption_key_path),
     );
     let server_handle = tokio::spawn(async move {
@@ -684,7 +684,7 @@ async fn test_mcp_concurrent_requests() -> Result<()> {
     let server = MultiTenantMcpServer::new(
         database,
         auth_manager,
-        TEST_JWT_SECRET.to_string(),
+        TEST_JWT_SECRET,
         create_test_config(&jwt_secret_path, &encryption_key_path),
     );
     let server_handle = tokio::spawn(async move {
@@ -775,12 +775,8 @@ async fn test_multitenant_server_config() -> Result<()> {
     let config = create_test_config(&jwt_secret_path, &encryption_key_path);
 
     // Test server creation
-    let _server = MultiTenantMcpServer::new(
-        database,
-        auth_manager,
-        TEST_JWT_SECRET.to_string(),
-        config.clone(),
-    );
+    let _server =
+        MultiTenantMcpServer::new(database, auth_manager, TEST_JWT_SECRET, config.clone());
 
     // Verify configuration
     assert_eq!(config.mcp_port, 8080);

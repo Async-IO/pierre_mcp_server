@@ -51,8 +51,7 @@
 #![allow(clippy::too_many_lines)]
 
 // Intelligence config will be used for future enhancements
-use crate::database_plugins::{factory::Database, DatabaseProvider};
-use crate::tenant::TenantOAuthClient;
+use crate::database_plugins::DatabaseProvider;
 use crate::utils::{
     json_responses::{activity_not_found_error, serialization_error},
     uuid::parse_user_id_for_protocol,
@@ -86,7 +85,7 @@ use crate::intelligence::physiological_constants::{
     unit_conversions::MS_TO_KMH_FACTOR,
 };
 use crate::intelligence::recommendation_engine::RecommendationEngineTrait;
-use crate::intelligence::ActivityIntelligence;
+use crate::mcp::multitenant::ServerResources;
 use crate::models::Activity;
 use crate::providers::{AuthData, FitnessProvider};
 // Configuration management imports
@@ -135,10 +134,7 @@ pub struct UniversalTool {
 
 /// Universal tool executor
 pub struct UniversalToolExecutor {
-    pub database: Arc<Database>,
-    pub intelligence: Arc<ActivityIntelligence>,
-    pub config: Arc<crate::config::environment::ServerConfig>,
-    pub tenant_oauth_client: Arc<TenantOAuthClient>,
+    pub resources: Arc<ServerResources>,
     tools: HashMap<String, UniversalTool>,
 }
 
@@ -245,17 +241,9 @@ impl UniversalToolExecutor {
         Err("Universal provider system deprecated - use tenant-aware MCP endpoints for activity data".into())
     }
     #[must_use]
-    pub fn new(
-        database: Arc<Database>,
-        intelligence: Arc<ActivityIntelligence>,
-        config: Arc<crate::config::environment::ServerConfig>,
-        tenant_oauth_client: Arc<TenantOAuthClient>,
-    ) -> Self {
+    pub fn new(resources: Arc<ServerResources>) -> Self {
         Self {
-            database,
-            intelligence,
-            config,
-            tenant_oauth_client,
+            resources,
             tools: HashMap::new(),
         }
     }
@@ -272,7 +260,7 @@ impl UniversalToolExecutor {
             // Convert string tenant ID to UUID and look up full tenant context
             if let Ok(tenant_uuid) = uuid::Uuid::parse_str(tenant_id_str) {
                 // Look up tenant information from database to create proper TenantContext
-                if let Ok(tenant) = self.database.get_tenant_by_id(tenant_uuid).await {
+                if let Ok(tenant) = self.resources.database.get_tenant_by_id(tenant_uuid).await {
                     let tenant_context = crate::tenant::TenantContext {
                         tenant_id: tenant_uuid,
                         tenant_name: tenant.name.clone(),
@@ -282,14 +270,14 @@ impl UniversalToolExecutor {
 
                     // Get tenant-specific OAuth credentials using proper TenantContext
                     match self
+                        .resources
                         .tenant_oauth_client
                         .get_oauth_client(&tenant_context, provider)
                         .await
                     {
                         Ok(oauth_client) => {
                             // Create OAuth manager and register provider with tenant credentials
-                            let mut oauth_manager =
-                                crate::oauth::manager::OAuthManager::new(self.database.clone());
+                            let mut oauth_manager = self.resources.oauth_manager.write().await;
 
                             // Extract credentials from OAuth2Client config
                             let config = oauth_client.config();
@@ -308,9 +296,11 @@ impl UniversalToolExecutor {
                                         )
                                     {
                                         oauth_manager.register_provider(Box::new(tenant_provider));
-                                        return oauth_manager
+                                        let result = oauth_manager
                                             .ensure_valid_token(user_id, provider)
                                             .await;
+                                        drop(oauth_manager);
+                                        return result;
                                     }
                                 }
                                 "fitbit" => {
@@ -346,14 +336,14 @@ impl UniversalToolExecutor {
         }
 
         // Fallback to global config for backward compatibility
-        let mut oauth_manager = crate::oauth::manager::OAuthManager::new(self.database.clone());
+        let mut oauth_manager = self.resources.oauth_manager.write().await;
 
         // Register the appropriate provider using centralized config
         match provider {
             "strava" => {
                 if let Ok(strava_provider) =
                     crate::oauth::providers::StravaOAuthProvider::from_config(
-                        &self.config.oauth.strava,
+                        &self.resources.config.oauth.strava,
                     )
                 {
                     oauth_manager.register_provider(Box::new(strava_provider));
@@ -366,7 +356,7 @@ impl UniversalToolExecutor {
             "fitbit" => {
                 if let Ok(fitbit_provider) =
                     crate::oauth::providers::FitbitOAuthProvider::from_config(
-                        &self.config.oauth.fitbit,
+                        &self.resources.config.oauth.fitbit,
                     )
                 {
                     oauth_manager.register_provider(Box::new(fitbit_provider));
@@ -632,7 +622,7 @@ impl UniversalToolExecutor {
                                 if let Ok(tenant_uuid) = uuid::Uuid::parse_str(tenant_id_str) {
                                     // Look up tenant information from database to create proper TenantContext
                                     if let Ok(tenant) =
-                                        self.database.get_tenant_by_id(tenant_uuid).await
+                                        self.resources.database.get_tenant_by_id(tenant_uuid).await
                                     {
                                         let tenant_context = crate::tenant::TenantContext {
                                             tenant_id: tenant_uuid,
@@ -643,6 +633,7 @@ impl UniversalToolExecutor {
 
                                         // Use tenant-specific OAuth credentials
                                         match self
+                                            .resources
                                             .tenant_oauth_client
                                             .get_oauth_client(&tenant_context, "strava")
                                             .await
@@ -913,7 +904,7 @@ impl UniversalToolExecutor {
         match activity_result {
             Some(activity) => {
                 // Use the intelligence module for real analysis
-                let intelligence = &self.intelligence;
+                let intelligence = &self.resources.activity_intelligence;
 
                 // Generate basic analysis
                 let efficiency_score = if let Some(distance) = activity.distance_meters {
@@ -1083,18 +1074,17 @@ impl UniversalToolExecutor {
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Use OAuth manager to check connection status for all providers
-        let database = self.database.clone();
-        let mut oauth_manager = crate::oauth::manager::OAuthManager::new(database);
+        let mut oauth_manager = self.resources.oauth_manager.write().await;
 
         // Register all providers using centralized config
-        if let Ok(strava_provider) =
-            crate::oauth::providers::StravaOAuthProvider::from_config(&self.config.oauth.strava)
-        {
+        if let Ok(strava_provider) = crate::oauth::providers::StravaOAuthProvider::from_config(
+            &self.resources.config.oauth.strava,
+        ) {
             oauth_manager.register_provider(Box::new(strava_provider));
         }
-        if let Ok(fitbit_provider) =
-            crate::oauth::providers::FitbitOAuthProvider::from_config(&self.config.oauth.fitbit)
-        {
+        if let Ok(fitbit_provider) = crate::oauth::providers::FitbitOAuthProvider::from_config(
+            &self.resources.config.oauth.fitbit,
+        ) {
             oauth_manager.register_provider(Box::new(fitbit_provider));
         }
 
@@ -1107,6 +1097,7 @@ impl UniversalToolExecutor {
                 default_status.insert("fitbit".into(), false);
                 default_status
             });
+        drop(oauth_manager);
 
         let status = serde_json::json!({
             "providers": {
@@ -1138,10 +1129,12 @@ impl UniversalToolExecutor {
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Create OAuth manager with database
-        let mut oauth_manager = crate::oauth::manager::OAuthManager::new(self.database.clone());
+        let mut oauth_manager = self.resources.oauth_manager.write().await;
 
         // Register Strava provider using centralized config
-        match crate::oauth::providers::StravaOAuthProvider::from_config(&self.config.oauth.strava) {
+        match crate::oauth::providers::StravaOAuthProvider::from_config(
+            &self.resources.config.oauth.strava,
+        ) {
             Ok(strava_provider) => {
                 oauth_manager.register_provider(Box::new(strava_provider));
 
@@ -1183,10 +1176,12 @@ impl UniversalToolExecutor {
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Create OAuth manager with database
-        let mut oauth_manager = crate::oauth::manager::OAuthManager::new(self.database.clone());
+        let mut oauth_manager = self.resources.oauth_manager.write().await;
 
         // Register Fitbit provider using centralized config
-        match crate::oauth::providers::FitbitOAuthProvider::from_config(&self.config.oauth.fitbit) {
+        match crate::oauth::providers::FitbitOAuthProvider::from_config(
+            &self.resources.config.oauth.fitbit,
+        ) {
             Ok(fitbit_provider) => {
                 oauth_manager.register_provider(Box::new(fitbit_provider));
 
@@ -1237,7 +1232,8 @@ impl UniversalToolExecutor {
         // Clear tokens for the specified provider
         match provider {
             "strava" => {
-                self.database
+                self.resources
+                    .database
                     .clear_strava_token(user_uuid)
                     .await
                     .map_err(|e| {
@@ -1248,7 +1244,8 @@ impl UniversalToolExecutor {
                     })?;
             }
             "fitbit" => {
-                self.database
+                self.resources
+                    .database
                     .clear_fitbit_token(user_uuid)
                     .await
                     .map_err(|e| {
@@ -1329,6 +1326,7 @@ impl UniversalToolExecutor {
         });
 
         let goal_id = self
+            .resources
             .database
             .create_goal(user_uuid, goal_data)
             .await
@@ -2706,6 +2704,7 @@ impl UniversalToolExecutor {
 
         // Fetch user configuration from database
         let config = match self
+            .resources
             .database
             .get_user_configuration(&user_uuid.to_string())
             .await
@@ -2867,6 +2866,7 @@ impl UniversalToolExecutor {
         })?;
 
         match self
+            .resources
             .database
             .save_user_configuration(&user_uuid.to_string(), &config_json)
             .await

@@ -23,6 +23,7 @@ use pierre_mcp_server::{
     auth::{AuthManager, McpAuthMiddleware},
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
+    mcp::multitenant::ServerResources,
     models::{User, UserTier},
 };
 use std::sync::{Arc, Once};
@@ -180,4 +181,37 @@ pub async fn setup_test_environment_with_tier(tier: UserTier) -> Result<(Arc<Dat
 
     database.create_user(&user).await?;
     Ok((database, user_id))
+}
+
+/// Create test `ServerResources` with all components properly initialized
+/// This replaces individual resource creation for proper architectural patterns
+pub async fn create_test_server_resources() -> Result<Arc<ServerResources>> {
+    init_test_logging();
+    let database_url = "sqlite::memory:";
+    let encryption_key = generate_encryption_key().to_vec();
+    let database = Database::new(database_url, encryption_key).await?;
+
+    let jwt_secret = pierre_mcp_server::auth::generate_jwt_secret().to_vec();
+    let auth_manager = AuthManager::new(jwt_secret, 24);
+
+    let admin_jwt_secret = "test_admin_secret";
+    let config = Arc::new(pierre_mcp_server::config::environment::ServerConfig::default());
+
+    Ok(Arc::new(ServerResources::new(
+        database,
+        auth_manager,
+        admin_jwt_secret,
+        config,
+    )))
+}
+
+/// Complete test environment setup using `ServerResources` pattern
+/// Returns (`server_resources`, `user_id`, `api_key`)
+pub async fn setup_server_resources_test_environment(
+) -> Result<(Arc<ServerResources>, Uuid, String)> {
+    let resources = create_test_server_resources().await?;
+    let (user_id, _user) = create_test_user(&resources.database).await?;
+    let api_key = create_test_api_key(&resources.database, user_id, "test-key")?;
+
+    Ok((resources, user_id, api_key))
 }

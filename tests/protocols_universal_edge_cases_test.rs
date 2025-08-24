@@ -124,7 +124,7 @@ fn create_test_config_no_oauth() -> Arc<ServerConfig> {
 async fn create_test_executor() -> Result<UniversalToolExecutor> {
     let database = common::create_test_database().await?;
 
-    let intelligence = Arc::new(ActivityIntelligence::new(
+    let _intelligence = Arc::new(ActivityIntelligence::new(
         "Test intelligence".to_string(),
         vec![],
         PerformanceMetrics {
@@ -149,20 +149,22 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
     ));
 
     let config = create_test_config();
-    let tenant_oauth_client = Arc::new(pierre_mcp_server::tenant::TenantOAuthClient::new());
-    Ok(UniversalToolExecutor::new(
-        database,
-        intelligence,
+    // Create ServerResources for the test
+    let auth_manager = pierre_mcp_server::auth::AuthManager::new(vec![0u8; 64], 24);
+    let server_resources = Arc::new(pierre_mcp_server::mcp::multitenant::ServerResources::new(
+        (*database).clone(),
+        auth_manager,
+        "test_secret",
         config,
-        tenant_oauth_client,
-    ))
+    ));
+    Ok(UniversalToolExecutor::new(server_resources))
 }
 
 /// Create executor with missing OAuth configuration
 async fn create_executor_no_oauth() -> Result<UniversalToolExecutor> {
     let database = common::create_test_database().await?;
 
-    let intelligence = Arc::new(ActivityIntelligence::new(
+    let _intelligence = Arc::new(ActivityIntelligence::new(
         "Test intelligence".to_string(),
         vec![],
         PerformanceMetrics {
@@ -188,14 +190,16 @@ async fn create_executor_no_oauth() -> Result<UniversalToolExecutor> {
 
     // Create config without OAuth credentials
     let config = create_test_config_no_oauth();
-    let tenant_oauth_client = Arc::new(pierre_mcp_server::tenant::TenantOAuthClient::new());
-
-    Ok(UniversalToolExecutor::new(
-        database,
-        intelligence,
+    // Create ServerResources for the test
+    let auth_manager = pierre_mcp_server::auth::AuthManager::new(vec![0u8; 64], 24);
+    let server_resources = Arc::new(pierre_mcp_server::mcp::multitenant::ServerResources::new(
+        (*database).clone(),
+        auth_manager,
+        "test_secret",
         config,
-        tenant_oauth_client,
-    ))
+    ));
+
+    Ok(UniversalToolExecutor::new(server_resources))
 }
 
 /// Test OAuth configuration errors
@@ -221,7 +225,7 @@ async fn test_oauth_configuration_errors() -> Result<()> {
         fitbit_token: None,
         tenant_id: Some("test-tenant".to_string()),
     };
-    executor.database.create_user(&user).await?;
+    executor.resources.database.create_user(&user).await?;
 
     // Test connect_strava with missing OAuth config
     let request = UniversalRequest {
@@ -267,11 +271,12 @@ async fn test_invalid_provider_tokens() -> Result<()> {
         fitbit_token: None,
         tenant_id: Some("test-tenant".to_string()),
     };
-    executor.database.create_user(&user).await?;
+    executor.resources.database.create_user(&user).await?;
 
     // Store an invalid/expired token
     let expires_at = chrono::Utc::now() - chrono::Duration::hours(1); // Expired
     executor
+        .resources
         .database
         .update_strava_token(
             user_id,
@@ -382,7 +387,7 @@ async fn test_invalid_tool_parameters() -> Result<()> {
         fitbit_token: None,
         tenant_id: Some("test-tenant".to_string()),
     };
-    executor.database.create_user(&user).await?;
+    executor.resources.database.create_user(&user).await?;
 
     // Test get_activities with invalid limit
     let request = UniversalRequest {
@@ -475,7 +480,7 @@ async fn test_concurrent_tool_execution() -> Result<()> {
         fitbit_token: None,
         tenant_id: Some("test-tenant".to_string()),
     };
-    executor.database.create_user(&user).await?;
+    executor.resources.database.create_user(&user).await?;
 
     // Create multiple concurrent requests
     let mut handles = vec![];
@@ -531,7 +536,7 @@ async fn test_tool_response_metadata() -> Result<()> {
         fitbit_token: None,
         tenant_id: Some("test-tenant".to_string()),
     };
-    executor.database.create_user(&user).await?;
+    executor.resources.database.create_user(&user).await?;
 
     let request = UniversalRequest {
         tool_name: "get_connection_status".to_string(),
@@ -575,7 +580,7 @@ async fn test_intelligence_integration_errors() -> Result<()> {
         fitbit_token: None,
         tenant_id: Some("test-tenant".to_string()),
     };
-    executor.database.create_user(&user).await?;
+    executor.resources.database.create_user(&user).await?;
 
     // Test analytics tools with invalid data
     let request = UniversalRequest {
@@ -617,7 +622,7 @@ async fn test_provider_unavailable() -> Result<()> {
         fitbit_token: None,
         tenant_id: Some("test-tenant".to_string()),
     };
-    executor.database.create_user(&user).await?;
+    executor.resources.database.create_user(&user).await?;
 
     // Test with unsupported provider
     let request = UniversalRequest {

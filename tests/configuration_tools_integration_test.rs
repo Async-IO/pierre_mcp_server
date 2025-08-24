@@ -7,32 +7,16 @@
 
 use anyhow::Result;
 use pierre_mcp_server::{
-    auth::{AuthManager, McpAuthMiddleware},
+    auth::AuthManager,
     database_plugins::{factory::Database, DatabaseProvider},
-    mcp::multitenant::{McpRequest, MultiTenantMcpServer},
+    mcp::multitenant::{McpRequest, MultiTenantMcpServer, ServerResources},
     models::User,
-    providers::tenant_provider::TenantProviderFactory,
-    tenant::TenantOAuthClient,
 };
 use serde_json::{json, Value};
 use std::sync::Arc;
 use uuid::Uuid;
 
 mod common;
-use common::*;
-
-/// Helper to create test server components
-async fn create_test_components(
-) -> Result<(Arc<Database>, Arc<AuthManager>, Arc<McpAuthMiddleware>)> {
-    let database = create_test_database().await?;
-    let auth_manager = create_test_auth_manager();
-    let auth_middleware = Arc::new(McpAuthMiddleware::new(
-        (*auth_manager).clone(),
-        database.clone(),
-    ));
-
-    Ok((database, auth_manager, auth_middleware))
-}
 
 /// Helper to create authenticated user and return token
 async fn create_authenticated_user(
@@ -56,9 +40,7 @@ async fn make_tool_request(
     tool_name: &str,
     arguments: Value,
     token: &str,
-    database: &Arc<Database>,
-    auth_manager: &Arc<AuthManager>,
-    auth_middleware: &Arc<McpAuthMiddleware>,
+    resources: &Arc<ServerResources>,
 ) -> Result<pierre_mcp_server::mcp::multitenant::McpResponse> {
     let request = McpRequest {
         jsonrpc: "2.0".to_string(),
@@ -72,22 +54,14 @@ async fn make_tool_request(
         headers: None,
     };
 
-    let tenant_oauth_client = Arc::new(TenantOAuthClient::new());
-    let tenant_provider_factory = Arc::new(TenantProviderFactory::new(tenant_oauth_client));
-    Ok(MultiTenantMcpServer::handle_request(
-        request,
-        database,
-        auth_manager,
-        auth_middleware,
-        &tenant_provider_factory,
-    )
-    .await)
+    Ok(MultiTenantMcpServer::handle_request(request, resources).await)
 }
 
 #[tokio::test]
 async fn test_all_configuration_tools_available() -> Result<()> {
-    let (database, auth_manager, auth_middleware) = create_test_components().await?;
-    let (user_id, token) = create_authenticated_user(&database, &auth_manager).await?;
+    let resources = common::create_test_server_resources().await?;
+    let (user_id, token) =
+        create_authenticated_user(&resources.database, &resources.auth_manager).await?;
 
     // Test that all 6 configuration tools are available and respond
     let config_tools = vec![
@@ -120,15 +94,7 @@ async fn test_all_configuration_tools_available() -> Result<()> {
             _ => json!({}),
         };
 
-        let response = make_tool_request(
-            tool_name,
-            arguments,
-            &token,
-            &database,
-            &auth_manager,
-            &auth_middleware,
-        )
-        .await?;
+        let response = make_tool_request(tool_name, arguments, &token, &resources).await?;
 
         if response.result.is_some() && response.error.is_none() {
             successful_tools += 1;
@@ -151,18 +117,12 @@ async fn test_all_configuration_tools_available() -> Result<()> {
 
 #[tokio::test]
 async fn test_configuration_catalog_has_expected_structure() -> Result<()> {
-    let (database, auth_manager, auth_middleware) = create_test_components().await?;
-    let (user_id, token) = create_authenticated_user(&database, &auth_manager).await?;
+    let resources = common::create_test_server_resources().await?;
+    let (user_id, token) =
+        create_authenticated_user(&resources.database, &resources.auth_manager).await?;
 
-    let response = make_tool_request(
-        "get_configuration_catalog",
-        json!({}),
-        &token,
-        &database,
-        &auth_manager,
-        &auth_middleware,
-    )
-    .await?;
+    let response =
+        make_tool_request("get_configuration_catalog", json!({}), &token, &resources).await?;
 
     assert_eq!(response.jsonrpc, "2.0");
     assert!(response.result.is_some());
@@ -186,7 +146,7 @@ async fn test_configuration_catalog_has_expected_structure() -> Result<()> {
 
 #[tokio::test]
 async fn test_configuration_tools_require_authentication() -> Result<()> {
-    let (database, auth_manager, auth_middleware) = create_test_components().await?;
+    let resources = common::create_test_server_resources().await?;
 
     // Try to call a configuration tool without authentication
     let request = McpRequest {
@@ -201,16 +161,7 @@ async fn test_configuration_tools_require_authentication() -> Result<()> {
         headers: None,
     };
 
-    let tenant_oauth_client = Arc::new(TenantOAuthClient::new());
-    let tenant_provider_factory = Arc::new(TenantProviderFactory::new(tenant_oauth_client));
-    let response = MultiTenantMcpServer::handle_request(
-        request,
-        &database,
-        &auth_manager,
-        &auth_middleware,
-        &tenant_provider_factory,
-    )
-    .await;
+    let response = MultiTenantMcpServer::handle_request(request, &resources).await;
 
     // Should return an error for missing authentication
     assert_eq!(response.jsonrpc, "2.0");
@@ -223,8 +174,9 @@ async fn test_configuration_tools_require_authentication() -> Result<()> {
 
 #[tokio::test]
 async fn test_configuration_tools_with_invalid_parameters() -> Result<()> {
-    let (database, auth_manager, auth_middleware) = create_test_components().await?;
-    let (_user_id, token) = create_authenticated_user(&database, &auth_manager).await?;
+    let resources = common::create_test_server_resources().await?;
+    let (_user_id, token) =
+        create_authenticated_user(&resources.database, &resources.auth_manager).await?;
 
     // Test missing required parameters for calculate_personalized_zones
     let request = McpRequest {
@@ -239,16 +191,7 @@ async fn test_configuration_tools_with_invalid_parameters() -> Result<()> {
         headers: None,
     };
 
-    let tenant_oauth_client = Arc::new(TenantOAuthClient::new());
-    let tenant_provider_factory = Arc::new(TenantProviderFactory::new(tenant_oauth_client));
-    let response = MultiTenantMcpServer::handle_request(
-        request,
-        &database,
-        &auth_manager,
-        &auth_middleware,
-        &tenant_provider_factory,
-    )
-    .await;
+    let response = MultiTenantMcpServer::handle_request(request, &resources).await;
 
     // Should return an error for missing required parameters
     assert_eq!(response.jsonrpc, "2.0");
@@ -262,10 +205,11 @@ async fn test_configuration_tools_with_invalid_parameters() -> Result<()> {
 
 #[tokio::test]
 async fn test_multitenant_isolation_for_configuration_tools() -> Result<()> {
-    let (database, auth_manager, auth_middleware) = create_test_components().await?;
+    let resources = common::create_test_server_resources().await?;
 
     // Create two different users
-    let (user1_id, token1) = create_authenticated_user(&database, &auth_manager).await?;
+    let (user1_id, token1) =
+        create_authenticated_user(&resources.database, &resources.auth_manager).await?;
 
     let user2 = User::new(
         "config_test2@example.com".to_string(),
@@ -273,29 +217,15 @@ async fn test_multitenant_isolation_for_configuration_tools() -> Result<()> {
         Some("Configuration Test User 2".to_string()),
     );
     let user2_id = user2.id;
-    database.create_user(&user2).await?;
-    let token2 = auth_manager.generate_token(&user2)?;
+    resources.database.create_user(&user2).await?;
+    let token2 = resources.auth_manager.generate_token(&user2)?;
 
     // Both users should be able to access configuration tools independently
-    let response1 = make_tool_request(
-        "get_user_configuration",
-        json!({}),
-        &token1,
-        &database,
-        &auth_manager,
-        &auth_middleware,
-    )
-    .await?;
+    let response1 =
+        make_tool_request("get_user_configuration", json!({}), &token1, &resources).await?;
 
-    let response2 = make_tool_request(
-        "get_user_configuration",
-        json!({}),
-        &token2,
-        &database,
-        &auth_manager,
-        &auth_middleware,
-    )
-    .await?;
+    let response2 =
+        make_tool_request("get_user_configuration", json!({}), &token2, &resources).await?;
 
     // Both should succeed
     assert!(response1.result.is_some() && response1.error.is_none());
@@ -314,8 +244,9 @@ async fn test_multitenant_isolation_for_configuration_tools() -> Result<()> {
 
 #[tokio::test]
 async fn test_configuration_tools_integration_summary() -> Result<()> {
-    let (database, auth_manager, auth_middleware) = create_test_components().await?;
-    let (user_id, token) = create_authenticated_user(&database, &auth_manager).await?;
+    let resources = common::create_test_server_resources().await?;
+    let (user_id, token) =
+        create_authenticated_user(&resources.database, &resources.auth_manager).await?;
 
     println!("Configuration Tools Integration Test Summary");
     println!("================================================");
@@ -354,15 +285,7 @@ async fn test_configuration_tools_integration_summary() -> Result<()> {
     let total_tools = tools.len();
 
     for (tool_name, arguments) in tools {
-        let response = make_tool_request(
-            tool_name,
-            arguments,
-            &token,
-            &database,
-            &auth_manager,
-            &auth_middleware,
-        )
-        .await?;
+        let response = make_tool_request(tool_name, arguments, &token, &resources).await?;
 
         if response.result.is_some() && response.error.is_none() {
             working_tools += 1;

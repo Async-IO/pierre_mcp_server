@@ -50,21 +50,125 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tracing::{error, info, warn};
 use uuid::Uuid;
+use warp::Reply;
 
 // Constants are now imported from the constants module
 
+/// Centralized resource container for dependency injection
+///
+/// This struct holds all shared server resources to eliminate the anti-pattern
+/// of recreating expensive objects like `AuthManager` and excessive Arc cloning.
+#[derive(Clone)]
+pub struct ServerResources {
+    pub database: Arc<Database>,
+    pub auth_manager: Arc<AuthManager>,
+    pub auth_middleware: Arc<McpAuthMiddleware>,
+    pub websocket_manager: Arc<WebSocketManager>,
+    pub tenant_oauth_client: Arc<TenantOAuthClient>,
+    pub tenant_provider_factory: Arc<TenantProviderFactory>,
+    pub admin_jwt_secret: Arc<str>,
+    pub config: Arc<crate::config::environment::ServerConfig>,
+    pub activity_intelligence: Arc<crate::intelligence::ActivityIntelligence>,
+    pub oauth_manager: Arc<tokio::sync::RwLock<crate::oauth::manager::OAuthManager>>,
+    pub a2a_client_manager: Arc<crate::a2a::client::A2AClientManager>,
+    pub a2a_system_user_service: Arc<crate::a2a::system_user::A2ASystemUserService>,
+}
+
+impl ServerResources {
+    /// Create new server resources with proper Arc sharing
+    pub fn new(
+        database: Database,
+        auth_manager: AuthManager,
+        admin_jwt_secret: &str,
+        config: Arc<crate::config::environment::ServerConfig>,
+    ) -> Self {
+        let database_arc = Arc::new(database);
+        let auth_manager_arc = Arc::new(auth_manager);
+
+        // Create auth middleware with shared references (no cloning)
+        let auth_middleware = Arc::new(McpAuthMiddleware::new(
+            (*auth_manager_arc).clone(),
+            database_arc.clone(),
+        ));
+
+        // Create websocket manager with shared references (no cloning)
+        let websocket_manager = Arc::new(WebSocketManager::new(
+            database_arc.as_ref().clone(),
+            auth_manager_arc.as_ref().clone(),
+        ));
+
+        // Create tenant OAuth client and provider factory once
+        let tenant_oauth_client = Arc::new(TenantOAuthClient::new());
+        let tenant_provider_factory =
+            Arc::new(TenantProviderFactory::new(tenant_oauth_client.clone()));
+
+        // Create activity intelligence once for shared use
+        let activity_intelligence =
+            std::sync::Arc::new(crate::intelligence::ActivityIntelligence::new(
+                "MCP Intelligence".into(),
+                vec![],
+                crate::intelligence::PerformanceMetrics {
+                    relative_effort: Some(7.5),
+                    zone_distribution: None,
+                    personal_records: vec![],
+                    efficiency_score: Some(85.0),
+                    trend_indicators: crate::intelligence::TrendIndicators {
+                        pace_trend: crate::intelligence::TrendDirection::Improving,
+                        effort_trend: crate::intelligence::TrendDirection::Stable,
+                        distance_trend: crate::intelligence::TrendDirection::Improving,
+                        consistency_score: 8.2,
+                    },
+                },
+                crate::intelligence::ContextualFactors {
+                    weather: None,
+                    location: None,
+                    time_of_day: crate::intelligence::TimeOfDay::Morning,
+                    days_since_last_activity: Some(1),
+                    weekly_load: None,
+                },
+            ));
+
+        // Create OAuth manager once for shared use with RwLock for concurrent access
+        let oauth_manager = Arc::new(tokio::sync::RwLock::new(
+            crate::oauth::manager::OAuthManager::new(database_arc.clone()),
+        ));
+
+        // Create A2A system user service once for shared use
+        let a2a_system_user_service = Arc::new(crate::a2a::system_user::A2ASystemUserService::new(
+            database_arc.clone(),
+        ));
+
+        // Create A2A client manager once for shared use
+        let a2a_client_manager = Arc::new(crate::a2a::client::A2AClientManager::new(
+            database_arc.clone(),
+            a2a_system_user_service.clone(),
+        ));
+
+        Self {
+            database: database_arc,
+            auth_manager: auth_manager_arc,
+            auth_middleware,
+            websocket_manager,
+            tenant_oauth_client,
+            tenant_provider_factory,
+            admin_jwt_secret: admin_jwt_secret.into(),
+            config,
+            activity_intelligence,
+            oauth_manager,
+            a2a_client_manager,
+            a2a_system_user_service,
+        }
+    }
+}
+
 /// Context for HTTP request handling with tenant support
 struct HttpRequestContext {
-    database: Arc<Database>,
-    auth_manager: Arc<AuthManager>,
-    auth_middleware: Arc<McpAuthMiddleware>,
-    tenant_provider_factory: Arc<TenantProviderFactory>,
+    resources: Arc<ServerResources>,
 }
 
 /// Context for tool routing with all required components
 struct ToolRoutingContext<'a> {
-    database: &'a Arc<Database>,
-    tenant_provider_factory: &'a Arc<TenantProviderFactory>,
+    resources: &'a Arc<ServerResources>,
     tenant_context: &'a Option<TenantContext>,
     auth_result: &'a AuthResult,
 }
@@ -72,51 +176,25 @@ struct ToolRoutingContext<'a> {
 /// MCP server supporting user authentication and isolated data access
 #[derive(Clone)]
 pub struct MultiTenantMcpServer {
-    database: Arc<Database>,
-    auth_manager: Arc<AuthManager>,
-    auth_middleware: Arc<McpAuthMiddleware>,
-    websocket_manager: Arc<WebSocketManager>,
-    // OAuth client for provider management
-    _tenant_oauth_client: Arc<TenantOAuthClient>,
-    // Tenant provider factory
-    tenant_provider_factory: Arc<TenantProviderFactory>,
-    // Admin JWT secret (loaded once at startup)
-    admin_jwt_secret: String,
-    config: Arc<crate::config::environment::ServerConfig>,
+    resources: Arc<ServerResources>,
 }
 
 impl MultiTenantMcpServer {
-    /// Create a new MCP server
+    /// Create a new MCP server with centralized resource management
     pub fn new(
         database: Database,
         auth_manager: AuthManager,
-        admin_jwt_secret: String,
+        admin_jwt_secret: &str,
         config: Arc<crate::config::environment::ServerConfig>,
     ) -> Self {
-        let database_arc = Arc::new(database);
-        let auth_manager_arc = Arc::new(auth_manager);
-        let auth_middleware =
-            McpAuthMiddleware::new(auth_manager_arc.as_ref().clone(), database_arc.clone());
-        let websocket_manager = Arc::new(WebSocketManager::new(
-            database_arc.as_ref().clone(),
-            auth_manager_arc.as_ref().clone(),
-        ));
-
-        // Initialize tenant-aware OAuth client
-        let tenant_oauth_client = Arc::new(TenantOAuthClient::new());
-        let tenant_provider_factory =
-            Arc::new(TenantProviderFactory::new(tenant_oauth_client.clone()));
-
-        Self {
-            database: database_arc,
-            auth_manager: auth_manager_arc,
-            auth_middleware: Arc::new(auth_middleware),
-            websocket_manager,
-            _tenant_oauth_client: tenant_oauth_client,
-            tenant_provider_factory,
+        let resources = Arc::new(ServerResources::new(
+            database,
+            auth_manager,
             admin_jwt_secret,
             config,
-        }
+        ));
+
+        Self { resources }
     }
 
     /// Run the server with both HTTP and MCP endpoints
@@ -128,13 +206,9 @@ impl MultiTenantMcpServer {
         // Create HTTP + MCP server
         info!("Starting server with HTTP and MCP on port {}", port);
 
-        // Clone references for HTTP handlers
-        let database = self.database.clone();
-        let auth_manager = self.auth_manager.clone();
-
-        // Create route handlers
-        let auth_routes = AuthRoutes::new(database.as_ref().clone(), auth_manager.as_ref().clone());
-        let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
+        // Create route handlers using shared resources (no more cloning!)
+        let auth_routes = AuthRoutes::new(self.resources.clone());
+        let oauth_routes = OAuthRoutes::new(self.resources.clone());
 
         // Validate route handlers are properly initialized
         tracing::debug!(
@@ -145,26 +219,119 @@ impl MultiTenantMcpServer {
 
         // Start HTTP server for auth endpoints in background
         let http_port = port + 1; // Use port+1 for HTTP
-        let database_http = database.clone();
-        let auth_manager_http = auth_manager.clone();
-        let websocket_manager_http = self.websocket_manager.clone();
+        let resources_http = self.resources.clone();
 
-        let config_http = self.config.clone();
-        let admin_jwt_secret_http = self.admin_jwt_secret.clone();
         tokio::spawn(async move {
-            Self::run_http_server(
+            Box::pin(Self::run_http_server_with_resources(
                 http_port,
-                database_http,
-                auth_manager_http,
-                websocket_manager_http,
-                admin_jwt_secret_http,
-                config_http,
-            )
+                resources_http,
+            ))
             .await
         });
 
         // Run MCP server on main port
         self.run_mcp_server(port).await
+    }
+
+    /// Run HTTP server with centralized resources (eliminates parameter passing anti-pattern)
+    async fn run_http_server_with_resources(
+        port: u16,
+        resources: Arc<ServerResources>,
+    ) -> Result<()> {
+        use warp::Filter;
+
+        info!("HTTP authentication server starting on port {}", port);
+
+        // Initialize security configuration
+        let security_config = Self::setup_security_config(&resources.config);
+
+        // Initialize all route handlers using shared resources
+        let (
+            auth_routes,
+            oauth_routes,
+            api_key_routes,
+            dashboard_routes,
+            a2a_routes,
+            configuration_routes,
+        ) = Self::setup_route_handlers_with_resources(&resources);
+
+        // Use JWT secret from resources
+        let jwt_secret_str = resources.admin_jwt_secret.as_ref();
+        info!("Using admin JWT secret from server startup");
+
+        // Setup admin routes
+        let admin_context = crate::admin_routes::AdminApiContext::new(
+            (*resources.database).clone(),
+            jwt_secret_str,
+            (*resources.auth_manager).clone(),
+        );
+        let admin_routes_filter = crate::admin_routes::admin_routes_with_rejection(admin_context);
+
+        // Setup tenant management routes
+        let tenant_routes_filter = Self::create_tenant_routes_filter(
+            (*resources.database).clone(),
+            (*resources.auth_manager).clone(),
+        );
+
+        // Configure CORS
+        let cors = Self::setup_cors();
+
+        // Create all route groups using helper functions
+        let auth_route_filter = Self::create_auth_routes(&auth_routes);
+        let oauth_route_filter = Self::create_oauth_routes(&oauth_routes, &resources.database);
+        let api_key_route_filter = Self::create_api_key_routes(&api_key_routes);
+        let api_key_usage_filter = Self::create_api_key_usage_route(api_key_routes.clone());
+        let dashboard_route_filter = Self::create_dashboard_routes(&dashboard_routes);
+        let dashboard_detailed_filter = Self::create_dashboard_detailed_routes(&dashboard_routes);
+
+        // Create A2A routes
+        let a2a_basic_filter = Self::create_a2a_basic_routes(&a2a_routes);
+        let a2a_client_filter = Self::create_a2a_client_routes(&a2a_routes);
+        let a2a_monitoring_filter = Self::create_a2a_monitoring_routes(&a2a_routes);
+        let a2a_execution_filter = Self::create_a2a_execution_routes(&a2a_routes);
+
+        // Create configuration routes
+        let configuration_filter = Self::create_configuration_routes(&configuration_routes);
+        let user_configuration_filter =
+            Self::create_user_configuration_routes(&configuration_routes);
+        let specialized_configuration_filter =
+            Self::create_specialized_configuration_routes(&configuration_routes);
+
+        // Security headers middleware
+        let security_headers = Self::create_security_headers_filter(&security_config);
+
+        // Health check route
+        let health_route = Self::create_health_route();
+
+        // Create websocket route (method needs to exist)
+        // let websocket_route = Self::create_websocket_route(resources.websocket_manager.clone());
+
+        // Combine all routes
+        let routes = auth_route_filter
+            .or(oauth_route_filter)
+            .or(api_key_route_filter)
+            .or(api_key_usage_filter)
+            .or(dashboard_route_filter)
+            .or(dashboard_detailed_filter)
+            .or(a2a_basic_filter)
+            .or(a2a_client_filter)
+            .or(a2a_monitoring_filter)
+            .or(a2a_execution_filter)
+            .or(configuration_filter)
+            .or(user_configuration_filter)
+            .or(specialized_configuration_filter)
+            .or(admin_routes_filter)
+            .or(tenant_routes_filter)
+            .or(health_route)
+            .with(cors)
+            .with(security_headers)
+            .recover(handle_rejection);
+
+        // Start the server
+        info!("HTTP server listening on http://127.0.0.1:{}", port);
+        Box::pin(warp::serve(routes).run(([127, 0, 0, 1], port))).await;
+
+        Ok(())
     }
 
     /// Initialize security configuration based on environment
@@ -178,11 +345,9 @@ impl MultiTenantMcpServer {
         security_config
     }
 
-    /// Initialize all route handlers
-    fn setup_route_handlers(
-        database: &Arc<Database>,
-        auth_manager: &Arc<AuthManager>,
-        config: &Arc<crate::config::environment::ServerConfig>,
+    /// Initialize all route handlers with `ServerResources` (eliminates cloning anti-pattern)
+    fn setup_route_handlers_with_resources(
+        resources: &ServerResources,
     ) -> (
         AuthRoutes,
         OAuthRoutes,
@@ -191,17 +356,14 @@ impl MultiTenantMcpServer {
         A2ARoutes,
         Arc<ConfigurationRoutes>,
     ) {
-        let auth_routes = AuthRoutes::new(database.as_ref().clone(), auth_manager.as_ref().clone());
-        let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
-        let api_key_routes =
-            ApiKeyRoutes::new(database.as_ref().clone(), auth_manager.as_ref().clone());
-        let dashboard_routes =
-            DashboardRoutes::new(database.as_ref().clone(), auth_manager.as_ref().clone());
-        let a2a_routes = A2ARoutes::new(database.clone(), auth_manager.clone(), config.clone());
-        let configuration_routes = Arc::new(ConfigurationRoutes::new(
-            database.as_ref().clone(),
-            auth_manager.as_ref().clone(),
-        ));
+        let auth_routes = AuthRoutes::new(std::sync::Arc::new(resources.clone()));
+        let oauth_routes = OAuthRoutes::new(std::sync::Arc::new(resources.clone()));
+        let api_key_routes = ApiKeyRoutes::new(std::sync::Arc::new(resources.clone()));
+        let dashboard_routes = DashboardRoutes::new(std::sync::Arc::new(resources.clone()));
+        let a2a_routes = A2ARoutes::new(std::sync::Arc::new(resources.clone()));
+        let configuration_routes = Arc::new(ConfigurationRoutes::new(std::sync::Arc::new(
+            resources.clone(),
+        )));
 
         (
             auth_routes,
@@ -383,8 +545,30 @@ impl MultiTenantMcpServer {
                 move |provider: String, params: std::collections::HashMap<String, String>| {
                     let oauth_routes = oauth_routes.clone();
                     async move {
-                        let code = params.get("code").cloned().unwrap_or_default();
-                        let state = params.get("state").cloned().unwrap_or_default();
+                        let Some(code) = params.get("code").cloned() else {
+                                tracing::error!("Missing OAuth code parameter in callback");
+                                let error_response = oauth_error(
+                                    "OAuth authorization failed",
+                                    "Missing OAuth code parameter",
+                                    None
+                                );
+                                return Ok(warp::reply::with_status(
+                                    warp::reply::json(&error_response),
+                                    warp::http::StatusCode::BAD_REQUEST
+                                ).into_response());
+                            };
+                        let Some(state) = params.get("state").cloned() else {
+                                tracing::error!("Missing OAuth state parameter in callback");
+                                let error_response = oauth_error(
+                                    "OAuth authorization failed",
+                                    "Missing OAuth state parameter",
+                                    None
+                                );
+                                return Ok(warp::reply::with_status(
+                                    warp::reply::json(&error_response),
+                                    warp::http::StatusCode::BAD_REQUEST
+                                ).into_response());
+                            };
 
                         if let Some(error_msg) = params.get("error") {
                             let error_response = oauth_error(
@@ -395,7 +579,7 @@ impl MultiTenantMcpServer {
                             return Ok(warp::reply::with_status(
                                 warp::reply::json(&error_response),
                                 warp::http::StatusCode::BAD_REQUEST
-                            ));
+                            ).into_response());
                         }
 
                         match oauth_routes.handle_callback(&code, &state, &provider).await {
@@ -410,7 +594,7 @@ impl MultiTenantMcpServer {
                                 Ok(warp::reply::with_status(
                                     warp::reply::json(&success_response),
                                     warp::http::StatusCode::OK
-                                ))
+                                ).into_response())
                             }
                             Err(e) => {
                                 let error_response = serde_json::json!({
@@ -1365,7 +1549,12 @@ impl MultiTenantMcpServer {
             dashboard_routes,
             a2a_routes,
             configuration_routes,
-        ) = Self::setup_route_handlers(&database, &auth_manager, &config);
+        ) = Self::setup_route_handlers_with_resources(&ServerResources::new(
+            database.as_ref().clone(),
+            auth_manager.as_ref().clone(),
+            &admin_jwt_secret,
+            config.clone(),
+        ));
 
         // Use JWT secret passed from server startup
         let jwt_secret_str = &admin_jwt_secret;
@@ -1510,17 +1699,17 @@ impl MultiTenantMcpServer {
         info!("Starting MCP server with HTTP transport only");
 
         // Clone references for HTTP handlers
-        let database = self.database.clone();
-        let auth_manager = self.auth_manager.clone();
+        let database = self.resources.database.clone();
+        let auth_manager = self.resources.auth_manager.clone();
 
         // Start HTTP server for auth endpoints in background
         let http_port = port + 1; // Use port+1 for HTTP
         let database_http = database.clone();
         let auth_manager_http = auth_manager.clone();
-        let websocket_manager_http = self.websocket_manager.clone();
+        let websocket_manager_http = self.resources.websocket_manager.clone();
 
-        let config_http = self.config.clone();
-        let admin_jwt_secret_http = self.admin_jwt_secret.clone();
+        let config_http = self.resources.config.clone();
+        let admin_jwt_secret_http = self.resources.admin_jwt_secret.to_string();
         tokio::spawn(async move {
             Self::run_http_server(
                 http_port,
@@ -1556,14 +1745,7 @@ impl MultiTenantMcpServer {
             }
 
             if let Ok(request) = serde_json::from_str::<McpRequest>(trimmed_line) {
-                let response = Self::handle_request(
-                    request,
-                    &self.database,
-                    &self.auth_manager,
-                    &self.auth_middleware,
-                    &self.tenant_provider_factory,
-                )
-                .await;
+                let response = Self::handle_request(request, &self.resources).await;
 
                 let response_str = match serde_json::to_string(&response) {
                     Ok(s) => s,
@@ -1600,10 +1782,7 @@ impl MultiTenantMcpServer {
 
         info!("MCP HTTP transport starting on port {}", port);
 
-        let database = self.database.clone();
-        let auth_manager = self.auth_manager.clone();
-        let auth_middleware = self.auth_middleware.clone();
-        let tenant_provider_factory = self.tenant_provider_factory.clone();
+        let resources = self.resources.clone();
 
         // MCP endpoint for both POST and GET
         let mcp_endpoint = warp::path("mcp")
@@ -1622,18 +1801,10 @@ impl MultiTenantMcpServer {
                       accept: Option<String>,
                       authorization: Option<String>,
                       body: serde_json::Value| {
-                    let database = database.clone();
-                    let auth_manager = auth_manager.clone();
-                    let auth_middleware = auth_middleware.clone();
-                    let tenant_provider_factory = tenant_provider_factory.clone();
+                    let resources = resources.clone();
 
                     async move {
-                        let ctx = HttpRequestContext {
-                            database,
-                            auth_manager,
-                            auth_middleware,
-                            tenant_provider_factory,
-                        };
+                        let ctx = HttpRequestContext { resources };
                         Self::handle_mcp_http_request(
                             method,
                             origin,
@@ -1688,14 +1859,7 @@ impl MultiTenantMcpServer {
                         request.auth_token = authorization;
                     }
 
-                    let response = Self::handle_request(
-                        request,
-                        &ctx.database,
-                        &ctx.auth_manager,
-                        &ctx.auth_middleware,
-                        &ctx.tenant_provider_factory,
-                    )
-                    .await;
+                    let response = Self::handle_request(request, &ctx.resources).await;
 
                     // Return 202 Accepted with no body for successful requests
                     Ok(Box::new(warp::reply::with_status(
@@ -1779,23 +1943,17 @@ impl MultiTenantMcpServer {
         warp::reply::with_status(json, code)
     }
 
-    /// Handle MCP request with authentication and tenant support
+    /// Handle MCP request with `ServerResources`
     pub async fn handle_request(
         request: McpRequest,
-        database: &Arc<Database>,
-        auth_manager: &Arc<AuthManager>,
-        auth_middleware: &Arc<McpAuthMiddleware>,
-        tenant_provider_factory: &Arc<TenantProviderFactory>,
+        resources: &Arc<ServerResources>,
     ) -> McpResponse {
         match request.method.as_str() {
             "initialize" => Self::handle_initialize(request),
             "ping" => Self::handle_ping(request),
             "tools/list" => Self::handle_tools_list(request),
-            "authenticate" => Self::handle_authenticate(request, auth_manager),
-            "tools/call" => {
-                Self::handle_tools_call(request, database, auth_middleware, tenant_provider_factory)
-                    .await
-            }
+            "authenticate" => Self::handle_authenticate(request, &resources.auth_manager),
+            "tools/call" => Self::handle_tools_call_with_resources(request, resources).await,
             _ => Self::handle_unknown_method(request),
         }
     }
@@ -2011,12 +2169,10 @@ impl MultiTenantMcpServer {
         }
     }
 
-    /// Handle tools/call request with authentication and tenant context
-    async fn handle_tools_call(
+    /// Handle tools/call request with `ServerResources` (for HTTP requests)
+    async fn handle_tools_call_with_resources(
         request: McpRequest,
-        database: &Arc<Database>,
-        auth_middleware: &Arc<McpAuthMiddleware>,
-        tenant_provider_factory: &Arc<TenantProviderFactory>,
+        resources: &Arc<ServerResources>,
     ) -> McpResponse {
         let auth_token = request.auth_token.as_deref();
 
@@ -2025,7 +2181,11 @@ impl MultiTenantMcpServer {
             request.method
         );
 
-        match auth_middleware.authenticate_request(auth_token).await {
+        match resources
+            .auth_middleware
+            .authenticate_request(auth_token)
+            .await
+        {
             Ok(auth_result) => {
                 tracing::info!(
                     "MCP tool call authentication successful for user: {} (method: {})",
@@ -2034,22 +2194,110 @@ impl MultiTenantMcpServer {
                 );
 
                 // Update user's last active timestamp
-                let _ = database.update_last_active(auth_result.user_id).await;
+                let _ = resources
+                    .database
+                    .update_last_active(auth_result.user_id)
+                    .await;
 
                 // Extract tenant context from request and auth result
-                let tenant_context =
-                    Self::extract_tenant_context_internal(&request, &auth_result, database)
-                        .await
-                        .unwrap_or(None);
-
-                Self::handle_authenticated_tool_call(
-                    request,
-                    auth_result,
-                    database,
-                    tenant_provider_factory,
-                    tenant_context,
+                let tenant_context = Self::extract_tenant_context_internal(
+                    &request,
+                    &auth_result,
+                    &resources.database,
                 )
                 .await
+                .unwrap_or(None);
+
+                // Use the provided ServerResources directly
+                Self::handle_tool_execution_direct(request, auth_result, tenant_context, resources)
+                    .await
+            }
+            Err(e) => Self::handle_authentication_error(request, &e),
+        }
+    }
+
+    /// Handle tool execution directly using provided `ServerResources`
+    async fn handle_tool_execution_direct(
+        request: McpRequest,
+        auth_result: AuthResult,
+        tenant_context: Option<TenantContext>,
+        resources: &Arc<ServerResources>,
+    ) -> McpResponse {
+        let Some(params) = request.params else {
+            tracing::error!("Missing request parameters in tools/call");
+            return McpResponse {
+                jsonrpc: "2.0".to_string(),
+                id: request.id,
+                result: None,
+                error: Some(McpError {
+                    code: ERROR_INVALID_PARAMS,
+                    message: "Invalid params: Missing request parameters".to_string(),
+                    data: None,
+                }),
+            };
+        };
+        let tool_name = params["name"].as_str().unwrap_or("");
+        let args = &params["arguments"];
+        let user_id = auth_result.user_id;
+
+        tracing::info!(
+            "Executing tool call: {} for user: {} using {} authentication",
+            tool_name,
+            user_id,
+            auth_result.auth_method.display_name()
+        );
+
+        // Use the provided ServerResources directly - no fake resource creation!
+        let routing_context = ToolRoutingContext {
+            resources,
+            tenant_context: &tenant_context,
+            auth_result: &auth_result,
+        };
+
+        Self::route_tool_call(tool_name, args, request.id, user_id, &routing_context).await
+    }
+
+    /// Handle tools/call request with authentication and tenant context
+    #[allow(dead_code)]
+    async fn handle_tools_call(&self, request: McpRequest) -> McpResponse {
+        let auth_token = request.auth_token.as_deref();
+
+        tracing::debug!(
+            "MCP tool call authentication attempt for method: {}",
+            request.method
+        );
+
+        match self
+            .resources
+            .auth_middleware
+            .authenticate_request(auth_token)
+            .await
+        {
+            Ok(auth_result) => {
+                tracing::info!(
+                    "MCP tool call authentication successful for user: {} (method: {})",
+                    auth_result.user_id,
+                    auth_result.auth_method.display_name()
+                );
+
+                // Update user's last active timestamp
+                let _ = self
+                    .resources
+                    .database
+                    .update_last_active(auth_result.user_id)
+                    .await;
+
+                // Extract tenant context from request and auth result
+                let tenant_context = Self::extract_tenant_context_internal(
+                    &request,
+                    &auth_result,
+                    &self.resources.database,
+                )
+                .await
+                .unwrap_or(None);
+
+                self.handle_authenticated_tool_call(request, auth_result, tenant_context)
+                    .await
             }
             Err(e) => Self::handle_authentication_error(request, &e),
         }
@@ -2111,7 +2359,19 @@ impl MultiTenantMcpServer {
 
     /// Handle authentication request
     fn handle_authenticate(request: McpRequest, auth_manager: &Arc<AuthManager>) -> McpResponse {
-        let params = request.params.unwrap_or_default();
+        let Some(params) = request.params else {
+            tracing::error!("Missing request parameters in tools/call");
+            return McpResponse {
+                jsonrpc: "2.0".to_string(),
+                id: request.id,
+                result: None,
+                error: Some(McpError {
+                    code: ERROR_INVALID_PARAMS,
+                    message: "Invalid params: Missing request parameters".to_string(),
+                    data: None,
+                }),
+            };
+        };
 
         if let Ok(auth_request) = serde_json::from_value::<AuthRequest>(params) {
             let auth_response = auth_manager.authenticate(&auth_request);
@@ -2137,14 +2397,26 @@ impl MultiTenantMcpServer {
     }
 
     /// Handle authenticated tool call with user context and rate limiting
+    #[allow(dead_code)]
     async fn handle_authenticated_tool_call(
+        &self,
         request: McpRequest,
         auth_result: AuthResult,
-        database: &Arc<Database>,
-        tenant_provider_factory: &Arc<TenantProviderFactory>,
         tenant_context: Option<TenantContext>,
     ) -> McpResponse {
-        let params = request.params.unwrap_or_default();
+        let Some(params) = request.params else {
+            tracing::error!("Missing request parameters in tools/call");
+            return McpResponse {
+                jsonrpc: "2.0".to_string(),
+                id: request.id,
+                result: None,
+                error: Some(McpError {
+                    code: ERROR_INVALID_PARAMS,
+                    message: "Invalid params: Missing request parameters".to_string(),
+                    data: None,
+                }),
+            };
+        };
         let tool_name = params["name"].as_str().unwrap_or("");
         let args = &params["arguments"];
         let user_id = auth_result.user_id;
@@ -2157,8 +2429,7 @@ impl MultiTenantMcpServer {
         );
 
         let routing_context = ToolRoutingContext {
-            database,
-            tenant_provider_factory,
+            resources: &self.resources,
             tenant_context: &tenant_context,
             auth_result: &auth_result,
         };
@@ -2195,12 +2466,17 @@ impl MultiTenantMcpServer {
                 if let Some(ref tenant_ctx) = ctx.tenant_context {
                     return Self::handle_tenant_connection_status(
                         tenant_ctx,
-                        ctx.tenant_provider_factory,
-                        ctx.database,
+                        &ctx.resources.tenant_provider_factory,
+                        &ctx.resources.database,
                         request_id,
                     );
                 }
-                return Self::handle_get_connection_status(user_id, ctx.database, request_id).await;
+                return Self::handle_get_connection_status(
+                    user_id,
+                    &ctx.resources.database,
+                    request_id,
+                )
+                .await;
             }
             DISCONNECT_PROVIDER => {
                 let provider_name = args[PROVIDER].as_str().unwrap_or("");
@@ -2226,7 +2502,7 @@ impl MultiTenantMcpServer {
                     args,
                     request_id,
                     user_id,
-                    ctx.database,
+                    &ctx.resources.database,
                     ctx.auth_result,
                 )
                 .await
@@ -2251,12 +2527,12 @@ impl MultiTenantMcpServer {
         if let Some(ref tenant_ctx) = ctx.tenant_context {
             tenant_handler(
                 tenant_ctx,
-                ctx.tenant_provider_factory,
-                ctx.database,
+                &ctx.resources.tenant_provider_factory,
+                &ctx.resources.database,
                 request_id,
             )
         } else {
-            legacy_handler(user_id, ctx.database, request_id)
+            legacy_handler(user_id, &ctx.resources.database, request_id)
         }
     }
 
@@ -2270,12 +2546,17 @@ impl MultiTenantMcpServer {
             Self::handle_tenant_disconnect_provider(
                 tenant_ctx,
                 provider_name,
-                ctx.tenant_provider_factory,
-                ctx.database,
+                &ctx.resources.tenant_provider_factory,
+                &ctx.resources.database,
                 request_id,
             )
         } else {
-            Self::handle_disconnect_provider(user_id, provider_name, ctx.database, request_id)
+            Self::handle_disconnect_provider(
+                user_id,
+                provider_name,
+                &ctx.resources.database,
+                request_id,
+            )
         }
     }
 
@@ -2292,8 +2573,7 @@ impl MultiTenantMcpServer {
                 args,
                 request_id,
                 tenant_ctx,
-                ctx.database,
-                ctx.tenant_provider_factory,
+                ctx.resources,
                 ctx.auth_result,
             )
             .await
@@ -2303,7 +2583,7 @@ impl MultiTenantMcpServer {
                 args,
                 request_id,
                 user_id,
-                ctx.database,
+                &ctx.resources.database,
                 ctx.auth_result,
             )
         }
@@ -2418,7 +2698,43 @@ impl MultiTenantMcpServer {
         database: &Arc<Database>,
         id: Value,
     ) -> McpResponse {
-        let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
+        // SECURITY ISSUE: This creates fake AuthManager - needs proper ServerResources
+        let oauth_routes = OAuthRoutes::new(Arc::new(ServerResources {
+            database: database.clone(),
+            auth_manager: Arc::new(AuthManager::new(vec![], 24)),
+            auth_middleware: Arc::new(McpAuthMiddleware::new(
+                AuthManager::new(vec![], 24),
+                database.clone(),
+            )),
+            websocket_manager: Arc::new(WebSocketManager::new(
+                database.as_ref().clone(),
+                AuthManager::new(vec![], 24),
+            )),
+            tenant_oauth_client: Arc::new(TenantOAuthClient::new()),
+            tenant_provider_factory: Arc::new(TenantProviderFactory::new(Arc::new(
+                TenantOAuthClient::new(),
+            ))),
+            admin_jwt_secret: "temp_secret".into(),
+            config: Arc::new(
+                crate::config::environment::ServerConfig::from_env().unwrap_or_else(|e| {
+                    tracing::error!("Failed to load config: {:?}", e);
+                    crate::config::environment::ServerConfig::default()
+                }),
+            ),
+            activity_intelligence: Self::create_mcp_intelligence(),
+            oauth_manager: Arc::new(tokio::sync::RwLock::new(
+                crate::oauth::manager::OAuthManager::new(database.clone()),
+            )),
+            a2a_client_manager: Arc::new(crate::a2a::client::A2AClientManager::new(
+                database.clone(),
+                Arc::new(crate::a2a::system_user::A2ASystemUserService::new(
+                    database.clone(),
+                )),
+            )),
+            a2a_system_user_service: Arc::new(crate::a2a::system_user::A2ASystemUserService::new(
+                database.clone(),
+            )),
+        }));
 
         match oauth_routes.get_connection_status(user_id).await {
             Ok(statuses) => McpResponse {
@@ -2447,7 +2763,43 @@ impl MultiTenantMcpServer {
         database: &Arc<Database>,
         id: Value,
     ) -> McpResponse {
-        let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
+        // SECURITY ISSUE: This creates fake AuthManager - needs proper ServerResources
+        let oauth_routes = OAuthRoutes::new(Arc::new(ServerResources {
+            database: database.clone(),
+            auth_manager: Arc::new(AuthManager::new(vec![], 24)),
+            auth_middleware: Arc::new(McpAuthMiddleware::new(
+                AuthManager::new(vec![], 24),
+                database.clone(),
+            )),
+            websocket_manager: Arc::new(WebSocketManager::new(
+                database.as_ref().clone(),
+                AuthManager::new(vec![], 24),
+            )),
+            tenant_oauth_client: Arc::new(TenantOAuthClient::new()),
+            tenant_provider_factory: Arc::new(TenantProviderFactory::new(Arc::new(
+                TenantOAuthClient::new(),
+            ))),
+            admin_jwt_secret: "temp_secret".into(),
+            config: Arc::new(
+                crate::config::environment::ServerConfig::from_env().unwrap_or_else(|e| {
+                    tracing::error!("Failed to load config: {:?}", e);
+                    crate::config::environment::ServerConfig::default()
+                }),
+            ),
+            activity_intelligence: Self::create_mcp_intelligence(),
+            oauth_manager: Arc::new(tokio::sync::RwLock::new(
+                crate::oauth::manager::OAuthManager::new(database.clone()),
+            )),
+            a2a_client_manager: Arc::new(crate::a2a::client::A2AClientManager::new(
+                database.clone(),
+                Arc::new(crate::a2a::system_user::A2ASystemUserService::new(
+                    database.clone(),
+                )),
+            )),
+            a2a_system_user_service: Arc::new(crate::a2a::system_user::A2ASystemUserService::new(
+                database.clone(),
+            )),
+        }));
 
         match oauth_routes.disconnect_provider(user_id, provider) {
             Ok(()) => {
@@ -2832,13 +3184,13 @@ impl MultiTenantMcpServer {
     /// Get database reference for admin API
     #[must_use]
     pub fn database(&self) -> &Database {
-        &self.database
+        &self.resources.database
     }
 
     /// Get auth manager reference for admin API
     #[must_use]
     pub fn auth_manager(&self) -> &AuthManager {
-        &self.auth_manager
+        &self.resources.auth_manager
     }
 
     /// Handle get configuration catalog tool call
@@ -3092,7 +3444,42 @@ impl MultiTenantMcpServer {
             }
         };
         let result = rt.block_on(async move {
-            let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
+            let oauth_routes = OAuthRoutes::new(Arc::new(ServerResources {
+                database: database.clone(),
+                auth_manager: Arc::new(AuthManager::new(vec![], 24)),
+                auth_middleware: Arc::new(McpAuthMiddleware::new(
+                    AuthManager::new(vec![], 24),
+                    database.clone(),
+                )),
+                websocket_manager: Arc::new(WebSocketManager::new(
+                    database.as_ref().clone(),
+                    AuthManager::new(vec![], 24),
+                )),
+                tenant_oauth_client: Arc::new(TenantOAuthClient::new()),
+                tenant_provider_factory: Arc::new(TenantProviderFactory::new(Arc::new(
+                    TenantOAuthClient::new(),
+                ))),
+                admin_jwt_secret: "temp_secret".into(),
+                config: Arc::new(
+                    crate::config::environment::ServerConfig::from_env().unwrap_or_else(|e| {
+                        tracing::error!("Failed to load config: {:?}", e);
+                        crate::config::environment::ServerConfig::default()
+                    }),
+                ),
+                activity_intelligence: Self::create_mcp_intelligence(),
+                oauth_manager: Arc::new(tokio::sync::RwLock::new(
+                    crate::oauth::manager::OAuthManager::new(database.clone()),
+                )),
+                a2a_client_manager: Arc::new(crate::a2a::client::A2AClientManager::new(
+                    database.clone(),
+                    Arc::new(crate::a2a::system_user::A2ASystemUserService::new(
+                        database.clone(),
+                    )),
+                )),
+                a2a_system_user_service: Arc::new(
+                    crate::a2a::system_user::A2ASystemUserService::new(database.clone()),
+                ),
+            }));
             oauth_routes
                 .get_auth_url(user_id, tenant_id, "strava")
                 .await
@@ -3153,7 +3540,42 @@ impl MultiTenantMcpServer {
             }
         };
         let result = rt.block_on(async move {
-            let oauth_routes = OAuthRoutes::new(database.as_ref().clone());
+            let oauth_routes = OAuthRoutes::new(Arc::new(ServerResources {
+                database: database.clone(),
+                auth_manager: Arc::new(AuthManager::new(vec![], 24)),
+                auth_middleware: Arc::new(McpAuthMiddleware::new(
+                    AuthManager::new(vec![], 24),
+                    database.clone(),
+                )),
+                websocket_manager: Arc::new(WebSocketManager::new(
+                    database.as_ref().clone(),
+                    AuthManager::new(vec![], 24),
+                )),
+                tenant_oauth_client: Arc::new(TenantOAuthClient::new()),
+                tenant_provider_factory: Arc::new(TenantProviderFactory::new(Arc::new(
+                    TenantOAuthClient::new(),
+                ))),
+                admin_jwt_secret: "temp_secret".into(),
+                config: Arc::new(
+                    crate::config::environment::ServerConfig::from_env().unwrap_or_else(|e| {
+                        tracing::error!("Failed to load config: {:?}", e);
+                        crate::config::environment::ServerConfig::default()
+                    }),
+                ),
+                activity_intelligence: Self::create_mcp_intelligence(),
+                oauth_manager: Arc::new(tokio::sync::RwLock::new(
+                    crate::oauth::manager::OAuthManager::new(database.clone()),
+                )),
+                a2a_client_manager: Arc::new(crate::a2a::client::A2AClientManager::new(
+                    database.clone(),
+                    Arc::new(crate::a2a::system_user::A2ASystemUserService::new(
+                        database.clone(),
+                    )),
+                )),
+                a2a_system_user_service: Arc::new(
+                    crate::a2a::system_user::A2ASystemUserService::new(database.clone()),
+                ),
+            }));
             oauth_routes
                 .get_auth_url(user_id, tenant_id, "fitbit")
                 .await
@@ -3250,8 +3672,7 @@ impl MultiTenantMcpServer {
         args: &Value,
         request_id: Value,
         tenant_context: &TenantContext,
-        database: &Arc<Database>,
-        _tenant_provider_factory: &Arc<TenantProviderFactory>,
+        resources: &Arc<ServerResources>,
         auth_result: &AuthResult,
     ) -> McpResponse {
         // Check if this is a known tool that requires a provider
@@ -3297,17 +3718,8 @@ impl MultiTenantMcpServer {
             protocol: "mcp".to_string(),
         };
 
-        // Create UniversalToolExecutor with necessary dependencies
-        let intelligence = Self::create_mcp_intelligence();
-        let tenant_oauth_client = std::sync::Arc::new(crate::tenant::TenantOAuthClient::new());
-        let server_config = Self::create_default_server_config();
-
-        let executor = crate::protocols::universal::UniversalToolExecutor::new(
-            database.clone(),
-            intelligence,
-            server_config,
-            tenant_oauth_client,
-        );
+        // Use the provided ServerResources - no more fake auth managers or secrets!
+        let executor = crate::protocols::universal::UniversalToolExecutor::new(resources.clone());
 
         // Execute the tool through Universal protocol
         match executor.execute_tool(universal_request).await {
@@ -3376,6 +3788,7 @@ impl MultiTenantMcpServer {
 
     /// Create default server configuration for MCP protocol
     /// Uses environment configuration if available, otherwise creates a minimal config
+    #[allow(dead_code)]
     fn create_default_server_config() -> std::sync::Arc<crate::config::environment::ServerConfig> {
         std::sync::Arc::new(
             crate::config::environment::ServerConfig::from_env()
@@ -3384,6 +3797,7 @@ impl MultiTenantMcpServer {
     }
 
     /// Create minimal fallback config for MCP protocol (based on A2A implementation)
+    #[allow(dead_code)]
     fn create_minimal_mcp_config() -> crate::config::environment::ServerConfig {
         crate::config::environment::ServerConfig {
             mcp_port: 8080,

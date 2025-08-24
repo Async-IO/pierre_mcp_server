@@ -14,7 +14,7 @@
 use crate::a2a::auth::A2AClient;
 use crate::a2a::system_user::A2ASystemUserService;
 use crate::crypto::A2AKeyManager;
-use crate::database_plugins::{factory::Database, DatabaseProvider};
+use crate::database_plugins::DatabaseProvider;
 use chrono::Timelike;
 use chrono::{DateTime, Datelike, Utc};
 use serde::{Deserialize, Serialize};
@@ -128,15 +128,17 @@ pub struct A2AUsageParams {
 
 /// A2A Client Manager
 pub struct A2AClientManager {
-    database: Arc<Database>,
-    system_user_service: A2ASystemUserService,
+    database: Arc<crate::database_plugins::factory::Database>,
+    system_user_service: Arc<A2ASystemUserService>,
     active_sessions: Arc<tokio::sync::RwLock<HashMap<String, A2ASession>>>,
 }
 
 impl A2AClientManager {
     #[must_use]
-    pub fn new(database: Arc<Database>) -> Self {
-        let system_user_service = A2ASystemUserService::new(database.clone());
+    pub fn new(
+        database: Arc<crate::database_plugins::factory::Database>,
+        system_user_service: Arc<A2ASystemUserService>,
+    ) -> Self {
         Self {
             database,
             system_user_service,
@@ -790,7 +792,7 @@ impl A2AClientManager {
             );
 
             let credentials = ClientCredentials {
-                client_id: id,
+                client_id: id.to_string(),
                 client_secret: secret,
                 api_key: format!("a2a_{client_id}"),
                 public_key,

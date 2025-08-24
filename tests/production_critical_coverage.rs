@@ -36,7 +36,7 @@ async fn test_mcp_request_processing_flow() -> Result<()> {
     let server = MultiTenantMcpServer::new(
         (*database).clone(),
         (*auth_manager).clone(),
-        TEST_JWT_SECRET.to_string(),
+        TEST_JWT_SECRET,
         config,
     );
 
@@ -208,7 +208,7 @@ async fn test_mcp_multitenant_request_routing() -> Result<()> {
     let server = MultiTenantMcpServer::new(
         (*database).clone(),
         (*auth_manager).clone(),
-        TEST_JWT_SECRET.to_string(),
+        TEST_JWT_SECRET,
         config,
     );
 

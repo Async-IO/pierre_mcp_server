@@ -10,15 +10,24 @@
 
 use pierre_mcp_server::{
     auth::AuthManager,
+    config::environment::{
+        AppBehaviorConfig, AuthConfig, BackupConfig, DatabaseConfig, DatabaseUrl, Environment,
+        ExternalServicesConfig, FitbitApiConfig, GeocodingServiceConfig, LogLevel, OAuthConfig,
+        OAuthProviderConfig, ProtocolConfig, RateLimitConfig, SecurityConfig,
+        SecurityHeadersConfig, ServerConfig, StravaApiConfig, TlsConfig, WeatherServiceConfig,
+    },
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
+    mcp::multitenant::ServerResources,
     models::{Tenant, User, UserStatus},
     routes::{AuthRoutes, OAuthRoutes, RegisterRequest},
     tenant::TenantOAuthCredentials,
 };
+use std::sync::Arc;
 use uuid::Uuid;
 
 #[tokio::test]
+#[allow(clippy::too_many_lines)] // Long function: Complex OAuth integration test with full setup
 async fn test_oauth_authorization_url_generation() {
     // Setup
     let encryption_key = generate_encryption_key().to_vec();
@@ -29,8 +38,101 @@ async fn test_oauth_authorization_url_generation() {
 
     let auth_manager = AuthManager::new(vec![0u8; 64], 24);
 
-    let auth_routes = AuthRoutes::new(database.clone(), auth_manager.clone());
-    let oauth_routes = OAuthRoutes::new(database.clone());
+    let temp_dir = tempfile::tempdir().unwrap();
+    let config = Arc::new(ServerConfig {
+        mcp_port: 8080,
+        http_port: 8081,
+        log_level: LogLevel::Info,
+        database: DatabaseConfig {
+            url: DatabaseUrl::Memory,
+            encryption_key_path: temp_dir.path().join("encryption_key"),
+            auto_migrate: true,
+            backup: BackupConfig {
+                enabled: false,
+                interval_seconds: 3600,
+                retention_count: 7,
+                directory: temp_dir.path().to_path_buf(),
+            },
+        },
+        auth: AuthConfig {
+            jwt_secret_path: temp_dir.path().join("jwt_secret"),
+            jwt_expiry_hours: 24,
+            enable_refresh_tokens: false,
+        },
+        oauth: OAuthConfig {
+            strava: OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
+            fitbit: OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
+        },
+        security: SecurityConfig {
+            cors_origins: vec!["*".to_string()],
+            rate_limit: RateLimitConfig {
+                enabled: false,
+                requests_per_window: 100,
+                window_seconds: 60,
+            },
+            tls: TlsConfig {
+                enabled: false,
+                cert_path: None,
+                key_path: None,
+            },
+            headers: SecurityHeadersConfig {
+                environment: Environment::Testing,
+            },
+        },
+        external_services: ExternalServicesConfig {
+            weather: WeatherServiceConfig {
+                api_key: None,
+                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                enabled: false,
+            },
+            geocoding: GeocodingServiceConfig {
+                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                enabled: false,
+            },
+            strava_api: StravaApiConfig {
+                base_url: "https://www.strava.com/api/v3".to_string(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
+                token_url: "https://www.strava.com/oauth/token".to_string(),
+            },
+            fitbit_api: FitbitApiConfig {
+                base_url: "https://api.fitbit.com".to_string(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+            },
+        },
+        app_behavior: AppBehaviorConfig {
+            max_activities_fetch: 100,
+            default_activities_limit: 20,
+            ci_mode: true,
+            protocol: ProtocolConfig {
+                mcp_version: "2025-06-18".to_string(),
+                server_name: "pierre-mcp-server-test".to_string(),
+                server_version: env!("CARGO_PKG_VERSION").to_string(),
+            },
+        },
+    });
+
+    let server_resources = Arc::new(ServerResources::new(
+        database.clone(),
+        auth_manager.clone(),
+        "test_jwt_secret",
+        config,
+    ));
+
+    let auth_routes = AuthRoutes::new(server_resources.clone());
+    let oauth_routes = OAuthRoutes::new(server_resources.clone());
 
     // Create admin user first
     let admin_user = User {
@@ -140,12 +242,108 @@ async fn test_oauth_authorization_url_generation() {
 }
 
 #[tokio::test]
+#[allow(clippy::too_many_lines)] // Long function: Complex OAuth state validation test with full setup
 async fn test_oauth_state_validation() {
     let encryption_key = generate_encryption_key().to_vec();
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
-    let _oauth_routes = OAuthRoutes::new(database);
+    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+
+    let temp_dir = tempfile::tempdir().unwrap();
+    let config = Arc::new(ServerConfig {
+        mcp_port: 8080,
+        http_port: 8081,
+        log_level: LogLevel::Info,
+        database: DatabaseConfig {
+            url: DatabaseUrl::Memory,
+            encryption_key_path: temp_dir.path().join("encryption_key"),
+            auto_migrate: true,
+            backup: BackupConfig {
+                enabled: false,
+                interval_seconds: 3600,
+                retention_count: 7,
+                directory: temp_dir.path().to_path_buf(),
+            },
+        },
+        auth: AuthConfig {
+            jwt_secret_path: temp_dir.path().join("jwt_secret"),
+            jwt_expiry_hours: 24,
+            enable_refresh_tokens: false,
+        },
+        oauth: OAuthConfig {
+            strava: OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
+            fitbit: OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
+        },
+        security: SecurityConfig {
+            cors_origins: vec!["*".to_string()],
+            rate_limit: RateLimitConfig {
+                enabled: false,
+                requests_per_window: 100,
+                window_seconds: 60,
+            },
+            tls: TlsConfig {
+                enabled: false,
+                cert_path: None,
+                key_path: None,
+            },
+            headers: SecurityHeadersConfig {
+                environment: Environment::Testing,
+            },
+        },
+        external_services: ExternalServicesConfig {
+            weather: WeatherServiceConfig {
+                api_key: None,
+                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                enabled: false,
+            },
+            geocoding: GeocodingServiceConfig {
+                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                enabled: false,
+            },
+            strava_api: StravaApiConfig {
+                base_url: "https://www.strava.com/api/v3".to_string(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
+                token_url: "https://www.strava.com/oauth/token".to_string(),
+            },
+            fitbit_api: FitbitApiConfig {
+                base_url: "https://api.fitbit.com".to_string(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+            },
+        },
+        app_behavior: AppBehaviorConfig {
+            max_activities_fetch: 100,
+            default_activities_limit: 20,
+            ci_mode: true,
+            protocol: ProtocolConfig {
+                mcp_version: "2025-06-18".to_string(),
+                server_name: "pierre-mcp-server-test".to_string(),
+                server_version: env!("CARGO_PKG_VERSION").to_string(),
+            },
+        },
+    });
+
+    let server_resources = Arc::new(ServerResources::new(
+        database,
+        auth_manager,
+        "test_jwt_secret",
+        config,
+    ));
+
+    let _oauth_routes = OAuthRoutes::new(server_resources);
 
     // Test valid state format
     let user_id = Uuid::new_v4();
@@ -162,12 +360,108 @@ async fn test_oauth_state_validation() {
 }
 
 #[tokio::test]
+#[allow(clippy::too_many_lines)] // Long function: Complex OAuth connection status test with full setup
 async fn test_connection_status_no_providers() {
     let encryption_key = generate_encryption_key().to_vec();
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
-    let oauth_routes = OAuthRoutes::new(database);
+    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+
+    let temp_dir = tempfile::tempdir().unwrap();
+    let config = Arc::new(ServerConfig {
+        mcp_port: 8080,
+        http_port: 8081,
+        log_level: LogLevel::Info,
+        database: DatabaseConfig {
+            url: DatabaseUrl::Memory,
+            encryption_key_path: temp_dir.path().join("encryption_key"),
+            auto_migrate: true,
+            backup: BackupConfig {
+                enabled: false,
+                interval_seconds: 3600,
+                retention_count: 7,
+                directory: temp_dir.path().to_path_buf(),
+            },
+        },
+        auth: AuthConfig {
+            jwt_secret_path: temp_dir.path().join("jwt_secret"),
+            jwt_expiry_hours: 24,
+            enable_refresh_tokens: false,
+        },
+        oauth: OAuthConfig {
+            strava: OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
+            fitbit: OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
+        },
+        security: SecurityConfig {
+            cors_origins: vec!["*".to_string()],
+            rate_limit: RateLimitConfig {
+                enabled: false,
+                requests_per_window: 100,
+                window_seconds: 60,
+            },
+            tls: TlsConfig {
+                enabled: false,
+                cert_path: None,
+                key_path: None,
+            },
+            headers: SecurityHeadersConfig {
+                environment: Environment::Testing,
+            },
+        },
+        external_services: ExternalServicesConfig {
+            weather: WeatherServiceConfig {
+                api_key: None,
+                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                enabled: false,
+            },
+            geocoding: GeocodingServiceConfig {
+                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                enabled: false,
+            },
+            strava_api: StravaApiConfig {
+                base_url: "https://www.strava.com/api/v3".to_string(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
+                token_url: "https://www.strava.com/oauth/token".to_string(),
+            },
+            fitbit_api: FitbitApiConfig {
+                base_url: "https://api.fitbit.com".to_string(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+            },
+        },
+        app_behavior: AppBehaviorConfig {
+            max_activities_fetch: 100,
+            default_activities_limit: 20,
+            ci_mode: true,
+            protocol: ProtocolConfig {
+                mcp_version: "2025-06-18".to_string(),
+                server_name: "pierre-mcp-server-test".to_string(),
+                server_version: env!("CARGO_PKG_VERSION").to_string(),
+            },
+        },
+    });
+
+    let server_resources = Arc::new(ServerResources::new(
+        database,
+        auth_manager,
+        "test_jwt_secret",
+        config,
+    ));
+
+    let oauth_routes = OAuthRoutes::new(server_resources);
 
     let user_id = Uuid::new_v4();
     let statuses = oauth_routes.get_connection_status(user_id).await.unwrap();
@@ -186,13 +480,106 @@ async fn test_connection_status_no_providers() {
 }
 
 #[tokio::test]
+#[allow(clippy::too_many_lines)] // Long function: Complex OAuth integration test with full setup
 async fn test_invalid_provider_error() {
     let encryption_key = generate_encryption_key().to_vec();
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
     database.migrate().await.unwrap();
-    let oauth_routes = OAuthRoutes::new(database);
+    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+    let temp_dir = tempfile::tempdir().unwrap();
+    let config = Arc::new(ServerConfig {
+        mcp_port: 8080,
+        http_port: 8081,
+        log_level: LogLevel::Info,
+        database: DatabaseConfig {
+            url: DatabaseUrl::Memory,
+            encryption_key_path: temp_dir.path().join("encryption_key"),
+            auto_migrate: true,
+            backup: BackupConfig {
+                enabled: false,
+                interval_seconds: 3600,
+                retention_count: 7,
+                directory: temp_dir.path().to_path_buf(),
+            },
+        },
+        auth: AuthConfig {
+            jwt_secret_path: temp_dir.path().join("jwt_secret"),
+            jwt_expiry_hours: 24,
+            enable_refresh_tokens: false,
+        },
+        oauth: OAuthConfig {
+            strava: OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
+            fitbit: OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
+        },
+        security: SecurityConfig {
+            cors_origins: vec!["*".to_string()],
+            rate_limit: RateLimitConfig {
+                enabled: false,
+                requests_per_window: 100,
+                window_seconds: 60,
+            },
+            tls: TlsConfig {
+                enabled: false,
+                cert_path: None,
+                key_path: None,
+            },
+            headers: SecurityHeadersConfig {
+                environment: Environment::Testing,
+            },
+        },
+        external_services: ExternalServicesConfig {
+            weather: WeatherServiceConfig {
+                api_key: None,
+                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                enabled: false,
+            },
+            geocoding: GeocodingServiceConfig {
+                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                enabled: false,
+            },
+            strava_api: StravaApiConfig {
+                base_url: "https://www.strava.com/api/v3".to_string(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
+                token_url: "https://www.strava.com/oauth/token".to_string(),
+            },
+            fitbit_api: FitbitApiConfig {
+                base_url: "https://api.fitbit.com".to_string(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+            },
+        },
+        app_behavior: AppBehaviorConfig {
+            max_activities_fetch: 100,
+            default_activities_limit: 20,
+            ci_mode: true,
+            protocol: ProtocolConfig {
+                mcp_version: "2025-06-18".to_string(),
+                server_name: "pierre-mcp-server-test".to_string(),
+                server_version: env!("CARGO_PKG_VERSION").to_string(),
+            },
+        },
+    });
+    let server_resources = Arc::new(ServerResources::new(
+        database,
+        auth_manager,
+        "test_jwt_secret",
+        config,
+    ));
+    let oauth_routes = OAuthRoutes::new(server_resources);
 
     let user_id = Uuid::new_v4();
     let tenant_id = Uuid::new_v4();
@@ -208,12 +595,105 @@ async fn test_invalid_provider_error() {
 }
 
 #[tokio::test]
+#[allow(clippy::too_many_lines)] // Long function: Complex OAuth integration test with full setup
 async fn test_disconnect_provider() {
     let encryption_key = generate_encryption_key().to_vec();
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
-    let oauth_routes = OAuthRoutes::new(database);
+    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+    let temp_dir = tempfile::tempdir().unwrap();
+    let config = Arc::new(ServerConfig {
+        mcp_port: 8080,
+        http_port: 8081,
+        log_level: LogLevel::Info,
+        database: DatabaseConfig {
+            url: DatabaseUrl::Memory,
+            encryption_key_path: temp_dir.path().join("encryption_key"),
+            auto_migrate: true,
+            backup: BackupConfig {
+                enabled: false,
+                interval_seconds: 3600,
+                retention_count: 7,
+                directory: temp_dir.path().to_path_buf(),
+            },
+        },
+        auth: AuthConfig {
+            jwt_secret_path: temp_dir.path().join("jwt_secret"),
+            jwt_expiry_hours: 24,
+            enable_refresh_tokens: false,
+        },
+        oauth: OAuthConfig {
+            strava: OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
+            fitbit: OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
+        },
+        security: SecurityConfig {
+            cors_origins: vec!["*".to_string()],
+            rate_limit: RateLimitConfig {
+                enabled: false,
+                requests_per_window: 100,
+                window_seconds: 60,
+            },
+            tls: TlsConfig {
+                enabled: false,
+                cert_path: None,
+                key_path: None,
+            },
+            headers: SecurityHeadersConfig {
+                environment: Environment::Testing,
+            },
+        },
+        external_services: ExternalServicesConfig {
+            weather: WeatherServiceConfig {
+                api_key: None,
+                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                enabled: false,
+            },
+            geocoding: GeocodingServiceConfig {
+                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                enabled: false,
+            },
+            strava_api: StravaApiConfig {
+                base_url: "https://www.strava.com/api/v3".to_string(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
+                token_url: "https://www.strava.com/oauth/token".to_string(),
+            },
+            fitbit_api: FitbitApiConfig {
+                base_url: "https://api.fitbit.com".to_string(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+            },
+        },
+        app_behavior: AppBehaviorConfig {
+            max_activities_fetch: 100,
+            default_activities_limit: 20,
+            ci_mode: true,
+            protocol: ProtocolConfig {
+                mcp_version: "2025-06-18".to_string(),
+                server_name: "pierre-mcp-server-test".to_string(),
+                server_version: env!("CARGO_PKG_VERSION").to_string(),
+            },
+        },
+    });
+    let server_resources = Arc::new(ServerResources::new(
+        database,
+        auth_manager,
+        "test_jwt_secret",
+        config,
+    ));
+    let oauth_routes = OAuthRoutes::new(server_resources);
 
     let user_id = Uuid::new_v4();
 
@@ -231,6 +711,7 @@ async fn test_disconnect_provider() {
 }
 
 #[tokio::test]
+#[allow(clippy::too_many_lines)] // Long function: Complex OAuth integration test with full setup
 async fn test_oauth_urls_contain_required_parameters() {
     let encryption_key = generate_encryption_key().to_vec();
     let database = Database::new("sqlite::memory:", encryption_key)
@@ -300,7 +781,99 @@ async fn test_oauth_urls_contain_required_parameters() {
         .await
         .unwrap();
 
-    let oauth_routes = OAuthRoutes::new(database);
+    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+    let temp_dir = tempfile::tempdir().unwrap();
+    let config = Arc::new(ServerConfig {
+        mcp_port: 8080,
+        http_port: 8081,
+        log_level: LogLevel::Info,
+        database: DatabaseConfig {
+            url: DatabaseUrl::Memory,
+            encryption_key_path: temp_dir.path().join("encryption_key"),
+            auto_migrate: true,
+            backup: BackupConfig {
+                enabled: false,
+                interval_seconds: 3600,
+                retention_count: 7,
+                directory: temp_dir.path().to_path_buf(),
+            },
+        },
+        auth: AuthConfig {
+            jwt_secret_path: temp_dir.path().join("jwt_secret"),
+            jwt_expiry_hours: 24,
+            enable_refresh_tokens: false,
+        },
+        oauth: OAuthConfig {
+            strava: OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
+            fitbit: OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
+        },
+        security: SecurityConfig {
+            cors_origins: vec!["*".to_string()],
+            rate_limit: RateLimitConfig {
+                enabled: false,
+                requests_per_window: 100,
+                window_seconds: 60,
+            },
+            tls: TlsConfig {
+                enabled: false,
+                cert_path: None,
+                key_path: None,
+            },
+            headers: SecurityHeadersConfig {
+                environment: Environment::Testing,
+            },
+        },
+        external_services: ExternalServicesConfig {
+            weather: WeatherServiceConfig {
+                api_key: None,
+                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                enabled: false,
+            },
+            geocoding: GeocodingServiceConfig {
+                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                enabled: false,
+            },
+            strava_api: StravaApiConfig {
+                base_url: "https://www.strava.com/api/v3".to_string(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
+                token_url: "https://www.strava.com/oauth/token".to_string(),
+            },
+            fitbit_api: FitbitApiConfig {
+                base_url: "https://api.fitbit.com".to_string(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+            },
+        },
+        app_behavior: AppBehaviorConfig {
+            max_activities_fetch: 100,
+            default_activities_limit: 20,
+            ci_mode: true,
+            protocol: ProtocolConfig {
+                mcp_version: "2025-06-18".to_string(),
+                server_name: "pierre-mcp-server-test".to_string(),
+                server_version: env!("CARGO_PKG_VERSION").to_string(),
+            },
+        },
+    });
+    let server_resources = Arc::new(ServerResources::new(
+        database,
+        auth_manager,
+        "test_jwt_secret",
+        config,
+    ));
+    let oauth_routes = OAuthRoutes::new(server_resources);
 
     let user_id = Uuid::new_v4();
 
