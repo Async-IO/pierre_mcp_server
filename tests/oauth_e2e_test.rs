@@ -166,6 +166,8 @@ use pierre_mcp_server::{
 use serde_json::json;
 use tokio::time::{sleep, Duration};
 
+const TEST_JWT_SECRET: &str = "test_jwt_secret_for_oauth_e2e_tests";
+
 /// Test the complete OAuth flow through MCP tools
 #[tokio::test]
 async fn test_oauth_flow_through_mcp() {
@@ -263,7 +265,8 @@ async fn test_oauth_flow_through_mcp() {
     });
 
     // Create server instance
-    let _server = MultiTenantMcpServer::new(database, auth_manager, config);
+    let _server =
+        MultiTenantMcpServer::new(database, auth_manager, TEST_JWT_SECRET.to_string(), config);
 
     // Start server in background (we'll simulate MCP requests instead of real TCP)
     let server_handle = tokio::spawn(async move {

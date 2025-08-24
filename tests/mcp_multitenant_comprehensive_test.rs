@@ -18,6 +18,8 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
+const TEST_JWT_SECRET: &str = "test_jwt_secret_for_multitenant_comprehensive_tests";
+
 mod common;
 
 // === Test Setup Helpers ===
@@ -123,6 +125,7 @@ async fn create_test_server() -> Result<MultiTenantMcpServer> {
     Ok(MultiTenantMcpServer::new(
         (*database).clone(),
         (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
         config,
     ))
 }

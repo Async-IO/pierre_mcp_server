@@ -16,6 +16,8 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 use uuid::Uuid;
 
+const TEST_JWT_SECRET: &str = "test_jwt_secret_for_mcp_protocol_tests";
+
 /// Test helper to create MCP request
 fn create_mcp_request(method: &str, params: Option<&Value>, id: Option<Value>) -> Value {
     json!({
@@ -44,7 +46,12 @@ async fn test_mcp_initialize_request() -> Result<()> {
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
 
-    let server = MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config);
+    let server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config,
+    );
 
     // Test initialize request
     let _request = create_mcp_request("initialize", None, Some(json!("init-1")));
@@ -63,7 +70,12 @@ async fn test_mcp_ping_request() -> Result<()> {
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
 
-    let _server = MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config);
+    let _server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config,
+    );
 
     // Test ping request structure
     let request = create_mcp_request("ping", None, Some(json!(123)));
@@ -79,7 +91,12 @@ async fn test_mcp_tools_list_request() -> Result<()> {
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
 
-    let _server = MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config);
+    let _server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config,
+    );
 
     // Test tools/list request
     let request = create_mcp_request("tools/list", None, Some(json!("list-1")));
@@ -99,7 +116,12 @@ async fn test_mcp_authenticate_request() -> Result<()> {
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
 
-    let _server = MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config);
+    let _server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config,
+    );
 
     // Create test user
     let user = User::new(
@@ -128,7 +150,12 @@ async fn test_mcp_tools_call_without_auth() -> Result<()> {
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
 
-    let _server = MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config);
+    let _server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config,
+    );
 
     // Test tools/call without authentication
     let params = json!({
@@ -152,7 +179,12 @@ async fn test_mcp_tools_call_with_expired_token() -> Result<()> {
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
 
-    let _server = MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config);
+    let _server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config,
+    );
 
     // Create an expired token scenario
     let expired_token = "expired.jwt.token";
@@ -182,7 +214,12 @@ async fn test_mcp_tools_call_malformed_token() -> Result<()> {
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
 
-    let _server = MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config);
+    let _server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config,
+    );
 
     // Test with malformed token
     let malformed_token = "not.a.valid.jwt";
@@ -212,7 +249,12 @@ async fn test_mcp_unknown_method() -> Result<()> {
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
 
-    let _server = MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config);
+    let _server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config,
+    );
 
     // Test unknown method
     let request = create_mcp_request("unknown/method", None, Some(json!("unknown-1")));
@@ -228,7 +270,12 @@ async fn test_mcp_oauth_tool_calls() -> Result<()> {
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
 
-    let _server = MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config);
+    let _server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config,
+    );
 
     // Create test user and generate valid token
     let user = User::new(
@@ -302,7 +349,12 @@ async fn test_mcp_intelligence_tool_calls() -> Result<()> {
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
 
-    let _server = MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config);
+    let _server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config,
+    );
 
     // Create test user
     let user = User::new(
@@ -351,7 +403,12 @@ async fn test_mcp_provider_required_tools() -> Result<()> {
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
 
-    let _server = MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config);
+    let _server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config,
+    );
 
     // Create test user
     let user = User::new(
@@ -409,7 +466,12 @@ async fn test_mcp_unknown_tool() -> Result<()> {
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
 
-    let _server = MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config);
+    let _server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config,
+    );
 
     // Create test user
     let user = User::new(
@@ -443,7 +505,12 @@ async fn test_mcp_api_key_authentication() -> Result<()> {
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
 
-    let _server = MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config);
+    let _server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config,
+    );
 
     // Create test user and API key
     let user = User::new(
@@ -481,7 +548,12 @@ async fn test_mcp_request_id_variations() -> Result<()> {
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
 
-    let _server = MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config);
+    let _server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config,
+    );
 
     // Test different ID types
     let id_variations = vec![
@@ -506,7 +578,12 @@ async fn test_mcp_error_scenarios() -> Result<()> {
     let auth_manager = common::create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
 
-    let _server = MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config);
+    let _server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config,
+    );
 
     // Test various error scenarios
 
@@ -545,6 +622,7 @@ async fn test_mcp_concurrent_requests() -> Result<()> {
     let _server = Arc::new(MultiTenantMcpServer::new(
         (*database).clone(),
         (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
         config,
     ));
 

@@ -18,6 +18,8 @@ use pierre_mcp_server::admin::{
     jwt::AdminJwtManager,
     models::{AdminAction, AdminPermission, AdminPermissions, CreateAdminTokenRequest},
 };
+
+const TEST_JWT_SECRET: &str = "test_jwt_secret_for_admin_token_creation_in_tests";
 use pierre_mcp_server::database_plugins::DatabaseProvider;
 use serial_test::serial;
 
@@ -110,7 +112,7 @@ async fn test_admin_token_database_operations() -> Result<()> {
     };
 
     // Create admin token
-    let generated_token = db.create_admin_token(&request).await?;
+    let generated_token = db.create_admin_token(&request, TEST_JWT_SECRET).await?;
     assert_eq!(generated_token.service_name, "test_service");
     assert!(!generated_token.is_super_admin);
     assert!(generated_token.expires_at.is_some());
@@ -158,7 +160,7 @@ async fn test_admin_token_usage_tracking() -> Result<()> {
         expires_in_days: None,
     };
 
-    let generated_token = db.create_admin_token(&request).await?;
+    let generated_token = db.create_admin_token(&request, TEST_JWT_SECRET).await?;
 
     // Update last used
     let ip_address = "192.168.1.100";
@@ -224,7 +226,7 @@ async fn test_admin_provisioned_keys_tracking() -> Result<()> {
         expires_in_days: None,
     };
 
-    let admin_token = db.create_admin_token(&request).await?;
+    let admin_token = db.create_admin_token(&request, TEST_JWT_SECRET).await?;
 
     // Create user and API key
     let (user_id, user) = common::create_test_user(&db).await?;
@@ -403,7 +405,7 @@ async fn test_admin_super_admin_privileges() -> Result<()> {
         expires_in_days: None,
     };
 
-    let super_admin_token = db.create_admin_token(&request).await?;
+    let super_admin_token = db.create_admin_token(&request, TEST_JWT_SECRET).await?;
     assert!(super_admin_token.is_super_admin);
 
     // Verify super admin has all permissions

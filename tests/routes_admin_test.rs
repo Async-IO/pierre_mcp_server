@@ -173,6 +173,8 @@ use uuid::Uuid;
 use warp::test::request;
 use warp::Filter;
 
+const TEST_JWT_SECRET: &str = "test_jwt_secret_for_admin_routes_tests";
+
 /// Test setup helper that creates all necessary components for admin route testing
 struct AdminTestSetup {
     context: AdminApiContext,
@@ -1093,7 +1095,7 @@ async fn test_revoke_admin_token() -> Result<()> {
     let token_to_revoke = setup
         .context
         .database
-        .create_admin_token(&revoke_request)
+        .create_admin_token(&revoke_request, TEST_JWT_SECRET)
         .await?;
 
     let path = format!("/admin/tokens/{}/revoke", token_to_revoke.token_id);
@@ -1138,7 +1140,7 @@ async fn test_rotate_admin_token() -> Result<()> {
     let token_to_rotate = setup
         .context
         .database
-        .create_admin_token(&rotate_request)
+        .create_admin_token(&rotate_request, TEST_JWT_SECRET)
         .await?;
 
     let path = format!("/admin/tokens/{}/rotate", token_to_rotate.token_id);

@@ -15,6 +15,8 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
+const TEST_JWT_SECRET: &str = "test_jwt_secret_for_multitenant_specific_tests";
+
 mod common;
 use common::*;
 
@@ -25,7 +27,12 @@ async fn test_unknown_method_handler() -> Result<()> {
     let auth_manager = create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
 
-    let server = MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config);
+    let server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config,
+    );
 
     // Create test user
     let user_id = Uuid::new_v4();
@@ -76,7 +83,12 @@ async fn test_connect_strava_handler_errors() -> Result<()> {
     let auth_manager = create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
 
-    let server = MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config);
+    let server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config,
+    );
 
     // Create test user
     let user_id = Uuid::new_v4();
@@ -112,7 +124,12 @@ async fn test_disconnect_provider_handler() -> Result<()> {
     let auth_manager = create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
 
-    let server = MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config);
+    let server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config,
+    );
 
     // Create test user
     let user_id = Uuid::new_v4();
@@ -149,7 +166,12 @@ async fn test_authentication_error_handling() -> Result<()> {
     let auth_manager = create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
 
-    let _server = MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config);
+    let _server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config,
+    );
 
     // Test invalid token format
     let _request_json = json!({
@@ -177,7 +199,12 @@ async fn test_rate_limiting_enforcement() -> Result<()> {
     let auth_manager = create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
 
-    let server = MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config);
+    let server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config,
+    );
 
     // Create test user with starter tier (should have rate limits)
     let user_id = Uuid::new_v4();
@@ -220,7 +247,12 @@ async fn test_provider_initialization_errors() -> Result<()> {
     let auth_manager = create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
 
-    let server = MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config);
+    let server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config,
+    );
 
     // Create test user
     let user_id = Uuid::new_v4();
@@ -257,7 +289,12 @@ async fn test_jsonrpc_error_responses() -> Result<()> {
     let auth_manager = create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
 
-    let _server = MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config);
+    let _server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config,
+    );
 
     // Test malformed JSON-RPC requests
     // Test missing required fields
@@ -275,7 +312,12 @@ async fn test_session_state_edge_cases() -> Result<()> {
     let auth_manager = create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
 
-    let _server = MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config);
+    let _server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config,
+    );
 
     // Test concurrent session modifications
     // Test session cleanup
@@ -293,7 +335,12 @@ async fn test_database_error_handling() -> Result<()> {
     let auth_manager = create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
 
-    let _server = MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config);
+    let _server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config,
+    );
 
     // Test database connection failures
     // Test constraint violations
@@ -311,7 +358,12 @@ async fn test_tool_call_parameter_validation() -> Result<()> {
     let auth_manager = create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
 
-    let server = MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config);
+    let server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config,
+    );
 
     // Create test user
     let user_id = Uuid::new_v4();

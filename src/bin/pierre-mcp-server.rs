@@ -99,11 +99,20 @@ async fn main() -> Result<()> {
         key_manager.complete_initialization(&database).await?;
         info!("Two-tier key management system fully initialized");
 
-        // Get or create JWT secret from database
-        let jwt_secret_string = database
-            .get_or_create_system_secret("admin_jwt_secret")
-            .await?;
-        info!("Admin JWT secret loaded from database");
+        // Get JWT secret from database (must exist - created by admin-setup)
+        let jwt_secret_string = if let Ok(secret) =
+            database.get_system_secret("admin_jwt_secret").await
+        {
+            info!("Admin JWT secret loaded from database");
+            secret
+        } else {
+            error!("Admin JWT secret not found in database!");
+            error!("Please run the admin setup first:");
+            error!("  cargo run --bin admin-setup -- create-admin-user --email admin@example.com --password yourpassword");
+            return Err(anyhow::anyhow!(
+                "Admin JWT secret not found. Run admin-setup create-admin-user first."
+            ));
+        };
 
         // Initialize authentication manager
         let auth_manager = {
@@ -111,7 +120,7 @@ async fn main() -> Result<()> {
             #[allow(clippy::cast_possible_wrap)]
             {
                 AuthManager::new(
-                    jwt_secret_string.into_bytes(),
+                    jwt_secret_string.as_bytes().to_vec(),
                     config.auth.jwt_expiry_hours as i64,
                 )
             }
@@ -119,7 +128,12 @@ async fn main() -> Result<()> {
         info!("Authentication manager initialized");
 
         // Create and run server
-        let server = MultiTenantMcpServer::new(database, auth_manager, Arc::new(config.clone()));
+        let server = MultiTenantMcpServer::new(
+            database,
+            auth_manager,
+            jwt_secret_string,
+            Arc::new(config.clone()),
+        );
 
         info!(
             "MCP server starting on ports {} (MCP) and {} (HTTP)",

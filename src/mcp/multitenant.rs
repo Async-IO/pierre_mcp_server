@@ -80,6 +80,8 @@ pub struct MultiTenantMcpServer {
     _tenant_oauth_client: Arc<TenantOAuthClient>,
     // Tenant provider factory
     tenant_provider_factory: Arc<TenantProviderFactory>,
+    // Admin JWT secret (loaded once at startup)
+    admin_jwt_secret: String,
     config: Arc<crate::config::environment::ServerConfig>,
 }
 
@@ -88,6 +90,7 @@ impl MultiTenantMcpServer {
     pub fn new(
         database: Database,
         auth_manager: AuthManager,
+        admin_jwt_secret: String,
         config: Arc<crate::config::environment::ServerConfig>,
     ) -> Self {
         let database_arc = Arc::new(database);
@@ -111,6 +114,7 @@ impl MultiTenantMcpServer {
             websocket_manager,
             _tenant_oauth_client: tenant_oauth_client,
             tenant_provider_factory,
+            admin_jwt_secret,
             config,
         }
     }
@@ -146,12 +150,14 @@ impl MultiTenantMcpServer {
         let websocket_manager_http = self.websocket_manager.clone();
 
         let config_http = self.config.clone();
+        let admin_jwt_secret_http = self.admin_jwt_secret.clone();
         tokio::spawn(async move {
             Self::run_http_server(
                 http_port,
                 database_http,
                 auth_manager_http,
                 websocket_manager_http,
+                admin_jwt_secret_http,
                 config_http,
             )
             .await
@@ -1341,6 +1347,7 @@ impl MultiTenantMcpServer {
         database: Arc<Database>,
         auth_manager: Arc<AuthManager>,
         websocket_manager: Arc<WebSocketManager>,
+        admin_jwt_secret: String,
         config: Arc<crate::config::environment::ServerConfig>,
     ) -> Result<()> {
         use warp::Filter;
@@ -1360,15 +1367,14 @@ impl MultiTenantMcpServer {
             configuration_routes,
         ) = Self::setup_route_handlers(&database, &auth_manager, &config);
 
-        // Get JWT secret from database for admin routes
-        let jwt_secret_str = database
-            .get_or_create_system_secret("admin_jwt_secret")
-            .await?;
+        // Use JWT secret passed from server startup
+        let jwt_secret_str = &admin_jwt_secret;
+        info!("Using admin JWT secret from server startup");
 
         // Setup admin routes
         let admin_context = crate::admin_routes::AdminApiContext::new(
             database.as_ref().clone(),
-            &jwt_secret_str,
+            jwt_secret_str,
             auth_manager.as_ref().clone(),
         );
         let admin_routes_filter = crate::admin_routes::admin_routes_with_rejection(admin_context);
@@ -1514,12 +1520,14 @@ impl MultiTenantMcpServer {
         let websocket_manager_http = self.websocket_manager.clone();
 
         let config_http = self.config.clone();
+        let admin_jwt_secret_http = self.admin_jwt_secret.clone();
         tokio::spawn(async move {
             Self::run_http_server(
                 http_port,
                 database_http,
                 auth_manager_http,
                 websocket_manager_http,
+                admin_jwt_secret_http,
                 config_http,
             )
             .await

@@ -19,6 +19,8 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
+const TEST_JWT_SECRET: &str = "test_jwt_secret_for_focused_coverage_tests";
+
 mod common;
 use common::*;
 
@@ -29,8 +31,12 @@ async fn test_mcp_multitenant_comprehensive() -> Result<()> {
     let auth_manager = create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
 
-    let server =
-        MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config.clone());
+    let server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config.clone(),
+    );
 
     // Test server creation and basic access
     let _db_ref = server.database();
@@ -139,7 +145,12 @@ async fn test_jsonrpc_scenarios() -> Result<()> {
     let database = create_test_database().await?;
     let auth_manager = create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
-    let _server = MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config);
+    let _server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config,
+    );
 
     let user = User::new(
         "jsonrpc@example.com".to_string(),
@@ -559,6 +570,7 @@ async fn test_concurrent_operations() -> Result<()> {
     let server = Arc::new(MultiTenantMcpServer::new(
         (*database).clone(),
         (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
         config,
     ));
 

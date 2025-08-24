@@ -17,6 +17,8 @@ use pierre_mcp_server::{
 use std::sync::Arc;
 use uuid::Uuid;
 
+const TEST_JWT_SECRET: &str = "test_jwt_secret_for_tenant_isolation_tests";
+
 /// Create a test `ServerConfig` for tenant data isolation tests
 fn create_test_server_config(
 ) -> std::sync::Arc<pierre_mcp_server::config::environment::ServerConfig> {
@@ -443,6 +445,7 @@ async fn test_mcp_server_tenant_isolation() -> Result<()> {
     let _server = MultiTenantMcpServer::new(
         database.clone(),
         auth_manager.clone(),
+        TEST_JWT_SECRET.to_string(),
         create_test_server_config(),
     );
 

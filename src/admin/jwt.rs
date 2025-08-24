@@ -56,9 +56,11 @@ impl AdminJwtManager {
     pub async fn from_database(
         database: &crate::database_plugins::factory::Database,
     ) -> Result<Self> {
-        let jwt_secret = database
-            .get_or_create_system_secret("admin_jwt_secret")
-            .await?;
+        let Ok(jwt_secret) = database.get_system_secret("admin_jwt_secret").await else {
+            return Err(anyhow::anyhow!(
+                "Admin JWT secret not found. Run admin-setup create-admin-user first."
+            ));
+        };
         Ok(Self::with_secret(&jwt_secret))
     }
 
