@@ -336,35 +336,13 @@ impl UniversalToolExecutor {
         }
 
         // Fallback to global config for backward compatibility
-        let mut oauth_manager = self.resources.oauth_manager.write().await;
+        // Providers are now pre-registered at startup, so just use read lock
+        let oauth_manager = self.resources.oauth_manager.read().await;
 
-        // Register the appropriate provider using centralized config
+        // Verify the provider is supported
         match provider {
-            "strava" => {
-                if let Ok(strava_provider) =
-                    crate::oauth::providers::StravaOAuthProvider::from_config(
-                        &self.resources.config.oauth.strava,
-                    )
-                {
-                    oauth_manager.register_provider(Box::new(strava_provider));
-                } else {
-                    return Err(crate::oauth::OAuthError::ConfigurationError(
-                        "Failed to initialize Strava provider".into(),
-                    ));
-                }
-            }
-            "fitbit" => {
-                if let Ok(fitbit_provider) =
-                    crate::oauth::providers::FitbitOAuthProvider::from_config(
-                        &self.resources.config.oauth.fitbit,
-                    )
-                {
-                    oauth_manager.register_provider(Box::new(fitbit_provider));
-                } else {
-                    return Err(crate::oauth::OAuthError::ConfigurationError(
-                        "Failed to initialize Fitbit provider".into(),
-                    ));
-                }
+            "strava" | "fitbit" => {
+                // Provider should already be registered at startup
             }
             _ => {
                 return Err(crate::oauth::OAuthError::UnsupportedProvider(
@@ -1073,20 +1051,8 @@ impl UniversalToolExecutor {
         // Parse user ID
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
-        // Use OAuth manager to check connection status for all providers
-        let mut oauth_manager = self.resources.oauth_manager.write().await;
-
-        // Register all providers using centralized config
-        if let Ok(strava_provider) = crate::oauth::providers::StravaOAuthProvider::from_config(
-            &self.resources.config.oauth.strava,
-        ) {
-            oauth_manager.register_provider(Box::new(strava_provider));
-        }
-        if let Ok(fitbit_provider) = crate::oauth::providers::FitbitOAuthProvider::from_config(
-            &self.resources.config.oauth.fitbit,
-        ) {
-            oauth_manager.register_provider(Box::new(fitbit_provider));
-        }
+        // Use OAuth manager to check connection status for all providers (read-only operation)
+        let oauth_manager = self.resources.oauth_manager.read().await;
 
         let connection_status = oauth_manager
             .get_connection_status(user_uuid)
@@ -1128,40 +1094,25 @@ impl UniversalToolExecutor {
         // Parse user ID
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
-        // Create OAuth manager with database
-        let mut oauth_manager = self.resources.oauth_manager.write().await;
+        // Use OAuth manager (providers are pre-registered at startup)
+        let oauth_manager = self.resources.oauth_manager.read().await;
 
-        // Register Strava provider using centralized config
-        match crate::oauth::providers::StravaOAuthProvider::from_config(
-            &self.resources.config.oauth.strava,
-        ) {
-            Ok(strava_provider) => {
-                oauth_manager.register_provider(Box::new(strava_provider));
-
-                // Generate authorization URL
-                match oauth_manager.generate_auth_url(user_uuid, "strava").await {
-                    Ok(auth_response) => Ok(UniversalResponse {
-                        success: true,
-                        result: Some(serde_json::json!({
-                            "authorization_url": auth_response.authorization_url,
-                            "state": auth_response.state,
-                            "provider": auth_response.provider
-                        })),
-                        error: None,
-                        metadata: None,
-                    }),
-                    Err(e) => Ok(UniversalResponse {
-                        success: false,
-                        result: None,
-                        error: Some(format!("Failed to generate Strava authorization URL: {e}")),
-                        metadata: None,
-                    }),
-                }
-            }
+        // Generate authorization URL using pre-registered Strava provider
+        match oauth_manager.generate_auth_url(user_uuid, "strava").await {
+            Ok(auth_response) => Ok(UniversalResponse {
+                success: true,
+                result: Some(serde_json::json!({
+                    "authorization_url": auth_response.authorization_url,
+                    "state": auth_response.state,
+                    "provider": auth_response.provider
+                })),
+                error: None,
+                metadata: None,
+            }),
             Err(e) => Ok(UniversalResponse {
                 success: false,
                 result: None,
-                error: Some(format!("Failed to initialize Strava provider: {e}")),
+                error: Some(format!("Failed to generate Strava authorization URL: {e}")),
                 metadata: None,
             }),
         }
@@ -1175,40 +1126,25 @@ impl UniversalToolExecutor {
         // Parse user ID
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
-        // Create OAuth manager with database
-        let mut oauth_manager = self.resources.oauth_manager.write().await;
+        // Use OAuth manager (providers are pre-registered at startup)
+        let oauth_manager = self.resources.oauth_manager.read().await;
 
-        // Register Fitbit provider using centralized config
-        match crate::oauth::providers::FitbitOAuthProvider::from_config(
-            &self.resources.config.oauth.fitbit,
-        ) {
-            Ok(fitbit_provider) => {
-                oauth_manager.register_provider(Box::new(fitbit_provider));
-
-                // Generate authorization URL
-                match oauth_manager.generate_auth_url(user_uuid, "fitbit").await {
-                    Ok(auth_response) => Ok(UniversalResponse {
-                        success: true,
-                        result: Some(serde_json::json!({
-                            "authorization_url": auth_response.authorization_url,
-                            "state": auth_response.state,
-                            "provider": auth_response.provider
-                        })),
-                        error: None,
-                        metadata: None,
-                    }),
-                    Err(e) => Ok(UniversalResponse {
-                        success: false,
-                        result: None,
-                        error: Some(format!("Failed to generate Fitbit authorization URL: {e}")),
-                        metadata: None,
-                    }),
-                }
-            }
+        // Generate authorization URL using pre-registered Fitbit provider
+        match oauth_manager.generate_auth_url(user_uuid, "fitbit").await {
+            Ok(auth_response) => Ok(UniversalResponse {
+                success: true,
+                result: Some(serde_json::json!({
+                    "authorization_url": auth_response.authorization_url,
+                    "state": auth_response.state,
+                    "provider": auth_response.provider
+                })),
+                error: None,
+                metadata: None,
+            }),
             Err(e) => Ok(UniversalResponse {
                 success: false,
                 result: None,
-                error: Some(format!("Failed to initialize Fitbit provider: {e}")),
+                error: Some(format!("Failed to generate Fitbit authorization URL: {e}")),
                 metadata: None,
             }),
         }
