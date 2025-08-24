@@ -6,7 +6,6 @@ use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
 use pierre_mcp_server::key_management::KeyManager;
 use tempfile::TempDir;
 
-const TEST_JWT_SECRET: &str = "test_jwt_secret_for_persistence_tests";
 
 #[tokio::test]
 async fn test_jwt_secret_persistence_across_restarts() -> Result<()> {
@@ -36,7 +35,7 @@ async fn test_jwt_secret_persistence_across_restarts() -> Result<()> {
         };
 
         let generated_token = database
-            .create_admin_token(&request, TEST_JWT_SECRET)
+            .create_admin_token(&request, &jwt_secret)
             .await?;
         println!("Generated token: {}", generated_token.jwt_token);
 
