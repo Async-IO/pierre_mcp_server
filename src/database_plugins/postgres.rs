@@ -2198,6 +2198,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn create_admin_token(
         &self,
         request: &crate::admin::models::CreateAdminTokenRequest,
+        admin_jwt_secret: &str,
     ) -> Result<crate::admin::models::GeneratedAdminToken> {
         use crate::admin::{
             jwt::AdminJwtManager,
@@ -2209,9 +2210,8 @@ impl DatabaseProvider for PostgresDatabase {
         let uuid = Uuid::new_v4().simple();
         let token_id = format!("admin_{uuid}");
 
-        // Get or create JWT secret from database
-        let jwt_secret = self.get_or_create_system_secret("admin_jwt_secret").await?;
-        let jwt_manager = AdminJwtManager::with_secret(&jwt_secret);
+        // Use the JWT secret passed from server startup
+        let jwt_manager = AdminJwtManager::with_secret(admin_jwt_secret);
 
         // Get permissions
         let permissions = request.permissions.as_ref().map_or_else(
@@ -2242,7 +2242,7 @@ impl DatabaseProvider for PostgresDatabase {
         // Generate token prefix and hash for storage
         let token_prefix = AdminJwtManager::generate_token_prefix(&jwt_token);
         let token_hash = AdminJwtManager::hash_token_for_storage(&jwt_token)?;
-        let jwt_secret_hash = AdminJwtManager::hash_secret(&jwt_secret);
+        let jwt_secret_hash = AdminJwtManager::hash_secret(admin_jwt_secret);
 
         // Store in database
         let query = r"

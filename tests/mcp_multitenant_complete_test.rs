@@ -19,6 +19,8 @@ use tempfile::TempDir;
 use tokio::time::{sleep, timeout};
 use uuid::Uuid;
 
+const TEST_JWT_SECRET: &str = "test_jwt_secret_for_complete_multitenant_tests";
+
 /// Check if a port is available
 fn is_port_available(port: u16) -> bool {
     TcpListener::bind(format!("127.0.0.1:{port}")).is_ok()
@@ -413,6 +415,7 @@ async fn test_complete_multitenant_workflow() -> Result<()> {
     let server = MultiTenantMcpServer::new(
         database,
         auth_manager,
+        TEST_JWT_SECRET.to_string(),
         create_test_config(&jwt_secret_path, &encryption_key_path),
     );
     let server_handle = tokio::spawn(async move {
@@ -551,6 +554,7 @@ async fn test_mcp_authentication_required() -> Result<()> {
     let server = MultiTenantMcpServer::new(
         database,
         auth_manager,
+        TEST_JWT_SECRET.to_string(),
         create_test_config(&jwt_secret_path, &encryption_key_path),
     );
     let server_handle = tokio::spawn(async move {
@@ -620,6 +624,7 @@ async fn test_mcp_initialization_no_auth() -> Result<()> {
     let server = MultiTenantMcpServer::new(
         database,
         auth_manager,
+        TEST_JWT_SECRET.to_string(),
         create_test_config(&jwt_secret_path, &encryption_key_path),
     );
     let server_handle = tokio::spawn(async move {
@@ -679,6 +684,7 @@ async fn test_mcp_concurrent_requests() -> Result<()> {
     let server = MultiTenantMcpServer::new(
         database,
         auth_manager,
+        TEST_JWT_SECRET.to_string(),
         create_test_config(&jwt_secret_path, &encryption_key_path),
     );
     let server_handle = tokio::spawn(async move {
@@ -769,7 +775,12 @@ async fn test_multitenant_server_config() -> Result<()> {
     let config = create_test_config(&jwt_secret_path, &encryption_key_path);
 
     // Test server creation
-    let _server = MultiTenantMcpServer::new(database, auth_manager, config.clone());
+    let _server = MultiTenantMcpServer::new(
+        database,
+        auth_manager,
+        TEST_JWT_SECRET.to_string(),
+        config.clone(),
+    );
 
     // Verify configuration
     assert_eq!(config.mcp_port, 8080);

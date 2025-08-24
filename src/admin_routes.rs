@@ -33,6 +33,7 @@ pub struct AdminApiContext {
     pub database: Database,
     pub auth_service: AdminAuthService,
     pub auth_manager: AuthManager,
+    pub admin_jwt_secret: String,
 }
 
 impl AdminApiContext {
@@ -42,6 +43,7 @@ impl AdminApiContext {
             database,
             auth_service,
             auth_manager,
+            admin_jwt_secret: jwt_secret.to_string(),
         }
     }
 }
@@ -1196,7 +1198,11 @@ async fn handle_admin_tokens_create(
         }
     }
 
-    match context.database.create_admin_token(&token_request).await {
+    match context
+        .database
+        .create_admin_token(&token_request, &context.admin_jwt_secret)
+        .await
+    {
         Ok(generated_token) => {
             info!(
                 "Admin token created successfully: {}",
@@ -1350,7 +1356,7 @@ async fn handle_admin_tokens_rotate(
     // Create new token and revoke old one
     match context
         .database
-        .create_admin_token(&new_token_request)
+        .create_admin_token(&new_token_request, &context.admin_jwt_secret)
         .await
     {
         Ok(new_token) => {

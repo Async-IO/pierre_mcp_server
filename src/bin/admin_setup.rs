@@ -305,8 +305,18 @@ async fn generate_token_command(
         }
     }
 
+    // Load JWT secret from database (must exist - created by create-admin-user)
+    let Ok(jwt_secret) = database.get_system_secret("admin_jwt_secret").await else {
+        error!("Admin JWT secret not found in database!");
+        error!("Please run admin-setup create-admin-user first:");
+        error!("  cargo run --bin admin-setup -- create-admin-user --email admin@example.com --password yourpassword");
+        return Err(anyhow!(
+            "Admin JWT secret not found. Run admin-setup create-admin-user first."
+        ));
+    };
+
     // Generate token
-    let generated_token = database.create_admin_token(&request).await?;
+    let generated_token = database.create_admin_token(&request, &jwt_secret).await?;
 
     // Display results
     display_generated_token(&generated_token);
@@ -448,8 +458,16 @@ async fn rotate_token_command(
         request.expires_in_days = None; // Super admin tokens never expire
     }
 
+    // Load JWT secret from database (must exist - created by create-admin-user)
+    let Ok(jwt_secret) = database.get_system_secret("admin_jwt_secret").await else {
+        error!("Admin JWT secret not found in database!");
+        return Err(anyhow!(
+            "Admin JWT secret not found. Run admin-setup create-admin-user first."
+        ));
+    };
+
     // Generate new token
-    let new_token = database.create_admin_token(&request).await?;
+    let new_token = database.create_admin_token(&request, &jwt_secret).await?;
 
     // Revoke old token
     database.deactivate_admin_token(&token_id).await?;
@@ -649,6 +667,13 @@ async fn create_admin_user_command(
     println!("2. Open the frontend interface (usually http://localhost:8080)");
     println!("3. Login with the credentials above");
     println!("4. Generate your first admin token for API key provisioning");
+
+    // Generate and store admin JWT secret if it doesn't exist
+    info!("Ensuring admin JWT secret exists...");
+    let _jwt_secret = database
+        .get_or_create_system_secret("admin_jwt_secret")
+        .await?;
+    info!("Admin JWT secret is ready");
 
     println!("\nSuccess Admin user is ready to use!");
 

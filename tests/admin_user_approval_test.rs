@@ -9,6 +9,8 @@ use pierre_mcp_server::{
 };
 use uuid::Uuid;
 
+const TEST_JWT_SECRET: &str = "test_jwt_secret_for_admin_user_approval_tests";
+
 /// Test helper to create admin token and database
 async fn setup_test_database() -> Result<(Database, String, Uuid)> {
     // Initialize database with test-specific path
@@ -59,7 +61,9 @@ async fn setup_test_database() -> Result<(Database, String, Uuid)> {
         is_super_admin: true,
     };
 
-    let admin_token = database.create_admin_token(&admin_request).await?;
+    let admin_token = database
+        .create_admin_token(&admin_request, TEST_JWT_SECRET)
+        .await?;
 
     Ok((database, admin_token.token_id, admin_user_id))
 }

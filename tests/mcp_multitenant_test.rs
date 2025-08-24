@@ -172,6 +172,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
+
+const TEST_JWT_SECRET: &str = "test_jwt_secret_for_multitenant_tests";
 use uuid::Uuid;
 
 // Import common test utilities
@@ -190,7 +192,12 @@ async fn create_test_multitenant_server(
     let auth_manager = create_test_auth_manager();
     let config = create_test_server_config()?;
 
-    let server = MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config);
+    let server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config,
+    );
 
     Ok((server, database, auth_manager))
 }

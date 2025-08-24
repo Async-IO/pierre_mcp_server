@@ -439,6 +439,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     async fn create_admin_token(
         &self,
         request: &crate::admin::models::CreateAdminTokenRequest,
+        admin_jwt_secret: &str,
     ) -> Result<crate::admin::models::GeneratedAdminToken>;
 
     /// Get admin token by ID

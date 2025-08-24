@@ -19,6 +19,8 @@ use pierre_mcp_server::{
 };
 use serde_json::json;
 use std::sync::Arc;
+
+const TEST_JWT_SECRET: &str = "test_jwt_secret_for_production_coverage_tests";
 use uuid::Uuid;
 
 mod common;
@@ -31,7 +33,12 @@ async fn test_mcp_request_processing_flow() -> Result<()> {
     let auth_manager = create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
 
-    let server = MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config);
+    let server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config,
+    );
 
     // Create test user
     let user_id = Uuid::new_v4();
@@ -198,7 +205,12 @@ async fn test_mcp_multitenant_request_routing() -> Result<()> {
     let auth_manager = create_test_auth_manager();
     let config = Arc::new(ServerConfig::from_env()?);
 
-    let server = MultiTenantMcpServer::new((*database).clone(), (*auth_manager).clone(), config);
+    let server = MultiTenantMcpServer::new(
+        (*database).clone(),
+        (*auth_manager).clone(),
+        TEST_JWT_SECRET.to_string(),
+        config,
+    );
 
     // Create multiple test users to test tenant isolation
     let mut users = Vec::new();

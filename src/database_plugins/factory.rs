@@ -1144,11 +1144,12 @@ impl DatabaseProvider for Database {
     async fn create_admin_token(
         &self,
         request: &crate::admin::models::CreateAdminTokenRequest,
+        admin_jwt_secret: &str,
     ) -> Result<crate::admin::models::GeneratedAdminToken> {
         match self {
-            Self::SQLite(db) => db.create_admin_token(request).await,
+            Self::SQLite(db) => db.create_admin_token(request, admin_jwt_secret).await,
             #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(db) => db.create_admin_token(request).await,
+            Self::PostgreSQL(db) => db.create_admin_token(request, admin_jwt_secret).await,
         }
     }
 
