@@ -3,9 +3,17 @@
 
 use pierre_mcp_server::{
     auth::AuthManager,
+    config::environment::{
+        AppBehaviorConfig, AuthConfig, BackupConfig, DatabaseConfig, DatabaseUrl, Environment,
+        ExternalServicesConfig, FitbitApiConfig, GeocodingServiceConfig, LogLevel, OAuthConfig,
+        OAuthProviderConfig, ProtocolConfig, RateLimitConfig, SecurityConfig,
+        SecurityHeadersConfig, ServerConfig, StravaApiConfig, TlsConfig, WeatherServiceConfig,
+    },
     database_plugins::factory::Database,
+    mcp::multitenant::ServerResources,
     routes::{AuthRoutes, RegisterRequest},
 };
+use std::sync::Arc;
 use tempfile::TempDir;
 
 #[tokio::test]
@@ -40,6 +48,7 @@ async fn test_password_validation() {
 }
 
 #[tokio::test]
+#[allow(clippy::too_many_lines)] // Long function: Complex test with full setup
 async fn test_register_user() {
     let temp_dir = TempDir::new().unwrap();
     let db_path = temp_dir.path().join("test.db");
@@ -48,7 +57,101 @@ async fn test_register_user() {
         .await
         .unwrap();
     let auth_manager = AuthManager::new(vec![0u8; 64], 24);
-    let routes = AuthRoutes::new(database, auth_manager);
+
+    // Create ServerResources for auth routes
+    let temp_dir = tempfile::tempdir().unwrap();
+    let config = Arc::new(ServerConfig {
+        mcp_port: 8080,
+        http_port: 8081,
+        log_level: LogLevel::Info,
+        database: DatabaseConfig {
+            url: DatabaseUrl::Memory,
+            encryption_key_path: temp_dir.path().join("encryption_key"),
+            auto_migrate: true,
+            backup: BackupConfig {
+                enabled: false,
+                interval_seconds: 3600,
+                retention_count: 7,
+                directory: temp_dir.path().to_path_buf(),
+            },
+        },
+        auth: AuthConfig {
+            jwt_secret_path: temp_dir.path().join("jwt_secret"),
+            jwt_expiry_hours: 24,
+            enable_refresh_tokens: false,
+        },
+        oauth: OAuthConfig {
+            strava: OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
+            fitbit: OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
+        },
+        security: SecurityConfig {
+            cors_origins: vec!["*".to_string()],
+            rate_limit: RateLimitConfig {
+                enabled: false,
+                requests_per_window: 100,
+                window_seconds: 60,
+            },
+            tls: TlsConfig {
+                enabled: false,
+                cert_path: None,
+                key_path: None,
+            },
+            headers: SecurityHeadersConfig {
+                environment: Environment::Testing,
+            },
+        },
+        external_services: ExternalServicesConfig {
+            weather: WeatherServiceConfig {
+                api_key: None,
+                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                enabled: false,
+            },
+            geocoding: GeocodingServiceConfig {
+                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                enabled: false,
+            },
+            strava_api: StravaApiConfig {
+                base_url: "https://www.strava.com/api/v3".to_string(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
+                token_url: "https://www.strava.com/oauth/token".to_string(),
+            },
+            fitbit_api: FitbitApiConfig {
+                base_url: "https://api.fitbit.com".to_string(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+            },
+        },
+        app_behavior: AppBehaviorConfig {
+            max_activities_fetch: 100,
+            default_activities_limit: 20,
+            ci_mode: true,
+            protocol: ProtocolConfig {
+                mcp_version: "2025-06-18".to_string(),
+                server_name: "pierre-mcp-server-test".to_string(),
+                server_version: env!("CARGO_PKG_VERSION").to_string(),
+            },
+        },
+    });
+    let server_resources = Arc::new(ServerResources::new(
+        database.clone(),
+        auth_manager.clone(),
+        "test_jwt_secret",
+        config,
+    ));
+
+    let routes = AuthRoutes::new(server_resources);
 
     let request = RegisterRequest {
         email: "test@example.com".into(),
@@ -65,6 +168,7 @@ async fn test_register_user() {
 }
 
 #[tokio::test]
+#[allow(clippy::too_many_lines)] // Long function: Complex test with full setup
 async fn test_register_duplicate_user() {
     let temp_dir = TempDir::new().unwrap();
     let db_path = temp_dir.path().join("test.db");
@@ -73,7 +177,101 @@ async fn test_register_duplicate_user() {
         .await
         .unwrap();
     let auth_manager = AuthManager::new(vec![0u8; 64], 24);
-    let routes = AuthRoutes::new(database, auth_manager);
+
+    // Create ServerResources for auth routes
+    let temp_dir = tempfile::tempdir().unwrap();
+    let config = Arc::new(ServerConfig {
+        mcp_port: 8080,
+        http_port: 8081,
+        log_level: LogLevel::Info,
+        database: DatabaseConfig {
+            url: DatabaseUrl::Memory,
+            encryption_key_path: temp_dir.path().join("encryption_key"),
+            auto_migrate: true,
+            backup: BackupConfig {
+                enabled: false,
+                interval_seconds: 3600,
+                retention_count: 7,
+                directory: temp_dir.path().to_path_buf(),
+            },
+        },
+        auth: AuthConfig {
+            jwt_secret_path: temp_dir.path().join("jwt_secret"),
+            jwt_expiry_hours: 24,
+            enable_refresh_tokens: false,
+        },
+        oauth: OAuthConfig {
+            strava: OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
+            fitbit: OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
+        },
+        security: SecurityConfig {
+            cors_origins: vec!["*".to_string()],
+            rate_limit: RateLimitConfig {
+                enabled: false,
+                requests_per_window: 100,
+                window_seconds: 60,
+            },
+            tls: TlsConfig {
+                enabled: false,
+                cert_path: None,
+                key_path: None,
+            },
+            headers: SecurityHeadersConfig {
+                environment: Environment::Testing,
+            },
+        },
+        external_services: ExternalServicesConfig {
+            weather: WeatherServiceConfig {
+                api_key: None,
+                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                enabled: false,
+            },
+            geocoding: GeocodingServiceConfig {
+                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                enabled: false,
+            },
+            strava_api: StravaApiConfig {
+                base_url: "https://www.strava.com/api/v3".to_string(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
+                token_url: "https://www.strava.com/oauth/token".to_string(),
+            },
+            fitbit_api: FitbitApiConfig {
+                base_url: "https://api.fitbit.com".to_string(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+            },
+        },
+        app_behavior: AppBehaviorConfig {
+            max_activities_fetch: 100,
+            default_activities_limit: 20,
+            ci_mode: true,
+            protocol: ProtocolConfig {
+                mcp_version: "2025-06-18".to_string(),
+                server_name: "pierre-mcp-server-test".to_string(),
+                server_version: env!("CARGO_PKG_VERSION").to_string(),
+            },
+        },
+    });
+    let server_resources = Arc::new(ServerResources::new(
+        database.clone(),
+        auth_manager.clone(),
+        "test_jwt_secret",
+        config,
+    ));
+
+    let routes = AuthRoutes::new(server_resources);
 
     let request = RegisterRequest {
         email: "test@example.com".into(),

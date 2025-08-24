@@ -34,7 +34,7 @@ async fn test_mcp_multitenant_comprehensive() -> Result<()> {
     let server = MultiTenantMcpServer::new(
         (*database).clone(),
         (*auth_manager).clone(),
-        TEST_JWT_SECRET.to_string(),
+        TEST_JWT_SECRET,
         config.clone(),
     );
 
@@ -148,7 +148,7 @@ async fn test_jsonrpc_scenarios() -> Result<()> {
     let _server = MultiTenantMcpServer::new(
         (*database).clone(),
         (*auth_manager).clone(),
-        TEST_JWT_SECRET.to_string(),
+        TEST_JWT_SECRET,
         config,
     );
 
@@ -570,7 +570,7 @@ async fn test_concurrent_operations() -> Result<()> {
     let server = Arc::new(MultiTenantMcpServer::new(
         (*database).clone(),
         (*auth_manager).clone(),
-        TEST_JWT_SECRET.to_string(),
+        TEST_JWT_SECRET,
         config,
     ));
 

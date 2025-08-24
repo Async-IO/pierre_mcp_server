@@ -125,7 +125,7 @@ async fn create_test_server() -> Result<MultiTenantMcpServer> {
     Ok(MultiTenantMcpServer::new(
         (*database).clone(),
         (*auth_manager).clone(),
-        TEST_JWT_SECRET.to_string(),
+        TEST_JWT_SECRET,
         config,
     ))
 }
@@ -168,12 +168,7 @@ async fn test_server_public_methods() -> Result<()> {
 
 #[tokio::test]
 async fn test_mcp_initialize_request() -> Result<()> {
-    let database = common::create_test_database().await?;
-    let auth_manager = common::create_test_auth_manager();
-    let auth_middleware = Arc::new(pierre_mcp_server::auth::McpAuthMiddleware::new(
-        (*auth_manager).clone(),
-        database.clone(),
-    ));
+    let resources = common::create_test_server_resources().await?;
 
     let request = McpRequest {
         jsonrpc: "2.0".to_string(),
@@ -184,15 +179,7 @@ async fn test_mcp_initialize_request() -> Result<()> {
         headers: None,
     };
 
-    let tenant_provider_factory = create_mock_tenant_provider_factory();
-    let response = MultiTenantMcpServer::handle_request(
-        request,
-        &database,
-        &auth_manager,
-        &auth_middleware,
-        &tenant_provider_factory,
-    )
-    .await;
+    let response = MultiTenantMcpServer::handle_request(request, &resources).await;
 
     // Should either succeed or fail gracefully depending on implementation
     assert_eq!(response.jsonrpc, "2.0");
@@ -203,12 +190,7 @@ async fn test_mcp_initialize_request() -> Result<()> {
 
 #[tokio::test]
 async fn test_mcp_ping_request() -> Result<()> {
-    let database = common::create_test_database().await?;
-    let auth_manager = common::create_test_auth_manager();
-    let auth_middleware = Arc::new(pierre_mcp_server::auth::McpAuthMiddleware::new(
-        (*auth_manager).clone(),
-        database.clone(),
-    ));
+    let resources = common::create_test_server_resources().await?;
 
     let request = McpRequest {
         jsonrpc: "2.0".to_string(),
@@ -219,15 +201,7 @@ async fn test_mcp_ping_request() -> Result<()> {
         headers: None,
     };
 
-    let tenant_provider_factory = create_mock_tenant_provider_factory();
-    let response = MultiTenantMcpServer::handle_request(
-        request,
-        &database,
-        &auth_manager,
-        &auth_middleware,
-        &tenant_provider_factory,
-    )
-    .await;
+    let response = MultiTenantMcpServer::handle_request(request, &resources).await;
 
     // Should either succeed or fail gracefully depending on implementation
     assert_eq!(response.jsonrpc, "2.0");
@@ -237,12 +211,7 @@ async fn test_mcp_ping_request() -> Result<()> {
 
 #[tokio::test]
 async fn test_mcp_tools_list_request() -> Result<()> {
-    let database = common::create_test_database().await?;
-    let auth_manager = common::create_test_auth_manager();
-    let auth_middleware = Arc::new(pierre_mcp_server::auth::McpAuthMiddleware::new(
-        (*auth_manager).clone(),
-        database.clone(),
-    ));
+    let resources = common::create_test_server_resources().await?;
 
     let request = McpRequest {
         jsonrpc: "2.0".to_string(),
@@ -253,15 +222,7 @@ async fn test_mcp_tools_list_request() -> Result<()> {
         headers: None,
     };
 
-    let tenant_provider_factory = create_mock_tenant_provider_factory();
-    let response = MultiTenantMcpServer::handle_request(
-        request,
-        &database,
-        &auth_manager,
-        &auth_middleware,
-        &tenant_provider_factory,
-    )
-    .await;
+    let response = MultiTenantMcpServer::handle_request(request, &resources).await;
 
     // Should either succeed or fail gracefully depending on implementation
     assert_eq!(response.jsonrpc, "2.0");
@@ -271,12 +232,7 @@ async fn test_mcp_tools_list_request() -> Result<()> {
 
 #[tokio::test]
 async fn test_mcp_authenticate_request() -> Result<()> {
-    let database = common::create_test_database().await?;
-    let auth_manager = common::create_test_auth_manager();
-    let auth_middleware = Arc::new(pierre_mcp_server::auth::McpAuthMiddleware::new(
-        (*auth_manager).clone(),
-        database.clone(),
-    ));
+    let resources = common::create_test_server_resources().await?;
 
     // Create user with known credentials
     let user = User::new(
@@ -284,7 +240,7 @@ async fn test_mcp_authenticate_request() -> Result<()> {
         bcrypt::hash("test_password", 4)?,
         Some("Auth Test User".to_string()),
     );
-    database.create_user(&user).await?;
+    resources.database.create_user(&user).await?;
 
     let request = McpRequest {
         jsonrpc: "2.0".to_string(),
@@ -298,15 +254,7 @@ async fn test_mcp_authenticate_request() -> Result<()> {
         headers: None,
     };
 
-    let tenant_provider_factory = create_mock_tenant_provider_factory();
-    let response = MultiTenantMcpServer::handle_request(
-        request,
-        &database,
-        &auth_manager,
-        &auth_middleware,
-        &tenant_provider_factory,
-    )
-    .await;
+    let response = MultiTenantMcpServer::handle_request(request, &resources).await;
 
     // Should either succeed or fail gracefully depending on implementation
     assert_eq!(response.jsonrpc, "2.0");
@@ -316,12 +264,7 @@ async fn test_mcp_authenticate_request() -> Result<()> {
 
 #[tokio::test]
 async fn test_unknown_method_handling() -> Result<()> {
-    let database = common::create_test_database().await?;
-    let auth_manager = common::create_test_auth_manager();
-    let auth_middleware = Arc::new(pierre_mcp_server::auth::McpAuthMiddleware::new(
-        (*auth_manager).clone(),
-        database.clone(),
-    ));
+    let resources = common::create_test_server_resources().await?;
 
     let request = McpRequest {
         jsonrpc: "2.0".to_string(),
@@ -332,15 +275,7 @@ async fn test_unknown_method_handling() -> Result<()> {
         headers: None,
     };
 
-    let tenant_provider_factory = create_mock_tenant_provider_factory();
-    let response = MultiTenantMcpServer::handle_request(
-        request,
-        &database,
-        &auth_manager,
-        &auth_middleware,
-        &tenant_provider_factory,
-    )
-    .await;
+    let response = MultiTenantMcpServer::handle_request(request, &resources).await;
 
     assert!(response.result.is_none());
     assert!(response.error.is_some());
@@ -356,12 +291,7 @@ async fn test_unknown_method_handling() -> Result<()> {
 
 #[tokio::test]
 async fn test_authenticate_method_with_invalid_params() -> Result<()> {
-    let database = common::create_test_database().await?;
-    let auth_manager = common::create_test_auth_manager();
-    let auth_middleware = Arc::new(pierre_mcp_server::auth::McpAuthMiddleware::new(
-        (*auth_manager).clone(),
-        database.clone(),
-    ));
+    let resources = common::create_test_server_resources().await?;
 
     let request = McpRequest {
         jsonrpc: "2.0".to_string(),
@@ -372,15 +302,7 @@ async fn test_authenticate_method_with_invalid_params() -> Result<()> {
         headers: None,
     };
 
-    let tenant_provider_factory = create_mock_tenant_provider_factory();
-    let response = MultiTenantMcpServer::handle_request(
-        request,
-        &database,
-        &auth_manager,
-        &auth_middleware,
-        &tenant_provider_factory,
-    )
-    .await;
+    let response = MultiTenantMcpServer::handle_request(request, &resources).await;
 
     assert!(response.result.is_none());
     assert!(response.error.is_some());
@@ -395,12 +317,7 @@ async fn test_authenticate_method_with_invalid_params() -> Result<()> {
 
 #[tokio::test]
 async fn test_tools_call_without_authentication() -> Result<()> {
-    let database = common::create_test_database().await?;
-    let auth_manager = common::create_test_auth_manager();
-    let auth_middleware = Arc::new(pierre_mcp_server::auth::McpAuthMiddleware::new(
-        (*auth_manager).clone(),
-        database.clone(),
-    ));
+    let resources = common::create_test_server_resources().await?;
 
     let request = McpRequest {
         jsonrpc: "2.0".to_string(),
@@ -417,15 +334,7 @@ async fn test_tools_call_without_authentication() -> Result<()> {
         headers: None,
     };
 
-    let tenant_provider_factory = create_mock_tenant_provider_factory();
-    let response = MultiTenantMcpServer::handle_request(
-        request,
-        &database,
-        &auth_manager,
-        &auth_middleware,
-        &tenant_provider_factory,
-    )
-    .await;
+    let response = MultiTenantMcpServer::handle_request(request, &resources).await;
 
     assert!(response.result.is_none());
     assert!(response.error.is_some());
@@ -435,12 +344,7 @@ async fn test_tools_call_without_authentication() -> Result<()> {
 
 #[tokio::test]
 async fn test_tools_call_with_invalid_token() -> Result<()> {
-    let database = common::create_test_database().await?;
-    let auth_manager = common::create_test_auth_manager();
-    let auth_middleware = Arc::new(pierre_mcp_server::auth::McpAuthMiddleware::new(
-        (*auth_manager).clone(),
-        database.clone(),
-    ));
+    let resources = common::create_test_server_resources().await?;
 
     let request = McpRequest {
         jsonrpc: "2.0".to_string(),
@@ -457,15 +361,7 @@ async fn test_tools_call_with_invalid_token() -> Result<()> {
         headers: None,
     };
 
-    let tenant_provider_factory = create_mock_tenant_provider_factory();
-    let response = MultiTenantMcpServer::handle_request(
-        request,
-        &database,
-        &auth_manager,
-        &auth_middleware,
-        &tenant_provider_factory,
-    )
-    .await;
+    let response = MultiTenantMcpServer::handle_request(request, &resources).await;
 
     assert!(response.result.is_none());
     assert!(response.error.is_some());
@@ -475,15 +371,10 @@ async fn test_tools_call_with_invalid_token() -> Result<()> {
 
 #[tokio::test]
 async fn test_tools_call_with_valid_authentication() -> Result<()> {
-    let database = common::create_test_database().await?;
-    let auth_manager = common::create_test_auth_manager();
-    let auth_middleware = Arc::new(pierre_mcp_server::auth::McpAuthMiddleware::new(
-        (*auth_manager).clone(),
-        database.clone(),
-    ));
+    let resources = common::create_test_server_resources().await?;
 
     // Create authenticated user
-    let (_user, token) = create_test_user_with_auth(&database).await?;
+    let (_user, token) = create_test_user_with_auth(&resources.database).await?;
 
     let request = McpRequest {
         jsonrpc: "2.0".to_string(),
@@ -497,15 +388,7 @@ async fn test_tools_call_with_valid_authentication() -> Result<()> {
         headers: None,
     };
 
-    let tenant_provider_factory = create_mock_tenant_provider_factory();
-    let response = MultiTenantMcpServer::handle_request(
-        request,
-        &database,
-        &auth_manager,
-        &auth_middleware,
-        &tenant_provider_factory,
-    )
-    .await;
+    let response = MultiTenantMcpServer::handle_request(request, &resources).await;
 
     // Should either succeed or fail gracefully (not with authentication error)
     assert_eq!(response.jsonrpc, "2.0");
@@ -515,15 +398,10 @@ async fn test_tools_call_with_valid_authentication() -> Result<()> {
 
 #[tokio::test]
 async fn test_tools_call_with_missing_params() -> Result<()> {
-    let database = common::create_test_database().await?;
-    let auth_manager = common::create_test_auth_manager();
-    let auth_middleware = Arc::new(pierre_mcp_server::auth::McpAuthMiddleware::new(
-        (*auth_manager).clone(),
-        database.clone(),
-    ));
+    let resources = common::create_test_server_resources().await?;
 
     // Create authenticated user
-    let (_user, token) = create_test_user_with_auth(&database).await?;
+    let (_user, token) = create_test_user_with_auth(&resources.database).await?;
 
     // Test request with missing params
     let request = McpRequest {
@@ -535,15 +413,7 @@ async fn test_tools_call_with_missing_params() -> Result<()> {
         headers: None,
     };
 
-    let tenant_provider_factory = create_mock_tenant_provider_factory();
-    let response = MultiTenantMcpServer::handle_request(
-        request,
-        &database,
-        &auth_manager,
-        &auth_middleware,
-        &tenant_provider_factory,
-    )
-    .await;
+    let response = MultiTenantMcpServer::handle_request(request, &resources).await;
 
     assert!(response.error.is_some());
 
@@ -554,15 +424,10 @@ async fn test_tools_call_with_missing_params() -> Result<()> {
 
 #[tokio::test]
 async fn test_connect_strava_tool() -> Result<()> {
-    let database = common::create_test_database().await?;
-    let auth_manager = common::create_test_auth_manager();
-    let auth_middleware = Arc::new(pierre_mcp_server::auth::McpAuthMiddleware::new(
-        (*auth_manager).clone(),
-        database.clone(),
-    ));
+    let resources = common::create_test_server_resources().await?;
 
     // Create authenticated user
-    let (_user, token) = create_test_user_with_auth(&database).await?;
+    let (_user, token) = create_test_user_with_auth(&resources.database).await?;
 
     let request = McpRequest {
         jsonrpc: "2.0".to_string(),
@@ -576,15 +441,7 @@ async fn test_connect_strava_tool() -> Result<()> {
         headers: None,
     };
 
-    let tenant_provider_factory = create_mock_tenant_provider_factory();
-    let response = MultiTenantMcpServer::handle_request(
-        request,
-        &database,
-        &auth_manager,
-        &auth_middleware,
-        &tenant_provider_factory,
-    )
-    .await;
+    let response = MultiTenantMcpServer::handle_request(request, &resources).await;
 
     // Should either succeed or fail gracefully (OAuth might not be configured in test)
     assert_eq!(response.jsonrpc, "2.0");
@@ -594,15 +451,10 @@ async fn test_connect_strava_tool() -> Result<()> {
 
 #[tokio::test]
 async fn test_connect_fitbit_tool() -> Result<()> {
-    let database = common::create_test_database().await?;
-    let auth_manager = common::create_test_auth_manager();
-    let auth_middleware = Arc::new(pierre_mcp_server::auth::McpAuthMiddleware::new(
-        (*auth_manager).clone(),
-        database.clone(),
-    ));
+    let resources = common::create_test_server_resources().await?;
 
     // Create authenticated user
-    let (_user, token) = create_test_user_with_auth(&database).await?;
+    let (_user, token) = create_test_user_with_auth(&resources.database).await?;
 
     let request = McpRequest {
         jsonrpc: "2.0".to_string(),
@@ -616,15 +468,7 @@ async fn test_connect_fitbit_tool() -> Result<()> {
         headers: None,
     };
 
-    let tenant_provider_factory = create_mock_tenant_provider_factory();
-    let response = MultiTenantMcpServer::handle_request(
-        request,
-        &database,
-        &auth_manager,
-        &auth_middleware,
-        &tenant_provider_factory,
-    )
-    .await;
+    let response = MultiTenantMcpServer::handle_request(request, &resources).await;
 
     // Should either succeed or fail gracefully (OAuth might not be configured in test)
     assert_eq!(response.jsonrpc, "2.0");
@@ -634,15 +478,10 @@ async fn test_connect_fitbit_tool() -> Result<()> {
 
 #[tokio::test]
 async fn test_get_connection_status_tool() -> Result<()> {
-    let database = common::create_test_database().await?;
-    let auth_manager = common::create_test_auth_manager();
-    let auth_middleware = Arc::new(pierre_mcp_server::auth::McpAuthMiddleware::new(
-        (*auth_manager).clone(),
-        database.clone(),
-    ));
+    let resources = common::create_test_server_resources().await?;
 
     // Create authenticated user
-    let (_user, token) = create_test_user_with_auth(&database).await?;
+    let (_user, token) = create_test_user_with_auth(&resources.database).await?;
 
     let request = McpRequest {
         jsonrpc: "2.0".to_string(),
@@ -656,15 +495,7 @@ async fn test_get_connection_status_tool() -> Result<()> {
         headers: None,
     };
 
-    let tenant_provider_factory = create_mock_tenant_provider_factory();
-    let response = MultiTenantMcpServer::handle_request(
-        request,
-        &database,
-        &auth_manager,
-        &auth_middleware,
-        &tenant_provider_factory,
-    )
-    .await;
+    let response = MultiTenantMcpServer::handle_request(request, &resources).await;
 
     // Should either succeed or fail gracefully
     assert_eq!(response.jsonrpc, "2.0");
@@ -674,15 +505,10 @@ async fn test_get_connection_status_tool() -> Result<()> {
 
 #[tokio::test]
 async fn test_disconnect_provider_tool() -> Result<()> {
-    let database = common::create_test_database().await?;
-    let auth_manager = common::create_test_auth_manager();
-    let auth_middleware = Arc::new(pierre_mcp_server::auth::McpAuthMiddleware::new(
-        (*auth_manager).clone(),
-        database.clone(),
-    ));
+    let resources = common::create_test_server_resources().await?;
 
     // Create authenticated user
-    let (_user, token) = create_test_user_with_auth(&database).await?;
+    let (_user, token) = create_test_user_with_auth(&resources.database).await?;
 
     let request = McpRequest {
         jsonrpc: "2.0".to_string(),
@@ -698,15 +524,7 @@ async fn test_disconnect_provider_tool() -> Result<()> {
         headers: None,
     };
 
-    let tenant_provider_factory = create_mock_tenant_provider_factory();
-    let response = MultiTenantMcpServer::handle_request(
-        request,
-        &database,
-        &auth_manager,
-        &auth_middleware,
-        &tenant_provider_factory,
-    )
-    .await;
+    let response = MultiTenantMcpServer::handle_request(request, &resources).await;
 
     // Should either succeed or fail gracefully depending on implementation
     assert_eq!(response.jsonrpc, "2.0");
@@ -718,15 +536,10 @@ async fn test_disconnect_provider_tool() -> Result<()> {
 
 #[tokio::test]
 async fn test_provider_tools_without_connection() -> Result<()> {
-    let database = common::create_test_database().await?;
-    let auth_manager = common::create_test_auth_manager();
-    let auth_middleware = Arc::new(pierre_mcp_server::auth::McpAuthMiddleware::new(
-        (*auth_manager).clone(),
-        database.clone(),
-    ));
+    let resources = common::create_test_server_resources().await?;
 
     // Create authenticated user
-    let (_user, token) = create_test_user_with_auth(&database).await?;
+    let (_user, token) = create_test_user_with_auth(&resources.database).await?;
 
     // Test provider-specific tools that require connection
     let provider_tools = [
@@ -750,15 +563,8 @@ async fn test_provider_tools_without_connection() -> Result<()> {
             headers: None,
         };
 
-        let tenant_provider_factory = create_mock_tenant_provider_factory();
-        let response = MultiTenantMcpServer::handle_request(
-            request,
-            &database,
-            &auth_manager,
-            &auth_middleware,
-            &tenant_provider_factory,
-        )
-        .await;
+        let _tenant_provider_factory = create_mock_tenant_provider_factory();
+        let response = MultiTenantMcpServer::handle_request(request, &resources).await;
 
         // Should either fail gracefully or succeed
         assert_eq!(response.jsonrpc, "2.0");
@@ -771,15 +577,10 @@ async fn test_provider_tools_without_connection() -> Result<()> {
 
 #[tokio::test]
 async fn test_intelligence_tools() -> Result<()> {
-    let database = common::create_test_database().await?;
-    let auth_manager = common::create_test_auth_manager();
-    let auth_middleware = Arc::new(pierre_mcp_server::auth::McpAuthMiddleware::new(
-        (*auth_manager).clone(),
-        database.clone(),
-    ));
+    let resources = common::create_test_server_resources().await?;
 
     // Create authenticated user
-    let (_user, token) = create_test_user_with_auth(&database).await?;
+    let (_user, token) = create_test_user_with_auth(&resources.database).await?;
 
     // Test intelligence tools that don't require provider
     let tools = [
@@ -805,15 +606,8 @@ async fn test_intelligence_tools() -> Result<()> {
             headers: None,
         };
 
-        let tenant_provider_factory = create_mock_tenant_provider_factory();
-        let response = MultiTenantMcpServer::handle_request(
-            request,
-            &database,
-            &auth_manager,
-            &auth_middleware,
-            &tenant_provider_factory,
-        )
-        .await;
+        let _tenant_provider_factory = create_mock_tenant_provider_factory();
+        let response = MultiTenantMcpServer::handle_request(request, &resources).await;
 
         // Should either succeed or fail gracefully
         assert_eq!(response.jsonrpc, "2.0");
@@ -826,12 +620,7 @@ async fn test_intelligence_tools() -> Result<()> {
 
 #[tokio::test]
 async fn test_tools_call_with_whitespace_token() -> Result<()> {
-    let database = common::create_test_database().await?;
-    let auth_manager = common::create_test_auth_manager();
-    let auth_middleware = Arc::new(pierre_mcp_server::auth::McpAuthMiddleware::new(
-        (*auth_manager).clone(),
-        database.clone(),
-    ));
+    let resources = common::create_test_server_resources().await?;
 
     let request = McpRequest {
         jsonrpc: "2.0".to_string(),
@@ -845,15 +634,7 @@ async fn test_tools_call_with_whitespace_token() -> Result<()> {
         headers: None,
     };
 
-    let tenant_provider_factory = create_mock_tenant_provider_factory();
-    let response = MultiTenantMcpServer::handle_request(
-        request,
-        &database,
-        &auth_manager,
-        &auth_middleware,
-        &tenant_provider_factory,
-    )
-    .await;
+    let response = MultiTenantMcpServer::handle_request(request, &resources).await;
 
     assert!(response.result.is_none());
     assert!(response.error.is_some());
@@ -863,12 +644,7 @@ async fn test_tools_call_with_whitespace_token() -> Result<()> {
 
 #[tokio::test]
 async fn test_tools_call_malformed_token() -> Result<()> {
-    let database = common::create_test_database().await?;
-    let auth_manager = common::create_test_auth_manager();
-    let auth_middleware = Arc::new(pierre_mcp_server::auth::McpAuthMiddleware::new(
-        (*auth_manager).clone(),
-        database.clone(),
-    ));
+    let resources = common::create_test_server_resources().await?;
 
     let request = McpRequest {
         jsonrpc: "2.0".to_string(),
@@ -882,15 +658,7 @@ async fn test_tools_call_malformed_token() -> Result<()> {
         headers: None,
     };
 
-    let tenant_provider_factory = create_mock_tenant_provider_factory();
-    let response = MultiTenantMcpServer::handle_request(
-        request,
-        &database,
-        &auth_manager,
-        &auth_middleware,
-        &tenant_provider_factory,
-    )
-    .await;
+    let response = MultiTenantMcpServer::handle_request(request, &resources).await;
 
     assert!(response.result.is_none());
     assert!(response.error.is_some());
@@ -900,15 +668,10 @@ async fn test_tools_call_malformed_token() -> Result<()> {
 
 #[tokio::test]
 async fn test_handle_authenticated_tool_call_edge_cases() -> Result<()> {
-    let database = common::create_test_database().await?;
-    let auth_manager = common::create_test_auth_manager();
-    let auth_middleware = Arc::new(pierre_mcp_server::auth::McpAuthMiddleware::new(
-        (*auth_manager).clone(),
-        database.clone(),
-    ));
+    let resources = common::create_test_server_resources().await?;
 
     // Create authenticated user
-    let (_user, token) = create_test_user_with_auth(&database).await?;
+    let (_user, token) = create_test_user_with_auth(&resources.database).await?;
 
     // Test with invalid tool name
     let request = McpRequest {
@@ -923,15 +686,7 @@ async fn test_handle_authenticated_tool_call_edge_cases() -> Result<()> {
         headers: None,
     };
 
-    let tenant_provider_factory = create_mock_tenant_provider_factory();
-    let response = MultiTenantMcpServer::handle_request(
-        request,
-        &database,
-        &auth_manager,
-        &auth_middleware,
-        &tenant_provider_factory,
-    )
-    .await;
+    let response = MultiTenantMcpServer::handle_request(request, &resources).await;
 
     assert!(response.error.is_some());
 
@@ -959,12 +714,7 @@ async fn test_get_user_provider_not_connected() -> Result<()> {
 
 #[tokio::test]
 async fn test_concurrent_requests() -> Result<()> {
-    let database = common::create_test_database().await?;
-    let auth_manager = common::create_test_auth_manager();
-    let auth_middleware = Arc::new(pierre_mcp_server::auth::McpAuthMiddleware::new(
-        (*auth_manager).clone(),
-        database.clone(),
-    ));
+    let resources = common::create_test_server_resources().await?;
 
     // Create multiple users
     let mut user_tokens = vec![];
@@ -975,8 +725,8 @@ async fn test_concurrent_requests() -> Result<()> {
             "password".to_string(),
             Some(format!("Concurrent User {i}")),
         );
-        database.create_user(&user).await?;
-        let token = auth_manager.generate_token(&user)?;
+        resources.database.create_user(&user).await?;
+        let token = resources.auth_manager.generate_token(&user)?;
         user_tokens.push((user, token));
     }
 
@@ -984,9 +734,7 @@ async fn test_concurrent_requests() -> Result<()> {
     let mut handles = vec![];
 
     for (i, (_user, token)) in user_tokens.into_iter().enumerate() {
-        let db = database.clone();
-        let am = auth_manager.clone();
-        let amw = auth_middleware.clone();
+        let resources_clone = resources.clone();
 
         handles.push(tokio::spawn(async move {
             // Add small delay to stagger requests
@@ -1004,9 +752,8 @@ async fn test_concurrent_requests() -> Result<()> {
                 headers: None,
             };
 
-            let tenant_provider_factory = create_mock_tenant_provider_factory();
-            MultiTenantMcpServer::handle_request(request, &db, &am, &amw, &tenant_provider_factory)
-                .await
+            let _tenant_provider_factory = create_mock_tenant_provider_factory();
+            MultiTenantMcpServer::handle_request(request, &resources_clone).await
         }));
     }
 

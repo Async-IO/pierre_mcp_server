@@ -15,7 +15,6 @@ use crate::database_plugins::DatabaseProvider;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use std::sync::Arc;
 use uuid::Uuid;
 
 /// A2A JSON-RPC 2.0 Request
@@ -200,9 +199,7 @@ impl std::fmt::Display for TaskStatus {
 /// A2A Protocol Server implementation
 pub struct A2AServer {
     pub version: String,
-    pub database: Option<std::sync::Arc<crate::database_plugins::factory::Database>>,
-    pub intelligence: Option<std::sync::Arc<crate::intelligence::ActivityIntelligence>>,
-    pub config: Option<std::sync::Arc<crate::config::environment::ServerConfig>>,
+    pub resources: Option<std::sync::Arc<crate::mcp::multitenant::ServerResources>>,
 }
 
 impl A2AServer {
@@ -210,36 +207,17 @@ impl A2AServer {
     pub fn new() -> Self {
         Self {
             version: crate::a2a::A2A_VERSION.to_string(),
-            database: None,
-            intelligence: None,
-            config: None,
+            resources: None,
         }
     }
 
     #[must_use]
-    pub fn new_with_dependencies(
-        database: std::sync::Arc<crate::database_plugins::factory::Database>,
-        intelligence: std::sync::Arc<crate::intelligence::ActivityIntelligence>,
+    pub fn new_with_resources(
+        resources: std::sync::Arc<crate::mcp::multitenant::ServerResources>,
     ) -> Self {
         Self {
             version: crate::a2a::A2A_VERSION.to_string(),
-            database: Some(database),
-            intelligence: Some(intelligence),
-            config: None,
-        }
-    }
-
-    #[must_use]
-    pub fn new_with_full_dependencies(
-        database: std::sync::Arc<crate::database_plugins::factory::Database>,
-        intelligence: std::sync::Arc<crate::intelligence::ActivityIntelligence>,
-        config: std::sync::Arc<crate::config::environment::ServerConfig>,
-    ) -> Self {
-        Self {
-            version: crate::a2a::A2A_VERSION.to_string(),
-            database: Some(database),
-            intelligence: Some(intelligence),
-            config: Some(config),
+            resources: Some(resources),
         }
     }
 
@@ -330,7 +308,8 @@ impl A2AServer {
             .to_string();
 
         // Persist task to database and get generated task_id
-        let task_id = if let Some(database) = &self.database {
+        let task_id = if let Some(resources) = &self.resources {
+            let database = &resources.database;
             match database
                 .create_a2a_task(
                     &client_id, None, // session_id - optional
@@ -431,7 +410,8 @@ impl A2AServer {
         }
 
         // Query database for actual task data if available
-        if let Some(database) = &self.database {
+        if let Some(resources) = &self.resources {
+            let database = &resources.database;
             // Extract task_id from validated params
             let task_id = request
                 .params
@@ -495,7 +475,8 @@ impl A2AServer {
 
     async fn handle_task_list(&self, request: A2ARequest) -> A2AResponse {
         // Query database for actual tasks if available
-        if let Some(database) = &self.database {
+        if let Some(resources) = &self.resources {
+            let database = &resources.database;
             // Extract optional parameters
             let client_id = request
                 .params
@@ -611,108 +592,6 @@ impl A2AServer {
         }
     }
 
-    /// Create a default server config for A2A protocol
-    fn get_or_create_config(&self) -> std::sync::Arc<crate::config::environment::ServerConfig> {
-        self.config.as_ref().map_or_else(
-            || {
-                // Create a minimal fallback config if none provided
-                std::sync::Arc::new(
-                    crate::config::environment::ServerConfig::from_env()
-                        .unwrap_or_else(|_| Self::create_minimal_fallback_config()),
-                )
-            },
-            std::clone::Clone::clone,
-        )
-    }
-
-    /// Create minimal fallback config for A2A protocol
-    fn create_minimal_fallback_config() -> crate::config::environment::ServerConfig {
-        crate::config::environment::ServerConfig {
-            mcp_port: crate::constants::network_config::DEFAULT_TEST_PORT,
-            http_port: crate::constants::network_config::DEFAULT_TEST_PORT + 1000,
-            log_level: crate::config::environment::LogLevel::Info,
-            database: crate::config::environment::DatabaseConfig {
-                url: crate::config::environment::DatabaseUrl::default(),
-                encryption_key_path: std::path::PathBuf::from("data/encryption.key"),
-                auto_migrate: true,
-                backup: crate::config::environment::BackupConfig {
-                    enabled: false,
-                    interval_seconds: 3600,
-                    retention_count: 7,
-                    directory: std::path::PathBuf::from("data/backups"),
-                },
-            },
-            auth: crate::config::environment::AuthConfig {
-                jwt_secret_path: std::path::PathBuf::from("data/jwt.secret"),
-                jwt_expiry_hours: 24,
-                enable_refresh_tokens: false,
-            },
-            oauth: crate::config::environment::OAuthConfig {
-                strava: crate::config::environment::OAuthProviderConfig {
-                    client_id: std::env::var("STRAVA_CLIENT_ID").ok(),
-                    client_secret: std::env::var("STRAVA_CLIENT_SECRET").ok(),
-                    redirect_uri: std::env::var("STRAVA_REDIRECT_URI").ok(),
-                    scopes: vec!["read".into(), "activity:read_all".into()],
-                    enabled: true,
-                },
-                fitbit: crate::config::environment::OAuthProviderConfig {
-                    client_id: std::env::var("FITBIT_CLIENT_ID").ok(),
-                    client_secret: std::env::var("FITBIT_CLIENT_SECRET").ok(),
-                    redirect_uri: std::env::var("FITBIT_REDIRECT_URI").ok(),
-                    scopes: vec!["activity".into(), "profile".into()],
-                    enabled: true,
-                },
-            },
-            security: crate::config::environment::SecurityConfig {
-                cors_origins: vec!["*".into()],
-                rate_limit: crate::config::environment::RateLimitConfig {
-                    enabled: false,
-                    requests_per_window: 100,
-                    window_seconds: 60,
-                },
-                tls: crate::config::environment::TlsConfig {
-                    enabled: false,
-                    cert_path: None,
-                    key_path: None,
-                },
-                headers: crate::config::environment::SecurityHeadersConfig {
-                    environment: crate::config::environment::Environment::Development,
-                },
-            },
-            external_services: crate::config::environment::ExternalServicesConfig {
-                weather: crate::config::environment::WeatherServiceConfig {
-                    api_key: std::env::var("OPENWEATHER_API_KEY").ok(),
-                    base_url: "https://api.openweathermap.org/data/2.5".into(),
-                    enabled: false,
-                },
-                geocoding: crate::config::environment::GeocodingServiceConfig {
-                    base_url: "https://nominatim.openstreetmap.org".into(),
-                    enabled: true,
-                },
-                strava_api: crate::config::environment::StravaApiConfig {
-                    base_url: "https://www.strava.com/api/v3".into(),
-                    auth_url: "https://www.strava.com/oauth/authorize".into(),
-                    token_url: "https://www.strava.com/oauth/token".into(),
-                },
-                fitbit_api: crate::config::environment::FitbitApiConfig {
-                    base_url: "https://api.fitbit.com".into(),
-                    auth_url: "https://www.fitbit.com/oauth2/authorize".into(),
-                    token_url: "https://api.fitbit.com/oauth2/token".into(),
-                },
-            },
-            app_behavior: crate::config::environment::AppBehaviorConfig {
-                max_activities_fetch: 100,
-                default_activities_limit: 20,
-                ci_mode: false,
-                protocol: crate::config::environment::ProtocolConfig {
-                    mcp_version: crate::constants::network_config::DEFAULT_MCP_VERSION.to_string(),
-                    server_name: "pierre-mcp-server".into(),
-                    server_version: env!("CARGO_PKG_VERSION").to_string(),
-                },
-            },
-        }
-    }
-
     async fn handle_tool_call(&self, request: A2ARequest) -> A2AResponse {
         // Implement tool execution through universal tool layer
         let params = request.params.unwrap_or_default();
@@ -736,17 +615,17 @@ impl A2AServer {
             protocol: "a2a".into(),
         };
 
-        // Check if we have proper dependencies injected
-        let (database, intelligence) = match (&self.database, &self.intelligence) {
-            (Some(db), Some(intel)) => (db.clone(), intel.clone()),
-            _ => {
-                // Return error if dependencies are not available
+        // Check if we have proper ServerResources injected
+        let resources = match &self.resources {
+            Some(res) => res.clone(),
+            None => {
+                // Return error if ServerResources are not available
                 return A2AResponse {
                     jsonrpc: "2.0".into(),
                     result: None,
                     error: Some(A2AErrorResponse {
                         code: -32000,
-                        message: "A2A server not properly configured with database and intelligence dependencies".into(),
+                        message: "A2A server not properly configured with ServerResources".into(),
                         data: None,
                     }),
                     id: request.id,
@@ -754,15 +633,7 @@ impl A2AServer {
             }
         };
 
-        let server_config = self.get_or_create_config();
-
-        let tenant_oauth_client = Arc::new(crate::tenant::TenantOAuthClient::new());
-        let executor = crate::protocols::universal::UniversalToolExecutor::new(
-            database,
-            intelligence,
-            server_config,
-            tenant_oauth_client,
-        );
+        let executor = crate::protocols::universal::UniversalToolExecutor::new(resources);
 
         match executor.execute_tool(universal_request).await {
             Ok(response) => A2AResponse {

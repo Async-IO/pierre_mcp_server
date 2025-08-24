@@ -131,7 +131,7 @@ async fn main() -> Result<()> {
         let server = MultiTenantMcpServer::new(
             database,
             auth_manager,
-            jwt_secret_string,
+            &jwt_secret_string,
             Arc::new(config.clone()),
         );
 

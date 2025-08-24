@@ -27,7 +27,7 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
     let database = common::create_test_database().await?;
 
     // Create ActivityIntelligence with proper constructor
-    let intelligence = Arc::new(ActivityIntelligence::new(
+    let _intelligence = Arc::new(ActivityIntelligence::new(
         "Test intelligence analysis".to_string(),
         vec![Insight {
             insight_type: InsightType::Achievement,
@@ -147,8 +147,15 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
         },
     });
 
-    let tenant_oauth_client = Arc::new(pierre_mcp_server::tenant::TenantOAuthClient::new());
-    let executor = UniversalToolExecutor::new(database, intelligence, config, tenant_oauth_client);
+    // Create ServerResources for the test
+    let auth_manager = pierre_mcp_server::auth::AuthManager::new(vec![0u8; 64], 24);
+    let server_resources = Arc::new(pierre_mcp_server::mcp::multitenant::ServerResources::new(
+        (*database).clone(),
+        auth_manager,
+        "test_secret",
+        config,
+    ));
+    let executor = UniversalToolExecutor::new(server_resources);
     Ok(executor)
 }
 
@@ -309,7 +316,7 @@ async fn test_set_goal_tool() -> Result<()> {
     let (user_id, _) = common::create_test_user(&database).await?;
 
     // Create ActivityIntelligence with proper constructor
-    let intelligence = Arc::new(ActivityIntelligence::new(
+    let _intelligence = Arc::new(ActivityIntelligence::new(
         "Test intelligence analysis".to_string(),
         vec![Insight {
             insight_type: InsightType::Achievement,
@@ -429,8 +436,15 @@ async fn test_set_goal_tool() -> Result<()> {
         },
     });
 
-    let tenant_oauth_client = Arc::new(pierre_mcp_server::tenant::TenantOAuthClient::new());
-    let executor = UniversalToolExecutor::new(database, intelligence, config, tenant_oauth_client);
+    // Create ServerResources for the test
+    let auth_manager = pierre_mcp_server::auth::AuthManager::new(vec![0u8; 64], 24);
+    let server_resources = Arc::new(pierre_mcp_server::mcp::multitenant::ServerResources::new(
+        (*database).clone(),
+        auth_manager,
+        "test_secret",
+        config,
+    ));
+    let executor = UniversalToolExecutor::new(server_resources);
 
     let request = UniversalRequest {
         tool_name: "set_goal".to_string(),
@@ -855,7 +869,7 @@ async fn test_disconnect_provider_tool() -> Result<()> {
     let (user_id, _) = common::create_test_user(&database).await?;
 
     // Create ActivityIntelligence with proper constructor
-    let intelligence = Arc::new(ActivityIntelligence::new(
+    let _intelligence = Arc::new(ActivityIntelligence::new(
         "Test intelligence analysis".to_string(),
         vec![Insight {
             insight_type: InsightType::Achievement,
@@ -975,8 +989,15 @@ async fn test_disconnect_provider_tool() -> Result<()> {
         },
     });
 
-    let tenant_oauth_client = Arc::new(pierre_mcp_server::tenant::TenantOAuthClient::new());
-    let executor = UniversalToolExecutor::new(database, intelligence, config, tenant_oauth_client);
+    // Create ServerResources for the test
+    let auth_manager = pierre_mcp_server::auth::AuthManager::new(vec![0u8; 64], 24);
+    let server_resources = Arc::new(pierre_mcp_server::mcp::multitenant::ServerResources::new(
+        (*database).clone(),
+        auth_manager,
+        "test_secret",
+        config,
+    ));
+    let executor = UniversalToolExecutor::new(server_resources);
 
     let request = UniversalRequest {
         tool_name: "disconnect_provider".to_string(),

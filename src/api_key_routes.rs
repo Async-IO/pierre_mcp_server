@@ -17,8 +17,8 @@ use crate::{
     api_keys::{
         ApiKeyManager, ApiKeyTier, ApiKeyUsageStats, CreateApiKeyRequest, CreateApiKeyRequestSimple,
     },
-    auth::AuthManager,
-    database_plugins::{factory::Database, DatabaseProvider},
+    database_plugins::DatabaseProvider,
+    mcp::multitenant::ServerResources,
 };
 
 #[derive(Debug, Serialize)]
@@ -60,18 +60,17 @@ pub struct ApiKeyDeactivateResponse {
 /// API Key management routes
 #[derive(Clone)]
 pub struct ApiKeyRoutes {
-    database: Database,
-    auth_manager: AuthManager,
+    resources: std::sync::Arc<ServerResources>,
     api_key_manager: ApiKeyManager,
 }
 
 impl ApiKeyRoutes {
     /// Create a new API key routes handler
-    pub const fn new(database: Database, auth_manager: AuthManager) -> Self {
+    #[must_use]
+    pub const fn new(resources: std::sync::Arc<ServerResources>) -> Self {
         Self {
-            database,
-            auth_manager,
             api_key_manager: ApiKeyManager::new(),
+            resources,
         }
     }
 
@@ -84,7 +83,7 @@ impl ApiKeyRoutes {
             .strip_prefix("Bearer ")
             .ok_or_else(|| anyhow::anyhow!("Invalid authorization header format"))?;
 
-        let claims = self.auth_manager.validate_token(token)?;
+        let claims = self.resources.auth_manager.validate_token(token)?;
         let user_id = crate::utils::uuid::parse_uuid(&claims.sub)?;
         Ok(user_id)
     }
@@ -110,7 +109,7 @@ impl ApiKeyRoutes {
             .create_api_key_simple(user_id, request)?;
 
         // Store in database
-        self.database.create_api_key(&api_key).await?;
+        self.resources.database.create_api_key(&api_key).await?;
 
         let key_info = ApiKeyInfo {
             id: api_key.id,
@@ -150,7 +149,7 @@ impl ApiKeyRoutes {
         let (api_key, full_key) = self.api_key_manager.create_api_key(user_id, request)?;
 
         // Store in database
-        self.database.create_api_key(&api_key).await?;
+        self.resources.database.create_api_key(&api_key).await?;
 
         let key_info = ApiKeyInfo {
             id: api_key.id,
@@ -181,7 +180,7 @@ impl ApiKeyRoutes {
     pub async fn list_api_keys(&self, auth_header: Option<&str>) -> Result<ApiKeyListResponse> {
         let user_id = self.authenticate_user(auth_header)?;
 
-        let api_keys = self.database.get_user_api_keys(user_id).await?;
+        let api_keys = self.resources.database.get_user_api_keys(user_id).await?;
 
         let api_key_infos = api_keys
             .into_iter()
@@ -218,7 +217,8 @@ impl ApiKeyRoutes {
     ) -> Result<ApiKeyDeactivateResponse> {
         let user_id = self.authenticate_user(auth_header)?;
 
-        self.database
+        self.resources
+            .database
             .deactivate_api_key(api_key_id, user_id)
             .await?;
 
@@ -246,12 +246,13 @@ impl ApiKeyRoutes {
         let user_id = self.authenticate_user(auth_header)?;
 
         // Verify the API key belongs to the user
-        let user_keys = self.database.get_user_api_keys(user_id).await?;
+        let user_keys = self.resources.database.get_user_api_keys(user_id).await?;
         if !user_keys.iter().any(|key| key.id == api_key_id) {
             return Err(anyhow::anyhow!("API key not found or access denied"));
         }
 
         let stats = self
+            .resources
             .database
             .get_api_key_usage_stats(api_key_id, start_date, end_date)
             .await?;
@@ -277,7 +278,7 @@ impl ApiKeyRoutes {
         let user_id = self.authenticate_user(auth_header)?;
 
         // Check if user already has a trial key
-        let existing_keys = self.database.get_user_api_keys(user_id).await?;
+        let existing_keys = self.resources.database.get_user_api_keys(user_id).await?;
         let has_trial_key = existing_keys.iter().any(|k| k.tier == ApiKeyTier::Trial);
 
         if has_trial_key {
@@ -290,7 +291,7 @@ impl ApiKeyRoutes {
                 .create_trial_key(user_id, name, description)?;
 
         // Store in database
-        self.database.create_api_key(&api_key).await?;
+        self.resources.database.create_api_key(&api_key).await?;
 
         Ok(ApiKeyCreateResponse {
             api_key: full_key,

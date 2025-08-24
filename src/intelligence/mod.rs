@@ -73,7 +73,7 @@ pub struct ActivityIntelligence {
 }
 
 /// Performance metrics derived from activity analysis
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PerformanceMetrics {
     /// Relative effort (1-10 scale)
     pub relative_effort: Option<f32>,
@@ -112,7 +112,7 @@ pub struct PersonalRecord {
 }
 
 /// Trend indicators comparing to recent activities
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TrendIndicators {
     pub pace_trend: TrendDirection,
     pub effort_trend: TrendDirection,
@@ -121,16 +121,17 @@ pub struct TrendIndicators {
 }
 
 /// Direction of a trend
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum TrendDirection {
     Improving,
+    #[default]
     Stable,
     Declining,
 }
 
 /// Contextual factors that might affect performance
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ContextualFactors {
     pub weather: Option<WeatherConditions>,
     pub location: Option<LocationContext>,
@@ -160,11 +161,12 @@ pub struct LocationContext {
 }
 
 /// Time of day categorization
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum TimeOfDay {
     EarlyMorning, // 5-7 AM
-    Morning,      // 7-11 AM
+    #[default]
+    Morning, // 7-11 AM
     Midday,       // 11 AM - 2 PM
     Afternoon,    // 2-6 PM
     Evening,      // 6-9 PM
@@ -194,6 +196,35 @@ impl ActivityIntelligence {
             key_insights: insights,
             performance_indicators: performance,
             contextual_factors: context,
+            generated_at: Utc::now(),
+        }
+    }
+
+    /// Create an empty `ActivityIntelligence` instance for default initialization
+    #[must_use]
+    pub fn create_empty() -> Self {
+        Self {
+            summary: "No analysis available".to_string(),
+            key_insights: vec![],
+            performance_indicators: PerformanceMetrics {
+                relative_effort: None,
+                zone_distribution: None,
+                personal_records: vec![],
+                efficiency_score: None,
+                trend_indicators: TrendIndicators {
+                    pace_trend: TrendDirection::Stable,
+                    effort_trend: TrendDirection::Stable,
+                    distance_trend: TrendDirection::Stable,
+                    consistency_score: 0.0,
+                },
+            },
+            contextual_factors: ContextualFactors {
+                weather: None,
+                location: None,
+                time_of_day: TimeOfDay::Morning,
+                days_since_last_activity: None,
+                weekly_load: None,
+            },
             generated_at: Utc::now(),
         }
     }

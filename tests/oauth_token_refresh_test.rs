@@ -356,7 +356,7 @@ async fn create_test_executor() -> (Arc<UniversalToolExecutor>, Arc<Database>) {
             .unwrap(),
     );
 
-    let intelligence = Arc::new(ActivityIntelligence::new(
+    let _intelligence = Arc::new(ActivityIntelligence::new(
         "Test Intelligence".to_string(),
         vec![],
         PerformanceMetrics {
@@ -380,13 +380,15 @@ async fn create_test_executor() -> (Arc<UniversalToolExecutor>, Arc<Database>) {
         },
     ));
 
-    let tenant_oauth_client = Arc::new(pierre_mcp_server::tenant::TenantOAuthClient::new());
-    let executor = Arc::new(UniversalToolExecutor::new(
-        database.clone(),
-        intelligence,
+    // Create ServerResources for the test
+    let auth_manager = pierre_mcp_server::auth::AuthManager::new(vec![0u8; 64], 24);
+    let server_resources = Arc::new(pierre_mcp_server::mcp::multitenant::ServerResources::new(
+        (*database).clone(),
+        auth_manager,
+        "test_secret",
         create_test_server_config(),
-        tenant_oauth_client,
     ));
+    let executor = Arc::new(UniversalToolExecutor::new(server_resources));
 
     (executor, database)
 }
@@ -399,7 +401,7 @@ async fn create_test_executor_without_oauth() -> (Arc<UniversalToolExecutor>, Ar
             .unwrap(),
     );
 
-    let intelligence = Arc::new(ActivityIntelligence::new(
+    let _intelligence = Arc::new(ActivityIntelligence::new(
         "Test Intelligence".to_string(),
         vec![],
         PerformanceMetrics {
@@ -423,13 +425,15 @@ async fn create_test_executor_without_oauth() -> (Arc<UniversalToolExecutor>, Ar
         },
     ));
 
-    let tenant_oauth_client = Arc::new(pierre_mcp_server::tenant::TenantOAuthClient::new());
-    let executor = Arc::new(UniversalToolExecutor::new(
-        database.clone(),
-        intelligence,
+    // Create ServerResources for the test
+    let auth_manager = pierre_mcp_server::auth::AuthManager::new(vec![0u8; 64], 24);
+    let server_resources = Arc::new(pierre_mcp_server::mcp::multitenant::ServerResources::new(
+        (*database).clone(),
+        auth_manager,
+        "test_secret",
         create_test_server_config_without_oauth(),
-        tenant_oauth_client,
     ));
+    let executor = Arc::new(UniversalToolExecutor::new(server_resources));
 
     (executor, database)
 }

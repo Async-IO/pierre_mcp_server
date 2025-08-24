@@ -11,7 +11,6 @@
 //! HTTP endpoints for managing runtime configuration parameters,
 //! physiological profiles, and personalized training zones.
 
-use crate::auth::AuthManager;
 use crate::configuration::{
     catalog::{CatalogBuilder, ConfigCatalog},
     profiles::{ConfigProfile, ProfileTemplates},
@@ -19,7 +18,6 @@ use crate::configuration::{
     validation::ConfigValidator,
     vo2_max::VO2MaxCalculator,
 };
-use crate::database_plugins::factory::Database;
 use crate::database_plugins::DatabaseProvider;
 use crate::utils::auth::extract_bearer_token_from_option;
 use anyhow::Result;
@@ -245,17 +243,14 @@ pub struct ErrorResponse {
 /// Configuration management routes handler
 #[derive(Clone)]
 pub struct ConfigurationRoutes {
-    database: Database,
-    auth_manager: AuthManager,
+    resources: std::sync::Arc<crate::mcp::multitenant::ServerResources>,
 }
 
 impl ConfigurationRoutes {
     /// Create a new configuration routes handler
-    pub const fn new(database: Database, auth_manager: AuthManager) -> Self {
-        Self {
-            database,
-            auth_manager,
-        }
+    #[must_use]
+    pub const fn new(resources: std::sync::Arc<crate::mcp::multitenant::ServerResources>) -> Self {
+        Self { resources }
     }
 
     /// Authenticate `JWT` token and extract user `ID`
@@ -273,7 +268,7 @@ impl ConfigurationRoutes {
 
         let token = extract_bearer_token_from_option(Some(auth_str))?;
 
-        let claims = self.auth_manager.validate_token(token)?;
+        let claims = self.resources.auth_manager.validate_token(token)?;
         let user_id = crate::utils::uuid::parse_uuid(&claims.sub)?;
         Ok(user_id)
     }
@@ -386,7 +381,7 @@ impl ConfigurationRoutes {
         let user_id = self.authenticate_user(auth_header)?;
 
         // Log database access attempt for future implementation
-        if let Err(e) = self.database.get_user(user_id).await {
+        if let Err(e) = self.resources.database.get_user(user_id).await {
             tracing::debug!("Database user lookup failed: {}", e);
         }
 
@@ -497,7 +492,7 @@ impl ConfigurationRoutes {
         }
 
         // Log database save attempt for future implementation
-        if let Err(e) = self.database.get_user(user_id).await {
+        if let Err(e) = self.resources.database.get_user(user_id).await {
             tracing::debug!("Database user lookup failed during save: {}", e);
         }
 

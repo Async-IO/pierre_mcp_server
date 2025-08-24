@@ -12,7 +12,7 @@
 //! supporting API keys and `OAuth2` for agent-to-agent communication.
 
 use crate::auth::{AuthMethod, AuthResult};
-use crate::database_plugins::{factory::Database, DatabaseProvider};
+use crate::database_plugins::DatabaseProvider;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use warp::Filter;
@@ -64,17 +64,13 @@ const fn default_rate_limit_window() -> u32 {
 
 /// A2A Authenticator
 pub struct A2AAuthenticator {
-    database: Arc<Database>,
-    jwt_secret: Vec<u8>,
+    resources: Arc<crate::mcp::multitenant::ServerResources>,
 }
 
 impl A2AAuthenticator {
     #[must_use]
-    pub const fn new(database: Arc<Database>, jwt_secret: Vec<u8>) -> Self {
-        Self {
-            database,
-            jwt_secret,
-        }
+    pub const fn new(resources: Arc<crate::mcp::multitenant::ServerResources>) -> Self {
+        Self { resources }
     }
 
     /// Authenticate an A2A request using API key
@@ -92,8 +88,7 @@ impl A2AAuthenticator {
         }
 
         // Fall back to regular API key authentication using MCP middleware
-        let auth_manager = crate::auth::AuthManager::new(self.jwt_secret.clone(), 24);
-        let middleware = crate::auth::McpAuthMiddleware::new(auth_manager, self.database.clone());
+        let middleware = &self.resources.auth_middleware;
 
         middleware.authenticate_request(Some(api_key)).await
     }
@@ -108,8 +103,7 @@ impl A2AAuthenticator {
         // A2A keys are stored in API keys table but linked to A2A clients
         // Use regular API key authentication with A2A-specific rate limiting
 
-        let auth_manager = crate::auth::AuthManager::new(self.jwt_secret.clone(), 24);
-        let middleware = crate::auth::McpAuthMiddleware::new(auth_manager, self.database.clone());
+        let middleware = &self.resources.auth_middleware;
 
         // First authenticate using regular API key system
         let mut auth_result = middleware.authenticate_request(Some(api_key)).await?;
@@ -118,7 +112,7 @@ impl A2AAuthenticator {
         if let AuthMethod::ApiKey { key_id, tier: _ } = &auth_result.auth_method {
             // Find A2A client associated with this API key
             if let Some(client) = Self::get_a2a_client_by_api_key(key_id) {
-                let client_manager = crate::a2a::A2AClientManager::new(self.database.clone());
+                let client_manager = &*self.resources.a2a_client_manager;
 
                 // Check A2A-specific rate limits
                 let rate_limit_status = client_manager
@@ -184,8 +178,7 @@ impl A2AAuthenticator {
         // OAuth2 token validation for A2A using JWT tokens
 
         // Try to decode the JWT token
-        let auth_manager = crate::auth::AuthManager::new(self.jwt_secret.clone(), 24);
-        let token_claims = auth_manager.validate_token(token)?;
+        let token_claims = self.resources.auth_manager.validate_token(token)?;
 
         // Check if this is an A2A OAuth2 token by looking for specific claims
         // A2A OAuth tokens should have client_id in the subject or a custom claim
@@ -242,7 +235,7 @@ impl A2AAuthenticator {
     /// Returns an error if client registration fails
     pub async fn register_client(&self, client: A2AClient) -> Result<String, crate::a2a::A2AError> {
         // Use the client manager to handle registration
-        let client_manager = crate::a2a::A2AClientManager::new(self.database.clone());
+        let client_manager = &*self.resources.a2a_client_manager;
 
         let request = crate::a2a::client::ClientRegistrationRequest {
             name: client.name,
@@ -265,9 +258,13 @@ impl A2AAuthenticator {
         &self,
         client_id: &str,
     ) -> Result<Option<A2AClient>, crate::a2a::A2AError> {
-        self.database.get_a2a_client(client_id).await.map_err(|e| {
-            crate::a2a::A2AError::InternalError(format!("Failed to get A2A client: {e}"))
-        })
+        self.resources
+            .database
+            .get_a2a_client(client_id)
+            .await
+            .map_err(|e| {
+                crate::a2a::A2AError::InternalError(format!("Failed to get A2A client: {e}"))
+            })
     }
 
     /// Validate client capabilities

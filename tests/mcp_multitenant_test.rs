@@ -195,7 +195,7 @@ async fn create_test_multitenant_server(
     let server = MultiTenantMcpServer::new(
         (*database).clone(),
         (*auth_manager).clone(),
-        TEST_JWT_SECRET.to_string(),
+        TEST_JWT_SECRET,
         config,
     );
 

@@ -202,7 +202,7 @@ echo ""
 echo -e "${BLUE}==== Dev Standards Compliance Checks ====${NC}"
 
 # Check for prohibited patterns (dev standards compliance)
-echo -e "${BLUE}==== Checking for prohibited error handling patterns... ====${NC}"
+echo -e "${BLUE}==== Checking for prohibited code patterns... ====${NC}"
 UNWRAPS=$(rg "unwrap\(\)" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
 EXPECTS=$(rg "expect\(" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
 PANICS=$(rg "panic!\(" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
@@ -240,8 +240,12 @@ if [ "$EXPECTS" -gt 0 ]; then
     ALL_PASSED=false
 fi
 if [ "$PANICS" -gt 0 ]; then 
-    echo -e "${RED}[FAIL] Found $PANICS panic!() calls (dev standards violation)${NC}"
-    rg "panic!\(" src/ -n | head -5
+    echo -e "${RED}[FAIL] Found $PANICS panic!() calls (CRITICAL PRODUCTION BLOCKER)${NC}"
+    echo -e "${RED}      panic!() calls will crash the server process in production${NC}"
+    echo -e "${RED}      ZERO tolerance policy - all panics must be replaced with proper error handling${NC}"
+    echo -e "${YELLOW}   Locations:${NC}"
+    rg "panic!\(" src/ -n | head -10
+    echo -e "${YELLOW}   Fix with: return Err(anyhow!(...)) or proper HTTP error responses${NC}"
     ALL_PASSED=false
 fi
 if [ "$TODOS" -gt 0 ]; then 
@@ -310,7 +314,12 @@ if [ "$UNWRAPS" -eq 0 ] && [ "$EXPECTS" -eq 0 ] && [ "$PANICS" -eq 0 ] && \
    [ "$TODOS" -eq 0 ] && [ "$PLACEHOLDERS" -eq 0 ] && [ "$STUBS" -eq 0 ] && \
    [ "$UNDERSCORE_NAMES" -eq 0 ] && [ "$CFG_TESTS" -eq 0 ] && \
    [ "$PLACEHOLDER_EMAILS" -eq 0 ] && [ "$NOT_YET" -eq 0 ] && [ "$TEMPORARY" -eq 0 ]; then
-    echo -e "${GREEN}[OK] All prohibited patterns check passed${NC}"
+    echo -e "${GREEN}[OK] All prohibited patterns check passed - production safe!${NC}"
+else
+    echo -e "${RED}[CRITICAL] Prohibited patterns found - code is NOT production ready${NC}"
+    if [ "$PANICS" -gt 0 ]; then
+        echo -e "${RED}        🚨 PANICS DETECTED: Server will crash under normal operation${NC}"
+    fi
 fi
 
 # Clone usage analysis (informational)

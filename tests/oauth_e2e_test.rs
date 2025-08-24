@@ -157,13 +157,21 @@
 
 use pierre_mcp_server::{
     auth::AuthManager,
+    config::environment::{
+        AppBehaviorConfig, AuthConfig, BackupConfig, DatabaseConfig, DatabaseUrl, Environment,
+        ExternalServicesConfig, FitbitApiConfig, GeocodingServiceConfig, LogLevel, OAuthConfig,
+        OAuthProviderConfig, ProtocolConfig, RateLimitConfig, SecurityConfig,
+        SecurityHeadersConfig, ServerConfig, StravaApiConfig, TlsConfig, WeatherServiceConfig,
+    },
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
-    mcp::multitenant::MultiTenantMcpServer,
+    mcp::multitenant::{MultiTenantMcpServer, ServerResources},
     models::{Tenant, User, UserStatus},
+    routes::{AuthRoutes, OAuthRoutes},
     tenant::TenantOAuthCredentials,
 };
 use serde_json::json;
+use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 
 const TEST_JWT_SECRET: &str = "test_jwt_secret_for_oauth_e2e_tests";
@@ -265,8 +273,7 @@ async fn test_oauth_flow_through_mcp() {
     });
 
     // Create server instance
-    let _server =
-        MultiTenantMcpServer::new(database, auth_manager, TEST_JWT_SECRET.to_string(), config);
+    let _server = MultiTenantMcpServer::new(database, auth_manager, TEST_JWT_SECRET, config);
 
     // Start server in background (we'll simulate MCP requests instead of real TCP)
     let server_handle = tokio::spawn(async move {
@@ -338,6 +345,8 @@ async fn test_oauth_callback_error_handling() {
         .unwrap();
     database.migrate().await.unwrap();
 
+    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+
     // Create admin user and tenant for the test
     let admin_user = User {
         id: uuid::Uuid::new_v4(),
@@ -389,7 +398,101 @@ async fn test_oauth_callback_error_handling() {
     };
     let test_user_id = database.create_user(&test_user).await.unwrap();
 
-    let oauth_routes = pierre_mcp_server::routes::OAuthRoutes::new(database);
+    // Create minimal config and ServerResources for OAuth routes
+    let temp_dir = tempfile::tempdir().unwrap();
+    let config = std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
+        mcp_port: 8080,
+        http_port: 8081,
+        log_level: pierre_mcp_server::config::environment::LogLevel::Info,
+        database: pierre_mcp_server::config::environment::DatabaseConfig {
+            url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
+            encryption_key_path: temp_dir.path().join("encryption_key"),
+            auto_migrate: true,
+            backup: pierre_mcp_server::config::environment::BackupConfig {
+                enabled: false,
+                interval_seconds: 3600,
+                retention_count: 7,
+                directory: temp_dir.path().to_path_buf(),
+            },
+        },
+        auth: pierre_mcp_server::config::environment::AuthConfig {
+            jwt_secret_path: temp_dir.path().join("jwt_secret"),
+            jwt_expiry_hours: 24,
+            enable_refresh_tokens: false,
+        },
+        oauth: pierre_mcp_server::config::environment::OAuthConfig {
+            strava: pierre_mcp_server::config::environment::OAuthProviderConfig {
+                client_id: Some("test_client_id".to_string()),
+                client_secret: Some("test_client_secret".to_string()),
+                redirect_uri: Some("http://localhost:8081/oauth/callback/strava".to_string()),
+                scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+                enabled: true,
+            },
+            fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
+        },
+        security: pierre_mcp_server::config::environment::SecurityConfig {
+            cors_origins: vec!["*".to_string()],
+            rate_limit: pierre_mcp_server::config::environment::RateLimitConfig {
+                enabled: false,
+                requests_per_window: 100,
+                window_seconds: 60,
+            },
+            tls: pierre_mcp_server::config::environment::TlsConfig {
+                enabled: false,
+                cert_path: None,
+                key_path: None,
+            },
+            headers: pierre_mcp_server::config::environment::SecurityHeadersConfig {
+                environment: pierre_mcp_server::config::environment::Environment::Testing,
+            },
+        },
+        external_services: pierre_mcp_server::config::environment::ExternalServicesConfig {
+            weather: pierre_mcp_server::config::environment::WeatherServiceConfig {
+                api_key: None,
+                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                enabled: false,
+            },
+            geocoding: pierre_mcp_server::config::environment::GeocodingServiceConfig {
+                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                enabled: false,
+            },
+            strava_api: pierre_mcp_server::config::environment::StravaApiConfig {
+                base_url: "https://www.strava.com/api/v3".to_string(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
+                token_url: "https://www.strava.com/oauth/token".to_string(),
+            },
+            fitbit_api: pierre_mcp_server::config::environment::FitbitApiConfig {
+                base_url: "https://api.fitbit.com".to_string(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+            },
+        },
+        app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
+            max_activities_fetch: 100,
+            default_activities_limit: 20,
+            ci_mode: true,
+            protocol: pierre_mcp_server::config::environment::ProtocolConfig {
+                mcp_version: "2025-06-18".to_string(),
+                server_name: "pierre-mcp-server-test".to_string(),
+                server_version: env!("CARGO_PKG_VERSION").to_string(),
+            },
+        },
+    });
+
+    let server_resources = std::sync::Arc::new(ServerResources::new(
+        database.clone(),
+        auth_manager,
+        "test_jwt_secret",
+        config,
+    ));
+
+    let oauth_routes = OAuthRoutes::new(server_resources);
 
     // Test invalid state parameter
     let result = oauth_routes
@@ -425,6 +528,8 @@ async fn test_oauth_state_csrf_protection() {
         .await
         .unwrap();
     database.migrate().await.unwrap();
+
+    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
 
     // Create admin user first
     let admin_user = User {
@@ -474,7 +579,101 @@ async fn test_oauth_state_csrf_protection() {
         .await
         .unwrap();
 
-    let oauth_routes = pierre_mcp_server::routes::OAuthRoutes::new(database);
+    // Create ServerResources for OAuth routes
+    let temp_dir = tempfile::tempdir().unwrap();
+    let config = std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
+        mcp_port: 8080,
+        http_port: 8081,
+        log_level: pierre_mcp_server::config::environment::LogLevel::Info,
+        database: pierre_mcp_server::config::environment::DatabaseConfig {
+            url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
+            encryption_key_path: temp_dir.path().join("encryption_key"),
+            auto_migrate: true,
+            backup: pierre_mcp_server::config::environment::BackupConfig {
+                enabled: false,
+                interval_seconds: 3600,
+                retention_count: 7,
+                directory: temp_dir.path().to_path_buf(),
+            },
+        },
+        auth: pierre_mcp_server::config::environment::AuthConfig {
+            jwt_secret_path: temp_dir.path().join("jwt_secret"),
+            jwt_expiry_hours: 24,
+            enable_refresh_tokens: false,
+        },
+        oauth: pierre_mcp_server::config::environment::OAuthConfig {
+            strava: pierre_mcp_server::config::environment::OAuthProviderConfig {
+                client_id: Some("test_client_id".to_string()),
+                client_secret: Some("test_client_secret".to_string()),
+                redirect_uri: Some("http://localhost:8080/oauth/callback/strava".to_string()),
+                scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+                enabled: true,
+            },
+            fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
+        },
+        security: pierre_mcp_server::config::environment::SecurityConfig {
+            cors_origins: vec!["*".to_string()],
+            rate_limit: pierre_mcp_server::config::environment::RateLimitConfig {
+                enabled: false,
+                requests_per_window: 100,
+                window_seconds: 60,
+            },
+            tls: pierre_mcp_server::config::environment::TlsConfig {
+                enabled: false,
+                cert_path: None,
+                key_path: None,
+            },
+            headers: pierre_mcp_server::config::environment::SecurityHeadersConfig {
+                environment: pierre_mcp_server::config::environment::Environment::Testing,
+            },
+        },
+        external_services: pierre_mcp_server::config::environment::ExternalServicesConfig {
+            weather: pierre_mcp_server::config::environment::WeatherServiceConfig {
+                api_key: None,
+                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                enabled: false,
+            },
+            geocoding: pierre_mcp_server::config::environment::GeocodingServiceConfig {
+                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                enabled: false,
+            },
+            strava_api: pierre_mcp_server::config::environment::StravaApiConfig {
+                base_url: "https://www.strava.com/api/v3".to_string(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
+                token_url: "https://www.strava.com/oauth/token".to_string(),
+            },
+            fitbit_api: pierre_mcp_server::config::environment::FitbitApiConfig {
+                base_url: "https://api.fitbit.com".to_string(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+            },
+        },
+        app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
+            max_activities_fetch: 100,
+            default_activities_limit: 20,
+            ci_mode: true,
+            protocol: pierre_mcp_server::config::environment::ProtocolConfig {
+                mcp_version: "2025-06-18".to_string(),
+                server_name: "pierre-mcp-server-test".to_string(),
+                server_version: env!("CARGO_PKG_VERSION").to_string(),
+            },
+        },
+    });
+
+    let server_resources = std::sync::Arc::new(ServerResources::new(
+        database.clone(),
+        auth_manager.clone(),
+        "test_jwt_secret",
+        config,
+    ));
+
+    let oauth_routes = OAuthRoutes::new(server_resources);
 
     let user_id = uuid::Uuid::new_v4();
 
@@ -511,7 +710,100 @@ async fn test_connection_status_tracking() {
     let auth_manager = AuthManager::new(vec![0u8; 64], 24);
 
     // Register a test user
-    let auth_routes = pierre_mcp_server::routes::AuthRoutes::new(database.clone(), auth_manager);
+    let temp_dir = tempfile::tempdir().unwrap();
+    let config = Arc::new(ServerConfig {
+        mcp_port: 8080,
+        http_port: 8081,
+        log_level: LogLevel::Info,
+        database: DatabaseConfig {
+            url: DatabaseUrl::Memory,
+            encryption_key_path: temp_dir.path().join("encryption_key"),
+            auto_migrate: true,
+            backup: BackupConfig {
+                enabled: false,
+                interval_seconds: 3600,
+                retention_count: 7,
+                directory: temp_dir.path().to_path_buf(),
+            },
+        },
+        auth: AuthConfig {
+            jwt_secret_path: temp_dir.path().join("jwt_secret"),
+            jwt_expiry_hours: 24,
+            enable_refresh_tokens: false,
+        },
+        oauth: OAuthConfig {
+            strava: OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
+            fitbit: OAuthProviderConfig {
+                client_id: None,
+                client_secret: None,
+                redirect_uri: None,
+                scopes: vec![],
+                enabled: false,
+            },
+        },
+        security: SecurityConfig {
+            cors_origins: vec!["*".to_string()],
+            rate_limit: RateLimitConfig {
+                enabled: false,
+                requests_per_window: 100,
+                window_seconds: 60,
+            },
+            tls: TlsConfig {
+                enabled: false,
+                cert_path: None,
+                key_path: None,
+            },
+            headers: SecurityHeadersConfig {
+                environment: Environment::Testing,
+            },
+        },
+        external_services: ExternalServicesConfig {
+            weather: WeatherServiceConfig {
+                api_key: None,
+                base_url: "https://api.openweathermap.org/data/2.5".to_string(),
+                enabled: false,
+            },
+            geocoding: GeocodingServiceConfig {
+                base_url: "https://nominatim.openstreetmap.org".to_string(),
+                enabled: false,
+            },
+            strava_api: StravaApiConfig {
+                base_url: "https://www.strava.com/api/v3".to_string(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
+                token_url: "https://www.strava.com/oauth/token".to_string(),
+            },
+            fitbit_api: FitbitApiConfig {
+                base_url: "https://api.fitbit.com".to_string(),
+                auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
+                token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+            },
+        },
+        app_behavior: AppBehaviorConfig {
+            max_activities_fetch: 100,
+            default_activities_limit: 20,
+            ci_mode: true,
+            protocol: ProtocolConfig {
+                mcp_version: "2025-06-18".to_string(),
+                server_name: "pierre-mcp-server-test".to_string(),
+                server_version: env!("CARGO_PKG_VERSION").to_string(),
+            },
+        },
+    });
+
+    let server_resources = Arc::new(ServerResources::new(
+        database.clone(),
+        auth_manager,
+        TEST_JWT_SECRET,
+        config,
+    ));
+
+    let auth_routes = AuthRoutes::new(server_resources.clone());
     let register_request = pierre_mcp_server::routes::RegisterRequest {
         email: "status_test@example.com".to_string(),
         password: "password123".to_string(),
@@ -522,7 +814,7 @@ async fn test_connection_status_tracking() {
     let user_id = uuid::Uuid::parse_str(&register_response.user_id).unwrap();
 
     // Check initial connection status
-    let oauth_routes = pierre_mcp_server::routes::OAuthRoutes::new(database.clone());
+    let oauth_routes = OAuthRoutes::new(server_resources.clone());
     let statuses = oauth_routes.get_connection_status(user_id).await.unwrap();
 
     // Verify initial state

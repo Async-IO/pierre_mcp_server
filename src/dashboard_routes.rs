@@ -8,8 +8,8 @@
 
 //! Dashboard routes for the API Key Management System frontend
 
-use crate::auth::AuthManager;
-use crate::database_plugins::{factory::Database, DatabaseProvider};
+use crate::database_plugins::DatabaseProvider;
+use crate::mcp::multitenant::ServerResources;
 use anyhow::Result;
 use chrono::{Datelike, Duration, Timelike, Utc};
 use serde::Serialize;
@@ -105,16 +105,13 @@ pub struct RequestStats {
 
 #[derive(Clone)]
 pub struct DashboardRoutes {
-    database: Database,
-    auth_manager: AuthManager,
+    resources: std::sync::Arc<ServerResources>,
 }
 
 impl DashboardRoutes {
-    pub const fn new(database: Database, auth_manager: AuthManager) -> Self {
-        Self {
-            database,
-            auth_manager,
-        }
+    #[must_use]
+    pub const fn new(resources: std::sync::Arc<ServerResources>) -> Self {
+        Self { resources }
     }
 
     /// Get dashboard overview data
@@ -140,7 +137,7 @@ impl DashboardRoutes {
         );
 
         // Get user's API keys
-        let api_keys = self.database.get_user_api_keys(user_id).await?;
+        let api_keys = self.resources.database.get_user_api_keys(user_id).await?;
         let total_api_keys = u32::try_from(api_keys.len()).unwrap_or(0);
         let active_api_keys =
             u32::try_from(api_keys.iter().filter(|k| k.is_active).count()).unwrap_or(0);
@@ -166,6 +163,7 @@ impl DashboardRoutes {
         for api_key in &api_keys {
             // Today's usage
             let today_stats = self
+                .resources
                 .database
                 .get_api_key_usage_stats(&api_key.id, today_start, Utc::now())
                 .await?;
@@ -173,6 +171,7 @@ impl DashboardRoutes {
 
             // This month's usage
             let month_stats = self
+                .resources
                 .database
                 .get_api_key_usage_stats(&api_key.id, month_start, Utc::now())
                 .await?;
@@ -185,6 +184,7 @@ impl DashboardRoutes {
         for api_key in &api_keys {
             let tier_name = format!("{:?}", api_key.tier).to_lowercase();
             let month_stats = self
+                .resources
                 .database
                 .get_api_key_usage_stats(&api_key.id, month_start, Utc::now())
                 .await?;
@@ -244,7 +244,7 @@ impl DashboardRoutes {
             days
         );
 
-        let api_keys = self.database.get_user_api_keys(user_id).await?;
+        let api_keys = self.resources.database.get_user_api_keys(user_id).await?;
         let start_date = Utc::now() - Duration::days(i64::from(days));
 
         // Time series data (daily aggregates)
@@ -260,6 +260,7 @@ impl DashboardRoutes {
 
             for api_key in &api_keys {
                 let stats = self
+                    .resources
                     .database
                     .get_api_key_usage_stats(&api_key.id, day_start, day_end)
                     .await?;
@@ -344,11 +345,15 @@ impl DashboardRoutes {
             user_id
         );
 
-        let api_keys = self.database.get_user_api_keys(user_id).await?;
+        let api_keys = self.resources.database.get_user_api_keys(user_id).await?;
         let mut overview = Vec::new();
 
         for api_key in api_keys {
-            let current_usage = self.database.get_api_key_current_usage(&api_key.id).await?;
+            let current_usage = self
+                .resources
+                .database
+                .get_api_key_current_usage(&api_key.id)
+                .await?;
 
             let limit = if api_key.tier == crate::api_keys::ApiKeyTier::Enterprise {
                 None
@@ -421,7 +426,7 @@ impl DashboardRoutes {
             },
             |token| {
                 tracing::debug!("Validating JWT token for dashboard access");
-                self.auth_manager.validate_token(token).map_or_else(
+                self.resources.auth_manager.validate_token(token).map_or_else(
                     |e| {
                         tracing::warn!(
                             "Dashboard access denied for token validation failure: {}",
@@ -440,13 +445,14 @@ impl DashboardRoutes {
 
     /// Get recent activity for user
     async fn get_recent_activity(&self, user_id: Uuid, limit: u32) -> Result<Vec<RecentActivity>> {
-        let api_keys = self.database.get_user_api_keys(user_id).await?;
+        let api_keys = self.resources.database.get_user_api_keys(user_id).await?;
         let mut recent_activity = Vec::new();
 
         // Get recent usage for all user's API keys
         for api_key in api_keys {
             let start_time = Utc::now() - Duration::days(7); // Last 7 days
             let logs = self
+                .resources
                 .database
                 .get_request_logs(
                     Some(&api_key.id),
@@ -482,13 +488,14 @@ impl DashboardRoutes {
         start_date: chrono::DateTime<Utc>,
         end_date: chrono::DateTime<Utc>,
     ) -> Result<Vec<ToolUsage>> {
-        let api_keys = self.database.get_user_api_keys(user_id).await?;
+        let api_keys = self.resources.database.get_user_api_keys(user_id).await?;
         let mut tool_stats: std::collections::HashMap<String, (u64, u64, u64)> =
             std::collections::HashMap::new();
 
         // Aggregate tool usage across all user's API keys
         for api_key in api_keys {
             let stats = self
+                .resources
                 .database
                 .get_api_key_usage_stats(&api_key.id, start_date, end_date)
                 .await?;
@@ -566,7 +573,7 @@ impl DashboardRoutes {
         );
 
         // Get user's API keys to filter by
-        let api_keys = self.database.get_user_api_keys(user_id).await?;
+        let api_keys = self.resources.database.get_user_api_keys(user_id).await?;
 
         // If specific API key is requested, verify user owns it
         if let Some(key_id) = api_key_id {
@@ -585,6 +592,7 @@ impl DashboardRoutes {
 
         // Query real data from the database
         let logs = self
+            .resources
             .database
             .get_request_logs(api_key_id, Some(start_time), Some(Utc::now()), status, tool)
             .await?;
@@ -613,7 +621,7 @@ impl DashboardRoutes {
         );
 
         // Get user's API keys
-        let api_keys = self.database.get_user_api_keys(user_id).await?;
+        let api_keys = self.resources.database.get_user_api_keys(user_id).await?;
 
         // If specific API key is requested, verify user owns it
         if let Some(key_id) = api_key_id {
@@ -644,6 +652,7 @@ impl DashboardRoutes {
 
         for api_key in keys_to_check {
             let stats = self
+                .resources
                 .database
                 .get_api_key_usage_stats(&api_key.id, start_time, Utc::now())
                 .await?;

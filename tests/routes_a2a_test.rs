@@ -161,7 +161,7 @@
 
 use pierre_mcp_server::{
     a2a::{
-        client::{A2AClientManager, A2AClientTier, ClientRegistrationRequest},
+        client::{A2AClientTier, ClientRegistrationRequest},
         A2AError,
     },
     a2a_routes::{A2AClientRequest, A2ARoutes},
@@ -219,8 +219,16 @@ impl A2ATestSetup {
         // Create test server config - use a minimal config for testing
         let config = Arc::new(create_test_server_config());
 
+        // Create ServerResources for A2A routes
+        let server_resources = Arc::new(pierre_mcp_server::mcp::multitenant::ServerResources::new(
+            (*database).clone(),
+            (*auth_manager).clone(),
+            "test_jwt_secret",
+            config,
+        ));
+
         // Create A2A routes
-        let routes = A2ARoutes::new(database.clone(), auth_manager.clone(), config);
+        let routes = A2ARoutes::new(server_resources);
 
         Self {
             routes,
@@ -244,7 +252,21 @@ impl A2ATestSetup {
             contact_email: "client@example.com".to_string(),
         };
 
-        let client_manager = A2AClientManager::new(self.database.clone());
+        // Create minimal ServerResources for testing
+        let auth_manager = Arc::new(pierre_mcp_server::auth::AuthManager::new(
+            b"test_secret".to_vec(),
+            24,
+        ));
+        let test_resources = Arc::new(pierre_mcp_server::mcp::multitenant::ServerResources::new(
+            (*self.database).clone(),
+            (*auth_manager).clone(),
+            "test_jwt_secret",
+            Arc::new(
+                pierre_mcp_server::config::environment::ServerConfig::from_env()
+                    .unwrap_or_default(),
+            ),
+        ));
+        let client_manager = &*test_resources.a2a_client_manager;
         let credentials = client_manager
             .register_client(request)
             .await

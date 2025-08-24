@@ -49,7 +49,7 @@ async fn test_mcp_initialize_request() -> Result<()> {
     let server = MultiTenantMcpServer::new(
         (*database).clone(),
         (*auth_manager).clone(),
-        TEST_JWT_SECRET.to_string(),
+        TEST_JWT_SECRET,
         config,
     );
 
@@ -73,7 +73,7 @@ async fn test_mcp_ping_request() -> Result<()> {
     let _server = MultiTenantMcpServer::new(
         (*database).clone(),
         (*auth_manager).clone(),
-        TEST_JWT_SECRET.to_string(),
+        TEST_JWT_SECRET,
         config,
     );
 
@@ -94,7 +94,7 @@ async fn test_mcp_tools_list_request() -> Result<()> {
     let _server = MultiTenantMcpServer::new(
         (*database).clone(),
         (*auth_manager).clone(),
-        TEST_JWT_SECRET.to_string(),
+        TEST_JWT_SECRET,
         config,
     );
 
@@ -119,7 +119,7 @@ async fn test_mcp_authenticate_request() -> Result<()> {
     let _server = MultiTenantMcpServer::new(
         (*database).clone(),
         (*auth_manager).clone(),
-        TEST_JWT_SECRET.to_string(),
+        TEST_JWT_SECRET,
         config,
     );
 
@@ -153,7 +153,7 @@ async fn test_mcp_tools_call_without_auth() -> Result<()> {
     let _server = MultiTenantMcpServer::new(
         (*database).clone(),
         (*auth_manager).clone(),
-        TEST_JWT_SECRET.to_string(),
+        TEST_JWT_SECRET,
         config,
     );
 
@@ -182,7 +182,7 @@ async fn test_mcp_tools_call_with_expired_token() -> Result<()> {
     let _server = MultiTenantMcpServer::new(
         (*database).clone(),
         (*auth_manager).clone(),
-        TEST_JWT_SECRET.to_string(),
+        TEST_JWT_SECRET,
         config,
     );
 
@@ -217,7 +217,7 @@ async fn test_mcp_tools_call_malformed_token() -> Result<()> {
     let _server = MultiTenantMcpServer::new(
         (*database).clone(),
         (*auth_manager).clone(),
-        TEST_JWT_SECRET.to_string(),
+        TEST_JWT_SECRET,
         config,
     );
 
@@ -252,7 +252,7 @@ async fn test_mcp_unknown_method() -> Result<()> {
     let _server = MultiTenantMcpServer::new(
         (*database).clone(),
         (*auth_manager).clone(),
-        TEST_JWT_SECRET.to_string(),
+        TEST_JWT_SECRET,
         config,
     );
 
@@ -273,7 +273,7 @@ async fn test_mcp_oauth_tool_calls() -> Result<()> {
     let _server = MultiTenantMcpServer::new(
         (*database).clone(),
         (*auth_manager).clone(),
-        TEST_JWT_SECRET.to_string(),
+        TEST_JWT_SECRET,
         config,
     );
 
@@ -352,7 +352,7 @@ async fn test_mcp_intelligence_tool_calls() -> Result<()> {
     let _server = MultiTenantMcpServer::new(
         (*database).clone(),
         (*auth_manager).clone(),
-        TEST_JWT_SECRET.to_string(),
+        TEST_JWT_SECRET,
         config,
     );
 
@@ -406,7 +406,7 @@ async fn test_mcp_provider_required_tools() -> Result<()> {
     let _server = MultiTenantMcpServer::new(
         (*database).clone(),
         (*auth_manager).clone(),
-        TEST_JWT_SECRET.to_string(),
+        TEST_JWT_SECRET,
         config,
     );
 
@@ -469,7 +469,7 @@ async fn test_mcp_unknown_tool() -> Result<()> {
     let _server = MultiTenantMcpServer::new(
         (*database).clone(),
         (*auth_manager).clone(),
-        TEST_JWT_SECRET.to_string(),
+        TEST_JWT_SECRET,
         config,
     );
 
@@ -508,7 +508,7 @@ async fn test_mcp_api_key_authentication() -> Result<()> {
     let _server = MultiTenantMcpServer::new(
         (*database).clone(),
         (*auth_manager).clone(),
-        TEST_JWT_SECRET.to_string(),
+        TEST_JWT_SECRET,
         config,
     );
 
@@ -551,7 +551,7 @@ async fn test_mcp_request_id_variations() -> Result<()> {
     let _server = MultiTenantMcpServer::new(
         (*database).clone(),
         (*auth_manager).clone(),
-        TEST_JWT_SECRET.to_string(),
+        TEST_JWT_SECRET,
         config,
     );
 
@@ -581,7 +581,7 @@ async fn test_mcp_error_scenarios() -> Result<()> {
     let _server = MultiTenantMcpServer::new(
         (*database).clone(),
         (*auth_manager).clone(),
-        TEST_JWT_SECRET.to_string(),
+        TEST_JWT_SECRET,
         config,
     );
 
@@ -622,7 +622,7 @@ async fn test_mcp_concurrent_requests() -> Result<()> {
     let _server = Arc::new(MultiTenantMcpServer::new(
         (*database).clone(),
         (*auth_manager).clone(),
-        TEST_JWT_SECRET.to_string(),
+        TEST_JWT_SECRET,
         config,
     ));
 

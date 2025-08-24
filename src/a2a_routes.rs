@@ -10,21 +10,15 @@
 //!
 //! HTTP endpoints for A2A (Agent-to-Agent) protocol management
 
-use crate::auth::AuthManager;
-use crate::database_plugins::{factory::Database, DatabaseProvider};
-use crate::intelligence::ActivityIntelligence;
-use crate::protocols::universal::{UniversalRequest, UniversalToolExecutor};
-use crate::tenant::TenantOAuthClient;
-use crate::utils::auth::extract_bearer_token;
-use crate::{
-    a2a::{
-        agent_card::AgentCard,
-        auth::A2AAuthenticator,
-        client::{A2AClientManager, ClientRegistrationRequest},
-        protocol::A2AError,
-    },
-    constants::demo_data::{DEMO_CONSISTENCY_SCORE, DEMO_EFFICIENCY_SCORE},
+use crate::a2a::{
+    agent_card::AgentCard,
+    auth::A2AAuthenticator,
+    client::{A2AClientManager, ClientRegistrationRequest},
+    protocol::A2AError,
 };
+use crate::database_plugins::DatabaseProvider;
+use crate::protocols::universal::{UniversalRequest, UniversalToolExecutor};
+use crate::utils::auth::extract_bearer_token;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -64,12 +58,10 @@ pub struct A2AClientRequest {
 
 /// A2A Routes handler
 pub struct A2ARoutes {
-    database: Arc<Database>,
-    auth_manager: Arc<AuthManager>,
+    resources: Arc<crate::mcp::multitenant::ServerResources>,
     client_manager: Arc<A2AClientManager>,
     authenticator: Arc<A2AAuthenticator>,
     tool_executor: UniversalToolExecutor,
-    config: Arc<crate::config::environment::ServerConfig>,
 }
 
 impl A2ARoutes {
@@ -94,7 +86,8 @@ impl A2ARoutes {
 
     /// Validate JWT token and return user ID
     fn validate_jwt_and_get_user_id(&self, token: &str) -> Result<String, serde_json::Value> {
-        self.auth_manager
+        self.resources
+            .auth_manager
             .validate_token(token)
             .map(|claims| claims.sub)
             .map_err(|_| {
@@ -105,76 +98,18 @@ impl A2ARoutes {
             })
     }
 
-    /// Create standard A2A `ActivityIntelligence` instance
     #[must_use]
-    fn create_a2a_intelligence() -> Arc<ActivityIntelligence> {
-        Arc::new(ActivityIntelligence::new(
-            "A2A Intelligence".into(),
-            vec![],
-            crate::intelligence::PerformanceMetrics {
-                relative_effort: Some(7.5),
-                zone_distribution: None,
-                personal_records: vec![],
-                efficiency_score: Some({
-                    // Safe: clamped to f32 range before cast, value represents percentage (0-100)
-                    #[allow(clippy::cast_possible_truncation)]
-                    {
-                        DEMO_EFFICIENCY_SCORE.clamp(f64::from(f32::MIN), f64::from(f32::MAX)) as f32
-                    }
-                }),
-                trend_indicators: crate::intelligence::TrendIndicators {
-                    pace_trend: crate::intelligence::TrendDirection::Stable,
-                    effort_trend: crate::intelligence::TrendDirection::Improving,
-                    distance_trend: crate::intelligence::TrendDirection::Stable,
-                    consistency_score: {
-                        // Safe: clamped to f32 range before cast, value represents percentage (0-100)
-                        #[allow(clippy::cast_possible_truncation)]
-                        {
-                            DEMO_CONSISTENCY_SCORE.clamp(f64::from(f32::MIN), f64::from(f32::MAX))
-                                as f32
-                        }
-                    },
-                },
-            },
-            crate::intelligence::ContextualFactors {
-                weather: None,
-                location: None,
-                time_of_day: crate::intelligence::TimeOfDay::Morning,
-                days_since_last_activity: Some(1),
-                weekly_load: None,
-            },
-        ))
-    }
+    pub fn new(resources: Arc<crate::mcp::multitenant::ServerResources>) -> Self {
+        let client_manager = resources.a2a_client_manager.clone();
+        let authenticator = Arc::new(A2AAuthenticator::new(resources.clone()));
 
-    #[must_use]
-    pub fn new(
-        database: Arc<Database>,
-        auth_manager: Arc<AuthManager>,
-        config: Arc<crate::config::environment::ServerConfig>,
-    ) -> Self {
-        let client_manager = Arc::new(A2AClientManager::new(database.clone()));
-        let authenticator = Arc::new(A2AAuthenticator::new(
-            database.clone(),
-            auth_manager.jwt_secret().to_vec(),
-        ));
-
-        let intelligence = Self::create_a2a_intelligence();
-        let tenant_oauth_client = Arc::new(TenantOAuthClient::new());
-
-        let tool_executor = UniversalToolExecutor::new(
-            database.clone(),
-            intelligence,
-            config.clone(),
-            tenant_oauth_client,
-        );
+        let tool_executor = UniversalToolExecutor::new(resources.clone());
 
         Self {
-            database,
-            auth_manager,
+            resources,
             client_manager,
             authenticator,
             tool_executor,
-            config,
         }
     }
 
@@ -401,6 +336,7 @@ impl A2ARoutes {
 
         // Create A2A session
         let session_token = self
+            .resources
             .database
             .create_a2a_session(client_id, None, &scopes, 24)
             .await
@@ -525,7 +461,12 @@ impl A2ARoutes {
             }
         };
 
-        match self.database.update_a2a_session_activity(&token).await {
+        match self
+            .resources
+            .database
+            .update_a2a_session_activity(&token)
+            .await
+        {
             Ok(()) => Ok(serde_json::json!({
                 "jsonrpc": "2.0",
                 "id": id,
@@ -632,24 +573,14 @@ impl A2ARoutes {
 
 impl Clone for A2ARoutes {
     fn clone(&self) -> Self {
-        // For the clone, we need to recreate the tool executor since it doesn't implement Clone
-        let intelligence = Self::create_a2a_intelligence();
-        let tenant_oauth_client = Arc::new(TenantOAuthClient::new());
-
-        let tool_executor = UniversalToolExecutor::new(
-            self.database.clone(),
-            intelligence,
-            self.config.clone(),
-            tenant_oauth_client,
-        );
+        // Clone uses shared ServerResources - no expensive object recreation
+        let tool_executor = UniversalToolExecutor::new(self.resources.clone());
 
         Self {
-            database: self.database.clone(),
-            auth_manager: self.auth_manager.clone(),
+            resources: self.resources.clone(),
             client_manager: self.client_manager.clone(),
             authenticator: self.authenticator.clone(),
             tool_executor,
-            config: self.config.clone(),
         }
     }
 }

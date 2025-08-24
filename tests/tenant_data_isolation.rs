@@ -445,7 +445,7 @@ async fn test_mcp_server_tenant_isolation() -> Result<()> {
     let _server = MultiTenantMcpServer::new(
         database.clone(),
         auth_manager.clone(),
-        TEST_JWT_SECRET.to_string(),
+        TEST_JWT_SECRET,
         create_test_server_config(),
     );
 

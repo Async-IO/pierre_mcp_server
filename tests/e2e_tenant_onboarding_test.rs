@@ -169,7 +169,7 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
         .await?;
 
     // Step 7: Create Universal Tool Executor with tenant OAuth support
-    let intelligence = Arc::new(ActivityIntelligence::new(
+    let _intelligence = Arc::new(ActivityIntelligence::new(
         "E2E Test Intelligence".to_string(),
         vec![], // No initial insights
         pierre_mcp_server::intelligence::PerformanceMetrics {
@@ -195,12 +195,15 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
 
     let config = Arc::new(create_test_server_config());
 
-    let executor = UniversalToolExecutor::new(
-        database.clone(),
-        intelligence,
+    // Create ServerResources for the test
+    let auth_manager = pierre_mcp_server::auth::AuthManager::new(vec![0u8; 64], 24);
+    let server_resources = Arc::new(pierre_mcp_server::mcp::multitenant::ServerResources::new(
+        (*database).clone(),
+        auth_manager,
+        "test_secret",
         config,
-        tenant_oauth_client.clone(),
-    );
+    ));
+    let executor = UniversalToolExecutor::new(server_resources);
 
     // Step 8: Test tenant-aware tool execution for Acme
     let acme_context = TenantContext::new(

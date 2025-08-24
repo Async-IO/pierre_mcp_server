@@ -24,7 +24,7 @@ async fn create_test_tool_executor() -> Arc<UniversalToolExecutor> {
     );
 
     // Create test intelligence
-    let intelligence = Arc::new(ActivityIntelligence::new(
+    let _intelligence = Arc::new(ActivityIntelligence::new(
         "Test Intelligence".to_string(),
         vec![],
         PerformanceMetrics {
@@ -54,13 +54,15 @@ async fn create_test_tool_executor() -> Arc<UniversalToolExecutor> {
             .unwrap_or_else(|_| create_test_config()),
     );
 
-    let tenant_oauth_client = Arc::new(pierre_mcp_server::tenant::TenantOAuthClient::new());
-    Arc::new(UniversalToolExecutor::new(
-        database,
-        intelligence,
+    // Create ServerResources for the test
+    let auth_manager = pierre_mcp_server::auth::AuthManager::new(vec![0u8; 64], 24);
+    let server_resources = Arc::new(pierre_mcp_server::mcp::multitenant::ServerResources::new(
+        (*database).clone(),
+        auth_manager,
+        "test_secret",
         config,
-        tenant_oauth_client,
-    ))
+    ));
+    Arc::new(UniversalToolExecutor::new(server_resources))
 }
 
 fn create_test_config() -> pierre_mcp_server::config::environment::ServerConfig {

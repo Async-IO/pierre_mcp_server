@@ -9,9 +9,9 @@
 //! HTTP routes for user authentication and OAuth flows in multi-tenant mode
 
 use crate::{
-    auth::AuthManager,
-    database_plugins::{factory::Database, DatabaseProvider},
+    database_plugins::DatabaseProvider,
     errors::AppError,
+    mcp::multitenant::ServerResources,
     models::User,
     utils::{
         http_client::oauth_client,
@@ -125,17 +125,13 @@ struct FitbitTokenResponse {
 
 #[derive(Clone)]
 pub struct AuthRoutes {
-    database: Database,
-    auth_manager: AuthManager,
+    resources: std::sync::Arc<ServerResources>,
 }
 
 impl AuthRoutes {
     #[must_use]
-    pub const fn new(database: Database, auth_manager: AuthManager) -> Self {
-        Self {
-            database,
-            auth_manager,
-        }
+    pub const fn new(resources: std::sync::Arc<ServerResources>) -> Self {
+        Self { resources }
     }
 
     /// Handle user registration
@@ -163,7 +159,12 @@ impl AuthRoutes {
         }
 
         // Check if user already exists
-        if let Ok(Some(_)) = self.database.get_user_by_email(&request.email).await {
+        if let Ok(Some(_)) = self
+            .resources
+            .database
+            .get_user_by_email(&request.email)
+            .await
+        {
             return Err(anyhow::anyhow!("User with this email already exists"));
         }
 
@@ -174,7 +175,7 @@ impl AuthRoutes {
         let user = User::new(request.email.clone(), password_hash, request.display_name);
 
         // Save user to database
-        let user_id = self.database.create_user(&user).await?;
+        let user_id = self.resources.database.create_user(&user).await?;
 
         info!(
             "User registered successfully: {} ({})",
@@ -201,6 +202,7 @@ impl AuthRoutes {
 
         // Get user from database
         let user = self
+            .resources
             .database
             .get_user_by_email_required(&request.email)
             .await
@@ -222,10 +224,10 @@ impl AuthRoutes {
         }
 
         // Update last active timestamp
-        self.database.update_last_active(user.id).await?;
+        self.resources.database.update_last_active(user.id).await?;
 
         // Generate JWT token
-        let jwt_token = self.auth_manager.generate_token(&user)?;
+        let jwt_token = self.resources.auth_manager.generate_token(&user)?;
         let expires_at = chrono::Utc::now() + chrono::Duration::hours(24); // Default 24h expiry
 
         info!(
@@ -263,17 +265,21 @@ impl AuthRoutes {
 
         // Get user from database
         let user = self
+            .resources
             .database
             .get_user(user_uuid)
             .await?
             .ok_or_else(|| anyhow::anyhow!("User not found"))?;
 
         // Validate the current token and refresh it
-        let new_jwt_token = self.auth_manager.refresh_token(&request.token, &user)?;
+        let new_jwt_token = self
+            .resources
+            .auth_manager
+            .refresh_token(&request.token, &user)?;
         let expires_at = chrono::Utc::now() + chrono::Duration::hours(24);
 
         // Update last active timestamp
-        self.database.update_last_active(user.id).await?;
+        self.resources.database.update_last_active(user.id).await?;
 
         info!("Token refreshed successfully for user: {}", user.id);
 
@@ -315,13 +321,13 @@ impl AuthRoutes {
 /// OAuth flow routes for connecting fitness providers
 #[derive(Clone)]
 pub struct OAuthRoutes {
-    database: Database,
+    resources: std::sync::Arc<ServerResources>,
 }
 
 impl OAuthRoutes {
     #[must_use]
-    pub const fn new(database: Database) -> Self {
-        Self { database }
+    pub const fn new(resources: std::sync::Arc<ServerResources>) -> Self {
+        Self { resources }
     }
 
     /// Get OAuth authorization URL for a provider with real configuration
@@ -346,6 +352,7 @@ impl OAuthRoutes {
             "strava" => {
                 // Get tenant OAuth credentials for Strava
                 let credentials = self
+                    .resources
                     .database
                     .get_tenant_oauth_credentials(tenant_id, "strava")
                     .await
@@ -380,6 +387,7 @@ impl OAuthRoutes {
             "fitbit" => {
                 // Get tenant OAuth credentials for Fitbit
                 let credentials = self
+                    .resources
                     .database
                     .get_tenant_oauth_credentials(tenant_id, "fitbit")
                     .await
@@ -466,6 +474,7 @@ impl OAuthRoutes {
 
         // Get user's tenant for OAuth credentials lookup
         let user = self
+            .resources
             .database
             .get_user(user_id)
             .await?
@@ -517,7 +526,8 @@ impl OAuthRoutes {
             chrono::Utc::now() + chrono::Duration::seconds(token_response.expires_in)
         };
 
-        self.database
+        self.resources
+            .database
             .update_strava_token(
                 user_id,
                 &token_response.access_token,
@@ -568,7 +578,8 @@ impl OAuthRoutes {
         // Store encrypted tokens in database
         let expires_at = chrono::Utc::now() + chrono::Duration::seconds(token_response.expires_in);
 
-        self.database
+        self.resources
+            .database
             .update_fitbit_token(
                 user_id,
                 &token_response.access_token,
@@ -596,6 +607,7 @@ impl OAuthRoutes {
     ) -> Result<StravaTokenResponse> {
         // Get tenant OAuth credentials for Strava
         let credentials = self
+            .resources
             .database
             .get_tenant_oauth_credentials(tenant_id, "strava")
             .await
@@ -655,6 +667,7 @@ impl OAuthRoutes {
     ) -> Result<FitbitTokenResponse> {
         // Get tenant OAuth credentials for Fitbit
         let credentials = self
+            .resources
             .database
             .get_tenant_oauth_credentials(tenant_id, "fitbit")
             .await
@@ -708,7 +721,7 @@ impl OAuthRoutes {
         let mut statuses = Vec::with_capacity(2); // Always 2 providers (Strava, Fitbit)
 
         // Check Strava connection
-        if let Ok(Some(strava_token)) = self.database.get_strava_token(user_id).await {
+        if let Ok(Some(strava_token)) = self.resources.database.get_strava_token(user_id).await {
             statuses.push(ConnectionStatus {
                 provider: "strava".into(),
                 connected: true,
@@ -725,7 +738,7 @@ impl OAuthRoutes {
         }
 
         // Check Fitbit connection
-        if let Ok(Some(fitbit_token)) = self.database.get_fitbit_token(user_id).await {
+        if let Ok(Some(fitbit_token)) = self.resources.database.get_fitbit_token(user_id).await {
             statuses.push(ConnectionStatus {
                 provider: "fitbit".into(),
                 connected: true,
@@ -756,12 +769,12 @@ impl OAuthRoutes {
                 // Token revocation would clear stored tokens from database
                 // Clear provider tokens requires token revocation API calls
                 info!("Disconnecting Strava for user {}", user_id);
-                // self.database.clear_strava_token(user_id).await?;
+                // self.resources.database.clear_strava_token(user_id).await?;
                 Ok(())
             }
             "fitbit" => {
                 info!("Disconnecting Fitbit for user {}", user_id);
-                // self.database.clear_fitbit_token(user_id).await?;
+                // self.resources.database.clear_fitbit_token(user_id).await?;
                 Ok(())
             }
             _ => Err(anyhow::anyhow!("Unsupported provider: {}", provider)),
@@ -828,7 +841,7 @@ impl A2ARoutes {
     /// - Database operation fails
     pub async fn register_client(
         request: crate::a2a::client::ClientRegistrationRequest,
-        database: std::sync::Arc<crate::database_plugins::factory::Database>,
+        resources: std::sync::Arc<crate::mcp::multitenant::ServerResources>,
     ) -> Result<impl warp::Reply, warp::Rejection> {
         tracing::info!(
             client_name = %request.name,
@@ -837,8 +850,8 @@ impl A2ARoutes {
             "A2A client registration request received"
         );
 
-        // Create A2A client manager
-        let client_manager = crate::a2a::A2AClientManager::new(database);
+        // Use the shared A2A client manager from ServerResources
+        let client_manager = &*resources.a2a_client_manager;
 
         match client_manager.register_client(request).await {
             Ok(credentials) => {

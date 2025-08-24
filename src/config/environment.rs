@@ -197,7 +197,7 @@ impl std::fmt::Display for DatabaseUrl {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ServerConfig {
     /// MCP server port
     pub mcp_port: u16,
@@ -219,7 +219,7 @@ pub struct ServerConfig {
     pub app_behavior: AppBehaviorConfig,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct DatabaseConfig {
     /// Database URL (`SQLite` path or `PostgreSQL` connection string)
     pub url: DatabaseUrl,
@@ -231,7 +231,7 @@ pub struct DatabaseConfig {
     pub backup: BackupConfig,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct BackupConfig {
     /// Enable automatic backups
     pub enabled: bool,
@@ -243,7 +243,7 @@ pub struct BackupConfig {
     pub directory: PathBuf,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AuthConfig {
     /// JWT secret key path
     pub jwt_secret_path: PathBuf,
@@ -253,7 +253,7 @@ pub struct AuthConfig {
     pub enable_refresh_tokens: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct OAuthConfig {
     /// Strava OAuth configuration
     pub strava: OAuthProviderConfig,
@@ -261,7 +261,7 @@ pub struct OAuthConfig {
     pub fitbit: OAuthProviderConfig,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct OAuthProviderConfig {
     /// OAuth client ID
     pub client_id: Option<String>,
@@ -275,7 +275,7 @@ pub struct OAuthProviderConfig {
     pub enabled: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SecurityConfig {
     /// CORS allowed origins
     pub cors_origins: Vec<String>,
@@ -287,13 +287,13 @@ pub struct SecurityConfig {
     pub headers: SecurityHeadersConfig,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SecurityHeadersConfig {
     /// Environment type for security headers (development, production)
     pub environment: Environment,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct RateLimitConfig {
     /// Enable rate limiting
     pub enabled: bool,
@@ -303,7 +303,7 @@ pub struct RateLimitConfig {
     pub window_seconds: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TlsConfig {
     /// Enable TLS
     pub enabled: bool,
@@ -313,7 +313,7 @@ pub struct TlsConfig {
     pub key_path: Option<PathBuf>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ExternalServicesConfig {
     /// Weather service configuration
     pub weather: WeatherServiceConfig,
@@ -325,7 +325,7 @@ pub struct ExternalServicesConfig {
     pub fitbit_api: FitbitApiConfig,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct WeatherServiceConfig {
     /// `OpenWeather` API key
     pub api_key: Option<String>,
@@ -335,7 +335,7 @@ pub struct WeatherServiceConfig {
     pub enabled: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GeocodingServiceConfig {
     /// Geocoding service base URL
     pub base_url: String,
@@ -343,7 +343,7 @@ pub struct GeocodingServiceConfig {
     pub enabled: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct StravaApiConfig {
     /// Strava API base URL
     pub base_url: String,
@@ -353,7 +353,7 @@ pub struct StravaApiConfig {
     pub token_url: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct FitbitApiConfig {
     /// Fitbit API base URL
     pub base_url: String,
@@ -363,7 +363,7 @@ pub struct FitbitApiConfig {
     pub token_url: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppBehaviorConfig {
     /// Maximum activities to fetch in one request
     pub max_activities_fetch: usize,
@@ -375,7 +375,7 @@ pub struct AppBehaviorConfig {
     pub protocol: ProtocolConfig,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ProtocolConfig {
     /// MCP protocol version
     pub mcp_version: String,
