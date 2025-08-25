@@ -40,38 +40,53 @@ async fn main() -> Result<()> {
         config.auth.jwt_expiry_hours as i64
     );
     
-    // Create and run server
-    let server = MultiTenantMcpServer::new(database, auth_manager, Arc::new(config));
+    // Create and run server with ServerResources dependency injection
+    let server = MultiTenantMcpServer::new(
+        database,
+        auth_manager,
+        &jwt_secret_string,
+        Arc::new(config.clone()),
+    );
     server.run(config.mcp_port).await?;
     
     Ok(())
 }
 ```
 
-## Server Structure
+## Server Architecture
 
 ### `src/mcp/multitenant.rs`
 
-The core server implementation:
+The server uses **dependency injection** through a centralized `ServerResources` struct:
 
 ```rust
 pub struct MultiTenantMcpServer {
-    // Core components
-    database: Arc<Database>,
-    auth_manager: Arc<AuthManager>,
-    auth_middleware: Arc<McpAuthMiddleware>,
-    
-    // Real-time support
-    websocket_manager: Arc<WebSocketManager>,
-    
-    // Provider management
-    tenant_oauth_client: Arc<TenantOAuthClient>,
-    tenant_provider_factory: Arc<TenantProviderFactory>,
-    
-    // Configuration
-    config: Arc<ServerConfig>,
+    resources: Arc<ServerResources>,
+}
+
+pub struct ServerResources {
+    pub database: Arc<Database>,
+    pub auth_manager: Arc<AuthManager>,
+    pub auth_middleware: Arc<McpAuthMiddleware>,
+    pub websocket_manager: Arc<WebSocketManager>,
+    pub tenant_oauth_client: Arc<TenantOAuthClient>,
+    pub tenant_provider_factory: Arc<TenantProviderFactory>,
+    pub admin_jwt_secret: Arc<str>,
+    pub config: Arc<ServerConfig>,
+    pub activity_intelligence: Arc<ActivityIntelligence>,
+    pub oauth_manager: Arc<RwLock<OAuthManager>>,
+    pub a2a_client_manager: Arc<A2AClientManager>,
+    pub a2a_system_user_service: Arc<A2ASystemUserService>,
 }
 ```
+
+### Architectural Benefits
+
+- **Single resource creation**: All expensive resources created once at startup
+- **Shared ownership**: Components share resources via Arc references  
+- **No cloning**: Resources shared by reference, not cloned per component
+- **Testability**: Easy to inject test doubles via ServerResources
+- **Performance**: Eliminates resource creation anti-patterns
 
 ## Server Initialization Flow
 

@@ -179,9 +179,22 @@ fn detect_database_type(database_url: &str) -> Result<DatabaseType> {
 
 ### Database Provider Implementation
 
-The factory delegates all calls to the underlying provider:
+The factory delegates all calls to the underlying provider through ServerResources:
 
 ```rust
+// ✅ CORRECT: Database created once at startup via ServerResources
+impl MultiTenantMcpServer {
+    pub fn new(resources: Arc<ServerResources>) -> Self {
+        Self { resources }
+    }
+    
+    // Components access database through shared resources
+    async fn handle_request(&self) -> Result<Response> {
+        let user = self.resources.database.get_user(user_id).await?;
+        // Use shared database reference, never clone or create new instances
+    }
+}
+
 #[async_trait]
 impl DatabaseProvider for Database {
     async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
@@ -916,19 +929,27 @@ find $BACKUP_DIR -name "*.sql.gz" -mtime +30 -delete
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mcp::multitenant::ServerResources;
     
-    async fn create_test_database() -> Database {
+    // ✅ CORRECT: Create test database and wrap in ServerResources
+    async fn create_test_server_resources() -> Arc<ServerResources> {
         let temp_dir = tempdir().unwrap();
         let db_path = temp_dir.path().join("test.db");
         let db_url = format!("sqlite:{}", db_path.display());
         let encryption_key = vec![0u8; 32]; // Test key
         
-        Database::new(&db_url, encryption_key).await.unwrap()
+        let database = Arc::new(Database::new(&db_url, encryption_key).await.unwrap());
+        
+        // Create minimal ServerResources for testing
+        Arc::new(ServerResources {
+            database,
+            // ... other test resources
+        })
     }
     
     #[tokio::test]
     async fn test_user_creation() {
-        let db = create_test_database().await;
+        let resources = create_test_server_resources().await;
         
         let user = User {
             id: Uuid::new_v4(),
@@ -941,17 +962,17 @@ mod tests {
             // ... other fields
         };
         
-        let user_id = db.create_user(&user).await.unwrap();
+        let user_id = resources.database.create_user(&user).await.unwrap();
         assert_eq!(user_id, user.id);
         
-        let retrieved = db.get_user(user_id).await.unwrap();
+        let retrieved = resources.database.get_user(user_id).await.unwrap();
         assert!(retrieved.is_some());
         assert_eq!(retrieved.unwrap().email, user.email);
     }
     
     #[tokio::test]
     async fn test_tenant_isolation() {
-        let db = create_test_database().await;
+        let resources = create_test_server_resources().await;
         
         // Create two tenants
         let tenant_a = create_test_tenant("tenant-a").await;
@@ -961,18 +982,18 @@ mod tests {
         let activity_a = create_test_activity(&tenant_a);
         let activity_b = create_test_activity(&tenant_b);
         
-        db.create_activity(tenant_a.id, &activity_a).await.unwrap();
-        db.create_activity(tenant_b.id, &activity_b).await.unwrap();
+        resources.database.create_activity(tenant_a.id, &activity_a).await.unwrap();
+        resources.database.create_activity(tenant_b.id, &activity_b).await.unwrap();
         
         // Verify isolation
-        let activities_a = db.get_user_activities(
+        let activities_a = resources.database.get_user_activities(
             tenant_a.id, tenant_a.owner_id, 100
         ).await.unwrap();
         
         assert_eq!(activities_a.len(), 1);
         assert_eq!(activities_a[0].id, activity_a.id);
         
-        let activities_b = db.get_user_activities(
+        let activities_b = resources.database.get_user_activities(
             tenant_b.id, tenant_b.owner_id, 100
         ).await.unwrap();
         

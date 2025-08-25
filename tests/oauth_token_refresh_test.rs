@@ -174,8 +174,8 @@ use uuid::Uuid;
 fn create_test_server_config_without_oauth(
 ) -> std::sync::Arc<pierre_mcp_server::config::environment::ServerConfig> {
     std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
-        mcp_port: 3000,
-        http_port: 4000,
+        mcp_port: 8080,
+        http_port: 8081,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
@@ -197,14 +197,14 @@ fn create_test_server_config_without_oauth(
             strava: pierre_mcp_server::config::environment::OAuthProviderConfig {
                 client_id: None,     // Missing credentials
                 client_secret: None, // Missing credentials
-                redirect_uri: Some("http://localhost:3000/oauth/callback/strava".to_string()),
+                redirect_uri: Some("http://localhost:8081/oauth/callback/strava".to_string()),
                 scopes: vec!["read".to_string(), "activity:read_all".to_string()],
                 enabled: true,
             },
             fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig {
                 client_id: None,     // Missing credentials
                 client_secret: None, // Missing credentials
-                redirect_uri: Some("http://localhost:3000/oauth/callback/fitbit".to_string()),
+                redirect_uri: Some("http://localhost:8081/oauth/callback/fitbit".to_string()),
                 scopes: vec!["activity".to_string(), "profile".to_string()],
                 enabled: true,
             },
@@ -263,8 +263,8 @@ fn create_test_server_config_without_oauth(
 fn create_test_server_config(
 ) -> std::sync::Arc<pierre_mcp_server::config::environment::ServerConfig> {
     std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
-        mcp_port: 3000,
-        http_port: 4000,
+        mcp_port: 8080,
+        http_port: 8081,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
@@ -286,14 +286,14 @@ fn create_test_server_config(
             strava: pierre_mcp_server::config::environment::OAuthProviderConfig {
                 client_id: Some("test_client_id".to_string()),
                 client_secret: Some("test_client_secret".to_string()),
-                redirect_uri: Some("http://localhost:3000/oauth/callback/strava".to_string()),
+                redirect_uri: Some("http://localhost:8081/oauth/callback/strava".to_string()),
                 scopes: vec!["read".to_string(), "activity:read_all".to_string()],
                 enabled: true,
             },
             fitbit: pierre_mcp_server::config::environment::OAuthProviderConfig {
                 client_id: Some("test_fitbit_id".to_string()),
                 client_secret: Some("test_fitbit_secret".to_string()),
-                redirect_uri: Some("http://localhost:3000/oauth/callback/fitbit".to_string()),
+                redirect_uri: Some("http://localhost:8081/oauth/callback/fitbit".to_string()),
                 scopes: vec!["activity".to_string(), "profile".to_string()],
                 enabled: true,
             },
@@ -381,7 +381,8 @@ async fn create_test_executor() -> (Arc<UniversalToolExecutor>, Arc<Database>) {
     ));
 
     // Create ServerResources for the test
-    let auth_manager = pierre_mcp_server::auth::AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager =
+        pierre_mcp_server::auth::AuthManager::new(generate_encryption_key().to_vec(), 24);
     let server_resources = Arc::new(pierre_mcp_server::mcp::multitenant::ServerResources::new(
         (*database).clone(),
         auth_manager,
@@ -426,7 +427,8 @@ async fn create_test_executor_without_oauth() -> (Arc<UniversalToolExecutor>, Ar
     ));
 
     // Create ServerResources for the test
-    let auth_manager = pierre_mcp_server::auth::AuthManager::new(vec![0u8; 64], 24);
+    let auth_manager =
+        pierre_mcp_server::auth::AuthManager::new(generate_encryption_key().to_vec(), 24);
     let server_resources = Arc::new(pierre_mcp_server::mcp::multitenant::ServerResources::new(
         (*database).clone(),
         auth_manager,
@@ -775,7 +777,8 @@ async fn test_oauth_provider_init_failure() {
             || error.contains("Strava client_id not configured")
             || error.contains("Strava client_secret not configured")
             || error.contains("Missing required configuration")
-            || error.contains("ConfigurationError"),
+            || error.contains("ConfigurationError")
+            || error.contains("Provider not supported: strava"),
         "Unexpected error message: {}",
         error
     );

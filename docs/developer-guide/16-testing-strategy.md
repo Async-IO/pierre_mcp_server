@@ -2,6 +2,37 @@
 
 This document outlines the comprehensive testing strategy used in Pierre MCP Server, providing examples of different test types and best practices for maintaining high code quality.
 
+## Testing Architecture Pattern
+
+Pierre MCP Server uses **ServerResources dependency injection** to eliminate resource creation anti-patterns in tests:
+
+```rust
+// ✅ CORRECT: ServerResources pattern
+let resources = Arc::new(create_test_server_resources(database, auth_manager).await);
+let routes = ApiKeyRoutes::new(resources);
+
+// ❌ ANTI-PATTERN: Resource cloning 
+let routes = ApiKeyRoutes::new(database.clone(), auth_manager.clone()); // Don't do this!
+```
+
+### Test Helper Function
+
+```rust
+async fn create_test_server_resources(
+    database: Database, 
+    auth_manager: AuthManager
+) -> ServerResources {
+    ServerResources::new(
+        database,
+        auth_manager, 
+        "test_jwt_secret",
+        Arc::new(test_config())
+    )
+}
+```
+
+This pattern ensures tests follow the same architectural principles as production code.
+
 ## Table of Contents
 
 1. [Testing Philosophy](#testing-philosophy)
@@ -194,7 +225,8 @@ pub async fn setup_test_environment() -> Result<(
 )> {
     let database = create_test_database().await?;
     let auth_manager = create_test_auth_manager();
-    let auth_middleware = create_test_auth_middleware(&auth_manager, database.clone());
+    // Use ServerResources for proper dependency injection (no database cloning)
+    let auth_middleware = create_test_auth_middleware(&auth_manager, &database);
     
     let (user_id, _user) = create_test_user(&database).await?;
     let api_key = create_test_api_key(&database, user_id, "test-key")?;
@@ -345,7 +377,9 @@ async fn test_create_api_key_flow() -> Result<()> {
     let (database, auth_manager, _auth_middleware, user_id, _api_key) = 
         common::setup_test_environment().await?;
     
-    let routes = ApiKeyRoutes::new(database.clone(), (*auth_manager).clone());
+    // Use ServerResources for proper dependency injection
+    let resources = Arc::new(create_test_server_resources(database, auth_manager).await);
+    let routes = ApiKeyRoutes::new(resources);
     
     // Generate JWT for authentication
     let user = database.get_user(user_id).await?.unwrap();
@@ -378,7 +412,9 @@ async fn test_api_key_usage_tracking() -> Result<()> {
     let (database, auth_manager, _auth_middleware, user_id, _api_key) = 
         common::setup_test_environment().await?;
     
-    let routes = ApiKeyRoutes::new(database.clone(), (*auth_manager).clone());
+    // Use ServerResources for proper dependency injection
+    let resources = Arc::new(create_test_server_resources(database, auth_manager).await);
+    let routes = ApiKeyRoutes::new(resources);
     
     // Create API key
     let user = database.get_user(user_id).await?.unwrap();
@@ -424,7 +460,9 @@ async fn test_complete_oauth_flow() -> Result<()> {
     let (database, _auth_manager, _auth_middleware, user_id, _api_key) = 
         common::setup_test_environment().await?;
     
-    let oauth_routes = OAuthRoutes::new(database.clone());
+    // Use ServerResources for proper dependency injection
+    let resources = Arc::new(create_test_server_resources(database, auth_manager).await);
+    let oauth_routes = OAuthRoutes::new(resources);
     
     // Create a tenant for OAuth configuration
     let tenant_id = Uuid::new_v4();
@@ -483,7 +521,9 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
         common::setup_test_environment().await?;
     
     // Step 1: Admin creates tenant
-    let admin_routes = AdminRoutes::new(database.clone(), (*auth_manager).clone());
+    // Use ServerResources for proper dependency injection  
+    let resources = Arc::new(create_test_server_resources(database, auth_manager).await);
+    let admin_routes = AdminRoutes::new(resources);
     
     let tenant_request = CreateTenantRequest {
         name: "ACME Fitness Corp".to_string(),
@@ -535,7 +575,9 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
     let user_auth_header = format!("Bearer {}", user_jwt);
     
     // Step 4: User creates API key
-    let api_key_routes = ApiKeyRoutes::new(database.clone(), (*auth_manager).clone());
+    // Use ServerResources for proper dependency injection
+    let resources = Arc::new(create_test_server_resources(database, auth_manager).await);
+    let api_key_routes = ApiKeyRoutes::new(resources);
     let api_key_request = CreateApiKeyRequestSimple {
         name: "ACME Production Key".to_string(),
         description: Some("Production API key for ACME Corp".to_string()),
@@ -556,7 +598,9 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
     assert!(!other_user_keys.iter().any(|k| k.name == "ACME Production Key"));
     
     // Step 6: Test OAuth flow for tenant
-    let oauth_routes = OAuthRoutes::new(database.clone());
+    // Use ServerResources for proper dependency injection
+    let resources = Arc::new(create_test_server_resources(database, auth_manager).await);
+    let oauth_routes = OAuthRoutes::new(resources);
     let auth_url_response = oauth_routes.get_auth_url(
         tenant_user.id,
         tenant_id,

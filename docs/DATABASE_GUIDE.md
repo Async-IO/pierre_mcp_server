@@ -118,15 +118,26 @@ cargo build --features postgresql
 
 ```rust
 use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
+use pierre_mcp_server::mcp::multitenant::ServerResources;
 
-// Auto-detection based on connection string
-let db = Database::new("sqlite:./data/pierre.db", encryption_key).await?;
-// or
-let db = Database::new("postgresql://user:pass@host/db", encryption_key).await?;
+// ✅ CORRECT: Database created once at startup in main binary
+let database = Database::new("sqlite:./data/pierre.db", encryption_key).await?;
+
+// Create ServerResources with shared database
+let resources = Arc::new(ServerResources {
+    database: Arc::new(database),
+    // ... other resources
+});
+
+// ✅ CORRECT: Components receive ServerResources, access database through shared reference
+let server = MultiTenantMcpServer::new(resources.clone());
 
 // All methods work the same regardless of backend
-let user = db.get_user(user_id).await?;
-let token = db.get_strava_token(user_id).await?;
+let user = resources.database.get_user(user_id).await?;
+let token = resources.database.get_strava_token(user_id).await?;
+
+// ❌ ANTI-PATTERN: Never create database instances in components
+// let db = Database::new(...).await?; // Don't do this!
 ```
 
 ## Testing

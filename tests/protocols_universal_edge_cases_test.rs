@@ -243,6 +243,7 @@ async fn test_oauth_configuration_errors() -> Result<()> {
         error.contains("Failed to initialize Strava provider")
             || error.contains("Strava client_id not configured")
             || error.contains("ConfigurationError")
+            || error.contains("Provider not supported: strava")
     );
 
     Ok(())

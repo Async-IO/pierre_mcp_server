@@ -38,7 +38,6 @@
 //! ## Example Usage
 //!
 //! ```rust,no_run
-//! use pierre_mcp_server::providers::{FitnessProvider, AuthData};
 //! use pierre_mcp_server::config::environment::ServerConfig;
 //!
 //! #[tokio::main]
@@ -46,22 +45,9 @@
 //!     // Load configuration
 //!     let config = ServerConfig::from_env()?;
 //!     
-//!     // Use TenantProviderFactory for provider creation
-//!     // let factory = TenantProviderFactory::new(oauth_client);
-//!     // let mut provider = factory.create_provider("strava", &tenant_context).await?;
-//!     
-//!     // Authenticate with OAuth2
-//!     let auth_data = AuthData::OAuth2 {
-//!         client_id: "your_client_id".to_string(),
-//!         client_secret: "your_client_secret".to_string(),
-//!         access_token: Some("access_token".to_string()),
-//!         refresh_token: Some("refresh_token".to_string()),
-//!     };
-//!     provider.authenticate(auth_data).await?;
-//!     
-//!     // Get athlete data
-//!     let athlete = provider.get_athlete().await?;
-//!     println!("Athlete: {}", athlete.username);
+//!     // Start Pierre MCP Server with loaded configuration
+//!     println!("Pierre MCP Server configured with ports: MCP={}, HTTP={}", 
+//!              config.mcp_port, config.http_port);
 //!     
 //!     Ok(())
 //! }
