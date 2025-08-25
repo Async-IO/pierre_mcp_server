@@ -29,11 +29,14 @@ jobs:
           docker-images: false  # Keep Docker for potential future use
           swap-storage: true
 
+      - name: Clean previous build artifacts
+        run: cargo clean
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@1.87.0
         with:
           components: rustfmt, clippy
-
+      
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
