@@ -32,9 +32,6 @@ path = "src/bin/diagnose_weather_api.rs"
 name = "serve-docs"
 path = "src/bin/serve_docs.rs"
 
-[[bin]]
-name = "pierre-mcp-client"
-path = "src/bin/pierre-mcp-client.rs"
 
 [features]
 default = ["sqlite"]

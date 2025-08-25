@@ -129,15 +129,23 @@ let (mut key_manager, database_encryption_key) =
 info!("Two-tier key management system bootstrapped");
 
 // Phase 2: Initialize database with temporary DEK
-let database = Database::new(
+let database = Arc::new(Database::new(
     &database_url, 
     database_encryption_key.to_vec()
-).await?;
+).await?);
 info!("Database initialized with temporary DEK");
 
 // Phase 3: Complete initialization - establish persistent DEK
 key_manager.complete_initialization(&database).await?;
 info!("Two-tier key management system fully initialized");
+
+// ✅ CORRECT: Create ServerResources with shared database
+let resources = Arc::new(ServerResources {
+    database,
+    // ... other resources initialized once at startup
+});
+
+// All components receive ServerResources, never create their own database instances
 
 // System now has:
 // - MEK: Loaded from PIERRE_MASTER_ENCRYPTION_KEY environment variable

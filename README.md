@@ -9,31 +9,27 @@ MCP server implementation for fitness data access from Strava and Fitbit provide
 
 ## Architecture Overview
 
-**Two-Component Architecture**: This system has clear separation between server and client:
+**Server-Focused Architecture**: This system runs as a server that provides multiple interfaces:
 
-1. **Pierre MCP Server** (`pierre-mcp-server`) - Runs as daemon with database access
+1. **Pierre MCP Server** (`pierre-mcp-server`) - Main server daemon
    - Handles all fitness data operations
-   - Two-tier key management system (MEK/DEK)
+   - Two-tier key management system (MEK/DEK)  
    - Manages OAuth credentials with AES-256-GCM encryption
    - Enforces admin approval for new users
-   - Serves HTTP API and MCP endpoints
-
-2. **Pierre MCP Client** (`pierre-mcp-client`) - Lightweight MCP client for Claude Desktop
-   - Connects to running server via HTTP
-   - Translates MCP protocol to HTTP API calls
-   - Stateless design
+   - Serves MCP protocol directly via HTTP transport
+   - Provides REST API and admin endpoints
 
 ## Quick Reference
 
 ### API Endpoints
 | Purpose | Port | Endpoint | Auth Required | Example |
 |---------|------|----------|---------------|----------|
+| **MCP protocol** | 8080 | All MCP calls | API Key | Claude Desktop integration |
 | **Health check** | 8081 | `GET /api/health` | None | `curl localhost:8081/api/health` |
 | **User registration** | 8081 | `POST /api/auth/register` | None | User signup |
 | **User login** | 8081 | `POST /api/auth/login` | None | Get JWT token |
 | **Admin actions** | 8081 | `POST /admin/*` | Admin JWT | Approve users, etc. |
 | **A2A protocol** | 8081 | `POST /a2a/*` | Client credentials | Agent-to-agent comms |
-| **MCP protocol** | 8080 | All MCP calls | User JWT | Claude Desktop integration |
 
 ### Binaries
 | Binary | Purpose | When to Use |
