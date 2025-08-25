@@ -72,6 +72,187 @@ else
     ALL_PASSED=false
 fi
 
+# FAST FAIL: Check for architectural anti-patterns first (before expensive operations)
+echo -e "${BLUE}==== Checking for architectural anti-patterns (FAST FAIL)... ====${NC}"
+
+# Resource creation anti-pattern detection
+DATABASE_CLONES=$(rg "database.*\.clone\(\)|\.clone\(\).*database" src/ -g "!src/bin/*" -g "!src/database/tests.rs" -g "!src/database_plugins/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+RESOURCE_CREATION=$(rg "AuthManager::new|OAuthManager::new|A2AClientManager::new" src/ -g "!src/mcp/multitenant.rs" -g "!src/bin/*" -g "!tests/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+
+# Architectural anti-pattern detection  
+FAKE_RESOURCES=$(rg "Arc::new\(ServerResources\s*[\{\:]" src/ 2>/dev/null | wc -l | awk '{print $1+0}')
+OBSOLETE_FUNCTIONS=$(rg "fn.*run_http_server\(" src/ 2>/dev/null | wc -l | awk '{print $1+0}')
+
+PANICS_FAST=$(rg "panic!\(" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
+
+ANTI_PATTERNS_FOUND=false
+
+if [ "$PANICS_FAST" -gt 0 ]; then 
+    echo -e "${RED}[CRITICAL] Found $PANICS_FAST panic!() calls - CRITICAL ISSUE${NC}"
+    echo -e "${RED}           Will crash application under normal operation${NC}"
+    rg "panic!\(" src/ -n | head -5
+    ANTI_PATTERNS_FOUND=true
+    ALL_PASSED=false
+fi
+
+if [ "$DATABASE_CLONES" -gt 0 ]; then 
+    echo -e "${RED}[FAIL] Found $DATABASE_CLONES database cloning anti-patterns${NC}"
+    echo -e "${YELLOW}       Database should be shared via Arc, not cloned${NC}"
+    rg "database.*\.clone\(\)|\.clone\(\).*database" src/ -g "!src/bin/*" -g "!src/database/tests.rs" -g "!src/database_plugins/*" -n | head -3
+    ANTI_PATTERNS_FOUND=true
+    ALL_PASSED=false
+fi
+
+if [ "$RESOURCE_CREATION" -gt 0 ]; then 
+    echo -e "${RED}[FAIL] Found $RESOURCE_CREATION resource creation anti-patterns${NC}"
+    echo -e "${YELLOW}       Use ServerResources dependency injection${NC}"
+    rg "AuthManager::new|OAuthManager::new|A2AClientManager::new" src/ -g "!src/mcp/multitenant.rs" -g "!src/bin/*" -g "!tests/*" -n | head -3
+    ANTI_PATTERNS_FOUND=true
+    ALL_PASSED=false
+fi
+
+if [ "$FAKE_RESOURCES" -gt 0 ]; then 
+    echo -e "${RED}[FAIL] Found $FAKE_RESOURCES fake ServerResources assembly patterns${NC}"
+    echo -e "${YELLOW}       Use real ServerResources instance instead of manual assembly${NC}"
+    rg "Arc::new\(ServerResources\s*\{" src/ -n | head -3
+    ANTI_PATTERNS_FOUND=true
+    ALL_PASSED=false
+fi
+
+if [ "$OBSOLETE_FUNCTIONS" -gt 1 ]; then  # Allow 1 legitimate function
+    echo -e "${RED}[FAIL] Found $OBSOLETE_FUNCTIONS run_http_server function variants (duplicate implementations)${NC}"
+    echo -e "${YELLOW}       Multiple implementations suggest obsolete functions exist${NC}"
+    rg "run_http_server\(" src/ -n | head -3
+    ANTI_PATTERNS_FOUND=true
+    ALL_PASSED=false
+fi
+
+if [ "$ANTI_PATTERNS_FOUND" = true ]; then
+    echo -e "${RED}🚨 FAST FAIL: Fix architectural anti-patterns before continuing${NC}"
+    echo -e "${RED}   These issues violate good Rust practices and may cause failures${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}[OK] No critical architectural anti-patterns found${NC}"
+
+# FAST FAIL: Check remaining prohibited patterns (before expensive operations)
+echo -e "${BLUE}==== Checking for prohibited code patterns (FAST FAIL)... ====${NC}"
+UNWRAPS=$(rg "unwrap\(\)" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
+EXPECTS=$(rg "expect\(" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
+PANICS=$(rg "panic!\(" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
+
+# Enhanced pattern detection for better dev standards compliance
+TODOS=$(rg -i "todo|fixme|xxx|hack" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+PLACEHOLDERS=$(rg -i "placeholder|dummy|test@example|@example\.com" src/ --exclude="*.md" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+STUBS=$(rg -i "not yet implemented|not implemented|unimplemented!" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+UNDERSCORE_NAMES=$(rg "fn _|let _[a-zA-Z]|struct _|enum _" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+CFG_TESTS=$(rg "#\[cfg\(test\)\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+
+# New comprehensive checks based on issues found
+PLACEHOLDER_EMAILS=$(rg "@example\.(com|org|net)" src/ --exclude="*.md" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+NOT_YET=$(rg "not yet" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+TEMPORARY=$(rg -i "temporary|temp solution|workaround|hack" src/ --type rust -g '!*.md' -g '!*.rs.backup' --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+
+CODE_QUALITY_ISSUES=false
+
+echo "Found: $UNWRAPS unwraps, $EXPECTS expects, $PANICS panics"
+echo "       $TODOS TODOs/FIXMEs, $PLACEHOLDERS placeholders, $STUBS stubs, $UNDERSCORE_NAMES underscore names"
+echo "       $CFG_TESTS #[cfg(test)] modules, $PLACEHOLDER_EMAILS example emails, $NOT_YET 'not yet' phrases"
+echo "       $TEMPORARY temporary solutions"
+
+if [ "$UNWRAPS" -gt 0 ]; then 
+    echo -e "${RED}[FAIL] Found $UNWRAPS unwrap() calls (dev standards violation)${NC}"
+    rg "unwrap\(\)" src/ -n | head -5
+    CODE_QUALITY_ISSUES=true
+    ALL_PASSED=false
+fi
+if [ "$EXPECTS" -gt 0 ]; then 
+    echo -e "${RED}[FAIL] Found $EXPECTS expect() calls (dev standards violation)${NC}"
+    rg "expect\(" src/ -n | head -5
+    CODE_QUALITY_ISSUES=true
+    ALL_PASSED=false
+fi
+if [ "$PANICS" -gt 0 ]; then 
+    echo -e "${RED}[FAIL] Found $PANICS panic!() calls (CRITICAL ISSUE)${NC}"
+    echo -e "${RED}      panic!() calls will crash the application${NC}"
+    echo -e "${RED}      Replace with proper error handling${NC}"
+    echo -e "${YELLOW}   Locations:${NC}"
+    rg "panic!\(" src/ -n | head -10
+    echo -e "${YELLOW}   Fix with: return Err(anyhow!(...)) or proper error responses${NC}"
+    CODE_QUALITY_ISSUES=true
+    ALL_PASSED=false
+fi
+if [ "$TODOS" -gt 0 ]; then 
+    echo -e "${RED}[FAIL] Found $TODOS TODO/FIXME comments (dev standards violation)${NC}"
+    echo -e "${YELLOW}   Examples:${NC}"
+    rg -i "todo|fixme" src/ -n | head -3
+    CODE_QUALITY_ISSUES=true
+    ALL_PASSED=false
+fi
+if [ "$PLACEHOLDERS" -gt 0 ]; then 
+    echo -e "${RED}[FAIL] Found $PLACEHOLDERS placeholder implementations (dev standards violation)${NC}"
+    echo -e "${YELLOW}   Examples:${NC}"
+    rg -i "placeholder" src/ -n | head -3
+    CODE_QUALITY_ISSUES=true
+    ALL_PASSED=false
+fi
+if [ "$STUBS" -gt 0 ]; then 
+    echo -e "${RED}[FAIL] Found $STUBS stub/unimplemented functions (dev standards violation)${NC}"
+    echo -e "${YELLOW}   Examples:${NC}"
+    rg -i "not.*implemented|stub" src/ -n | head -3
+    CODE_QUALITY_ISSUES=true
+    ALL_PASSED=false
+fi
+if [ "$UNDERSCORE_NAMES" -gt 0 ]; then 
+    echo -e "${RED}[FAIL] Found $UNDERSCORE_NAMES underscore-prefixed names (dev standards violation)${NC}"
+    echo -e "${YELLOW}   Examples:${NC}"
+    rg "fn _|let _[a-zA-Z]|struct _|enum _" src/ -n | head -3
+    CODE_QUALITY_ISSUES=true
+    ALL_PASSED=false
+fi
+if [ "$CFG_TESTS" -gt 0 ]; then 
+    echo -e "${RED}[FAIL] Found $CFG_TESTS #[cfg(test)] modules in src/ (dev standards violation)${NC}"
+    echo -e "${YELLOW}   Tests must be in tests/ directory, not as #[cfg(test)] modules in src/${NC}"
+    echo -e "${YELLOW}   Examples:${NC}"
+    rg "#\[cfg\(test\)\]" src/ -n | head -3
+    CODE_QUALITY_ISSUES=true
+    ALL_PASSED=false
+fi
+if [ "$PLACEHOLDER_EMAILS" -gt 0 ]; then 
+    echo -e "${RED}[FAIL] Found $PLACEHOLDER_EMAILS example.com emails (dev standards violation)${NC}"
+    echo -e "${YELLOW}   Use system-generated identifiers instead of example domains${NC}"
+    echo -e "${YELLOW}   Examples:${NC}"
+    rg "@example\.(com|org|net)" src/ --exclude="*.md" -n | head -3
+    CODE_QUALITY_ISSUES=true
+    ALL_PASSED=false
+fi
+if [ "$NOT_YET" -gt 0 ]; then 
+    echo -e "${RED}[FAIL] Found $NOT_YET 'not yet' phrases (dev standards violation)${NC}"
+    echo -e "${YELLOW}   Implement features or document limitations properly${NC}"
+    echo -e "${YELLOW}   Examples:${NC}"
+    rg "not yet" src/ -n | head -3
+    CODE_QUALITY_ISSUES=true
+    ALL_PASSED=false
+fi
+if [ "$TEMPORARY" -gt 2 ]; then  # Allow 2 legitimate uses in rate_limiting.rs
+    echo -e "${RED}[FAIL] Found $TEMPORARY temporary solutions (dev standards violation)${NC}"
+    echo -e "${YELLOW}   Replace temporary code with production implementations${NC}"
+    echo -e "${YELLOW}   Examples:${NC}"
+    rg -i "temporary|temp solution|workaround|hack" src/ --type rust -n | head -3
+    CODE_QUALITY_ISSUES=true
+    ALL_PASSED=false
+elif [ "$TEMPORARY" -gt 0 ]; then
+    echo -e "${YELLOW}[INFO] Found $TEMPORARY uses of 'temporary' - verified as legitimate feature descriptions${NC}"
+fi
+
+if [ "$CODE_QUALITY_ISSUES" = true ]; then
+    echo -e "${RED}🚨 FAST FAIL: Fix code quality issues before continuing${NC}"
+    echo -e "${RED}   These patterns violate good Rust practices${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}[OK] No prohibited code patterns found - ready for compilation${NC}"
+
 # Run Clippy linter with STRICT settings (dev standards compliance)
 echo -e "${BLUE}==== Running Rust linter (Clippy) - STRICT MODE... ====${NC}"
 if cargo clippy --all-targets --all-features --quiet -- -W clippy::all -W clippy::pedantic -W clippy::nursery -D warnings; then
@@ -197,129 +378,19 @@ if [ -d "frontend" ]; then
     cd ..
 fi
 
-# Additional checks
+# Post-compilation informational checks
 echo ""
-echo -e "${BLUE}==== Dev Standards Compliance Checks ====${NC}"
+echo -e "${BLUE}==== Code Quality Analysis (Informational) ====${NC}"
 
-# Check for prohibited patterns (dev standards compliance)
-echo -e "${BLUE}==== Checking for prohibited code patterns... ====${NC}"
-UNWRAPS=$(rg "unwrap\(\)" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
-EXPECTS=$(rg "expect\(" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
-PANICS=$(rg "panic!\(" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
+# These checks are informational only - critical patterns already validated in fast fail section above
 CLONES=$(rg "\.clone\(\)" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
-
-# Enhanced pattern detection for better dev standards compliance
-TODOS=$(rg -i "todo|fixme|xxx|hack" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-PLACEHOLDERS=$(rg -i "placeholder|dummy|test@example|@example\.com" src/ --exclude="*.md" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-STUBS=$(rg -i "not yet implemented|not implemented|unimplemented!" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-UNDERSCORE_NAMES=$(rg "fn _|let _[a-zA-Z]|struct _|enum _" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-CFG_TESTS=$(rg "#\[cfg\(test\)\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-
-# New comprehensive checks based on issues found
-PLACEHOLDER_EMAILS=$(rg "@example\.(com|org|net)" src/ --exclude="*.md" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-NOT_YET=$(rg "not yet" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-TEMPORARY=$(rg -i "temporary|temp solution|workaround|hack" src/ --type rust -g '!*.md' -g '!*.rs.backup' --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 HARDCODED=$(rg "hardcoded|hard.?coded|magic number" src/ -i --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-
 ARCS=$(rg "Arc<" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
 
-echo "Found: $UNWRAPS unwraps, $EXPECTS expects, $PANICS panics, $CLONES clones"
-echo "       $TODOS TODOs/FIXMEs, $PLACEHOLDERS placeholders, $STUBS stubs, $UNDERSCORE_NAMES underscore names"
-echo "       $CFG_TESTS #[cfg(test)] modules, $ARCS Arc usages"
-echo "       $PLACEHOLDER_EMAILS example emails, $NOT_YET 'not yet' phrases, $TEMPORARY temporary solutions"
-echo "       $HARDCODED hardcoded values"
-
-if [ "$UNWRAPS" -gt 0 ]; then 
-    echo -e "${RED}[FAIL] Found $UNWRAPS unwrap() calls (dev standards violation)${NC}"
-    rg "unwrap\(\)" src/ -n | head -5
-    ALL_PASSED=false
-fi
-if [ "$EXPECTS" -gt 0 ]; then 
-    echo -e "${RED}[FAIL] Found $EXPECTS expect() calls (dev standards violation)${NC}"
-    rg "expect\(" src/ -n | head -5
-    ALL_PASSED=false
-fi
-if [ "$PANICS" -gt 0 ]; then 
-    echo -e "${RED}[FAIL] Found $PANICS panic!() calls (CRITICAL PRODUCTION BLOCKER)${NC}"
-    echo -e "${RED}      panic!() calls will crash the server process in production${NC}"
-    echo -e "${RED}      ZERO tolerance policy - all panics must be replaced with proper error handling${NC}"
-    echo -e "${YELLOW}   Locations:${NC}"
-    rg "panic!\(" src/ -n | head -10
-    echo -e "${YELLOW}   Fix with: return Err(anyhow!(...)) or proper HTTP error responses${NC}"
-    ALL_PASSED=false
-fi
-if [ "$TODOS" -gt 0 ]; then 
-    echo -e "${RED}[FAIL] Found $TODOS TODO/FIXME comments (dev standards violation)${NC}"
-    echo -e "${YELLOW}   Examples:${NC}"
-    rg -i "todo|fixme" src/ -n | head -3
-    ALL_PASSED=false
-fi
-if [ "$PLACEHOLDERS" -gt 0 ]; then 
-    echo -e "${RED}[FAIL] Found $PLACEHOLDERS placeholder implementations (dev standards violation)${NC}"
-    echo -e "${YELLOW}   Examples:${NC}"
-    rg -i "placeholder" src/ -n | head -3
-    ALL_PASSED=false
-fi
-if [ "$STUBS" -gt 0 ]; then 
-    echo -e "${RED}[FAIL] Found $STUBS stub/unimplemented functions (dev standards violation)${NC}"
-    echo -e "${YELLOW}   Examples:${NC}"
-    rg -i "not.*implemented|stub" src/ -n | head -3
-    ALL_PASSED=false
-fi
-if [ "$UNDERSCORE_NAMES" -gt 0 ]; then 
-    echo -e "${RED}[FAIL] Found $UNDERSCORE_NAMES underscore-prefixed names (dev standards violation)${NC}"
-    echo -e "${YELLOW}   Examples:${NC}"
-    rg "fn _|let _[a-zA-Z]|struct _|enum _" src/ -n | head -3
-    ALL_PASSED=false
-fi
-if [ "$CFG_TESTS" -gt 0 ]; then 
-    echo -e "${RED}[FAIL] Found $CFG_TESTS #[cfg(test)] modules in src/ (dev standards violation)${NC}"
-    echo -e "${YELLOW}   Tests must be in tests/ directory, not as #[cfg(test)] modules in src/${NC}"
-    echo -e "${YELLOW}   Examples:${NC}"
-    rg "#\[cfg\(test\)\]" src/ -n | head -3
-    ALL_PASSED=false
-fi
-
-# Check new patterns that were missed
-if [ "$PLACEHOLDER_EMAILS" -gt 0 ]; then 
-    echo -e "${RED}[FAIL] Found $PLACEHOLDER_EMAILS example.com emails (dev standards violation)${NC}"
-    echo -e "${YELLOW}   Use system-generated identifiers instead of example domains${NC}"
-    echo -e "${YELLOW}   Examples:${NC}"
-    rg "@example\.(com|org|net)" src/ --exclude="*.md" -n | head -3
-    ALL_PASSED=false
-fi
-if [ "$NOT_YET" -gt 0 ]; then 
-    echo -e "${RED}[FAIL] Found $NOT_YET 'not yet' phrases (dev standards violation)${NC}"
-    echo -e "${YELLOW}   Implement features or document limitations properly${NC}"
-    echo -e "${YELLOW}   Examples:${NC}"
-    rg "not yet" src/ -n | head -3
-    ALL_PASSED=false
-fi
-if [ "$TEMPORARY" -gt 2 ]; then  # Allow 2 legitimate uses in rate_limiting.rs
-    echo -e "${RED}[FAIL] Found $TEMPORARY temporary solutions (dev standards violation)${NC}"
-    echo -e "${YELLOW}   Replace temporary code with production implementations${NC}"
-    echo -e "${YELLOW}   Examples:${NC}"
-    rg -i "temporary|temp solution|workaround|hack" src/ --type rust -n | head -3
-    ALL_PASSED=false
-elif [ "$TEMPORARY" -gt 0 ]; then
-    echo -e "${YELLOW}[INFO] Found $TEMPORARY uses of 'temporary' - verified as legitimate feature descriptions${NC}"
-fi
 if [ "$HARDCODED" -gt 0 ]; then 
-    echo -e "${YELLOW}[WARN] Found $HARDCODED potential hardcoded values${NC}"
+    echo -e "${YELLOW}[INFO] Found $HARDCODED potential hardcoded values${NC}"
     echo -e "${YELLOW}   Review for configuration requirements:${NC}"
     rg "hardcoded|hard.?coded|magic number" src/ -i -n | head -3
-fi
-
-if [ "$UNWRAPS" -eq 0 ] && [ "$EXPECTS" -eq 0 ] && [ "$PANICS" -eq 0 ] && \
-   [ "$TODOS" -eq 0 ] && [ "$PLACEHOLDERS" -eq 0 ] && [ "$STUBS" -eq 0 ] && \
-   [ "$UNDERSCORE_NAMES" -eq 0 ] && [ "$CFG_TESTS" -eq 0 ] && \
-   [ "$PLACEHOLDER_EMAILS" -eq 0 ] && [ "$NOT_YET" -eq 0 ] && [ "$TEMPORARY" -eq 0 ]; then
-    echo -e "${GREEN}[OK] All prohibited patterns check passed - production safe!${NC}"
-else
-    echo -e "${RED}[CRITICAL] Prohibited patterns found - code is NOT production ready${NC}"
-    if [ "$PANICS" -gt 0 ]; then
-        echo -e "${RED}        🚨 PANICS DETECTED: Server will crash under normal operation${NC}"
-    fi
 fi
 
 # Clone usage analysis (informational)
