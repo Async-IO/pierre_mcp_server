@@ -1,13 +1,14 @@
 use chrono::Utc;
-use pierre_mcp_server::a2a::{
-    auth::A2AClient,
-    client::A2ASession,
-    protocol::{A2ATask, TaskStatus},
+use pierre_mcp_server::{
+    a2a::{
+        auth::A2AClient,
+        client::A2ASession,
+        protocol::{A2ATask, TaskStatus},
+    },
+    api_keys::{ApiKey, ApiKeyTier},
+    database::{a2a::A2AUsage, Database},
+    models::{User, UserTier},
 };
-use pierre_mcp_server::api_keys::{ApiKey, ApiKeyTier};
-use pierre_mcp_server::database::a2a::A2AUsage;
-use pierre_mcp_server::database::Database;
-use pierre_mcp_server::models::{User, UserTier};
 use uuid::Uuid;
 
 async fn create_test_client(db: &Database) -> (A2AClient, Uuid) {
@@ -26,6 +27,7 @@ async fn create_test_client(db: &Database) -> (A2AClient, Uuid) {
         tenant_id: Some("test-tenant".to_string()),
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
+        is_admin: false,
         approved_by: None,
         approved_at: Some(Utc::now()),
         created_at: Utc::now(),

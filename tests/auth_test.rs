@@ -1,12 +1,10 @@
 use chrono::Utc;
-use pierre_mcp_server::auth::{
-    generate_jwt_secret, AuthManager, JwtValidationError, McpAuthMiddleware,
+use pierre_mcp_server::{
+    auth::{generate_jwt_secret, AuthManager, JwtValidationError, McpAuthMiddleware},
+    database::generate_encryption_key,
+    database_plugins::{factory::Database, DatabaseProvider},
+    models::{AuthRequest, User},
 };
-use pierre_mcp_server::database::generate_encryption_key;
-use pierre_mcp_server::database_plugins::factory::Database;
-use pierre_mcp_server::database_plugins::DatabaseProvider;
-use pierre_mcp_server::models::AuthRequest;
-use pierre_mcp_server::models::User;
 use std::sync::Arc;
 
 fn create_test_user() -> User {

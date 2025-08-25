@@ -138,6 +138,7 @@ async fn create_test_oauth_routes() -> Result<(OAuthRoutes, Uuid)> {
         last_active: chrono::Utc::now(),
         is_active: true,
         user_status: UserStatus::Active,
+        is_admin: false,
         approved_by: None,
         approved_at: None,
     };
@@ -1257,6 +1258,7 @@ async fn test_complete_auth_flow() -> Result<()> {
         last_active: chrono::Utc::now(),
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
+        is_admin: true,
         approved_by: None,
         approved_at: None,
     };

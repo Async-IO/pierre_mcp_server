@@ -37,6 +37,7 @@ path = "src/bin/serve_docs.rs"
 default = ["sqlite"]
 sqlite = []
 postgresql = ["sqlx/postgres"]
+testing = []
 
 [dependencies]
 tokio = { version = "1.45", features = ["full"] }

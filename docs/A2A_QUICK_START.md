@@ -299,15 +299,15 @@ if __name__ == "__main__":
 ## Next Steps
 
 1. **Explore More Tools**: Try `calculate_fitness_score`, `generate_recommendations`, and `analyze_activity`
-2. **Read Full Documentation**: Check [A2A_REFERENCE.md](A2A_REFERENCE.md) for complete API reference
+2. **Read Full Documentation**: Check [A2A Reference](developer-guide/05-a2a-protocol.md) for complete API reference
 3. **Production Setup**: Review security and scaling considerations
 4. **Error Handling**: Implement robust error handling and retry logic
 
 ## Resources
 
-- **Complete A2A Reference**: [A2A_REFERENCE.md](A2A_REFERENCE.md)
+- **Complete A2A Reference**: [A2A Reference](developer-guide/05-a2a-protocol.md)
 - **Python Examples**: `/examples/python/a2a/`
-- **API Reference**: [API_REFERENCE.md](API_REFERENCE.md)
+- **API Reference**: [API Reference](developer-guide/14-api-reference.md)
 - **Getting Started Guide**: [GETTING_STARTED.md](GETTING_STARTED.md)
 
 ---

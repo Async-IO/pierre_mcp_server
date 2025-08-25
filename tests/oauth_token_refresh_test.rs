@@ -157,17 +157,18 @@
 //!
 //! Tests for automatic token refresh in Universal Tool Executor.
 
-use pierre_mcp_server::database::generate_encryption_key;
-use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
-use pierre_mcp_server::intelligence::{
-    ActivityIntelligence, ContextualFactors, PerformanceMetrics, TimeOfDay, TrendDirection,
-    TrendIndicators,
+use pierre_mcp_server::{
+    database::generate_encryption_key,
+    database_plugins::{factory::Database, DatabaseProvider},
+    intelligence::{
+        ActivityIntelligence, ContextualFactors, PerformanceMetrics, TimeOfDay, TrendDirection,
+        TrendIndicators,
+    },
+    models::User,
+    protocols::universal::{UniversalRequest, UniversalToolExecutor},
 };
-use pierre_mcp_server::models::User;
-use pierre_mcp_server::protocols::universal::{UniversalRequest, UniversalToolExecutor};
 use serde_json::json;
 use std::sync::Arc;
-
 use uuid::Uuid;
 
 /// Create a test ServerConfig with missing OAuth credentials for failure testing
@@ -455,6 +456,7 @@ async fn test_get_activities_with_expired_token() {
         tier: pierre_mcp_server::models::UserTier::Starter,
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
+        is_admin: false,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
@@ -532,6 +534,7 @@ async fn test_connection_status_with_oauth_manager() {
         tier: pierre_mcp_server::models::UserTier::Starter,
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
+        is_admin: false,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
@@ -596,6 +599,7 @@ async fn test_analyze_activity_token_refresh() {
         tier: pierre_mcp_server::models::UserTier::Starter,
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
+        is_admin: false,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
@@ -672,6 +676,7 @@ async fn test_concurrent_token_operations() {
         tier: pierre_mcp_server::models::UserTier::Starter,
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
+        is_admin: false,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
@@ -743,6 +748,7 @@ async fn test_oauth_provider_init_failure() {
         tier: pierre_mcp_server::models::UserTier::Starter,
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
+        is_admin: false,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),

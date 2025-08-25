@@ -13,7 +13,6 @@ use pierre_mcp_server::{
         ActivityIntelligence, ContextualFactors, PerformanceMetrics, TimeOfDay, TrendDirection,
         TrendIndicators,
     },
-    models::{User, UserTier},
     protocols::universal::{UniversalRequest, UniversalToolExecutor},
 };
 use serde_json::json;
@@ -21,6 +20,11 @@ use std::{path::PathBuf, sync::Arc};
 use uuid::Uuid;
 
 mod common;
+
+/// Create test user without saving to database (local helper)
+fn create_test_user(email: &str, display_name: Option<String>) -> pierre_mcp_server::models::User {
+    pierre_mcp_server::models::User::new(email.to_string(), "test_hash".to_string(), display_name)
+}
 
 /// Create test configuration
 fn create_test_config() -> Arc<ServerConfig> {
@@ -209,22 +213,9 @@ async fn test_oauth_configuration_errors() -> Result<()> {
 
     // Create test user
     let user_id = Uuid::new_v4();
-    let user = User {
-        id: user_id,
-        email: "test@example.com".to_string(),
-        display_name: Some("Test User".to_string()),
-        password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
-        tier: UserTier::Starter,
-        created_at: chrono::Utc::now(),
-        last_active: chrono::Utc::now(),
-        is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
-        approved_by: None,
-        approved_at: Some(chrono::Utc::now()),
-        strava_token: None,
-        fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
-    };
+    let mut user = create_test_user("test@example.com", Some("Test User".to_string()));
+    user.id = user_id;
+    user.password_hash = bcrypt::hash("password", bcrypt::DEFAULT_COST)?;
     executor.resources.database.create_user(&user).await?;
 
     // Test connect_strava with missing OAuth config
@@ -256,22 +247,9 @@ async fn test_invalid_provider_tokens() -> Result<()> {
 
     // Create test user
     let user_id = Uuid::new_v4();
-    let user = User {
-        id: user_id,
-        email: "test@example.com".to_string(),
-        display_name: Some("Test User".to_string()),
-        password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
-        tier: UserTier::Starter,
-        created_at: chrono::Utc::now(),
-        last_active: chrono::Utc::now(),
-        is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
-        approved_by: None,
-        approved_at: Some(chrono::Utc::now()),
-        strava_token: None,
-        fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
-    };
+    let mut user = create_test_user("test@example.com", Some("Test User".to_string()));
+    user.id = user_id;
+    user.password_hash = bcrypt::hash("password", bcrypt::DEFAULT_COST)?;
     executor.resources.database.create_user(&user).await?;
 
     // Store an invalid/expired token
@@ -372,22 +350,9 @@ async fn test_invalid_tool_parameters() -> Result<()> {
     let executor = create_test_executor().await?;
 
     let user_id = Uuid::new_v4();
-    let user = User {
-        id: user_id,
-        email: "test@example.com".to_string(),
-        display_name: Some("Test User".to_string()),
-        password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
-        tier: UserTier::Starter,
-        created_at: chrono::Utc::now(),
-        last_active: chrono::Utc::now(),
-        is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
-        approved_by: None,
-        approved_at: Some(chrono::Utc::now()),
-        strava_token: None,
-        fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
-    };
+    let mut user = create_test_user("test@example.com", Some("Test User".to_string()));
+    user.id = user_id;
+    user.password_hash = bcrypt::hash("password", bcrypt::DEFAULT_COST)?;
     executor.resources.database.create_user(&user).await?;
 
     // Test get_activities with invalid limit
@@ -465,22 +430,9 @@ async fn test_concurrent_tool_execution() -> Result<()> {
     let executor = Arc::new(create_test_executor().await?);
 
     let user_id = Uuid::new_v4();
-    let user = User {
-        id: user_id,
-        email: "test@example.com".to_string(),
-        display_name: Some("Test User".to_string()),
-        password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
-        tier: UserTier::Starter,
-        created_at: chrono::Utc::now(),
-        last_active: chrono::Utc::now(),
-        is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
-        approved_by: None,
-        approved_at: Some(chrono::Utc::now()),
-        strava_token: None,
-        fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
-    };
+    let mut user = create_test_user("test@example.com", Some("Test User".to_string()));
+    user.id = user_id;
+    user.password_hash = bcrypt::hash("password", bcrypt::DEFAULT_COST)?;
     executor.resources.database.create_user(&user).await?;
 
     // Create multiple concurrent requests
@@ -521,22 +473,9 @@ async fn test_tool_response_metadata() -> Result<()> {
     let executor = create_test_executor().await?;
 
     let user_id = Uuid::new_v4();
-    let user = User {
-        id: user_id,
-        email: "test@example.com".to_string(),
-        display_name: Some("Test User".to_string()),
-        password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
-        tier: UserTier::Starter,
-        created_at: chrono::Utc::now(),
-        last_active: chrono::Utc::now(),
-        is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
-        approved_by: None,
-        approved_at: Some(chrono::Utc::now()),
-        strava_token: None,
-        fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
-    };
+    let mut user = create_test_user("test@example.com", Some("Test User".to_string()));
+    user.id = user_id;
+    user.password_hash = bcrypt::hash("password", bcrypt::DEFAULT_COST)?;
     executor.resources.database.create_user(&user).await?;
 
     let request = UniversalRequest {
@@ -565,22 +504,9 @@ async fn test_intelligence_integration_errors() -> Result<()> {
     let executor = create_test_executor().await?;
 
     let user_id = Uuid::new_v4();
-    let user = User {
-        id: user_id,
-        email: "test@example.com".to_string(),
-        display_name: Some("Test User".to_string()),
-        password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
-        tier: UserTier::Starter,
-        created_at: chrono::Utc::now(),
-        last_active: chrono::Utc::now(),
-        is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
-        approved_by: None,
-        approved_at: Some(chrono::Utc::now()),
-        strava_token: None,
-        fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
-    };
+    let mut user = create_test_user("test@example.com", Some("Test User".to_string()));
+    user.id = user_id;
+    user.password_hash = bcrypt::hash("password", bcrypt::DEFAULT_COST)?;
     executor.resources.database.create_user(&user).await?;
 
     // Test analytics tools with invalid data
@@ -607,22 +533,9 @@ async fn test_provider_unavailable() -> Result<()> {
     let executor = create_test_executor().await?;
 
     let user_id = Uuid::new_v4();
-    let user = User {
-        id: user_id,
-        email: "test@example.com".to_string(),
-        display_name: Some("Test User".to_string()),
-        password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
-        tier: UserTier::Starter,
-        created_at: chrono::Utc::now(),
-        last_active: chrono::Utc::now(),
-        is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
-        approved_by: None,
-        approved_at: Some(chrono::Utc::now()),
-        strava_token: None,
-        fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
-    };
+    let mut user = create_test_user("test@example.com", Some("Test User".to_string()));
+    user.id = user_id;
+    user.password_hash = bcrypt::hash("password", bcrypt::DEFAULT_COST)?;
     executor.resources.database.create_user(&user).await?;
 
     // Test with unsupported provider

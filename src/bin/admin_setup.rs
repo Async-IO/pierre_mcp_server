@@ -306,6 +306,7 @@ async fn generate_token_command(
     }
 
     // Load JWT secret from database (must exist - created by create-admin-user)
+    info!("Loading JWT secret from database for token generation...");
     let Ok(jwt_secret) = database.get_system_secret("admin_jwt_secret").await else {
         error!("Admin JWT secret not found in database!");
         error!("Please run admin-setup create-admin-user first:");
@@ -314,6 +315,11 @@ async fn generate_token_command(
             "Admin JWT secret not found. Run admin-setup create-admin-user first."
         ));
     };
+
+    info!(
+        "JWT secret loaded for token generation (first 10 chars): {}...",
+        jwt_secret.chars().take(10).collect::<String>()
+    );
 
     // Generate token
     let generated_token = database.create_admin_token(&request, &jwt_secret).await?;
@@ -611,6 +617,7 @@ async fn create_admin_user_command(
             fitbit_token: existing_user.fitbit_token,
             is_active: true,
             user_status: pierre_mcp_server::models::UserStatus::Active, // Admin is always active
+            is_admin: true,                                             // Mark as admin user
             approved_by: existing_user.approved_by, // Preserve existing approval
             approved_at: existing_user.approved_at, // Preserve existing approval
             created_at: existing_user.created_at,
@@ -633,6 +640,7 @@ async fn create_admin_user_command(
             fitbit_token: None,
             is_active: true,
             user_status: pierre_mcp_server::models::UserStatus::Active, // Admin is always active
+            is_admin: true,                                             // Mark as admin user
             approved_by: None,                     // Admin doesn't need approval
             approved_at: Some(chrono::Utc::now()), // Auto-approved
             created_at: chrono::Utc::now(),
@@ -670,10 +678,13 @@ async fn create_admin_user_command(
 
     // Generate and store admin JWT secret if it doesn't exist
     info!("Ensuring admin JWT secret exists...");
-    let _jwt_secret = database
+    let jwt_secret = database
         .get_or_create_system_secret("admin_jwt_secret")
         .await?;
-    info!("Admin JWT secret is ready");
+    info!(
+        "Admin JWT secret is ready (first 10 chars): {}...",
+        jwt_secret.chars().take(10).collect::<String>()
+    );
 
     println!("\nSuccess Admin user is ready to use!");
 

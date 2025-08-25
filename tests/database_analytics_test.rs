@@ -2,32 +2,22 @@
 // ABOUTME: Tests JWT usage tracking, goals management, insights storage, and system stats
 
 use chrono::Utc;
-use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
-use pierre_mcp_server::models::{User, UserTier};
-use pierre_mcp_server::rate_limiting::JwtUsage;
+use pierre_mcp_server::{
+    database_plugins::{factory::Database, DatabaseProvider},
+    models::User,
+    rate_limiting::JwtUsage,
+};
 use uuid::Uuid;
 
 mod common;
+use common::*;
 
 async fn create_test_user(db: &Database) -> User {
-    let user = User {
-        id: Uuid::new_v4(),
-        email: format!("analytics_{}@example.com", Uuid::new_v4()),
-        display_name: Some("Analytics User".into()),
-        password_hash: "hashed".into(),
-        tier: UserTier::Professional,
-        strava_token: None,
-        fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
-        is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
-        approved_by: None,
-        approved_at: Some(chrono::Utc::now()),
-        created_at: chrono::Utc::now(),
-        last_active: chrono::Utc::now(),
-    };
-
-    db.create_user(&user).await.expect("Failed to create user");
+    let uuid = Uuid::new_v4();
+    let (_user_id, user) =
+        create_test_user_with_email(db, &format!("analytics_{uuid}@example.com"))
+            .await
+            .expect("Failed to create user");
     user
 }
 
@@ -141,23 +131,10 @@ async fn test_system_stats() {
 
     // Create multiple users
     for i in 0..3 {
-        let user = User {
-            id: Uuid::new_v4(),
-            email: format!("stats_user_{i}@example.com"),
-            display_name: None,
-            password_hash: "hashed".into(),
-            tier: UserTier::Starter,
-            strava_token: None,
-            fitbit_token: None,
-            tenant_id: Some("test-tenant".to_string()),
-            is_active: true,
-            user_status: pierre_mcp_server::models::UserStatus::Active,
-            approved_by: None,
-            approved_at: Some(chrono::Utc::now()),
-            created_at: chrono::Utc::now(),
-            last_active: chrono::Utc::now(),
-        };
-        db.create_user(&user).await.expect("Failed to create user");
+        let (_user_id, _user) =
+            create_test_user_with_email(&db, &format!("stats_user_{i}@example.com"))
+                .await
+                .expect("Failed to create user");
     }
 
     // Get system stats (user_count, api_key_count)

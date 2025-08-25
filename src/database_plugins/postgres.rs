@@ -109,7 +109,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_user(&self, user_id: Uuid) -> Result<Option<User>> {
         let row = sqlx::query(
             r"
-            SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, created_at, last_active
+            SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin, created_at, last_active
             FROM users
             WHERE id = $1
             ",
@@ -139,8 +139,9 @@ impl DatabaseProvider for PostgresDatabase {
                     fitbit_token: None, // Tokens are loaded separately
                     is_active: row.get("is_active"),
                     user_status: crate::models::UserStatus::Active, // Default for existing users
-                    approved_by: None,                              // Not tracked in PostgreSQL yet
-                    approved_at: None,                              // Not tracked in PostgreSQL yet
+                    is_admin: row.try_get("is_admin").unwrap_or(false), // Default to false for existing users
+                    approved_by: None, // Not tracked in PostgreSQL yet
+                    approved_at: None, // Not tracked in PostgreSQL yet
                     created_at: row.get("created_at"),
                     last_active: row.get("last_active"),
                 }))
@@ -151,7 +152,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_user_by_email(&self, email: &str) -> Result<Option<User>> {
         let row = sqlx::query(
             r"
-            SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, created_at, last_active
+            SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin, created_at, last_active
             FROM users
             WHERE email = $1
             ",
@@ -181,8 +182,9 @@ impl DatabaseProvider for PostgresDatabase {
                     fitbit_token: None, // Tokens are loaded separately
                     is_active: row.get("is_active"),
                     user_status: crate::models::UserStatus::Active, // Default for existing users
-                    approved_by: None,                              // Not tracked in PostgreSQL yet
-                    approved_at: None,                              // Not tracked in PostgreSQL yet
+                    is_admin: row.try_get("is_admin").unwrap_or(false), // Default to false for existing users
+                    approved_by: None, // Not tracked in PostgreSQL yet
+                    approved_at: None, // Not tracked in PostgreSQL yet
                     created_at: row.get("created_at"),
                     last_active: row.get("last_active"),
                 }))
@@ -230,7 +232,7 @@ impl DatabaseProvider for PostgresDatabase {
 
         let rows = sqlx::query(
             r"
-            SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, 
+            SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin,
                    COALESCE(user_status, 'active') as user_status, approved_by, approved_at, created_at, last_active
             FROM users
             WHERE COALESCE(user_status, 'active') = $1
@@ -268,6 +270,7 @@ impl DatabaseProvider for PostgresDatabase {
                 fitbit_token: None,
                 is_active: row.get("is_active"),
                 user_status,
+                is_admin: row.try_get("is_admin").unwrap_or(false), // Default to false for existing users
                 approved_by: row.get("approved_by"),
                 approved_at: row.get("approved_at"),
                 created_at: row.get("created_at"),

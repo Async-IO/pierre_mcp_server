@@ -69,10 +69,10 @@ First, an administrator sets up the system and creates the first admin user.
 
 ```bash
 # On the cloud server, create the first admin user
-docker exec -it pierre-server /app/admin-setup
+docker exec -it pierre-server /app/admin-setup create-admin-user
 
 # Or using the binary directly
-./admin-setup --email admin@example.com --password SecurePassword123!
+./admin-setup create-admin-user --email admin@example.com --password SecurePassword123!
 ```
 
 **Admin Setup Process:**
@@ -87,13 +87,13 @@ sequenceDiagram
     Setup->>Crypto: Generate password hash
     Crypto-->>Setup: Hashed password
     
-    Setup->>DB: Create admin user
-    DB-->>Setup: User created
+    Setup->>DB: Create admin user (is_admin: true)
+    DB-->>Setup: Admin user created
     
-    Setup->>Crypto: Generate API key
-    Crypto-->>Setup: Admin API key
+    Setup->>DB: Generate and store admin JWT secret
+    DB-->>Setup: JWT secret stored
     
-    Setup-->>Admin: Admin credentials + API key
+    Setup-->>Admin: Admin user ready for token generation
     
     Note over Admin: Admin can now access system
 ```
@@ -104,13 +104,12 @@ Admin user created successfully!
 
 Email: admin@example.com
 User ID: 550e8400-e29b-41d4-a716-446655440000
-Admin API Key: ADMIN_abc123def456ghi789jkl012mno345pqr678stu901vwx234yz
-
-Save this API key securely - it will not be shown again!
+Admin privileges: ENABLED (is_admin: true)
+JWT secret: GENERATED and stored in database
 
 You can now:
-1. Login to https://pierre.example.com with your credentials
-2. Use the admin API with the provided API key
+1. Login to https://pierre.example.com with your credentials  
+2. Generate admin tokens using: admin-setup generate-token --service "your-service"
 3. Create additional admin users and manage the system
 ```
 
@@ -136,7 +135,7 @@ curl -X POST https://pierre-api.example.com/api/auth/login \
   "user": {
     "id": "550e8400-e29b-41d4-a716-446655440000",
     "email": "admin@example.com",
-    "role": "admin",
+    "is_admin": true,
     "tenant_id": "550e8400-e29b-41d4-a716-446655440000"
   }
 }
@@ -690,6 +689,85 @@ sequenceDiagram
     }
 }
 ```
+
+## Admin Architecture 
+
+### Admin User Model
+
+Pierre MCP Server uses explicit admin privileges through the `is_admin` boolean field in the User model, replacing the previous tier-based admin system.
+
+#### Admin User Creation
+
+Admin users are created using the `admin-setup` binary:
+
+```bash
+# Create first admin user
+./admin-setup create-admin-user --email admin@example.com --password SecurePassword123!
+```
+
+**What happens during admin user creation:**
+1. User created with `is_admin: true` (explicit admin privileges)
+2. User status set to `active` (no approval required for admin)
+3. Admin JWT secret generated and stored in database
+4. Admin can immediately login and access admin endpoints
+
+#### Admin Identification
+
+```rust
+// Admin lookup logic
+async fn get_system_admin_user_id(database: &Database) -> Result<String> {
+    let users = database.get_users_by_status("active").await?;
+    
+    for user in &users {
+        if user.is_admin {  // ✅ NEW: Check explicit admin flag
+            return Ok(user.id.to_string());
+        }
+    }
+    
+    anyhow::bail!("No active admin user found for approval operations")
+}
+```
+
+#### Admin Token Generation
+
+```bash
+# Generate admin JWT token for API access
+./admin-setup generate-token --service "admin-dashboard"
+```
+
+**Admin vs Regular Users:**
+
+| Field | Admin User | Regular User |
+|-------|-----------|--------------|
+| `is_admin` | `true` | `false` |
+| `user_status` | `active` (auto) | `pending` → `active` (after approval) |
+| `approved_by` | `None` (no approval needed) | Admin user ID |
+| Admin endpoints | ✅ Full access | ❌ Forbidden |
+| User approval capability | ✅ Can approve others | ❌ Cannot approve |
+
+### Migration from Tier-Based System
+
+**Before (Deprecated):**
+```rust
+// OLD: Admin based on UserTier::Enterprise
+if user.tier == UserTier::Enterprise {
+    // Admin operations
+}
+```
+
+**After (Current):**
+```rust
+// NEW: Admin based on explicit flag
+if user.is_admin {
+    // Admin operations  
+}
+```
+
+This change provides:
+- **Explicit admin privileges** - No ambiguity about admin status
+- **Separation of concerns** - User tier is for billing/features, admin flag is for privileges
+- **Security clarity** - Easy to audit who has admin access
+- **Simplified logic** - Boolean check instead of enum comparison
 
 ## Security Implementation Details
 

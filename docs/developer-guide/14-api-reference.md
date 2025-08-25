@@ -171,7 +171,8 @@ Authenticate user and receive JWT token.
   "user": {
     "user_id": "550e8400-e29b-41d4-a716-446655440000",
     "email": "user@example.com",
-    "display_name": "John Doe"
+    "display_name": "John Doe",
+    "is_admin": false
   }
 }
 ```
@@ -196,7 +197,8 @@ Refresh an expired JWT token.
   "user": {
     "user_id": "550e8400-e29b-41d4-a716-446655440000",
     "email": "user@example.com",
-    "display_name": "John Doe"
+    "display_name": "John Doe",
+    "is_admin": false
   }
 }
 ```

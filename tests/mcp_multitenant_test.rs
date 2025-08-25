@@ -168,13 +168,11 @@ use pierre_mcp_server::{
     mcp::multitenant::MultiTenantMcpServer,
     models::{User, UserTier},
 };
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::RwLock;
+use uuid::Uuid;
 
 const TEST_JWT_SECRET: &str = "test_jwt_secret_for_multitenant_tests";
-use uuid::Uuid;
 
 // Import common test utilities
 mod common;

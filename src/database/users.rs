@@ -41,6 +41,7 @@ impl Database {
                 fitbit_last_sync DATETIME,
                 is_active BOOLEAN NOT NULL DEFAULT 1,
                 user_status TEXT NOT NULL DEFAULT 'pending' CHECK (user_status IN ('pending', 'active', 'suspended')),
+                is_admin BOOLEAN NOT NULL DEFAULT 0,
                 approved_by TEXT REFERENCES users(id),
                 approved_at DATETIME,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -217,6 +218,7 @@ impl Database {
                 UserStatus::Active => "active",
                 UserStatus::Suspended => "suspended",
             })
+            .bind(user.is_admin)
             .bind(user.approved_by.map(|id| id.to_string()))
             .bind(user.approved_at)
             .execute(&self.pool)
@@ -255,8 +257,8 @@ impl Database {
                     id, email, display_name, password_hash, tier, tenant_id,
                     strava_access_token, strava_refresh_token, strava_expires_at, strava_scope, strava_nonce,
                     fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope, fitbit_nonce,
-                    is_active, user_status, approved_by, approved_at, created_at, last_active
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+                    is_active, user_status, is_admin, approved_by, approved_at, created_at, last_active
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
                 ",
             )
             .bind(user.id.to_string())
@@ -281,6 +283,7 @@ impl Database {
                 UserStatus::Active => "active",
                 UserStatus::Suspended => "suspended",
             })
+            .bind(user.is_admin)
             .bind(user.approved_by.map(|id| id.to_string()))
             .bind(user.approved_at)
             .bind(user.created_at)
@@ -339,7 +342,7 @@ impl Database {
             SELECT id, email, display_name, password_hash, tier, tenant_id,
                    strava_access_token, strava_refresh_token, strava_expires_at, strava_scope, strava_nonce,
                    fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope, fitbit_nonce,
-                   is_active, user_status, approved_by, approved_at, created_at, last_active
+                   is_active, user_status, is_admin, approved_by, approved_at, created_at, last_active
             FROM users WHERE {field} = $1
             "
         );
@@ -372,6 +375,7 @@ impl Database {
             "suspended" => UserStatus::Suspended,
             _ => UserStatus::Pending, // Default fallback for "pending" and unknown values
         };
+        let is_admin: bool = row.get("is_admin");
         let approved_by: Option<String> = row.get("approved_by");
         let approved_at: Option<chrono::DateTime<chrono::Utc>> = row.get("approved_at");
         let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
@@ -428,6 +432,7 @@ impl Database {
             fitbit_token,
             is_active,
             user_status,
+            is_admin,
             approved_by: approved_by.and_then(|id_str| Uuid::parse_str(&id_str).ok()),
             approved_at,
             created_at,
