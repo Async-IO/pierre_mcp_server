@@ -17,6 +17,8 @@ use pierre_mcp_server::{
 use std::sync::Arc;
 use uuid::Uuid;
 
+mod common;
+
 const TEST_JWT_SECRET: &str = "test_jwt_secret_for_tenant_isolation_tests";
 
 /// Create a test `ServerConfig` for tenant data isolation tests
@@ -116,7 +118,7 @@ async fn setup_test_database() -> Result<Database> {
     Ok(database)
 }
 
-async fn create_test_user(
+async fn create_test_tenant_user(
     database: &Database,
     email: &str,
     tier: pierre_mcp_server::models::UserTier,
@@ -132,6 +134,7 @@ async fn create_test_user(
         tenant_id: Some("test-tenant".to_string()),
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
+        is_admin: false,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
         created_at: Utc::now(),
@@ -146,13 +149,13 @@ async fn test_cross_tenant_api_key_access_blocked() -> Result<()> {
     let database = setup_test_database().await?;
 
     // Create two separate users (tenants)
-    let user1_id = create_test_user(
+    let user1_id = create_test_tenant_user(
         &database,
         "user1@example.com",
         pierre_mcp_server::models::UserTier::Professional,
     )
     .await?;
-    let user2_id = create_test_user(
+    let user2_id = create_test_tenant_user(
         &database,
         "user2@example.com",
         pierre_mcp_server::models::UserTier::Professional,
@@ -213,13 +216,13 @@ async fn test_oauth_token_isolation() -> Result<()> {
     let database = setup_test_database().await?;
 
     // Create two users
-    let user1_id = create_test_user(
+    let user1_id = create_test_tenant_user(
         &database,
         "oauth1@example.com",
         pierre_mcp_server::models::UserTier::Starter,
     )
     .await?;
-    let user2_id = create_test_user(
+    let user2_id = create_test_tenant_user(
         &database,
         "oauth2@example.com",
         pierre_mcp_server::models::UserTier::Starter,
@@ -253,13 +256,13 @@ async fn test_admin_cross_tenant_access_prevention() -> Result<()> {
     let database = setup_test_database().await?;
 
     // Create users in different tenants
-    let user1_id = create_test_user(
+    let user1_id = create_test_tenant_user(
         &database,
         "tenant1@example.com",
         pierre_mcp_server::models::UserTier::Enterprise,
     )
     .await?;
-    let user2_id = create_test_user(
+    let user2_id = create_test_tenant_user(
         &database,
         "tenant2@example.com",
         pierre_mcp_server::models::UserTier::Enterprise,
@@ -317,7 +320,7 @@ async fn test_concurrent_tenant_isolation() -> Result<()> {
     // Create multiple users
     let mut user_ids = Vec::new();
     for i in 0..5 {
-        let user_id = create_test_user(
+        let user_id = create_test_tenant_user(
             &database,
             &format!("concurrent_user{i}@example.com"),
             pierre_mcp_server::models::UserTier::Professional,
@@ -392,13 +395,13 @@ async fn test_database_encryption_isolation() -> Result<()> {
     database2.migrate().await?;
 
     // Create users in separate encrypted databases
-    let user1_id = create_test_user(
+    let user1_id = create_test_tenant_user(
         &database1,
         "encrypted1@example.com",
         pierre_mcp_server::models::UserTier::Starter,
     )
     .await?;
-    let user2_id = create_test_user(
+    let user2_id = create_test_tenant_user(
         &database2,
         "encrypted2@example.com",
         pierre_mcp_server::models::UserTier::Starter,
@@ -450,13 +453,13 @@ async fn test_mcp_server_tenant_isolation() -> Result<()> {
     );
 
     // Create two users
-    let user1_id = create_test_user(
+    let user1_id = create_test_tenant_user(
         &database,
         "mcp1@example.com",
         pierre_mcp_server::models::UserTier::Professional,
     )
     .await?;
-    let user2_id = create_test_user(
+    let user2_id = create_test_tenant_user(
         &database,
         "mcp2@example.com",
         pierre_mcp_server::models::UserTier::Professional,

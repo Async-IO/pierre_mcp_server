@@ -64,17 +64,15 @@ class ProvisioningManager:
     def demonstrate_admin_provisioning(self) -> Optional[str]:
         """
         Demonstrate Method 1: Direct Admin Provisioning
-        From PROVISIONING.md - Best for B2B customers, enterprise accounts
+        From PROVISIONING.md - Best for B2B customers, business accounts
         """
         print("🔑 Method 1: Direct Admin Provisioning")
         print("-" * 40)
         
         # Step 1: Simulate admin token generation
         print("📋 Step 1: Generate admin token (simulated)")
-        print("Command: cargo run --bin admin-setup -- generate-token \\")
-        print("  --service 'enterprise_provisioner' \\")
-        print("  --permissions 'provision_keys,revoke_keys,list_keys' \\")
-        print("  --expires-in-days 365")
+        print("Step 1a: cargo run --bin admin-setup create-admin-user --email admin@example.com --password SecurePass123!")
+        print("Step 1b: cargo run --bin admin-setup generate-token --service 'business_provisioner'")
         print()
         
         # For demo, we'll use JWT authentication instead of admin token
@@ -86,13 +84,13 @@ class ProvisioningManager:
         
         print("✅ Admin authentication successful")
         
-        # Step 2: Provision API key for enterprise customer
-        print("\n📋 Step 2: Provision API key for enterprise customer")
+        # Step 2: Provision API key for business customer
+        print("\n📋 Step 2: Provision API key for business customer")
         
         customer_data = {
             "name": "Production Claude Integration",
-            "description": "API key for enterprise Claude desktop - Demo Customer Corp",
-            "tier": "professional"  # professional tier for enterprise
+            "description": "API key for business Claude desktop - Demo Customer Corp",
+            "tier": "professional"  # professional tier for business
         }
         
         try:
@@ -117,7 +115,7 @@ class ProvisioningManager:
                 print(f"⏰ Created: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
                 
                 # Save for customer integration demo
-                self.auth.save_api_key(api_key, 'enterprise_demo')
+                self.auth.save_api_key(api_key, 'business_demo')
                 
                 return api_key
             else:
@@ -141,7 +139,7 @@ class ProvisioningManager:
         print("📋 1. Claude Desktop Integration")
         claude_config = {
             "mcpServers": {
-                "pierre-fitness-enterprise": {
+                "pierre-fitness-business": {
                     "command": "mcp-client",
                     "args": [
                         "--url", f"{self.base_url}",
@@ -180,7 +178,7 @@ class ProvisioningManager:
         """
         Live demonstration of A2A protocol with mock data
         """
-        print("   🔄 Initializing A2A client with enterprise API key...")
+        print("   🔄 Initializing A2A client with business API key...")
         
         # Create A2A client with the provisioned API key
         client = A2AClient(base_url=self.base_url, api_key=api_key)

@@ -103,7 +103,10 @@ async fn main() -> Result<()> {
         let jwt_secret_string = if let Ok(secret) =
             database.get_system_secret("admin_jwt_secret").await
         {
-            info!("Admin JWT secret loaded from database");
+            info!(
+                "Admin JWT secret loaded from database (first 10 chars): {}...",
+                secret.chars().take(10).collect::<String>()
+            );
             secret
         } else {
             error!("Admin JWT secret not found in database!");

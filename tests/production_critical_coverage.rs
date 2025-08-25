@@ -19,9 +19,9 @@ use pierre_mcp_server::{
 };
 use serde_json::json;
 use std::sync::Arc;
+use uuid::Uuid;
 
 const TEST_JWT_SECRET: &str = "test_jwt_secret_for_production_coverage_tests";
-use uuid::Uuid;
 
 mod common;
 use common::*;
@@ -48,6 +48,7 @@ async fn test_mcp_request_processing_flow() -> Result<()> {
         display_name: Some("Test User".to_string()),
         password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
         tier: UserTier::Starter,
+        is_admin: false,
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,
@@ -127,6 +128,7 @@ async fn test_model_serialization_coverage() -> Result<()> {
         display_name: None, // Test None case
         password_hash: "hash".to_string(),
         tier: UserTier::Enterprise, // Test different tier
+        is_admin: false,
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: false, // Test inactive user
@@ -178,6 +180,7 @@ async fn test_admin_auth_flow() -> Result<()> {
         last_active: chrono::Utc::now(),
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
+        is_admin: true,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
         strava_token: None,
@@ -222,10 +225,11 @@ async fn test_mcp_multitenant_request_routing() -> Result<()> {
             display_name: Some(format!("User {i}")),
             password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
             tier: if i == 0 {
-                UserTier::Enterprise
-            } else {
                 UserTier::Starter
+            } else {
+                UserTier::Professional
             },
+            is_admin: false,
             created_at: chrono::Utc::now(),
             last_active: chrono::Utc::now(),
             is_active: true,
@@ -269,6 +273,7 @@ async fn test_production_database_scenarios() -> Result<()> {
         last_active: chrono::Utc::now(),
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
+        is_admin: false,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
         strava_token: None,
@@ -290,6 +295,7 @@ async fn test_production_database_scenarios() -> Result<()> {
         last_active: chrono::Utc::now(),
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
+        is_admin: false,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
         strava_token: None,
@@ -316,6 +322,7 @@ async fn test_production_rate_limiting() -> Result<()> {
         display_name: Some("Rate Limited User".to_string()),
         password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
         tier: UserTier::Starter, // Starter tier has limits
+        is_admin: false,
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
         is_active: true,

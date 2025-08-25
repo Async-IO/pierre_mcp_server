@@ -361,6 +361,7 @@ async fn test_oauth_callback_error_handling() {
         last_active: chrono::Utc::now(),
         is_active: true,
         user_status: UserStatus::Active,
+        is_admin: false,
         approved_by: None,
         approved_at: None,
     };
@@ -393,6 +394,7 @@ async fn test_oauth_callback_error_handling() {
         last_active: chrono::Utc::now(),
         is_active: true,
         user_status: UserStatus::Active,
+        is_admin: false,
         approved_by: None,
         approved_at: None,
     };
@@ -545,6 +547,7 @@ async fn test_oauth_state_csrf_protection() {
         last_active: chrono::Utc::now(),
         is_active: true,
         user_status: UserStatus::Active,
+        is_admin: false,
         approved_by: None,
         approved_at: None,
     };

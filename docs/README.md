@@ -5,35 +5,34 @@ Complete documentation for the Pierre MCP Server platform.
 ## Documentation Index
 
 ### **Getting Started**
-- [**Getting Started Guide**](GETTING_STARTED.md) - Complete setup, configuration, and authentication guide
+- [**Getting Started Guide**](getting-started.md) - Complete setup, admin configuration, and first-time usage
 
 ### **API References**
-- [**API Reference**](API_REFERENCE.md) - Complete API documentation including MCP tools, endpoints, error handling, and integration examples
+- [**API Reference**](developer-guide/14-api-reference.md) - Complete API documentation including MCP tools, endpoints, error handling, and integration examples
 - [**A2A Quick Start**](A2A_QUICK_START.md) - Quick 5-minute guide to get started with A2A protocol
-- [**A2A Reference**](A2A_REFERENCE.md) - Complete A2A protocol reference and implementation guide
+- [**A2A Reference**](developer-guide/05-a2a-protocol.md) - Complete A2A protocol reference and implementation guide
 - [**OpenAPI Specification**](openapi.yaml) - Complete API reference
 
 ### **Deployment & Operations**
 - [**Deployment Guide**](DEPLOYMENT_GUIDE.md) - Production deployment, architecture, testing, and provisioning
 
 ### **Database & Storage**
-- [**Database Guide**](DATABASE_GUIDE.md) - SQLite/PostgreSQL setup and database plugins architecture
-- [**Database Cleanup Guide**](DATABASE_CLEANUP.md) - How to clean databases for fresh starts, troubleshooting, and testing
+- [**Database Guide**](database.md) - Setup, schema, encryption, and management
 
 ## Quick Navigation
 
 ### For Developers
-1. **Personal Use**: Start with [Getting Started Guide](GETTING_STARTED.md)
-2. **AI Integration**: See [API Reference](API_REFERENCE.md) for MCP tools and prompt examples
-3. **Web Development**: Check [Getting Started Guide](GETTING_STARTED.md) for authentication and [API Reference](API_REFERENCE.md) for endpoints
+1. **Personal Use**: Start with [Getting Started Guide](getting-started.md)
+2. **AI Integration**: See [API Reference](developer-guide/14-api-reference.md) for MCP tools and prompt examples
+3. **Web Development**: Check [Getting Started Guide](getting-started.md) for authentication and [API Reference](developer-guide/14-api-reference.md) for endpoints
 
 ### For Production Use
 1. **Integration Planning**: Review [Deployment Guide](DEPLOYMENT_GUIDE.md) for architecture
 2. **Production Deploy**: Follow [Deployment Guide](DEPLOYMENT_GUIDE.md)
 
 ### For Support
-1. **Troubleshooting**: Check [API Reference](API_REFERENCE.md) for error handling
-2. **Configuration Issues**: See [Getting Started Guide](GETTING_STARTED.md)
+1. **Troubleshooting**: Check [API Reference](developer-guide/14-api-reference.md) for error handling
+2. **Configuration Issues**: See [Getting Started Guide](getting-started.md)
 3. **API Problems**: Use [OpenAPI Specification](openapi.yaml)
 
 ## What's New
@@ -54,26 +53,26 @@ Complete documentation for the Pierre MCP Server platform.
 ## Reading Guide
 
 ### First Time Setup
-1. [Getting Started Guide](GETTING_STARTED.md) - Get the server running
-2. [API Reference](API_REFERENCE.md) - Understand available tools and endpoints
-3. [Database Guide](DATABASE_GUIDE.md) - Set up your database
+1. [Getting Started Guide](getting-started.md) - Get the server running
+2. [API Reference](developer-guide/14-api-reference.md) - Understand available tools and endpoints
+3. [Database Guide](database.md) - Set up your database
 
 ### Integration Development
 1. [OpenAPI Specification](openapi.yaml) - Complete API reference
 2. [A2A Quick Start](A2A_QUICK_START.md) - For agent-to-agent integration
-3. [API Reference](API_REFERENCE.md) - MCP tools and REST endpoints
+3. [API Reference](developer-guide/14-api-reference.md) - MCP tools and REST endpoints
 
 ### Production Deployment
 1. [Deployment Guide](DEPLOYMENT_GUIDE.md) - Deploy to production
-2. [Database Guide](DATABASE_GUIDE.md) - Database configuration
-3. [A2A Reference](A2A_REFERENCE.md) - For enterprise integrations
+2. [Database Guide](database.md) - Database configuration
+3. [A2A Reference](developer-guide/05-a2a-protocol.md) - For enterprise integrations
 
 ## Getting Help
 
-- **Setup Issues**: Check [Getting Started Guide](GETTING_STARTED.md)
-- **API Errors**: See [API Reference](API_REFERENCE.md) error handling section
-- **Database Issues**: Review [Database Guide](DATABASE_GUIDE.md) and [Database Cleanup](DATABASE_CLEANUP.md)
-- **Integration**: Use [OpenAPI Specification](openapi.yaml) and [A2A Reference](A2A_REFERENCE.md)
+- **Setup Issues**: Check [Getting Started Guide](getting-started.md)
+- **API Errors**: See [API Reference](developer-guide/14-api-reference.md) error handling section
+- **Database Issues**: Review [Database Guide](database.md) and [Database Cleanup](DATABASE_CLEANUP.md)
+- **Integration**: Use [OpenAPI Specification](openapi.yaml) and [A2A Reference](developer-guide/05-a2a-protocol.md)
 
 ---
 

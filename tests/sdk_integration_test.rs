@@ -41,6 +41,7 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthRoutes, OAuthRou
         last_active: chrono::Utc::now(),
         is_active: true,
         user_status: UserStatus::Active,
+        is_admin: false,
         approved_by: None,
         approved_at: None,
     };

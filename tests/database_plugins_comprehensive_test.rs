@@ -16,8 +16,6 @@ use pierre_mcp_server::{
 };
 use uuid::Uuid;
 
-mod common;
-
 #[tokio::test]
 async fn test_sqlite_database_creation() -> Result<()> {
     let encryption_key = generate_encryption_key().to_vec();

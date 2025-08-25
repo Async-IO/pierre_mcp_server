@@ -113,7 +113,7 @@ pub enum UserTier {
 }
 
 /// User account status for admin approval workflow
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum UserStatus {
     /// Account pending admin approval (new registrations)
@@ -969,6 +969,8 @@ pub struct User {
     pub is_active: bool,
     /// User account status for admin approval workflow
     pub user_status: UserStatus,
+    /// Whether this user has admin privileges
+    pub is_admin: bool,
     /// Admin who approved this user (if approved)
     pub approved_by: Option<Uuid>,
     /// When the user was approved by admin
@@ -1295,6 +1297,7 @@ impl User {
             last_active: now,
             is_active: true,
             user_status: UserStatus::Pending, // New users need admin approval
+            is_admin: false,                  // Regular users are not admins by default
             approved_by: None,
             approved_at: None,
         }

@@ -4,9 +4,12 @@
 use chrono::Utc;
 use pierre_mcp_server::{
     database_plugins::{factory::Database, DatabaseProvider},
-    models::{Tenant, User, UserTier},
+    models::Tenant,
 };
 use uuid::Uuid;
+
+mod common;
+use common::*;
 
 #[tokio::test]
 async fn test_tenant_operations_work_through_factory() {
@@ -16,25 +19,9 @@ async fn test_tenant_operations_work_through_factory() {
     let database = Database::new(database_url, encryption_key).await.unwrap();
 
     // Create owner user first (required for tenant foreign key constraint)
-    let owner_id = Uuid::new_v4();
-    let owner = User {
-        id: owner_id,
-        email: "owner@example.com".to_string(),
-        display_name: Some("Tenant Owner".to_string()),
-        password_hash: "hashed_password".to_string(),
-        tier: UserTier::Professional,
-        strava_token: None,
-        fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
-        is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
-        approved_by: None,
-        approved_at: Some(chrono::Utc::now()),
-        created_at: Utc::now(),
-        last_active: Utc::now(),
-    };
-    database.create_user(&owner).await.unwrap();
-
+    let (owner_id, _owner) = create_test_user_with_email(&database, "owner@example.com")
+        .await
+        .unwrap();
     // Create test tenant
     let tenant_id = Uuid::new_v4();
     let tenant = Tenant {

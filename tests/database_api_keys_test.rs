@@ -10,25 +10,16 @@ use pierre_mcp_server::models::{User, UserTier};
 use uuid::Uuid;
 
 async fn create_test_user(db: &Database) -> User {
-    let user = User {
-        id: Uuid::new_v4(),
-        email: {
-            let uuid = Uuid::new_v4();
-            format!("test_{uuid}@example.com")
-        },
-        display_name: Some("Test User".into()),
-        password_hash: "hashed".into(),
-        tier: UserTier::Professional,
-        strava_token: None,
-        fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
-        is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
-        approved_by: None,
-        approved_at: Some(chrono::Utc::now()),
-        created_at: chrono::Utc::now(),
-        last_active: chrono::Utc::now(),
-    };
+    let uuid = Uuid::new_v4();
+    let mut user = User::new(
+        format!("test_{uuid}@example.com"),
+        "hashed".into(),
+        Some("Test User".into()),
+    );
+    user.id = uuid;
+    user.tier = UserTier::Professional;
+    user.user_status = pierre_mcp_server::models::UserStatus::Active;
+    user.is_admin = false;
 
     db.create_user(&user).await.expect("Failed to create user");
     user

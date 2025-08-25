@@ -64,14 +64,14 @@ def _generate_mock_activities(count: int = 200):
     
     return activities
 
-def enterprise_demonstration():
-    """Complete enterprise demonstration showcasing A2A capabilities"""
+def business_demonstration():
+    """Complete business demonstration showcasing A2A capabilities"""
     
     print("PIERRE FITNESS API - A2A ENTERPRISE DEMO")
     print("=" * 65)
     print("Purpose: Scalable fitness analytics for B2B clients")
     print("Protocol: Agent-to-Agent (A2A) REST API")
-    print("Benefits: High throughput, scalable, enterprise integration")
+    print("Benefits: High throughput, scalable, business integration")
     print("=" * 65)
     
     # Setup authentication and client
@@ -83,10 +83,10 @@ def enterprise_demonstration():
     
     # Skip authentication in CI mode for faster testing
     if os.getenv('PIERRE_CI_MODE') == 'true':
-        print("Enterprise authentication skipped (CI mode)")
+        print("Business authentication skipped (CI mode)")
     else:
         # For demonstration, we'll use environment variables or defaults
-        # In production, you would register your client properly
+        # In deployment, you would register your client properly
         client_id = os.getenv('PIERRE_A2A_CLIENT_ID', 'demo_client_123')
         client_secret = os.getenv('PIERRE_A2A_CLIENT_SECRET', 'demo_secret_456')
         
@@ -97,16 +97,16 @@ def enterprise_demonstration():
         # Authenticate with A2A protocol
         try:
             if client.authenticate(scopes=["read", "write"]):
-                print("Enterprise A2A authentication successful")
+                print("Business A2A authentication successful")
             else:
-                print("Enterprise A2A authentication failed")
+                print("Business A2A authentication failed")
                 print("Make sure you have registered an A2A client first")
                 return False
         except Exception as e:
-            print(f"Enterprise authentication error: {e}")
+            print(f"Business authentication error: {e}")
             print("Using mock data for demonstration")
     
-    # Note: API key management would be handled separately in production
+    # Note: API key management would be handled separately in deployment
     print("\nAPI KEY MANAGEMENT")
     print("-" * 25)
     print("A2A clients use client credentials authentication")
@@ -116,7 +116,7 @@ def enterprise_demonstration():
     print("\n📊 ENTERPRISE DATA PROCESSING")
     print("-" * 35)
     
-    print("🔄 Processing enterprise fitness dataset...")
+    print("🔄 Processing business fitness dataset...")
     start_time = time.time()
     
     # FOR REAL DATA: Uncomment this section and ensure Pierre AI server is running
@@ -140,7 +140,7 @@ def enterprise_demonstration():
     processing_time = time.time() - start_time
     
     if not activities:
-        print("❌ Enterprise data processing failed")
+        print("❌ Business data processing failed")
         return False
     
     print(f"✅ Processed {len(activities)} activities in {processing_time:.2f}s")
@@ -153,7 +153,7 @@ def enterprise_demonstration():
     activities = DataAnonymizer.anonymize_activity_list(activities)
     print("✅ Personal data anonymized (names, GPS, location details removed)")
     
-    # Enterprise data quality validation
+    # Business data quality validation
     print("\n🔍 ENTERPRISE DATA QUALITY ASSURANCE")
     print("-" * 45)
     
@@ -176,12 +176,12 @@ def enterprise_demonstration():
         for issue in validation['issues']:
             print(f"   • {issue}")
     
-    # Enterprise fitness analytics
+    # Business fitness analytics
     print("\n🤖 ENTERPRISE AI ANALYTICS SUITE")
     print("-" * 40)
     
     # Comprehensive fitness scoring
-    print("⚡ Running enterprise fitness analysis...")
+    print("⚡ Running business fitness analysis...")
     fitness_score = client.calculate_fitness_score()
     
     if fitness_score:
@@ -190,9 +190,9 @@ def enterprise_demonstration():
         components = score_data.get('components', {})
         insights = score_data.get('insights', [])
         
-        print(f"🏆 Enterprise Fitness Score: {overall_score}/100")
+        print(f"🏆 Business Fitness Score: {overall_score}/100")
         
-        print("\n📊 Enterprise Component Analysis:")
+        print("\n📊 Business Component Analysis:")
         for component, score in components.items():
             if score >= 22:
                 level = "PREMIUM"
@@ -202,28 +202,28 @@ def enterprise_demonstration():
                 level = "BASIC"
             print(f"   • {component.title()}: {score}/25 ({level})")
         
-        print("\n💡 Enterprise AI Insights:")
+        print("\n💡 Business AI Insights:")
         for i, insight in enumerate(insights, 1):
             print(f"   {i}. {insight}")
     
-    # Enterprise training recommendations
+    # Business training recommendations
     print("\n📋 ENTERPRISE TRAINING OPTIMIZATION")
     print("-" * 40)
     
     recommendations = client.generate_recommendations()
     
     if recommendations:
-        print(f"✅ Generated {len(recommendations)} enterprise recommendations:")
+        print(f"✅ Generated {len(recommendations)} business recommendations:")
         
         for i, rec in enumerate(recommendations, 1):
             title = rec.get('title', 'Optimization')
-            description = rec.get('description', 'Enterprise training optimization')
+            description = rec.get('description', 'Business training optimization')
             priority = rec.get('priority', 'medium').upper()
             
             print(f"\n   {i}. [{priority}] {title}")
-            print(f"      Enterprise Impact: {description}")
+            print(f"      Business Impact: {description}")
     
-    # Enterprise training load analysis
+    # Business training load analysis
     print("\n⚖️ ENTERPRISE LOAD MANAGEMENT")
     print("-" * 35)
     
@@ -235,14 +235,14 @@ def enterprise_demonstration():
         weekly_distance = load_analysis.get('weekly_distance_km', 0)
         recovery_score = load_analysis.get('recovery_score', 0)
         
-        print(f"📈 Enterprise Load Classification: {load_level.upper()}")
+        print(f"📈 Business Load Classification: {load_level.upper()}")
         print(f"⏱️ Weekly Training Volume: {weekly_hours:.1f} hours")
         print(f"📏 Weekly Distance Volume: {weekly_distance:.1f} km")
         print(f"😴 Recovery Optimization Score: {recovery_score}/100")
         
         load_insights = load_analysis.get('insights', [])
         if load_insights:
-            print("\n💡 Enterprise Load Insights:")
+            print("\n💡 Business Load Insights:")
             for insight in load_insights:
                 print(f"   • {insight}")
     
@@ -253,7 +253,7 @@ def enterprise_demonstration():
     print("⚡ Running advanced local analytics...")
     advanced_results = FitnessDataProcessor.calculate_fitness_score(activities)
     
-    # Enterprise metrics dashboard
+    # Business metrics dashboard
     metrics = advanced_results['metrics']
     distribution = advanced_results['distribution']
     
@@ -278,7 +278,7 @@ def enterprise_demonstration():
         percentage = (count / len(activities)) * 100
         print(f"      • {sport.title()}: {count} ({percentage:.1f}%)")
     
-    # Enterprise API usage monitoring
+    # Business API usage monitoring
     print("\n📈 ENTERPRISE API MONITORING")
     print("-" * 35)
     
@@ -289,18 +289,18 @@ def enterprise_demonstration():
     else:
         print("ℹ️ API monitoring data not available")
     
-    # Generate enterprise report
+    # Generate business report
     print("\n📋 ENTERPRISE REPORT GENERATION")
     print("-" * 40)
     
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    report_filename = f"a2a_enterprise_report_{timestamp}.json"
+    report_filename = f"a2a_business_report_{timestamp}.json"
     
-    enterprise_report = {
+    business_report = {
         'report_metadata': {
             'generated_at': datetime.now().isoformat(),
             'protocol': 'A2A',
-            'report_type': 'Enterprise Analytics',
+            'report_type': 'Business Analytics',
             'activities_processed': len(activities),
             'processing_time_seconds': processing_time,
             'authentication_method': 'A2A_client_credentials'
@@ -314,18 +314,18 @@ def enterprise_demonstration():
             'recommendations': recommendations,
             'load_analysis': load_analysis
         },
-        'enterprise_metrics': metrics,
+        'business_metrics': metrics,
         'usage_monitoring': usage_stats
     }
     
     try:
         with open(report_filename, 'w') as f:
-            json.dump(enterprise_report, f, indent=2)
-        print(f"✅ Enterprise report saved: {report_filename}")
+            json.dump(business_report, f, indent=2)
+        print(f"✅ Business report saved: {report_filename}")
     except Exception as e:
         print(f"⚠️ Report save failed: {e}")
     
-    # Enterprise demonstration summary
+    # Business demonstration summary
     print(f"\n🎯 ENTERPRISE DEMONSTRATION SUMMARY")
     print("=" * 45)
     print("✅ A2A Protocol: Business API integration validated")
@@ -355,23 +355,23 @@ def enterprise_demonstration():
     return True
 
 def main():
-    """Run the complete enterprise demonstration"""
+    """Run the complete business demonstration"""
     
     # Setup environment
     EnvironmentConfig.setup_environment()
     
-    print("🏢 Starting A2A Enterprise Demonstration...")
+    print("🏢 Starting A2A Business Demonstration...")
     print("📋 This demo showcases scalable fitness analytics")
     print()
     
-    success = enterprise_demonstration()
+    success = business_demonstration()
     
     if success:
         print(f"\n🎉 ENTERPRISE DEMONSTRATION COMPLETED!")
         print("💼 Ready for B2B client presentation")
-        print("🏢 Enterprise capabilities fully validated")
+        print("🏢 Business capabilities fully validated")
     else:
-        print(f"\n❌ Enterprise demonstration encountered issues")
+        print(f"\n❌ Business demonstration encountered issues")
         print("🔧 Check API server status and authentication")
     
     return success

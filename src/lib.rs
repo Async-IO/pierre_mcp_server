@@ -46,7 +46,7 @@
 //!     let config = ServerConfig::from_env()?;
 //!     
 //!     // Start Pierre MCP Server with loaded configuration
-//!     println!("Pierre MCP Server configured with ports: MCP={}, HTTP={}", 
+//!     println!("Pierre MCP Server configured with ports: MCP={}, HTTP={}",
 //!              config.mcp_port, config.http_port);
 //!     
 //!     Ok(())
@@ -155,3 +155,7 @@ pub mod key_management;
 // Utility modules
 pub mod tenant;
 pub mod utils;
+
+/// Test utilities for creating consistent test data
+#[cfg(any(test, feature = "testing"))]
+pub mod test_utils;

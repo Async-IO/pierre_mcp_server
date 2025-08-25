@@ -4,17 +4,16 @@
 #![allow(clippy::too_many_lines)]
 
 use anyhow::Result;
-use pierre_mcp_server::auth::AuthManager;
-use pierre_mcp_server::database::generate_encryption_key;
-use pierre_mcp_server::database_plugins::factory::Database;
-use pierre_mcp_server::database_plugins::DatabaseProvider;
-use pierre_mcp_server::mcp::multitenant::MultiTenantMcpServer;
+use pierre_mcp_server::{
+    auth::AuthManager,
+    database::generate_encryption_key,
+    database_plugins::{factory::Database, DatabaseProvider},
+    mcp::multitenant::MultiTenantMcpServer,
+};
 use rand::Rng;
 use reqwest::Client;
 use serde_json::{json, Value};
-use std::net::TcpListener;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{net::TcpListener, sync::Arc, time::Duration};
 use tempfile::TempDir;
 use tokio::time::{sleep, timeout};
 use uuid::Uuid;
@@ -157,6 +156,7 @@ impl MultiTenantMcpClient {
             fitbit_token: None,
             is_active: true,
             user_status: pierre_mcp_server::models::UserStatus::Active,
+            is_admin: true,
             approved_by: None,
             approved_at: Some(chrono::Utc::now()),
             created_at: chrono::Utc::now(),
@@ -218,6 +218,7 @@ impl MultiTenantMcpClient {
             fitbit_token: None,
             is_active: true,
             user_status: pierre_mcp_server::models::UserStatus::Active, // Already active
+            is_admin: false,
             approved_by: Some(admin_id),
             approved_at: Some(chrono::Utc::now()),
             created_at: chrono::Utc::now(),

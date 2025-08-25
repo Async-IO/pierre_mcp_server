@@ -2,11 +2,13 @@
 // ABOUTME: Tests tenant rate limit configuration, multipliers, and enforcement
 
 use chrono::Utc;
-use pierre_mcp_server::api_keys::{ApiKey, ApiKeyTier};
-use pierre_mcp_server::models::{Tenant, User, UserTier};
-use pierre_mcp_server::rate_limiting::{
-    TenantRateLimitConfig, TenantRateLimitTier, UnifiedRateLimitCalculator,
-    TENANT_ENTERPRISE_LIMIT, TENANT_PROFESSIONAL_LIMIT, TENANT_STARTER_LIMIT,
+use pierre_mcp_server::{
+    api_keys::{ApiKey, ApiKeyTier},
+    models::{Tenant, User, UserTier},
+    rate_limiting::{
+        TenantRateLimitConfig, TenantRateLimitTier, UnifiedRateLimitCalculator,
+        TENANT_ENTERPRISE_LIMIT, TENANT_PROFESSIONAL_LIMIT, TENANT_STARTER_LIMIT,
+    },
 };
 use uuid::Uuid;
 
@@ -58,6 +60,7 @@ fn create_test_user(tier: UserTier) -> User {
         tenant_id: Some("test-tenant".to_string()),
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
+        is_admin: false,
         approved_by: None,
         approved_at: Some(Utc::now()),
         created_at: Utc::now(),

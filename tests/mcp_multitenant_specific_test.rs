@@ -6,19 +6,15 @@
 
 use anyhow::Result;
 use pierre_mcp_server::{
-    config::environment::ServerConfig,
-    database_plugins::DatabaseProvider,
-    mcp::multitenant::MultiTenantMcpServer,
-    models::{User, UserTier},
+    config::environment::ServerConfig, mcp::multitenant::MultiTenantMcpServer,
 };
 use serde_json::json;
 use std::sync::Arc;
-use uuid::Uuid;
-
-const TEST_JWT_SECRET: &str = "test_jwt_secret_for_multitenant_specific_tests";
 
 mod common;
 use common::*;
+
+const TEST_JWT_SECRET: &str = "test_jwt_secret_for_multitenant_specific_tests";
 
 /// Test handler for unknown/unsupported MCP methods
 #[tokio::test]
@@ -35,24 +31,7 @@ async fn test_unknown_method_handler() -> Result<()> {
     );
 
     // Create test user
-    let user_id = Uuid::new_v4();
-    let user = User {
-        id: user_id,
-        email: "test@example.com".to_string(),
-        display_name: Some("Test User".to_string()),
-        password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
-        tier: UserTier::Starter,
-        created_at: chrono::Utc::now(),
-        last_active: chrono::Utc::now(),
-        is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
-        approved_by: None,
-        approved_at: Some(chrono::Utc::now()),
-        strava_token: None,
-        fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
-    };
-    server.database().create_user(&user).await?;
+    let (_user_id, user) = create_test_user(server.database()).await?;
 
     // Generate JWT token for the user
     let token = server
@@ -91,24 +70,7 @@ async fn test_connect_strava_handler_errors() -> Result<()> {
     );
 
     // Create test user
-    let user_id = Uuid::new_v4();
-    let user = User {
-        id: user_id,
-        email: "test@example.com".to_string(),
-        display_name: Some("Test User".to_string()),
-        password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
-        tier: UserTier::Starter,
-        created_at: chrono::Utc::now(),
-        last_active: chrono::Utc::now(),
-        is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
-        approved_by: None,
-        approved_at: Some(chrono::Utc::now()),
-        strava_token: None,
-        fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
-    };
-    server.database().create_user(&user).await?;
+    let (_user_id, _user) = create_test_user(server.database()).await?;
 
     // Test missing environment variables or configuration
     // The connect_strava handler should handle missing OAuth configuration gracefully
@@ -132,24 +94,7 @@ async fn test_disconnect_provider_handler() -> Result<()> {
     );
 
     // Create test user
-    let user_id = Uuid::new_v4();
-    let user = User {
-        id: user_id,
-        email: "test@example.com".to_string(),
-        display_name: Some("Test User".to_string()),
-        password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
-        tier: UserTier::Starter,
-        created_at: chrono::Utc::now(),
-        last_active: chrono::Utc::now(),
-        is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
-        approved_by: None,
-        approved_at: Some(chrono::Utc::now()),
-        strava_token: None,
-        fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
-    };
-    server.database().create_user(&user).await?;
+    let (_user_id, _user) = create_test_user(server.database()).await?;
 
     // Test disconnecting a provider that was never connected
     // Test disconnecting with invalid provider name
@@ -207,24 +152,7 @@ async fn test_rate_limiting_enforcement() -> Result<()> {
     );
 
     // Create test user with starter tier (should have rate limits)
-    let user_id = Uuid::new_v4();
-    let user = User {
-        id: user_id,
-        email: "test@example.com".to_string(),
-        display_name: Some("Test User".to_string()),
-        password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
-        tier: UserTier::Starter,
-        created_at: chrono::Utc::now(),
-        last_active: chrono::Utc::now(),
-        is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
-        approved_by: None,
-        approved_at: Some(chrono::Utc::now()),
-        strava_token: None,
-        fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
-    };
-    server.database().create_user(&user).await?;
+    let (_user_id, user) = create_test_user(server.database()).await?;
 
     // Generate JWT token
     let token = server
@@ -255,24 +183,7 @@ async fn test_provider_initialization_errors() -> Result<()> {
     );
 
     // Create test user
-    let user_id = Uuid::new_v4();
-    let user = User {
-        id: user_id,
-        email: "test@example.com".to_string(),
-        display_name: Some("Test User".to_string()),
-        password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
-        tier: UserTier::Starter,
-        created_at: chrono::Utc::now(),
-        last_active: chrono::Utc::now(),
-        is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
-        approved_by: None,
-        approved_at: Some(chrono::Utc::now()),
-        strava_token: None,
-        fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
-    };
-    server.database().create_user(&user).await?;
+    let (_user_id, _user) = create_test_user(server.database()).await?;
 
     // Test scenarios where provider initialization fails
     // - Missing OAuth credentials
@@ -366,24 +277,7 @@ async fn test_tool_call_parameter_validation() -> Result<()> {
     );
 
     // Create test user
-    let user_id = Uuid::new_v4();
-    let user = User {
-        id: user_id,
-        email: "test@example.com".to_string(),
-        display_name: Some("Test User".to_string()),
-        password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
-        tier: UserTier::Starter,
-        created_at: chrono::Utc::now(),
-        last_active: chrono::Utc::now(),
-        is_active: true,
-        user_status: pierre_mcp_server::models::UserStatus::Active,
-        approved_by: None,
-        approved_at: Some(chrono::Utc::now()),
-        strava_token: None,
-        fitbit_token: None,
-        tenant_id: Some("test-tenant".to_string()),
-    };
-    server.database().create_user(&user).await?;
+    let (_user_id, _user) = create_test_user(server.database()).await?;
 
     // Test invalid parameters for each tool
     // Test missing required parameters

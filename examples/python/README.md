@@ -6,7 +6,7 @@ This directory contains comprehensive examples for integrating with Pierre Fitne
 
 ```
 examples/python/
-├── provisioning/           # Enterprise provisioning examples
+├── provisioning/           # Business provisioning examples
 │   ├── provisioning_example.py    # Complete B2B workflow demo
 │   └── mock_strava_provider.py    # Realistic fitness data generator
 ├── mcp/                    # Model Context Protocol examples
@@ -14,7 +14,7 @@ examples/python/
 │   └── investor_demo.py    # Complete investor demonstration
 ├── a2a/                    # Agent-to-Agent Protocol examples  
 │   ├── api_client.py       # A2A REST API client library
-│   └── enterprise_demo.py  # Enterprise A2A demonstration
+│   └── business_demo.py  # Business A2A demonstration
 ├── common/                 # Shared utilities
 │   ├── auth_utils.py       # Authentication helpers
 │   └── data_utils.py       # Data processing & analytics
@@ -35,29 +35,29 @@ python examples/python/advanced_analysis.py
 python examples/python/multitenant_mcp_example.py
 ```
 
-### Enterprise Provisioning (B2B Setup)
+### Business Provisioning (B2B Setup)
 ```bash
-# Complete enterprise provisioning workflow
+# Complete business provisioning workflow
 python examples/python/provisioning/provisioning_example.py
 
 # Generate mock fitness data for testing
 python examples/python/provisioning/mock_strava_provider.py
 ```
 
-### A2A Protocol (Enterprise Integration)
+### A2A Protocol (Business Integration)
 ```bash
 # Test A2A API client
 python examples/python/a2a/api_client.py
 
-# Complete enterprise demonstration
-python examples/python/a2a/enterprise_demo.py
+# Complete business demonstration
+python examples/python/a2a/business_demo.py
 ```
 
 ## 🔧 Protocol Comparison
 
 | Feature | MCP Protocol | A2A Protocol |
 |---------|-------------|--------------|
-| **Use Case** | Real-time analysis | Enterprise integration |
+| **Use Case** | Real-time analysis | Business integration |
 | **Connection** | WebSocket/TCP | HTTP REST API |
 | **Authentication** | JWT tokens | API keys |
 | **Best For** | Interactive clients | Server-to-server |
@@ -66,7 +66,7 @@ python examples/python/a2a/enterprise_demo.py
 ## 📊 Available Examples
 
 ### Provisioning Examples
-- **provisioning_example.py** - Complete B2B enterprise provisioning workflow based on [docs/PROVISIONING.md](../../docs/PROVISIONING.md)
+- **provisioning_example.py** - Complete B2B business provisioning workflow based on [docs/PROVISIONING.md](../../docs/PROVISIONING.md)
 - **mock_strava_provider.py** - Realistic fitness data generator for testing and development
 
 ### MCP Examples
@@ -75,7 +75,7 @@ python examples/python/a2a/enterprise_demo.py
 
 ### A2A Examples
 - **api_client.py** - A2A client library demonstrating authentication, tool execution, and API usage
-- **enterprise_demo.py** - Full enterprise demonstration with bulk processing, analytics, and reporting
+- **business_demo.py** - Full business demonstration with bulk processing, analytics, and reporting
 
 ## 🛠️ Setup Requirements
 
@@ -111,7 +111,7 @@ export PIERRE_A2A_CLIENT_SECRET=your_client_secret
 ### A2A Protocol  
 - **Ideal for:** High-volume batch processing
 - **Throughput:** 1000+ requests/minute
-- **Use when:** Enterprise integration required
+- **Use when:** Business integration required
 
 ## 🎯 Getting Started
 
@@ -122,7 +122,7 @@ export PIERRE_A2A_CLIENT_SECRET=your_client_secret
 
 ## 💼 What the Examples Demonstrate
 
-### Enterprise Provisioning Examples
+### Business Provisioning Examples
 - **provisioning_example.py**: Multi-tenant B2B workflows, admin token generation, API key provisioning, customer integration patterns
 - **mock_strava_provider.py**: Realistic fitness data generation, testing scenarios, performance simulation
 
@@ -136,7 +136,7 @@ export PIERRE_A2A_CLIENT_SECRET=your_client_secret
 
 ### A2A Protocol Examples  
 - **api_client.py**: REST API integration, authentication flows, tool execution
-- **enterprise_demo.py**: Bulk processing, enterprise reporting, API usage monitoring
+- **business_demo.py**: Bulk processing, business reporting, API usage monitoring
 
 ## 🔐 Security Best Practices
 

@@ -1,4 +1,4 @@
-# Pierre MCP Server - Developer Guide
+# Pierre MCP Server
 
 [![CI](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml)
 [![Frontend Tests](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/frontend-tests.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/frontend-tests.yml)
@@ -40,33 +40,26 @@ MCP server implementation for fitness data access from Strava and Fitbit provide
 
 ### Protocol Support
 - **MCP Protocol**: Port 8080 - AI assistants (Claude, ChatGPT), LLM applications  
-- **A2A Protocol**: Port 8081 `/a2a/*` - Enterprise integrations, autonomous agents
+- **A2A Protocol**: Port 8081 `/a2a/*` - System integrations, autonomous agents
 - **REST API**: Port 8081 `/api/*` - Web applications, dashboards
 
 ## Documentation
 
-### **New Developer? [Start Here!](docs/NEW_DEVELOPER_START_HERE.md)**
-Choose your path: contribute code, understand the system, or integrate with Pierre.
+### **📖 [Getting Started Guide](docs/getting-started.md)**
+Complete setup, admin configuration, and first-time usage.
 
-### **[Complete Developer Guide](docs/developer-guide/README.md)**
-Technical documentation covering architecture, protocols, API reference, testing, and more.
+### **📚 [Documentation Index](docs/README.md)**
+Navigate all available documentation by topic and user type.
 
-#### Quick Links
-- [Getting Started](docs/developer-guide/15-getting-started.md) - Setup and development guide
-- [API Reference](docs/developer-guide/14-api-reference.md) - Complete REST API documentation
-- [System Architecture](docs/developer-guide/01-architecture.md) - Design patterns and structure
-- [MCP Protocol](docs/developer-guide/04-mcp-protocol.md) - Model Context Protocol implementation
-- [A2A Protocol](docs/developer-guide/05-a2a-protocol.md) - Agent-to-Agent protocol
-- [A2A Integration Examples](docs/developer-guide/A2A-INTEGRATION-GUIDE.md) - Discord bots, IoT, analytics
-- [Security Guide](docs/developer-guide/17-security-guide.md) - Two-tier key management, encryption, production security
+### **⚡ Quick References**
+- [API Reference](docs/developer-guide/14-api-reference.md) - REST API, MCP protocol, A2A endpoints
+- [System Architecture](docs/developer-guide/01-architecture.md) - Design patterns and structure  
+- [A2A Quick Start](docs/A2A_QUICK_START.md) - 5-minute agent integration setup
 
-### **[Contributing Guide](CONTRIBUTING.md)**
-Code standards, development workflow, and submission process.
-
-### **Specialized Guides**
-- [A2A Quick Start](docs/A2A_QUICK_START.md) - 5-minute A2A setup
-- [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) - Docker & Kubernetes deployment
-- [Database Guide](docs/DATABASE_GUIDE.md) - Database setup and migrations
+### **🛠️ Development**
+- [Developer Guide](docs/developer-guide/README.md) - Architecture, protocols, testing
+- [Contributing Guide](CONTRIBUTING.md) - Code standards and workflow
+- [Security Guide](docs/developer-guide/17-security-guide.md) - Two-tier key management, deployment security
 
 ## Quick Setup
 
@@ -80,7 +73,7 @@ Code standards, development workflow, and submission process.
 **🚀 Full Development**  
 - **Rust 1.75+** + **Strava app** (create at [developers.strava.com](https://developers.strava.com))
 - Optional: PostgreSQL, Redis
-- Perfect for: Production deployment, full feature testing
+- Perfect for: Multi-user deployment, full feature testing
 
 ### Setup
 
@@ -107,10 +100,10 @@ curl http://localhost:8081/api/health
 
 ### Advanced Setup (Full Features)
 <details>
-<summary>Click for production-ready setup with Strava integration</summary>
+<summary>Click for full setup with Strava integration</summary>
 
 ```bash
-# Set production encryption key
+# Set deployment encryption key
 export PIERRE_MASTER_ENCRYPTION_KEY="$(openssl rand -base64 32)"
 echo "Save this MEK: $PIERRE_MASTER_ENCRYPTION_KEY"
 
@@ -234,7 +227,7 @@ curl http://localhost:8081/api/health  # ✅ Should work
 curl -X POST http://localhost:8081/api/auth/register \
   -d '{"email":"user@example.com", "password":"pass123", "display_name":"User"}'
 
-# 2. Admin approval needed (creates admin token via admin-setup binary)
+# 2. Admin approval needed (admin user created via admin-setup binary)
 # 3. User login
 curl -X POST http://localhost:8081/api/auth/login \
   -d '{"email":"user@example.com", "password":"pass123"}'
@@ -342,7 +335,7 @@ const activities = await sdk.getStravaActivities();
 
 | Mode | Use Case | Features |
 |------|----------|----------|
-| **Production** | Organizations, teams | User authentication, admin approval, encrypted OAuth storage |
+| **Multi-user** | Teams, organizations | User authentication, admin approval, encrypted OAuth storage |
 | **Development** | Personal use, testing | Simplified setup, environment variable configuration |
 
 ## Features

@@ -39,6 +39,10 @@ impl AdminJwtManager {
     /// Create JWT manager with provided secret
     #[must_use]
     pub fn with_secret(secret: &str) -> Self {
+        tracing::debug!(
+            "Creating AdminJwtManager with secret (first 10 chars): {}...",
+            secret.chars().take(10).collect::<String>()
+        );
         let encoding_key = EncodingKey::from_secret(secret.as_bytes());
         let decoding_key = DecodingKey::from_secret(secret.as_bytes());
 
@@ -129,8 +133,14 @@ impl AdminJwtManager {
         validation.set_audience(&["admin-api"]);
         validation.set_issuer(&["pierre-mcp-server"]);
 
+        // Debug: Log that we're validating the token
+        tracing::debug!("Validating admin JWT token");
+
         let token_data = decode::<AdminTokenClaims>(token, &self.decoding_key, &validation)
-            .map_err(|e| anyhow!("Invalid JWT token: {}", e))?;
+            .map_err(|e| {
+                tracing::error!("JWT validation failed: {}", e);
+                anyhow!("Invalid JWT token: {}", e)
+            })?;
 
         let claims = token_data.claims;
 

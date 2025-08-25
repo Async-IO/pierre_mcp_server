@@ -38,6 +38,10 @@ pub struct AdminApiContext {
 
 impl AdminApiContext {
     pub fn new(database: Database, jwt_secret: &str, auth_manager: AuthManager) -> Self {
+        tracing::info!(
+            "Creating AdminApiContext with JWT secret (first 10 chars): {}...",
+            jwt_secret.chars().take(10).collect::<String>()
+        );
         let auth_service = AdminAuthService::new(database.clone(), jwt_secret);
         Self {
             database,
@@ -526,6 +530,7 @@ async fn get_or_create_user(database: &Database, email: &str) -> Result<User, wa
                 fitbit_token: None,
                 is_active: true,
                 user_status: UserStatus::Active, // Admin-created users are automatically active
+                is_admin: false,                 // API-only users are not admins by default
                 approved_by: None,               // No approval needed for admin-created users
                 approved_at: Some(chrono::Utc::now()),
                 created_at: chrono::Utc::now(),
@@ -1780,19 +1785,28 @@ async fn suspend_user_status(
 /// Get system admin user ID for approval operations
 async fn get_system_admin_user_id(database: &Database) -> Result<String> {
     // For admin token operations, we need to use the system admin user ID
-    // Look for an active admin user with enterprise tier
+    // Look for an active user with is_admin = true
+
+    // Debug: Log what we're looking for
+    tracing::debug!("Looking for system admin user for approval operations");
+
     let users = database.get_users_by_status("active").await?;
 
+    tracing::debug!("Found {} active users", users.len());
+
     for user in &users {
-        if user.tier == crate::models::UserTier::Enterprise {
+        tracing::debug!(
+            "Checking user: {} with is_admin: {}",
+            user.email,
+            user.is_admin
+        );
+        if user.is_admin {
+            tracing::info!("Using admin user for approval: {}", user.email);
             return Ok(user.id.to_string());
         }
     }
 
-    // Fallback: use the first active user if no enterprise user found
-    if let Some(user) = users.first() {
-        return Ok(user.id.to_string());
-    }
-
-    anyhow::bail!("No active admin user found for approval operations")
+    anyhow::bail!(
+        "No active admin user found for approval operations - all admins must have is_admin = true"
+    )
 }

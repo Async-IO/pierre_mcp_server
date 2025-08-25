@@ -18,9 +18,9 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
-const TEST_JWT_SECRET: &str = "test_jwt_secret_for_multitenant_comprehensive_tests";
-
 mod common;
+
+const TEST_JWT_SECRET: &str = "test_jwt_secret_for_multitenant_comprehensive_tests";
 
 // === Test Setup Helpers ===
 

@@ -37,6 +37,7 @@ async fn test_user_model_serialization() -> Result<()> {
             last_active: chrono::Utc::now(),
             is_active: true,
             user_status: pierre_mcp_server::models::UserStatus::Active,
+            is_admin: false,
             approved_by: None,
             approved_at: Some(chrono::Utc::now()),
             strava_token: None,
@@ -54,6 +55,7 @@ async fn test_user_model_serialization() -> Result<()> {
             last_active: chrono::Utc::now() - chrono::Duration::hours(1),
             is_active: true,
             user_status: pierre_mcp_server::models::UserStatus::Active,
+            is_admin: false,
             approved_by: None,
             approved_at: Some(chrono::Utc::now()),
             strava_token: Some(EncryptedToken {
@@ -82,6 +84,7 @@ async fn test_user_model_serialization() -> Result<()> {
             strava_token: None,
             fitbit_token: None,
             tenant_id: Some("test-tenant".to_string()),
+            is_admin: false,
         },
     ];
 
@@ -277,6 +280,7 @@ async fn test_auth_edge_cases() -> Result<()> {
             last_active: chrono::Utc::now(),
             is_active: true,
             user_status: pierre_mcp_server::models::UserStatus::Active,
+            is_admin: false,
             approved_by: None,
             approved_at: Some(chrono::Utc::now()),
             strava_token: None,
@@ -293,6 +297,7 @@ async fn test_auth_edge_cases() -> Result<()> {
             last_active: chrono::Utc::now(),
             is_active: true,
             user_status: pierre_mcp_server::models::UserStatus::Active,
+            is_admin: false,
             approved_by: None,
             approved_at: Some(chrono::Utc::now()),
             strava_token: None,
@@ -344,6 +349,7 @@ async fn test_model_combinations() -> Result<()> {
             nonce: "fitbit_nonce".to_string(),
         }),
         tenant_id: Some("test-tenant".to_string()),
+        is_admin: false,
     };
 
     // Test serialization

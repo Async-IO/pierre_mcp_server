@@ -307,6 +307,7 @@ async fn test_multitenant_auth_flow() -> Result<()> {
         fitbit_token: None,
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
+        is_admin: false,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),

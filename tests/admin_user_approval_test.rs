@@ -44,6 +44,7 @@ async fn setup_test_database() -> Result<(Database, String, Uuid)> {
         fitbit_token: None,
         is_active: true,
         user_status: UserStatus::Active,
+        is_admin: true,
         approved_by: None, // Admin doesn't need approval
         approved_at: None,
         created_at: chrono::Utc::now(),
@@ -84,6 +85,7 @@ async fn test_get_pending_users() -> Result<()> {
         fitbit_token: None,
         is_active: true,
         user_status: UserStatus::Pending,
+        is_admin: false,
         approved_by: None,
         approved_at: None,
         created_at: chrono::Utc::now(),
@@ -102,6 +104,7 @@ async fn test_get_pending_users() -> Result<()> {
         fitbit_token: None,
         is_active: true,
         user_status: UserStatus::Active,
+        is_admin: false,
         approved_by: Some(admin_user_id),
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
@@ -133,6 +136,7 @@ async fn test_approve_user() -> Result<()> {
         fitbit_token: None,
         is_active: true,
         user_status: UserStatus::Pending,
+        is_admin: false,
         approved_by: None,
         approved_at: None,
         created_at: chrono::Utc::now(),
@@ -141,11 +145,19 @@ async fn test_approve_user() -> Result<()> {
     let user_id = pending_user.id;
     database.create_user(&pending_user).await?;
 
-    // Simulate approval by creating an approved user with the same ID
-    let approved_user = User {
-        id: user_id,
-        email: "to_approve@test.com".to_string(),
-        display_name: Some("User to Approve".to_string()),
+    // Test updating the user's status to approved
+    // For this test, we'll skip the update_user_status call since it uses token_id, not user_id
+    // Instead, we'll directly test creating users with approved_by field set
+
+    // Verify the pending user was created correctly
+    let pending_user_check = database.get_user(user_id).await?.unwrap();
+    assert_eq!(pending_user_check.user_status, UserStatus::Pending);
+
+    // Now test creating a new user with approved_by set to the admin
+    let new_approved_user = User {
+        id: Uuid::new_v4(),
+        email: "new_approved@test.com".to_string(),
+        display_name: Some("New Approved User".to_string()),
         password_hash: "hash".to_string(),
         tier: UserTier::Starter,
         tenant_id: None,
@@ -153,33 +165,21 @@ async fn test_approve_user() -> Result<()> {
         fitbit_token: None,
         is_active: true,
         user_status: UserStatus::Active,
+        is_admin: false,
         approved_by: Some(admin_user_id), // Approved by admin user
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
         last_active: chrono::Utc::now(),
     };
 
-    // Test that we can create/update a user with approval fields properly set
-    // This tests the foreign key constraint works when pointing to a real user
-    let result = database.create_user(&approved_user).await;
+    // This should succeed since the admin user exists
+    database.create_user(&new_approved_user).await?;
 
-    // Since we're using the same ID, this should fail on unique constraint,
-    // but it should NOT fail on foreign key constraint (which is what we're testing)
-    if let Err(e) = result {
-        // Verify this is NOT a foreign key constraint error
-        let error_msg = e.to_string().to_lowercase();
-        assert!(
-            !error_msg.contains("foreign key constraint"),
-            "Foreign key constraint error when it should be unique constraint: {e}"
-        );
-        // This is expected - unique constraint violation, which means FK constraint passed
-    } else {
-        // If it somehow succeeded, verify the fields are set correctly
-        let updated_user = database.get_user(user_id).await?.unwrap();
-        assert_eq!(updated_user.user_status, UserStatus::Active);
-        assert_eq!(updated_user.approved_by, Some(admin_user_id));
-        assert!(updated_user.approved_at.is_some());
-    }
+    // Verify the new user was created with approval fields set
+    let created_user = database.get_user(new_approved_user.id).await?.unwrap();
+    assert_eq!(created_user.user_status, UserStatus::Active);
+    assert_eq!(created_user.approved_by, Some(admin_user_id));
+    assert!(created_user.approved_at.is_some());
 
     Ok(())
 }
@@ -200,6 +200,7 @@ async fn test_suspend_user() -> Result<()> {
         fitbit_token: None,
         is_active: true,
         user_status: UserStatus::Active,
+        is_admin: false,
         approved_by: Some(admin_user_id),
         approved_at: Some(chrono::Utc::now()),
         created_at: chrono::Utc::now(),
@@ -236,6 +237,7 @@ async fn test_user_status_transitions() -> Result<()> {
         fitbit_token: None,
         is_active: true,
         user_status: UserStatus::Pending,
+        is_admin: false,
         approved_by: None,
         approved_at: None,
         created_at: chrono::Utc::now(),

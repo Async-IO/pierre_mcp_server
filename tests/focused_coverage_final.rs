@@ -56,6 +56,7 @@ async fn test_mcp_multitenant_comprehensive() -> Result<()> {
             last_active: chrono::Utc::now(),
             is_active: true,
             user_status: pierre_mcp_server::models::UserStatus::Active,
+            is_admin: false,
             approved_by: None,
             approved_at: Some(chrono::Utc::now()),
             strava_token: None,
@@ -72,6 +73,7 @@ async fn test_mcp_multitenant_comprehensive() -> Result<()> {
             last_active: chrono::Utc::now(),
             is_active: true,
             user_status: pierre_mcp_server::models::UserStatus::Active,
+            is_admin: false,
             approved_by: None,
             approved_at: Some(chrono::Utc::now()),
             strava_token: Some(EncryptedToken {
@@ -94,6 +96,7 @@ async fn test_mcp_multitenant_comprehensive() -> Result<()> {
             last_active: chrono::Utc::now(),
             is_active: true,
             user_status: pierre_mcp_server::models::UserStatus::Active,
+            is_admin: false,
             approved_by: None,
             approved_at: Some(chrono::Utc::now()),
             strava_token: None,

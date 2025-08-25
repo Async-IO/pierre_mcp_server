@@ -148,6 +148,7 @@ async fn test_oauth_authorization_url_generation() {
         last_active: chrono::Utc::now(),
         is_active: true,
         user_status: UserStatus::Active,
+        is_admin: false,
         approved_by: None,
         approved_at: None,
     };
@@ -733,6 +734,7 @@ async fn test_oauth_urls_contain_required_parameters() {
         last_active: chrono::Utc::now(),
         is_active: true,
         user_status: UserStatus::Active,
+        is_admin: false,
         approved_by: None,
         approved_at: None,
     };

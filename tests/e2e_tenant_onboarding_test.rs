@@ -23,6 +23,8 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
+mod common;
+
 /// Test configuration for end-to-end tenant onboarding
 #[allow(clippy::too_many_lines)] // Long function: Defines complete end-to-end tenant onboarding workflow
 #[tokio::test]
@@ -55,6 +57,7 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
         last_active: chrono::Utc::now(),
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
+        is_admin: true,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
     };
@@ -72,6 +75,7 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
         last_active: chrono::Utc::now(),
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
+        is_admin: true,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
     };
@@ -337,6 +341,7 @@ async fn test_tenant_context_switching() -> Result<()> {
         last_active: chrono::Utc::now(),
         is_active: true,
         user_status: pierre_mcp_server::models::UserStatus::Active,
+        is_admin: false,
         approved_by: None,
         approved_at: Some(chrono::Utc::now()),
     };

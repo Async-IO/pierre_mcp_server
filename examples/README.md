@@ -11,7 +11,7 @@ python3 run_demos.py
 # Or run individual demos
 python3 python/multitenant_mcp_example.py     # NEW: Multi-tenant MCP workflow
 python3 python/mcp_stdio_example.py           # NEW: MCP stdio transport
-python3 python/a2a/enterprise_demo.py         # A2A enterprise demonstration
+python3 python/a2a/business_demo.py         # A2A business demonstration
 ```
 
 ### Multi-Tenant MCP Setup (NEW)
@@ -19,8 +19,9 @@ python3 python/a2a/enterprise_demo.py         # A2A enterprise demonstration
 For the new multi-tenant MCP examples, ensure you have:
 
 1. **Fresh database**: `./scripts/fresh-start.sh`
-2. **Admin token**: `cargo run --bin admin-setup generate-token --service "demo"`
-3. **Server running**: `cargo run --bin pierre-mcp-server`
+2. **Admin user**: `cargo run --bin admin-setup create-admin-user --email admin@example.com --password SecurePass123!`
+3. **Admin token**: `cargo run --bin admin-setup generate-token --service "demo"`
+4. **Server running**: `cargo run --bin pierre-mcp-server`
 
 Then run the examples:
 ```bash
@@ -41,9 +42,9 @@ The Pierre Fitness API supports two protocols:
 - **Target**: Consumer applications, real-time analysis
 
 ### 🏢 A2A (Agent-to-Agent) 
-- **Use Case**: Enterprise integration, B2B platforms, batch processing
+- **Use Case**: Business integration, B2B platforms, batch processing
 - **Benefits**: High throughput, REST API, scalable architecture
-- **Target**: Enterprise clients, system integration
+- **Target**: Business clients, system integration
 
 ## Directory Structure
 
@@ -51,8 +52,8 @@ The Pierre Fitness API supports two protocols:
 examples/
 ├── python/
 │   ├── a2a/                    # A2A Protocol Examples  
-│   │   ├── api_client.py       # Enterprise API client
-│   │   └── enterprise_demo.py  # Complete enterprise demonstration
+│   │   ├── api_client.py       # Business API client
+│   │   └── business_demo.py  # Complete business demonstration
 │   ├── multitenant_mcp_example.py  # Multi-tenant MCP workflow
 │   ├── mcp_stdio_example.py    # MCP stdio transport example
 │   └── common/                 # Shared Utilities
@@ -62,6 +63,10 @@ examples/
 └── README.md                  # This file
 ```
 
+## Focus on Client Integration
+
+These examples demonstrate **client-side integration** with the Pierre MCP Server. They show the correct way for external applications to interact with the server through its public APIs, rather than internal server architecture patterns.
+
 ## Protocol Comparison
 
 | Feature | MCP | A2A |
@@ -70,7 +75,7 @@ examples/
 | Latency | Ultra-low | Standard |
 | Throughput | Medium | High |
 | State | Stateful | Stateless |
-| Use Case | Real-time | Batch/Enterprise |
+| Use Case | Real-time | Batch/Business |
 | Auth | JWT | JWT + API Keys |
 
 ## Examples Guide
@@ -92,18 +97,6 @@ examples/
 - Proper MCP protocol sequence
 - Compliant with MCP 2024-11-05 specification
 
-#### Multi-Tenant MCP Workflow (`python/multitenant_mcp_example.py`)
-- **NEW**: Complete multi-tenant setup workflow
-- User registration and JWT authentication
-- Strava OAuth integration
-- MCP protocol usage (HTTP transport)
-- Real fitness data analysis with AI insights
-
-#### MCP stdio Transport (`python/mcp_stdio_example.py`)
-- **NEW**: MCP stdio transport (primary for AI assistants)
-- JSON-RPC 2.0 message format
-- Interactive and pipe modes
-- Proper MCP protocol sequence
 
 ### 2. A2A Examples
 
@@ -113,10 +106,10 @@ examples/
 - Bulk data processing capabilities
 - Robust error handling and retry logic
 
-#### Enterprise Demo (`python/a2a/enterprise_demo.py`)
+#### Business Demo (`python/a2a/business_demo.py`)
 - Complete B2B client demonstration
 - High-volume data processing
-- Enterprise reporting and analytics
+- Business reporting and analytics
 - API usage monitoring
 
 ### 3. Common Utilities
@@ -153,9 +146,9 @@ All examples include automatic authentication setup:
 
 ## Prerequisites
 
-### For Real Data (Production Demo):
+### For Real Data (Multi-user Demo):
 
-1. **Server Running**: Ensure Pierre AI server is running on localhost:8081
+1. **Server Running**: Ensure Pierre MCP Server server is running on localhost:8081
 2. **MCP Server**: MCP server should be available on localhost:8080  
 3. **Strava Connected**: Complete Strava OAuth connection for real fitness data
 4. **Python Dependencies**: Install required packages
@@ -175,7 +168,7 @@ pip3 install requests websockets asyncio
 The examples support two data modes:
 
 ### 🔴 **Real Data Mode** (Commented Out by Default)
-- Connects to live Pierre AI server
+- Connects to live Pierre MCP Server server
 - Uses actual Strava/Fitbit fitness data  
 - Requires OAuth setup and running server
 - **Privacy**: Data is automatically anonymized (GPS, names, personal details removed)
@@ -190,7 +183,7 @@ The examples support two data modes:
 
 ### To Enable Real Data:
 
-1. **Start Pierre AI Server**:
+1. **Start Pierre MCP Server Server**:
    ```bash
    cargo run --bin pierre-mcp-server
    ```
@@ -203,7 +196,7 @@ The examples support two data modes:
 
 3. **Uncomment Real Data Sections** in Python files:
    ```python
-   # FOR REAL DATA: Uncomment this section and ensure Pierre AI server is running
+   # FOR REAL DATA: Uncomment this section and ensure Pierre MCP Server server is running
    # with connected Strava account (see README.md for OAuth setup)
    #
    # activities = client.get_activities(limit=200)  # Real Strava data
@@ -232,7 +225,7 @@ The examples support two data modes:
 🏆 FITNESS SCORE: 89/100
 ```
 
-### A2A Enterprise Demo
+### A2A Business Demo
 ```
 🏢 PIERRE AI FITNESS PLATFORM - A2A ENTERPRISE DEMO
 =================================================================
@@ -268,10 +261,10 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 ```
 
-## Production Deployment
+## Deployment Deployment
 
 ### MCP Protocol
-- Use secure WebSocket (WSS) in production
+- Use secure WebSocket (WSS) in deployment
 - Implement connection pooling for scale
 - Add authentication middleware
 
