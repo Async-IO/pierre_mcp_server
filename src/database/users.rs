@@ -42,7 +42,7 @@ impl Database {
                 is_active BOOLEAN NOT NULL DEFAULT 1,
                 user_status TEXT NOT NULL DEFAULT 'pending' CHECK (user_status IN ('pending', 'active', 'suspended')),
                 is_admin BOOLEAN NOT NULL DEFAULT 0,
-                approved_by TEXT REFERENCES users(id),
+                approved_by TEXT, -- Admin token ID that approved this user
                 approved_at DATETIME,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 last_active DATETIME DEFAULT CURRENT_TIMESTAMP

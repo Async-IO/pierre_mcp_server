@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Test script for enterprise API key provisioning system
+# Test script for business API key provisioning system
 
-echo "Testing Enterprise API Key Provisioning System"
+echo "Testing Business API Key Provisioning System"
 echo "============================================="
 
 # Set base URL
@@ -34,7 +34,7 @@ JWT_TOKEN=$(echo "$LOGIN_RESPONSE" | grep -o '"jwt_token":"[^"]*"' | cut -d'"' -
 echo "JWT Token obtained: ${JWT_TOKEN:0:20}..."
 
 echo -e "\n${YELLOW}3. Setup admin authentication and provision API key${NC}"
-# Note: In production, admin tokens are generated using the admin-setup binary
+# Note: In deployment, admin tokens are generated via /admin/setup API
 # For testing, we simulate admin token (this would be a real admin JWT in production)
 ADMIN_TOKEN="simulated_admin_token_for_testing"
 
@@ -50,7 +50,7 @@ TRIAL_KEY_RESPONSE=$(curl -s -X POST "$BASE_URL/admin/provision-api-key" \
     \"rate_limit_period\": \"month\",
     \"expires_in_days\": 14,
     \"name\": \"Test Trial Key\",
-    \"description\": \"Testing enterprise provisioning\"
+    \"description\": \"Testing business provisioning\"
   }")
 
 echo "Trial Key Response: $TRIAL_KEY_RESPONSE"
@@ -70,8 +70,8 @@ LIST_RESPONSE=$(curl -s -X GET "$BASE_URL/api/keys" \
 
 echo "API Keys: $LIST_RESPONSE"
 
-echo -e "\n${YELLOW}5. Test enterprise provisioning controls${NC}"
-# In enterprise model, only admins can provision keys
+echo -e "\n${YELLOW}5. Test business provisioning controls${NC}"
+# In business model, only admins can provision keys
 # Regular users cannot create keys themselves
 echo "Testing that regular users cannot self-provision keys..."
 SELF_SERVICE_RESPONSE=$(curl -s -X POST "$BASE_URL/api/keys/trial" \
@@ -96,9 +96,9 @@ TEST_RESPONSE=$(curl -s -X POST "$BASE_URL/dashboard/overview" \
 
 echo "Trial key test response: $TEST_RESPONSE"
 
-echo -e "\n${GREEN}Enterprise API Key Provisioning Test Complete!${NC}"
-echo -e "\n${YELLOW}Note:${NC} In production:"
-echo "  • Admin tokens are generated using the admin-setup binary"
+echo -e "\n${GREEN}Business API Key Provisioning Test Complete!${NC}"
+echo -e "\n${YELLOW}Note:${NC} In deployment:"
+echo "  • Admin tokens are generated via /admin/setup API"
 echo "  • Only administrators can provision API keys for users"
 echo "  • Users receive keys through secure channels (email/dashboard)"
 echo "  • Self-service key creation is disabled for security"

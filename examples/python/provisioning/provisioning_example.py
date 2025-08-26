@@ -71,8 +71,11 @@ class ProvisioningManager:
         
         # Step 1: Simulate admin token generation
         print("📋 Step 1: Generate admin token (simulated)")
-        print("Step 1a: cargo run --bin admin-setup create-admin-user --email admin@example.com --password SecurePass123!")
-        print("Step 1b: cargo run --bin admin-setup generate-token --service 'business_provisioner'")
+        print("Step 1: Create admin via server API:")
+        print("curl -X POST http://localhost:8081/admin/setup \\")
+        print("  -H 'Content-Type: application/json' \\") 
+        print("  -d '{\"email\": \"admin@example.com\", \"password\": \"SecurePass123!\", \"display_name\": \"Administrator\"}'")
+        print("Step 2: Use the admin_token from the response above")
         print()
         
         # For demo, we'll use JWT authentication instead of admin token

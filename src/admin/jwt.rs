@@ -43,6 +43,7 @@ impl AdminJwtManager {
             "Creating AdminJwtManager with secret (first 10 chars): {}...",
             secret.chars().take(10).collect::<String>()
         );
+        tracing::info!("FULL JWT SECRET FOR VALIDATION: {}", secret);
         let encoding_key = EncodingKey::from_secret(secret.as_bytes());
         let decoding_key = DecodingKey::from_secret(secret.as_bytes());
 
@@ -139,6 +140,7 @@ impl AdminJwtManager {
         let token_data = decode::<AdminTokenClaims>(token, &self.decoding_key, &validation)
             .map_err(|e| {
                 tracing::error!("JWT validation failed: {}", e);
+                tracing::error!("Token being validated: {}", token);
                 anyhow!("Invalid JWT token: {}", e)
             })?;
 

@@ -100,7 +100,14 @@ Two-tier key management system fully initialized
 Create an admin user for the web interface:
 
 ```bash
-RUST_LOG=debug cargo run --bin admin-setup -- --verbose create-admin-user --email admin@yourcompany.com --password yourpassword123
+# Create admin user via server API
+curl -X POST http://localhost:8081/admin/setup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@yourcompany.com",
+    "password": "yourpassword123",
+    "display_name": "System Administrator"
+  }'
 ```
 
 **Success Output:**
@@ -124,7 +131,10 @@ LOGIN CREDENTIALS:
 Generate a super admin token for API access:
 
 ```bash
-RUST_LOG=debug cargo run --bin admin-setup -- --verbose generate-token --service your_service_name --super-admin --expires-days 365
+# Admin token is returned from the setup step above - no separate generation needed
+# Use the admin_token from the setup response for API access
+curl -X GET http://localhost:8081/admin/users \
+  -H "Authorization: Bearer <ADMIN_TOKEN_FROM_SETUP>"
 ```
 
 **Success Output:**
@@ -262,8 +272,9 @@ curl -X POST http://localhost:8080/api/auth/register ...
 **Solution:** Verify admin token has correct permissions
 
 ```bash
-# List admin tokens to verify
-RUST_LOG=debug cargo run --bin admin-setup -- --verbose list-tokens --detailed
+# List admin tokens via API to verify
+curl -X GET http://localhost:8081/admin/tokens \
+  -H "Authorization: Bearer <ADMIN_TOKEN_FROM_SETUP>"
 ```
 
 ### Issue 5: Database Inconsistencies
@@ -366,7 +377,7 @@ curl -X GET http://localhost:8081/admin/tokens \
 |---------|---------|
 | `./scripts/fresh-start.sh` | Clean database restart |
 | `cargo run --bin pierre-mcp-server` | Start main server |
-| `cargo run --bin admin-setup` | Admin management |
+| `POST /admin/setup` | Admin management via server API |
 | `./scripts/lint-and-test.sh` | Run tests and linting |
 
 ## Support

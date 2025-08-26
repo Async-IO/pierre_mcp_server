@@ -168,8 +168,8 @@ export default function Login() {
                   💡 First Time Setup Required
                 </p>
                 <p className="text-xs text-pierre-gray-500">
-                  {setupStatus.message || 'Use the admin-setup CLI tool to create your admin credentials:'}<br/>
-                  <code className="text-pierre-gray-700">cargo run --bin admin-setup -- create-admin-user</code>
+                  {setupStatus.message || 'Use the server API to create your admin credentials:'}<br/>
+                  <code className="text-pierre-gray-700">POST /admin/setup with email/password/display_name</code>
                 </p>
               </div>
             </div>
