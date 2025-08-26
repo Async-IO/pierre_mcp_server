@@ -170,6 +170,7 @@ pub fn admin_routes(
     let list_keys_route = list_api_keys_route(context.clone());
     let token_info_route = token_info_route(context.clone());
     let setup_route = admin_setup_route(context.clone());
+    let setup_status_route = setup_status_route(context.clone());
 
     // Admin token management routes
     let admin_tokens_list_route = admin_tokens_list_route(context.clone());
@@ -193,6 +194,7 @@ pub fn admin_routes(
         .or(list_keys_route)
         .or(token_info_route)
         .or(setup_route)
+        .or(setup_status_route)
         .or(admin_tokens_list_route)
         .or(admin_tokens_create_route)
         .or(admin_tokens_details_route)
@@ -219,6 +221,7 @@ pub fn admin_routes_with_scoped_recovery(
     let list_keys_route = list_api_keys_route(context.clone());
     let token_info_route = token_info_route(context.clone());
     let setup_route = admin_setup_route(context.clone());
+    let setup_status_route = setup_status_route(context.clone());
 
     // Admin token management routes
     let admin_tokens_list_route = admin_tokens_list_route(context.clone());
@@ -242,6 +245,7 @@ pub fn admin_routes_with_scoped_recovery(
         .or(list_keys_route)
         .or(token_info_route)
         .or(setup_route)
+        .or(setup_status_route)
         .or(admin_tokens_list_route)
         .or(admin_tokens_create_route)
         .or(admin_tokens_details_route)
@@ -268,6 +272,7 @@ pub fn admin_routes_with_rejection(
     let list_keys_route = list_api_keys_route(context.clone());
     let token_info_route = token_info_route(context.clone());
     let setup_route = admin_setup_route(context.clone());
+    let setup_status_route = setup_status_route(context.clone());
 
     // Admin token management routes
     let admin_tokens_list_route = admin_tokens_list_route(context.clone());
@@ -291,6 +296,7 @@ pub fn admin_routes_with_rejection(
         .or(list_keys_route)
         .or(token_info_route)
         .or(setup_route)
+        .or(setup_status_route)
         .or(admin_tokens_list_route)
         .or(admin_tokens_create_route)
         .or(admin_tokens_details_route)
@@ -373,6 +379,16 @@ fn admin_setup_route(
         .and(warp::body::json())
         .and(with_context(context))
         .and_then(handle_admin_setup)
+}
+
+/// Admin setup status check endpoint (no auth required)
+fn setup_status_route(
+    context: AdminApiContext,
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    warp::path!("setup-status")
+        .and(warp::get())
+        .and(with_context(context))
+        .and_then(handle_setup_status)
 }
 
 /// Admin health check endpoint
@@ -1041,6 +1057,37 @@ async fn handle_admin_setup(
             };
             Ok(with_status(
                 json(&response),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ))
+        }
+    }
+}
+
+/// Handle setup status check - returns whether admin setup is needed
+async fn handle_setup_status(context: AdminApiContext) -> Result<impl Reply, Rejection> {
+    info!("Setup status check requested");
+
+    match context
+        .auth_manager
+        .check_setup_status(&context.database)
+        .await
+    {
+        Ok(setup_status) => {
+            info!(
+                "Setup status check successful: needs_setup={}, admin_user_exists={}",
+                setup_status.needs_setup, setup_status.admin_user_exists
+            );
+            Ok(with_status(json(&setup_status), StatusCode::OK))
+        }
+        Err(e) => {
+            error!("Failed to check setup status: {}", e);
+            let error_response = serde_json::json!({
+                "needs_setup": true,
+                "admin_user_exists": false,
+                "message": "Unable to determine setup status. Please ensure admin user is created."
+            });
+            Ok(with_status(
+                json(&error_response),
                 StatusCode::INTERNAL_SERVER_ERROR,
             ))
         }

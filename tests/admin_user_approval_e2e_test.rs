@@ -32,7 +32,8 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
     let admin_context = AdminApiContext::new(database.clone(), jwt_secret, auth_manager.clone());
 
     // Create admin routes
-    let admin_routes = pierre_mcp_server::admin_routes::admin_routes_with_rejection(admin_context);
+    let admin_routes =
+        pierre_mcp_server::admin_routes::admin_routes_with_scoped_recovery(admin_context);
 
     println!("🧪 Starting complete admin user approval workflow test");
 
@@ -193,7 +194,8 @@ async fn test_admin_token_management_workflow() -> Result<()> {
     let jwt_secret = "test_jwt_secret_for_token_management";
     let auth_manager = AuthManager::new(jwt_secret.as_bytes().to_vec(), 24);
     let admin_context = AdminApiContext::new(database.clone(), jwt_secret, auth_manager);
-    let admin_routes = pierre_mcp_server::admin_routes::admin_routes_with_rejection(admin_context);
+    let admin_routes =
+        pierre_mcp_server::admin_routes::admin_routes_with_scoped_recovery(admin_context);
 
     println!("🧪 Starting admin token management workflow test");
 
@@ -223,7 +225,7 @@ async fn test_admin_token_management_workflow() -> Result<()> {
             "service_description": "Test service token",
             "is_super_admin": false,
             "expires_in_days": 30,
-            "permissions": ["ManageUsers"]
+            "permissions": ["manage_users"]
         }))
         .reply(&admin_routes)
         .await;
@@ -301,7 +303,8 @@ async fn test_admin_workflow_error_handling() -> Result<()> {
     let jwt_secret = "test_jwt_secret_for_error_handling";
     let auth_manager = AuthManager::new(jwt_secret.as_bytes().to_vec(), 24);
     let admin_context = AdminApiContext::new(database, jwt_secret, auth_manager);
-    let admin_routes = pierre_mcp_server::admin_routes::admin_routes_with_rejection(admin_context);
+    let admin_routes =
+        pierre_mcp_server::admin_routes::admin_routes_with_scoped_recovery(admin_context);
 
     println!("🧪 Starting admin workflow error handling test");
 
