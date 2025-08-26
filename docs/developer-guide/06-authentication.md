@@ -68,11 +68,15 @@ First, an administrator sets up the system and creates the first admin user.
 #### Step 1: Initial Admin Setup (Server-side)
 
 ```bash
-# On the cloud server, create the first admin user
-docker exec -it pierre-server /app/admin-setup create-admin-user
-
-# Or using the binary directly
-./admin-setup create-admin-user --email admin@example.com --password SecurePassword123!
+# Create the first admin user via server API (industry standard)
+curl -X POST https://pierre.example.com/admin/setup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@example.com",
+    "password": "SecurePassword123!",
+    "display_name": "System Administrator"
+  }'
+# Returns: {"user_id": "...", "admin_token": "eyJ0eXAi...", "message": "Admin user created successfully"}
 ```
 
 **Admin Setup Process:**
@@ -83,7 +87,7 @@ sequenceDiagram
     participant DB as Database
     participant Crypto as Crypto Service
     
-    Admin->>Setup: Run admin-setup
+    Admin->>Server: POST /admin/setup
     Setup->>Crypto: Generate password hash
     Crypto-->>Setup: Hashed password
     
@@ -109,7 +113,7 @@ JWT secret: GENERATED and stored in database
 
 You can now:
 1. Login to https://pierre.example.com with your credentials  
-2. Generate admin tokens using: admin-setup generate-token --service "your-service"
+2. Use the admin token returned from the setup to access admin APIs
 3. Create additional admin users and manage the system
 ```
 
@@ -698,11 +702,18 @@ Pierre MCP Server uses explicit admin privileges through the `is_admin` boolean 
 
 #### Admin User Creation
 
-Admin users are created using the `admin-setup` binary:
+Admin users are created via server API (server-first approach):
 
 ```bash
-# Create first admin user
-./admin-setup create-admin-user --email admin@example.com --password SecurePassword123!
+# Create first admin user via server API
+curl -X POST http://localhost:8081/admin/setup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@example.com",
+    "password": "SecurePassword123!",
+    "display_name": "System Administrator"
+  }'
+# Returns admin token immediately for use
 ```
 
 **What happens during admin user creation:**
@@ -731,8 +742,10 @@ async fn get_system_admin_user_id(database: &Database) -> Result<String> {
 #### Admin Token Generation
 
 ```bash
-# Generate admin JWT token for API access
-./admin-setup generate-token --service "admin-dashboard"
+# Admin token is returned immediately from setup - no separate generation needed
+# Use the token returned from POST /admin/setup for all admin API access
+curl -X GET http://localhost:8081/admin/users \
+  -H "Authorization: Bearer <ADMIN_TOKEN_FROM_SETUP>"
 ```
 
 **Admin vs Regular Users:**

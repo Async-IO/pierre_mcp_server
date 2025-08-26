@@ -19,8 +19,8 @@ python3 python/a2a/business_demo.py         # A2A business demonstration
 For the new multi-tenant MCP examples, ensure you have:
 
 1. **Fresh database**: `./scripts/fresh-start.sh`
-2. **Admin user**: `cargo run --bin admin-setup create-admin-user --email admin@example.com --password SecurePass123!`
-3. **Admin token**: `cargo run --bin admin-setup generate-token --service "demo"`
+2. **Admin setup**: `curl -X POST http://localhost:8081/admin/setup -H "Content-Type: application/json" -d '{"email": "admin@example.com", "password": "SecurePass123!", "display_name": "Admin"}'`
+3. **Use returned admin token**: Copy admin_token from setup response
 4. **Server running**: `cargo run --bin pierre-mcp-server`
 
 Then run the examples:

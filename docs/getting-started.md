@@ -38,28 +38,36 @@ INFO Database auto-created at ./data/users.db
 WARN Generated MEK for development (save for deployment): PIERRE_MASTER_ENCRYPTION_KEY=<base64_key>
 INFO MCP server listening on port 8080
 INFO HTTP server listening on port 8081
+INFO Server ready - admin setup available at POST /admin/setup
 ```
 
-### 2. Verify Server Running
+### 2. Create Admin User via Server API
+
+```bash
+# Create first admin user through server API
+curl -X POST http://localhost:8081/admin/setup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@example.com",
+    "password": "SecurePass123!",
+    "display_name": "System Administrator"
+  }'
+```
+
+**Expected output:**
+```json
+{
+  "user_id": "550e8400-e29b-41d4-a716-446655440000",
+  "admin_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+  "message": "Admin user admin@example.com created successfully with token"
+}
+```
+
+### 3. Verify Server Health
 
 ```bash
 curl http://localhost:8081/api/health
 # Should return: {"status":"healthy"}
-```
-
-### 3. Create Admin User
-
-```bash
-# Create first admin user
-cargo run --bin admin-setup create-admin-user --email admin@example.com --password SecurePass123!
-```
-
-**Expected output:**
-```
-Admin user created successfully!
-Email: admin@example.com
-Admin privileges: ENABLED (is_admin: true)
-JWT secret: GENERATED and stored in database
 ```
 
 ## User Management Workflow
@@ -81,16 +89,15 @@ curl -X POST http://localhost:8081/api/auth/register \
 New users are created with "pending" status. Admin must approve them:
 
 ```bash
-# 1. Generate admin token for API access
-cargo run --bin admin-setup generate-token --service "admin-dashboard"
+# 1. Use the admin token from the setup step above
 
 # 2. List pending users
 curl -X GET http://localhost:8081/admin/pending-users \
-  -H "Authorization: Bearer <ADMIN_JWT_TOKEN>"
+  -H "Authorization: Bearer <ADMIN_TOKEN_FROM_SETUP>"
 
 # 3. Approve user
 curl -X POST http://localhost:8081/admin/approve-user/<USER_ID> \
-  -H "Authorization: Bearer <ADMIN_JWT_TOKEN>"
+  -H "Authorization: Bearer <ADMIN_TOKEN_FROM_SETUP>"
 ```
 
 ### User Login (After Approval)
@@ -145,9 +152,20 @@ export PIERRE_MASTER_ENCRYPTION_KEY="<base64_key_from_logs>"
 # Configure PostgreSQL (optional)
 export DATABASE_URL="postgresql://user:pass@localhost/pierre"
 
+# Start server and create admin
+cargo run --bin pierre-mcp-server &
+ADMIN_TOKEN=$(curl -s -X POST http://localhost:8081/admin/setup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@example.com",
+    "password": "SecurePass123!",
+    "display_name": "System Administrator"
+  }' | jq -r '.admin_token')
+
 # Configure Strava OAuth
 curl -X POST http://localhost:8081/api/tenants/<TENANT_UUID>/oauth \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
   -d '{
     "provider": "strava",
     "client_id": "YOUR_STRAVA_CLIENT_ID",
@@ -176,9 +194,9 @@ curl http://localhost:8081/api/health
 ### 2. Admin Access
 
 ```bash
-# List users (requires admin token)
+# List users (use admin token from setup)
 curl -X GET http://localhost:8081/admin/users \
-  -H "Authorization: Bearer <ADMIN_JWT_TOKEN>"
+  -H "Authorization: Bearer <ADMIN_TOKEN_FROM_SETUP>"
 ```
 
 ### 3. MCP Protocol Test

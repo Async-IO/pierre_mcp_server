@@ -89,6 +89,22 @@ pub struct RevokeApiKeyRequest {
     pub reason: Option<String>,
 }
 
+/// Admin setup request
+#[derive(Debug, Deserialize)]
+pub struct AdminSetupRequest {
+    pub email: String,
+    pub password: String,
+    pub display_name: Option<String>,
+}
+
+/// Admin setup response
+#[derive(Debug, Serialize)]
+pub struct AdminSetupResponse {
+    pub user_id: String,
+    pub admin_token: String,
+    pub message: String,
+}
+
 /// Generic admin response
 #[derive(Debug, Serialize)]
 pub struct AdminResponse {
@@ -153,7 +169,7 @@ pub fn admin_routes(
     let revoke_route = revoke_api_key_route(context.clone());
     let list_keys_route = list_api_keys_route(context.clone());
     let token_info_route = token_info_route(context.clone());
-    let setup_status_route = setup_status_route(context.clone());
+    let setup_route = admin_setup_route(context.clone());
 
     // Admin token management routes
     let admin_tokens_list_route = admin_tokens_list_route(context.clone());
@@ -176,7 +192,7 @@ pub fn admin_routes(
         .or(revoke_route)
         .or(list_keys_route)
         .or(token_info_route)
-        .or(setup_status_route)
+        .or(setup_route)
         .or(admin_tokens_list_route)
         .or(admin_tokens_create_route)
         .or(admin_tokens_details_route)
@@ -202,7 +218,7 @@ pub fn admin_routes_with_scoped_recovery(
     let revoke_route = revoke_api_key_route(context.clone());
     let list_keys_route = list_api_keys_route(context.clone());
     let token_info_route = token_info_route(context.clone());
-    let setup_status_route = setup_status_route(context.clone());
+    let setup_route = admin_setup_route(context.clone());
 
     // Admin token management routes
     let admin_tokens_list_route = admin_tokens_list_route(context.clone());
@@ -225,7 +241,7 @@ pub fn admin_routes_with_scoped_recovery(
         .or(revoke_route)
         .or(list_keys_route)
         .or(token_info_route)
-        .or(setup_status_route)
+        .or(setup_route)
         .or(admin_tokens_list_route)
         .or(admin_tokens_create_route)
         .or(admin_tokens_details_route)
@@ -251,7 +267,7 @@ pub fn admin_routes_with_rejection(
     let revoke_route = revoke_api_key_route(context.clone());
     let list_keys_route = list_api_keys_route(context.clone());
     let token_info_route = token_info_route(context.clone());
-    let setup_status_route = setup_status_route(context.clone());
+    let setup_route = admin_setup_route(context.clone());
 
     // Admin token management routes
     let admin_tokens_list_route = admin_tokens_list_route(context.clone());
@@ -274,7 +290,7 @@ pub fn admin_routes_with_rejection(
         .or(revoke_route)
         .or(list_keys_route)
         .or(token_info_route)
-        .or(setup_status_route)
+        .or(setup_route)
         .or(admin_tokens_list_route)
         .or(admin_tokens_create_route)
         .or(admin_tokens_details_route)
@@ -346,6 +362,17 @@ fn token_info_route(
         ))
         .and(with_context(context))
         .and_then(handle_token_info)
+}
+
+/// Admin setup endpoint - creates first admin user and returns token
+fn admin_setup_route(
+    context: AdminApiContext,
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    warp::path!("setup")
+        .and(warp::post())
+        .and(warp::body::json())
+        .and(with_context(context))
+        .and_then(handle_admin_setup)
 }
 
 /// Admin health check endpoint
@@ -887,6 +914,139 @@ async fn handle_token_info(
     }
 }
 
+/// Handle admin setup - create first admin user and return token
+// Long function: Creates complete initial admin setup with validation and token generation
+#[allow(clippy::too_many_lines)]
+async fn handle_admin_setup(
+    request: AdminSetupRequest,
+    context: AdminApiContext,
+) -> Result<impl Reply, Rejection> {
+    info!("Admin setup request for email: {}", request.email);
+
+    // First check if any admin users already exist
+    match context.database.get_users_by_status("active").await {
+        Ok(users) => {
+            let admin_exists = users.iter().any(|u| u.is_admin);
+            if admin_exists {
+                let response = AdminResponse {
+                    success: false,
+                    message: "Admin user already exists. Use admin token management instead."
+                        .into(),
+                    data: None,
+                };
+                return Ok(with_status(json(&response), StatusCode::CONFLICT));
+            }
+        }
+        Err(e) => {
+            error!("Failed to check existing admin users: {}", e);
+            let response = AdminResponse {
+                success: false,
+                message: format!("Database error: {e}"),
+                data: None,
+            };
+            return Ok(with_status(
+                json(&response),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ));
+        }
+    }
+
+    // Create admin user
+    let user_id = Uuid::new_v4();
+    let password_hash = match bcrypt::hash(&request.password, bcrypt::DEFAULT_COST) {
+        Ok(hash) => hash,
+        Err(e) => {
+            error!("Failed to hash password: {}", e);
+            let response = AdminResponse {
+                success: false,
+                message: "Failed to process password".into(),
+                data: None,
+            };
+            return Ok(with_status(
+                json(&response),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ));
+        }
+    };
+
+    // Create admin user struct
+    let mut admin_user = crate::models::User::new(
+        request.email.clone(),
+        password_hash,
+        request.display_name.clone(),
+    );
+    admin_user.id = user_id;
+    admin_user.is_admin = true;
+    admin_user.user_status = crate::models::UserStatus::Active;
+
+    // Create user in database
+    match context.database.create_user(&admin_user).await {
+        Ok(_) => {
+            info!("Admin user created successfully: {}", request.email);
+
+            // Generate admin token immediately
+            let token_request = crate::admin::models::CreateAdminTokenRequest {
+                service_name: "initial_admin_setup".to_string(),
+                service_description: Some("Initial admin setup token".to_string()),
+                permissions: Some(vec![
+                    crate::admin::models::AdminPermission::ManageUsers,
+                    crate::admin::models::AdminPermission::ManageAdminTokens,
+                    crate::admin::models::AdminPermission::ProvisionKeys,
+                    crate::admin::models::AdminPermission::ListKeys,
+                    crate::admin::models::AdminPermission::UpdateKeyLimits,
+                    crate::admin::models::AdminPermission::RevokeKeys,
+                    crate::admin::models::AdminPermission::ViewAuditLogs,
+                ]),
+                is_super_admin: true,
+                expires_in_days: Some(365),
+            };
+
+            match context
+                .database
+                .create_admin_token(&token_request, &context.admin_jwt_secret)
+                .await
+            {
+                Ok(generated_token) => {
+                    let response = AdminSetupResponse {
+                        user_id: user_id.to_string(),
+                        admin_token: generated_token.jwt_token,
+                        message: format!(
+                            "Admin user {} created successfully with token",
+                            request.email
+                        ),
+                    };
+                    info!("Admin setup completed successfully for: {}", request.email);
+                    Ok(with_status(json(&response), StatusCode::CREATED))
+                }
+                Err(e) => {
+                    error!("Failed to generate admin token after creating user: {}", e);
+                    let response = AdminResponse {
+                        success: false,
+                        message: format!("User created but token generation failed: {e}"),
+                        data: None,
+                    };
+                    Ok(with_status(
+                        json(&response),
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                    ))
+                }
+            }
+        }
+        Err(e) => {
+            error!("Failed to create admin user: {}", e);
+            let response = AdminResponse {
+                success: false,
+                message: format!("Failed to create admin user: {e}"),
+                data: None,
+            };
+            Ok(with_status(
+                json(&response),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ))
+        }
+    }
+}
+
 /// Admin API error types
 #[derive(Debug)]
 pub enum AdminApiError {
@@ -964,47 +1124,6 @@ async fn handle_admin_rejection(err: Rejection) -> Result<impl Reply, std::conve
     };
 
     Ok(with_status(json(&response), status))
-}
-
-/// Setup status endpoint - check if admin user exists (no authentication required)
-fn setup_status_route(
-    context: AdminApiContext,
-) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-    warp::path!("setup-status")
-        .and(warp::get())
-        .and(warp::any().map(move || context.clone()))
-        .and_then(handle_setup_status)
-}
-
-/// Handle setup status check
-async fn handle_setup_status(context: AdminApiContext) -> Result<impl Reply, Rejection> {
-    info!("Checking setup status - admin user existence");
-
-    match context
-        .auth_manager
-        .check_setup_status(&context.database)
-        .await
-    {
-        Ok(status) => {
-            info!(
-                "Setup status check complete - needs_setup: {}, admin_exists: {}",
-                status.needs_setup, status.admin_user_exists
-            );
-            Ok(with_status(json(&status), StatusCode::OK))
-        }
-        Err(e) => {
-            warn!("Failed to check setup status: {}", e);
-            let error_status = crate::routes::SetupStatusResponse {
-                needs_setup: true,
-                admin_user_exists: false,
-                message: Some("Error checking setup status. Please contact administrator.".into()),
-            };
-            Ok(with_status(
-                json(&error_status),
-                StatusCode::INTERNAL_SERVER_ERROR,
-            ))
-        }
-    }
 }
 
 /// Admin token management routes
@@ -1604,24 +1723,9 @@ async fn handle_approve_user(
         return Ok(with_status(json(&response), StatusCode::BAD_REQUEST));
     };
 
-    // Get admin user ID for approval (use system admin for admin token operations)
-    let admin_user_id = match get_system_admin_user_id(&context.database).await {
-        Ok(id) => id,
-        Err(e) => {
-            error!("Failed to get system admin user ID: {}", e);
-            let response = UserManagementResponse {
-                success: false,
-                message: "Failed to get system admin user for approval".into(),
-                user: None,
-            };
-            return Ok(with_status(
-                json(&response),
-                StatusCode::INTERNAL_SERVER_ERROR,
-            ));
-        }
-    };
-
-    match approve_user_status(&context.database, user_uuid, &admin_user_id).await {
+    // Use JWT token ID as the approval authority (consistent with suspend_user_status)
+    // This eliminates the fragile dependency on finding an admin user in the database
+    match approve_user_status(&context.database, user_uuid, &admin_token.token_id).await {
         Ok(user) => {
             info!("User approved successfully: {}", user.email);
             let response = UserManagementResponse {
@@ -1782,31 +1886,11 @@ async fn suspend_user_status(
     Ok(user)
 }
 
-/// Get system admin user ID for approval operations
-async fn get_system_admin_user_id(database: &Database) -> Result<String> {
-    // For admin token operations, we need to use the system admin user ID
-    // Look for an active user with is_admin = true
-
-    // Debug: Log what we're looking for
-    tracing::debug!("Looking for system admin user for approval operations");
-
-    let users = database.get_users_by_status("active").await?;
-
-    tracing::debug!("Found {} active users", users.len());
-
-    for user in &users {
-        tracing::debug!(
-            "Checking user: {} with is_admin: {}",
-            user.email,
-            user.is_admin
-        );
-        if user.is_admin {
-            tracing::info!("Using admin user for approval: {}", user.email);
-            return Ok(user.id.to_string());
-        }
-    }
-
-    anyhow::bail!(
-        "No active admin user found for approval operations - all admins must have is_admin = true"
-    )
-}
+// ARCHITECTURE IMPROVEMENT: The previous get_system_admin_user_id() function has been removed
+// because it created an unnecessary dependency between admin-setup user creation and server operations.
+// Instead, we now use the validated JWT token ID directly as the approval authority.
+// This is more robust because:
+// 1. JWT tokens are already validated and authorized
+// 2. No database dependency or lookup required
+// 3. Consistent with suspend_user_status implementation
+// 4. Eliminates coupling between different code paths

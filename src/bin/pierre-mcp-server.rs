@@ -99,23 +99,16 @@ async fn main() -> Result<()> {
         key_manager.complete_initialization(&database).await?;
         info!("Two-tier key management system fully initialized");
 
-        // Get JWT secret from database (must exist - created by admin-setup)
-        let jwt_secret_string = if let Ok(secret) =
-            database.get_system_secret("admin_jwt_secret").await
-        {
-            info!(
-                "Admin JWT secret loaded from database (first 10 chars): {}...",
-                secret.chars().take(10).collect::<String>()
-            );
-            secret
-        } else {
-            error!("Admin JWT secret not found in database!");
-            error!("Please run the admin setup first:");
-            error!("  cargo run --bin admin-setup -- create-admin-user --email admin@example.com --password yourpassword");
-            return Err(anyhow::anyhow!(
-                "Admin JWT secret not found. Run admin-setup create-admin-user first."
-            ));
-        };
+        // Get or create JWT secret from database (for server-first bootstrap)
+        let jwt_secret_string = database
+            .get_or_create_system_secret("admin_jwt_secret")
+            .await?;
+
+        info!(
+            "Admin JWT secret ready (first 10 chars): {}...",
+            jwt_secret_string.chars().take(10).collect::<String>()
+        );
+        info!("Server is ready for admin setup via POST /admin/setup");
 
         // Initialize authentication manager
         let auth_manager = {

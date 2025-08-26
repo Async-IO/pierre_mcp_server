@@ -36,7 +36,7 @@ MCP server implementation for fitness data access from Strava and Fitbit provide
 |--------|---------|-------------|
 | `pierre-mcp-server` | Main server daemon | Always running (ports 8080 + 8081) |
 | `pierre-mcp-client` | MCP client for Claude | Claude Desktop integration |
-| `admin-setup` | Admin user management | Initial setup, user approval |
+| `/admin/setup` API | Admin user management | Initial setup via server API |
 
 ### Protocol Support
 - **MCP Protocol**: Port 8080 - AI assistants (Claude, ChatGPT), LLM applications  
@@ -89,11 +89,21 @@ cargo run --bin pierre-mcp-server
 # ✅ Database auto-created at ./data/users.db
 # ✅ MEK auto-generated for development
 
-# 3. Verify it works (30 seconds)
+# 3. Create admin user via server API (30 seconds)
+curl -X POST http://localhost:8081/admin/setup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@example.com",
+    "password": "SecurePass123!",
+    "display_name": "System Administrator"
+  }'
+# Returns: {"user_id": "...", "admin_token": "eyJ0eXAi...", "message": "Admin user created successfully"}
+
+# 4. Verify it works (30 seconds)
 curl http://localhost:8081/api/health
 # Should return: {"status":"healthy"}
 
-# 4. Ready! (30 seconds)
+# 5. Ready! (30 seconds)
 ./scripts/lint-and-test.sh  # Run full test suite
 # Ready to contribute
 ```
@@ -107,9 +117,19 @@ curl http://localhost:8081/api/health
 export PIERRE_MASTER_ENCRYPTION_KEY="$(openssl rand -base64 32)"
 echo "Save this MEK: $PIERRE_MASTER_ENCRYPTION_KEY"
 
-# Create default tenant
+# Create admin user and get admin token
+ADMIN_TOKEN=$(curl -s -X POST http://localhost:8081/admin/setup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@example.com",
+    "password": "SecurePass123!",
+    "display_name": "System Administrator"
+  }' | jq -r '.admin_token')
+
+# Create default tenant using admin token
 curl -X POST http://localhost:8081/api/tenants \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
   -d '{"name": "My Organization", "slug": "default", "plan": "starter"}'
 
 # Configure Strava OAuth (get credentials from developers.strava.com)
@@ -227,7 +247,7 @@ curl http://localhost:8081/api/health  # ✅ Should work
 curl -X POST http://localhost:8081/api/auth/register \
   -d '{"email":"user@example.com", "password":"pass123", "display_name":"User"}'
 
-# 2. Admin approval needed (admin user created via admin-setup binary)
+# 2. Admin approval needed (admin user created via /admin/setup API)
 # 3. User login
 curl -X POST http://localhost:8081/api/auth/login \
   -d '{"email":"user@example.com", "password":"pass123"}'

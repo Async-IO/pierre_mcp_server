@@ -138,7 +138,9 @@ When switching from SQLite to PostgreSQL:
 
 ```bash
 # 1. Export data if needed (optional)
-cargo run --bin admin-setup -- export-data > backup.json
+# Data export functionality moved to server API endpoints
+curl -X GET http://localhost:8081/admin/export-data \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" > backup.json
 
 # 2. Clean SQLite
 rm -f ./data/*.db
@@ -150,7 +152,11 @@ docker-compose up -d postgres
 export DATABASE_URL="postgresql://postgres:password@localhost:5432/pierre_mcp_server"
 
 # 5. Import data if needed (optional)
-cargo run --bin admin-setup -- import-data < backup.json
+# Data import functionality moved to server API endpoints
+curl -X POST http://localhost:8081/admin/import-data \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Content-Type: application/json" \
+  --data-binary @backup.json
 ```
 
 ## Troubleshooting
@@ -209,8 +215,8 @@ After cleaning your database, follow the standard setup process:
 
 1. Clean databases (as described above)
 2. Start the server: `cargo run --bin pierre-mcp-server`
-3. Create admin user: `cargo run --bin admin-setup -- create-admin-user`
-4. Generate tokens: `cargo run --bin admin-setup -- generate-token`
+3. Create admin user: `curl -X POST http://localhost:8081/admin/setup`
+4. Use admin token from setup response for API access
 5. Configure OAuth providers as needed
 
 This ensures you always start from a known, clean state.

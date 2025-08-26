@@ -65,12 +65,12 @@ Ready to code - see [CONTRIBUTING.md](../CONTRIBUTING.md) for your first contrib
 |--------|---------|
 | `pierre-mcp-server` | Main server (always running) |
 | `pierre-mcp-client` | MCP client for Claude Desktop |
-| `admin-setup` | Admin user management |
+| `/admin/setup` API | Admin user management via server API |
 
 ### Directory Structure
 ```
 src/
-├── bin/                 # Executables (pierre-mcp-server, admin-setup)
+├── bin/                 # Executables (pierre-mcp-server)
 ├── mcp/                 # MCP protocol implementation
 ├── a2a/                 # A2A protocol implementation  
 ├── providers/           # Fitness providers (Strava, Fitbit)
