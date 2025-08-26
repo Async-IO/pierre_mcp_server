@@ -58,10 +58,11 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Run backend tests with coverage (SQLite)
-        run: cargo llvm-cov --all-targets --all-features --lcov --output-path lcov-sqlite.info
+        run: cargo llvm-cov --all-targets --all-features --lcov --output-path lcov-sqlite.info -- --test-threads=1
         env:
           DATABASE_URL: "sqlite::memory:"
           ENCRYPTION_KEY: "dGVzdF9lbmNyeXB0aW9uX2tleV9mb3JfY2lfb25seV8zMg=="
+          CARGO_INCREMENTAL: 0
 
       - name: Upload SQLite coverage to Codecov
         uses: codecov/codecov-action@v3
@@ -146,7 +147,8 @@ jobs:
           RUST_LOG: "info"
 
       - name: Run all tests with coverage (PostgreSQL)
-        run: cargo llvm-cov --all-targets --features postgresql --lcov --output-path lcov-postgres.info -- --test-threads=1
+        run: timeout 1200 cargo llvm-cov --all-targets --features postgresql --lcov --output-path lcov-postgres.info -- --test-threads=1
+        timeout-minutes: 20
         env:
           DATABASE_URL: "postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server"
           ENCRYPTION_KEY: "dGVzdF9lbmNyeXB0aW9uX2tleV9mb3JfY2lfb25seV8zMg=="
