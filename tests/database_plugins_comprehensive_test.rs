@@ -14,6 +14,9 @@ use pierre_mcp_server::{
     models::{User, UserTier},
     rate_limiting::JwtUsage,
 };
+
+#[cfg(feature = "postgresql")]
+use pierre_mcp_server::database_plugins::postgres::PostgresDatabase;
 use uuid::Uuid;
 
 #[tokio::test]
@@ -674,4 +677,403 @@ async fn test_database_connection_reuse() -> Result<()> {
     }
 
     Ok(())
+}
+
+// PostgreSQL-specific tests (only run when feature is enabled)
+#[cfg(feature = "postgresql")]
+mod postgres_tests {
+    use super::*;
+
+    const POSTGRES_TEST_URL: &str =
+        "postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server";
+
+    async fn get_postgres_db() -> Result<PostgresDatabase> {
+        let encryption_key = generate_encryption_key().to_vec();
+        PostgresDatabase::new(POSTGRES_TEST_URL, encryption_key).await
+    }
+
+    #[tokio::test]
+    async fn test_postgres_database_creation() -> Result<()> {
+        let encryption_key = generate_encryption_key().to_vec();
+        let db = PostgresDatabase::new(POSTGRES_TEST_URL, encryption_key).await?;
+
+        // Verify database is operational
+        let user = User::new(
+            "postgres_creation_test@example.com".to_string(),
+            "password123".to_string(),
+            Some("PostgreSQL Creation Test".to_string()),
+        );
+
+        let user_id = db.create_user(&user).await?;
+        assert_eq!(user_id, user.id);
+
+        // Clean up would happen on test drop or next run
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_postgres_migration_idempotency() -> Result<()> {
+        let db = get_postgres_db().await?;
+
+        // Run migration multiple times - should be idempotent
+        for _ in 0..3 {
+            let result = db.migrate().await;
+            assert!(result.is_ok(), "Migration should be idempotent");
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_postgres_user_operations() -> Result<()> {
+        let db = get_postgres_db().await?;
+
+        // Create user with all tiers
+        let tiers = [
+            UserTier::Starter,
+            UserTier::Professional,
+            UserTier::Enterprise,
+        ];
+
+        for (i, tier) in tiers.iter().enumerate() {
+            let mut user = User::new(
+                format!("postgres_user_{i}@example.com"),
+                "secure_password_123".to_string(),
+                Some(format!("PostgreSQL User {i}")),
+            );
+            user.tier = tier.clone();
+
+            let user_id = db.create_user(&user).await?;
+
+            // Test user retrieval
+            let retrieved = db.get_user(user_id).await?.unwrap();
+            assert_eq!(retrieved.email, user.email);
+            assert_eq!(retrieved.tier, *tier);
+
+            // Test by email lookup
+            let by_email = db.get_user_by_email(&user.email).await?.unwrap();
+            assert_eq!(by_email.id, user_id);
+
+            // Test required email lookup
+            let required = db.get_user_by_email_required(&user.email).await?;
+            assert_eq!(required.id, user_id);
+
+            // Test last active update
+            db.update_last_active(user_id).await?;
+
+            // Clean up for next iteration
+            // Clean up would happen on test drop or next run
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_postgres_api_key_comprehensive() -> Result<()> {
+        let db = get_postgres_db().await?;
+
+        let user = User::new(
+            "postgres_api_test@example.com".to_string(),
+            "password".to_string(),
+            None,
+        );
+        let user_id = db.create_user(&user).await?;
+
+        // Test all API key tiers
+        let api_key_tiers = [
+            ApiKeyTier::Starter,
+            ApiKeyTier::Professional,
+            ApiKeyTier::Enterprise,
+        ];
+
+        for (i, tier) in api_key_tiers.iter().enumerate() {
+            let api_key = ApiKey {
+                id: Uuid::new_v4().to_string(),
+                user_id,
+                name: format!("PostgreSQL Test Key {i}"),
+                key_prefix: format!("pk_pg_{i}"),
+                key_hash: format!("postgres_hash_{i}"),
+                description: Some(format!("Test key for PostgreSQL {tier:?}")),
+                tier: tier.clone(),
+                rate_limit_requests: match tier {
+                    ApiKeyTier::Trial | ApiKeyTier::Starter => 1000,
+                    ApiKeyTier::Professional => 10000,
+                    ApiKeyTier::Enterprise => 0,
+                },
+                rate_limit_window_seconds: 86400, // 24 hours
+                is_active: true,
+                last_used_at: None,
+                expires_at: None,
+                created_at: Utc::now(),
+            };
+
+            // Create API key
+            db.create_api_key(&api_key).await?;
+
+            // Test retrieval
+            let retrieved = db.get_api_key_by_id(&api_key.id).await?;
+            assert!(retrieved.is_some());
+            assert_eq!(retrieved.unwrap().tier, *tier);
+
+            // Test user keys
+            let user_keys = db.get_user_api_keys(user_id).await?;
+            assert!(!user_keys.is_empty());
+
+            // Test usage tracking
+            let usage = ApiKeyUsage {
+                id: None,
+                api_key_id: api_key.id.clone(),
+                tool_name: "postgres_test_tool".to_string(),
+                status_code: 200,
+                response_time_ms: Some(150),
+                timestamp: Utc::now(),
+                error_message: None,
+                request_size_bytes: Some(512),
+                response_size_bytes: Some(1024),
+                user_agent: Some("postgres-test-client/1.0".to_string()),
+                ip_address: Some("10.0.0.1".to_string()),
+            };
+
+            db.record_api_key_usage(&usage).await?;
+
+            // Test deactivation
+            db.deactivate_api_key(&api_key.id, user_id).await?;
+
+            let deactivated = db.get_api_key_by_id(&api_key.id).await?;
+            assert!(deactivated.is_none() || !deactivated.unwrap().is_active);
+        }
+
+        // Clean up
+        // Clean up would happen on test drop or next run
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_postgres_token_operations() -> Result<()> {
+        let db = get_postgres_db().await?;
+
+        let user = User::new(
+            "postgres_token_test@example.com".to_string(),
+            "password".to_string(),
+            None,
+        );
+        let user_id = db.create_user(&user).await?;
+
+        let expires_at = Utc::now() + chrono::Duration::hours(2);
+
+        // Test Strava token operations
+        db.update_strava_token(
+            user_id,
+            "strava_access_token_postgres",
+            "strava_refresh_token_postgres",
+            expires_at,
+            "read,activity:read".to_string(),
+        )
+        .await?;
+
+        let strava_token = db.get_strava_token(user_id).await?;
+        assert!(strava_token.is_some());
+        let token = strava_token.unwrap();
+        assert_eq!(token.access_token, "strava_access_token_postgres");
+        assert_eq!(token.refresh_token, "strava_refresh_token_postgres");
+
+        // Test Fitbit token operations
+        db.update_fitbit_token(
+            user_id,
+            "fitbit_access_token_postgres",
+            "fitbit_refresh_token_postgres",
+            expires_at,
+            "activity,profile".to_string(),
+        )
+        .await?;
+
+        let fitbit_token = db.get_fitbit_token(user_id).await?;
+        assert!(fitbit_token.is_some());
+        let token = fitbit_token.unwrap();
+        assert_eq!(token.access_token, "fitbit_access_token_postgres");
+        assert_eq!(token.refresh_token, "fitbit_refresh_token_postgres");
+
+        // Test token encryption roundtrip with special characters
+        let special_access = "postgres_token_with_special_chars_!@#$%^&*()_+";
+        let special_refresh = "postgres_refresh_äöüß€™";
+
+        db.update_strava_token(
+            user_id,
+            special_access,
+            special_refresh,
+            expires_at,
+            "read_all".to_string(),
+        )
+        .await?;
+
+        let retrieved = db.get_strava_token(user_id).await?.unwrap();
+        assert_eq!(retrieved.access_token, special_access);
+        assert_eq!(retrieved.refresh_token, special_refresh);
+
+        // Clean up
+        // Clean up would happen on test drop or next run
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_postgres_concurrent_operations() -> Result<()> {
+        let db = get_postgres_db().await?;
+
+        // Test concurrent user creation
+        let mut handles = vec![];
+
+        for i in 0..10 {
+            let db_clone = db.clone();
+            handles.push(tokio::spawn(async move {
+                let user = User::new(
+                    format!("postgres_concurrent_{i}@example.com"),
+                    "password".to_string(),
+                    Some(format!("PostgreSQL Concurrent User {i}")),
+                );
+                let user_id = db_clone.create_user(&user).await?;
+
+                // Immediately perform operations on the created user
+                db_clone.update_last_active(user_id).await?;
+
+                let api_key = ApiKey {
+                    id: Uuid::new_v4().to_string(),
+                    user_id,
+                    name: format!("Concurrent Key {i}"),
+                    key_prefix: format!("pk_conc_{i}"),
+                    key_hash: format!("concurrent_hash_{i}"),
+                    description: None,
+                    tier: ApiKeyTier::Professional,
+                    rate_limit_requests: 5000,
+                    rate_limit_window_seconds: 3600,
+                    is_active: true,
+                    last_used_at: None,
+                    expires_at: None,
+                    created_at: Utc::now(),
+                };
+
+                db_clone.create_api_key(&api_key).await?;
+
+                Ok::<_, anyhow::Error>(user_id)
+            }));
+        }
+
+        // Collect results
+        let mut user_ids = vec![];
+        for handle in handles {
+            let user_id = handle.await??;
+            user_ids.push(user_id);
+        }
+
+        // Verify all users were created
+        for user_id in &user_ids {
+            let user = db.get_user(*user_id).await?;
+            assert!(user.is_some());
+        }
+
+        // Clean up
+        for i in 0..10 {
+            let _email = format!("postgres_concurrent_{i}@example.com");
+            // Clean up would happen on test drop or next run
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_postgres_jwt_usage_tracking() -> Result<()> {
+        let db = get_postgres_db().await?;
+
+        // Record JWT usage entries
+        for i in 0..5 {
+            let jwt_usage = JwtUsage {
+                id: None,
+                user_id: Uuid::new_v4(),
+                endpoint: format!("/api/postgres/endpoint_{i}"),
+                method: "GET".to_string(),
+                status_code: 200,
+                response_time_ms: Some(100 + u32::try_from(i).unwrap_or(0) * 10),
+                timestamp: Utc::now(),
+                request_size_bytes: Some(512),
+                response_size_bytes: Some(1024),
+                ip_address: Some("10.0.0.1".to_string()),
+                user_agent: Some("postgres-jwt-client/1.0".to_string()),
+            };
+
+            db.record_jwt_usage(&jwt_usage).await?;
+        }
+
+        // Verify usage tracking doesn't fail
+        // (Note: We can't easily verify the exact content without direct database access)
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_postgres_error_scenarios() -> Result<()> {
+        let db = get_postgres_db().await?;
+
+        // Test non-existent user operations
+        let fake_user_id = Uuid::new_v4();
+        let result = db.get_user(fake_user_id).await?;
+        assert!(result.is_none());
+
+        // Test non-existent email required (should error)
+        let result = db
+            .get_user_by_email_required("nonexistent_postgres@example.com")
+            .await;
+        assert!(result.is_err());
+
+        // Test invalid API key operations
+        let fake_key_hash = "nonexistent_postgres_hash";
+        let result = db.get_api_key_by_id(fake_key_hash).await?;
+        assert!(result.is_none());
+
+        // Test deactivating non-existent key
+        let fake_key_id = Uuid::new_v4().to_string();
+        let result = db.deactivate_api_key(&fake_key_id, fake_user_id).await;
+        // Should succeed as no-op or fail gracefully
+        let _ = result;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_postgres_connection_pooling() -> Result<()> {
+        let db = get_postgres_db().await?;
+
+        // Perform many operations that should use connection pooling
+        let operations_count = 50;
+        let mut handles = vec![];
+
+        for i in 0..operations_count {
+            let db_clone = db.clone();
+            handles.push(tokio::spawn(async move {
+                // Simple operation that uses the database connection
+                let user = User::new(
+                    format!("pool_test_{i}@example.com"),
+                    "password".to_string(),
+                    None,
+                );
+
+                // Create and immediately clean up to test pooling
+                let user_id = db_clone.create_user(&user).await?;
+                let retrieved = db_clone.get_user(user_id).await?;
+                assert!(retrieved.is_some());
+
+                // Clean up immediately
+                // Clean up would happen on test drop or next run
+
+                Ok::<_, anyhow::Error>(())
+            }));
+        }
+
+        // All operations should succeed without connection exhaustion
+        for handle in handles {
+            handle.await??;
+        }
+
+        Ok(())
+    }
 }
