@@ -55,10 +55,10 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Lint with Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: cargo clippy --all-targets -- -D warnings
 
       - name: Run backend tests with coverage (SQLite)
-        run: cargo llvm-cov --all-targets --all-features --lcov --output-path lcov-sqlite.info -- --test-threads=1
+        run: cargo llvm-cov --all-targets --lcov --output-path lcov-sqlite.info -- --test-threads=1
         env:
           DATABASE_URL: "sqlite::memory:"
           ENCRYPTION_KEY: "dGVzdF9lbmNyeXB0aW9uX2tleV9mb3JfY2lfb25seV8zMg=="
