@@ -290,10 +290,8 @@ async fn test_admin_token_management_workflow() -> Result<()> {
     println!("✅ Token revocation working");
 
     // Cleanup: Remove test database (only in local environment)
-    if std::env::var("CI").is_err() {
-        if database_url.starts_with("sqlite:./") {
-            let _ = std::fs::remove_file(&database_url[7..]); // Remove "sqlite:" prefix
-        }
+    if std::env::var("CI").is_err() && database_url.starts_with("sqlite:./") {
+        let _ = std::fs::remove_file(&database_url[7..]); // Remove "sqlite:" prefix
     }
 
     println!("🎉 ADMIN TOKEN MANAGEMENT WORKFLOW TEST PASSED!");
@@ -375,10 +373,8 @@ async fn test_admin_workflow_error_handling() -> Result<()> {
     println!("✅ Malformed UUID properly rejected");
 
     // Cleanup: Remove test database (only in local environment)
-    if std::env::var("CI").is_err() {
-        if database_url.starts_with("sqlite:./") {
-            let _ = std::fs::remove_file(&database_url[7..]); // Remove "sqlite:" prefix
-        }
+    if std::env::var("CI").is_err() && database_url.starts_with("sqlite:./") {
+        let _ = std::fs::remove_file(&database_url[7..]); // Remove "sqlite:" prefix
     }
 
     println!("🎉 ADMIN WORKFLOW ERROR HANDLING TEST PASSED!");
