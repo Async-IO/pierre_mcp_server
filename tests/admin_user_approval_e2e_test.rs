@@ -16,13 +16,15 @@ use warp::test::request;
 #[tokio::test]
 async fn test_complete_admin_user_approval_workflow() -> Result<()> {
     // Initialize test database with cleanup
-    let database_path = "./test_data/admin_approval_e2e_test.db";
-    let _ = std::fs::remove_file(database_path); // Clean up any existing test database
-    let database = Database::new(
-        &format!("sqlite:{database_path}"),
-        b"test_encryption_key_32_bytes_long".to_vec(),
-    )
-    .await?;
+    let database_url = if std::env::var("CI").is_ok() {
+        "sqlite::memory:".to_string()
+    } else {
+        let database_path = "./test_data/admin_approval_e2e_test.db";
+        let _ = std::fs::remove_file(database_path); // Clean up any existing test database
+        format!("sqlite:{database_path}")
+    };
+    let database =
+        Database::new(&database_url, b"test_encryption_key_32_bytes_long".to_vec()).await?;
 
     // Initialize JWT secret
     let jwt_secret = "test_jwt_secret_for_admin_approval_e2e_testing";
@@ -165,9 +167,13 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
 
     println!("✅ Admin conflict prevention working correctly");
 
-    // Cleanup: Remove test database
-    let _ = std::fs::remove_file(database_path);
-    println!("🧹 Test database cleaned up");
+    // Cleanup: Remove test database (only in local environment)
+    if std::env::var("CI").is_err() {
+        if let Ok(database_path) = std::env::var("TEST_DATABASE_PATH") {
+            let _ = std::fs::remove_file(&database_path);
+            println!("🧹 Test database cleaned up");
+        }
+    }
 
     println!("🎉 COMPLETE ADMIN USER APPROVAL WORKFLOW TEST PASSED!");
     println!("✅ Server-first admin setup working");
@@ -183,13 +189,15 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
 #[tokio::test]
 async fn test_admin_token_management_workflow() -> Result<()> {
     // Initialize test database
-    let database_path = "./test_data/admin_token_mgmt_test.db";
-    let _ = std::fs::remove_file(database_path);
-    let database = Database::new(
-        &format!("sqlite:{database_path}"),
-        b"test_encryption_key_32_bytes_long".to_vec(),
-    )
-    .await?;
+    let database_url = if std::env::var("CI").is_ok() {
+        "sqlite::memory:".to_string()
+    } else {
+        let database_path = "./test_data/admin_token_mgmt_test.db";
+        let _ = std::fs::remove_file(database_path);
+        format!("sqlite:{database_path}")
+    };
+    let database =
+        Database::new(&database_url, b"test_encryption_key_32_bytes_long".to_vec()).await?;
 
     let jwt_secret = "test_jwt_secret_for_token_management";
     let auth_manager = AuthManager::new(jwt_secret.as_bytes().to_vec(), 24);
@@ -281,8 +289,12 @@ async fn test_admin_token_management_workflow() -> Result<()> {
 
     println!("✅ Token revocation working");
 
-    // Cleanup
-    let _ = std::fs::remove_file(database_path);
+    // Cleanup: Remove test database (only in local environment)
+    if std::env::var("CI").is_err() {
+        if database_url.starts_with("sqlite:./") {
+            let _ = std::fs::remove_file(&database_url[7..]); // Remove "sqlite:" prefix
+        }
+    }
 
     println!("🎉 ADMIN TOKEN MANAGEMENT WORKFLOW TEST PASSED!");
 
@@ -292,13 +304,15 @@ async fn test_admin_token_management_workflow() -> Result<()> {
 /// Test error handling and edge cases
 #[tokio::test]
 async fn test_admin_workflow_error_handling() -> Result<()> {
-    let database_path = "./test_data/admin_error_handling_test.db";
-    let _ = std::fs::remove_file(database_path);
-    let database = Database::new(
-        &format!("sqlite:{database_path}"),
-        b"test_encryption_key_32_bytes_long".to_vec(),
-    )
-    .await?;
+    let database_url = if std::env::var("CI").is_ok() {
+        "sqlite::memory:".to_string()
+    } else {
+        let database_path = "./test_data/admin_error_handling_test.db";
+        let _ = std::fs::remove_file(database_path);
+        format!("sqlite:{database_path}")
+    };
+    let database =
+        Database::new(&database_url, b"test_encryption_key_32_bytes_long".to_vec()).await?;
 
     let jwt_secret = "test_jwt_secret_for_error_handling";
     let auth_manager = AuthManager::new(jwt_secret.as_bytes().to_vec(), 24);
@@ -360,8 +374,12 @@ async fn test_admin_workflow_error_handling() -> Result<()> {
     assert_eq!(malformed_id_response.status(), 400); // Bad request for malformed UUID
     println!("✅ Malformed UUID properly rejected");
 
-    // Cleanup
-    let _ = std::fs::remove_file(database_path);
+    // Cleanup: Remove test database (only in local environment)
+    if std::env::var("CI").is_err() {
+        if database_url.starts_with("sqlite:./") {
+            let _ = std::fs::remove_file(&database_url[7..]); // Remove "sqlite:" prefix
+        }
+    }
 
     println!("🎉 ADMIN WORKFLOW ERROR HANDLING TEST PASSED!");
 
