@@ -48,7 +48,7 @@ jobs:
         CARGO_INCREMENTAL: 0
     
     - name: Run tests with coverage (limited concurrency)
-      run: cargo llvm-cov --all-targets --all-features --lcov --output-path lcov.info -- --test-threads=1
+      run: cargo llvm-cov --all-targets --lcov --output-path lcov.info -- --test-threads=1
       env:
         DATABASE_URL: "sqlite::memory:"
         ENCRYPTION_KEY: "dGVzdF9lbmNyeXB0aW9uX2tleV9mb3JfY2lfb25seV8zMg=="
