@@ -35,8 +35,8 @@ MCP server implementation for fitness data access from Strava and Fitbit provide
 | Binary | Purpose | When to Use |
 |--------|---------|-------------|
 | `pierre-mcp-server` | Main server daemon | Always running (ports 8080 + 8081) |
-| `pierre-mcp-client` | MCP client for Claude | Claude Desktop integration |
-| `/admin/setup` API | Admin user management | Initial setup via server API |
+| `admin-setup` | Admin CLI (legacy) | Token management operations |
+| `/admin/setup` API | Admin user creation | Initial setup via server API |
 
 ### Protocol Support
 - **MCP Protocol**: Port 8080 - AI assistants (Claude, ChatGPT), LLM applications  
@@ -155,28 +155,15 @@ MCP server implementation compatible with MCP clients following the Model Contex
 
 ### MCP Configuration
 
-Standard MCP client binary for MCP-compatible applications:
+Pierre MCP Server provides HTTP MCP transport on port 8080 at `/mcp` endpoint.
 
-#### Option 1: Direct MCP Binary
-```json
-{
-  "mcpServers": {
-    "pierre-fitness": {
-      "command": "/path/to/pierre_mcp_server/target/release/pierre-mcp-client",
-      "args": ["--server-url", "http://localhost:8081"],
-      "env": {
-        "PIERRE_JWT_TOKEN": "YOUR_JWT_TOKEN"
-      }
-    }
-  }
-}
-```
+**Note:** A standalone `pierre-mcp-client` binary is planned but not yet available. Currently, use HTTP transport directly or create a custom STDIO-to-HTTP bridge.
 
-#### Option 2: HTTP MCP Transport
+#### Direct HTTP MCP Access
 ```bash
-# For clients that support HTTP MCP transport
+# Test MCP endpoint directly
 curl -X POST http://localhost:8080/mcp \
-  -H "Authorization: Bearer JWT_TOKEN" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",
@@ -186,20 +173,70 @@ curl -X POST http://localhost:8080/mcp \
   }'
 ```
 
-### Client-Specific Examples
+### Client Integration Options
 
 <details>
-<summary><strong>Claude Desktop</strong></summary>
+<summary><strong>Claude Desktop (Experimental)</strong></summary>
 
-Add to `~/.claude/claude_desktop_config.json`:
+**Option 1: HTTP Transport (if supported by your Claude version)**
 ```json
 {
   "mcpServers": {
     "pierre-fitness": {
-      "command": "/path/to/pierre_mcp_server/target/release/pierre-mcp-client",
-      "args": ["--server-url", "http://localhost:8081"],
+      "transport": {
+        "type": "http",
+        "url": "http://localhost:8080/mcp",
+        "headers": {
+          "Authorization": "Bearer YOUR_JWT_TOKEN"
+        }
+      }
+    }
+  }
+}
+```
+
+**Option 2: STDIO Bridge Script**
+Create a bridge script (`pierre-mcp-bridge.js`):
+```javascript
+#!/usr/bin/env node
+const readline = require('readline');
+const http = require('http');
+
+const JWT_TOKEN = process.env.PIERRE_JWT_TOKEN;
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+  terminal: false
+});
+
+rl.on('line', async (line) => {
+  try {
+    const request = JSON.parse(line);
+    const response = await fetch('http://localhost:8080/mcp', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${JWT_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(request)
+    });
+    const result = await response.json();
+    console.log(JSON.stringify(result));
+  } catch (e) {
+    console.error(JSON.stringify({error: e.message}));
+  }
+});
+```
+
+Then configure Claude Desktop:
+```json
+{
+  "mcpServers": {
+    "pierre-fitness": {
+      "command": "node",
+      "args": ["/path/to/pierre-mcp-bridge.js"],
       "env": {
-        "PIERRE_JWT_TOKEN": "your-jwt-token"
+        "PIERRE_JWT_TOKEN": "YOUR_JWT_TOKEN"
       }
     }
   }
@@ -210,23 +247,28 @@ Add to `~/.claude/claude_desktop_config.json`:
 <details>
 <summary><strong>Custom MCP Clients</strong></summary>
 
-Use the MCP protocol directly:
+Direct HTTP integration:
 ```python
-import asyncio
+import httpx
 import json
-from mcp import ClientSession, StdioServerParameters
 
-async def main():
-    server_params = StdioServerParameters(
-        command="/path/to/pierre-mcp-client",
-        args=["--server-url", "http://localhost:8081"],
-        env={"PIERRE_JWT_TOKEN": "your-jwt-token"}
-    )
-    
-    async with ClientSession(server_params) as session:
-        await session.initialize()
-        tools = await session.list_tools()
-        print(f"Available tools: {[tool.name for tool in tools]}")
+async def call_mcp(method, params=None):
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "http://localhost:8080/mcp",
+            headers={"Authorization": "Bearer YOUR_JWT_TOKEN"},
+            json={
+                "jsonrpc": "2.0",
+                "method": method,
+                "params": params or {},
+                "id": 1
+            }
+        )
+        return response.json()
+
+# Example usage
+tools = await call_mcp("tools/list")
+print(f"Available tools: {tools}")
 ```
 </details>
 
