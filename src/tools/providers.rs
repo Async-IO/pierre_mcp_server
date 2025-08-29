@@ -4,7 +4,6 @@
 use crate::database_plugins::factory::Database;
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::AppError;
-use crate::models::DecryptedToken;
 use crate::providers::FitnessProvider;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -162,45 +161,6 @@ impl ProviderManager {
         })
     }
 
-    /// Get an authenticated provider instance
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - Token is not found or expired
-    /// - Provider creation fails
-    /// - Authentication fails
-    pub async fn get_authenticated_provider(
-        &self,
-        user_id: Uuid,
-        provider_type: ProviderType,
-    ) -> Result<Arc<Box<dyn FitnessProvider>>, AppError> {
-        // Check cache first
-        {
-            let cache = self.provider_cache.read().await;
-            if let Some(provider) = cache.get(&(user_id, provider_type.clone())) {
-                return Ok(provider.clone());
-            }
-        }
-
-        // Get token from database
-        let token = match provider_type {
-            ProviderType::Strava => self.database.get_strava_token(user_id).await?,
-            ProviderType::Fitbit => self.database.get_fitbit_token(user_id).await?,
-        }
-        .ok_or_else(|| AppError::not_found(format!("{provider_type} token for user")))?;
-
-        // Check if token is expired and attempt refresh if needed
-        // Note: Token refresh handled by tenant provider internally
-        if token.expires_at <= chrono::Utc::now() {
-            Self::refresh_token(user_id, provider_type.clone(), &token)?;
-        }
-
-        // Create tenant-aware provider instead
-        Err(AppError::config(
-            "ProviderManager deprecated - use TenantProviderFactory".to_string(),
-        ))
-    }
-
     /// Disconnect a provider for a user
     /// # Errors
     ///
@@ -234,18 +194,6 @@ impl ProviderManager {
         user_id: Uuid,
     ) -> Result<Vec<ProviderInfo>, AppError> {
         self.get_user_providers(user_id).await
-    }
-
-    /// Refresh an expired token
-    fn refresh_token(
-        _user_id: Uuid,
-        _provider_type: ProviderType,
-        _current_token: &DecryptedToken,
-    ) -> Result<DecryptedToken, AppError> {
-        // Token refresh requires tenant-aware provider factory
-        Err(AppError::config(
-            "Token refresh requires TenantProviderFactory".to_string(),
-        ))
     }
 
     /// Clear the provider cache for a user (useful for logout)

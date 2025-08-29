@@ -31,12 +31,20 @@ MCP server implementation for fitness data access from Strava and Fitbit provide
 | **Admin actions** | 8081 | `POST /admin/*` | Admin JWT | Approve users, etc. |
 | **A2A protocol** | 8081 | `POST /a2a/*` | Client credentials | Agent-to-agent comms |
 
-### Binaries
+### Binaries  
 | Binary | Purpose | When to Use |
 |--------|---------|-------------|
 | `pierre-mcp-server` | Main server daemon | Always running (ports 8080 + 8081) |
-| `admin-setup` | Admin CLI (legacy) | Token management operations |
-| `/admin/setup` API | Admin user creation | Initial setup via server API |
+| `admin-setup` | Admin CLI tool | Token management operations |
+| `auth-setup` | Auth configuration CLI | Configure authentication settings |
+| `diagnose-weather-api` | Weather API diagnostic | Debug weather integration |
+| `serve-docs` | Documentation server | Serve API documentation |
+
+### API Endpoints
+| Endpoint | Purpose | Method | Auth Required |
+|----------|---------|--------|---------------|
+| `/admin/setup` | Create first admin user | POST | None (first-time only) |
+| `/admin/setup-status` | Check setup status | GET | None |
 
 ### Protocol Support
 - **MCP Protocol**: Port 8080 - AI assistants (Claude, ChatGPT), LLM applications  
@@ -60,20 +68,6 @@ Navigate all available documentation by topic and user type.
 - [Developer Guide](docs/developer-guide/README.md) - Architecture, protocols, testing
 - [Contributing Guide](CONTRIBUTING.md) - Code standards and workflow
 - [Security Guide](docs/developer-guide/17-security-guide.md) - Two-tier key management, deployment security
-
-## Quick Setup
-
-### Prerequisites (Choose One)
-
-**👥 New Contributor** (Recommended)
-- Only **Rust 1.75+** required: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
-- SQLite auto-created, no external dependencies
-- Perfect for: Contributing code, testing, learning
-
-**🚀 Full Development**  
-- **Rust 1.75+** + **Strava app** (create at [developers.strava.com](https://developers.strava.com))
-- Optional: PostgreSQL, Redis
-- Perfect for: Multi-user deployment, full feature testing
 
 ### Setup
 
@@ -127,15 +121,24 @@ ADMIN_TOKEN=$(curl -s -X POST http://localhost:8081/admin/setup \
   }' | jq -r '.admin_token')
 
 # Create default tenant using admin token
-curl -X POST http://localhost:8081/api/tenants \
+TENANT_RESPONSE=$(curl -s -X POST http://localhost:8081/api/tenants \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -d '{"name": "My Organization", "slug": "default", "plan": "starter"}'
+  -d '{"name": "My Organization", "slug": "default", "plan": "starter"}')
+
+TENANT_ID=$(echo $TENANT_RESPONSE | jq -r '.tenant_id')
 
 # Configure Strava OAuth (get credentials from developers.strava.com)
-curl -X POST http://localhost:8081/api/tenants/{TENANT_UUID}/oauth \
+curl -X POST http://localhost:8081/api/tenants/$TENANT_ID/oauth \
   -H "Content-Type: application/json" \
-  -d '{"provider": "strava", "client_id": "YOUR_CLIENT_ID", "client_secret": "YOUR_CLIENT_SECRET", "redirect_uri": "http://localhost:8081/api/oauth/callback/strava", "scopes": ["read", "activity:read_all"]}'
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -d '{
+    "provider": "strava",
+    "client_id": "YOUR_STRAVA_CLIENT_ID",
+    "client_secret": "YOUR_STRAVA_CLIENT_SECRET", 
+    "redirect_uri": "http://localhost:8081/api/oauth/callback/strava",
+    "scopes": ["read", "activity:read_all"]
+  }'
 ```
 </details>
 
@@ -153,13 +156,11 @@ MCP server implementation compatible with MCP clients following the Model Contex
 | **Continue.dev** | VS Code | MCP plugin |
 | **Custom agents** | Any platform | Direct MCP protocol |
 
-### MCP Configuration
+### MCP Integration
 
-Pierre MCP Server provides HTTP MCP transport on port 8080 at `/mcp` endpoint.
+The server provides an HTTP MCP endpoint at port 8080, path `/mcp`.
 
-**Note:** A standalone `pierre-mcp-client` binary is planned but not yet available. Currently, use HTTP transport directly or create a custom STDIO-to-HTTP bridge.
-
-#### Direct HTTP MCP Access
+#### Direct HTTP MCP Testing
 ```bash
 # Test MCP endpoint directly
 curl -X POST http://localhost:8080/mcp \
@@ -167,110 +168,69 @@ curl -X POST http://localhost:8080/mcp \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",
-    "method": "tools/list",
+    "method": "tools/list", 
     "params": {},
     "id": 1
   }'
 ```
 
-### Client Integration Options
+#### Claude Desktop Configuration
 
-<details>
-<summary><strong>Claude Desktop (Experimental)</strong></summary>
+Add to `~/.claude/claude_desktop_config.json`:
 
-**Option 1: HTTP Transport (if supported by your Claude version)**
 ```json
 {
   "mcpServers": {
     "pierre-fitness": {
-      "transport": {
-        "type": "http",
-        "url": "http://localhost:8080/mcp",
-        "headers": {
-          "Authorization": "Bearer YOUR_JWT_TOKEN"
-        }
-      }
-    }
-  }
-}
-```
-
-**Option 2: STDIO Bridge Script**
-Create a bridge script (`pierre-mcp-bridge.js`):
-```javascript
-#!/usr/bin/env node
-const readline = require('readline');
-const http = require('http');
-
-const JWT_TOKEN = process.env.PIERRE_JWT_TOKEN;
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout,
-  terminal: false
-});
-
-rl.on('line', async (line) => {
-  try {
-    const request = JSON.parse(line);
-    const response = await fetch('http://localhost:8080/mcp', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${JWT_TOKEN}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(request)
-    });
-    const result = await response.json();
-    console.log(JSON.stringify(result));
-  } catch (e) {
-    console.error(JSON.stringify({error: e.message}));
-  }
-});
-```
-
-Then configure Claude Desktop:
-```json
-{
-  "mcpServers": {
-    "pierre-fitness": {
-      "command": "node",
-      "args": ["/path/to/pierre-mcp-bridge.js"],
+      "command": "/path/to/your/pierre_mcp_server/scripts/mcp-client.sh",
       "env": {
-        "PIERRE_JWT_TOKEN": "YOUR_JWT_TOKEN"
+        "PIERRE_JWT_TOKEN": "YOUR_JWT_TOKEN_HERE",
+        "PIERRE_SERVER_URL": "http://127.0.0.1:8080/mcp"
       }
     }
   }
 }
 ```
-</details>
 
-<details>
-<summary><strong>Custom MCP Clients</strong></summary>
+Replace:
+- `/path/to/your/pierre_mcp_server/scripts/mcp-client.sh` with the actual path to your installation
+- `YOUR_JWT_TOKEN_HERE` with a JWT token from user login or admin token generation
 
-Direct HTTP integration:
-```python
-import httpx
-import json
+## Troubleshooting
 
-async def call_mcp(method, params=None):
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            "http://localhost:8080/mcp",
-            headers={"Authorization": "Bearer YOUR_JWT_TOKEN"},
-            json={
-                "jsonrpc": "2.0",
-                "method": method,
-                "params": params or {},
-                "id": 1
-            }
-        )
-        return response.json()
+### "Legacy OAuth not supported" Error
 
-# Example usage
-tools = await call_mcp("tools/list")
-print(f"Available tools: {tools}")
+**Problem**: MCP tools return "Legacy OAuth not supported. Please configure OAuth credentials at tenant level."
+
+**Cause**: The system uses tenant-based OAuth configuration. Direct OAuth tools are disabled.
+
+**Solution**: Configure OAuth at the tenant level:
+
+```bash
+# 1. Create a tenant (requires admin token)
+TENANT_RESPONSE=$(curl -s -X POST http://localhost:8081/api/tenants \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
+  -d '{"name": "My Tenant", "slug": "default", "plan": "starter"}')
+
+TENANT_ID=$(echo $TENANT_RESPONSE | jq -r '.tenant_id')
+
+# 2. Configure Strava OAuth for the tenant
+curl -X POST http://localhost:8081/api/tenants/$TENANT_ID/oauth \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
+  -d '{
+    "provider": "strava",
+    "client_id": "YOUR_STRAVA_CLIENT_ID",
+    "client_secret": "YOUR_STRAVA_CLIENT_SECRET",
+    "redirect_uri": "http://localhost:8081/api/oauth/callback/strava", 
+    "scopes": ["read", "activity:read_all"]
+  }'
+
+# 3. Now MCP tools will work with tenant-based OAuth
 ```
-</details>
+
+**Required**: Get Strava credentials from [developers.strava.com](https://developers.strava.com)
 
 ## Common Workflows
 

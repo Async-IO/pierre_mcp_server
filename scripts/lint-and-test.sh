@@ -6,7 +6,7 @@
 
 set -e  # Exit on any error
 
-echo "🔍 Running Pierre MCP Server Validation Suite..."
+echo "Running Pierre MCP Server Validation Suite..."
 
 # Parse command line arguments
 ENABLE_COVERAGE=false
@@ -63,12 +63,17 @@ ALL_PASSED=true
 echo ""
 echo -e "${BLUE}==== Rust Backend Checks ====${NC}"
 
-# Check Rust formatting
-echo -e "${BLUE}==== Checking Rust code formatting... ====${NC}"
+# Auto-format Rust code
+echo -e "${BLUE}==== Auto-formatting Rust code... ====${NC}"
+cargo fmt --all
+echo -e "${GREEN}[OK] Rust code formatting applied${NC}"
+
+# Check Rust formatting to verify it's correct
+echo -e "${BLUE}==== Verifying Rust code formatting... ====${NC}"
 if cargo fmt --all -- --check; then
     echo -e "${GREEN}[OK] Rust code formatting is correct${NC}"
 else
-    echo -e "${RED}[FAIL] Rust code formatting issues found. Run 'cargo fmt --all' to fix.${NC}"
+    echo -e "${RED}[FAIL] Rust code formatting issues found after auto-format${NC}"
     ALL_PASSED=false
 fi
 
@@ -128,7 +133,7 @@ if [ "$OBSOLETE_FUNCTIONS" -gt 1 ]; then  # Allow 1 legitimate function
 fi
 
 if [ "$ANTI_PATTERNS_FOUND" = true ]; then
-    echo -e "${RED}🚨 FAST FAIL: Fix architectural anti-patterns before continuing${NC}"
+    echo -e "${RED}FAST FAIL: Fix architectural anti-patterns before continuing${NC}"
     echo -e "${RED}   These issues violate good Rust practices and may cause failures${NC}"
     exit 1
 fi
@@ -246,12 +251,54 @@ elif [ "$TEMPORARY" -gt 0 ]; then
 fi
 
 if [ "$CODE_QUALITY_ISSUES" = true ]; then
-    echo -e "${RED}🚨 FAST FAIL: Fix code quality issues before continuing${NC}"
+    echo -e "${RED}FAST FAIL: Fix code quality issues before continuing${NC}"
     echo -e "${RED}   These patterns violate good Rust practices${NC}"
     exit 1
 fi
 
 echo -e "${GREEN}[OK] No prohibited code patterns found - ready for compilation${NC}"
+
+# FAST FAIL: Check for legacy functions that throw nonsense behavior
+echo -e "${BLUE}==== Checking for legacy functions (FAST FAIL)... ====${NC}"
+
+# Check for legacy OAuth patterns and deprecated functions
+LEGACY_OAUTH=$(rg "Legacy OAuth not supported|legacy.*oauth|connect_strava|connect_fitbit" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+DEPRECATED_FUNCTIONS=$(rg "deprecated.*use.*instead|Universal.*deprecated|ProviderManager deprecated" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+LEGACY_TOOLS=$(rg "Legacy tool.*deprecated" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+
+LEGACY_ISSUES_FOUND=false
+
+if [ "$LEGACY_OAUTH" -gt 0 ]; then 
+    echo -e "${RED}[CRITICAL] Found $LEGACY_OAUTH legacy OAuth patterns - will confuse users${NC}"
+    echo -e "${RED}           Legacy OAuth functions advertise but don't work${NC}"
+    rg "Legacy OAuth not supported|legacy.*oauth|connect_strava|connect_fitbit" src/ -n | head -5
+    LEGACY_ISSUES_FOUND=true
+    ALL_PASSED=false
+fi
+
+if [ "$DEPRECATED_FUNCTIONS" -gt 0 ]; then 
+    echo -e "${RED}[CRITICAL] Found $DEPRECATED_FUNCTIONS deprecated functions that throw errors${NC}"
+    echo -e "${RED}           These functions are called but always return errors${NC}"
+    rg "deprecated.*use.*instead|Universal.*deprecated|ProviderManager deprecated" src/ -n | head -5
+    LEGACY_ISSUES_FOUND=true
+    ALL_PASSED=false
+fi
+
+if [ "$LEGACY_TOOLS" -gt 0 ]; then 
+    echo -e "${RED}[CRITICAL] Found $LEGACY_TOOLS legacy tool handlers that throw errors${NC}"
+    echo -e "${RED}           These tools are advertised but always fail when called${NC}"
+    rg "Legacy tool.*deprecated" src/ -n | head -5
+    LEGACY_ISSUES_FOUND=true
+    ALL_PASSED=false
+fi
+
+if [ "$LEGACY_ISSUES_FOUND" = true ]; then
+    echo -e "${RED}FAST FAIL: Remove legacy functions that confuse users${NC}"
+    echo -e "${RED}   Functions that advertise but don't work create poor UX${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}[OK] No legacy functions found that throw nonsense behavior${NC}"
 
 # Run Clippy linter with STRICT settings (dev standards compliance)
 echo -e "${BLUE}==== Running Rust linter (Clippy) - STRICT MODE... ====${NC}"
@@ -259,7 +306,7 @@ if cargo clippy --all-targets --all-features --quiet -- -W clippy::all -W clippy
     echo -e "${GREEN}[OK] Rust linting passed (STRICT dev standards compliance)${NC}"
 else
     echo -e "${RED}[FAIL] Rust linting failed - dev standards compliance violation${NC}"
-    echo -e "${YELLOW}💡 Fix ALL clippy warnings to meet dev standards${NC}"
+    echo -e "${YELLOW}Fix ALL clippy warnings to meet dev standards${NC}"
     ALL_PASSED=false
 fi
 
@@ -613,7 +660,7 @@ echo -e "${GREEN}[OK] Final cleanup completed${NC}"
 echo ""
 echo -e "${BLUE}==== Dev Standards Compliance Summary ====${NC}"
 if [ "$ALL_PASSED" = true ]; then
-    echo -e "${GREEN}✅ ALL VALIDATION PASSED - Task can be marked complete${NC}"
+    echo -e "${GREEN}ALL VALIDATION PASSED - Task can be marked complete${NC}"
     echo ""
     echo "[OK] Rust formatting"
     echo "[OK] Rust linting (STRICT dev standards compliance)"
@@ -640,10 +687,10 @@ if [ "$ALL_PASSED" = true ]; then
         echo "[OK] Python examples validation"
     fi
     echo ""
-    echo -e "${GREEN}🚀 Code meets ALL dev standards and is ready for production!${NC}"
+    echo -e "${GREEN}Code meets ALL dev standards and is ready for production!${NC}"
     exit 0
 else
-    echo -e "${RED}❌ VALIDATION FAILED - Task cannot be marked complete${NC}"
+    echo -e "${RED}VALIDATION FAILED - Task cannot be marked complete${NC}"
     echo -e "${RED}Fix ALL issues above to meet dev standards requirements${NC}"
     exit 1
 fi

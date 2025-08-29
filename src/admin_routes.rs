@@ -129,6 +129,12 @@ pub struct AdminTokenInfoResponse {
 #[derive(Debug, Deserialize)]
 pub struct ApproveUserRequest {
     pub reason: Option<String>,
+    /// Auto-create default tenant for single-user workflows
+    pub create_default_tenant: Option<bool>,
+    /// Custom tenant name (if `create_default_tenant` is true)
+    pub tenant_name: Option<String>,
+    /// Custom tenant slug (if `create_default_tenant` is true)
+    pub tenant_slug: Option<String>,
 }
 
 /// User management response
@@ -137,6 +143,16 @@ pub struct UserManagementResponse {
     pub success: bool,
     pub message: String,
     pub user: Option<UserInfo>,
+    pub tenant_created: Option<TenantCreatedInfo>,
+}
+
+/// Information about created tenant
+#[derive(Debug, Serialize)]
+pub struct TenantCreatedInfo {
+    pub tenant_id: String,
+    pub name: String,
+    pub slug: String,
+    pub plan: String,
 }
 
 /// User information for admin responses
@@ -1766,26 +1782,54 @@ async fn handle_approve_user(
             success: false,
             message: "Invalid user ID format".into(),
             user: None,
+            tenant_created: None,
         };
         return Ok(with_status(json(&response), StatusCode::BAD_REQUEST));
     };
 
     // Use JWT token ID as the approval authority (consistent with suspend_user_status)
     // This eliminates the fragile dependency on finding an admin user in the database
-    match approve_user_status(&context.database, user_uuid, &admin_token.token_id).await {
-        Ok(user) => {
+    match approve_user_with_optional_tenant(
+        &context.database,
+        user_uuid,
+        &admin_token.token_id,
+        &request,
+    )
+    .await
+    {
+        Ok((user, tenant_info)) => {
             info!("User approved successfully: {}", user.email);
+            let mut success_message = format!(
+                "User {} approved successfully{}",
+                user.email,
+                request
+                    .reason
+                    .map(|r| format!(" (Reason: {r})"))
+                    .unwrap_or_default()
+            );
+
+            let tenant_created = if let Some(tenant) = tenant_info {
+                use std::fmt::Write;
+                let _ = write!(
+                    &mut success_message,
+                    " and default tenant '{}' created",
+                    tenant.name
+                );
+                Some(TenantCreatedInfo {
+                    tenant_id: tenant.id.to_string(),
+                    name: tenant.name,
+                    slug: tenant.slug,
+                    plan: tenant.plan,
+                })
+            } else {
+                None
+            };
+
             let response = UserManagementResponse {
                 success: true,
-                message: format!(
-                    "User {} approved successfully{}",
-                    user.email,
-                    request
-                        .reason
-                        .map(|r| format!(" (Reason: {r})"))
-                        .unwrap_or_default()
-                ),
+                message: success_message,
                 user: Some(user_to_info(user)),
+                tenant_created,
             };
             Ok(with_status(json(&response), StatusCode::OK))
         }
@@ -1801,6 +1845,7 @@ async fn handle_approve_user(
                 success: false,
                 message: format!("Failed to approve user: {e}"),
                 user: None,
+                tenant_created: None,
             };
             Ok(with_status(
                 json(&response),
@@ -1827,6 +1872,7 @@ async fn handle_suspend_user(
             success: false,
             message: "Invalid user ID format".into(),
             user: None,
+            tenant_created: None,
         };
         return Ok(with_status(json(&response), StatusCode::BAD_REQUEST));
     };
@@ -1845,6 +1891,7 @@ async fn handle_suspend_user(
                         .unwrap_or_default()
                 ),
                 user: Some(user_to_info(user)),
+                tenant_created: None,
             };
             Ok(with_status(json(&response), StatusCode::OK))
         }
@@ -1854,6 +1901,7 @@ async fn handle_suspend_user(
                 success: false,
                 message: format!("Failed to suspend user: {e}"),
                 user: None,
+                tenant_created: None,
             };
             Ok(with_status(
                 json(&response),
@@ -1894,31 +1942,99 @@ async fn get_users_by_status(database: &Database, status: UserStatus) -> Result<
     Ok(users)
 }
 
-/// Approve user and update status
-async fn approve_user_status(
+/// Approve user and optionally create default tenant in a single transaction
+async fn approve_user_with_optional_tenant(
     database: &Database,
     user_id: Uuid,
     admin_token_id: &str,
-) -> Result<User> {
+    request: &ApproveUserRequest,
+) -> Result<(User, Option<crate::models::Tenant>)> {
     info!(
         "Attempting to approve user: {} with admin token: {}",
         user_id, admin_token_id
     );
 
-    match database
+    // First approve the user
+    let user = match database
         .update_user_status(user_id, UserStatus::Active, admin_token_id)
         .await
     {
         Ok(user) => {
             info!("Successfully approved user: {} ({})", user.email, user_id);
-            Ok(user)
+            user
         }
         Err(e) => {
             error!("Failed to approve user {}: {}", user_id, e);
             error!("Error details: {:?}", e);
-            Err(e)
+            return Err(e);
         }
+    };
+
+    // Optionally create default tenant
+    let tenant_info = if request.create_default_tenant.unwrap_or(false) {
+        let tenant_name = request.tenant_name.clone().unwrap_or_else(|| {
+            format!(
+                "{}'s Organization",
+                user.display_name.as_ref().unwrap_or(&user.email)
+            )
+        });
+        let tenant_slug = request
+            .tenant_slug
+            .clone()
+            .unwrap_or_else(|| format!("user-{}", user.id.simple()));
+
+        match create_default_tenant_for_user(database, user_id, &tenant_name, &tenant_slug).await {
+            Ok(tenant) => {
+                info!(
+                    "Created default tenant '{}' for user {}",
+                    tenant.name, user.email
+                );
+                Some(tenant)
+            }
+            Err(e) => {
+                warn!(
+                    "Failed to create default tenant for user {}: {}. User approval succeeded.",
+                    user.email, e
+                );
+                // Don't fail the entire approval if tenant creation fails
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    Ok((user, tenant_info))
+}
+
+/// Create default tenant for a user
+async fn create_default_tenant_for_user(
+    database: &Database,
+    owner_user_id: Uuid,
+    tenant_name: &str,
+    tenant_slug: &str,
+) -> Result<crate::models::Tenant> {
+    let tenant_id = Uuid::new_v4();
+    let slug = tenant_slug.trim().to_lowercase();
+
+    // Check if slug already exists
+    if database.get_tenant_by_slug(&slug).await.is_ok() {
+        return Err(anyhow::anyhow!("Tenant slug '{}' already exists", slug));
     }
+
+    let tenant_data = crate::models::Tenant {
+        id: tenant_id,
+        name: tenant_name.to_string(),
+        slug,
+        domain: None,
+        plan: "starter".to_string(), // Default plan for auto-created tenants
+        owner_user_id,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+    };
+
+    database.create_tenant(&tenant_data).await?;
+    Ok(tenant_data)
 }
 
 /// Suspend user and update status

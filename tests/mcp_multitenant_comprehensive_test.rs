@@ -16,7 +16,6 @@ use pierre_mcp_server::{
 };
 use serde_json::json;
 use std::sync::Arc;
-use uuid::Uuid;
 
 mod common;
 
@@ -693,22 +692,7 @@ async fn test_handle_authenticated_tool_call_edge_cases() -> Result<()> {
     Ok(())
 }
 
-// === Get User Provider Tests ===
-
-#[tokio::test]
-async fn test_get_user_provider_not_connected() -> Result<()> {
-    let database = common::create_test_database().await?;
-
-    let user_id = Uuid::new_v4();
-
-    // Try to get provider when user hasn't connected
-    let result = MultiTenantMcpServer::get_user_provider(user_id, "strava", &database);
-
-    // Should return an error (provider not connected or method not found)
-    assert!(result.is_err());
-
-    Ok(())
-}
+// === Legacy provider tests removed - all provider access now requires tenant context ===
 
 // === Concurrency Tests ===
 

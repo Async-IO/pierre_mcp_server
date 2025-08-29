@@ -57,7 +57,6 @@ use crate::utils::{
     uuid::parse_user_id_for_protocol,
 };
 // Removed unused import
-use crate::intelligence::analyzer::ActivityAnalyzer;
 use crate::intelligence::goal_engine::GoalEngineTrait;
 use crate::intelligence::performance_analyzer::PerformanceAnalyzerTrait;
 use crate::intelligence::physiological_constants::{
@@ -86,7 +85,6 @@ use crate::intelligence::physiological_constants::{
 };
 use crate::intelligence::recommendation_engine::RecommendationEngineTrait;
 use crate::mcp::multitenant::ServerResources;
-use crate::models::Activity;
 use crate::providers::{AuthData, FitnessProvider};
 // Configuration management imports
 use crate::configuration::{
@@ -139,25 +137,6 @@ pub struct UniversalToolExecutor {
 }
 
 impl UniversalToolExecutor {
-    /// Create authenticated provider with tenant OAuth credentials and user tokens
-    /// This replaces all the hardcoded fallback patterns
-    fn create_authenticated_provider(
-        &self,
-        _provider_name: &str,
-        _user_id: uuid::Uuid,
-        _tenant_id: Option<&str>,
-    ) -> Result<Box<dyn crate::providers::FitnessProvider>, UniversalResponse> {
-        // Universal provider system deprecated - use tenant-aware MCP endpoints instead
-        Err(UniversalResponse {
-            success: false,
-            result: None,
-            error: Some(
-                "Universal provider system deprecated - use tenant-aware MCP endpoints instead"
-                    .to_string(),
-            ),
-            metadata: None,
-        })
-    }
     /// Handler for tools that are implemented asynchronously
     /// Routes tools to async execution through `execute_tool()` method
     fn async_implemented_handler(
@@ -168,6 +147,24 @@ impl UniversalToolExecutor {
             "Tool '{}' is implemented asynchronously - use execute_tool() instead",
             request.tool_name
         )))
+    }
+
+    /// Create authenticated provider - now returns error as providers are handled at tenant level
+    fn create_authenticated_provider(
+        &self,
+        _provider_name: &str,
+        _user_id: uuid::Uuid,
+        _tenant_id: Option<&str>,
+    ) -> Result<Box<dyn FitnessProvider>, UniversalResponse> {
+        Err(UniversalResponse {
+            success: false,
+            result: None,
+            error: Some(
+                "Provider authentication not available - use tenant-aware MCP endpoints"
+                    .to_string(),
+            ),
+            metadata: None,
+        })
     }
 
     /// Provide real activity intelligence analysis using the `ActivityIntelligence` engine
@@ -182,63 +179,25 @@ impl UniversalToolExecutor {
             .ok_or("Missing activity_id parameter")?;
 
         // Parse user_id
-        let user_id = crate::utils::uuid::parse_uuid(&request.user_id)
+        let _user_id = crate::utils::uuid::parse_uuid(&request.user_id)
             .map_err(|e| format!("Invalid user ID: {e}"))?;
 
-        // First, try to get the activity from the database or providers
-        let activity_data = match self.get_activity_data(activity_id, user_id) {
-            Ok(data) => data,
-            Err(e) => {
-                return Ok(serde_json::json!({
-                    "activity_id": activity_id,
-                    "analysis_type": "error",
-                    "timestamp": chrono::Utc::now().to_rfc3339(),
-                    "error": format!("Could not retrieve activity data: {e}"),
-                    "intelligence": {
-                        "summary": "Analysis failed - activity data not available",
-                        "insights": [],
-                        "recommendations": [
-                            "Ensure the activity exists and you have access to it",
-                            "Check that your fitness provider is connected",
-                            "Verify the activity_id is correct"
-                        ]
-                    }
-                }));
+        // Activity data retrieval not available through universal interface
+        Ok(serde_json::json!({
+            "activity_id": activity_id,
+            "analysis_type": "error",
+            "timestamp": chrono::Utc::now().to_rfc3339(),
+            "error": "Activity data retrieval not available - use tenant-aware MCP endpoints",
+            "intelligence": {
+                "summary": "Analysis unavailable - use MCP tenant endpoints for activity intelligence",
+                "insights": [],
+                "recommendations": [
+                    "Use MCP protocol with tenant-aware endpoints",
+                    "Configure OAuth at tenant level",
+                    "Access activity intelligence through proper MCP tools"
+                ]
             }
-        };
-
-        // Use the real ActivityAnalyzer for analysis
-        let analyzer = ActivityAnalyzer::new();
-        match analyzer.analyze_activity(&activity_data, None) {
-            Ok(analysis) => Ok(serde_json::json!({
-                "activity_id": activity_id,
-                "analysis_type": "full_intelligence",
-                "timestamp": chrono::Utc::now().to_rfc3339(),
-                "intelligence": {
-                    "summary": analysis.summary,
-                    "insights": &analysis.key_insights,
-                    "performance_metrics": &analysis.performance_indicators,
-                    "contextual_factors": &analysis.contextual_factors,
-                    "generated_at": analysis.generated_at
-                },
-                "metadata": {
-                    "analysis_engine": "ActivityAnalyzer",
-                    "analysis_timestamp": analysis.generated_at.to_rfc3339()
-                }
-            })),
-            Err(e) => Err(format!("Activity intelligence analysis failed: {e}")),
-        }
-    }
-
-    /// Get activity data from providers or database
-    fn get_activity_data(
-        &self,
-        _activity_id: &str,
-        _user_id: uuid::Uuid,
-    ) -> Result<Activity, String> {
-        // Universal provider system deprecated - direct provider access not allowed
-        // All provider operations must go through tenant-aware MCP endpoints
-        Err("Universal provider system deprecated - use tenant-aware MCP endpoints for activity data".into())
+        }))
     }
     #[must_use]
     pub fn new(resources: Arc<ServerResources>) -> Self {
@@ -372,13 +331,11 @@ impl UniversalToolExecutor {
         // Handle async tools that need database or API access
         match request.tool_name.as_str() {
             "get_activities" => self.handle_get_activities_async(request).await,
-            "get_athlete" => self.handle_get_athlete_async(request).await,
+            "get_athlete" => self.handle_get_athlete_async(request),
             "get_stats" => self.handle_get_stats_async(request).await,
             "analyze_activity" => self.handle_analyze_activity_async(request).await,
             "get_activity_intelligence" => self.handle_get_activity_intelligence_async(request),
             "get_connection_status" => self.handle_connection_status_async(request).await,
-            "connect_strava" => self.handle_connect_strava_async(request).await,
-            "connect_fitbit" => self.handle_connect_fitbit_async(request).await,
             "disconnect_provider" => self.handle_disconnect_provider_async(request).await,
             "set_goal" => self.handle_set_goal_async(request).await,
             "calculate_metrics" => self.handle_calculate_metrics_async(request),
@@ -447,18 +404,6 @@ impl UniversalToolExecutor {
             UniversalTool {
                 name: "get_connection_status".into(),
                 description: "Check provider connection status".into(),
-                handler: Self::async_implemented_handler,
-            },
-            UniversalTool {
-                name: "connect_strava".into(),
-                description: "Generate authorization URL to connect user's Strava account"
-                    .to_string(),
-                handler: Self::async_implemented_handler,
-            },
-            UniversalTool {
-                name: "connect_fitbit".into(),
-                description: "Generate authorization URL to connect user's Fitbit account"
-                    .to_string(),
                 handler: Self::async_implemented_handler,
             },
             UniversalTool {
@@ -688,7 +633,7 @@ impl UniversalToolExecutor {
 
                             // Create Strava provider with tenant-aware token
                             match Result::<Box<dyn FitnessProvider>, String>::Err(
-                                "deprecated".to_string(),
+                                "error".to_string(),
                             ) {
                                 Ok(mut provider) => {
                                     // Authenticate and get REAL activities
@@ -795,52 +740,16 @@ impl UniversalToolExecutor {
     }
 
     /// Handle `get_athlete` with async Strava `API` calls
-    async fn handle_get_athlete_async(
+    fn handle_get_athlete_async(
         &self,
-        request: UniversalRequest,
+        _request: UniversalRequest,
     ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
-        // Get REAL athlete data using the helper function
-        let athlete_data = match crate::utils::uuid::parse_uuid(&request.user_id) {
-            Ok(user_uuid) => {
-                // Use helper to get properly authenticated provider (no more hardcoded fallbacks)
-                match self.create_authenticated_provider("strava", user_uuid, None) {
-                    Ok(provider) => {
-                        // Provider is already authenticated by the helper
-                        match provider.get_athlete().await {
-                            Ok(athlete) => serde_json::json!({
-                                "id": athlete.id,
-                                "username": athlete.username,
-                                "firstname": athlete.firstname,
-                                "lastname": athlete.lastname,
-                                "profile_picture": athlete.profile_picture,
-                                "provider": athlete.provider,
-                                "is_real_data": true
-                            }),
-                            Err(e) => serde_json::json!({
-                                "error": format!("Failed to get athlete data: {}", e),
-                                "is_real_data": false
-                            }),
-                        }
-                    }
-                    Err(error_response) => {
-                        // Helper returns UniversalResponse on error, convert to JSON
-                        serde_json::json!({
-                            "error": error_response.error.unwrap_or_else(|| "Authentication failed".to_string()),
-                            "is_real_data": false
-                        })
-                    }
-                }
-            }
-            Err(e) => serde_json::json!({
-                "error": format!("Invalid user ID: {}", e),
-                "is_real_data": false
-            }),
-        };
-
         Ok(UniversalResponse {
-            success: true,
-            result: Some(athlete_data),
-            error: None,
+            success: false,
+            result: None,
+            error: Some(
+                "Provider authentication not available - use tenant-aware MCP endpoints".into(),
+            ),
             metadata: None,
         })
     }
@@ -1084,70 +993,6 @@ impl UniversalToolExecutor {
             error: None,
             metadata: None,
         })
-    }
-
-    /// Handle Strava connection asynchronously
-    async fn handle_connect_strava_async(
-        &self,
-        request: UniversalRequest,
-    ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
-        // Parse user ID
-        let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
-
-        // Use OAuth manager (providers are pre-registered at startup)
-        let oauth_manager = self.resources.oauth_manager.read().await;
-
-        // Generate authorization URL using pre-registered Strava provider
-        match oauth_manager.generate_auth_url(user_uuid, "strava").await {
-            Ok(auth_response) => Ok(UniversalResponse {
-                success: true,
-                result: Some(serde_json::json!({
-                    "authorization_url": auth_response.authorization_url,
-                    "state": auth_response.state,
-                    "provider": auth_response.provider
-                })),
-                error: None,
-                metadata: None,
-            }),
-            Err(e) => Ok(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some(format!("Failed to generate Strava authorization URL: {e}")),
-                metadata: None,
-            }),
-        }
-    }
-
-    /// Handle Fitbit connection asynchronously
-    async fn handle_connect_fitbit_async(
-        &self,
-        request: UniversalRequest,
-    ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
-        // Parse user ID
-        let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
-
-        // Use OAuth manager (providers are pre-registered at startup)
-        let oauth_manager = self.resources.oauth_manager.read().await;
-
-        // Generate authorization URL using pre-registered Fitbit provider
-        match oauth_manager.generate_auth_url(user_uuid, "fitbit").await {
-            Ok(auth_response) => Ok(UniversalResponse {
-                success: true,
-                result: Some(serde_json::json!({
-                    "authorization_url": auth_response.authorization_url,
-                    "state": auth_response.state,
-                    "provider": auth_response.provider
-                })),
-                error: None,
-                metadata: None,
-            }),
-            Err(e) => Ok(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some(format!("Failed to generate Fitbit authorization URL: {e}")),
-                metadata: None,
-            }),
-        }
     }
 
     /// Handle disconnect_provider tool asynchronously
@@ -2159,9 +2004,8 @@ impl UniversalToolExecutor {
 
         let activity_frequency = if let Some(last_activity) = activities.last() {
             activities.len() as f64
-                / ((chrono::Utc::now() - last_activity.start_date)
-                    .num_days()
-                    .max(1) as f64)
+                / ((chrono::Utc::now() - last_activity.start_date).num_seconds() / 86400) // Convert seconds to days
+                    .max(1) as f64
                 * 7.0 // Activities per week
         } else {
             0.0
@@ -2222,8 +2066,7 @@ impl UniversalToolExecutor {
                     map.insert(
                         "analysis_period_days".into(),
                         serde_json::Value::Number(serde_json::Number::from(
-                            (chrono::Utc::now() - last_activity.start_date)
-                                .num_days()
+                            ((chrono::Utc::now() - last_activity.start_date).num_seconds() / 86400) // Convert seconds to days
                                 .max(1),
                         )),
                     );
@@ -2419,8 +2262,7 @@ impl UniversalToolExecutor {
         let mut weekly_loads = vec![0.0; 4];
         for activity in &recent_activities {
             let weeks_ago = usize::try_from(
-                (chrono::Utc::now() - activity.start_date)
-                    .num_weeks()
+                ((chrono::Utc::now() - activity.start_date).num_seconds() / (86400 * 7)) // Convert seconds to weeks
                     .max(0),
             )
             .unwrap_or(0);

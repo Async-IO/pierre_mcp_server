@@ -439,8 +439,6 @@ pub mod tools {
     pub const GET_ACTIVITY_INTELLIGENCE: &str = "get_activity_intelligence";
 
     /// Connection management
-    pub const CONNECT_STRAVA: &str = "connect_strava";
-    pub const CONNECT_FITBIT: &str = "connect_fitbit";
     pub const GET_CONNECTION_STATUS: &str = "get_connection_status";
     pub const DISCONNECT_PROVIDER: &str = "disconnect_provider";
 
