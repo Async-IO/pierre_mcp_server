@@ -11,9 +11,13 @@
 //! Provides B2B API key generation, validation, and usage tracking
 //! for the Pierre MCP Fitness API platform.
 
-use crate::constants::system_config::{
-    PROFESSIONAL_MONTHLY_LIMIT, RATE_LIMIT_WINDOW_SECONDS, STARTER_MONTHLY_LIMIT,
-    TRIAL_MONTHLY_LIMIT, TRIAL_PERIOD_DAYS,
+use crate::constants::{
+    key_prefixes,
+    system_config::{
+        PROFESSIONAL_MONTHLY_LIMIT, RATE_LIMIT_WINDOW_SECONDS, STARTER_MONTHLY_LIMIT,
+        TRIAL_MONTHLY_LIMIT, TRIAL_PERIOD_DAYS,
+    },
+    tiers,
 };
 use anyhow::Result;
 use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
@@ -68,10 +72,10 @@ impl ApiKeyTier {
     #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
-            Self::Trial => "trial",
-            Self::Starter => "starter",
-            Self::Professional => "professional",
-            Self::Enterprise => "enterprise",
+            Self::Trial => tiers::TRIAL,
+            Self::Starter => tiers::STARTER,
+            Self::Professional => tiers::PROFESSIONAL,
+            Self::Enterprise => tiers::ENTERPRISE,
         }
     }
 }
@@ -81,10 +85,10 @@ impl std::str::FromStr for ApiKeyTier {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "trial" => Ok(Self::Trial),
-            "starter" => Ok(Self::Starter),
-            "professional" => Ok(Self::Professional),
-            "enterprise" => Ok(Self::Enterprise),
+            tiers::TRIAL => Ok(Self::Trial),
+            tiers::STARTER => Ok(Self::Starter),
+            tiers::PROFESSIONAL => Ok(Self::Professional),
+            tiers::ENTERPRISE => Ok(Self::Enterprise),
             _ => Err(anyhow::anyhow!("Invalid API key tier: {}", s)),
         }
     }
@@ -204,7 +208,7 @@ impl ApiKeyManager {
     #[must_use]
     pub const fn new() -> Self {
         Self {
-            key_prefix: "pk_live_", // Production keys
+            key_prefix: key_prefixes::API_KEY_LIVE, // Production keys
         }
     }
 

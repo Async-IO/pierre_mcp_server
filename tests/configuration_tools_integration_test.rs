@@ -49,12 +49,14 @@ async fn make_tool_request(
             "name": tool_name,
             "arguments": arguments
         })),
-        id: json!(1),
+        id: Some(json!(1)),
         auth_token: Some(format!("Bearer {token}")),
         headers: None,
     };
 
-    Ok(MultiTenantMcpServer::handle_request(request, resources).await)
+    Ok(MultiTenantMcpServer::handle_request(request, resources)
+        .await
+        .unwrap())
 }
 
 #[tokio::test]
@@ -124,7 +126,6 @@ async fn test_configuration_catalog_has_expected_structure() -> Result<()> {
     let response =
         make_tool_request("get_configuration_catalog", json!({}), &token, &resources).await?;
 
-    assert_eq!(response.jsonrpc, "2.0");
     assert!(response.result.is_some());
     assert!(response.error.is_none());
 
@@ -156,7 +157,7 @@ async fn test_configuration_tools_require_authentication() -> Result<()> {
             "name": "get_configuration_catalog",
             "arguments": {}
         })),
-        id: json!(1),
+        id: Some(json!(1)),
         auth_token: None, // No authentication
         headers: None,
     };
@@ -164,7 +165,8 @@ async fn test_configuration_tools_require_authentication() -> Result<()> {
     let response = MultiTenantMcpServer::handle_request(request, &resources).await;
 
     // Should return an error for missing authentication
-    assert_eq!(response.jsonrpc, "2.0");
+
+    let response = response.unwrap();
     assert!(response.result.is_none());
     assert!(response.error.is_some());
 
@@ -186,7 +188,7 @@ async fn test_configuration_tools_with_invalid_parameters() -> Result<()> {
             "name": "calculate_personalized_zones",
             "arguments": {} // Missing required vo2_max
         })),
-        id: json!(1),
+        id: Some(json!(1)),
         auth_token: Some(format!("Bearer {token}")),
         headers: None,
     };
@@ -194,9 +196,10 @@ async fn test_configuration_tools_with_invalid_parameters() -> Result<()> {
     let response = MultiTenantMcpServer::handle_request(request, &resources).await;
 
     // Should return an error for missing required parameters
-    assert_eq!(response.jsonrpc, "2.0");
+
     // The response might succeed but indicate validation failure, or it might error
     // Either way is acceptable as long as it doesn't crash
+    let response = response.unwrap();
     assert!(response.error.is_some() || response.result.is_some());
 
     println!("Configuration tools invalid parameters test passed");

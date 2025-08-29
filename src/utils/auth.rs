@@ -1,6 +1,7 @@
 // ABOUTME: Generic authentication utilities for bearer token extraction and validation
 // ABOUTME: Eliminates duplication in Authorization header parsing across routes and middleware
 
+use crate::constants::key_prefixes;
 use anyhow::{anyhow, Context, Result};
 
 /// Extract bearer token from Authorization header string
@@ -74,7 +75,7 @@ pub fn is_bearer_token(auth_header: &str) -> bool {
 /// Check if authorization header is likely an API key format
 #[must_use]
 pub fn is_api_key_format(auth_header: &str) -> bool {
-    auth_header.starts_with("pk_live_") || auth_header.starts_with("sk_")
+    auth_header.starts_with(key_prefixes::API_KEY_LIVE) || auth_header.starts_with("sk_")
 }
 
 /// Determine the authorization type from header

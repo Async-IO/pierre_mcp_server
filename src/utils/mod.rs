@@ -2,6 +2,7 @@
 // ABOUTME: Contains shared utilities for OAuth, parsing, authentication, and HTTP clients
 
 pub mod auth;
+pub mod errors;
 pub mod http_client;
 pub mod json_responses;
 pub mod oauth;

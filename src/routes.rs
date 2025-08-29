@@ -9,11 +9,13 @@
 //! HTTP routes for user authentication and OAuth flows in multi-tenant mode
 
 use crate::{
+    constants::error_messages,
     database_plugins::DatabaseProvider,
     errors::AppError,
     mcp::multitenant::ServerResources,
     models::User,
     utils::{
+        errors::{auth_error, operation_error, user_state_error, validation_error},
         http_client::oauth_client,
         json_responses::{a2a_registration_success, registration_failed_error},
     },
@@ -148,14 +150,12 @@ impl AuthRoutes {
 
         // Validate email format
         if !Self::is_valid_email(&request.email) {
-            return Err(anyhow::anyhow!("Invalid email format"));
+            return Err(validation_error(error_messages::INVALID_EMAIL_FORMAT));
         }
 
         // Validate password strength
         if !Self::is_valid_password(&request.password) {
-            return Err(anyhow::anyhow!(
-                "Password must be at least 8 characters long"
-            ));
+            return Err(validation_error(error_messages::PASSWORD_TOO_WEAK));
         }
 
         // Check if user already exists
@@ -165,7 +165,7 @@ impl AuthRoutes {
             .get_user_by_email(&request.email)
             .await
         {
-            return Err(anyhow::anyhow!("User with this email already exists"));
+            return Err(user_state_error(error_messages::USER_ALREADY_EXISTS));
         }
 
         // Hash password
@@ -211,7 +211,7 @@ impl AuthRoutes {
         // Verify password
         if !bcrypt::verify(&request.password, &user.password_hash)? {
             error!("Invalid password for user: {}", request.email);
-            return Err(anyhow::anyhow!("Invalid email or password"));
+            return Err(auth_error(error_messages::INVALID_CREDENTIALS));
         }
 
         // Check if user is approved to login
@@ -220,7 +220,7 @@ impl AuthRoutes {
                 "Login blocked for user: {} - status: {:?}",
                 request.email, user.user_status
             );
-            return Err(anyhow::anyhow!("{}", user.user_status.to_message()));
+            return Err(user_state_error(user.user_status.to_message()));
         }
 
         // Update last active timestamp
@@ -640,10 +640,7 @@ impl OAuthRoutes {
         );
 
         if !status.is_success() {
-            return Err(anyhow::anyhow!(
-                "Strava token exchange failed: {}",
-                response_text
-            ));
+            return Err(operation_error("Strava token exchange", &response_text));
         }
 
         let token_response: StravaTokenResponse =
@@ -699,10 +696,7 @@ impl OAuthRoutes {
 
         if !response.status().is_success() {
             let error_text = response.text().await?;
-            return Err(anyhow::anyhow!(
-                "Fitbit token exchange failed: {}",
-                error_text
-            ));
+            return Err(operation_error("Fitbit token exchange", &error_text));
         }
 
         let token_response: FitbitTokenResponse = response.json().await?;

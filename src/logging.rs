@@ -8,6 +8,7 @@
 
 //! Production-ready logging configuration with structured output
 
+use crate::constants::service_names;
 use anyhow::Result;
 use serde_json::json;
 use std::env;
@@ -59,7 +60,7 @@ impl Default for LoggingConfig {
             include_location: false,
             include_thread: false,
             include_spans: false,
-            service_name: "pierre-mcp-server".into(),
+            service_name: service_names::PIERRE_MCP_SERVER.into(),
             service_version: env!("CARGO_PKG_VERSION").to_string(),
             environment: "development".into(),
         }
@@ -91,7 +92,8 @@ impl LoggingConfig {
             include_location: is_production || env::var("LOG_INCLUDE_LOCATION").is_ok(),
             include_thread: is_production || env::var("LOG_INCLUDE_THREAD").is_ok(),
             include_spans: is_production || env::var("LOG_INCLUDE_SPANS").is_ok(),
-            service_name: env::var("SERVICE_NAME").unwrap_or_else(|_| "pierre-mcp-server".into()),
+            service_name: env::var("SERVICE_NAME")
+                .unwrap_or_else(|_| service_names::PIERRE_MCP_SERVER.into()),
             service_version: env::var("SERVICE_VERSION")
                 .unwrap_or_else(|_| env!("CARGO_PKG_VERSION").to_string()),
             environment,
