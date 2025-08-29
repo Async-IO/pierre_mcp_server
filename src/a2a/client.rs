@@ -13,6 +13,7 @@
 
 use crate::a2a::auth::A2AClient;
 use crate::a2a::system_user::A2ASystemUserService;
+use crate::constants::tiers;
 use crate::crypto::A2AKeyManager;
 use crate::database_plugins::DatabaseProvider;
 use chrono::Timelike;
@@ -488,7 +489,7 @@ impl A2AClientManager {
             requests_this_month,
             total_requests: u64::from(total_stats.total_requests),
             last_request_at,
-            rate_limit_tier: "professional".into(), // Default for A2A clients
+            rate_limit_tier: tiers::PROFESSIONAL.into(), // Default for A2A clients
         })
     }
 

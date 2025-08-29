@@ -9,12 +9,14 @@ use crate::{
     admin::{auth::AdminAuthService, models::AdminPermission},
     api_keys::{ApiKey, ApiKeyTier},
     auth::AuthManager,
-    constants::time_constants::{
-        SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MONTH, SECONDS_PER_WEEK,
+    constants::{
+        service_names, tiers,
+        time_constants::{SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MONTH, SECONDS_PER_WEEK},
     },
     database_plugins::{factory::Database, DatabaseProvider},
     models::{User, UserStatus},
     utils::auth::extract_bearer_token_owned,
+    utils::errors::{operation_error, validation_error},
 };
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
@@ -412,7 +414,7 @@ fn admin_health_route() -> impl Filter<Extract = impl Reply, Error = Rejection> 
     warp::path!("health").and(warp::get()).map(|| {
         json(&serde_json::json!({
             "status": "healthy",
-            "service": "pierre-mcp-admin-api",
+            "service": service_names::PIERRE_MCP_ADMIN_API,
             "timestamp": chrono::Utc::now().to_rfc3339(),
             "version": env!("CARGO_PKG_VERSION")
         }))
@@ -500,10 +502,10 @@ fn convert_rate_limit_period(period: &str) -> Result<u32> {
 /// Validate API key tier from string
 fn validate_tier(tier_str: &str) -> Result<ApiKeyTier, String> {
     match tier_str {
-        "trial" => Ok(ApiKeyTier::Trial),
-        "starter" => Ok(ApiKeyTier::Starter),
-        "professional" => Ok(ApiKeyTier::Professional),
-        "enterprise" => Ok(ApiKeyTier::Enterprise),
+        tiers::TRIAL => Ok(ApiKeyTier::Trial),
+        tiers::STARTER => Ok(ApiKeyTier::Starter),
+        tiers::PROFESSIONAL => Ok(ApiKeyTier::Professional),
+        tiers::ENTERPRISE => Ok(ApiKeyTier::Enterprise),
         _ => Err(format!(
             "Invalid tier: {tier_str}. Supported: trial, starter, professional, enterprise"
         )),
@@ -1972,9 +1974,9 @@ async fn approve_user_with_optional_tenant(
                         user.email, tenant.slug, e
                     );
                     // This is critical - if we can't link the user to tenant, return error
-                    return Err(anyhow::anyhow!(
-                        "Failed to link user to created tenant: {}",
-                        e
+                    return Err(operation_error(
+                        "Link user to tenant",
+                        &format!("Failed to link user to created tenant: {e}"),
                     ));
                 }
 
@@ -2012,7 +2014,9 @@ async fn create_default_tenant_for_user(
 
     // Check if slug already exists
     if database.get_tenant_by_slug(&slug).await.is_ok() {
-        return Err(anyhow::anyhow!("Tenant slug '{}' already exists", slug));
+        return Err(validation_error(&format!(
+            "Tenant slug '{slug}' already exists"
+        )));
     }
 
     let tenant_data = crate::models::Tenant {
@@ -2020,7 +2024,7 @@ async fn create_default_tenant_for_user(
         name: tenant_name.to_string(),
         slug,
         domain: None,
-        plan: "starter".to_string(), // Default plan for auto-created tenants
+        plan: tiers::STARTER.to_string(), // Default plan for auto-created tenants
         owner_user_id,
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),

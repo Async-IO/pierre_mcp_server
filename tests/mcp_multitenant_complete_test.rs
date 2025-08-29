@@ -505,12 +505,17 @@ async fn test_complete_multitenant_workflow() -> Result<()> {
     // Should return providers status (not connected yet)
     let result = &connection_response["result"];
 
-    // The result is now an object with providers array and tenant_info
+    // The result has structuredContent with providers array and tenant_info
     assert!(result.is_object());
-    assert!(result["providers"].is_array());
-    assert_eq!(result["providers"].as_array().unwrap().len(), 2); // Strava and Fitbit
-    assert!(result["tenant_info"].is_object());
-    assert_eq!(result["tenant_info"]["tenant_name"], "Test Tenant");
+    let structured_content = &result["structuredContent"];
+    assert!(structured_content.is_object());
+    assert!(structured_content["providers"].is_array());
+    assert_eq!(structured_content["providers"].as_array().unwrap().len(), 2); // Strava and Fitbit
+    assert!(structured_content["tenant_info"].is_object());
+    assert_eq!(
+        structured_content["tenant_info"]["tenant_name"],
+        "Test Tenant"
+    );
 
     // Test 7: MCP Protocol - Call Tool (Get Activities - should work without provider)
     let activities_response = client

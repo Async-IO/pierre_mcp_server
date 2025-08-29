@@ -12,9 +12,11 @@
 //! for the multi-tenant Pierre MCP Server.
 
 use crate::api_keys::ApiKeyManager;
+use crate::constants::key_prefixes;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::models::{AuthRequest, AuthResponse, User, UserSession};
 use crate::rate_limiting::{UnifiedRateLimitCalculator, UnifiedRateLimitInfo};
+use crate::utils::errors::auth_error;
 use anyhow::{Context, Result};
 use chrono::{DateTime, Duration, Utc};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
@@ -635,7 +637,7 @@ impl McpAuthMiddleware {
         let auth_str = if let Some(header) = auth_header {
             tracing::debug!(
                 "Authentication attempt with header type: {}",
-                if header.starts_with("pk_live_") {
+                if header.starts_with(key_prefixes::API_KEY_LIVE) {
                     "API_KEY"
                 } else if header.starts_with("Bearer ") {
                     "JWT_TOKEN"
@@ -646,12 +648,13 @@ impl McpAuthMiddleware {
             header
         } else {
             tracing::warn!("Authentication failed: Missing authorization header");
-            return Err(anyhow::anyhow!("Authentication failed: Missing authorization header")
-                .context("Request authentication requires Authorization header with Bearer token or API key"));
+            return Err(auth_error("Missing authorization header").context(
+                "Request authentication requires Authorization header with Bearer token or API key",
+            ));
         };
 
         // Try API key authentication first (starts with pk_live_)
-        if auth_str.starts_with("pk_live_") {
+        if auth_str.starts_with(key_prefixes::API_KEY_LIVE) {
             tracing::debug!("Attempting API key authentication");
             match self.authenticate_api_key(auth_str).await {
                 Ok(result) => {
@@ -758,7 +761,7 @@ impl McpAuthMiddleware {
 
                 // Check rate limit
                 if rate_limit.is_rate_limited {
-                    return Err(anyhow::anyhow!("JWT token rate limit exceeded"));
+                    return Err(auth_error("JWT token rate limit exceeded"));
                 }
 
                 Ok(AuthResult {

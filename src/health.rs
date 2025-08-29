@@ -8,6 +8,7 @@
 
 //! Health check endpoints and monitoring utilities
 
+use crate::constants::service_names;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -130,7 +131,7 @@ impl HealthChecker {
 
         // Basic service info
         let service = ServiceInfo {
-            name: "pierre-mcp-server".into(),
+            name: service_names::PIERRE_MCP_SERVER.into(),
             version: env!("CARGO_PKG_VERSION").to_string(),
             environment: std::env::var("ENVIRONMENT").unwrap_or_else(|_| "unknown".into()),
             uptime_seconds: self.start_time.elapsed().as_secs(),
@@ -177,7 +178,7 @@ impl HealthChecker {
 
         // Service info
         let service = ServiceInfo {
-            name: "pierre-mcp-server".into(),
+            name: service_names::PIERRE_MCP_SERVER.into(),
             version: env!("CARGO_PKG_VERSION").to_string(),
             environment: std::env::var("ENVIRONMENT").unwrap_or_else(|_| "unknown".into()),
             uptime_seconds: self.start_time.elapsed().as_secs(),

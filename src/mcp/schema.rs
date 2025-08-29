@@ -404,11 +404,51 @@ fn create_get_activity_intelligence_tool() -> ToolSchema {
 
 /// Create the `get_connection_status` tool schema
 fn create_get_connection_status_tool() -> ToolSchema {
-    let properties = HashMap::new(); // No parameters needed - uses user's JWT context
+    let mut properties = HashMap::new();
+
+    // Optional OAuth credentials for Strava
+    properties.insert(
+        "strava_client_id".to_string(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("Optional: Your Strava OAuth client ID. If provided with client_secret, will be used instead of server defaults.".into()),
+        },
+    );
+
+    properties.insert(
+        "strava_client_secret".to_string(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some(
+                "Optional: Your Strava OAuth client secret. Must be provided with client_id."
+                    .into(),
+            ),
+        },
+    );
+
+    // Optional OAuth credentials for Fitbit
+    properties.insert(
+        "fitbit_client_id".to_string(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("Optional: Your Fitbit OAuth client ID. If provided with client_secret, will be used instead of server defaults.".into()),
+        },
+    );
+
+    properties.insert(
+        "fitbit_client_secret".to_string(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some(
+                "Optional: Your Fitbit OAuth client secret. Must be provided with client_id."
+                    .into(),
+            ),
+        },
+    );
 
     ToolSchema {
         name: GET_CONNECTION_STATUS.to_string(),
-        description: "Check which fitness providers are currently connected and authorized for the user. Returns connection status for all supported providers.".into(),
+        description: "Check which fitness providers are currently connected and authorized for the user. Returns connection status for all supported providers. Optionally accepts OAuth credentials to use custom apps instead of server defaults.".into(),
         input_schema: JsonSchema {
             schema_type: "object".into(),
             properties: Some(properties),

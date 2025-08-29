@@ -354,6 +354,26 @@ impl AdminTestSetup {
     }
 }
 
+/// Helper function to create an approved user for API key provisioning tests
+async fn create_approved_user(
+    database: &pierre_mcp_server::database_plugins::factory::Database,
+    email: &str,
+) -> Result<User> {
+    let user = User::new(
+        email.to_string(),
+        "test_hash".to_string(),
+        Some("Test User".to_string()),
+    );
+
+    // Create user with approved status and timestamp
+    let mut approved_user = user;
+    approved_user.user_status = pierre_mcp_server::models::UserStatus::Active;
+    approved_user.approved_at = Some(chrono::Utc::now());
+
+    database.create_user(&approved_user).await?;
+    Ok(approved_user)
+}
+
 // ============================================================================
 // Health and Setup Status Tests
 // ============================================================================
@@ -581,8 +601,13 @@ async fn test_provision_api_key_new_user() -> Result<()> {
     let setup = AdminTestSetup::new().await?;
     let routes = setup.routes();
 
+    let email = "newuser@example.com";
+
+    // Create and approve user first
+    create_approved_user(&setup.context.database, email).await?;
+
     let request_body = json!({
-        "user_email": "newuser@example.com",
+        "user_email": email,
         "tier": "professional",
         "description": "New user API key",
         "rate_limit_requests": 5000,
@@ -1255,8 +1280,13 @@ async fn test_special_characters_in_requests() -> Result<()> {
     let setup = AdminTestSetup::new().await?;
     let routes = setup.routes();
 
+    let email = "test+special@example.com";
+
+    // Create and approve user first
+    create_approved_user(&setup.context.database, email).await?;
+
     let request_body = json!({
-        "user_email": "test+special@example.com",
+        "user_email": email,
         "tier": "starter",
         "description": "Special chars: åäö 中文 unicode",
         "expires_in_days": 30,
@@ -1288,6 +1318,12 @@ async fn test_special_characters_in_requests() -> Result<()> {
 async fn test_concurrent_requests() -> Result<()> {
     let setup = AdminTestSetup::new().await?;
     let routes = setup.routes();
+
+    // Create approved users first (before spawning tasks)
+    for i in 0..2 {
+        let email = format!("concurrent{}@example.com", i);
+        create_approved_user(&setup.context.database, &email).await?;
+    }
 
     // Create multiple concurrent requests with staggered timing to avoid SQLite pool timeouts
     let mut handles = vec![];
@@ -1406,8 +1442,13 @@ async fn test_all_api_key_tiers() -> Result<()> {
     let tiers = vec!["trial", "starter", "professional", "enterprise"];
 
     for tier in tiers {
+        let email = format!("{}@example.com", tier);
+
+        // Create and approve user first
+        create_approved_user(&setup.context.database, &email).await?;
+
         let request_body = json!({
-            "user_email": format!("{}@example.com", tier),
+            "user_email": email,
             "tier": tier,
             "description": format!("{} tier key", tier),
             "expires_in_days": 30,
@@ -1445,8 +1486,13 @@ async fn test_rate_limit_periods() -> Result<()> {
     let periods = vec!["hour", "day", "week", "month"];
 
     for period in periods {
+        let email = format!("{}@example.com", period);
+
+        // Create and approve user first
+        create_approved_user(&setup.context.database, &email).await?;
+
         let request_body = json!({
-            "user_email": format!("{}@example.com", period),
+            "user_email": email,
             "tier": "starter",
             "description": format!("{} period key", period),
             "expires_in_days": 30,

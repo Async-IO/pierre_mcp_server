@@ -7,7 +7,7 @@ PIERRE_SERVER_URL="${PIERRE_SERVER_URL:-http://127.0.0.1:8080/mcp}"
 PIERRE_JWT_TOKEN="${PIERRE_JWT_TOKEN:-}"
 
 if [ -z "$PIERRE_JWT_TOKEN" ]; then
-    echo '{"jsonrpc":"2.0","error":{"code":-32000,"message":"PIERRE_JWT_TOKEN environment variable not set"},"id":null}'
+    echo '{"jsonrpc":"2.0","error":{"code":-32000,"message":"PIERRE_JWT_TOKEN environment variable not set"},"id":0}'
     exit 1
 fi
 
@@ -16,7 +16,7 @@ while IFS= read -r line; do
     # Extract ID from the request for proper error responses
     request_id=$(echo "$line" | grep -o '"id":[^,}]*' | cut -d: -f2 | tr -d ' ')
     if [ -z "$request_id" ]; then
-        request_id="null"
+        request_id="0"
     fi
     
     response=$(curl -s -X POST "$PIERRE_SERVER_URL" \
