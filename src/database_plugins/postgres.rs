@@ -10,6 +10,7 @@ use crate::a2a::auth::A2AClient;
 use crate::a2a::client::A2ASession;
 use crate::a2a::protocol::{A2ATask, TaskStatus};
 use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
+use crate::constants::tiers;
 use crate::database::A2AUsage;
 use crate::models::{DecryptedToken, EncryptedToken, User, UserTier};
 use crate::rate_limiting::JwtUsage;
@@ -93,9 +94,9 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(&user.display_name)
         .bind(&user.password_hash)
         .bind(match user.tier {
-            UserTier::Starter => "starter",
-            UserTier::Professional => "professional",
-            UserTier::Enterprise => "enterprise",
+            UserTier::Starter => tiers::STARTER,
+            UserTier::Professional => tiers::PROFESSIONAL,
+            UserTier::Enterprise => tiers::ENTERPRISE,
         })
         .bind(user.is_active)
         .bind(user.created_at)
@@ -129,8 +130,8 @@ impl DatabaseProvider for PostgresDatabase {
                     tier: {
                         let tier_str: String = row.get("tier");
                         match tier_str.as_str() {
-                            "professional" => UserTier::Professional,
-                            "enterprise" => UserTier::Enterprise,
+                            tiers::PROFESSIONAL => UserTier::Professional,
+                            tiers::ENTERPRISE => UserTier::Enterprise,
                             _ => UserTier::Starter,
                         }
                     },
@@ -172,8 +173,8 @@ impl DatabaseProvider for PostgresDatabase {
                     tier: {
                         let tier_str: String = row.get("tier");
                         match tier_str.as_str() {
-                            "professional" => UserTier::Professional,
-                            "enterprise" => UserTier::Enterprise,
+                            tiers::PROFESSIONAL => UserTier::Professional,
+                            tiers::ENTERPRISE => UserTier::Enterprise,
                             _ => UserTier::Starter,
                         }
                     },
@@ -260,8 +261,8 @@ impl DatabaseProvider for PostgresDatabase {
                 tier: {
                     let tier_str: String = row.get("tier");
                     match tier_str.as_str() {
-                        "professional" => UserTier::Professional,
-                        "enterprise" => UserTier::Enterprise,
+                        tiers::PROFESSIONAL => UserTier::Professional,
+                        tiers::ENTERPRISE => UserTier::Enterprise,
                         _ => UserTier::Starter,
                     }
                 },
@@ -801,9 +802,9 @@ impl DatabaseProvider for PostgresDatabase {
                     key_hash: row.get("key_hash"),
                     description: row.get("description"),
                     tier: match row.get::<String, _>("tier").to_lowercase().as_str() {
-                        "trial" | "starter" => crate::api_keys::ApiKeyTier::Starter,
-                        "professional" => crate::api_keys::ApiKeyTier::Professional,
-                        "enterprise" => crate::api_keys::ApiKeyTier::Enterprise,
+                        tiers::TRIAL | tiers::STARTER => crate::api_keys::ApiKeyTier::Starter,
+                        tiers::PROFESSIONAL => crate::api_keys::ApiKeyTier::Professional,
+                        tiers::ENTERPRISE => crate::api_keys::ApiKeyTier::Enterprise,
                         _ => crate::api_keys::ApiKeyTier::Trial,
                     },
                     is_active: row.get("is_active"),
@@ -849,9 +850,9 @@ impl DatabaseProvider for PostgresDatabase {
                 key_hash: row.get("key_hash"),
                 description: row.get("description"),
                 tier: match row.get::<String, _>("tier").to_lowercase().as_str() {
-                    "trial" | "starter" => crate::api_keys::ApiKeyTier::Starter,
-                    "professional" => crate::api_keys::ApiKeyTier::Professional,
-                    "enterprise" => crate::api_keys::ApiKeyTier::Enterprise,
+                    tiers::TRIAL | tiers::STARTER => crate::api_keys::ApiKeyTier::Starter,
+                    tiers::PROFESSIONAL => crate::api_keys::ApiKeyTier::Professional,
+                    tiers::ENTERPRISE => crate::api_keys::ApiKeyTier::Enterprise,
                     _ => crate::api_keys::ApiKeyTier::Trial,
                 },
                 is_active: row.get("is_active"),
@@ -919,9 +920,9 @@ impl DatabaseProvider for PostgresDatabase {
                 use sqlx::Row;
                 let tier_str: String = row.get("tier");
                 let tier = match tier_str.as_str() {
-                    "starter" => crate::api_keys::ApiKeyTier::Starter,
-                    "professional" => crate::api_keys::ApiKeyTier::Professional,
-                    "enterprise" => crate::api_keys::ApiKeyTier::Enterprise,
+                    tiers::STARTER => crate::api_keys::ApiKeyTier::Starter,
+                    tiers::PROFESSIONAL => crate::api_keys::ApiKeyTier::Professional,
+                    tiers::ENTERPRISE => crate::api_keys::ApiKeyTier::Enterprise,
                     _ => crate::api_keys::ApiKeyTier::Trial, // Default to trial for unknown values (including "trial")
                 };
 
@@ -1009,9 +1010,9 @@ impl DatabaseProvider for PostgresDatabase {
         for row in rows {
             let tier_str: String = row.get("tier");
             let tier = match tier_str.as_str() {
-                "starter" => crate::api_keys::ApiKeyTier::Starter,
-                "professional" => crate::api_keys::ApiKeyTier::Professional,
-                "enterprise" => crate::api_keys::ApiKeyTier::Enterprise,
+                tiers::STARTER => crate::api_keys::ApiKeyTier::Starter,
+                tiers::PROFESSIONAL => crate::api_keys::ApiKeyTier::Professional,
+                tiers::ENTERPRISE => crate::api_keys::ApiKeyTier::Enterprise,
                 _ => crate::api_keys::ApiKeyTier::Trial, // Default to trial for unknown values (including "trial")
             };
 
@@ -1076,9 +1077,9 @@ impl DatabaseProvider for PostgresDatabase {
                 key_hash: row.get("key_hash"),
                 description: row.get("description"),
                 tier: match row.get::<String, _>("tier").to_lowercase().as_str() {
-                    "trial" | "starter" => crate::api_keys::ApiKeyTier::Starter,
-                    "professional" => crate::api_keys::ApiKeyTier::Professional,
-                    "enterprise" => crate::api_keys::ApiKeyTier::Enterprise,
+                    tiers::TRIAL | tiers::STARTER => crate::api_keys::ApiKeyTier::Starter,
+                    tiers::PROFESSIONAL => crate::api_keys::ApiKeyTier::Professional,
+                    tiers::ENTERPRISE => crate::api_keys::ApiKeyTier::Enterprise,
                     _ => crate::api_keys::ApiKeyTier::Trial,
                 },
                 is_active: row.get("is_active"),

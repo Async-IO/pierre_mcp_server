@@ -6,6 +6,7 @@
 //! Tokens are signed with strong secrets and include proper claims for authorization.
 
 use crate::admin::models::{AdminPermissions, ValidatedAdminToken};
+use crate::constants::service_names;
 use crate::database_plugins::DatabaseProvider;
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Duration, Utc};
@@ -105,9 +106,9 @@ impl AdminJwtManager {
 
         let claims = AdminTokenClaims {
             // Standard JWT claims
-            iss: "pierre-mcp-server".into(),
+            iss: service_names::PIERRE_MCP_SERVER.into(),
             sub: token_id.to_string(),
-            aud: "admin-api".into(),
+            aud: service_names::ADMIN_API.into(),
             exp: u64::try_from(exp.timestamp().max(0)).unwrap_or(0),
             iat: u64::try_from(now.timestamp().max(0)).unwrap_or(0),
             nbf: u64::try_from(now.timestamp().max(0)).unwrap_or(0),
@@ -131,8 +132,8 @@ impl AdminJwtManager {
     /// Returns an error if token is invalid, expired, or has wrong format
     pub fn validate_token(&self, token: &str) -> Result<ValidatedAdminToken> {
         let mut validation = Validation::new(self.algorithm);
-        validation.set_audience(&["admin-api"]);
-        validation.set_issuer(&["pierre-mcp-server"]);
+        validation.set_audience(&[service_names::ADMIN_API]);
+        validation.set_issuer(&[service_names::PIERRE_MCP_SERVER]);
 
         // Debug: Log that we're validating the token
         tracing::debug!("Validating admin JWT token");

@@ -586,3 +586,67 @@ pub mod demo_data {
     /// Test IP address for demos and tests
     pub const TEST_IP_ADDRESS: &str = "127.0.0.1";
 }
+
+/// API tier constants to eliminate hardcoded strings throughout the codebase
+pub mod tiers {
+    /// Trial tier identifier
+    pub const TRIAL: &str = "trial";
+
+    /// Starter tier identifier
+    pub const STARTER: &str = "starter";
+
+    /// Professional tier identifier
+    pub const PROFESSIONAL: &str = "professional";
+
+    /// Enterprise tier identifier
+    pub const ENTERPRISE: &str = "enterprise";
+
+    /// Alternative professional tier identifier
+    pub const PRO: &str = "pro";
+
+    /// Alternative enterprise tier identifier
+    pub const ENT: &str = "ent";
+}
+
+/// API key prefix constants to eliminate hardcoded key format strings
+pub mod key_prefixes {
+    /// Production API key prefix
+    pub const API_KEY_LIVE: &str = "pk_live_";
+
+    /// Test API key prefix  
+    pub const API_KEY_TEST: &str = "pk_test_";
+
+    /// Production secret key prefix
+    pub const SECRET_KEY_LIVE: &str = "sk_live_";
+
+    /// Test secret key prefix
+    pub const SECRET_KEY_TEST: &str = "sk_test_";
+}
+
+/// Service name constants to eliminate hardcoded service identifiers
+pub mod service_names {
+    /// Main MCP server service name
+    pub const PIERRE_MCP_SERVER: &str = "pierre-mcp-server";
+
+    /// Admin API service identifier
+    pub const ADMIN_API: &str = "admin-api";
+
+    /// Pierre MCP admin API service name
+    pub const PIERRE_MCP_ADMIN_API: &str = "pierre-mcp-admin-api";
+}
+
+/// Error message constants for consistent error handling
+pub mod error_messages {
+    // Validation errors
+    pub const INVALID_EMAIL_FORMAT: &str = "Invalid email format";
+    pub const PASSWORD_TOO_WEAK: &str = "Password must be at least 8 characters long";
+    pub const INVALID_CREDENTIALS: &str = "Invalid email or password";
+
+    // User state errors
+    pub const USER_ALREADY_EXISTS: &str = "User with this email already exists";
+    pub const USER_NOT_FOUND: &str = "User not found";
+
+    // Authentication errors
+    pub const TOKEN_EXCHANGE_FAILED: &str = "OAuth token exchange failed";
+    pub const INVALID_TOKEN: &str = "Invalid or expired token";
+}

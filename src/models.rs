@@ -27,6 +27,7 @@
 //! - `PersonalRecord`: Individual performance records
 //! - `SportType`: Enumeration of supported activity types
 
+use crate::constants::tiers;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -173,9 +174,9 @@ impl UserTier {
     #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
-            Self::Starter => "starter",
-            Self::Professional => "professional",
-            Self::Enterprise => "enterprise",
+            Self::Starter => tiers::STARTER,
+            Self::Professional => tiers::PROFESSIONAL,
+            Self::Enterprise => tiers::ENTERPRISE,
         }
     }
 }
@@ -185,9 +186,9 @@ impl std::str::FromStr for UserTier {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "starter" => Ok(Self::Starter),
-            "professional" => Ok(Self::Professional),
-            "enterprise" => Ok(Self::Enterprise),
+            tiers::STARTER => Ok(Self::Starter),
+            tiers::PROFESSIONAL => Ok(Self::Professional),
+            tiers::ENTERPRISE => Ok(Self::Enterprise),
             _ => Err(anyhow::anyhow!("Invalid user tier: {s}")),
         }
     }

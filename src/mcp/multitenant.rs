@@ -22,6 +22,7 @@ use crate::constants::{
     json_fields::{GOAL_ID, PROVIDER},
     protocol,
     protocol::{JSONRPC_VERSION, SERVER_VERSION},
+    service_names,
     tools::{
         ANALYZE_ACTIVITY, ANALYZE_GOAL_FEASIBILITY, ANALYZE_PERFORMANCE_TRENDS,
         ANALYZE_TRAINING_LOAD, CALCULATE_FITNESS_SCORE, CALCULATE_METRICS, COMPARE_ACTIVITIES,
@@ -35,6 +36,7 @@ use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::mcp::schema::InitializeResponse;
 use crate::models::AuthRequest;
 use crate::providers::TenantProviderFactory;
+use crate::routes::OAuthAuthorizationResponse;
 use crate::routes::{AuthRoutes, LoginRequest, OAuthRoutes, RefreshTokenRequest, RegisterRequest};
 use crate::security::SecurityConfig;
 use crate::tenant::{TenantContext, TenantOAuthClient, TenantRole};
@@ -52,6 +54,19 @@ use uuid::Uuid;
 use warp::Reply;
 
 // Constants are now imported from the constants module
+
+/// Default ID for notifications and error responses that don't have a request ID
+fn default_request_id() -> Value {
+    serde_json::Value::Number(serde_json::Number::from(0))
+}
+
+/// OAuth credentials passed via MCP tool parameters
+struct McpOAuthCredentials<'a> {
+    strava_client_id: Option<&'a str>,
+    strava_client_secret: Option<&'a str>,
+    fitbit_client_id: Option<&'a str>,
+    fitbit_client_secret: Option<&'a str>,
+}
 
 /// Centralized resource container for dependency injection
 ///
@@ -300,7 +315,11 @@ impl MultiTenantMcpServer {
 
         // Create all route groups using helper functions
         let auth_route_filter = Self::create_auth_routes(&auth_routes);
-        let oauth_route_filter = Self::create_oauth_routes(&oauth_routes, &resources.database);
+        let oauth_route_filter = Self::create_oauth_routes(
+            &oauth_routes,
+            &resources.database,
+            &resources.tenant_oauth_client,
+        );
         let api_key_route_filter = Self::create_api_key_routes(&api_key_routes);
         let api_key_usage_filter = Self::create_api_key_usage_route(api_key_routes.clone());
         let dashboard_route_filter = Self::create_dashboard_routes(&dashboard_routes);
@@ -408,6 +427,10 @@ impl MultiTenantMcpServer {
                 "origin",
                 "access-control-request-method",
                 "access-control-request-headers",
+                "x-strava-client-id",
+                "x-strava-client-secret",
+                "x-fitbit-client-id",
+                "x-fitbit-client-secret",
             ])
             .allow_methods(vec!["GET", "POST", "PUT", "DELETE", "OPTIONS"])
     }
@@ -491,9 +514,10 @@ impl MultiTenantMcpServer {
     }
 
     /// Create OAuth authorization endpoint
+    #[allow(clippy::too_many_lines)] // OAuth flow implementation requires comprehensive logic
     fn create_oauth_auth_route(
-        oauth_routes: &OAuthRoutes,
         database: &Arc<Database>,
+        tenant_oauth_client: &Arc<TenantOAuthClient>,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
 
@@ -501,12 +525,13 @@ impl MultiTenantMcpServer {
             .and(warp::path("oauth"))
             .and(warp::path!("auth" / String / String))
             .and(warp::get())
+            .and(warp::header::headers_cloned())
             .and_then({
-                let oauth_routes = oauth_routes.clone();
                 let database = database.clone();
-                move |provider: String, user_id_str: String| {
-                    let oauth_routes = oauth_routes.clone();
+                let tenant_oauth_client = tenant_oauth_client.clone();
+                move |provider: String, user_id_str: String, headers: warp::http::HeaderMap| {
                     let database = database.clone();
+                    let tenant_oauth_client = tenant_oauth_client.clone();
                     async move {
                         let Ok(user_id) = Uuid::parse_str(&user_id_str) else {
                             let error = api_error("Invalid user ID format");
@@ -534,12 +559,89 @@ impl MultiTenantMcpServer {
                             return Err(warp::reject::custom(ApiError(error)));
                         };
 
-                        match oauth_routes
-                            .get_auth_url(user_id, tenant_id, &provider)
+                        // Extract user-specific OAuth credentials from headers
+                        let user_client_id = headers
+                            .get(format!("x-{}-client-id", provider.to_lowercase()))
+                            .and_then(|h| h.to_str().ok())
+                            .map(std::string::ToString::to_string);
+
+                        let user_client_secret = headers
+                            .get(format!("x-{}-client-secret", provider.to_lowercase()))
+                            .and_then(|h| h.to_str().ok())
+                            .map(std::string::ToString::to_string);
+
+                        // If user provided custom credentials, store them temporarily for this tenant
+                        if let (Some(client_id), Some(client_secret)) = (&user_client_id, &user_client_secret) {
+                            tracing::info!(
+                                "Using user-provided OAuth credentials for tenant {} and provider {}",
+                                tenant_id,
+                                provider
+                            );
+                            let redirect_uri = match provider.as_str() {
+                                "strava" => crate::constants::env_config::strava_redirect_uri(),
+                                "fitbit" => crate::constants::env_config::fitbit_redirect_uri(),
+                                _ => {
+                                    let error = api_error(&format!("Unsupported OAuth provider: {provider}"));
+                                    return Err(warp::reject::custom(ApiError(error)));
+                                }
+                            };
+
+                            let request = crate::tenant::oauth_client::StoreCredentialsRequest {
+                                client_id: client_id.clone(),
+                                client_secret: client_secret.clone(),
+                                redirect_uri,
+                                scopes: match provider.as_str() {
+                                    "strava" => vec!["read".to_string(), "activity:read_all".to_string()],
+                                    "fitbit" => vec!["activity".to_string(), "heartrate".to_string(), "location".to_string(), "nutrition".to_string(), "profile".to_string(), "settings".to_string(), "sleep".to_string(), "social".to_string(), "weight".to_string()],
+                                    _ => vec!["read".to_string()],
+                                },
+                                configured_by: user_id,
+                            };
+
+                            if let Err(e) = tenant_oauth_client
+                                .store_credentials(tenant_id, &provider, request)
+                                .await
+                            {
+                                tracing::error!(
+                                    "Failed to store user OAuth credentials for tenant {} and provider {}: {}",
+                                    tenant_id,
+                                    provider,
+                                    e
+                                );
+                                let error = api_error(&format!("Failed to store OAuth credentials: {e}"));
+                                return Err(warp::reject::custom(ApiError(error)));
+                            }
+                        }
+
+                        // Use tenant context to get authorization URL  
+                        let tenant_context = TenantContext {
+                            tenant_id,
+                            user_id,
+                            tenant_name: "Example Organization".to_string(), // TODO: Get from tenant
+                            user_role: TenantRole::Member,
+                        };
+
+                        // Generate state for CSRF protection (mimics the routes implementation)
+                        let new_uuid = Uuid::new_v4();
+                        let state = format!("{user_id}:{new_uuid}");
+
+                        match tenant_oauth_client
+                            .get_authorization_url(&tenant_context, &provider, &state)
                             .await
                         {
-                            Ok(auth_response) => Ok(warp::reply::json(&auth_response)),
+                            Ok(auth_url) => {
+                                let response = OAuthAuthorizationResponse {
+                                    authorization_url: auth_url,
+                                    state: state.clone(),
+                                    instructions: format!(
+                                        "Visit the URL above to authorize access to your {provider} account. You'll be redirected back after authorization."
+                                    ),
+                                    expires_in_minutes: 10,
+                                };
+                                Ok(warp::reply::json(&response))
+                            }
                             Err(e) => {
+                                tracing::error!("Failed to get OAuth authorization URL: {}", e);
                                 let error = serde_json::json!({"error": e.to_string()});
                                 Err(warp::reject::custom(ApiError(error)))
                             }
@@ -634,10 +736,11 @@ impl MultiTenantMcpServer {
     fn create_oauth_routes(
         oauth_routes: &OAuthRoutes,
         database: &Arc<Database>,
+        tenant_oauth_client: &Arc<TenantOAuthClient>,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
 
-        let oauth_auth = Self::create_oauth_auth_route(oauth_routes, database);
+        let oauth_auth = Self::create_oauth_auth_route(database, tenant_oauth_client);
         let oauth_callback = Self::create_oauth_callback_route(oauth_routes);
         oauth_auth.or(oauth_callback)
     }
@@ -1413,7 +1516,9 @@ impl MultiTenantMcpServer {
         use warp::Filter;
 
         warp::path("health").and(warp::get()).map(|| {
-            warp::reply::json(&serde_json::json!({"status": "ok", "service": "pierre-mcp-server"}))
+            warp::reply::json(
+                &serde_json::json!({"status": "ok", "service": service_names::PIERRE_MCP_SERVER}),
+            )
         })
     }
 
@@ -1628,28 +1733,28 @@ impl MultiTenantMcpServer {
             }
 
             if let Ok(request) = serde_json::from_str::<McpRequest>(trimmed_line) {
-                let response = Self::handle_request(request, &self.resources).await;
+                if let Some(response) = Self::handle_request(request, &self.resources).await {
+                    let response_str = match serde_json::to_string(&response) {
+                        Ok(s) => s,
+                        Err(e) => {
+                            tracing::error!("Failed to serialize response: {}", e);
+                            line.clear();
+                            continue;
+                        }
+                    };
 
-                let response_str = match serde_json::to_string(&response) {
-                    Ok(s) => s,
-                    Err(e) => {
-                        tracing::error!("Failed to serialize response: {}", e);
-                        line.clear();
-                        continue;
+                    if let Err(e) = stdout.write_all(response_str.as_bytes()).await {
+                        tracing::error!("Failed to write to stdout: {}", e);
+                        break;
                     }
-                };
-
-                if let Err(e) = stdout.write_all(response_str.as_bytes()).await {
-                    tracing::error!("Failed to write to stdout: {}", e);
-                    break;
-                }
-                if let Err(e) = stdout.write_all(b"\n").await {
-                    tracing::error!("Failed to write newline to stdout: {}", e);
-                    break;
-                }
-                if let Err(e) = stdout.flush().await {
-                    tracing::error!("Failed to flush stdout: {}", e);
-                    break;
+                    if let Err(e) = stdout.write_all(b"\n").await {
+                        tracing::error!("Failed to write newline to stdout: {}", e);
+                        break;
+                    }
+                    if let Err(e) = stdout.flush().await {
+                        tracing::error!("Failed to flush stdout: {}", e);
+                        break;
+                    }
                 }
             }
             line.clear();
@@ -1736,21 +1841,50 @@ impl MultiTenantMcpServer {
         match method {
             warp::http::Method::POST => {
                 // Handle JSON-RPC request
-                if let Ok(mut request) = serde_json::from_value::<McpRequest>(body) {
-                    // If no auth_token in the request body, use the Authorization header
-                    if request.auth_token.is_none() {
-                        request.auth_token = authorization;
+                match serde_json::from_value::<McpRequest>(body.clone()) {
+                    Ok(mut request) => {
+                        // If no auth_token in the request body, use the Authorization header
+                        if request.auth_token.is_none() {
+                            request.auth_token = authorization;
+                        }
+
+                        #[allow(clippy::option_if_let_else)]
+                        if let Some(response) = Self::handle_request(request, &ctx.resources).await
+                        {
+                            // Return 202 Accepted with response body for successful requests
+                            Ok(Box::new(warp::reply::with_status(
+                                warp::reply::json(&response),
+                                warp::http::StatusCode::ACCEPTED,
+                            )))
+                        } else {
+                            // Notification - return 202 with empty body
+                            Ok(Box::new(warp::reply::with_status(
+                                warp::reply(),
+                                warp::http::StatusCode::ACCEPTED,
+                            )))
+                        }
                     }
+                    Err(parse_error) => {
+                        let body_str = serde_json::to_string(&body)
+                            .unwrap_or_else(|_| "invalid json".to_string());
+                        tracing::warn!(
+                            "Failed to parse MCP request: {} | Body: {}",
+                            parse_error,
+                            body_str
+                        );
 
-                    let response = Self::handle_request(request, &ctx.resources).await;
+                        // Create and log the error response we're about to send
+                        let error_response = McpResponse::error(
+                            default_request_id(),
+                            -32600,
+                            "Invalid request".to_string(),
+                        );
+                        let error_response_str = serde_json::to_string(&error_response)
+                            .unwrap_or_else(|_| "failed to serialize error response".to_string());
+                        tracing::warn!("Sending MCP error response: {}", error_response_str);
 
-                    // Return 202 Accepted with no body for successful requests
-                    Ok(Box::new(warp::reply::with_status(
-                        warp::reply::json(&response),
-                        warp::http::StatusCode::ACCEPTED,
-                    )))
-                } else {
-                    Err(warp::reject::custom(McpHttpError::InvalidRequest))
+                        Err(warp::reject::custom(McpHttpError::InvalidRequest))
+                    }
                 }
             }
             warp::http::Method::GET => {
@@ -1798,47 +1932,77 @@ impl MultiTenantMcpServer {
 
     /// Handle HTTP rejection
     fn handle_mcp_rejection_sync(err: &warp::Rejection) -> impl warp::Reply {
-        let code;
+        let http_code;
+        let mcp_error_code;
         let message;
 
         if err.is_not_found() {
-            code = warp::http::StatusCode::NOT_FOUND;
+            http_code = warp::http::StatusCode::NOT_FOUND;
+            mcp_error_code = -32601; // Method not found
             message = "Not Found";
         } else if matches!(err.find(), Some(McpHttpError::InvalidOrigin)) {
-            code = warp::http::StatusCode::FORBIDDEN;
+            http_code = warp::http::StatusCode::FORBIDDEN;
+            mcp_error_code = -32000; // Server error
             message = "Invalid origin";
         } else if matches!(err.find(), Some(McpHttpError::InvalidRequest)) {
-            code = warp::http::StatusCode::BAD_REQUEST;
+            http_code = warp::http::StatusCode::BAD_REQUEST;
+            mcp_error_code = -32600; // Invalid Request
             message = "Invalid request";
         } else if err.find::<warp::reject::MethodNotAllowed>().is_some() {
-            code = warp::http::StatusCode::METHOD_NOT_ALLOWED;
+            http_code = warp::http::StatusCode::METHOD_NOT_ALLOWED;
+            mcp_error_code = -32601; // Method not found
             message = "Method not allowed";
         } else {
-            code = warp::http::StatusCode::INTERNAL_SERVER_ERROR;
+            http_code = warp::http::StatusCode::INTERNAL_SERVER_ERROR;
+            mcp_error_code = -32603; // Internal error
             message = "Internal server error";
         }
 
-        let json = warp::reply::json(&serde_json::json!({
-            "error": message,
-            "code": code.as_u16()
-        }));
+        // Return proper MCP JSON-RPC error response
+        // Use -1 as ID for rejection errors since we can't determine the original request ID
+        let mcp_response = McpResponse::error(
+            serde_json::Value::Number(serde_json::Number::from(-1)),
+            mcp_error_code,
+            message.to_string(),
+        );
 
-        warp::reply::with_status(json, code)
+        // Debug log the rejection response we're sending
+        let response_str = serde_json::to_string(&mcp_response)
+            .unwrap_or_else(|_| "failed to serialize rejection response".to_string());
+        tracing::warn!(
+            "Sending rejection response (HTTP {}): {}",
+            http_code.as_u16(),
+            response_str
+        );
+
+        let json = warp::reply::json(&mcp_response);
+        warp::reply::with_status(json, http_code)
     }
 
     /// Handle MCP request with `ServerResources`
     pub async fn handle_request(
         request: McpRequest,
         resources: &Arc<ServerResources>,
-    ) -> McpResponse {
-        match request.method.as_str() {
+    ) -> Option<McpResponse> {
+        // Handle notifications (no response needed)
+        if request.method.starts_with("notifications/") {
+            Self::handle_notification(&request);
+            return None;
+        }
+
+        // Handle regular requests (response needed)
+        let response = match request.method.as_str() {
             "initialize" => Self::handle_initialize(request),
             "ping" => Self::handle_ping(request),
             "tools/list" => Self::handle_tools_list(request),
+            "prompts/list" => Self::handle_prompts_list(request),
+            "resources/list" => Self::handle_resources_list(request),
             "authenticate" => Self::handle_authenticate(request, &resources.auth_manager),
             "tools/call" => Self::handle_tools_call_with_resources(request, resources).await,
             _ => Self::handle_unknown_method(request),
-        }
+        };
+
+        Some(response)
     }
 
     /// Handle initialize request
@@ -1849,22 +2013,17 @@ impl MultiTenantMcpServer {
             SERVER_VERSION.to_string(),
         );
 
-        McpResponse {
-            jsonrpc: JSONRPC_VERSION.to_string(),
-            result: serde_json::to_value(&init_response).ok(),
-            error: None,
-            id: request.id,
+        let request_id = request.id.unwrap_or_else(default_request_id);
+        match serde_json::to_value(&init_response) {
+            Ok(result) => McpResponse::success(request_id, result),
+            Err(_) => McpResponse::error(request_id, -32603, "Internal error".to_string()),
         }
     }
 
     /// Handle ping request
     fn handle_ping(request: McpRequest) -> McpResponse {
-        McpResponse {
-            jsonrpc: JSONRPC_VERSION.to_string(),
-            result: Some(serde_json::json!({})),
-            error: None,
-            id: request.id,
-        }
+        let request_id = request.id.unwrap_or_else(default_request_id);
+        McpResponse::success(request_id, serde_json::json!({}))
     }
 
     /// Extract tenant context from MCP request headers
@@ -2018,14 +2177,45 @@ impl MultiTenantMcpServer {
 
     /// Handle tools/list request
     fn handle_tools_list(request: McpRequest) -> McpResponse {
+        let request_id = request.id.unwrap_or_else(default_request_id);
         let tools = crate::mcp::schema::get_tools();
-        McpResponse {
-            jsonrpc: JSONRPC_VERSION.to_string(),
-            result: Some(serde_json::json!({
+        McpResponse::success(
+            request_id,
+            serde_json::json!({
                 "tools": tools
-            })),
-            error: None,
-            id: request.id,
+            }),
+        )
+    }
+
+    /// Handle prompts/list request - returns empty list as we don't support prompts yet
+    fn handle_prompts_list(request: McpRequest) -> McpResponse {
+        let request_id = request.id.unwrap_or_else(default_request_id);
+        McpResponse::success(
+            request_id,
+            serde_json::json!({
+                "prompts": []
+            }),
+        )
+    }
+
+    /// Handle resources/list request - returns empty list as we don't support resources yet
+    fn handle_resources_list(request: McpRequest) -> McpResponse {
+        let request_id = request.id.unwrap_or_else(default_request_id);
+        McpResponse::success(
+            request_id,
+            serde_json::json!({
+                "resources": []
+            }),
+        )
+    }
+
+    /// Handle notifications/initialized - no response needed for notifications
+    /// Handle notification messages (no response needed)
+    fn handle_notification(request: &McpRequest) {
+        if request.method.as_str() == "notifications/initialized" {
+            // Client has finished initialization - we can log this but no response needed
+        } else {
+            // Unknown notification - log but don't respond
         }
     }
 
@@ -2087,7 +2277,7 @@ impl MultiTenantMcpServer {
             tracing::error!("Missing request parameters in tools/call");
             return McpResponse {
                 jsonrpc: "2.0".to_string(),
-                id: request.id,
+                id: request.id.unwrap_or_else(default_request_id),
                 result: None,
                 error: Some(McpError {
                     code: ERROR_INVALID_PARAMS,
@@ -2114,7 +2304,14 @@ impl MultiTenantMcpServer {
             auth_result: &auth_result,
         };
 
-        Self::route_tool_call(tool_name, args, request.id, user_id, &routing_context).await
+        Self::route_tool_call(
+            tool_name,
+            args,
+            request.id.unwrap_or_else(default_request_id),
+            user_id,
+            &routing_context,
+        )
+        .await
     }
 
     /// Handle tools/call request with authentication and tenant context
@@ -2188,71 +2385,55 @@ impl MultiTenantMcpServer {
             (ERROR_UNAUTHORIZED, "Authentication required")
         };
 
-        McpResponse {
-            jsonrpc: JSONRPC_VERSION.to_string(),
-            result: None,
-            error: Some(McpError {
-                code: error_code,
-                message: error_msg.to_string(),
-                data: Some(serde_json::json!({
-                    "detailed_error": error_message,
-                    "authentication_failed": true
-                })),
+        McpResponse::error_with_data(
+            request.id.unwrap_or_else(default_request_id),
+            error_code,
+            error_msg.to_string(),
+            serde_json::json!({
+                "detailed_error": error_message,
+                "authentication_failed": true
             }),
-            id: request.id,
-        }
+        )
     }
 
     /// Handle unknown method
     fn handle_unknown_method(request: McpRequest) -> McpResponse {
-        McpResponse {
-            jsonrpc: JSONRPC_VERSION.to_string(),
-            result: None,
-            error: Some(McpError {
-                code: ERROR_METHOD_NOT_FOUND,
-                message: "Method not found".into(),
-                data: None,
-            }),
-            id: request.id,
-        }
+        McpResponse::error(
+            request.id.unwrap_or_else(default_request_id),
+            ERROR_METHOD_NOT_FOUND,
+            "Method not found".to_string(),
+        )
     }
 
     /// Handle authentication request
     fn handle_authenticate(request: McpRequest, auth_manager: &Arc<AuthManager>) -> McpResponse {
         let Some(params) = request.params else {
-            tracing::error!("Missing request parameters in tools/call");
-            return McpResponse {
-                jsonrpc: "2.0".to_string(),
-                id: request.id,
-                result: None,
-                error: Some(McpError {
-                    code: ERROR_INVALID_PARAMS,
-                    message: "Invalid params: Missing request parameters".to_string(),
-                    data: None,
-                }),
-            };
+            tracing::error!("Missing request parameters in authentication");
+            return McpResponse::error(
+                request.id.unwrap_or_else(default_request_id),
+                ERROR_INVALID_PARAMS,
+                "Invalid params: Missing request parameters".to_string(),
+            );
         };
 
         if let Ok(auth_request) = serde_json::from_value::<AuthRequest>(params) {
             let auth_response = auth_manager.authenticate(&auth_request);
-
-            McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_string(),
-                result: serde_json::to_value(&auth_response).ok(),
-                error: None,
-                id: request.id,
+            match serde_json::to_value(&auth_response) {
+                Ok(result) => {
+                    McpResponse::success(request.id.unwrap_or_else(default_request_id), result)
+                }
+                Err(_) => McpResponse::error(
+                    request.id.unwrap_or_else(default_request_id),
+                    -32603,
+                    "Internal error".to_string(),
+                ),
             }
         } else {
-            McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_string(),
-                result: None,
-                error: Some(McpError {
-                    code: ERROR_INVALID_PARAMS,
-                    message: "Invalid authentication request".into(),
-                    data: None,
-                }),
-                id: request.id,
-            }
+            McpResponse::error(
+                request.id.unwrap_or_else(default_request_id),
+                ERROR_INVALID_PARAMS,
+                "Invalid authentication request".to_string(),
+            )
         }
     }
 
@@ -2268,7 +2449,7 @@ impl MultiTenantMcpServer {
             tracing::error!("Missing request parameters in tools/call");
             return McpResponse {
                 jsonrpc: "2.0".to_string(),
-                id: request.id,
+                id: request.id.unwrap_or_else(default_request_id),
                 result: None,
                 error: Some(McpError {
                     code: ERROR_INVALID_PARAMS,
@@ -2294,7 +2475,14 @@ impl MultiTenantMcpServer {
             auth_result: &auth_result,
         };
 
-        Self::route_tool_call(tool_name, args, request.id, user_id, &routing_context).await
+        Self::route_tool_call(
+            tool_name,
+            args,
+            request.id.unwrap_or_else(default_request_id),
+            user_id,
+            &routing_context,
+        )
+        .await
     }
 
     /// Route tool calls to appropriate handlers based on tool type and tenant context
@@ -2309,12 +2497,26 @@ impl MultiTenantMcpServer {
             // Note: CONNECT_STRAVA and CONNECT_FITBIT tools removed - use tenant-level OAuth configuration
             GET_CONNECTION_STATUS => {
                 if let Some(ref tenant_ctx) = ctx.tenant_context {
+                    // Extract optional OAuth credentials from args
+                    let strava_client_id = args.get("strava_client_id").and_then(|v| v.as_str());
+                    let strava_client_secret =
+                        args.get("strava_client_secret").and_then(|v| v.as_str());
+                    let fitbit_client_id = args.get("fitbit_client_id").and_then(|v| v.as_str());
+                    let fitbit_client_secret =
+                        args.get("fitbit_client_secret").and_then(|v| v.as_str());
+
                     return Self::handle_tenant_connection_status(
                         tenant_ctx,
                         &ctx.resources.tenant_provider_factory,
                         &ctx.resources.database,
+                        &ctx.resources.tenant_oauth_client,
                         request_id,
-                    );
+                        strava_client_id,
+                        strava_client_secret,
+                        fitbit_client_id,
+                        fitbit_client_secret,
+                    )
+                    .await;
                 }
                 // No legacy fallback - require tenant context
                 McpResponse {
@@ -3065,12 +3267,84 @@ impl MultiTenantMcpServer {
 
     // === Tenant-Aware Tool Handlers ===
 
+    /// Store user-provided OAuth credentials if supplied
+    async fn store_mcp_oauth_credentials(
+        tenant_context: &TenantContext,
+        oauth_client: &Arc<TenantOAuthClient>,
+        credentials: &McpOAuthCredentials<'_>,
+    ) {
+        // Store Strava credentials if provided
+        if let (Some(id), Some(secret)) = (
+            credentials.strava_client_id,
+            credentials.strava_client_secret,
+        ) {
+            tracing::info!(
+                "Storing MCP-provided Strava OAuth credentials for tenant {}",
+                tenant_context.tenant_id
+            );
+            let request = crate::tenant::oauth_client::StoreCredentialsRequest {
+                client_id: id.to_string(),
+                client_secret: secret.to_string(),
+                redirect_uri: crate::constants::env_config::strava_redirect_uri(),
+                scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+                configured_by: tenant_context.user_id,
+            };
+
+            if let Err(e) = oauth_client
+                .store_credentials(tenant_context.tenant_id, "strava", request)
+                .await
+            {
+                tracing::error!("Failed to store Strava OAuth credentials: {}", e);
+            }
+        }
+
+        // Store Fitbit credentials if provided
+        if let (Some(id), Some(secret)) = (
+            credentials.fitbit_client_id,
+            credentials.fitbit_client_secret,
+        ) {
+            tracing::info!(
+                "Storing MCP-provided Fitbit OAuth credentials for tenant {}",
+                tenant_context.tenant_id
+            );
+            let request = crate::tenant::oauth_client::StoreCredentialsRequest {
+                client_id: id.to_string(),
+                client_secret: secret.to_string(),
+                redirect_uri: crate::constants::env_config::fitbit_redirect_uri(),
+                scopes: vec![
+                    "activity".to_string(),
+                    "heartrate".to_string(),
+                    "location".to_string(),
+                    "nutrition".to_string(),
+                    "profile".to_string(),
+                    "settings".to_string(),
+                    "sleep".to_string(),
+                    "social".to_string(),
+                    "weight".to_string(),
+                ],
+                configured_by: tenant_context.user_id,
+            };
+
+            if let Err(e) = oauth_client
+                .store_credentials(tenant_context.tenant_id, "fitbit", request)
+                .await
+            {
+                tracing::error!("Failed to store Fitbit OAuth credentials: {}", e);
+            }
+        }
+    }
+
     /// Handle tenant-aware connection status
-    fn handle_tenant_connection_status(
+    async fn handle_tenant_connection_status(
         tenant_context: &TenantContext,
         _tenant_provider_factory: &Arc<TenantProviderFactory>,
         _database: &Arc<Database>,
+        tenant_oauth_client: &Arc<TenantOAuthClient>,
         request_id: Value,
+        strava_client_id: Option<&str>,
+        strava_client_secret: Option<&str>,
+        fitbit_client_id: Option<&str>,
+        fitbit_client_secret: Option<&str>,
     ) -> McpResponse {
         tracing::info!(
             "Checking connection status for tenant {} user {}",
@@ -3078,29 +3352,78 @@ impl MultiTenantMcpServer {
             tenant_context.user_id
         );
 
+        // Store MCP-provided OAuth credentials if supplied
+        let credentials = McpOAuthCredentials {
+            strava_client_id,
+            strava_client_secret,
+            fitbit_client_id,
+            fitbit_client_secret,
+        };
+        Self::store_mcp_oauth_credentials(tenant_context, tenant_oauth_client, &credentials).await;
+
+        // Generate OAuth URLs for connecting providers
+        // Using the HTTP API endpoints (port 8081) for OAuth flow
+        let base_url = "http://127.0.0.1:8081/api/oauth";
+
         // In a real implementation, this would check tenant-specific provider connections
-        // For now, return empty connection status
+        // For now, return connection status with OAuth URLs using proper MCP content format
+        let structured_data = serde_json::json!({
+            "providers": [
+                {
+                    "provider": "strava",
+                    "connected": false,
+                    "tenant_id": tenant_context.tenant_id,
+                    "last_sync": null,
+                    "connect_url": format!("{}/auth/strava/{}", base_url, tenant_context.user_id),
+                    "connect_instructions": "Click this URL to connect your Strava account and authorize access to your fitness data."
+                },
+                {
+                    "provider": "fitbit",
+                    "connected": false,
+                    "tenant_id": tenant_context.tenant_id,
+                    "last_sync": null,
+                    "connect_url": format!("{}/auth/fitbit/{}", base_url, tenant_context.user_id),
+                    "connect_instructions": "Click this URL to connect your Fitbit account and authorize access to your fitness data."
+                }
+            ],
+            "tenant_info": {
+                "tenant_id": tenant_context.tenant_id,
+                "tenant_name": tenant_context.tenant_name
+            },
+            "connection_help": {
+                "message": "To connect a fitness provider, click the connect_url for the provider you want to use. You'll be redirected to their website to authorize access, then redirected back to complete the connection.",
+                "supported_providers": ["strava", "fitbit"],
+                "note": "After connecting, you can use fitness tools like get_activities, get_athlete, and get_stats with the connected provider."
+            }
+        });
+
+        let text_content = format!(
+            "🏃‍♂️ Fitness Provider Connection Status\n\n\
+            📊 Available Providers:\n\n\
+            🔗 Strava (Not Connected)\n\
+            Click to connect: {base_url}/auth/strava/{user_id}\n\n\
+            🔗 Fitbit (Not Connected)\n\
+            Click to connect: {base_url}/auth/fitbit/{user_id}\n\n\
+            💡 To connect a provider:\n\
+            1. Click one of the URLs above\n\
+            2. You'll be redirected to authorize access\n\
+            3. Complete the OAuth flow to connect your account\n\
+            4. Start using fitness tools like get_activities, get_athlete, and get_stats",
+            base_url = base_url,
+            user_id = tenant_context.user_id
+        );
+
         McpResponse {
             jsonrpc: JSONRPC_VERSION.to_string(),
             result: Some(serde_json::json!({
-                "providers": [
+                "content": [
                     {
-                        "provider": "strava",
-                        "connected": false,
-                        "tenant_id": tenant_context.tenant_id,
-                        "last_sync": null
-                    },
-                    {
-                        "provider": "fitbit",
-                        "connected": false,
-                        "tenant_id": tenant_context.tenant_id,
-                        "last_sync": null
+                        "type": "text",
+                        "text": text_content
                     }
                 ],
-                "tenant_info": {
-                    "tenant_id": tenant_context.tenant_id,
-                    "tenant_name": tenant_context.tenant_name
-                }
+                "structuredContent": structured_data,
+                "isError": false
             })),
             error: None,
             id: request_id,
@@ -3321,7 +3644,7 @@ impl MultiTenantMcpServer {
                 ci_mode: false,
                 protocol: crate::config::environment::ProtocolConfig {
                     mcp_version: crate::constants::network_config::DEFAULT_MCP_VERSION.to_string(),
-                    server_name: "pierre-mcp-server".into(),
+                    server_name: service_names::PIERRE_MCP_SERVER.into(),
                     server_version: env!("CARGO_PKG_VERSION").to_string(),
                 },
             },
@@ -3335,7 +3658,8 @@ pub struct McpRequest {
     pub jsonrpc: String,
     pub method: String,
     pub params: Option<Value>,
-    pub id: Value,
+    /// Optional ID - notifications don't have IDs, only regular requests do
+    pub id: Option<Value>,
     /// Authorization header value (Bearer token)
     #[serde(rename = "auth")]
     pub auth_token: Option<String>,
@@ -3361,6 +3685,63 @@ pub struct McpError {
     pub code: i32,
     pub message: String,
     pub data: Option<Value>,
+}
+
+impl McpError {
+    /// Create a new MCP error
+    #[must_use]
+    pub const fn new(code: i32, message: String) -> Self {
+        Self {
+            code,
+            message,
+            data: None,
+        }
+    }
+
+    /// Create a new MCP error with data
+    #[must_use]
+    pub const fn new_with_data(code: i32, message: String, data: Value) -> Self {
+        Self {
+            code,
+            message,
+            data: Some(data),
+        }
+    }
+}
+
+impl McpResponse {
+    /// Create a successful MCP response
+    #[must_use]
+    pub fn success(id: Value, result: Value) -> Self {
+        Self {
+            jsonrpc: JSONRPC_VERSION.to_string(),
+            result: Some(result),
+            error: None,
+            id,
+        }
+    }
+
+    /// Create an error MCP response
+    #[must_use]
+    pub fn error(id: Value, code: i32, message: String) -> Self {
+        Self {
+            jsonrpc: JSONRPC_VERSION.to_string(),
+            result: None,
+            error: Some(McpError::new(code, message)),
+            id,
+        }
+    }
+
+    /// Create an error MCP response with data
+    #[must_use]
+    pub fn error_with_data(id: Value, code: i32, message: String, data: Value) -> Self {
+        Self {
+            jsonrpc: JSONRPC_VERSION.to_string(),
+            result: None,
+            error: Some(McpError::new_with_data(code, message, data)),
+            id,
+        }
+    }
 }
 
 /// HTTP API error wrapper

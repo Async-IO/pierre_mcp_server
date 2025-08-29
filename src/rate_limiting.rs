@@ -13,6 +13,7 @@
 //! authentication methods.
 
 use crate::api_keys::{ApiKey, ApiKeyTier, RateLimitStatus};
+use crate::constants::tiers;
 use crate::models::{Tenant, User, UserTier};
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use serde::{Deserialize, Serialize};
@@ -195,8 +196,8 @@ impl TenantRateLimitConfig {
     /// Configure tenant based on their plan
     pub fn configure_tenant_by_plan(&mut self, tenant_id: Uuid, plan: &str) {
         let config = match plan.to_lowercase().as_str() {
-            "professional" | "pro" => TenantRateLimitTier::professional(),
-            "enterprise" | "ent" => TenantRateLimitTier::enterprise(),
+            tiers::PROFESSIONAL | tiers::PRO => TenantRateLimitTier::professional(),
+            tiers::ENTERPRISE | tiers::ENT => TenantRateLimitTier::enterprise(),
             _ => TenantRateLimitTier::starter(),
         };
         self.set_tenant_config(tenant_id, config);
@@ -268,7 +269,7 @@ impl UnifiedRateLimitCalculator {
                 limit: None,
                 remaining: None,
                 reset_at: None,
-                tier: "enterprise".into(),
+                tier: tiers::ENTERPRISE.into(),
                 auth_method: "api_key".into(),
             }
         } else {
@@ -300,7 +301,7 @@ impl UnifiedRateLimitCalculator {
                 limit: None,
                 remaining: None,
                 reset_at: None,
-                tier: "enterprise".into(),
+                tier: tiers::ENTERPRISE.into(),
                 auth_method: "jwt_token".into(),
             }
         } else {
@@ -332,7 +333,7 @@ impl UnifiedRateLimitCalculator {
                 limit: None,
                 remaining: None,
                 reset_at: None,
-                tier: "enterprise".into(),
+                tier: tiers::ENTERPRISE.into(),
                 auth_method: "jwt_token".into(),
             }
         } else {
@@ -369,8 +370,8 @@ impl UnifiedRateLimitCalculator {
         } else {
             // Auto-configure based on plan
             match tenant.plan.to_lowercase().as_str() {
-                "professional" | "pro" => &TenantRateLimitTier::professional(),
-                "enterprise" | "ent" => &TenantRateLimitTier::enterprise(),
+                tiers::PROFESSIONAL | tiers::PRO => &TenantRateLimitTier::professional(),
+                tiers::ENTERPRISE | tiers::ENT => &TenantRateLimitTier::enterprise(),
                 _ => &TenantRateLimitTier::starter(),
             }
         };
