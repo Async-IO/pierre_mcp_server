@@ -1290,7 +1290,7 @@ impl User {
             display_name,
             password_hash,
             tier: UserTier::Starter, // Default to starter tier
-            tenant_id: Some("default-tenant".to_string()), // Assign to default tenant
+            tenant_id: None,         // No tenant assigned until approval
             strava_token: None,
             fitbit_token: None,
             created_at: now,

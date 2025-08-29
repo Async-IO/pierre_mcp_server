@@ -69,6 +69,9 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         admin_token_id: &str,
     ) -> Result<User>;
 
+    /// Update user's tenant_id to link them to a tenant
+    async fn update_user_tenant_id(&self, user_id: Uuid, tenant_slug: &str) -> Result<()>;
+
     // ================================
     // OAuth Token Management
     // ================================

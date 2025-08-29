@@ -211,30 +211,47 @@ async fn create_executor_no_oauth() -> Result<UniversalToolExecutor> {
 async fn test_oauth_configuration_errors() -> Result<()> {
     let executor = create_executor_no_oauth().await?;
 
+    // Create tenant first
+    let tenant = pierre_mcp_server::models::Tenant::new(
+        "Test Tenant".to_string(),
+        "test-tenant".to_string(),
+        Some("test.example.com".to_string()),
+        "starter".to_string(),
+        Uuid::new_v4(), // Owner user ID - will be different but that's OK for this test
+    );
+    executor.resources.database.create_tenant(&tenant).await?;
+
     // Create test user
     let user_id = Uuid::new_v4();
     let mut user = create_test_user("test@example.com", Some("Test User".to_string()));
     user.id = user_id;
     user.password_hash = bcrypt::hash("password", bcrypt::DEFAULT_COST)?;
+    user.tenant_id = Some("test-tenant".to_string()); // Link user to tenant
     executor.resources.database.create_user(&user).await?;
 
-    // Test connect_strava with missing OAuth config
+    // Test get_activities with missing OAuth config
     let request = UniversalRequest {
-        tool_name: "connect_strava".to_string(),
+        tool_name: "get_activities".to_string(),
         parameters: json!({}),
         user_id: user_id.to_string(),
         protocol: "test".to_string(),
     };
 
     let response = executor.execute_tool(request).await?;
-    assert!(!response.success);
-    assert!(response.error.is_some());
-    let error = response.error.unwrap();
+    // Should succeed but return mock data with error messages about missing OAuth credentials
+    assert!(response.success, "Tool execution should succeed");
     assert!(
-        error.contains("Failed to initialize Strava provider")
-            || error.contains("Strava client_id not configured")
-            || error.contains("ConfigurationError")
-            || error.contains("Provider not supported: strava")
+        response.result.is_some(),
+        "Should have result with mock data"
+    );
+
+    // Check that the result contains information about missing OAuth token
+    let result = response.result.unwrap();
+    let result_str = serde_json::to_string(&result).unwrap();
+    assert!(
+        result_str.contains("No Strava token found")
+            || result_str.contains("Connect your Strava account"),
+        "Result should contain OAuth connection message: {result_str}"
     );
 
     Ok(())

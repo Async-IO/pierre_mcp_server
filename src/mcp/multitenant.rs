@@ -1994,30 +1994,6 @@ impl MultiTenantMcpServer {
         Ok(None)
     }
 
-    /// Extract tenant context using default tenant
-    async fn extract_default_tenant(
-        auth_result: &AuthResult,
-        database: &Arc<Database>,
-    ) -> Result<Option<TenantContext>, String> {
-        match database.get_tenant_by_slug("default-tenant").await {
-            Ok(tenant) => {
-                tracing::debug!("Using default tenant for user: {}", auth_result.user_id);
-                let role =
-                    Self::get_user_role_for_tenant(database, auth_result.user_id, tenant.id).await;
-                Ok(Some(TenantContext::new(
-                    tenant.id,
-                    tenant.name,
-                    auth_result.user_id,
-                    role,
-                )))
-            }
-            Err(e) => {
-                tracing::warn!("Failed to fetch default tenant: {}", e);
-                Ok(None) // Return None to allow legacy single-tenant mode
-            }
-        }
-    }
-
     async fn extract_tenant_context_internal(
         request: &McpRequest,
         auth_result: &AuthResult,
@@ -2035,8 +2011,9 @@ impl MultiTenantMcpServer {
             return Ok(Some(context));
         }
 
-        // 3. Fallback to default tenant
-        Self::extract_default_tenant(auth_result, database).await
+        // 3. No tenant found - return None for proper error handling
+        tracing::warn!("No tenant context found for user {}", auth_result.user_id);
+        Ok(None)
     }
 
     /// Handle tools/list request
@@ -2339,8 +2316,18 @@ impl MultiTenantMcpServer {
                         request_id,
                     );
                 }
-                return Self::handle_get_connection_status(user_id, ctx.resources, request_id)
-                    .await;
+                // No legacy fallback - require tenant context
+                McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    result: None,
+                    error: Some(McpError {
+                        code: ERROR_INVALID_PARAMS,
+                        message: "No tenant context found. User must be assigned to a tenant."
+                            .to_string(),
+                        data: None,
+                    }),
+                    id: request_id,
+                }
             }
             DISCONNECT_PROVIDER => {
                 let provider_name = args[PROVIDER].as_str().unwrap_or("");
@@ -2458,35 +2445,6 @@ impl MultiTenantMcpServer {
         }
 
         response
-    }
-
-    /// Handle `get_connection_status` tool call
-    async fn handle_get_connection_status(
-        user_id: Uuid,
-        resources: &Arc<ServerResources>,
-        id: Value,
-    ) -> McpResponse {
-        // Use existing ServerResources (no fake auth managers or cloning!)
-        let oauth_routes = OAuthRoutes::new(resources.clone());
-
-        match oauth_routes.get_connection_status(user_id).await {
-            Ok(statuses) => McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_string(),
-                result: serde_json::to_value(&statuses).ok(),
-                error: None,
-                id,
-            },
-            Err(e) => McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_string(),
-                result: None,
-                error: Some(McpError {
-                    code: ERROR_INTERNAL_ERROR,
-                    message: format!("Failed to get connection status: {e}"),
-                    data: None,
-                }),
-                id,
-            },
-        }
     }
 
     /// Handle `disconnect_provider` tool call
@@ -3124,20 +3082,26 @@ impl MultiTenantMcpServer {
         // For now, return empty connection status
         McpResponse {
             jsonrpc: JSONRPC_VERSION.to_string(),
-            result: Some(serde_json::json!([
-                {
-                    "provider": "strava",
-                    "connected": false,
+            result: Some(serde_json::json!({
+                "providers": [
+                    {
+                        "provider": "strava",
+                        "connected": false,
+                        "tenant_id": tenant_context.tenant_id,
+                        "last_sync": null
+                    },
+                    {
+                        "provider": "fitbit",
+                        "connected": false,
+                        "tenant_id": tenant_context.tenant_id,
+                        "last_sync": null
+                    }
+                ],
+                "tenant_info": {
                     "tenant_id": tenant_context.tenant_id,
-                    "last_sync": null
-                },
-                {
-                    "provider": "fitbit",
-                    "connected": false,
-                    "tenant_id": tenant_context.tenant_id,
-                    "last_sync": null
+                    "tenant_name": tenant_context.tenant_name
                 }
-            ])),
+            })),
             error: None,
             id: request_id,
         }

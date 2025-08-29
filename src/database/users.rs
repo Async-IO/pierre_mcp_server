@@ -713,4 +713,29 @@ impl Database {
             .await?
             .ok_or_else(|| anyhow!("User not found after status update"))
     }
+
+    /// Update user's `tenant_id` to link them to a tenant
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the user is not found or database update fails
+    pub async fn update_user_tenant_id(&self, user_id: Uuid, tenant_slug: &str) -> Result<()> {
+        let query = sqlx::query(
+            r"
+            UPDATE users 
+            SET tenant_id = $1
+            WHERE id = $2
+            ",
+        )
+        .bind(tenant_slug)
+        .bind(user_id.to_string());
+
+        let result = query.execute(&self.pool).await?;
+
+        if result.rows_affected() == 0 {
+            return Err(anyhow!("No user found with ID: {user_id}"));
+        }
+
+        Ok(())
+    }
 }

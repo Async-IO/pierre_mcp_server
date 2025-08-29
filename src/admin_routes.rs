@@ -572,40 +572,15 @@ fn with_context(
     warp::any().map(move || context.clone())
 }
 
-/// Get or create user for API key provisioning
-async fn get_or_create_user(database: &Database, email: &str) -> Result<User, warp::Rejection> {
+/// Get existing user for API key provisioning (no automatic creation)
+async fn get_existing_user(database: &Database, email: &str) -> Result<User, warp::Rejection> {
     match database.get_user_by_email(email).await {
         Ok(Some(user)) => Ok(user),
         Ok(None) => {
-            // Create new user for API key
-            let new_user = User {
-                id: Uuid::new_v4(),
-                email: email.to_string(),
-                display_name: Some(format!("API User ({email})")),
-                password_hash: "api-key-only".into(), // API-only user
-                tier: crate::models::UserTier::Starter, // Default tier for API users
-                tenant_id: Some("default-tenant".to_string()), // Assign to default tenant
-                strava_token: None,
-                fitbit_token: None,
-                is_active: true,
-                user_status: UserStatus::Active, // Admin-created users are automatically active
-                is_admin: false,                 // API-only users are not admins by default
-                approved_by: None,               // No approval needed for admin-created users
-                approved_at: Some(chrono::Utc::now()),
-                created_at: chrono::Utc::now(),
-                last_active: chrono::Utc::now(),
-            };
-
-            let user_id = database.create_user(&new_user).await.map_err(|e| {
-                warp::reject::custom(AdminApiError::DatabaseError(format!(
-                    "Failed to create user: {e}"
-                )))
-            })?;
-
-            Ok(User {
-                id: user_id,
-                ..new_user
-            })
+            tracing::warn!("API key provisioning failed: User {} does not exist", email);
+            Err(warp::reject::custom(AdminApiError::InvalidRequest(
+                format!("User {email} must register and be approved before API key provisioning"),
+            )))
         }
         Err(e) => Err(warp::reject::custom(AdminApiError::DatabaseError(format!(
             "Failed to lookup user: {e}"
@@ -661,8 +636,8 @@ async fn handle_provision_api_key(
         }
     };
 
-    // Get or create user
-    let Ok(user) = get_or_create_user(&context.database, &request.user_email).await else {
+    // Get existing user (no automatic creation)
+    let Ok(user) = get_existing_user(&context.database, &request.user_email).await else {
         return Ok(with_status(
             json(&AdminResponse {
                 success: false,
@@ -1988,6 +1963,24 @@ async fn approve_user_with_optional_tenant(
                 info!(
                     "Created default tenant '{}' for user {}",
                     tenant.name, user.email
+                );
+
+                // Update user's tenant_id to link them to the new tenant
+                if let Err(e) = database.update_user_tenant_id(user_id, &tenant.slug).await {
+                    error!(
+                        "Failed to link user {} to tenant {}: {}",
+                        user.email, tenant.slug, e
+                    );
+                    // This is critical - if we can't link the user to tenant, return error
+                    return Err(anyhow::anyhow!(
+                        "Failed to link user to created tenant: {}",
+                        e
+                    ));
+                }
+
+                info!(
+                    "Successfully linked user {} to tenant {}",
+                    user.email, tenant.slug
                 );
                 Some(tenant)
             }

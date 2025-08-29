@@ -96,6 +96,10 @@ impl DatabaseProvider for SqliteDatabase {
             .await
     }
 
+    async fn update_user_tenant_id(&self, user_id: Uuid, tenant_slug: &str) -> Result<()> {
+        self.inner.update_user_tenant_id(user_id, tenant_slug).await
+    }
+
     async fn update_strava_token(
         &self,
         user_id: Uuid,

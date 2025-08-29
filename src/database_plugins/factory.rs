@@ -302,6 +302,14 @@ impl DatabaseProvider for Database {
         }
     }
 
+    async fn update_user_tenant_id(&self, user_id: uuid::Uuid, tenant_slug: &str) -> Result<()> {
+        match self {
+            Self::SQLite(db) => db.inner().update_user_tenant_id(user_id, tenant_slug).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.update_user_tenant_id(user_id, tenant_slug).await,
+        }
+    }
+
     /// Update or store Strava OAuth tokens for a user
     ///
     /// # Errors
