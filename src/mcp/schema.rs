@@ -15,8 +15,8 @@
 use crate::constants::{
     json_fields::{ACTIVITY_ID, LIMIT, OFFSET, PROVIDER},
     tools::{
-        ANALYZE_ACTIVITY, CONNECT_FITBIT, CONNECT_STRAVA, DISCONNECT_PROVIDER, GET_ACTIVITIES,
-        GET_ACTIVITY_INTELLIGENCE, GET_ATHLETE, GET_CONNECTION_STATUS, GET_STATS,
+        ANALYZE_ACTIVITY, DISCONNECT_PROVIDER, GET_ACTIVITIES, GET_ACTIVITY_INTELLIGENCE,
+        GET_ATHLETE, GET_CONNECTION_STATUS, GET_STATS,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -224,7 +224,7 @@ impl InitializeResponse {
                     list_changed: Some(false),
                 }),
             },
-            instructions: Some("This server provides fitness data tools for Strava and Fitbit integration. Use `connect_strava` or `connect_fitbit` to authenticate, then use `get_activities`, `get_athlete`, and other analytics tools to access your fitness data.".into()),
+            instructions: Some("This server provides fitness data tools for Strava and Fitbit integration. OAuth must be configured at tenant level via REST API. Use `get_activities`, `get_athlete`, and other analytics tools to access your fitness data.".into()),
         }
     }
 }
@@ -243,8 +243,6 @@ fn create_fitness_tools() -> Vec<ToolSchema> {
         create_get_athlete_tool(),
         create_get_stats_tool(),
         create_get_activity_intelligence_tool(),
-        create_connect_strava_tool(),
-        create_connect_fitbit_tool(),
         create_get_connection_status_tool(),
         create_disconnect_provider_tool(),
         // Advanced Analytics Tools
@@ -400,36 +398,6 @@ fn create_get_activity_intelligence_tool() -> ToolSchema {
             schema_type: "object".into(),
             properties: Some(properties),
             required: Some(vec![PROVIDER.to_string(), ACTIVITY_ID.to_string()]),
-        },
-    }
-}
-
-/// Create the `connect_strava` tool schema
-fn create_connect_strava_tool() -> ToolSchema {
-    let properties = HashMap::new(); // No parameters needed - uses user's JWT context
-
-    ToolSchema {
-        name: CONNECT_STRAVA.to_string(),
-        description: "Generate authorization URL to connect user's Strava account. Returns a URL for the user to visit to authorize access to their Strava data.".into(),
-        input_schema: JsonSchema {
-            schema_type: "object".into(),
-            properties: Some(properties),
-            required: Some(vec![]),
-        },
-    }
-}
-
-/// Create the `connect_fitbit` tool schema
-fn create_connect_fitbit_tool() -> ToolSchema {
-    let properties = HashMap::new(); // No parameters needed - uses user's JWT context
-
-    ToolSchema {
-        name: CONNECT_FITBIT.to_string(),
-        description: "Generate authorization URL to connect user's Fitbit account. Returns a URL for the user to visit to authorize access to their Fitbit data.".into(),
-        input_schema: JsonSchema {
-            schema_type: "object".into(),
-            properties: Some(properties),
-            required: Some(vec![]),
         },
     }
 }

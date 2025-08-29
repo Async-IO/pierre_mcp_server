@@ -15,8 +15,8 @@ fn test_mcp_tool_schemas() {
     // Test that all analytics tools are properly defined
     let tools = get_tools();
 
-    // Should have all 27 tools (21 original fitness + 6 configuration)
-    assert_eq!(tools.len(), 27);
+    // Should have all 25 tools (19 fitness + 6 configuration)
+    assert_eq!(tools.len(), 25);
 
     // Check key analytics tools are present
     let tool_names: Vec<&str> = tools.iter().map(|t| t.name.as_str()).collect();
@@ -27,9 +27,7 @@ fn test_mcp_tool_schemas() {
     assert!(tool_names.contains(&"get_stats"));
     assert!(tool_names.contains(&"get_activity_intelligence"));
 
-    // Connection management
-    assert!(tool_names.contains(&"connect_strava"));
-    assert!(tool_names.contains(&"connect_fitbit"));
+    // Connection management (legacy connect_strava/connect_fitbit removed)
     assert!(tool_names.contains(&"get_connection_status"));
     assert!(tool_names.contains(&"disconnect_provider"));
 

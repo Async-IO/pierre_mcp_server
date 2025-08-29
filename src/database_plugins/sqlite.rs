@@ -2129,11 +2129,7 @@ impl DatabaseProvider for SqliteDatabase {
         let secret_value = match secret_type {
             "admin_jwt_secret" => {
                 let new_secret = crate::admin::jwt::AdminJwtManager::generate_jwt_secret();
-                tracing::error!("CRITICAL: Creating NEW JWT secret! This should not happen during server startup!");
-                tracing::error!("NEW JWT SECRET: {}", new_secret);
-                tracing::error!(
-                    "Call stack: get_or_create_system_secret called for admin_jwt_secret"
-                );
+                tracing::info!("Generated new JWT secret for admin authentication");
                 new_secret
             }
             _ => return Err(anyhow::anyhow!("Unknown secret type: {}", secret_type)),
@@ -2162,9 +2158,7 @@ impl DatabaseProvider for SqliteDatabase {
     /// Update system secret (for rotation)
     async fn update_system_secret(&self, secret_type: &str, new_value: &str) -> Result<()> {
         if secret_type == "admin_jwt_secret" {
-            tracing::error!("CRITICAL: UPDATING JWT SECRET! This is changing existing JWT secret!");
-            tracing::error!("NEW JWT SECRET: {}", new_value);
-            tracing::error!("Call stack: update_system_secret called for admin_jwt_secret");
+            tracing::info!("Rotating JWT secret for admin authentication");
         }
 
         sqlx::query(

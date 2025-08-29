@@ -25,17 +25,16 @@ use crate::constants::{
     tools::{
         ANALYZE_ACTIVITY, ANALYZE_GOAL_FEASIBILITY, ANALYZE_PERFORMANCE_TRENDS,
         ANALYZE_TRAINING_LOAD, CALCULATE_FITNESS_SCORE, CALCULATE_METRICS, COMPARE_ACTIVITIES,
-        CONNECT_FITBIT, CONNECT_STRAVA, DETECT_PATTERNS, DISCONNECT_PROVIDER,
-        GENERATE_RECOMMENDATIONS, GET_ACTIVITIES, GET_ACTIVITY_INTELLIGENCE, GET_ATHLETE,
-        GET_CONNECTION_STATUS, GET_STATS, PREDICT_PERFORMANCE, SET_GOAL, SUGGEST_GOALS,
-        TRACK_PROGRESS,
+        DETECT_PATTERNS, DISCONNECT_PROVIDER, GENERATE_RECOMMENDATIONS, GET_ACTIVITIES,
+        GET_ACTIVITY_INTELLIGENCE, GET_ATHLETE, GET_CONNECTION_STATUS, GET_STATS,
+        PREDICT_PERFORMANCE, SET_GOAL, SUGGEST_GOALS, TRACK_PROGRESS,
     },
 };
 use crate::dashboard_routes::DashboardRoutes;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::mcp::schema::InitializeResponse;
 use crate::models::AuthRequest;
-use crate::providers::{FitnessProvider, TenantProviderFactory};
+use crate::providers::TenantProviderFactory;
 use crate::routes::{AuthRoutes, LoginRequest, OAuthRoutes, RefreshTokenRequest, RegisterRequest};
 use crate::security::SecurityConfig;
 use crate::tenant::{TenantContext, TenantOAuthClient, TenantRole};
@@ -2330,22 +2329,7 @@ impl MultiTenantMcpServer {
         ctx: &ToolRoutingContext<'_>,
     ) -> McpResponse {
         match tool_name {
-            CONNECT_STRAVA => Self::route_oauth_tool(
-                "strava",
-                user_id,
-                request_id,
-                ctx,
-                Self::handle_tenant_connect_strava,
-                Self::handle_connect_strava,
-            ),
-            CONNECT_FITBIT => Self::route_oauth_tool(
-                "fitbit",
-                user_id,
-                request_id,
-                ctx,
-                Self::handle_tenant_connect_fitbit,
-                Self::handle_connect_fitbit,
-            ),
+            // Note: CONNECT_STRAVA and CONNECT_FITBIT tools removed - use tenant-level OAuth configuration
             GET_CONNECTION_STATUS => {
                 if let Some(ref tenant_ctx) = ctx.tenant_context {
                     return Self::handle_tenant_connection_status(
@@ -2391,35 +2375,6 @@ impl MultiTenantMcpServer {
         }
     }
 
-    fn route_oauth_tool<TenantHandler, LegacyHandler>(
-        _provider: &str,
-        user_id: Uuid,
-        request_id: Value,
-        ctx: &ToolRoutingContext<'_>,
-        tenant_handler: TenantHandler,
-        legacy_handler: LegacyHandler,
-    ) -> McpResponse
-    where
-        TenantHandler: Fn(
-            &TenantContext,
-            &Arc<TenantProviderFactory>,
-            &Arc<ServerResources>,
-            Value,
-        ) -> McpResponse,
-        LegacyHandler: Fn(Uuid, &Arc<Database>, Value) -> McpResponse,
-    {
-        if let Some(ref tenant_ctx) = ctx.tenant_context {
-            tenant_handler(
-                tenant_ctx,
-                &ctx.resources.tenant_provider_factory,
-                ctx.resources,
-                request_id,
-            )
-        } else {
-            legacy_handler(user_id, &ctx.resources.database, request_id)
-        }
-    }
-
     fn route_disconnect_tool(
         provider_name: &str,
         user_id: Uuid,
@@ -2443,7 +2398,7 @@ impl MultiTenantMcpServer {
         tool_name: &str,
         args: &Value,
         request_id: Value,
-        user_id: Uuid,
+        _user_id: Uuid,
         ctx: &ToolRoutingContext<'_>,
     ) -> McpResponse {
         if let Some(ref tenant_ctx) = ctx.tenant_context {
@@ -2457,14 +2412,17 @@ impl MultiTenantMcpServer {
             )
             .await
         } else {
-            Self::handle_tool_with_provider(
-                tool_name,
-                args,
-                request_id,
-                user_id,
-                &ctx.resources.database,
-                ctx.auth_result,
-            )
+            // No tenant context means no provider access - tenant-aware endpoints required
+            McpResponse {
+                jsonrpc: JSONRPC_VERSION.to_string(),
+                result: None,
+                error: Some(McpError {
+                    code: ERROR_METHOD_NOT_FOUND,
+                    message: format!("Tool '{tool_name}' requires tenant context - use tenant-aware MCP endpoints"),
+                    data: None,
+                }),
+                id: request_id,
+            }
         }
     }
 
@@ -2500,75 +2458,6 @@ impl MultiTenantMcpServer {
         }
 
         response
-    }
-
-    /// Handle tools that require external providers  
-    fn handle_tool_with_provider(
-        tool_name: &str,
-        _args: &Value,
-        request_id: Value,
-        _user_id: Uuid,
-        _database: &Arc<Database>,
-        _auth_result: &AuthResult,
-    ) -> McpResponse {
-        McpResponse {
-            jsonrpc: JSONRPC_VERSION.to_string(),
-            result: None,
-            error: Some(McpError {
-                code: ERROR_METHOD_NOT_FOUND,
-                message: format!(
-                    "Legacy tool '{tool_name}' deprecated - use tenant-aware MCP endpoints instead"
-                ),
-                data: None,
-            }),
-            id: request_id,
-        }
-    }
-
-    /// Get or create a user-specific provider instance
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the provider cannot be created or authenticated
-    pub fn get_user_provider(
-        _user_id: Uuid,
-        provider_name: &str,
-        _database: &Arc<Database>,
-    ) -> Result<Box<dyn FitnessProvider>> {
-        Err(anyhow::anyhow!(
-            "Legacy provider '{}' deprecated - use TenantProviderFactory instead",
-            provider_name
-        ))
-    }
-
-    /// Handle `connect_strava` tool call (legacy - use tenant handlers instead)
-    fn handle_connect_strava(_user_id: Uuid, _database: &Arc<Database>, id: Value) -> McpResponse {
-        // Legacy handler - OAuth credentials should be configured at tenant level
-        McpResponse {
-            jsonrpc: JSONRPC_VERSION.to_string(),
-            result: None,
-            error: Some(McpError {
-                code: -32001,
-                message: "Legacy OAuth not supported. Please configure OAuth credentials at tenant level.".into(),
-                data: None,
-            }),
-            id,
-        }
-    }
-
-    /// Handle `connect_fitbit` tool call (legacy - use tenant handlers instead)
-    fn handle_connect_fitbit(_user_id: Uuid, _database: &Arc<Database>, id: Value) -> McpResponse {
-        // Legacy handler - OAuth credentials should be configured at tenant level
-        McpResponse {
-            jsonrpc: JSONRPC_VERSION.to_string(),
-            result: None,
-            error: Some(McpError {
-                code: -32001,
-                message: "Legacy OAuth not supported. Please configure OAuth credentials at tenant level.".into(),
-                data: None,
-            }),
-            id,
-        }
     }
 
     /// Handle `get_connection_status` tool call
@@ -3217,128 +3106,6 @@ impl MultiTenantMcpServer {
     }
 
     // === Tenant-Aware Tool Handlers ===
-
-    /// Handle tenant-aware Strava connection
-    fn handle_tenant_connect_strava(
-        tenant_context: &TenantContext,
-        _tenant_provider_factory: &Arc<TenantProviderFactory>,
-        resources: &Arc<ServerResources>,
-        request_id: Value,
-    ) -> McpResponse {
-        tracing::info!(
-            "Tenant {} requesting Strava connection for user {}",
-            tenant_context.tenant_name,
-            tenant_context.user_id
-        );
-
-        // Use async block to handle tenant OAuth flow
-        let tenant_id = tenant_context.tenant_id;
-        let user_id = tenant_context.user_id;
-
-        // We need to spawn this as a task since we're in a sync context
-        let rt = match tokio::runtime::Runtime::new() {
-            Ok(runtime) => runtime,
-            Err(e) => {
-                return McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
-                    result: None,
-                    error: Some(McpError {
-                        code: ERROR_INTERNAL_ERROR,
-                        message: format!("Failed to create runtime: {e}"),
-                        data: None,
-                    }),
-                    id: request_id,
-                };
-            }
-        };
-        let result = rt.block_on(async move {
-            // Use existing ServerResources (no fake auth managers or cloning!)
-            let oauth_routes = OAuthRoutes::new(resources.clone());
-            oauth_routes
-                .get_auth_url(user_id, tenant_id, "strava")
-                .await
-        });
-
-        match result {
-            Ok(auth_response) => McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_string(),
-                result: serde_json::to_value(&auth_response).ok(),
-                error: None,
-                id: request_id,
-            },
-            Err(e) => McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_string(),
-                result: None,
-                error: Some(McpError {
-                    code: -32001,
-                    message: format!("Failed to get Strava auth URL: {e}"),
-                    data: None,
-                }),
-                id: request_id,
-            },
-        }
-    }
-
-    /// Handle tenant-aware Fitbit connection
-    fn handle_tenant_connect_fitbit(
-        tenant_context: &TenantContext,
-        _tenant_provider_factory: &Arc<TenantProviderFactory>,
-        resources: &Arc<ServerResources>,
-        request_id: Value,
-    ) -> McpResponse {
-        tracing::info!(
-            "Tenant {} requesting Fitbit connection for user {}",
-            tenant_context.tenant_name,
-            tenant_context.user_id
-        );
-
-        // Use async block to handle tenant OAuth flow
-        let tenant_id = tenant_context.tenant_id;
-        let user_id = tenant_context.user_id;
-
-        // We need to spawn this as a task since we're in a sync context
-        let rt = match tokio::runtime::Runtime::new() {
-            Ok(runtime) => runtime,
-            Err(e) => {
-                return McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
-                    result: None,
-                    error: Some(McpError {
-                        code: ERROR_INTERNAL_ERROR,
-                        message: format!("Failed to create runtime: {e}"),
-                        data: None,
-                    }),
-                    id: request_id,
-                };
-            }
-        };
-        let result = rt.block_on(async move {
-            // Use existing ServerResources (no fake auth managers or cloning!)
-            let oauth_routes = OAuthRoutes::new(resources.clone());
-            oauth_routes
-                .get_auth_url(user_id, tenant_id, "fitbit")
-                .await
-        });
-
-        match result {
-            Ok(auth_response) => McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_string(),
-                result: serde_json::to_value(&auth_response).ok(),
-                error: None,
-                id: request_id,
-            },
-            Err(e) => McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_string(),
-                result: None,
-                error: Some(McpError {
-                    code: -32001,
-                    message: format!("Failed to get Fitbit auth URL: {e}"),
-                    data: None,
-                }),
-                id: request_id,
-            },
-        }
-    }
 
     /// Handle tenant-aware connection status
     fn handle_tenant_connection_status(

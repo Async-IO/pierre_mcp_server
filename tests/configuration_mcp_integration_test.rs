@@ -41,8 +41,8 @@ fn test_configuration_tools_in_mcp_schema() {
     // Verify total tool count includes our configuration tools
     let total_tools = tools.len();
     assert!(
-        total_tools >= 27, // 21 original fitness tools + 6 configuration tools
-        "Expected at least 27 tools (21 fitness + 6 configuration), but found {total_tools}"
+        total_tools >= 25, // 19 original fitness tools + 6 configuration tools
+        "Expected at least 25 tools (19 fitness + 6 configuration), but found {total_tools}"
     );
 
     println!("Total of {total_tools} tools available in MCP schema");
@@ -176,7 +176,7 @@ async fn test_configuration_tools_count_in_total() {
     // Verify we have the expected total number of tools
     let tools = get_tools();
 
-    // Count fitness tools (should be 21)
+    // Count fitness tools (should be 19)
     let fitness_tools = tools
         .iter()
         .filter(|tool| {
@@ -217,8 +217,8 @@ async fn test_configuration_tools_count_in_total() {
         6,
         "Expected exactly 6 configuration tools"
     );
-    assert_eq!(fitness_tools, 21, "Expected exactly 21 fitness tools");
-    assert_eq!(tools.len(), 27, "Expected total of 27 tools");
+    assert_eq!(fitness_tools, 19, "Expected exactly 19 fitness tools");
+    assert_eq!(tools.len(), 25, "Expected total of 25 tools");
 
     // Print all tools for debugging
     println!("All available tools:");

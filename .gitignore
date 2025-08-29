@@ -57,7 +57,7 @@ Thumbs.db
 *~
 
 # Server logs
-server.log
+*.log
 
 # Test artifacts
 :memory:test_*
@@ -68,6 +68,5 @@ frontend/coverage/
 frontend/dist/
 
 # Documentation directory
-claude_docs/
 claude_docs/
 CLAUDE.md
