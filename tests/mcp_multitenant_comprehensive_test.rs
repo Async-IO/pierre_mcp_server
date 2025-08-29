@@ -10,7 +10,7 @@ use pierre_mcp_server::{
     config::environment::ServerConfig,
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::multitenant::{McpRequest, MultiTenantMcpServer},
-    models::User,
+    models::{Tenant, User},
     providers::tenant_provider::TenantProviderFactory,
     tenant::TenantOAuthClient,
 };
@@ -700,16 +700,35 @@ async fn test_handle_authenticated_tool_call_edge_cases() -> Result<()> {
 async fn test_concurrent_requests() -> Result<()> {
     let resources = common::create_test_server_resources().await?;
 
-    // Create multiple users
+    // Create multiple users with tenants
     let mut user_tokens = vec![];
     for i in 0..2 {
         // Reduce to 2 to avoid pool exhaustion
-        let user = User::new(
+        let mut user = User::new(
             format!("concurrent_user_{i}@example.com"),
             "password".to_string(),
             Some(format!("Concurrent User {i}")),
         );
         resources.database.create_user(&user).await?;
+
+        // Create tenant for this user
+        let tenant_slug = format!("concurrent-tenant-{i}");
+        let tenant = Tenant::new(
+            format!("Concurrent Tenant {i}"),
+            tenant_slug.clone(),
+            Some(format!("concurrent-{i}.example.com")),
+            "starter".to_string(),
+            user.id,
+        );
+        resources.database.create_tenant(&tenant).await?;
+
+        // Link user to tenant
+        resources
+            .database
+            .update_user_tenant_id(user.id, &tenant_slug)
+            .await?;
+        user.tenant_id = Some(tenant_slug);
+
         let token = resources.auth_manager.generate_token(&user)?;
         user_tokens.push((user, token));
     }

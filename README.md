@@ -53,18 +53,19 @@ MCP server implementation for fitness data access from Strava and Fitbit provide
 
 ## Documentation
 
-### **📖 [Getting Started Guide](docs/getting-started.md)**
+### [Getting Started Guide](docs/getting-started.md)
 Complete setup, admin configuration, and first-time usage.
 
-### **📚 [Documentation Index](docs/README.md)**
+### [Documentation Index](docs/README.md)
 Navigate all available documentation by topic and user type.
 
-### **⚡ Quick References**
+### Quick References
+- [User Registration Guide](claude_docs/HOW_TO_REGISTER_A_USER.md) - Complete curl-based workflow for user setup
 - [API Reference](docs/developer-guide/14-api-reference.md) - REST API, MCP protocol, A2A endpoints
 - [System Architecture](docs/developer-guide/01-architecture.md) - Design patterns and structure  
-- [A2A Quick Start](docs/A2A_QUICK_START.md) - 5-minute agent integration setup
+- [A2A Quick Start](docs/A2A_QUICK_START.md) - Agent integration setup
 
-### **🛠️ Development**
+### Development
 - [Developer Guide](docs/developer-guide/README.md) - Architecture, protocols, testing
 - [Contributing Guide](CONTRIBUTING.md) - Code standards and workflow
 - [Security Guide](docs/developer-guide/17-security-guide.md) - Two-tier key management, deployment security
@@ -198,25 +199,43 @@ Replace:
 
 ## Troubleshooting
 
-### "Legacy OAuth not supported" Error
+### User Registration and Approval
 
-**Problem**: MCP tools return "Legacy OAuth not supported. Please configure OAuth credentials at tenant level."
+**Problem**: User cannot access MCP tools after registration.
 
-**Cause**: The system uses tenant-based OAuth configuration. Direct OAuth tools are disabled.
+**Cause**: Users are created in "pending" status and require admin approval.
 
-**Solution**: Configure OAuth at the tenant level:
+**Solution**: Use the streamlined approve-user-with-tenant workflow:
 
 ```bash
-# 1. Create a tenant (requires admin token)
-TENANT_RESPONSE=$(curl -s -X POST http://localhost:8081/api/tenants \
+# 1. User registers (creates "pending" status)
+USER_RESPONSE=$(curl -s -X POST http://localhost:8081/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "pass123", "display_name": "User"}')
+
+USER_ID=$(echo $USER_RESPONSE | jq -r '.user_id')
+
+# 2. Admin approves user AND creates tenant in single transaction
+curl -s -X POST "http://localhost:8081/admin/approve-user/$USER_ID" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
-  -d '{"name": "My Tenant", "slug": "default", "plan": "starter"}')
+  -d '{
+    "reason": "User approved",
+    "create_default_tenant": true,
+    "tenant_name": "User Organization", 
+    "tenant_slug": "user-org"
+  }'
 
-TENANT_ID=$(echo $TENANT_RESPONSE | jq -r '.tenant_id')
+# 3. User can now login and access MCP tools immediately
+```
 
-# 2. Configure Strava OAuth for the tenant
-curl -X POST http://localhost:8081/api/tenants/$TENANT_ID/oauth \
+### OAuth Provider Setup (Optional)
+
+**For Strava Integration**: Configure OAuth at the tenant level after user approval:
+
+```bash
+# Configure Strava OAuth for the user's tenant
+curl -X POST "http://localhost:8081/api/tenants/$TENANT_ID/oauth" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
   -d '{
@@ -226,8 +245,6 @@ curl -X POST http://localhost:8081/api/tenants/$TENANT_ID/oauth \
     "redirect_uri": "http://localhost:8081/api/oauth/callback/strava", 
     "scopes": ["read", "activity:read_all"]
   }'
-
-# 3. Now MCP tools will work with tenant-based OAuth
 ```
 
 **Required**: Get Strava credentials from [developers.strava.com](https://developers.strava.com)
@@ -243,29 +260,45 @@ curl http://localhost:8081/api/health  # ✅ Should work
 # Make changes, test, submit PR
 ```
 
-### User Management Workflow  
+### User Management Workflow (NEW!)
 ```bash
-# 1. Register user
-curl -X POST http://localhost:8081/api/auth/register \
-  -d '{"email":"user@example.com", "password":"pass123", "display_name":"User"}'
+# 1. Create admin user (first-time setup)
+ADMIN_TOKEN=$(curl -s -X POST http://localhost:8081/admin/setup \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@pierre.mcp", "password":"adminpass123", "display_name":"Admin"}' | jq -r '.admin_token')
 
-# 2. Admin approval needed (admin user created via /admin/setup API)
-# 3. User login
-curl -X POST http://localhost:8081/api/auth/login \
-  -d '{"email":"user@example.com", "password":"pass123"}'
-# Returns JWT for MCP client
+# 2. Register user (creates "pending" status)
+USER_ID=$(curl -s -X POST http://localhost:8081/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com", "password":"pass123", "display_name":"User"}' | jq -r '.user_id')
+
+# 3. Admin approval WITH tenant creation (single transaction)
+curl -s -X POST "http://localhost:8081/admin/approve-user/$USER_ID" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"reason":"Approved", "create_default_tenant":true, "tenant_name":"User Org", "tenant_slug":"user-org"}'
+
+# 4. User login (now works immediately)
+JWT_TOKEN=$(curl -s -X POST http://localhost:8081/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com", "password":"pass123"}' | jq -r '.jwt_token')
+
+# 5. Ready for MCP client usage
+echo "JWT Token: $JWT_TOKEN"
 ```
 
 ### First Time Setup
 
 1. Start the Pierre MCP Server
-2. Create a tenant and configure OAuth credentials
-3. Register a user account and get admin approval  
-4. Configure your MCP client with the user's JWT token
-5. Start your MCP-compatible application
-6. Ask about fitness data: "What were my recent activities?"
-7. Follow the OAuth URL to authorize Strava access
-8. Your fitness data is now available through MCP protocol
+2. Create admin user via `/admin/setup` API
+3. Register user - creates "pending" status
+4. Admin approves user WITH automatic tenant creation - single API call
+5. User logs in - gets JWT token immediately  
+6. Configure MCP client with JWT token (see Claude Desktop section)
+7. Optional: Configure OAuth at tenant level for Strava/Fitbit access
+8. All MCP tools available, no legacy OAuth errors
+
+Key improvement: Tenant creation is now automatic during user approval, eliminating the "Legacy OAuth not supported" error completely.
 
 ## User Management with Admin Approval
 
@@ -281,15 +314,28 @@ curl -X POST http://localhost:8081/api/auth/register \
   }'
 ```
 
-### Admin Approval Required
+### Admin Approval with Automatic Tenant Creation (NEW!)
 
-New users are created with "pending" status and cannot access tools until approved:
+New users are created with "pending" status and cannot access tools until approved. The new approval process automatically creates a tenant:
 
 ```bash
-# Admin approves the user
+# Admin approves user AND creates tenant in single transaction
 curl -X POST http://localhost:8081/admin/approve-user/{user_id} \
-  -H "Authorization: Bearer ADMIN_JWT_TOKEN"
+  -H "Authorization: Bearer ADMIN_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "reason": "User approved for access",
+    "create_default_tenant": true,
+    "tenant_name": "User Organization", 
+    "tenant_slug": "user-org"
+  }'
 ```
+
+Benefits:
+- Single API call handles user approval AND tenant setup
+- Eliminates "Legacy OAuth not supported" errors 
+- User can access MCP tools immediately after approval
+- Ready for OAuth provider configuration
 
 ### User Login (After Approval)
 
