@@ -20,7 +20,7 @@ use crate::constants::{
         ERROR_INTERNAL_ERROR, ERROR_INVALID_PARAMS, ERROR_METHOD_NOT_FOUND, ERROR_UNAUTHORIZED,
     },
     json_fields::{GOAL_ID, PROVIDER},
-    protocol,
+    oauth_providers, protocol,
     protocol::{JSONRPC_VERSION, SERVER_VERSION},
     service_names,
     tools::{
@@ -578,8 +578,8 @@ impl MultiTenantMcpServer {
                                 provider
                             );
                             let redirect_uri = match provider.as_str() {
-                                "strava" => crate::constants::env_config::strava_redirect_uri(),
-                                "fitbit" => crate::constants::env_config::fitbit_redirect_uri(),
+                                oauth_providers::STRAVA => crate::constants::env_config::strava_redirect_uri(),
+                                oauth_providers::FITBIT => crate::constants::env_config::fitbit_redirect_uri(),
                                 _ => {
                                     let error = api_error(&format!("Unsupported OAuth provider: {provider}"));
                                     return Err(warp::reject::custom(ApiError(error)));
@@ -591,8 +591,8 @@ impl MultiTenantMcpServer {
                                 client_secret: client_secret.clone(),
                                 redirect_uri,
                                 scopes: match provider.as_str() {
-                                    "strava" => vec!["read".to_string(), "activity:read_all".to_string()],
-                                    "fitbit" => vec!["activity".to_string(), "heartrate".to_string(), "location".to_string(), "nutrition".to_string(), "profile".to_string(), "settings".to_string(), "sleep".to_string(), "social".to_string(), "weight".to_string()],
+                                    oauth_providers::STRAVA => vec!["read".to_string(), "activity:read_all".to_string()],
+                                    oauth_providers::FITBIT => vec!["activity".to_string(), "heartrate".to_string(), "location".to_string(), "nutrition".to_string(), "profile".to_string(), "settings".to_string(), "sleep".to_string(), "social".to_string(), "weight".to_string()],
                                     _ => vec!["read".to_string()],
                                 },
                                 configured_by: user_id,
@@ -2498,23 +2498,22 @@ impl MultiTenantMcpServer {
             GET_CONNECTION_STATUS => {
                 if let Some(ref tenant_ctx) = ctx.tenant_context {
                     // Extract optional OAuth credentials from args
-                    let strava_client_id = args.get("strava_client_id").and_then(|v| v.as_str());
-                    let strava_client_secret =
-                        args.get("strava_client_secret").and_then(|v| v.as_str());
-                    let fitbit_client_id = args.get("fitbit_client_id").and_then(|v| v.as_str());
-                    let fitbit_client_secret =
-                        args.get("fitbit_client_secret").and_then(|v| v.as_str());
+                    let credentials = McpOAuthCredentials {
+                        strava_client_id: args.get("strava_client_id").and_then(|v| v.as_str()),
+                        strava_client_secret: args
+                            .get("strava_client_secret")
+                            .and_then(|v| v.as_str()),
+                        fitbit_client_id: args.get("fitbit_client_id").and_then(|v| v.as_str()),
+                        fitbit_client_secret: args
+                            .get("fitbit_client_secret")
+                            .and_then(|v| v.as_str()),
+                    };
 
                     return Self::handle_tenant_connection_status(
                         tenant_ctx,
-                        &ctx.resources.tenant_provider_factory,
-                        &ctx.resources.database,
                         &ctx.resources.tenant_oauth_client,
                         request_id,
-                        strava_client_id,
-                        strava_client_secret,
-                        fitbit_client_id,
-                        fitbit_client_secret,
+                        credentials,
                     )
                     .await;
                 }
@@ -3337,14 +3336,9 @@ impl MultiTenantMcpServer {
     /// Handle tenant-aware connection status
     async fn handle_tenant_connection_status(
         tenant_context: &TenantContext,
-        _tenant_provider_factory: &Arc<TenantProviderFactory>,
-        _database: &Arc<Database>,
         tenant_oauth_client: &Arc<TenantOAuthClient>,
         request_id: Value,
-        strava_client_id: Option<&str>,
-        strava_client_secret: Option<&str>,
-        fitbit_client_id: Option<&str>,
-        fitbit_client_secret: Option<&str>,
+        credentials: McpOAuthCredentials<'_>,
     ) -> McpResponse {
         tracing::info!(
             "Checking connection status for tenant {} user {}",
@@ -3353,12 +3347,6 @@ impl MultiTenantMcpServer {
         );
 
         // Store MCP-provided OAuth credentials if supplied
-        let credentials = McpOAuthCredentials {
-            strava_client_id,
-            strava_client_secret,
-            fitbit_client_id,
-            fitbit_client_secret,
-        };
         Self::store_mcp_oauth_credentials(tenant_context, tenant_oauth_client, &credentials).await;
 
         // Generate OAuth URLs for connecting providers
