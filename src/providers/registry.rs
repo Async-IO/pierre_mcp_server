@@ -16,7 +16,7 @@ impl ProviderFactory for StravaProviderFactory {
     fn create(&self, config: ProviderConfig) -> Box<dyn FitnessProvider> {
         Box::new(StravaProvider::with_config(config))
     }
-    
+
     fn supported_providers(&self) -> &'static [&'static str] {
         &[oauth_providers::STRAVA]
     }
@@ -30,74 +30,102 @@ pub struct ProviderRegistry {
 
 impl ProviderRegistry {
     /// Create a new provider registry with default providers
+    #[must_use]
     pub fn new() -> Self {
         let mut registry = Self {
             factories: HashMap::new(),
             default_configs: HashMap::new(),
         };
-        
+
         // Register Strava provider
         registry.register_factory(oauth_providers::STRAVA, Box::new(StravaProviderFactory));
-        registry.set_default_config(oauth_providers::STRAVA, ProviderConfig {
-            name: oauth_providers::STRAVA.to_string(),
-            auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-            token_url: "https://www.strava.com/oauth/token".to_string(),
-            api_base_url: "https://www.strava.com/api/v3".to_string(),
-            revoke_url: Some("https://www.strava.com/oauth/deauthorize".to_string()),
-            default_scopes: vec!["read".to_string(), "activity:read_all".to_string()],
-        });
-        
-        // TODO: Add Fitbit provider when implemented
+        registry.set_default_config(
+            oauth_providers::STRAVA,
+            ProviderConfig {
+                name: oauth_providers::STRAVA.to_string(),
+                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
+                token_url: "https://www.strava.com/oauth/token".to_string(),
+                api_base_url: "https://www.strava.com/api/v3".to_string(),
+                revoke_url: Some("https://www.strava.com/oauth/deauthorize".to_string()),
+                default_scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+            },
+        );
+
+        // Future: Add Fitbit provider when implemented
         // registry.register_factory(oauth_providers::FITBIT, Box::new(FitbitProviderFactory));
-        
+
         registry
     }
-    
+
     /// Register a provider factory
-    pub fn register_factory(&mut self, provider_name: &'static str, factory: Box<dyn ProviderFactory>) {
+    pub fn register_factory(
+        &mut self,
+        provider_name: &'static str,
+        factory: Box<dyn ProviderFactory>,
+    ) {
         self.factories.insert(provider_name, factory);
     }
-    
+
     /// Set default configuration for a provider
     pub fn set_default_config(&mut self, provider_name: &'static str, config: ProviderConfig) {
         self.default_configs.insert(provider_name, config);
     }
-    
+
     /// Get list of supported provider names
+    #[must_use]
     pub fn supported_providers(&self) -> Vec<&'static str> {
         self.factories.keys().copied().collect()
     }
-    
+
     /// Check if a provider is supported
+    #[must_use]
     pub fn is_supported(&self, provider_name: &str) -> bool {
         self.factories.contains_key(provider_name)
     }
-    
+
     /// Create a provider instance with default configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the provider is not supported or no default configuration exists.
     pub fn create_provider(&self, provider_name: &str) -> Result<Box<dyn FitnessProvider>> {
-        let factory = self.factories.get(provider_name)
-            .with_context(|| format!("Unsupported provider: {}", provider_name))?;
-            
-        let config = self.default_configs.get(provider_name)
-            .with_context(|| format!("No default configuration for provider: {}", provider_name))?
+        let factory = self
+            .factories
+            .get(provider_name)
+            .with_context(|| format!("Unsupported provider: {provider_name}"))?;
+
+        let config = self
+            .default_configs
+            .get(provider_name)
+            .with_context(|| format!("No default configuration for provider: {provider_name}"))?
             .clone();
-            
+
         Ok(factory.create(config))
     }
-    
+
     /// Create a provider instance with custom configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the provider is not supported.
     pub fn create_provider_with_config(
         &self,
         provider_name: &str,
         config: ProviderConfig,
     ) -> Result<Box<dyn FitnessProvider>> {
-        let factory = self.factories.get(provider_name)
-            .with_context(|| format!("Unsupported provider: {}", provider_name))?;
-            
+        let factory = self
+            .factories
+            .get(provider_name)
+            .with_context(|| format!("Unsupported provider: {provider_name}"))?;
+
         Ok(factory.create(config))
     }
-    
+
     /// Create a tenant-aware provider
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the provider is not supported or no default configuration exists.
     pub fn create_tenant_provider(
         &self,
         provider_name: &str,
@@ -107,8 +135,12 @@ impl ProviderRegistry {
         let provider = self.create_provider(provider_name)?;
         Ok(TenantProvider::new(provider, tenant_id, user_id))
     }
-    
+
     /// Create a tenant-aware provider with custom configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the provider is not supported.
     pub fn create_tenant_provider_with_config(
         &self,
         provider_name: &str,
@@ -131,16 +163,27 @@ impl Default for ProviderRegistry {
 static REGISTRY: std::sync::OnceLock<Arc<ProviderRegistry>> = std::sync::OnceLock::new();
 
 /// Get the global provider registry
+#[must_use]
 pub fn global_registry() -> Arc<ProviderRegistry> {
-    REGISTRY.get_or_init(|| Arc::new(ProviderRegistry::new())).clone()
+    REGISTRY
+        .get_or_init(|| Arc::new(ProviderRegistry::new()))
+        .clone()
 }
 
 /// Convenience function to create a provider
+///
+/// # Errors
+///
+/// Returns an error if the provider is not supported or no default configuration exists.
 pub fn create_provider(provider_name: &str) -> Result<Box<dyn FitnessProvider>> {
     global_registry().create_provider(provider_name)
 }
 
 /// Convenience function to create a tenant provider
+///
+/// # Errors
+///
+/// Returns an error if the provider is not supported or no default configuration exists.
 pub fn create_tenant_provider(
     provider_name: &str,
     tenant_id: Uuid,
@@ -150,11 +193,13 @@ pub fn create_tenant_provider(
 }
 
 /// Convenience function to check if a provider is supported
+#[must_use]
 pub fn is_provider_supported(provider_name: &str) -> bool {
     global_registry().is_supported(provider_name)
 }
 
 /// Convenience function to get all supported providers
+#[must_use]
 pub fn get_supported_providers() -> Vec<&'static str> {
     global_registry().supported_providers()
 }
@@ -162,37 +207,37 @@ pub fn get_supported_providers() -> Vec<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_registry_creation() {
         let registry = ProviderRegistry::new();
         assert!(registry.is_supported(oauth_providers::STRAVA));
         assert!(!registry.is_supported("nonexistent"));
     }
-    
+
     #[test]
     fn test_global_registry() {
         let registry = global_registry();
         assert!(registry.is_supported(oauth_providers::STRAVA));
     }
-    
+
     #[test]
     fn test_create_provider() {
         let provider = create_provider(oauth_providers::STRAVA);
         assert!(provider.is_ok());
-        
+
         let provider = provider.unwrap();
         assert_eq!(provider.name(), oauth_providers::STRAVA);
     }
-    
+
     #[tokio::test]
     async fn test_create_tenant_provider() {
         let tenant_id = Uuid::new_v4();
         let user_id = Uuid::new_v4();
-        
+
         let tenant_provider = create_tenant_provider(oauth_providers::STRAVA, tenant_id, user_id);
         assert!(tenant_provider.is_ok());
-        
+
         let tenant_provider = tenant_provider.unwrap();
         assert_eq!(tenant_provider.tenant_id(), tenant_id);
         assert_eq!(tenant_provider.user_id(), user_id);

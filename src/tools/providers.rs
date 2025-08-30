@@ -4,7 +4,7 @@
 use crate::database_plugins::factory::Database;
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::AppError;
-use crate::providers::FitnessProvider;
+use crate::providers::CoreFitnessProvider;
 use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -71,7 +71,7 @@ pub struct ProviderInfo {
 
 /// Type alias for complex provider cache type
 type ProviderCache =
-    tokio::sync::RwLock<HashMap<(Uuid, ProviderType), Arc<Box<dyn FitnessProvider>>>>;
+    tokio::sync::RwLock<HashMap<(Uuid, ProviderType), Arc<Box<dyn CoreFitnessProvider>>>>;
 
 /// Unified provider manager
 pub struct ProviderManager {

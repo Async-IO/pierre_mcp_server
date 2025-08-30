@@ -85,7 +85,7 @@ use crate::intelligence::physiological_constants::{
 };
 use crate::intelligence::recommendation_engine::RecommendationEngineTrait;
 use crate::mcp::multitenant::ServerResources;
-use crate::providers::{AuthData, FitnessProvider};
+use crate::providers::{create_provider, CoreFitnessProvider, OAuth2Credentials};
 // Configuration management imports
 use crate::configuration::{
     catalog::CatalogBuilder,
@@ -155,7 +155,7 @@ impl UniversalToolExecutor {
         _provider_name: &str,
         _user_id: uuid::Uuid,
         _tenant_id: Option<&str>,
-    ) -> Result<Box<dyn FitnessProvider>, UniversalResponse> {
+    ) -> Result<Box<dyn CoreFitnessProvider>, UniversalResponse> {
         Err(UniversalResponse {
             success: false,
             result: None,
@@ -563,7 +563,7 @@ impl UniversalToolExecutor {
                                         {
                                             Ok(oauth_client) => {
                                                 let config = oauth_client.config();
-                                                AuthData::OAuth2 {
+                                                OAuth2Credentials {
                                                     client_id: config.client_id.clone(),
                                                     client_secret: config.client_secret.clone(),
                                                     access_token: Some(
@@ -572,6 +572,11 @@ impl UniversalToolExecutor {
                                                     refresh_token: Some(
                                                         token_data.refresh_token.clone(),
                                                     ),
+                                                    expires_at: Some(token_data.expires_at),
+                                                    scopes: vec![
+                                                        "read".to_string(),
+                                                        "activity:read_all".to_string(),
+                                                    ],
                                                 }
                                             }
                                             Err(e) => {
@@ -632,12 +637,10 @@ impl UniversalToolExecutor {
                             };
 
                             // Create Strava provider with tenant-aware token
-                            match Result::<Box<dyn FitnessProvider>, String>::Err(
-                                "error".to_string(),
-                            ) {
+                            match create_provider("strava") {
                                 Ok(mut provider) => {
-                                    // Authenticate and get REAL activities
-                                    match provider.authenticate(auth_data).await {
+                                    // Set credentials and get REAL activities
+                                    match provider.set_credentials(auth_data).await {
                                         Ok(()) => {
                                             match provider.get_activities(Some(limit), None).await {
                                                 Ok(real_activities) => {

@@ -11,8 +11,7 @@ use pierre_mcp_server::{
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::multitenant::{McpRequest, MultiTenantMcpServer},
     models::{Tenant, User},
-    providers::tenant_provider::TenantProviderFactory,
-    tenant::TenantOAuthClient,
+    providers::ProviderRegistry,
 };
 use serde_json::json;
 use std::sync::Arc;
@@ -23,9 +22,8 @@ const TEST_JWT_SECRET: &str = "test_jwt_secret_for_multitenant_comprehensive_tes
 
 // === Test Setup Helpers ===
 
-fn create_mock_tenant_provider_factory() -> Arc<TenantProviderFactory> {
-    let tenant_oauth_client = Arc::new(TenantOAuthClient::new());
-    Arc::new(TenantProviderFactory::new(tenant_oauth_client))
+fn create_mock_provider_registry() -> Arc<ProviderRegistry> {
+    Arc::new(ProviderRegistry::new())
 }
 
 async fn create_test_server() -> Result<MultiTenantMcpServer> {
@@ -557,7 +555,7 @@ async fn test_provider_tools_without_connection() -> Result<()> {
             headers: None,
         };
 
-        let _tenant_provider_factory = create_mock_tenant_provider_factory();
+        let _provider_registry = create_mock_provider_registry();
         let _response = MultiTenantMcpServer::handle_request(request, &resources).await;
 
         // Should either fail gracefully or succeed
@@ -599,7 +597,7 @@ async fn test_intelligence_tools() -> Result<()> {
             headers: None,
         };
 
-        let _tenant_provider_factory = create_mock_tenant_provider_factory();
+        let _provider_registry = create_mock_provider_registry();
         let _response = MultiTenantMcpServer::handle_request(request, &resources).await;
 
         // Should either succeed or fail gracefully
@@ -751,7 +749,7 @@ async fn test_concurrent_requests() -> Result<()> {
                 headers: None,
             };
 
-            let _tenant_provider_factory = create_mock_tenant_provider_factory();
+            let _provider_registry = create_mock_provider_registry();
             MultiTenantMcpServer::handle_request(request, &resources_clone).await
         }));
     }

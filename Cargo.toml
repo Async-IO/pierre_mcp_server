@@ -16,9 +16,9 @@ path = "src/lib.rs"
 name = "pierre-mcp-server"
 path = "src/bin/pierre-mcp-server.rs"
 
-[[bin]]
-name = "auth-setup"
-path = "src/bin/auth_setup.rs"
+# [[bin]]
+# name = "auth-setup"
+# path = "src/bin/auth_setup.rs"
 
 [[bin]]
 name = "admin-setup"
