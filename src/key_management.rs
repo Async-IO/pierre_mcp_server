@@ -20,6 +20,11 @@ pub struct DatabaseEncryptionKey {
 }
 
 impl MasterEncryptionKey {
+    /// Create MEK from raw key bytes - primarily for testing
+    #[must_use]
+    pub const fn from_bytes(key: [u8; 32]) -> Self {
+        Self { key }
+    }
     /// Load MEK from environment variable or generate for development
     ///
     /// # Errors
@@ -358,41 +363,5 @@ impl KeyManager {
         info!("Database Encryption Key rotated successfully");
 
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_mek_encrypt_decrypt() {
-        let mek = MasterEncryptionKey {
-            key: [1u8; 32], // Test key
-        };
-
-        let data = b"test data to encrypt";
-        let encrypted = mek.encrypt(data).unwrap();
-        let decrypted = mek.decrypt(&encrypted).unwrap();
-
-        assert_eq!(data.as_slice(), decrypted.as_slice());
-    }
-
-    #[test]
-    fn test_dek_encrypt_with_mek() {
-        let mek = MasterEncryptionKey {
-            key: [1u8; 32], // Test key
-        };
-
-        let dek = DatabaseEncryptionKey::generate();
-        let original_key = *dek.as_bytes();
-
-        // Encrypt DEK with MEK
-        let encrypted_dek = dek.encrypt_with_mek(&mek).unwrap();
-
-        // Decrypt DEK with MEK
-        let restored_dek = DatabaseEncryptionKey::decrypt_with_mek(&encrypted_dek, &mek).unwrap();
-
-        assert_eq!(original_key, *restored_dek.as_bytes());
     }
 }

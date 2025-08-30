@@ -1088,11 +1088,15 @@ async fn handle_setup_status(context: AdminApiContext) -> Result<impl Reply, Rej
 }
 
 /// Admin API error types
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum AdminApiError {
+    #[error("Invalid authentication header")]
     InvalidAuthHeader,
+    #[error("Authentication failed: {0}")]
     AuthenticationFailed(String),
+    #[error("Database error: {0}")]
     DatabaseError(String),
+    #[error("Invalid request: {0}")]
     InvalidRequest(String),
 }
 

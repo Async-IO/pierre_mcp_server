@@ -3,16 +3,17 @@
 [![CI](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml)
 [![Frontend Tests](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/frontend-tests.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/frontend-tests.yml)
 
-> ⚠️ **Development Status**: This project is under active development. APIs and features may change.
+> Development Status: This project is under active development. APIs and features may change.
 
-MCP server implementation for fitness data access from Strava and Fitbit providers. Supports MCP protocol, A2A protocol, and REST APIs with OAuth credential management and user authentication.
+MCP server implementation for fitness data access with unified provider architecture. Supports fitness data providers (Strava, Fitbit), MCP protocol, A2A protocol, and REST APIs with OAuth credential management and user authentication.
 
 ## Architecture Overview
 
 **Server-Focused Architecture**: This system runs as a server that provides multiple interfaces:
 
-1. **Pierre MCP Server** (`pierre-mcp-server`) - Main server daemon
-   - Handles all fitness data operations
+1. Pierre MCP Server (`pierre-mcp-server`) - Main server daemon
+   - Unified Provider Architecture: Trait-based system for fitness data providers
+   - Provider Registry: Factory pattern for provider instantiation
    - Two-tier key management system (MEK/DEK)  
    - Manages OAuth credentials with AES-256-GCM encryption
    - Enforces admin approval for new users
@@ -35,7 +36,6 @@ MCP server implementation for fitness data access from Strava and Fitbit provide
 | Binary | Purpose | When to Use |
 |--------|---------|-------------|
 | `pierre-mcp-server` | Main server daemon | Always running (ports 8080 + 8081) |
-| `admin-setup` | Admin CLI tool | Token management operations |
 | `auth-setup` | Auth configuration CLI | Configure authentication settings |
 | `diagnose-weather-api` | Weather API diagnostic | Debug weather integration |
 | `serve-docs` | Documentation server | Serve API documentation |
@@ -80,9 +80,9 @@ cargo build --release
 
 # 2. Start server (1 minute)
 cargo run --bin pierre-mcp-server
-# ✅ Server ready on ports 8080 (MCP) and 8081 (HTTP)
-# ✅ Database auto-created at ./data/users.db
-# ✅ MEK auto-generated for development
+# Server ready on ports 8080 (MCP) and 8081 (HTTP)
+# Database auto-created at ./data/users.db
+# MEK auto-generated for development
 
 # 3. Create admin user via server API (30 seconds)
 curl -X POST http://localhost:8081/admin/setup \
@@ -98,9 +98,8 @@ curl -X POST http://localhost:8081/admin/setup \
 curl http://localhost:8081/api/health
 # Should return: {"status":"healthy"}
 
-# 5. Ready! (30 seconds)
-./scripts/lint-and-test.sh  # Run full test suite
-# Ready to contribute
+# 5. Run tests
+./scripts/lint-and-test.sh
 ```
 
 ### Advanced Setup (Full Features)
@@ -255,12 +254,12 @@ curl -X POST "http://localhost:8081/api/tenants/$TENANT_ID/oauth" \
 ```bash
 git clone YOUR_FORK && cd pierre_mcp_server
 cargo build && cargo run --bin pierre-mcp-server
-curl http://localhost:8081/api/health  # ✅ Should work
-./scripts/lint-and-test.sh              # ✅ Should pass
+curl http://localhost:8081/api/health
+./scripts/lint-and-test.sh
 # Make changes, test, submit PR
 ```
 
-### User Management Workflow (NEW!)
+### User Management Workflow
 ```bash
 # 1. Create admin user (first-time setup)
 ADMIN_TOKEN=$(curl -s -X POST http://localhost:8081/admin/setup \
@@ -314,9 +313,9 @@ curl -X POST http://localhost:8081/api/auth/register \
   }'
 ```
 
-### Admin Approval with Automatic Tenant Creation (NEW!)
+### Admin Approval with Automatic Tenant Creation
 
-New users are created with "pending" status and cannot access tools until approved. The new approval process automatically creates a tenant:
+New users are created with "pending" status and cannot access tools until approved. The approval process automatically creates a tenant:
 
 ```bash
 # Admin approves user AND creates tenant in single transaction
@@ -331,11 +330,10 @@ curl -X POST http://localhost:8081/admin/approve-user/{user_id} \
   }'
 ```
 
-Benefits:
-- Single API call handles user approval AND tenant setup
+Features:
+- Single API call handles user approval and tenant setup
 - Eliminates "Legacy OAuth not supported" errors 
 - User can access MCP tools immediately after approval
-- Ready for OAuth provider configuration
 
 ### User Login (After Approval)
 

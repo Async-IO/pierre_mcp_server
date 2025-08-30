@@ -51,6 +51,7 @@
 #![allow(clippy::too_many_lines)]
 
 // Intelligence config will be used for future enhancements
+use crate::constants::{limits, oauth_providers};
 use crate::database_plugins::DatabaseProvider;
 use crate::utils::{
     json_responses::{activity_not_found_error, serialization_error},
@@ -242,7 +243,7 @@ impl UniversalToolExecutor {
                             let config = oauth_client.config();
 
                             match provider {
-                                "strava" => {
+                                oauth_providers::STRAVA => {
                                     if let Ok(tenant_provider) =
                                         crate::oauth::providers::StravaOAuthProvider::from_config(
                                             &crate::config::environment::OAuthProviderConfig {
@@ -262,7 +263,7 @@ impl UniversalToolExecutor {
                                         return result;
                                     }
                                 }
-                                "fitbit" => {
+                                oauth_providers::FITBIT => {
                                     // Skip Fitbit for now until we have proper config structure
                                     tracing::warn!("Fitbit provider requires tenant configuration");
                                 }
@@ -300,7 +301,7 @@ impl UniversalToolExecutor {
 
         // Verify the provider is supported
         match provider {
-            "strava" | "fitbit" => {
+            oauth_providers::STRAVA | oauth_providers::FITBIT => {
                 // Provider should already be registered at startup
             }
             _ => {
@@ -531,14 +532,17 @@ impl UniversalToolExecutor {
             .parameters
             .get("provider")
             .and_then(|v| v.as_str())
-            .unwrap_or("strava");
+            .unwrap_or(oauth_providers::STRAVA);
 
         // Get REAL Strava data
-        let activities = if provider_type == "strava" {
+        let activities = if provider_type == oauth_providers::STRAVA {
             match crate::utils::uuid::parse_uuid(&request.user_id) {
                 Ok(user_uuid) => {
                     // Get valid Strava token (with automatic refresh if needed)
-                    match self.get_valid_token(user_uuid, "strava", None).await {
+                    match self
+                        .get_valid_token(user_uuid, oauth_providers::STRAVA, None)
+                        .await
+                    {
                         Ok(Some(token_data)) => {
                             // Get tenant-aware OAuth credentials
                             let auth_data = if let Some(tenant_id_str) = None {
@@ -558,7 +562,10 @@ impl UniversalToolExecutor {
                                         match self
                                             .resources
                                             .tenant_oauth_client
-                                            .get_oauth_client(&tenant_context, "strava")
+                                            .get_oauth_client(
+                                                &tenant_context,
+                                                oauth_providers::STRAVA,
+                                            )
                                             .await
                                         {
                                             Ok(oauth_client) => {
@@ -637,7 +644,7 @@ impl UniversalToolExecutor {
                             };
 
                             // Create Strava provider with tenant-aware token
-                            match create_provider("strava") {
+                            match create_provider(oauth_providers::STRAVA) {
                                 Ok(mut provider) => {
                                     // Set credentials and get REAL activities
                                     match provider.set_credentials(auth_data).await {
@@ -661,7 +668,7 @@ impl UniversalToolExecutor {
                                                             "start_longitude": activity.start_longitude,
                                                             "city": activity.city,
                                                             "country": activity.country,
-                                                            "provider": "strava",
+                                                            "provider": oauth_providers::STRAVA,
                                                             "is_real_data": true
                                                         })
                                                     }).collect()
@@ -775,21 +782,22 @@ impl UniversalToolExecutor {
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get real activity data using authenticated provider (no hardcoded fallbacks)
-        let activity_result = match self.create_authenticated_provider("strava", user_uuid, None) {
-            Ok(provider) => {
-                // Get all activities and find the specific one
-                provider
-                    .get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None)
-                    .await
-                    .map_or(None, |activities| {
-                        activities.into_iter().find(|a| a.id == activity_id)
-                    })
-            }
-            Err(error_response) => {
-                // Return error response for tenant configuration issues
-                return Ok(error_response);
-            }
-        };
+        let activity_result =
+            match self.create_authenticated_provider(oauth_providers::STRAVA, user_uuid, None) {
+                Ok(provider) => {
+                    // Get all activities and find the specific one
+                    provider
+                        .get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None)
+                        .await
+                        .map_or(None, |activities| {
+                            activities.into_iter().find(|a| a.id == activity_id)
+                        })
+                }
+                Err(error_response) => {
+                    // Return error response for tenant configuration issues
+                    return Ok(error_response);
+                }
+            };
 
         match activity_result {
             Some(activity) => {
@@ -868,7 +876,7 @@ impl UniversalToolExecutor {
             .parameters
             .get("provider")
             .and_then(|v| v.as_str())
-            .unwrap_or("strava");
+            .unwrap_or(oauth_providers::STRAVA);
 
         // Get REAL stats using authenticated provider (no hardcoded fallbacks)
         let stats = match crate::utils::uuid::parse_uuid(&request.user_id) {
@@ -971,21 +979,21 @@ impl UniversalToolExecutor {
             .await
             .unwrap_or_else(|_| {
                 let mut default_status = std::collections::HashMap::with_capacity(2);
-                default_status.insert("strava".into(), false);
-                default_status.insert("fitbit".into(), false);
+                default_status.insert(oauth_providers::STRAVA.into(), false);
+                default_status.insert(oauth_providers::FITBIT.into(), false);
                 default_status
             });
         drop(oauth_manager);
 
         let status = serde_json::json!({
             "providers": {
-                "strava": {
-                    "connected": connection_status.get("strava").unwrap_or(&false),
-                    "status": if *connection_status.get("strava").unwrap_or(&false) { "active" } else { "not_connected" }
+                oauth_providers::STRAVA: {
+                    "connected": connection_status.get(oauth_providers::STRAVA).unwrap_or(&false),
+                    "status": if *connection_status.get(oauth_providers::STRAVA).unwrap_or(&false) { "active" } else { "not_connected" }
                 },
-                "fitbit": {
-                    "connected": connection_status.get("fitbit").unwrap_or(&false),
-                    "status": if *connection_status.get("fitbit").unwrap_or(&false) { "active" } else { "not_connected" }
+                oauth_providers::FITBIT: {
+                    "connected": connection_status.get(oauth_providers::FITBIT).unwrap_or(&false),
+                    "status": if *connection_status.get(oauth_providers::FITBIT).unwrap_or(&false) { "active" } else { "not_connected" }
                 }
             }
         });
@@ -1015,7 +1023,7 @@ impl UniversalToolExecutor {
 
         // Clear tokens for the specified provider
         match provider {
-            "strava" => {
+            oauth_providers::STRAVA => {
                 self.resources
                     .database
                     .clear_strava_token(user_uuid)
@@ -1027,7 +1035,7 @@ impl UniversalToolExecutor {
                         ))
                     })?;
             }
-            "fitbit" => {
+            oauth_providers::FITBIT => {
                 self.resources
                     .database
                     .clear_fitbit_token(user_uuid)
@@ -1168,7 +1176,7 @@ impl UniversalToolExecutor {
 
         // Calculate metrics
         let pace = if distance > 0.0 && duration > 0 {
-            (duration.min(u32::MAX as u64) as f64) / (distance / 1000.0)
+            (duration.min(u32::MAX as u64) as f64) / (distance / limits::METERS_PER_KILOMETER)
         } else {
             0.0
         };
@@ -1180,7 +1188,7 @@ impl UniversalToolExecutor {
         };
 
         let intensity_score = heart_rate
-            .map(|hr| (f64::from(hr) / ASSUMED_MAX_HR) * 100.0)
+            .map(|hr| (f64::from(hr) / ASSUMED_MAX_HR) * limits::PERCENTAGE_MULTIPLIER)
             .unwrap_or(DEFAULT_EFFICIENCY_SCORE);
 
         let efficiency_score = if distance > 0.0 && elevation_gain > 0.0 {
@@ -1197,8 +1205,8 @@ impl UniversalToolExecutor {
                 "intensity_score": intensity_score,
                 "efficiency_score": efficiency_score,
                 "metrics_summary": {
-                    "distance_km": distance / 1000.0,
-                    "duration_minutes": duration / 60,
+                    "distance_km": distance / limits::METERS_PER_KILOMETER,
+                    "duration_minutes": duration / limits::SECONDS_PER_MINUTE,
                     "elevation_meters": elevation_gain,
                     "average_heart_rate": heart_rate
                 }
@@ -1250,8 +1258,8 @@ impl UniversalToolExecutor {
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get activities using authenticated provider (no hardcoded fallbacks)
-        let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        match self.create_authenticated_provider("strava", user_uuid, None) {
+        let mut activities = Vec::with_capacity(limits::ACTIVITY_CAPACITY_HINT); // Pre-allocate for typical activity count
+        match self.create_authenticated_provider(oauth_providers::STRAVA, user_uuid, None) {
             Ok(provider) => {
                 if let Ok(provider_activities) = provider
                     .get_activities(Some(LARGE_ACTIVITY_LIMIT), None)
@@ -1353,7 +1361,7 @@ impl UniversalToolExecutor {
         let mut activity1 = None;
         let mut activity2 = None;
 
-        match self.create_authenticated_provider("strava", user_uuid, None) {
+        match self.create_authenticated_provider(oauth_providers::STRAVA, user_uuid, None) {
             Ok(provider) => {
                 // Get activities
                 if let Ok(activities) = provider
@@ -1389,7 +1397,7 @@ impl UniversalToolExecutor {
                 "name": act1.name,
                 "distance": act1.distance_meters,
                 "duration": act1.duration_seconds,
-                "pace": act1.distance_meters.map(|d| (act1.duration_seconds.min(u32::MAX as u64) as f64) / (d / 1000.0)),
+                "pace": act1.distance_meters.map(|d| (act1.duration_seconds.min(u32::MAX as u64) as f64) / (d / limits::METERS_PER_KILOMETER)),
                 "elevation_gain": act1.elevation_gain,
                 "average_heart_rate": act1.average_heart_rate
             },
@@ -1398,7 +1406,7 @@ impl UniversalToolExecutor {
                 "name": act2.name,
                 "distance": act2.distance_meters,
                 "duration": act2.duration_seconds,
-                "pace": act2.distance_meters.map(|d| (act2.duration_seconds.min(u32::MAX as u64) as f64) / (d / 1000.0)),
+                "pace": act2.distance_meters.map(|d| (act2.duration_seconds.min(u32::MAX as u64) as f64) / (d / limits::METERS_PER_KILOMETER)),
                 "elevation_gain": act2.elevation_gain,
                 "average_heart_rate": act2.average_heart_rate
             },
@@ -1406,9 +1414,9 @@ impl UniversalToolExecutor {
                 "distance_diff": act2.distance_meters.unwrap_or(0.0) - act1.distance_meters.unwrap_or(0.0),
                 "duration_diff": i64::try_from(act2.duration_seconds).unwrap_or(i64::MAX) - i64::try_from(act1.duration_seconds).unwrap_or(0),
                 "pace_improvement": if let (Some(d1), Some(d2)) = (act1.distance_meters, act2.distance_meters) {
-                    let pace1 = (act1.duration_seconds.min(u32::MAX as u64) as f64) / (d1 / 1000.0);
-                    let pace2 = (act2.duration_seconds.min(u32::MAX as u64) as f64) / (d2 / 1000.0);
-                    Some(((pace1 - pace2) / pace1) * 100.0)
+                    let pace1 = (act1.duration_seconds.min(u32::MAX as u64) as f64) / (d1 / limits::METERS_PER_KILOMETER);
+                    let pace2 = (act2.duration_seconds.min(u32::MAX as u64) as f64) / (d2 / limits::METERS_PER_KILOMETER);
+                    Some(((pace1 - pace2) / pace1) * limits::PERCENTAGE_MULTIPLIER)
                 } else {
                     None
                 },
@@ -1433,8 +1441,8 @@ impl UniversalToolExecutor {
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get activities using authenticated provider (no hardcoded fallbacks)
-        let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        match self.create_authenticated_provider("strava", user_uuid, None) {
+        let mut activities = Vec::with_capacity(limits::ACTIVITY_CAPACITY_HINT); // Pre-allocate for typical activity count
+        match self.create_authenticated_provider(oauth_providers::STRAVA, user_uuid, None) {
             Ok(provider) => {
                 if let Ok(provider_activities) = provider
                     .get_activities(Some(MAX_ACTIVITY_LIMIT), None)
@@ -1496,7 +1504,7 @@ impl UniversalToolExecutor {
             serde_json::json!({
                 "pattern_type": "distance_trend",
                 "description": "Consistent distance improvement",
-                "confidence": 0.7
+                "confidence": limits::DEFAULT_CONFIDENCE_THRESHOLD
             }),
         ];
 
@@ -1545,8 +1553,8 @@ impl UniversalToolExecutor {
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get activities using authenticated provider (no hardcoded fallbacks)
-        let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        match self.create_authenticated_provider("strava", user_uuid, None) {
+        let mut activities = Vec::with_capacity(limits::ACTIVITY_CAPACITY_HINT); // Pre-allocate for typical activity count
+        match self.create_authenticated_provider(oauth_providers::STRAVA, user_uuid, None) {
             Ok(provider) => {
                 if let Ok(provider_activities) = provider
                     .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
@@ -1566,13 +1574,13 @@ impl UniversalToolExecutor {
             .iter()
             .filter_map(|a| a.distance_meters)
             .sum::<f64>()
-            / 1000.0; // Convert to km
+            / limits::METERS_PER_KILOMETER; // Convert to km
 
         let total_duration: u64 = activities.iter().map(|a| a.duration_seconds).sum();
 
         // Use configurable goal target from constants
         let goal_target = DEMO_GOAL_DISTANCE;
-        let progress_percentage = (total_distance / goal_target) * 100.0;
+        let progress_percentage = (total_distance / goal_target) * limits::PERCENTAGE_MULTIPLIER;
 
         Ok(UniversalResponse {
             success: true,
@@ -1591,7 +1599,7 @@ impl UniversalToolExecutor {
                 "summary": {
                     "total_activities": activities.len(),
                     "total_distance_km": total_distance,
-                    "total_duration_hours": total_duration as f64 / 3600.0
+                    "total_duration_hours": total_duration as f64 / crate::constants::time_constants::SECONDS_PER_HOUR_F64
                 }
             })),
             error: None,
@@ -1608,8 +1616,8 @@ impl UniversalToolExecutor {
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get recent activities
-        let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        match self.create_authenticated_provider("strava", user_uuid, None) {
+        let mut activities = Vec::with_capacity(limits::ACTIVITY_CAPACITY_HINT); // Pre-allocate for typical activity count
+        match self.create_authenticated_provider(oauth_providers::STRAVA, user_uuid, None) {
             Ok(provider) => {
                 if let Ok(provider_activities) = provider
                     .get_activities(Some(SMALL_ACTIVITY_LIMIT), None)
@@ -1632,7 +1640,7 @@ impl UniversalToolExecutor {
         // Create a default user profile for the goal engine
         let user_profile = crate::intelligence::UserFitnessProfile {
             user_id: request.user_id.clone(),
-            age: Some(30),
+            age: Some(i32::try_from(crate::constants::demo_data::DEMO_USER_AGE).unwrap_or(30)),
             gender: None,
             weight: None,
             height: None,
@@ -1646,7 +1654,9 @@ impl UniversalToolExecutor {
                 time_availability: crate::intelligence::TimeAvailability {
                     hours_per_week: 5.0,
                     preferred_days: vec!["Monday".into(), "Wednesday".into(), "Friday".into()],
-                    preferred_duration_minutes: Some(60),
+                    preferred_duration_minutes: Some(
+                        i32::try_from(limits::MINUTES_PER_HOUR).unwrap_or(60),
+                    ),
                 },
             },
         };
@@ -1722,14 +1732,15 @@ impl UniversalToolExecutor {
             .unwrap_or(90);
 
         // Validate timeframe is reasonable
-        if timeframe_days > 365 {
+        if timeframe_days > limits::MAX_TIMEFRAME_DAYS {
             tracing::warn!(
-                "Timeframe {} days is unusually long, capping at 365",
-                timeframe_days
+                "Timeframe {} days is unusually long, capping at {}",
+                timeframe_days,
+                limits::MAX_TIMEFRAME_DAYS
             );
         }
 
-        let effective_timeframe = std::cmp::min(timeframe_days, 365);
+        let effective_timeframe = std::cmp::min(timeframe_days, limits::MAX_TIMEFRAME_DAYS);
 
         let title = request
             .parameters
@@ -1742,8 +1753,8 @@ impl UniversalToolExecutor {
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get historical activities
-        let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        match self.create_authenticated_provider("strava", user_uuid, None) {
+        let mut activities = Vec::with_capacity(limits::ACTIVITY_CAPACITY_HINT); // Pre-allocate for typical activity count
+        match self.create_authenticated_provider(oauth_providers::STRAVA, user_uuid, None) {
             Ok(provider) => {
                 if let Ok(provider_activities) = provider
                     .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
@@ -1778,7 +1789,8 @@ impl UniversalToolExecutor {
                     sport: "general".into(),
                     timeframe: crate::intelligence::TimeFrame::Custom {
                         start: chrono::Utc::now(),
-                        end: chrono::Utc::now() + chrono::Duration::days(30),
+                        end: chrono::Utc::now()
+                            + chrono::Duration::days(limits::DEFAULT_TRIAL_DAYS),
                     },
                 },
                 "frequency" => crate::intelligence::GoalType::Frequency {
@@ -1789,12 +1801,13 @@ impl UniversalToolExecutor {
                     sport: "general".into(),
                     timeframe: crate::intelligence::TimeFrame::Custom {
                         start: chrono::Utc::now(),
-                        end: chrono::Utc::now() + chrono::Duration::days(30),
+                        end: chrono::Utc::now()
+                            + chrono::Duration::days(limits::DEFAULT_TRIAL_DAYS),
                     },
                 },
             },
             target_value,
-            target_date: chrono::Utc::now() + chrono::Duration::days(30),
+            target_date: chrono::Utc::now() + chrono::Duration::days(limits::DEFAULT_TRIAL_DAYS),
             current_value: 0.0,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
@@ -1862,8 +1875,8 @@ impl UniversalToolExecutor {
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get recent activities
-        let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        match self.create_authenticated_provider("strava", user_uuid, None) {
+        let mut activities = Vec::with_capacity(limits::ACTIVITY_CAPACITY_HINT); // Pre-allocate for typical activity count
+        match self.create_authenticated_provider(oauth_providers::STRAVA, user_uuid, None) {
             Ok(provider) => {
                 if let Ok(provider_activities) = provider
                     .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
@@ -1887,7 +1900,7 @@ impl UniversalToolExecutor {
         // Create a default user profile for the recommendation engine
         let user_profile = crate::intelligence::UserFitnessProfile {
             user_id: request.user_id.clone(),
-            age: Some(30),
+            age: Some(i32::try_from(crate::constants::demo_data::DEMO_USER_AGE).unwrap_or(30)),
             gender: None,
             weight: None,
             height: None,
@@ -1901,7 +1914,9 @@ impl UniversalToolExecutor {
                 time_availability: crate::intelligence::TimeAvailability {
                     hours_per_week: 5.0,
                     preferred_days: vec!["Monday".into(), "Wednesday".into(), "Friday".into()],
-                    preferred_duration_minutes: Some(60),
+                    preferred_duration_minutes: Some(
+                        i32::try_from(limits::MINUTES_PER_HOUR).unwrap_or(60),
+                    ),
                 },
             },
         };
@@ -1963,8 +1978,8 @@ impl UniversalToolExecutor {
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get recent activities
-        let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        match self.create_authenticated_provider("strava", user_uuid, None) {
+        let mut activities = Vec::with_capacity(limits::ACTIVITY_CAPACITY_HINT); // Pre-allocate for typical activity count
+        match self.create_authenticated_provider(oauth_providers::STRAVA, user_uuid, None) {
             Ok(provider) => {
                 if let Ok(provider_activities) = provider
                     .get_activities(Some(SMALL_ACTIVITY_LIMIT), None)
@@ -1995,7 +2010,7 @@ impl UniversalToolExecutor {
             .iter()
             .filter_map(|a| a.distance_meters)
             .sum::<f64>()
-            / 1000.0;
+            / limits::METERS_PER_KILOMETER;
 
         let total_duration: u64 = activities.iter().map(|a| a.duration_seconds).sum();
 
@@ -2007,9 +2022,10 @@ impl UniversalToolExecutor {
 
         let activity_frequency = if let Some(last_activity) = activities.last() {
             activities.len() as f64
-                / ((chrono::Utc::now() - last_activity.start_date).num_seconds() / 86400) // Convert seconds to days
+                / ((chrono::Utc::now() - last_activity.start_date).num_seconds()
+                    / crate::constants::time::DAY_SECONDS) // Convert seconds to days
                     .max(1) as f64
-                * 7.0 // Activities per week
+                * f64::from(limits::DAYS_PER_WEEK as u32) // Activities per week
         } else {
             0.0
         };
@@ -2039,7 +2055,7 @@ impl UniversalToolExecutor {
                 },
                 "fitness_metrics": {
                     "total_distance_km": total_distance,
-                    "total_duration_hours": (total_duration.min(u32::MAX as u64) as f64) / 3600.0,
+                    "total_duration_hours": (total_duration.min(u32::MAX as u64) as f64) / crate::constants::time_constants::SECONDS_PER_HOUR_F64,
                     "average_pace_min_per_km": avg_pace,
                     "activities_per_week": activity_frequency,
                     "total_activities": activities.len()
@@ -2069,7 +2085,8 @@ impl UniversalToolExecutor {
                     map.insert(
                         "analysis_period_days".into(),
                         serde_json::Value::Number(serde_json::Number::from(
-                            ((chrono::Utc::now() - last_activity.start_date).num_seconds() / 86400) // Convert seconds to days
+                            ((chrono::Utc::now() - last_activity.start_date).num_seconds()
+                                / crate::constants::time::DAY_SECONDS) // Convert seconds to days
                                 .max(1),
                         )),
                     );
@@ -2103,8 +2120,8 @@ impl UniversalToolExecutor {
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get historical activities
-        let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        match self.create_authenticated_provider("strava", user_uuid, None) {
+        let mut activities = Vec::with_capacity(limits::ACTIVITY_CAPACITY_HINT); // Pre-allocate for typical activity count
+        match self.create_authenticated_provider(oauth_providers::STRAVA, user_uuid, None) {
             Ok(provider) => {
                 if let Ok(provider_activities) = provider
                     .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
@@ -2157,7 +2174,7 @@ impl UniversalToolExecutor {
             .iter()
             .filter_map(|a| a.distance_meters)
             .sum::<f64>()
-            / 1000.0;
+            / limits::METERS_PER_KILOMETER;
 
         let total_duration: u64 = relevant_activities.iter().map(|a| a.duration_seconds).sum();
 
@@ -2168,11 +2185,12 @@ impl UniversalToolExecutor {
         };
 
         // Simple linear prediction (in reality, would use more sophisticated models)
-        let predicted_time_minutes = avg_pace * (distance / 1000.0);
+        let predicted_time_minutes = avg_pace * (distance / limits::METERS_PER_KILOMETER);
 
         // Add fatigue factor for longer distances
-        let fatigue_factor =
-            1.0 + ((distance / 1000.0) / MARATHON_DISTANCE_KM).powf(FATIGUE_EXPONENT);
+        let fatigue_factor = 1.0
+            + ((distance / limits::METERS_PER_KILOMETER) / MARATHON_DISTANCE_KM)
+                .powf(FATIGUE_EXPONENT);
         let adjusted_time = predicted_time_minutes * fatigue_factor;
 
         // Calculate confidence based on data availability
@@ -2187,18 +2205,18 @@ impl UniversalToolExecutor {
                     "minutes": adjusted_time,
                     "formatted": format!("{}:{:02}",
                         u32::try_from(adjusted_time.round() as i64).unwrap_or(0),
-                        u32::try_from(((adjusted_time % 1.0) * 60.0).round() as i64).unwrap_or(0)
+                        u32::try_from(((adjusted_time % 1.0) * (limits::MINUTES_PER_HOUR as f64)).round() as i64).unwrap_or(0)
                     )
                 },
                 "predicted_pace": {
-                    "min_per_km": adjusted_time / (distance / 1000.0),
-                    "min_per_mile": (adjusted_time / (distance / 1000.0)) * 1.60934
+                    "min_per_km": adjusted_time / (distance / limits::METERS_PER_KILOMETER),
+                    "min_per_mile": (adjusted_time / (distance / limits::METERS_PER_KILOMETER)) * 1.60934
                 },
                 "confidence_level": confidence,
                 "prediction_basis": {
                     "activities_analyzed": relevant_activities.len(),
                     "average_training_pace": avg_pace,
-                    "distance_km": distance / 1000.0,
+                    "distance_km": distance / limits::METERS_PER_KILOMETER,
                     "activity_type": activity_type
                 },
                 "performance_range": {
@@ -2207,7 +2225,7 @@ impl UniversalToolExecutor {
                 },
                 "training_recommendations": if confidence < 50.0 {
                     vec!["More training data needed for accurate prediction"]
-                } else if adjusted_time / (distance / 1000.0) > SLOW_PACE_THRESHOLD_MIN_PER_KM {
+                } else if adjusted_time / (distance / limits::METERS_PER_KILOMETER) > SLOW_PACE_THRESHOLD_MIN_PER_KM {
                     vec!["Consider increasing training volume", "Focus on pace improvement"]
                 } else {
                     vec!["Maintain current training", "Consider interval training for speed"]
@@ -2227,8 +2245,8 @@ impl UniversalToolExecutor {
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
         // Get recent activities (last 4 weeks)
-        let mut activities = Vec::with_capacity(100); // Pre-allocate for typical activity count
-        match self.create_authenticated_provider("strava", user_uuid, None) {
+        let mut activities = Vec::with_capacity(limits::ACTIVITY_CAPACITY_HINT); // Pre-allocate for typical activity count
+        match self.create_authenticated_provider(oauth_providers::STRAVA, user_uuid, None) {
             Ok(provider) => {
                 if let Ok(provider_activities) = provider
                     .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
@@ -2265,7 +2283,8 @@ impl UniversalToolExecutor {
         let mut weekly_loads = vec![0.0; 4];
         for activity in &recent_activities {
             let weeks_ago = usize::try_from(
-                ((chrono::Utc::now() - activity.start_date).num_seconds() / (86400 * 7)) // Convert seconds to weeks
+                ((chrono::Utc::now() - activity.start_date).num_seconds()
+                    / crate::constants::time::WEEK_SECONDS) // Convert seconds to weeks
                     .max(0),
             )
             .unwrap_or(0);
@@ -2364,7 +2383,7 @@ impl UniversalToolExecutor {
                 );
                 map.insert(
                     "data_source".into(),
-                    serde_json::Value::String("strava".into()),
+                    serde_json::Value::String(oauth_providers::STRAVA.into()),
                 );
                 map
             }),
@@ -2716,7 +2735,7 @@ impl UniversalToolExecutor {
             .get("resting_hr")
             .and_then(|v| v.as_u64())
             .and_then(|v| u16::try_from(v).ok())
-            .unwrap_or(60);
+            .unwrap_or(u16::try_from(limits::MINUTES_PER_HOUR).unwrap_or(60));
 
         let max_hr = request
             .parameters

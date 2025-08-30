@@ -8,6 +8,19 @@ use chrono::{DateTime, Utc};
 use sqlx::Row;
 use uuid::Uuid;
 
+/// OAuth token data for database operations
+pub struct OAuthTokenData<'a> {
+    pub id: &'a str,
+    pub user_id: Uuid,
+    pub tenant_id: &'a str,
+    pub provider: &'a str,
+    pub access_token: &'a str,
+    pub refresh_token: Option<&'a str>,
+    pub token_type: &'a str,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub scope: &'a str,
+}
+
 impl Database {
     /// Create `user_oauth_tokens` table
     ///
@@ -54,24 +67,12 @@ impl Database {
         Ok(())
     }
 
-    /// Upsert a user OAuth token
+    /// Upsert a user OAuth token using structured data
     ///
     /// # Errors
     ///
     /// Returns an error if the database operation fails
-    #[allow(clippy::too_many_arguments)]
-    pub async fn upsert_user_oauth_token(
-        &self,
-        id: &str,
-        user_id: Uuid,
-        tenant_id: &str,
-        provider: &str,
-        access_token: &str,
-        refresh_token: Option<&str>,
-        token_type: &str,
-        expires_at: Option<DateTime<Utc>>,
-        scope: &str,
-    ) -> Result<()> {
+    pub async fn upsert_user_oauth_token(&self, token_data: &OAuthTokenData<'_>) -> Result<()> {
         sqlx::query(
             r"
             INSERT INTO user_oauth_tokens (
@@ -89,15 +90,15 @@ impl Database {
                 updated_at = EXCLUDED.updated_at
             ",
         )
-        .bind(id)
-        .bind(user_id.to_string())
-        .bind(tenant_id)
-        .bind(provider)
-        .bind(access_token)
-        .bind(refresh_token)
-        .bind(token_type)
-        .bind(expires_at)
-        .bind(scope)
+        .bind(token_data.id)
+        .bind(token_data.user_id.to_string())
+        .bind(token_data.tenant_id)
+        .bind(token_data.provider)
+        .bind(token_data.access_token)
+        .bind(token_data.refresh_token)
+        .bind(token_data.token_type)
+        .bind(token_data.expires_at)
+        .bind(token_data.scope)
         .bind(Utc::now())
         .bind(Utc::now())
         .execute(&self.pool)

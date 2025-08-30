@@ -345,7 +345,7 @@ impl A2ARoutes {
         Ok(serde_json::json!({
             "status": "authenticated",
             "session_token": session_token,
-            "expires_in": 86400, // 24 hours in seconds
+            "expires_in": crate::constants::time::DAY_SECONDS,
             "token_type": "Bearer",
             "scope": scopes.join(" ")
         }))

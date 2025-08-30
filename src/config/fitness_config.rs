@@ -263,7 +263,7 @@ impl Default for WeatherApiConfig {
             enabled: true,
             cache_duration_hours: 24,
             request_timeout_seconds: 10,
-            rate_limit_requests_per_minute: 60,
+            rate_limit_requests_per_minute: crate::constants::time::MINUTE_SECONDS as u64,
         }
     }
 }

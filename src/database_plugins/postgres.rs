@@ -1141,19 +1141,22 @@ impl DatabaseProvider for PostgresDatabase {
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
     ) -> Result<ApiKeyUsageStats> {
-        let row = sqlx::query(
+        let row = sqlx::query_as::<Postgres, (i64, i64, i64, Option<i64>, Option<i64>, Option<i64>)>(
             r"
             SELECT 
                 COUNT(*) as total_requests,
-                COUNT(CASE WHEN status_code >= 200 AND status_code < 300 THEN 1 END) as successful_requests,
-                COUNT(CASE WHEN status_code >= 400 THEN 1 END) as failed_requests,
+                COUNT(CASE WHEN status_code >= $1 AND status_code <= $2 THEN 1 END) as successful_requests,
+                COUNT(CASE WHEN status_code >= $3 THEN 1 END) as failed_requests,
                 SUM(response_time_ms) as total_response_time,
                 SUM(request_size_bytes) as total_request_size,
                 SUM(response_size_bytes) as total_response_size
             FROM api_key_usage 
-            WHERE api_key_id = $1 AND timestamp >= $2 AND timestamp <= $3
-            ",
+            WHERE api_key_id = $4 AND timestamp >= $5 AND timestamp <= $6
+            "
         )
+        .bind(i32::from(crate::constants::http_status::SUCCESS_MIN))
+        .bind(i32::from(crate::constants::http_status::SUCCESS_MAX))
+        .bind(i32::from(crate::constants::http_status::BAD_REQUEST))
         .bind(api_key_id)
         .bind(start_date)
         .bind(end_date)
@@ -1161,18 +1164,20 @@ impl DatabaseProvider for PostgresDatabase {
         .await?;
 
         // Get tool usage aggregation
-        let tool_usage_stats = sqlx::query(
+        let tool_usage_stats = sqlx::query_as::<Postgres, (String, i64, Option<f64>, i64)>(
             r"
             SELECT tool_name, 
                    COUNT(*) as tool_count,
                    AVG(response_time_ms) as avg_response_time,
-                   COUNT(CASE WHEN status_code >= 200 AND status_code < 300 THEN 1 END) as success_count
+                   COUNT(CASE WHEN status_code >= $1 AND status_code <= $2 THEN 1 END) as success_count
             FROM api_key_usage
-            WHERE api_key_id = $1 AND timestamp >= $2 AND timestamp <= $3
+            WHERE api_key_id = $3 AND timestamp >= $4 AND timestamp <= $5
             GROUP BY tool_name
             ORDER BY tool_count DESC
-            ",
+            "
         )
+        .bind(i32::from(crate::constants::http_status::SUCCESS_MIN))
+        .bind(i32::from(crate::constants::http_status::SUCCESS_MAX))
         .bind(api_key_id)
         .bind(start_date)
         .bind(end_date)
@@ -1180,12 +1185,7 @@ impl DatabaseProvider for PostgresDatabase {
         .await?;
 
         let mut tool_usage = serde_json::Map::new();
-        for tool_row in tool_usage_stats {
-            let tool_name: String = tool_row.get("tool_name");
-            let tool_count: i64 = tool_row.get("tool_count");
-            let avg_response_time: Option<f64> = tool_row.get("avg_response_time");
-            let success_count: i64 = tool_row.get("success_count");
-
+        for (tool_name, tool_count, avg_response_time, success_count) in tool_usage_stats {
             tool_usage.insert(
                 tool_name,
                 serde_json::json!({
@@ -1203,14 +1203,10 @@ impl DatabaseProvider for PostgresDatabase {
             api_key_id: api_key_id.to_string(),
             period_start: start_date,
             period_end: end_date,
-            total_requests: u32::try_from(row.get::<i64, _>("total_requests").max(0)).unwrap_or(0),
-            successful_requests: u32::try_from(row.get::<i64, _>("successful_requests").max(0))
-                .unwrap_or(0),
-            failed_requests: u32::try_from(row.get::<i64, _>("failed_requests").max(0))
-                .unwrap_or(0),
-            total_response_time_ms: row
-                .get::<Option<i64>, _>("total_response_time")
-                .map_or(0u64, |v| u64::try_from(v.max(0)).unwrap_or(0)),
+            total_requests: u32::try_from(row.0.max(0)).unwrap_or(0),
+            successful_requests: u32::try_from(row.1.max(0)).unwrap_or(0),
+            failed_requests: u32::try_from(row.2.max(0)).unwrap_or(0),
+            total_response_time_ms: row.3.map_or(0u64, |v| u64::try_from(v.max(0)).unwrap_or(0)),
             tool_usage: serde_json::Value::Object(tool_usage),
         })
     }

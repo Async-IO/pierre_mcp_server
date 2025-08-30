@@ -612,11 +612,17 @@ impl MultiTenantMcpServer {
                             }
                         }
 
+                        // Get tenant information from database
+                        let tenant_name = match database.get_tenant_by_id(tenant_id).await {
+                            Ok(tenant) => tenant.name,
+                            Err(_) => "Organization".to_string(), // Fallback if tenant lookup fails
+                        };
+
                         // Use tenant context to get authorization URL  
                         let tenant_context = TenantContext {
                             tenant_id,
                             user_id,
-                            tenant_name: "Example Organization".to_string(), // TODO: Get from tenant
+                            tenant_name,
                             user_role: TenantRole::Member,
                         };
 
@@ -1847,21 +1853,26 @@ impl MultiTenantMcpServer {
                             request.auth_token = authorization;
                         }
 
-                        #[allow(clippy::option_if_let_else)]
-                        if let Some(response) = Self::handle_request(request, &ctx.resources).await
-                        {
-                            // Return 202 Accepted with response body for successful requests
-                            Ok(Box::new(warp::reply::with_status(
-                                warp::reply::json(&response),
-                                warp::http::StatusCode::ACCEPTED,
-                            )))
-                        } else {
-                            // Notification - return 202 with empty body
-                            Ok(Box::new(warp::reply::with_status(
-                                warp::reply(),
-                                warp::http::StatusCode::ACCEPTED,
-                            )))
-                        }
+                        Self::handle_request(request, &ctx.resources)
+                            .await
+                            .map_or_else(
+                                || {
+                                    // Notification - return 202 with empty body
+                                    Ok(Box::new(warp::reply::with_status(
+                                        warp::reply(),
+                                        warp::http::StatusCode::ACCEPTED,
+                                    ))
+                                        as Box<dyn warp::Reply>)
+                                },
+                                |response| {
+                                    // Return 202 Accepted with response body for successful requests
+                                    Ok(Box::new(warp::reply::with_status(
+                                        warp::reply::json(&response),
+                                        warp::http::StatusCode::ACCEPTED,
+                                    ))
+                                        as Box<dyn warp::Reply>)
+                                },
+                            )
                     }
                     Err(parse_error) => {
                         let body_str = serde_json::to_string(&body)

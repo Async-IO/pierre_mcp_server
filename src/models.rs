@@ -1514,30 +1514,33 @@ pub struct OAuthApp {
     pub updated_at: DateTime<Utc>,
 }
 
+/// OAuth app creation parameters
+pub struct OAuthAppParams {
+    pub client_id: String,
+    pub client_secret: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub redirect_uris: Vec<String>,
+    pub scopes: Vec<String>,
+    pub app_type: String,
+    pub owner_user_id: Uuid,
+}
+
 impl OAuthApp {
-    #[allow(clippy::too_many_arguments)] // Constructor needs all OAuth app parameters
+    /// Create new OAuth app from parameters
     #[must_use]
-    pub fn new(
-        client_id: String,
-        client_secret: String,
-        name: String,
-        description: Option<String>,
-        redirect_uris: Vec<String>,
-        scopes: Vec<String>,
-        app_type: String,
-        owner_user_id: Uuid,
-    ) -> Self {
+    pub fn new(params: OAuthAppParams) -> Self {
         let now = Utc::now();
         Self {
             id: Uuid::new_v4(),
-            client_id,
-            client_secret,
-            name,
-            description,
-            redirect_uris,
-            scopes,
-            app_type,
-            owner_user_id,
+            client_id: params.client_id,
+            client_secret: params.client_secret,
+            name: params.name,
+            description: params.description,
+            redirect_uris: params.redirect_uris,
+            scopes: params.scopes,
+            app_type: params.app_type,
+            owner_user_id: params.owner_user_id,
             created_at: now,
             updated_at: now,
         }

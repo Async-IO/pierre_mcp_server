@@ -106,7 +106,9 @@ impl HealthChecker {
 
     /// Periodic task to clean up expired API keys
     async fn periodic_cleanup_task(database: Database) {
-        let mut interval = tokio::time::interval(Duration::from_secs(3600)); // Run every hour
+        let mut interval = tokio::time::interval(Duration::from_secs(
+            crate::constants::time::HOUR_SECONDS as u64,
+        )); // Run every hour
 
         loop {
             interval.tick().await;
@@ -376,7 +378,9 @@ impl HealthChecker {
             .send()
             .await
         {
-            if response.status().is_success() || response.status().as_u16() == 401 {
+            if response.status().is_success()
+                || response.status().as_u16() == crate::constants::http_status::UNAUTHORIZED
+            {
                 // 401 is expected without auth
                 healthy_apis += 1;
             }
