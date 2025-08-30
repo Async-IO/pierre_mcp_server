@@ -191,17 +191,19 @@ impl MetricsCalculator {
         if let (Some(avg_power), Some(ftp)) = (activity.average_power, self.ftp) {
             // Safe conversion for duration
             let duration_hours = if activity.duration_seconds > u64::from(u32::MAX) {
-                f64::from(u32::MAX) / 3600.0
+                f64::from(u32::MAX) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
             } else {
-                f64::from(u32::try_from(activity.duration_seconds).unwrap_or(u32::MAX)) / 3600.0
+                f64::from(u32::try_from(activity.duration_seconds).unwrap_or(u32::MAX))
+                    / crate::constants::time_constants::SECONDS_PER_HOUR_F64
             };
             Some(Self::calculate_tss(avg_power, ftp, duration_hours))
         } else if let (Some(avg_hr), Some(ftp)) = (activity.average_heart_rate, self.ftp) {
             // Fallback to HR-based TSS estimation
             let duration_hours = if activity.duration_seconds > u64::from(u32::MAX) {
-                f64::from(u32::MAX) / 3600.0
+                f64::from(u32::MAX) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
             } else {
-                f64::from(u32::try_from(activity.duration_seconds).unwrap_or(u32::MAX)) / 3600.0
+                f64::from(u32::try_from(activity.duration_seconds).unwrap_or(u32::MAX))
+                    / crate::constants::time_constants::SECONDS_PER_HOUR_F64
             };
             self.max_hr.map(|max_hr| {
                 let hr_percentage = f64::from(avg_hr) / max_hr;
@@ -243,9 +245,10 @@ impl MetricsCalculator {
         // Calculate work (energy) if power is available
         if let Some(avg_power) = activity.average_power {
             let duration_hours = if activity.duration_seconds > u64::from(u32::MAX) {
-                f64::from(u32::MAX) / 3600.0
+                f64::from(u32::MAX) / crate::constants::time_constants::SECONDS_PER_HOUR_F64
             } else {
-                f64::from(u32::try_from(activity.duration_seconds).unwrap_or(u32::MAX)) / 3600.0
+                f64::from(u32::try_from(activity.duration_seconds).unwrap_or(u32::MAX))
+                    / crate::constants::time_constants::SECONDS_PER_HOUR_F64
             };
             metrics.work = Some(f64::from(avg_power) * duration_hours / 1000.0);
             // kJ
@@ -557,17 +560,23 @@ impl MetricsCalculator {
         // Estimate balance based on contact time patterns
         // This is a simplified calculation that would ideally use left/right foot data
         match gct_ms {
-            gct if (200.0..=300.0).contains(&gct) => {
+            gct if (crate::constants::physiology::MIN_GOOD_GCT_MS
+                ..=crate::constants::physiology::MAX_GOOD_GCT_MS)
+                .contains(&gct) =>
+            {
                 // Good contact time range suggests better balance
-                ((250.0 - (gct - 250.0).abs()) / 250.0).mul_add(5.0, 50.0)
+                ((crate::constants::physiology::OPTIMAL_GCT_MS
+                    - (gct - crate::constants::physiology::OPTIMAL_GCT_MS).abs())
+                    / crate::constants::physiology::OPTIMAL_GCT_MS)
+                    .mul_add(5.0, 50.0)
             }
-            gct if gct < 200.0 => {
+            gct if gct < crate::constants::physiology::MIN_GOOD_GCT_MS => {
                 // Very short contact time - might indicate imbalance
-                (gct / 200.0).mul_add(5.0, 45.0)
+                (gct / crate::constants::physiology::MIN_GOOD_GCT_MS).mul_add(5.0, 45.0)
             }
             gct => {
                 // Long contact time - might indicate fatigue or imbalance
-                55.0 - ((gct - 300.0) / 100.0).min(10.0)
+                55.0 - ((gct - crate::constants::physiology::MAX_GOOD_GCT_MS) / 100.0).min(10.0)
             }
         }
     }

@@ -70,28 +70,38 @@ impl ErrorCode {
             Self::InvalidInput
             | Self::MissingRequiredField
             | Self::InvalidFormat
-            | Self::ValueOutOfRange => 400,
+            | Self::ValueOutOfRange => crate::constants::http_status::BAD_REQUEST,
 
             // 401 Unauthorized
-            Self::AuthRequired | Self::AuthInvalid => 401,
+            Self::AuthRequired | Self::AuthInvalid => crate::constants::http_status::UNAUTHORIZED,
 
             // 403 Forbidden
-            Self::AuthExpired | Self::AuthMalformed | Self::PermissionDenied => 403,
+            Self::AuthExpired | Self::AuthMalformed | Self::PermissionDenied => {
+                crate::constants::http_status::FORBIDDEN
+            }
 
             // 404 Not Found
-            Self::ResourceNotFound => 404,
+            Self::ResourceNotFound => crate::constants::http_status::NOT_FOUND,
 
             // 409 Conflict
-            Self::ResourceAlreadyExists | Self::ResourceLocked => 409,
+            Self::ResourceAlreadyExists | Self::ResourceLocked => {
+                crate::constants::http_status::CONFLICT
+            }
 
             // 429 Too Many Requests
-            Self::RateLimitExceeded | Self::QuotaExceeded => 429,
+            Self::RateLimitExceeded | Self::QuotaExceeded => {
+                crate::constants::http_status::TOO_MANY_REQUESTS
+            }
 
             // 502 Bad Gateway
-            Self::ExternalServiceError | Self::ExternalServiceUnavailable => 502,
+            Self::ExternalServiceError | Self::ExternalServiceUnavailable => {
+                crate::constants::http_status::BAD_GATEWAY
+            }
 
             // 503 Service Unavailable
-            Self::ResourceUnavailable | Self::ExternalAuthFailed | Self::ExternalRateLimited => 503,
+            Self::ResourceUnavailable | Self::ExternalAuthFailed | Self::ExternalRateLimited => {
+                crate::constants::http_status::SERVICE_UNAVAILABLE
+            }
 
             // 500 Internal Server Error
             Self::InternalError
@@ -100,7 +110,7 @@ impl ErrorCode {
             | Self::SerializationError
             | Self::ConfigError
             | Self::ConfigMissing
-            | Self::ConfigInvalid => 500,
+            | Self::ConfigInvalid => crate::constants::http_status::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -230,6 +240,19 @@ impl fmt::Display for AppError {
 
 /// Implement Reject for Warp framework integration
 impl Reject for AppError {}
+
+/// Convert `AppError` to warp `Reply` for `HTTP` responses
+impl warp::Reply for AppError {
+    fn into_response(self) -> warp::reply::Response {
+        let status = warp::http::StatusCode::from_u16(self.code.http_status())
+            .unwrap_or(warp::http::StatusCode::INTERNAL_SERVER_ERROR);
+
+        let response = ErrorResponse::from(self);
+        let json = warp::reply::json(&response);
+
+        warp::reply::with_status(json, status).into_response()
+    }
+}
 
 /// Result type alias for convenience
 pub type AppResult<T> = Result<T, AppError>;
@@ -404,18 +427,5 @@ impl From<crate::protocols::ProtocolError> for AppError {
 impl From<Box<dyn std::error::Error + Send + Sync>> for AppError {
     fn from(error: Box<dyn std::error::Error + Send + Sync>) -> Self {
         Self::database(error.to_string())
-    }
-}
-
-/// Convert `AppError` to warp `Reply` for `HTTP` responses
-impl warp::Reply for AppError {
-    fn into_response(self) -> warp::reply::Response {
-        let status = warp::http::StatusCode::from_u16(self.code.http_status())
-            .unwrap_or(warp::http::StatusCode::INTERNAL_SERVER_ERROR);
-
-        let response = ErrorResponse::from(self);
-        let json = warp::reply::json(&response);
-
-        warp::reply::with_status(json, status).into_response()
     }
 }

@@ -254,7 +254,7 @@ impl FitnessProvider for StravaProvider {
             client_secret: credentials.client_secret,
             access_token: Some(token_response.access_token),
             refresh_token: Some(token_response.refresh_token),
-            expires_at: Some(Utc.timestamp_opt(token_response.expires_at, 0).unwrap()),
+            expires_at: Utc.timestamp_opt(token_response.expires_at, 0).single(),
             scopes: credentials.scopes,
         };
 

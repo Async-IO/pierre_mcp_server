@@ -68,7 +68,8 @@ struct ClientConnection {
 
 impl WebSocketManager {
     pub fn new(database: Database, auth_manager: AuthManager) -> Self {
-        let (broadcast_tx, _) = broadcast::channel(1000);
+        let (broadcast_tx, _) =
+            broadcast::channel(crate::constants::rate_limits::WEBSOCKET_CHANNEL_CAPACITY);
         let database_arc = std::sync::Arc::new(database.clone());
         let auth_middleware = McpAuthMiddleware::new(auth_manager, database_arc);
 

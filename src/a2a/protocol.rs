@@ -38,54 +38,45 @@ pub struct A2AResponse {
 }
 
 /// A2A Protocol Error types
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, thiserror::Error)]
 pub enum A2AError {
     /// Invalid request parameters or format
+    #[error("Invalid request: {0}")]
     InvalidRequest(String),
     /// Authentication failed
+    #[error("Authentication failed: {0}")]
     AuthenticationFailed(String),
     /// Client not registered
+    #[error("Client not registered: {0}")]
     ClientNotRegistered(String),
     /// Database operation failed
+    #[error("Database error: {0}")]
     DatabaseError(String),
     /// Internal server error
+    #[error("Internal error: {0}")]
     InternalError(String),
     /// Client has been deactivated
+    #[error("Client deactivated: {0}")]
     ClientDeactivated(String),
     /// Rate limit exceeded
+    #[error("Rate limit exceeded: {0}")]
     RateLimitExceeded(String),
     /// Session expired or invalid
+    #[error("Session expired: {0}")]
     SessionExpired(String),
     /// Invalid session token
+    #[error("Invalid session token: {0}")]
     InvalidSessionToken(String),
     /// Insufficient permissions
+    #[error("Insufficient permissions: {0}")]
     InsufficientPermissions(String),
     /// Resource not found
+    #[error("Resource not found: {0}")]
     ResourceNotFound(String),
     /// Service temporarily unavailable
+    #[error("Service unavailable: {0}")]
     ServiceUnavailable(String),
 }
-
-impl std::fmt::Display for A2AError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::InvalidRequest(msg) => write!(f, "Invalid request: {msg}"),
-            Self::AuthenticationFailed(msg) => write!(f, "Authentication failed: {msg}"),
-            Self::ClientNotRegistered(msg) => write!(f, "Client not registered: {msg}"),
-            Self::DatabaseError(msg) => write!(f, "Database error: {msg}"),
-            Self::InternalError(msg) => write!(f, "Internal error: {msg}"),
-            Self::ClientDeactivated(msg) => write!(f, "Client deactivated: {msg}"),
-            Self::RateLimitExceeded(msg) => write!(f, "Rate limit exceeded: {msg}"),
-            Self::SessionExpired(msg) => write!(f, "Session expired: {msg}"),
-            Self::InvalidSessionToken(msg) => write!(f, "Invalid session token: {msg}"),
-            Self::InsufficientPermissions(msg) => write!(f, "Insufficient permissions: {msg}"),
-            Self::ResourceNotFound(msg) => write!(f, "Resource not found: {msg}"),
-            Self::ServiceUnavailable(msg) => write!(f, "Service unavailable: {msg}"),
-        }
-    }
-}
-
-impl std::error::Error for A2AError {}
 
 /// A2A Protocol Error Response for JSON-RPC
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -9,7 +9,7 @@
 //! HTTP routes for user authentication and OAuth flows in multi-tenant mode
 
 use crate::{
-    constants::error_messages,
+    constants::{error_messages, limits, oauth_providers},
     database_plugins::DatabaseProvider,
     errors::AppError,
     mcp::multitenant::ServerResources,
@@ -63,12 +63,6 @@ pub struct UserInfo {
     pub user_id: String,
     pub email: String,
     pub display_name: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct ErrorResponse {
-    pub error: String,
-    pub message: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -228,7 +222,8 @@ impl AuthRoutes {
 
         // Generate JWT token
         let jwt_token = self.resources.auth_manager.generate_token(&user)?;
-        let expires_at = chrono::Utc::now() + chrono::Duration::hours(24); // Default 24h expiry
+        let expires_at =
+            chrono::Utc::now() + chrono::Duration::hours(limits::DEFAULT_SESSION_HOURS); // Default 24h expiry
 
         info!(
             "User logged in successfully: {} ({})",
@@ -276,7 +271,8 @@ impl AuthRoutes {
             .resources
             .auth_manager
             .refresh_token(&request.token, &user)?;
-        let expires_at = chrono::Utc::now() + chrono::Duration::hours(24);
+        let expires_at =
+            chrono::Utc::now() + chrono::Duration::hours(limits::DEFAULT_SESSION_HOURS);
 
         // Update last active timestamp
         self.resources.database.update_last_active(user.id).await?;
@@ -349,12 +345,12 @@ impl OAuthRoutes {
         Self::store_oauth_state(user_id, provider, &state);
 
         match provider {
-            "strava" => {
+            oauth_providers::STRAVA => {
                 // Get tenant OAuth credentials for Strava
                 let credentials = self
                     .resources
                     .database
-                    .get_tenant_oauth_credentials(tenant_id, "strava")
+                    .get_tenant_oauth_credentials(tenant_id, oauth_providers::STRAVA)
                     .await
                     .map_err(|e| {
                         AppError::internal(format!("Failed to get tenant Strava credentials: {e}"))
@@ -384,12 +380,12 @@ impl OAuthRoutes {
                     expires_in_minutes: 10,
                 })
             }
-            "fitbit" => {
+            oauth_providers::FITBIT => {
                 // Get tenant OAuth credentials for Fitbit
                 let credentials = self
                     .resources
                     .database
-                    .get_tenant_oauth_credentials(tenant_id, "fitbit")
+                    .get_tenant_oauth_credentials(tenant_id, oauth_providers::FITBIT)
                     .await
                     .map_err(|e| {
                         AppError::internal(format!("Failed to get tenant Fitbit credentials: {e}"))
@@ -488,8 +484,8 @@ impl OAuthRoutes {
 
         // Exchange code for tokens (implementation depends on provider)
         match provider {
-            "strava" => self.handle_strava_callback(user_id, tenant_id, code).await,
-            "fitbit" => self.handle_fitbit_callback(user_id, tenant_id, code).await,
+            oauth_providers::STRAVA => self.handle_strava_callback(user_id, tenant_id, code).await,
+            oauth_providers::FITBIT => self.handle_fitbit_callback(user_id, tenant_id, code).await,
             _ => Err(anyhow::anyhow!("Unsupported provider: {}", provider)),
         }
     }
@@ -544,7 +540,7 @@ impl OAuthRoutes {
 
         Ok(OAuthCallbackResponse {
             user_id: user_id.to_string(),
-            provider: "strava".into(),
+            provider: oauth_providers::STRAVA.into(),
             expires_at: expires_at.to_rfc3339(),
             scopes: token_response
                 .scope
@@ -593,7 +589,7 @@ impl OAuthRoutes {
 
         Ok(OAuthCallbackResponse {
             user_id: user_id.to_string(),
-            provider: "fitbit".into(),
+            provider: oauth_providers::FITBIT.into(),
             expires_at: expires_at.to_rfc3339(),
             scopes: token_response.scope,
         })
@@ -609,7 +605,7 @@ impl OAuthRoutes {
         let credentials = self
             .resources
             .database
-            .get_tenant_oauth_credentials(tenant_id, "strava")
+            .get_tenant_oauth_credentials(tenant_id, oauth_providers::STRAVA)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to get tenant Strava credentials: {e}"))?
             .ok_or_else(|| anyhow::anyhow!("No Strava OAuth credentials configured for tenant"))?;
@@ -666,7 +662,7 @@ impl OAuthRoutes {
         let credentials = self
             .resources
             .database
-            .get_tenant_oauth_credentials(tenant_id, "fitbit")
+            .get_tenant_oauth_credentials(tenant_id, oauth_providers::FITBIT)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to get tenant Fitbit credentials: {e}"))?
             .ok_or_else(|| anyhow::anyhow!("No Fitbit OAuth credentials configured for tenant"))?;
@@ -717,14 +713,14 @@ impl OAuthRoutes {
         // Check Strava connection
         if let Ok(Some(strava_token)) = self.resources.database.get_strava_token(user_id).await {
             statuses.push(ConnectionStatus {
-                provider: "strava".into(),
+                provider: oauth_providers::STRAVA.into(),
                 connected: true,
                 expires_at: Some(strava_token.expires_at.to_rfc3339()),
                 scopes: Some(strava_token.scope),
             });
         } else {
             statuses.push(ConnectionStatus {
-                provider: "strava".into(),
+                provider: oauth_providers::STRAVA.into(),
                 connected: false,
                 expires_at: None,
                 scopes: None,
@@ -734,14 +730,14 @@ impl OAuthRoutes {
         // Check Fitbit connection
         if let Ok(Some(fitbit_token)) = self.resources.database.get_fitbit_token(user_id).await {
             statuses.push(ConnectionStatus {
-                provider: "fitbit".into(),
+                provider: oauth_providers::FITBIT.into(),
                 connected: true,
                 expires_at: Some(fitbit_token.expires_at.to_rfc3339()),
                 scopes: Some(fitbit_token.scope),
             });
         } else {
             statuses.push(ConnectionStatus {
-                provider: "fitbit".into(),
+                provider: oauth_providers::FITBIT.into(),
                 connected: false,
                 expires_at: None,
                 scopes: None,
@@ -759,14 +755,14 @@ impl OAuthRoutes {
     /// - Provider is not supported
     pub fn disconnect_provider(&self, user_id: Uuid, provider: &str) -> Result<()> {
         match provider {
-            "strava" => {
+            oauth_providers::STRAVA => {
                 // Token revocation would clear stored tokens from database
                 // Clear provider tokens requires token revocation API calls
                 info!("Disconnecting Strava for user {}", user_id);
                 // self.resources.database.clear_strava_token(user_id).await?;
                 Ok(())
             }
-            "fitbit" => {
+            oauth_providers::FITBIT => {
                 info!("Disconnecting Fitbit for user {}", user_id);
                 // self.resources.database.clear_fitbit_token(user_id).await?;
                 Ok(())

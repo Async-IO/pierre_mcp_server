@@ -250,9 +250,11 @@ pub mod middleware {
     }
 
     /// Admin authentication errors
-    #[derive(Debug)]
+    #[derive(Debug, thiserror::Error)]
     pub enum AdminAuthError {
+        #[error("Invalid authentication header")]
         InvalidAuthHeader,
+        #[error("Authentication failed: {0}")]
         AuthenticationFailed(String),
     }
 

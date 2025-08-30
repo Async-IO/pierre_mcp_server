@@ -190,7 +190,7 @@ impl TenantFitnessProvider for TenantStravaProvider {
                         hr as u32
                     }
                 }),
-                // Safe: cadence values are always positive integers in normal ranges (0-300 rpm)
+                // Safe: cadence values are always positive integers in normal ranges (0-MAX_NORMAL_CADENCE rpm)
                 average_cadence: activity.average_cadence.map(|c| {
                     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
                     {
@@ -270,7 +270,7 @@ impl TenantFitnessProvider for TenantStravaProvider {
                     hr as u32
                 }
             }),
-            // Safe: cadence values are always positive integers in normal ranges (0-300 rpm)
+            // Safe: cadence values are always positive integers in normal ranges (0-MAX_NORMAL_CADENCE rpm)
             average_cadence: response.average_cadence.map(|c| {
                 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
                 {

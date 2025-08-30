@@ -224,18 +224,6 @@ pub struct ResponseMetadata {
     pub api_version: String,
 }
 
-#[derive(Debug, Serialize)]
-pub struct ErrorResponse {
-    /// Error code
-    pub error: String,
-    /// Error message
-    pub message: String,
-    /// Optional error details
-    pub details: Option<String>,
-    /// Response metadata
-    pub metadata: ResponseMetadata,
-}
-
 // ================================================================================================
 // Route Handler
 // ================================================================================================
@@ -529,8 +517,12 @@ impl ConfigurationRoutes {
         // Log personalized zones request
         tracing::debug!("Generating personalized zones for user {}", user_id);
 
-        let resting_hr = request.resting_hr.unwrap_or(60);
-        let max_hr = request.max_hr.unwrap_or(190);
+        let resting_hr = request
+            .resting_hr
+            .unwrap_or(crate::constants::physiology::DEFAULT_RESTING_HR);
+        let max_hr = request
+            .max_hr
+            .unwrap_or(crate::constants::physiology::DEFAULT_MAX_HR);
         let lactate_threshold = request.lactate_threshold.unwrap_or(0.85);
         let sport_efficiency = request.sport_efficiency.unwrap_or(1.0);
 

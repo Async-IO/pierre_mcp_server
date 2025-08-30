@@ -16,7 +16,7 @@ pub struct MultiTenantMcpServer {
     auth_manager: Arc<AuthManager>,
     auth_middleware: Arc<McpAuthMiddleware>,
     websocket_manager: Arc<WebSocketManager>,
-    tenant_provider_factory: Arc<TenantProviderFactory>,
+    provider_registry: Arc<ProviderRegistry>,
     config: Arc<ServerConfig>,
 }
 ```
@@ -100,25 +100,30 @@ pub enum TenantRole {
 
 ### 5. Provider System (`src/providers/`)
 
-Abstracts fitness data providers:
+Unified provider architecture with trait-based system:
 
 ```rust
 #[async_trait]
 pub trait FitnessProvider: Send + Sync {
-    async fn name(&self) -> &str;
-    async fn authenticate(&mut self, auth_data: AuthData) -> Result<()>;
+    fn name(&self) -> &'static str;
+    fn config(&self) -> &ProviderConfig;
+    async fn set_credentials(&mut self, credentials: OAuth2Credentials) -> Result<()>;
+    async fn is_authenticated(&self) -> bool;
+    async fn refresh_token_if_needed(&mut self) -> Result<()>;
     async fn get_athlete(&self) -> Result<Athlete>;
-    async fn get_activities(&self, params: ActivityParams) -> Result<Vec<Activity>>;
+    async fn get_activities(&self, limit: Option<usize>, offset: Option<usize>) -> Result<Vec<Activity>>;
     async fn get_activity(&self, id: &str) -> Result<Activity>;
     async fn get_stats(&self) -> Result<Stats>;
+    async fn get_personal_records(&self) -> Result<Vec<PersonalRecord>>;
+    async fn disconnect(&mut self) -> Result<()>;
 }
 ```
 
-**Implementations:**
-- `strava_tenant.rs`: Strava API integration
-- `fitbit.rs`: Fitbit API integration
-- `tenant_provider.rs`: Tenant-aware provider wrapper
-- `universal.rs`: Protocol converter for unified access
+**Architecture:**
+- `core.rs`: Core traits and credentials management
+- `registry.rs`: Provider factory and global registry
+- `strava_provider.rs`: Clean Strava implementation
+- Eliminated fragmented legacy implementations
 
 ### 6. MCP Protocol Handler (`src/mcp/`)
 
@@ -127,7 +132,7 @@ Implements the Model Context Protocol:
 ```rust
 pub struct MpcpHandler {
     database: Arc<Database>,
-    provider_factory: Arc<TenantProviderFactory>,
+    provider_registry: Arc<ProviderRegistry>,
 }
 
 impl MpcpHandler {

@@ -156,6 +156,7 @@ impl A2AClientManager {
     /// - Keypair generation fails  
     /// - System user creation fails
     /// - Database storage fails
+    #[allow(clippy::cast_possible_truncation)] // Safe: HOUR_SECONDS is 3600, well within u32 range
     pub async fn register_client(
         &self,
         request: ClientRegistrationRequest,
@@ -194,8 +195,8 @@ impl A2AClientManager {
             is_active: true,
             created_at: chrono::Utc::now(),
             permissions: vec!["read_activities".into()], // Default permissions
-            rate_limit_requests: 1000,
-            rate_limit_window_seconds: 3600,
+            rate_limit_requests: crate::constants::rate_limits::DEFAULT_BURST_LIMIT * 10,
+            rate_limit_window_seconds: crate::constants::time::HOUR_SECONDS as u32,
             updated_at: chrono::Utc::now(),
         };
 

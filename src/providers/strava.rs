@@ -638,7 +638,7 @@ impl From<StravaActivity> for Activity {
             distance_meters: strava.distance,
             elevation_gain: strava.total_elevation_gain,
             average_heart_rate: strava.average_heartrate.and_then(|hr| {
-                if hr.is_finite() && (0.0..=300.0).contains(&hr) {
+                if hr.is_finite() && (0.0..=f64::from(crate::constants::physiology::MAX_NORMAL_HR)).contains(&hr) {
                     let rounded = hr.round();
                     let hr_string = format!("{rounded:.0}");
                     hr_string.parse::<u32>().ok()
@@ -647,7 +647,7 @@ impl From<StravaActivity> for Activity {
                 }
             }),
             max_heart_rate: strava.max_heartrate.and_then(|hr| {
-                if hr.is_finite() && (0.0..=300.0).contains(&hr) {
+                if hr.is_finite() && (0.0..=f64::from(crate::constants::physiology::MAX_NORMAL_HR)).contains(&hr) {
                     let rounded = hr.round();
                     let hr_string = format!("{rounded:.0}");
                     hr_string.parse::<u32>().ok()

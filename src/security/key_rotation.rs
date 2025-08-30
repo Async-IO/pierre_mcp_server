@@ -139,7 +139,9 @@ impl KeyRotationManager {
 
         let manager = Arc::clone(&self);
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(Duration::from_secs(3600)); // Check every hour
+            let mut interval = tokio::time::interval(Duration::from_secs(
+                crate::constants::time::HOUR_SECONDS as u64,
+            )); // Check every hour
 
             loop {
                 interval.tick().await;

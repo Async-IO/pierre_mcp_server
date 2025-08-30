@@ -237,9 +237,13 @@ impl OAuth2Client {
 
     #[must_use]
     fn token_from_response(response: TokenResponse) -> OAuth2Token {
-        let expires_at = response
-            .expires_in
-            .map(|seconds| Utc::now() + Duration::seconds(i64::try_from(seconds).unwrap_or(3600)));
+        let expires_at = response.expires_in.map(|seconds| {
+            Utc::now()
+                + Duration::seconds(
+                    i64::try_from(seconds)
+                        .unwrap_or(crate::constants::time::DEFAULT_TOKEN_EXPIRY_SECONDS),
+                )
+        });
 
         OAuth2Token {
             access_token: response.access_token,

@@ -55,11 +55,12 @@ fn default_permissions() -> Vec<String> {
 }
 
 const fn default_rate_limit_requests() -> u32 {
-    1000
+    crate::constants::rate_limits::DEFAULT_BURST_LIMIT * 10
 }
 
+#[allow(clippy::cast_possible_truncation)] // Safe: HOUR_SECONDS is 3600, well within u32 range
 const fn default_rate_limit_window() -> u32 {
-    3600
+    crate::constants::time::HOUR_SECONDS as u32
 }
 
 /// A2A Authenticator

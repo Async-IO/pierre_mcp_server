@@ -304,6 +304,38 @@ pub mod limits {
     pub const SECONDS_PER_MINUTE: u64 = 60;
     pub const METERS_PER_KILOMETER: f64 = 1000.0;
     pub const METERS_PER_MILE: f64 = 1609.34;
+
+    /// Activity processing limits
+    pub const ACTIVITY_CAPACITY_HINT: usize = 100;
+
+    /// Mathematical constants
+    pub const PERCENTAGE_MULTIPLIER: f64 = 100.0;
+
+    /// Time constants
+    pub const SECONDS_PER_HOUR: u64 = 3600;
+    pub const MINUTES_PER_HOUR: u64 = 60;
+    pub const HOURS_PER_DAY: i64 = 24;
+    pub const DAYS_PER_WEEK: i64 = 7;
+    pub const DAYS_PER_MONTH: i64 = 30;
+    pub const DAYS_PER_YEAR: i64 = 365;
+
+    /// Common timeframe limits
+    pub const MAX_TIMEFRAME_DAYS: u32 = 365;
+    pub const DEFAULT_TRIAL_DAYS: i64 = 30;
+    pub const DEFAULT_SESSION_HOURS: i64 = 24;
+
+    /// Confidence thresholds  
+    pub const DEFAULT_CONFIDENCE_THRESHOLD: f64 = 0.7;
+    pub const HIGH_CONFIDENCE_THRESHOLD: f64 = 0.8;
+    pub const LOW_CONFIDENCE_THRESHOLD: f64 = 0.6;
+
+    /// Default heart rate
+    pub const DEFAULT_RESTING_HEART_RATE: u16 = 60;
+
+    /// Common capacity hints
+    pub const DEFAULT_ACTIVITY_LIMIT: u32 = 30;
+    pub const MAX_ACTIVITIES_QUERY: usize = 1000;
+    pub const LARGE_CAPACITY_HINT: usize = 1000;
 }
 
 /// Timeout and duration constants
@@ -649,6 +681,105 @@ pub mod error_messages {
     // Authentication errors
     pub const TOKEN_EXCHANGE_FAILED: &str = "OAuth token exchange failed";
     pub const INVALID_TOKEN: &str = "Invalid or expired token";
+}
+
+/// Time-related constants in seconds
+pub mod time {
+    /// One minute in seconds
+    pub const MINUTE_SECONDS: i64 = 60;
+
+    /// One hour in seconds
+    pub const HOUR_SECONDS: i64 = 3600;
+
+    /// One day in seconds  
+    pub const DAY_SECONDS: i64 = 86400;
+
+    /// One week in seconds
+    pub const WEEK_SECONDS: i64 = 604_800;
+
+    /// Default OAuth token expiry (1 hour)
+    pub const DEFAULT_TOKEN_EXPIRY_SECONDS: i64 = HOUR_SECONDS;
+
+    /// Default rate limit window (1 minute)
+    pub const DEFAULT_RATE_LIMIT_WINDOW_SECONDS: i64 = MINUTE_SECONDS;
+}
+
+/// HTTP status code constants
+pub mod http_status {
+    /// HTTP 200 OK range minimum
+    pub const SUCCESS_MIN: u16 = 200;
+
+    /// HTTP 299 OK range maximum  
+    pub const SUCCESS_MAX: u16 = 299;
+
+    /// HTTP 400 Bad Request
+    pub const BAD_REQUEST: u16 = 400;
+
+    /// HTTP 401 Unauthorized
+    pub const UNAUTHORIZED: u16 = 401;
+
+    /// HTTP 403 Forbidden
+    pub const FORBIDDEN: u16 = 403;
+
+    /// HTTP 404 Not Found
+    pub const NOT_FOUND: u16 = 404;
+
+    /// HTTP 409 Conflict
+    pub const CONFLICT: u16 = 409;
+
+    /// HTTP 422 Unprocessable Entity
+    pub const UNPROCESSABLE_ENTITY: u16 = 422;
+
+    /// HTTP 429 Too Many Requests
+    pub const TOO_MANY_REQUESTS: u16 = 429;
+
+    /// HTTP 500 Internal Server Error
+    pub const INTERNAL_SERVER_ERROR: u16 = 500;
+
+    /// HTTP 502 Bad Gateway
+    pub const BAD_GATEWAY: u16 = 502;
+
+    /// HTTP 503 Service Unavailable
+    pub const SERVICE_UNAVAILABLE: u16 = 503;
+}
+
+/// Rate limiting constants
+pub mod rate_limits {
+    /// Default burst limit for rate limiting
+    pub const DEFAULT_BURST_LIMIT: u32 = 100;
+
+    /// WebSocket broadcast channel capacity
+    pub const WEBSOCKET_CHANNEL_CAPACITY: usize = 1000;
+
+    /// Database query result limit
+    pub const DEFAULT_QUERY_LIMIT: u32 = 1000;
+}
+
+/// Physiological constants  
+pub mod physiology {
+    /// Default resting heart rate (BPM)
+    pub const DEFAULT_RESTING_HR: u16 = 60;
+
+    /// Default max heart rate (BPM)  
+    pub const DEFAULT_MAX_HR: u16 = 190;
+
+    /// Normal cadence range maximum (RPM)
+    pub const MAX_NORMAL_CADENCE: u16 = 300;
+
+    /// Meters per kilometer conversion
+    pub const METERS_PER_KM: f64 = 1000.0;
+
+    /// Maximum normal heart rate (BPM) for validation
+    pub const MAX_NORMAL_HR: u16 = 300;
+
+    /// Minimum good ground contact time in milliseconds
+    pub const MIN_GOOD_GCT_MS: f64 = 200.0;
+
+    /// Maximum good ground contact time in milliseconds
+    pub const MAX_GOOD_GCT_MS: f64 = 300.0;
+
+    /// Optimal ground contact time in milliseconds
+    pub const OPTIMAL_GCT_MS: f64 = 250.0;
 }
 
 /// OAuth provider constants to eliminate hardcoded provider names

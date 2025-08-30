@@ -539,7 +539,7 @@ pub async fn oauth_token(
             Ok(OAuthTokenResponse {
                 access_token,
                 token_type: "Bearer".to_string(),
-                expires_in: 86400, // 24 hours
+                expires_in: crate::constants::time::DAY_SECONDS as u64, // 24 hours
                 scope: oauth_app.scopes.join(" "),
             })
         }
@@ -551,7 +551,7 @@ pub async fn oauth_token(
             Ok(OAuthTokenResponse {
                 access_token,
                 token_type: "Bearer".to_string(),
-                expires_in: 3600, // 1 hour for client credentials
+                expires_in: crate::constants::time::HOUR_SECONDS as u64, // 1 hour for client credentials
                 scope: oauth_app.scopes.join(" "),
             })
         }

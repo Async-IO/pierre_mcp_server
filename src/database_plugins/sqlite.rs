@@ -1915,19 +1915,21 @@ impl DatabaseProvider for SqliteDatabase {
     // ================================
 
     async fn upsert_user_oauth_token(&self, token: &UserOAuthToken) -> Result<()> {
-        self.inner
-            .upsert_user_oauth_token(
-                &token.id,
-                token.user_id,
-                &token.tenant_id,
-                &token.provider,
-                &token.access_token,
-                token.refresh_token.as_deref(),
-                &token.token_type,
-                token.expires_at,
-                token.scope.as_deref().unwrap_or(""),
-            )
-            .await
+        use crate::database::user_oauth_tokens::OAuthTokenData;
+
+        let token_data = OAuthTokenData {
+            id: &token.id,
+            user_id: token.user_id,
+            tenant_id: &token.tenant_id,
+            provider: &token.provider,
+            access_token: &token.access_token,
+            refresh_token: token.refresh_token.as_deref(),
+            token_type: &token.token_type,
+            expires_at: token.expires_at,
+            scope: token.scope.as_deref().unwrap_or(""),
+        };
+
+        self.inner.upsert_user_oauth_token(&token_data).await
     }
 
     async fn get_user_oauth_token(

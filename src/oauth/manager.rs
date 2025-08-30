@@ -12,6 +12,7 @@
 //! Handles the complete OAuth flow from authorization to token management.
 
 use super::{CallbackResponse, OAuthError, OAuthProvider, ProviderRegistry, TokenData};
+use crate::constants::oauth_providers;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use anyhow::Result;
 use std::collections::HashMap;
@@ -275,7 +276,7 @@ impl OAuthManager {
     /// Store tokens in database
     async fn store_tokens(&self, user_id: Uuid, token_data: &TokenData) -> Result<(), OAuthError> {
         match token_data.provider.as_str() {
-            "strava" => {
+            oauth_providers::STRAVA => {
                 self.database
                     .update_strava_token(
                         user_id,
@@ -287,7 +288,7 @@ impl OAuthManager {
                     .await
                     .map_err(|e| OAuthError::DatabaseError(e.to_string()))?;
             }
-            "fitbit" => {
+            oauth_providers::FITBIT => {
                 self.database
                     .update_fitbit_token(
                         user_id,
@@ -308,14 +309,14 @@ impl OAuthManager {
     /// Remove tokens from database
     async fn remove_tokens(&self, user_id: Uuid, provider: &str) -> Result<(), OAuthError> {
         match provider {
-            "strava" => {
+            oauth_providers::STRAVA => {
                 self.database
                     .clear_strava_token(user_id)
                     .await
                     .map_err(|e| OAuthError::DatabaseError(e.to_string()))?;
                 Ok(())
             }
-            "fitbit" => {
+            oauth_providers::FITBIT => {
                 self.database
                     .clear_fitbit_token(user_id)
                     .await
@@ -339,7 +340,7 @@ impl OAuthManager {
                     refresh_token: token.refresh_token,
                     expires_at: token.expires_at,
                     scopes: token.scope,
-                    provider: "strava".into(),
+                    provider: oauth_providers::STRAVA.into(),
                 })),
                 Ok(None) => Ok(None),
                 Err(e) => Err(OAuthError::DatabaseError(e.to_string())),
@@ -350,7 +351,7 @@ impl OAuthManager {
                     refresh_token: token.refresh_token,
                     expires_at: token.expires_at,
                     scopes: token.scope,
-                    provider: "fitbit".into(),
+                    provider: oauth_providers::FITBIT.into(),
                 })),
                 Ok(None) => Ok(None),
                 Err(e) => Err(OAuthError::DatabaseError(e.to_string())),

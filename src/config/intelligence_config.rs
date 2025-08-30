@@ -5,6 +5,7 @@
 //! Provides type-safe, compile-time validated configuration for all intelligence modules
 //! including recommendation engine, performance analyzer, goal engine, and weather analysis.
 
+use crate::constants::limits;
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 use std::sync::OnceLock;
@@ -446,7 +447,7 @@ impl IntelligenceConfig<true> {
             low_weekly_frequency: 2,
             high_weekly_frequency: 6,
             pace_improvement_threshold: 0.05,
-            consistency_threshold: 0.7,
+            consistency_threshold: limits::DEFAULT_CONFIDENCE_THRESHOLD,
             rest_day_threshold: 1,
             volume_increase_threshold: 0.1,
             intensity_threshold: 0.8,
