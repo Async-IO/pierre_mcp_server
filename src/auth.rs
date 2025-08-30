@@ -12,7 +12,7 @@
 //! for the multi-tenant Pierre MCP Server.
 
 use crate::api_keys::ApiKeyManager;
-use crate::constants::key_prefixes;
+use crate::constants::{key_prefixes, limits::JWT_EXPIRY_HOURS, time_constants::SECONDS_PER_HOUR};
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::models::{AuthRequest, AuthResponse, User, UserSession};
 use crate::rate_limiting::{UnifiedRateLimitCalculator, UnifiedRateLimitInfo};
@@ -27,8 +27,8 @@ use uuid::Uuid;
 /// Convert a duration to a human-readable format
 fn humanize_duration(duration: Duration) -> String {
     let total_secs = duration.num_seconds().abs();
-    let hours = total_secs / 3600;
-    let minutes = (total_secs % 3600) / 60;
+    let hours = total_secs / i64::from(SECONDS_PER_HOUR);
+    let minutes = (total_secs % i64::from(SECONDS_PER_HOUR)) / 60;
 
     if hours > 0 {
         format!("{hours} hours")
@@ -76,7 +76,7 @@ impl std::fmt::Display for JwtValidationError {
                         duration_expired.num_minutes(),
                         expired_at.format("%Y-%m-%d %H:%M:%S UTC")
                     )
-                } else if duration_expired.num_hours() < 24 {
+                } else if duration_expired.num_hours() < JWT_EXPIRY_HOURS {
                     write!(
                         f,
                         "JWT token expired {} hours ago at {}",
@@ -520,7 +520,7 @@ impl AuthManager {
     /// - System time is unavailable
     pub fn generate_oauth_access_token(&self, user_id: &Uuid, scopes: &[String]) -> Result<String> {
         let now = Utc::now();
-        let expiry = now + Duration::hours(24); // 24 hours for OAuth access tokens
+        let expiry = now + Duration::hours(JWT_EXPIRY_HOURS); // JWT expiry from constants
 
         let counter = self.token_counter.fetch_add(1, Ordering::Relaxed);
         let unique_iat =
