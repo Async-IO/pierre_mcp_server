@@ -35,7 +35,7 @@ use crate::dashboard_routes::DashboardRoutes;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::mcp::schema::InitializeResponse;
 use crate::models::AuthRequest;
-use crate::providers::TenantProviderFactory;
+use crate::providers::ProviderRegistry;
 use crate::routes::OAuthAuthorizationResponse;
 use crate::routes::{AuthRoutes, LoginRequest, OAuthRoutes, RefreshTokenRequest, RegisterRequest};
 use crate::security::SecurityConfig;
@@ -79,7 +79,7 @@ pub struct ServerResources {
     pub auth_middleware: Arc<McpAuthMiddleware>,
     pub websocket_manager: Arc<WebSocketManager>,
     pub tenant_oauth_client: Arc<TenantOAuthClient>,
-    pub tenant_provider_factory: Arc<TenantProviderFactory>,
+    pub provider_registry: Arc<ProviderRegistry>,
     pub admin_jwt_secret: Arc<str>,
     pub config: Arc<crate::config::environment::ServerConfig>,
     pub activity_intelligence: Arc<crate::intelligence::ActivityIntelligence>,
@@ -134,10 +134,9 @@ impl ServerResources {
             auth_manager_arc.as_ref().clone(),
         ));
 
-        // Create tenant OAuth client and provider factory once
+        // Create tenant OAuth client and provider registry once
         let tenant_oauth_client = Arc::new(TenantOAuthClient::new());
-        let tenant_provider_factory =
-            Arc::new(TenantProviderFactory::new(tenant_oauth_client.clone()));
+        let provider_registry = Arc::new(ProviderRegistry::new());
 
         // Create activity intelligence once for shared use
         let activity_intelligence =
@@ -187,7 +186,7 @@ impl ServerResources {
             auth_middleware,
             websocket_manager,
             tenant_oauth_client,
-            tenant_provider_factory,
+            provider_registry,
             admin_jwt_secret: admin_jwt_secret.into(),
             config,
             activity_intelligence,
@@ -2573,7 +2572,7 @@ impl MultiTenantMcpServer {
             Self::handle_tenant_disconnect_provider(
                 tenant_ctx,
                 provider_name,
-                &ctx.resources.tenant_provider_factory,
+                &ctx.resources.provider_registry,
                 &ctx.resources.database,
                 request_id,
             )
@@ -3422,7 +3421,7 @@ impl MultiTenantMcpServer {
     fn handle_tenant_disconnect_provider(
         tenant_context: &TenantContext,
         provider_name: &str,
-        _tenant_provider_factory: &Arc<TenantProviderFactory>,
+        _provider_registry: &Arc<ProviderRegistry>,
         _database: &Arc<Database>,
         request_id: Value,
     ) -> McpResponse {
