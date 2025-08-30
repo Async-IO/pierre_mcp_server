@@ -3,6 +3,7 @@
 
 use crate::{
     auth::{AuthManager, AuthResult},
+    constants::oauth_providers,
     database_plugins::{factory::Database, DatabaseProvider},
     errors::AppError,
     tenant::TenantOAuthCredentials,
@@ -289,7 +290,9 @@ pub async fn configure_tenant_oauth(
     }
 
     // Validate provider
-    if !["strava", "fitbit"].contains(&oauth_request.provider.as_str()) {
+    if ![oauth_providers::STRAVA, oauth_providers::FITBIT]
+        .contains(&oauth_request.provider.as_str())
+    {
         return Err(AppError::invalid_input(format!(
             "Unsupported OAuth provider: {}",
             oauth_request.provider

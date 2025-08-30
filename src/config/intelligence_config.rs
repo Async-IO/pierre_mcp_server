@@ -676,7 +676,7 @@ impl IntelligenceConfig<true> {
     /// Create default activity insights configuration
     const fn default_activity_insights_config() -> ActivityInsightsConfig {
         ActivityInsightsConfig {
-            min_confidence_threshold: 0.7,
+            min_confidence_threshold: limits::DEFAULT_CONFIDENCE_THRESHOLD,
             max_insights_per_activity: 5,
             severity_thresholds: Self::default_severity_thresholds(),
         }
@@ -686,7 +686,7 @@ impl IntelligenceConfig<true> {
     const fn default_severity_thresholds() -> SeverityThresholds {
         SeverityThresholds {
             info_threshold: 0.3,
-            warning_threshold: 0.7,
+            warning_threshold: limits::DEFAULT_CONFIDENCE_THRESHOLD,
             critical_threshold: 0.9,
         }
     }

@@ -10,6 +10,7 @@ use crate::a2a::auth::A2AClient;
 use crate::a2a::client::A2ASession;
 use crate::a2a::protocol::{A2ATask, TaskStatus};
 use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
+use crate::constants::oauth_providers;
 use crate::constants::tiers;
 use crate::database::A2AUsage;
 use crate::models::{DecryptedToken, EncryptedToken, User, UserTier};
@@ -2108,8 +2109,8 @@ impl DatabaseProvider for PostgresDatabase {
         provider: &str,
     ) -> Result<Option<DateTime<Utc>>> {
         let column = match provider {
-            "strava" => "strava_last_sync",
-            "fitbit" => "fitbit_last_sync",
+            oauth_providers::STRAVA => "strava_last_sync",
+            oauth_providers::FITBIT => "fitbit_last_sync",
             _ => return Err(anyhow!("Unsupported provider: {provider}")),
         };
 
@@ -2129,8 +2130,8 @@ impl DatabaseProvider for PostgresDatabase {
         sync_time: DateTime<Utc>,
     ) -> Result<()> {
         let column = match provider {
-            "strava" => "strava_last_sync",
-            "fitbit" => "fitbit_last_sync",
+            oauth_providers::STRAVA => "strava_last_sync",
+            oauth_providers::FITBIT => "fitbit_last_sync",
             _ => return Err(anyhow!("Unsupported provider: {provider}")),
         };
 
