@@ -82,12 +82,10 @@ impl DatabaseProvider for PostgresDatabase {
     }
 
     async fn create_user(&self, user: &User) -> Result<Uuid> {
-        let user_id = Uuid::new_v4();
-
         sqlx::query(
             r"
-            INSERT INTO users (id, email, display_name, password_hash, tier, is_active, created_at, last_active)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            INSERT INTO users (id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin, user_status, approved_by, approved_at, created_at, last_active)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
             ",
         )
         .bind(user.id)
@@ -99,19 +97,29 @@ impl DatabaseProvider for PostgresDatabase {
             UserTier::Professional => tiers::PROFESSIONAL,
             UserTier::Enterprise => tiers::ENTERPRISE,
         })
+        .bind(&user.tenant_id)
         .bind(user.is_active)
+        .bind(user.is_admin)
+        .bind(match user.user_status {
+            crate::models::UserStatus::Active => "active",
+            crate::models::UserStatus::Pending => "pending",
+            crate::models::UserStatus::Suspended => "suspended",
+        })
+        .bind(user.approved_by)
+        .bind(user.approved_at)
         .bind(user.created_at)
         .bind(user.last_active)
         .execute(&self.pool)
         .await?;
 
-        Ok(user_id)
+        Ok(user.id)
     }
 
     async fn get_user(&self, user_id: Uuid) -> Result<Option<User>> {
         let row = sqlx::query(
             r"
-            SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin, created_at, last_active
+            SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin, 
+                   user_status, approved_by, approved_at, created_at, last_active
             FROM users
             WHERE id = $1
             ",
@@ -140,10 +148,17 @@ impl DatabaseProvider for PostgresDatabase {
                     strava_token: None, // Tokens are loaded separately
                     fitbit_token: None, // Tokens are loaded separately
                     is_active: row.get("is_active"),
-                    user_status: crate::models::UserStatus::Active, // Default for existing users
-                    is_admin: row.try_get("is_admin").unwrap_or(false), // Default to false for existing users
-                    approved_by: None, // Not tracked in PostgreSQL yet
-                    approved_at: None, // Not tracked in PostgreSQL yet
+                    user_status: {
+                        let status_str: String = row.get("user_status");
+                        match status_str.as_str() {
+                            "pending" => crate::models::UserStatus::Pending,
+                            "suspended" => crate::models::UserStatus::Suspended,
+                            _ => crate::models::UserStatus::Active,
+                        }
+                    },
+                    is_admin: row.get("is_admin"),
+                    approved_by: row.get("approved_by"),
+                    approved_at: row.get("approved_at"),
                     created_at: row.get("created_at"),
                     last_active: row.get("last_active"),
                 }))
@@ -154,7 +169,8 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_user_by_email(&self, email: &str) -> Result<Option<User>> {
         let row = sqlx::query(
             r"
-            SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin, created_at, last_active
+            SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin, 
+                   user_status, approved_by, approved_at, created_at, last_active
             FROM users
             WHERE email = $1
             ",
@@ -183,10 +199,17 @@ impl DatabaseProvider for PostgresDatabase {
                     strava_token: None, // Tokens are loaded separately
                     fitbit_token: None, // Tokens are loaded separately
                     is_active: row.get("is_active"),
-                    user_status: crate::models::UserStatus::Active, // Default for existing users
-                    is_admin: row.try_get("is_admin").unwrap_or(false), // Default to false for existing users
-                    approved_by: None, // Not tracked in PostgreSQL yet
-                    approved_at: None, // Not tracked in PostgreSQL yet
+                    user_status: {
+                        let status_str: String = row.get("user_status");
+                        match status_str.as_str() {
+                            "pending" => crate::models::UserStatus::Pending,
+                            "suspended" => crate::models::UserStatus::Suspended,
+                            _ => crate::models::UserStatus::Active,
+                        }
+                    },
+                    is_admin: row.get("is_admin"),
+                    approved_by: row.get("approved_by"),
+                    approved_at: row.get("approved_at"),
                     created_at: row.get("created_at"),
                     last_active: row.get("last_active"),
                 }))
@@ -1102,7 +1125,7 @@ impl DatabaseProvider for PostgresDatabase {
             r"
             INSERT INTO api_key_usage (api_key_id, timestamp, endpoint, response_time_ms, status_code, 
                                      method, request_size_bytes, response_size_bytes, ip_address, user_agent)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::inet, $10)
             ",
         )
         .bind(&usage.api_key_id)
@@ -1219,7 +1242,7 @@ impl DatabaseProvider for PostgresDatabase {
                 user_id, timestamp, endpoint, response_time_ms, status_code,
                 method, request_size_bytes, response_size_bytes, 
                 ip_address, user_agent
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::inet, $10)
             ",
         )
         .bind(usage.user_id)
@@ -1946,7 +1969,7 @@ impl DatabaseProvider for PostgresDatabase {
             (client_id, session_token, endpoint, status_code, 
              response_time_ms, request_size_bytes, response_size_bytes, timestamp,
              method, ip_address, user_agent, protocol_version)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::inet, $11, $12)
             ",
         )
         .bind(&usage.client_id)
@@ -2421,7 +2444,7 @@ impl DatabaseProvider for PostgresDatabase {
                 admin_token_id, timestamp, action, target_resource,
                 ip_address, user_agent, request_size_bytes, success,
                 method, response_time_ms
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            ) VALUES ($1, $2, $3, $4, $5::inet, $6, $7, $8, $9, $10)
         ";
 
         sqlx::query(query)
@@ -3518,7 +3541,7 @@ impl DatabaseProvider for PostgresDatabase {
             INSERT INTO audit_events (
                 id, event_type, severity, message, source, result, 
                 tenant_id, user_id, ip_address, user_agent, metadata, timestamp
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::inet, $10, $11, $12)
         ";
 
         let event_type_str = format!("{:?}", event.event_type);
@@ -4178,6 +4201,7 @@ impl PostgresDatabase {
                 display_name TEXT,
                 password_hash TEXT NOT NULL,
                 tier TEXT NOT NULL DEFAULT 'starter' CHECK (tier IN ('starter', 'professional', 'enterprise')),
+                tenant_id TEXT,
                 strava_access_token TEXT,
                 strava_refresh_token TEXT,
                 strava_expires_at TIMESTAMPTZ,
@@ -4189,6 +4213,10 @@ impl PostgresDatabase {
                 fitbit_scope TEXT,
                 fitbit_nonce TEXT,
                 is_active BOOLEAN NOT NULL DEFAULT true,
+                user_status TEXT NOT NULL DEFAULT 'pending' CHECK (user_status IN ('pending', 'active', 'suspended')),
+                is_admin BOOLEAN NOT NULL DEFAULT false,
+                approved_by UUID REFERENCES users(id),
+                approved_at TIMESTAMPTZ,
                 created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                 last_active TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             )
