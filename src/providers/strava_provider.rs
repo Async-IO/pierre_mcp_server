@@ -4,6 +4,7 @@
 use super::core::{FitnessProvider, OAuth2Credentials, ProviderConfig};
 use crate::constants::oauth_providers;
 use crate::models::{Activity, Athlete, PersonalRecord, SportType, Stats};
+use crate::utils::http_client::shared_client;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use chrono::{DateTime, TimeZone, Utc};
@@ -80,7 +81,7 @@ impl StravaProvider {
         Self {
             config,
             credentials: None,
-            client: Client::new(),
+            client: shared_client().clone(),
         }
     }
 
@@ -90,7 +91,7 @@ impl StravaProvider {
         Self {
             config,
             credentials: None,
-            client: Client::new(),
+            client: shared_client().clone(),
         }
     }
 

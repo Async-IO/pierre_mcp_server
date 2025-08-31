@@ -9,6 +9,7 @@ use async_trait::async_trait;
 use reqwest::Client;
 use serde::Deserialize;
 use std::sync::Arc;
+use crate::utils::http_client::shared_client;
 
 /// Strava athlete response from API
 #[derive(Debug, Deserialize)]
@@ -55,7 +56,7 @@ impl TenantStravaProvider {
     pub fn new(oauth_client: Arc<TenantOAuthClient>) -> Self {
         Self {
             oauth_client,
-            client: reqwest::Client::new(),
+            client: shared_client().clone(),
             credentials: None,
             access_token: None,
         }
