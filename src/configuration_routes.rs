@@ -231,13 +231,13 @@ pub struct ResponseMetadata {
 /// Configuration management routes handler
 #[derive(Clone)]
 pub struct ConfigurationRoutes {
-    resources: std::sync::Arc<crate::mcp::multitenant::ServerResources>,
+    resources: std::sync::Arc<crate::mcp::resources::ServerResources>,
 }
 
 impl ConfigurationRoutes {
     /// Create a new configuration routes handler
     #[must_use]
-    pub const fn new(resources: std::sync::Arc<crate::mcp::multitenant::ServerResources>) -> Self {
+    pub const fn new(resources: std::sync::Arc<crate::mcp::resources::ServerResources>) -> Self {
         Self { resources }
     }
 

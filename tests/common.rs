@@ -23,7 +23,7 @@ use pierre_mcp_server::{
     auth::{AuthManager, McpAuthMiddleware},
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
-    mcp::multitenant::ServerResources,
+    mcp::resources::ServerResources,
     models::{User, UserTier},
 };
 use std::sync::{Arc, Once};

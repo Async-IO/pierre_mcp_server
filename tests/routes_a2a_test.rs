@@ -220,7 +220,7 @@ impl A2ATestSetup {
         let config = Arc::new(create_test_server_config());
 
         // Create ServerResources for A2A routes
-        let server_resources = Arc::new(pierre_mcp_server::mcp::multitenant::ServerResources::new(
+        let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
             (*database).clone(),
             (*auth_manager).clone(),
             "test_jwt_secret",
@@ -257,7 +257,7 @@ impl A2ATestSetup {
             b"test_secret".to_vec(),
             24,
         ));
-        let test_resources = Arc::new(pierre_mcp_server::mcp::multitenant::ServerResources::new(
+        let test_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
             (*self.database).clone(),
             (*auth_manager).clone(),
             "test_jwt_secret",

@@ -165,7 +165,7 @@ use pierre_mcp_server::{
     },
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
-    mcp::multitenant::{MultiTenantMcpServer, ServerResources},
+    mcp::{multitenant::MultiTenantMcpServer, resources::ServerResources},
     models::{Tenant, User, UserStatus},
     routes::{AuthRoutes, OAuthRoutes},
     tenant::TenantOAuthCredentials,

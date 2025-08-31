@@ -279,7 +279,7 @@ impl DashboardTestSetup {
         });
 
         // Create ServerResources using proper constructor
-        let server_resources = Arc::new(pierre_mcp_server::mcp::multitenant::ServerResources::new(
+        let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
             (*database).clone(),
             (*auth_manager).clone(),
             "test_jwt_secret",
@@ -565,7 +565,7 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
         },
     });
 
-    let server_resources = Arc::new(pierre_mcp_server::mcp::multitenant::ServerResources::new(
+    let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         database.as_ref().clone(),
         auth_manager.as_ref().clone(),
         "test_jwt_secret",

@@ -58,7 +58,7 @@ pub struct A2AClientRequest {
 
 /// A2A Routes handler
 pub struct A2ARoutes {
-    resources: Arc<crate::mcp::multitenant::ServerResources>,
+    resources: Arc<crate::mcp::resources::ServerResources>,
     client_manager: Arc<A2AClientManager>,
     authenticator: Arc<A2AAuthenticator>,
     tool_executor: UniversalToolExecutor,
@@ -99,7 +99,7 @@ impl A2ARoutes {
     }
 
     #[must_use]
-    pub fn new(resources: Arc<crate::mcp::multitenant::ServerResources>) -> Self {
+    pub fn new(resources: Arc<crate::mcp::resources::ServerResources>) -> Self {
         let client_manager = resources.a2a_client_manager.clone();
         let authenticator = Arc::new(A2AAuthenticator::new(resources.clone()));
 

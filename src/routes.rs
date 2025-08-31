@@ -12,7 +12,7 @@ use crate::{
     constants::{error_messages, limits, oauth_providers},
     database_plugins::DatabaseProvider,
     errors::AppError,
-    mcp::multitenant::ServerResources,
+    mcp::resources::ServerResources,
     models::User,
     utils::{
         errors::{auth_error, operation_error, user_state_error, validation_error},
@@ -831,7 +831,7 @@ impl A2ARoutes {
     /// - Database operation fails
     pub async fn register_client(
         request: crate::a2a::client::ClientRegistrationRequest,
-        resources: std::sync::Arc<crate::mcp::multitenant::ServerResources>,
+        resources: std::sync::Arc<crate::mcp::resources::ServerResources>,
     ) -> Result<impl warp::Reply, warp::Rejection> {
         tracing::info!(
             client_name = %request.name,

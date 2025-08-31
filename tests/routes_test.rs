@@ -10,7 +10,7 @@ use pierre_mcp_server::{
         SecurityHeadersConfig, ServerConfig, StravaApiConfig, TlsConfig, WeatherServiceConfig,
     },
     database_plugins::factory::Database,
-    mcp::multitenant::ServerResources,
+    mcp::resources::ServerResources,
     routes::{AuthRoutes, RegisterRequest},
 };
 use std::sync::Arc;

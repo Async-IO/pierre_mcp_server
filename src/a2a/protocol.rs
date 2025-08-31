@@ -190,7 +190,7 @@ impl std::fmt::Display for TaskStatus {
 /// A2A Protocol Server implementation
 pub struct A2AServer {
     pub version: String,
-    pub resources: Option<std::sync::Arc<crate::mcp::multitenant::ServerResources>>,
+    pub resources: Option<std::sync::Arc<crate::mcp::resources::ServerResources>>,
 }
 
 impl A2AServer {
@@ -204,7 +204,7 @@ impl A2AServer {
 
     #[must_use]
     pub fn new_with_resources(
-        resources: std::sync::Arc<crate::mcp::multitenant::ServerResources>,
+        resources: std::sync::Arc<crate::mcp::resources::ServerResources>,
     ) -> Self {
         Self {
             version: crate::a2a::A2A_VERSION.to_string(),

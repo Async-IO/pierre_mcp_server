@@ -6,7 +6,7 @@ use pierre_mcp_server::{
     auth::AuthManager,
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
-    mcp::multitenant::ServerResources,
+    mcp::resources::ServerResources,
     models::{Tenant, User, UserStatus},
     routes::{AuthRoutes, OAuthRoutes},
     tenant::TenantOAuthCredentials,

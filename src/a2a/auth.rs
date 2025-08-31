@@ -65,12 +65,12 @@ const fn default_rate_limit_window() -> u32 {
 
 /// A2A Authenticator
 pub struct A2AAuthenticator {
-    resources: Arc<crate::mcp::multitenant::ServerResources>,
+    resources: Arc<crate::mcp::resources::ServerResources>,
 }
 
 impl A2AAuthenticator {
     #[must_use]
-    pub const fn new(resources: Arc<crate::mcp::multitenant::ServerResources>) -> Self {
+    pub const fn new(resources: Arc<crate::mcp::resources::ServerResources>) -> Self {
         Self { resources }
     }
 
