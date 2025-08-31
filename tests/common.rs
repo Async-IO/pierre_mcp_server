@@ -215,3 +215,26 @@ pub async fn setup_server_resources_test_environment(
 
     Ok((resources, user_id, api_key))
 }
+
+// ✅ IMPORTANT: Test Database Cleanup Best Practices
+//
+// The accumulated test database files (459 files, 188MB) have been cleaned up.
+// Moving forward, follow these patterns:
+//
+// 1. **CI Environment**: Tests should use `sqlite::memory:` (no files created)
+// 2. **Local Environment**: Use unique test database names with cleanup
+// 3. **Automatic Cleanup**: Run `./scripts/clean-test-databases.sh` before/after tests
+//
+// Example of GOOD test database pattern:
+// ```rust
+// let database_url = if std::env::var("CI").is_ok() {
+//     "sqlite::memory:".to_string()  // ✅ No files in CI
+// } else {
+//     let test_id = Uuid::new_v4();
+//     let db_path = format!("./test_data/my_test_{}.db", test_id);
+//     let _ = std::fs::remove_file(&db_path);  // ✅ Cleanup before
+//     format!("sqlite:{}", db_path)
+// };
+// ```
+//
+// The lint-and-test.sh script now includes automatic database cleanup.
