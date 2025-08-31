@@ -37,7 +37,7 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
     let admin_routes =
         pierre_mcp_server::admin_routes::admin_routes_with_scoped_recovery(admin_context);
 
-    println!("🧪 Starting complete admin user approval workflow test");
+    println!("Starting complete admin user approval workflow test");
 
     // Step 1: Create admin user via server-first setup endpoint
     println!("1️⃣ Testing admin setup endpoint...");
@@ -171,11 +171,11 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
     if std::env::var("CI").is_err() {
         if let Ok(database_path) = std::env::var("TEST_DATABASE_PATH") {
             let _ = std::fs::remove_file(&database_path);
-            println!("🧹 Test database cleaned up");
+            println!("Test database cleaned up");
         }
     }
 
-    println!("🎉 COMPLETE ADMIN USER APPROVAL WORKFLOW TEST PASSED!");
+    println!("COMPLETE ADMIN USER APPROVAL WORKFLOW TEST PASSED!");
     println!("✅ Server-first admin setup working");
     println!("✅ User approval workflow working");
     println!("✅ Database state transitions correct");
@@ -205,7 +205,7 @@ async fn test_admin_token_management_workflow() -> Result<()> {
     let admin_routes =
         pierre_mcp_server::admin_routes::admin_routes_with_scoped_recovery(admin_context);
 
-    println!("🧪 Starting admin token management workflow test");
+    println!("Starting admin token management workflow test");
 
     // Step 1: Create initial admin
     let admin_setup_response = request()
@@ -294,7 +294,7 @@ async fn test_admin_token_management_workflow() -> Result<()> {
         let _ = std::fs::remove_file(&database_url[7..]); // Remove "sqlite:" prefix
     }
 
-    println!("🎉 ADMIN TOKEN MANAGEMENT WORKFLOW TEST PASSED!");
+    println!("ADMIN TOKEN MANAGEMENT WORKFLOW TEST PASSED!");
 
     Ok(())
 }
@@ -318,7 +318,7 @@ async fn test_admin_workflow_error_handling() -> Result<()> {
     let admin_routes =
         pierre_mcp_server::admin_routes::admin_routes_with_scoped_recovery(admin_context);
 
-    println!("🧪 Starting admin workflow error handling test");
+    println!("Starting admin workflow error handling test");
 
     // Test 1: Try to approve non-existent user
     let fake_admin_token = "fake_token_12345";
@@ -377,7 +377,7 @@ async fn test_admin_workflow_error_handling() -> Result<()> {
         let _ = std::fs::remove_file(&database_url[7..]); // Remove "sqlite:" prefix
     }
 
-    println!("🎉 ADMIN WORKFLOW ERROR HANDLING TEST PASSED!");
+    println!("ADMIN WORKFLOW ERROR HANDLING TEST PASSED!");
 
     Ok(())
 }

@@ -487,7 +487,7 @@ async fn test_sdk_complete_onboarding_simulation() -> Result<()> {
     println!("Complete SDK onboarding simulation successful!");
     println!("User: complete_test@example.com");
     println!("API Key: {}", &api_key_string[..20]);
-    println!("🔗 OAuth App: strava (complete_test_client_id)");
+    println!("OAuth App: strava (complete_test_client_id)");
 
     Ok(())
 }

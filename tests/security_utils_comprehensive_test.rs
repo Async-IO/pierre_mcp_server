@@ -30,7 +30,7 @@ async fn test_token_encryption_comprehensive() -> Result<()> {
         ),
         (
             "token_with_special_chars_!@#$%^&*()",
-            "refresh_with_unicode_🔑",
+            "refresh_with_unicode_key",
             "admin,super_user",
         ),
         (
