@@ -35,15 +35,6 @@ Complete documentation for the Pierre MCP Server platform.
 2. **Configuration Issues**: See [Getting Started Guide](getting-started.md)
 3. **API Problems**: Use [OpenAPI Specification](openapi.yaml)
 
-## What's New
-
-### Latest Updates
-- Complete A2A protocol support in OpenAPI specification
-- Enhanced authentication guide with JWT details and A2A flows
-- Comprehensive error reference with troubleshooting
-- Updated Python examples with working A2A authentication
-- Consolidated documentation (removed outdated files)
-
 ### Architecture Notes
 - **OAuth Configuration**: OAuth credentials are stored per-tenant in the database (not environment variables)
 - **User Authentication**: Users must be approved by admin before accessing the system
