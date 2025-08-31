@@ -17,7 +17,7 @@ use crate::constants::tiers;
 use crate::crypto::A2AKeyManager;
 use crate::database_plugins::DatabaseProvider;
 use chrono::Timelike;
-use chrono::{DateTime, Datelike, Utc};
+use chrono::{DateTime, Datelike, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -743,27 +743,16 @@ impl A2AClientManager {
     fn calculate_next_month_start() -> Result<DateTime<Utc>, anyhow::Error> {
         let now = Utc::now();
 
-        let next_month = if now.month() == 12 {
-            now.with_year(now.year() + 1)
-                .ok_or_else(|| anyhow::anyhow!("Failed to set year for next month"))?
-                .with_month(1)
-                .ok_or_else(|| anyhow::anyhow!("Failed to set month to January"))?
+        // Use chrono's built-in date construction to avoid edge cases
+        let next_month_start = if now.month() == 12 {
+            Utc.with_ymd_and_hms(now.year() + 1, 1, 1, 0, 0, 0)
         } else {
-            now.with_month(now.month() + 1)
-                .ok_or_else(|| anyhow::anyhow!("Failed to increment month"))?
+            Utc.with_ymd_and_hms(now.year(), now.month() + 1, 1, 0, 0, 0)
         };
 
-        next_month
-            .with_day(1)
-            .ok_or_else(|| anyhow::anyhow!("Failed to set day to 1st"))?
-            .with_hour(0)
-            .ok_or_else(|| anyhow::anyhow!("Failed to set hour to 0"))?
-            .with_minute(0)
-            .ok_or_else(|| anyhow::anyhow!("Failed to set minute to 0"))?
-            .with_second(0)
-            .ok_or_else(|| anyhow::anyhow!("Failed to set second to 0"))?
-            .with_nanosecond(0)
-            .ok_or_else(|| anyhow::anyhow!("Failed to set nanosecond to 0"))
+        next_month_start
+            .single()
+            .ok_or_else(|| anyhow::anyhow!("Failed to create valid date for next month start"))
     }
 
     /// Get client credentials for authentication

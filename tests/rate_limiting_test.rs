@@ -8,7 +8,7 @@
 
 //! Rate limiting integration tests
 
-use chrono::{Datelike, Duration, Timelike, Utc};
+use chrono::{Datelike, Duration, TimeZone, Timelike, Utc};
 use pierre_mcp_server::{
     api_keys::{ApiKey, ApiKeyManager, ApiKeyTier, ApiKeyUsage},
     auth::{AuthManager, McpAuthMiddleware},
@@ -284,27 +284,22 @@ async fn test_rate_limit_reset_timing() {
     let now = Utc::now();
 
     // Reset should be at beginning of next month
-    let expected_next_month = if now.month() == 12 {
-        now.with_year(now.year() + 1)
-            .unwrap()
-            .with_month(1)
-            .unwrap()
+    // Use chrono's built-in date arithmetic to avoid edge cases
+    let next_month_start = if now.month() == 12 {
+        Utc.with_ymd_and_hms(now.year() + 1, 1, 1, 0, 0, 0)
     } else {
-        now.with_month(now.month() + 1).unwrap()
+        Utc.with_ymd_and_hms(now.year(), now.month() + 1, 1, 0, 0, 0)
     };
 
-    let expected_reset = expected_next_month
-        .with_day(1)
-        .unwrap()
-        .with_hour(0)
-        .unwrap()
-        .with_minute(0)
-        .unwrap()
-        .with_second(0)
-        .unwrap();
+    let expected_next_month = next_month_start
+        .single()
+        .expect("Failed to create valid date for next month");
+
+    let expected_reset = expected_next_month;
 
     // Should be within a few seconds of expected reset time
-    let diff = (reset_at - expected_reset).num_seconds().abs();
+    let duration_diff = reset_at - expected_reset;
+    let diff = duration_diff.num_seconds().abs();
     assert!(diff < 5, "Reset time should be at beginning of next month");
 
     // Reset should be in the future

@@ -275,7 +275,7 @@ async fn test_unknown_method_handling() -> Result<()> {
 
     let error = response.error.unwrap();
     assert_eq!(error.code, -32601); // METHOD_NOT_FOUND
-    assert!(error.message.contains("Method not found"));
+    assert!(error.message.contains("Unknown method"));
 
     Ok(())
 }
@@ -302,7 +302,7 @@ async fn test_authenticate_method_with_invalid_params() -> Result<()> {
     assert!(response.error.is_some());
 
     let error = response.error.unwrap();
-    assert!(error.message.contains("Invalid authentication request"));
+    assert!(error.message.contains("Invalid authentication parameters"));
 
     Ok(())
 }
