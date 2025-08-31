@@ -39,11 +39,20 @@ sqlite = []
 postgresql = ["sqlx/postgres"]
 testing = []
 
+[profile.dev]
+debug = 1
+opt-level = 0
+overflow-checks = true
+
 [profile.release]
-lto = true
+lto = "thin"
 codegen-units = 1
 panic = "abort"
 strip = true
+
+[profile.release-lto]
+inherits = "release"
+lto = "fat"
 
 [dependencies]
 tokio = { version = "1.45", features = ["rt-multi-thread", "macros", "net", "time", "fs", "signal", "io-std", "io-util", "sync"] }
