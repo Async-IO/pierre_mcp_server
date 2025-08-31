@@ -689,7 +689,12 @@ mod postgres_tests {
 
     async fn get_postgres_db() -> Result<PostgresDatabase> {
         let encryption_key = generate_encryption_key().to_vec();
-        PostgresDatabase::new(POSTGRES_TEST_URL, encryption_key).await
+        let db = PostgresDatabase::new(POSTGRES_TEST_URL, encryption_key).await?;
+
+        // Always run migrations to ensure schema is up-to-date
+        db.migrate().await?;
+
+        Ok(db)
     }
 
     #[tokio::test]
@@ -699,7 +704,10 @@ mod postgres_tests {
 
         // Verify database is operational
         let user = User::new(
-            "postgres_creation_test@example.com".to_string(),
+            format!(
+                "postgres_creation_test_{}@example.com",
+                uuid::Uuid::new_v4()
+            ),
             "password123".to_string(),
             Some("PostgreSQL Creation Test".to_string()),
         );
@@ -738,7 +746,7 @@ mod postgres_tests {
 
         for (i, tier) in tiers.iter().enumerate() {
             let mut user = User::new(
-                format!("postgres_user_{i}@example.com"),
+                format!("postgres_user_{}_{}@example.com", i, uuid::Uuid::new_v4()),
                 "secure_password_123".to_string(),
                 Some(format!("PostgreSQL User {i}")),
             );
@@ -774,7 +782,7 @@ mod postgres_tests {
         let db = get_postgres_db().await?;
 
         let user = User::new(
-            "postgres_api_test@example.com".to_string(),
+            format!("postgres_api_test_{}@example.com", uuid::Uuid::new_v4()),
             "password".to_string(),
             None,
         );
@@ -855,7 +863,7 @@ mod postgres_tests {
         let db = get_postgres_db().await?;
 
         let user = User::new(
-            "postgres_token_test@example.com".to_string(),
+            format!("postgres_token_test_{}@example.com", uuid::Uuid::new_v4()),
             "password".to_string(),
             None,
         );
@@ -929,7 +937,10 @@ mod postgres_tests {
             let db_clone = db.clone();
             handles.push(tokio::spawn(async move {
                 let user = User::new(
-                    format!("postgres_concurrent_{i}@example.com"),
+                    format!(
+                        "postgres_concurrent_{}_{i}@example.com",
+                        uuid::Uuid::new_v4()
+                    ),
                     "password".to_string(),
                     Some(format!("PostgreSQL Concurrent User {i}")),
                 );
@@ -973,11 +984,7 @@ mod postgres_tests {
             assert!(user.is_some());
         }
 
-        // Clean up
-        for i in 0..10 {
-            let _email = format!("postgres_concurrent_{i}@example.com");
-            // Clean up would happen on test drop or next run
-        }
+        // Clean up: Each test uses unique emails, so no manual cleanup needed
 
         Ok(())
     }
@@ -986,11 +993,19 @@ mod postgres_tests {
     async fn test_postgres_jwt_usage_tracking() -> Result<()> {
         let db = get_postgres_db().await?;
 
+        // Create a test user first for foreign key reference
+        let user = User::new(
+            format!("postgres_jwt_test_{}@example.com", uuid::Uuid::new_v4()),
+            "password".to_string(),
+            None,
+        );
+        let user_id = db.create_user(&user).await?;
+
         // Record JWT usage entries
         for i in 0..5 {
             let jwt_usage = JwtUsage {
                 id: None,
-                user_id: Uuid::new_v4(),
+                user_id,
                 endpoint: format!("/api/postgres/endpoint_{i}"),
                 method: "GET".to_string(),
                 status_code: 200,
@@ -1052,7 +1067,7 @@ mod postgres_tests {
             handles.push(tokio::spawn(async move {
                 // Simple operation that uses the database connection
                 let user = User::new(
-                    format!("pool_test_{i}@example.com"),
+                    format!("pool_test_{}_{i}@example.com", uuid::Uuid::new_v4()),
                     "password".to_string(),
                     None,
                 );
