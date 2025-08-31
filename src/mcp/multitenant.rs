@@ -2946,13 +2946,13 @@ impl MultiTenantMcpServer {
         });
 
         let text_content = format!(
-            "🏃‍♂️ Fitness Provider Connection Status\n\n\
-            📊 Available Providers:\n\n\
-            🔗 Strava (Not Connected)\n\
+            "Fitness Provider Connection Status\n\n\
+            Available Providers:\n\n\
+            Strava (Not Connected)\n\
             Click to connect: {base_url}/auth/strava/{user_id}\n\n\
-            🔗 Fitbit (Not Connected)\n\
+            Fitbit (Not Connected)\n\
             Click to connect: {base_url}/auth/fitbit/{user_id}\n\n\
-            💡 To connect a provider:\n\
+            To connect a provider:\n\
             1. Click one of the URLs above\n\
             2. You'll be redirected to authorize access\n\
             3. Complete the OAuth flow to connect your account\n\

@@ -439,7 +439,7 @@ async fn rotate_token_command(
     token_id: String,
     expires_days: Option<u64>,
 ) -> Result<()> {
-    info!("🔄 Rotating admin token: {}", token_id);
+    info!("Rotating admin token: {}", token_id);
 
     // Get existing token
     let old_token = database
@@ -478,7 +478,7 @@ async fn rotate_token_command(
     // Revoke old token
     database.deactivate_admin_token(&token_id).await?;
 
-    println!("🔄 Token rotation completed successfully!");
+    println!("Token rotation completed successfully!");
     println!("   Old Token: {token_id} (revoked)");
     println!("   New Token: {} (active)", new_token.token_id);
     println!();
@@ -601,7 +601,7 @@ async fn create_admin_user_command(
             return Err(anyhow!("User already exists (use --force to update)"));
         }
 
-        info!("🔄 Updating existing admin user...");
+        info!("Updating existing admin user...");
 
         // Update existing user
         let updated_user = pierre_mcp_server::models::User {

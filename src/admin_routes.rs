@@ -1481,7 +1481,7 @@ async fn handle_admin_tokens_rotate(
     request: RotateAdminTokenRequest,
     context: AdminApiContext,
 ) -> Result<impl Reply, Rejection> {
-    info!("🔄 Rotating admin token: {}", token_id);
+    info!("Rotating admin token: {}", token_id);
 
     // Get existing token first
     let old_token = match context.database.get_admin_token_by_id(&token_id).await {
@@ -1569,7 +1569,7 @@ async fn handle_rotate_jwt_secret(
     context: AdminApiContext,
 ) -> Result<impl Reply, Rejection> {
     info!(
-        "🔄 Rotating JWT secret requested by admin: {}",
+        "Rotating JWT secret requested by admin: {}",
         admin_token.service_name
     );
 
