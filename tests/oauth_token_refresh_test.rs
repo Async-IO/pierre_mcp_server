@@ -384,7 +384,7 @@ async fn create_test_executor() -> (Arc<UniversalToolExecutor>, Arc<Database>) {
     // Create ServerResources for the test
     let auth_manager =
         pierre_mcp_server::auth::AuthManager::new(generate_encryption_key().to_vec(), 24);
-    let server_resources = Arc::new(pierre_mcp_server::mcp::multitenant::ServerResources::new(
+    let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         (*database).clone(),
         auth_manager,
         "test_secret",
@@ -430,7 +430,7 @@ async fn create_test_executor_without_oauth() -> (Arc<UniversalToolExecutor>, Ar
     // Create ServerResources for the test
     let auth_manager =
         pierre_mcp_server::auth::AuthManager::new(generate_encryption_key().to_vec(), 24);
-    let server_resources = Arc::new(pierre_mcp_server::mcp::multitenant::ServerResources::new(
+    let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         (*database).clone(),
         auth_manager,
         "test_secret",

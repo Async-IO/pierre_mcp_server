@@ -43,7 +43,7 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, String) {
     let jwt_token = auth_manager.generate_token(&user).unwrap();
 
     // Create ServerResources for API key routes
-    let server_resources = Arc::new(pierre_mcp_server::mcp::multitenant::ServerResources::new(
+    let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         database.clone(),
         auth_manager.clone(),
         "test_jwt_secret",

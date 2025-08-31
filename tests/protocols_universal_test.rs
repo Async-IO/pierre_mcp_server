@@ -150,7 +150,7 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
 
     // Create ServerResources for the test
     let auth_manager = pierre_mcp_server::auth::AuthManager::new(vec![0u8; 64], 24);
-    let server_resources = Arc::new(pierre_mcp_server::mcp::multitenant::ServerResources::new(
+    let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         (*database).clone(),
         auth_manager,
         "test_secret",
@@ -437,7 +437,7 @@ async fn test_set_goal_tool() -> Result<()> {
 
     // Create ServerResources for the test
     let auth_manager = pierre_mcp_server::auth::AuthManager::new(vec![0u8; 64], 24);
-    let server_resources = Arc::new(pierre_mcp_server::mcp::multitenant::ServerResources::new(
+    let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         (*database).clone(),
         auth_manager,
         "test_secret",
@@ -990,7 +990,7 @@ async fn test_disconnect_provider_tool() -> Result<()> {
 
     // Create ServerResources for the test
     let auth_manager = pierre_mcp_server::auth::AuthManager::new(vec![0u8; 64], 24);
-    let server_resources = Arc::new(pierre_mcp_server::mcp::multitenant::ServerResources::new(
+    let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         (*database).clone(),
         auth_manager,
         "test_secret",

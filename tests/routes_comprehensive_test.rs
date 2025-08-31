@@ -8,7 +8,7 @@
 use anyhow::Result;
 use pierre_mcp_server::{
     database_plugins::DatabaseProvider,
-    mcp::multitenant::ServerResources,
+    mcp::resources::ServerResources,
     models::{Tenant, User, UserStatus},
     routes::{AuthRoutes, LoginRequest, OAuthRoutes, RefreshTokenRequest, RegisterRequest},
     tenant::TenantOAuthCredentials,

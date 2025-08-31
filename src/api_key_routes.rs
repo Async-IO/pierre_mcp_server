@@ -18,7 +18,7 @@ use crate::{
         ApiKeyManager, ApiKeyTier, ApiKeyUsageStats, CreateApiKeyRequest, CreateApiKeyRequestSimple,
     },
     database_plugins::DatabaseProvider,
-    mcp::multitenant::ServerResources,
+    mcp::resources::ServerResources,
 };
 
 #[derive(Debug, Serialize)]

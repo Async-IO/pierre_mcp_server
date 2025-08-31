@@ -9,7 +9,7 @@
 //! Dashboard routes for the API Key Management System frontend
 
 use crate::database_plugins::DatabaseProvider;
-use crate::mcp::multitenant::ServerResources;
+use crate::mcp::resources::ServerResources;
 use anyhow::Result;
 use chrono::{Datelike, Duration, Timelike, Utc};
 use serde::Serialize;

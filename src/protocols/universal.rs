@@ -85,7 +85,7 @@ use crate::intelligence::physiological_constants::{
     unit_conversions::MS_TO_KMH_FACTOR,
 };
 use crate::intelligence::recommendation_engine::RecommendationEngineTrait;
-use crate::mcp::multitenant::ServerResources;
+use crate::mcp::resources::ServerResources;
 use crate::providers::{create_provider, CoreFitnessProvider, OAuth2Credentials};
 // Configuration management imports
 use crate::configuration::{

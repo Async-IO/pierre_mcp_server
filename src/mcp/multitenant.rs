@@ -11,9 +11,15 @@
 //! This module provides an MCP server that supports user authentication,
 //! secure token storage, and user-scoped data access.
 
+use super::{
+    http_setup::HttpSetup,
+    protocol::ProtocolHandler,
+    resources::ServerResources,
+    tool_handlers::{McpOAuthCredentials, ToolHandlers, ToolRoutingContext},
+};
 use crate::a2a_routes::A2ARoutes;
 use crate::api_key_routes::ApiKeyRoutes;
-use crate::auth::{AuthManager, AuthResult, McpAuthMiddleware};
+use crate::auth::{AuthManager, AuthResult};
 use crate::configuration_routes::ConfigurationRoutes;
 use crate::constants::{
     errors::{
@@ -21,27 +27,23 @@ use crate::constants::{
     },
     json_fields::{GOAL_ID, PROVIDER},
     oauth_providers, protocol,
-    protocol::{JSONRPC_VERSION, SERVER_VERSION},
+    protocol::JSONRPC_VERSION,
     service_names,
     tools::{
         ANALYZE_ACTIVITY, ANALYZE_GOAL_FEASIBILITY, ANALYZE_PERFORMANCE_TRENDS,
         ANALYZE_TRAINING_LOAD, CALCULATE_FITNESS_SCORE, CALCULATE_METRICS, COMPARE_ACTIVITIES,
-        DETECT_PATTERNS, DISCONNECT_PROVIDER, GENERATE_RECOMMENDATIONS, GET_ACTIVITIES,
-        GET_ACTIVITY_INTELLIGENCE, GET_ATHLETE, GET_CONNECTION_STATUS, GET_STATS,
-        PREDICT_PERFORMANCE, SET_GOAL, SUGGEST_GOALS, TRACK_PROGRESS,
+        DETECT_PATTERNS, GENERATE_RECOMMENDATIONS, GET_ACTIVITIES, GET_ACTIVITY_INTELLIGENCE,
+        GET_ATHLETE, GET_STATS, PREDICT_PERFORMANCE, SET_GOAL, SUGGEST_GOALS, TRACK_PROGRESS,
     },
 };
 use crate::dashboard_routes::DashboardRoutes;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
-use crate::mcp::schema::InitializeResponse;
-use crate::models::AuthRequest;
 use crate::providers::ProviderRegistry;
 use crate::routes::OAuthAuthorizationResponse;
 use crate::routes::{AuthRoutes, LoginRequest, OAuthRoutes, RefreshTokenRequest, RegisterRequest};
 use crate::security::SecurityConfig;
 use crate::tenant::{TenantContext, TenantOAuthClient, TenantRole};
 use crate::utils::json_responses::{api_error, invalid_format_error, oauth_error};
-use crate::websocket::WebSocketManager;
 
 use anyhow::Result;
 use chrono::Utc;
@@ -60,153 +62,9 @@ fn default_request_id() -> Value {
     serde_json::Value::Number(serde_json::Number::from(0))
 }
 
-/// OAuth credentials passed via MCP tool parameters
-struct McpOAuthCredentials<'a> {
-    strava_client_id: Option<&'a str>,
-    strava_client_secret: Option<&'a str>,
-    fitbit_client_id: Option<&'a str>,
-    fitbit_client_secret: Option<&'a str>,
-}
-
-/// Centralized resource container for dependency injection
-///
-/// This struct holds all shared server resources to eliminate the anti-pattern
-/// of recreating expensive objects like `AuthManager` and excessive Arc cloning.
-#[derive(Clone)]
-pub struct ServerResources {
-    pub database: Arc<Database>,
-    pub auth_manager: Arc<AuthManager>,
-    pub auth_middleware: Arc<McpAuthMiddleware>,
-    pub websocket_manager: Arc<WebSocketManager>,
-    pub tenant_oauth_client: Arc<TenantOAuthClient>,
-    pub provider_registry: Arc<ProviderRegistry>,
-    pub admin_jwt_secret: Arc<str>,
-    pub config: Arc<crate::config::environment::ServerConfig>,
-    pub activity_intelligence: Arc<crate::intelligence::ActivityIntelligence>,
-    pub oauth_manager: Arc<tokio::sync::RwLock<crate::oauth::manager::OAuthManager>>,
-    pub a2a_client_manager: Arc<crate::a2a::client::A2AClientManager>,
-    pub a2a_system_user_service: Arc<crate::a2a::system_user::A2ASystemUserService>,
-}
-
-impl ServerResources {
-    /// Create OAuth manager with pre-registered providers to avoid lock contention
-    fn create_initialized_oauth_manager(
-        database: Arc<Database>,
-        config: &Arc<crate::config::environment::ServerConfig>,
-    ) -> crate::oauth::manager::OAuthManager {
-        let mut oauth_manager = crate::oauth::manager::OAuthManager::new(database);
-
-        // Pre-register providers at startup to avoid write lock contention on each request
-        if let Ok(strava_provider) =
-            crate::oauth::providers::StravaOAuthProvider::from_config(&config.oauth.strava)
-        {
-            oauth_manager.register_provider(Box::new(strava_provider));
-        }
-
-        if let Ok(fitbit_provider) =
-            crate::oauth::providers::FitbitOAuthProvider::from_config(&config.oauth.fitbit)
-        {
-            oauth_manager.register_provider(Box::new(fitbit_provider));
-        }
-
-        oauth_manager
-    }
-
-    /// Create new server resources with proper Arc sharing
-    pub fn new(
-        database: Database,
-        auth_manager: AuthManager,
-        admin_jwt_secret: &str,
-        config: Arc<crate::config::environment::ServerConfig>,
-    ) -> Self {
-        let database_arc = Arc::new(database);
-        let auth_manager_arc = Arc::new(auth_manager);
-
-        // Create auth middleware with shared references (no cloning)
-        let auth_middleware = Arc::new(McpAuthMiddleware::new(
-            (*auth_manager_arc).clone(),
-            database_arc.clone(),
-        ));
-
-        // Create websocket manager with shared references (no cloning)
-        let websocket_manager = Arc::new(WebSocketManager::new(
-            database_arc.as_ref().clone(),
-            auth_manager_arc.as_ref().clone(),
-        ));
-
-        // Create tenant OAuth client and provider registry once
-        let tenant_oauth_client = Arc::new(TenantOAuthClient::new());
-        let provider_registry = Arc::new(ProviderRegistry::new());
-
-        // Create activity intelligence once for shared use
-        let activity_intelligence =
-            std::sync::Arc::new(crate::intelligence::ActivityIntelligence::new(
-                "MCP Intelligence".into(),
-                vec![],
-                crate::intelligence::PerformanceMetrics {
-                    relative_effort: Some(7.5),
-                    zone_distribution: None,
-                    personal_records: vec![],
-                    efficiency_score: Some(85.0),
-                    trend_indicators: crate::intelligence::TrendIndicators {
-                        pace_trend: crate::intelligence::TrendDirection::Improving,
-                        effort_trend: crate::intelligence::TrendDirection::Stable,
-                        distance_trend: crate::intelligence::TrendDirection::Improving,
-                        consistency_score: 8.2,
-                    },
-                },
-                crate::intelligence::ContextualFactors {
-                    weather: None,
-                    location: None,
-                    time_of_day: crate::intelligence::TimeOfDay::Morning,
-                    days_since_last_activity: Some(1),
-                    weekly_load: None,
-                },
-            ));
-
-        // Create OAuth manager once for shared use with RwLock for concurrent access
-        let oauth_manager = Arc::new(tokio::sync::RwLock::new(
-            Self::create_initialized_oauth_manager(database_arc.clone(), &config),
-        ));
-
-        // Create A2A system user service once for shared use
-        let a2a_system_user_service = Arc::new(crate::a2a::system_user::A2ASystemUserService::new(
-            database_arc.clone(),
-        ));
-
-        // Create A2A client manager once for shared use
-        let a2a_client_manager = Arc::new(crate::a2a::client::A2AClientManager::new(
-            database_arc.clone(),
-            a2a_system_user_service.clone(),
-        ));
-
-        Self {
-            database: database_arc,
-            auth_manager: auth_manager_arc,
-            auth_middleware,
-            websocket_manager,
-            tenant_oauth_client,
-            provider_registry,
-            admin_jwt_secret: admin_jwt_secret.into(),
-            config,
-            activity_intelligence,
-            oauth_manager,
-            a2a_client_manager,
-            a2a_system_user_service,
-        }
-    }
-}
-
 /// Context for HTTP request handling with tenant support
 struct HttpRequestContext {
     resources: Arc<ServerResources>,
-}
-
-/// Context for tool routing with all required components
-struct ToolRoutingContext<'a> {
-    resources: &'a Arc<ServerResources>,
-    tenant_context: &'a Option<TenantContext>,
-    auth_result: &'a AuthResult,
 }
 
 /// MCP server supporting user authentication and isolated data access
@@ -289,7 +147,7 @@ impl MultiTenantMcpServer {
             dashboard_routes,
             a2a_routes,
             configuration_routes,
-        ) = Self::setup_route_handlers_with_resources(&resources);
+        ) = HttpSetup::setup_route_handlers_with_resources(&resources);
 
         // Use JWT secret from resources
         let jwt_secret_str = resources.admin_jwt_secret.as_ref();
@@ -310,7 +168,7 @@ impl MultiTenantMcpServer {
         );
 
         // Configure CORS
-        let cors = Self::setup_cors();
+        let cors = HttpSetup::setup_cors();
 
         // Create all route groups using helper functions
         let auth_route_filter = Self::create_auth_routes(&auth_routes);
@@ -383,55 +241,6 @@ impl MultiTenantMcpServer {
             config.security.headers.environment
         );
         security_config
-    }
-
-    /// Initialize all route handlers with `ServerResources` (eliminates cloning anti-pattern)
-    fn setup_route_handlers_with_resources(
-        resources: &Arc<ServerResources>,
-    ) -> (
-        AuthRoutes,
-        OAuthRoutes,
-        ApiKeyRoutes,
-        DashboardRoutes,
-        A2ARoutes,
-        Arc<ConfigurationRoutes>,
-    ) {
-        // Create route handlers - use Arc references (no cloning!)
-        let auth_routes = AuthRoutes::new(resources.clone());
-        let oauth_routes = OAuthRoutes::new(resources.clone());
-        let api_key_routes = ApiKeyRoutes::new(resources.clone());
-        let dashboard_routes = DashboardRoutes::new(resources.clone());
-        let a2a_routes = A2ARoutes::new(resources.clone());
-        let configuration_routes = Arc::new(ConfigurationRoutes::new(resources.clone()));
-
-        (
-            auth_routes,
-            oauth_routes,
-            api_key_routes,
-            dashboard_routes,
-            a2a_routes,
-            configuration_routes,
-        )
-    }
-
-    /// Configure CORS settings
-    fn setup_cors() -> warp::cors::Builder {
-        warp::cors()
-            .allow_any_origin()
-            .allow_headers(vec![
-                "content-type",
-                "authorization",
-                "x-requested-with",
-                "accept",
-                "origin",
-                "access-control-request-method",
-                "access-control-request-headers",
-                "x-strava-client-id",
-                "x-strava-client-secret",
-                "x-fitbit-client-id",
-                "x-fitbit-client-secret",
-            ])
-            .allow_methods(vec!["GET", "POST", "PUT", "DELETE", "OPTIONS"])
     }
 
     /// Create authentication endpoint routes
@@ -2002,38 +1811,21 @@ impl MultiTenantMcpServer {
 
         // Handle regular requests (response needed)
         let response = match request.method.as_str() {
-            "initialize" => Self::handle_initialize(request),
-            "ping" => Self::handle_ping(request),
-            "tools/list" => Self::handle_tools_list(request),
-            "prompts/list" => Self::handle_prompts_list(request),
-            "resources/list" => Self::handle_resources_list(request),
-            "authenticate" => Self::handle_authenticate(request, &resources.auth_manager),
-            "tools/call" => Self::handle_tools_call_with_resources(request, resources).await,
-            _ => Self::handle_unknown_method(request),
+            "initialize" => ProtocolHandler::handle_initialize(request),
+            "ping" => ProtocolHandler::handle_ping(request),
+            "tools/list" => ProtocolHandler::handle_tools_list(request),
+            "prompts/list" => ProtocolHandler::handle_prompts_list(request),
+            "resources/list" => ProtocolHandler::handle_resources_list(request),
+            "authenticate" => {
+                ProtocolHandler::handle_authenticate(request, &resources.auth_manager)
+            }
+            "tools/call" => {
+                ToolHandlers::handle_tools_call_with_resources(request, resources).await
+            }
+            _ => ProtocolHandler::handle_unknown_method(request),
         };
 
         Some(response)
-    }
-
-    /// Handle initialize request
-    fn handle_initialize(request: McpRequest) -> McpResponse {
-        let init_response = InitializeResponse::new(
-            protocol::mcp_protocol_version(),
-            protocol::server_name_multitenant(),
-            SERVER_VERSION.to_string(),
-        );
-
-        let request_id = request.id.unwrap_or_else(default_request_id);
-        match serde_json::to_value(&init_response) {
-            Ok(result) => McpResponse::success(request_id, result),
-            Err(_) => McpResponse::error(request_id, -32603, "Internal error".to_string()),
-        }
-    }
-
-    /// Handle ping request
-    fn handle_ping(request: McpRequest) -> McpResponse {
-        let request_id = request.id.unwrap_or_else(default_request_id);
-        McpResponse::success(request_id, serde_json::json!({}))
     }
 
     /// Extract tenant context from MCP request headers
@@ -2163,7 +1955,12 @@ impl MultiTenantMcpServer {
         Ok(None)
     }
 
-    async fn extract_tenant_context_internal(
+    /// Extract tenant context from request and auth result
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if tenant context extraction fails
+    pub async fn extract_tenant_context_internal(
         request: &McpRequest,
         auth_result: &AuthResult,
         database: &Arc<Database>,
@@ -2185,40 +1982,6 @@ impl MultiTenantMcpServer {
         Ok(None)
     }
 
-    /// Handle tools/list request
-    fn handle_tools_list(request: McpRequest) -> McpResponse {
-        let request_id = request.id.unwrap_or_else(default_request_id);
-        let tools = crate::mcp::schema::get_tools();
-        McpResponse::success(
-            request_id,
-            serde_json::json!({
-                "tools": tools
-            }),
-        )
-    }
-
-    /// Handle prompts/list request - returns empty list as we don't support prompts yet
-    fn handle_prompts_list(request: McpRequest) -> McpResponse {
-        let request_id = request.id.unwrap_or_else(default_request_id);
-        McpResponse::success(
-            request_id,
-            serde_json::json!({
-                "prompts": []
-            }),
-        )
-    }
-
-    /// Handle resources/list request - returns empty list as we don't support resources yet
-    fn handle_resources_list(request: McpRequest) -> McpResponse {
-        let request_id = request.id.unwrap_or_else(default_request_id);
-        McpResponse::success(
-            request_id,
-            serde_json::json!({
-                "resources": []
-            }),
-        )
-    }
-
     /// Handle notifications/initialized - no response needed for notifications
     /// Handle notification messages (no response needed)
     fn handle_notification(request: &McpRequest) {
@@ -2227,101 +1990,6 @@ impl MultiTenantMcpServer {
         } else {
             // Unknown notification - log but don't respond
         }
-    }
-
-    /// Handle tools/call request with `ServerResources` (for HTTP requests)
-    async fn handle_tools_call_with_resources(
-        request: McpRequest,
-        resources: &Arc<ServerResources>,
-    ) -> McpResponse {
-        let auth_token = request.auth_token.as_deref();
-
-        tracing::debug!(
-            "MCP tool call authentication attempt for method: {}",
-            request.method
-        );
-
-        match resources
-            .auth_middleware
-            .authenticate_request(auth_token)
-            .await
-        {
-            Ok(auth_result) => {
-                tracing::info!(
-                    "MCP tool call authentication successful for user: {} (method: {})",
-                    auth_result.user_id,
-                    auth_result.auth_method.display_name()
-                );
-
-                // Update user's last active timestamp
-                let _ = resources
-                    .database
-                    .update_last_active(auth_result.user_id)
-                    .await;
-
-                // Extract tenant context from request and auth result
-                let tenant_context = Self::extract_tenant_context_internal(
-                    &request,
-                    &auth_result,
-                    &resources.database,
-                )
-                .await
-                .unwrap_or(None);
-
-                // Use the provided ServerResources directly
-                Self::handle_tool_execution_direct(request, auth_result, tenant_context, resources)
-                    .await
-            }
-            Err(e) => Self::handle_authentication_error(request, &e),
-        }
-    }
-
-    /// Handle tool execution directly using provided `ServerResources`
-    async fn handle_tool_execution_direct(
-        request: McpRequest,
-        auth_result: AuthResult,
-        tenant_context: Option<TenantContext>,
-        resources: &Arc<ServerResources>,
-    ) -> McpResponse {
-        let Some(params) = request.params else {
-            tracing::error!("Missing request parameters in tools/call");
-            return McpResponse {
-                jsonrpc: "2.0".to_string(),
-                id: request.id.unwrap_or_else(default_request_id),
-                result: None,
-                error: Some(McpError {
-                    code: ERROR_INVALID_PARAMS,
-                    message: "Invalid params: Missing request parameters".to_string(),
-                    data: None,
-                }),
-            };
-        };
-        let tool_name = params["name"].as_str().unwrap_or("");
-        let args = &params["arguments"];
-        let user_id = auth_result.user_id;
-
-        tracing::info!(
-            "Executing tool call: {} for user: {} using {} authentication",
-            tool_name,
-            user_id,
-            auth_result.auth_method.display_name()
-        );
-
-        // Use the provided ServerResources directly - no fake resource creation!
-        let routing_context = ToolRoutingContext {
-            resources,
-            tenant_context: &tenant_context,
-            auth_result: &auth_result,
-        };
-
-        Self::route_tool_call(
-            tool_name,
-            args,
-            request.id.unwrap_or_else(default_request_id),
-            user_id,
-            &routing_context,
-        )
-        .await
     }
 
     /// Handle tools/call request with authentication and tenant context
@@ -2406,47 +2074,6 @@ impl MultiTenantMcpServer {
         )
     }
 
-    /// Handle unknown method
-    fn handle_unknown_method(request: McpRequest) -> McpResponse {
-        McpResponse::error(
-            request.id.unwrap_or_else(default_request_id),
-            ERROR_METHOD_NOT_FOUND,
-            "Method not found".to_string(),
-        )
-    }
-
-    /// Handle authentication request
-    fn handle_authenticate(request: McpRequest, auth_manager: &Arc<AuthManager>) -> McpResponse {
-        let Some(params) = request.params else {
-            tracing::error!("Missing request parameters in authentication");
-            return McpResponse::error(
-                request.id.unwrap_or_else(default_request_id),
-                ERROR_INVALID_PARAMS,
-                "Invalid params: Missing request parameters".to_string(),
-            );
-        };
-
-        if let Ok(auth_request) = serde_json::from_value::<AuthRequest>(params) {
-            let auth_response = auth_manager.authenticate(&auth_request);
-            match serde_json::to_value(&auth_response) {
-                Ok(result) => {
-                    McpResponse::success(request.id.unwrap_or_else(default_request_id), result)
-                }
-                Err(_) => McpResponse::error(
-                    request.id.unwrap_or_else(default_request_id),
-                    -32603,
-                    "Internal error".to_string(),
-                ),
-            }
-        } else {
-            McpResponse::error(
-                request.id.unwrap_or_else(default_request_id),
-                ERROR_INVALID_PARAMS,
-                "Invalid authentication request".to_string(),
-            )
-        }
-    }
-
     /// Handle authenticated tool call with user context and rate limiting
     #[allow(dead_code)]
     async fn handle_authenticated_tool_call(
@@ -2485,7 +2112,7 @@ impl MultiTenantMcpServer {
             auth_result: &auth_result,
         };
 
-        Self::route_tool_call(
+        ToolHandlers::route_tool_call(
             tool_name,
             args,
             request.id.unwrap_or_else(default_request_id),
@@ -2495,85 +2122,8 @@ impl MultiTenantMcpServer {
         .await
     }
 
-    /// Route tool calls to appropriate handlers based on tool type and tenant context
-    async fn route_tool_call(
-        tool_name: &str,
-        args: &Value,
-        request_id: Value,
-        user_id: Uuid,
-        ctx: &ToolRoutingContext<'_>,
-    ) -> McpResponse {
-        match tool_name {
-            // Note: CONNECT_STRAVA and CONNECT_FITBIT tools removed - use tenant-level OAuth configuration
-            GET_CONNECTION_STATUS => {
-                if let Some(ref tenant_ctx) = ctx.tenant_context {
-                    // Extract optional OAuth credentials from args
-                    let credentials = McpOAuthCredentials {
-                        strava_client_id: args.get("strava_client_id").and_then(|v| v.as_str()),
-                        strava_client_secret: args
-                            .get("strava_client_secret")
-                            .and_then(|v| v.as_str()),
-                        fitbit_client_id: args.get("fitbit_client_id").and_then(|v| v.as_str()),
-                        fitbit_client_secret: args
-                            .get("fitbit_client_secret")
-                            .and_then(|v| v.as_str()),
-                    };
-
-                    return Self::handle_tenant_connection_status(
-                        tenant_ctx,
-                        &ctx.resources.tenant_oauth_client,
-                        request_id,
-                        credentials,
-                    )
-                    .await;
-                }
-                // No legacy fallback - require tenant context
-                McpResponse {
-                    jsonrpc: JSONRPC_VERSION.to_string(),
-                    result: None,
-                    error: Some(McpError {
-                        code: ERROR_INVALID_PARAMS,
-                        message: "No tenant context found. User must be assigned to a tenant."
-                            .to_string(),
-                        data: None,
-                    }),
-                    id: request_id,
-                }
-            }
-            DISCONNECT_PROVIDER => {
-                let provider_name = args[PROVIDER].as_str().unwrap_or("");
-                Self::route_disconnect_tool(provider_name, user_id, request_id, ctx)
-            }
-            SET_GOAL
-            | TRACK_PROGRESS
-            | ANALYZE_GOAL_FEASIBILITY
-            | SUGGEST_GOALS
-            | CALCULATE_FITNESS_SCORE
-            | GENERATE_RECOMMENDATIONS
-            | ANALYZE_TRAINING_LOAD
-            | DETECT_PATTERNS
-            | ANALYZE_PERFORMANCE_TRENDS
-            | "get_configuration_catalog"
-            | "get_configuration_profiles"
-            | "get_user_configuration"
-            | "update_user_configuration"
-            | "calculate_personalized_zones"
-            | "validate_configuration" => {
-                Self::handle_tool_without_provider(
-                    tool_name,
-                    args,
-                    request_id,
-                    user_id,
-                    &ctx.resources.database,
-                    ctx.auth_result,
-                )
-                .await
-            }
-            _ => Self::route_provider_tool(tool_name, args, request_id, user_id, ctx).await,
-        }
-    }
-
-    fn route_disconnect_tool(
+    #[must_use]
+    pub fn route_disconnect_tool(
         provider_name: &str,
         user_id: Uuid,
         request_id: Value,
@@ -2592,7 +2142,7 @@ impl MultiTenantMcpServer {
         }
     }
 
-    async fn route_provider_tool(
+    pub async fn route_provider_tool(
         tool_name: &str,
         args: &Value,
         request_id: Value,
@@ -2625,7 +2175,7 @@ impl MultiTenantMcpServer {
     }
 
     /// Handle tools that don't require external providers
-    async fn handle_tool_without_provider(
+    pub async fn handle_tool_without_provider(
         tool_name: &str,
         args: &Value,
         request_id: Value,
@@ -3344,7 +2894,7 @@ impl MultiTenantMcpServer {
     }
 
     /// Handle tenant-aware connection status
-    async fn handle_tenant_connection_status(
+    pub async fn handle_tenant_connection_status(
         tenant_context: &TenantContext,
         tenant_oauth_client: &Arc<TenantOAuthClient>,
         request_id: Value,

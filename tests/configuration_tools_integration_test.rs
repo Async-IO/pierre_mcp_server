@@ -9,7 +9,10 @@ use anyhow::Result;
 use pierre_mcp_server::{
     auth::AuthManager,
     database_plugins::{factory::Database, DatabaseProvider},
-    mcp::multitenant::{McpRequest, MultiTenantMcpServer, ServerResources},
+    mcp::{
+        multitenant::{McpRequest, MultiTenantMcpServer},
+        resources::ServerResources,
+    },
     models::User,
 };
 use serde_json::{json, Value};

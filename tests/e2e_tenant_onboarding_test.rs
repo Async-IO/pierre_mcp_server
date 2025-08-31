@@ -201,7 +201,7 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
 
     // Create ServerResources for the test
     let auth_manager = pierre_mcp_server::auth::AuthManager::new(vec![0u8; 64], 24);
-    let server_resources = Arc::new(pierre_mcp_server::mcp::multitenant::ServerResources::new(
+    let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         (*database).clone(),
         auth_manager,
         "test_secret",
