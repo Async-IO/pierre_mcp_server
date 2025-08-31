@@ -17,6 +17,13 @@ encryption.key
 jwt.secret
 users.db
 *.db
+*.db-shm
+*.db-wal
+
+# Test databases and temporary files
+test_data/*.db
+test_data/*.db-shm
+test_data/*.db-wal
 
 # Python
 __pycache__/

@@ -319,6 +319,14 @@ else
     ALL_PASSED=false
 fi
 
+# Clean up test databases before running tests
+echo -e "${BLUE}==== Cleaning up test databases... ====${NC}"
+if ./scripts/clean-test-databases.sh; then
+    echo -e "${GREEN}[OK] Test databases cleaned${NC}"
+else
+    echo -e "${YELLOW}[WARN] Test database cleanup failed (continuing anyway)${NC}"
+fi
+
 # Run Rust tests
 echo -e "${BLUE}==== Running Rust tests... ====${NC}"
 if cargo test --all-targets; then
@@ -326,6 +334,14 @@ if cargo test --all-targets; then
 else
     echo -e "${RED}[FAIL] Some Rust tests failed${NC}"
     ALL_PASSED=false
+fi
+
+# Clean up test databases after running tests
+echo -e "${BLUE}==== Post-test database cleanup... ====${NC}"
+if ./scripts/clean-test-databases.sh; then
+    echo -e "${GREEN}[OK] Post-test cleanup completed${NC}"
+else
+    echo -e "${YELLOW}[WARN] Post-test cleanup failed${NC}"
 fi
 
 # Run Rust tests with coverage (if enabled and cargo-llvm-cov is installed)
