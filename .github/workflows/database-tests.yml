@@ -78,6 +78,10 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+          -c max_connections=200
+          -c shared_buffers=256MB
+          -c effective_cache_size=1GB
+          -c work_mem=16MB
         ports:
           - 5432:5432
 
@@ -111,6 +115,14 @@ jobs:
     - name: Test database connection
       run: |
         PGPASSWORD=ci_test_password psql -h localhost -U pierre -d pierre_mcp_server -c "SELECT 'PostgreSQL connection successful';"
+
+    - name: Clean up any existing connections
+      run: |
+        PGPASSWORD=ci_test_password psql -h localhost -U pierre -d pierre_mcp_server -c "
+          SELECT pg_terminate_backend(pid) 
+          FROM pg_stat_activity 
+          WHERE datname = 'pierre_mcp_server' 
+            AND pid <> pg_backend_pid();"
 
     - name: Run all database tests with coverage (PostgreSQL)
       run: timeout 1200 cargo llvm-cov --all-targets --features postgresql --lcov --output-path lcov-db-postgres.info -- --test-threads=1
