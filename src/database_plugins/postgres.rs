@@ -20,8 +20,9 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde_json::Value;
-use sqlx::{PgPool, Pool, Postgres, Row};
+use sqlx::{postgres::PgPoolOptions, Pool, Postgres, Row};
 use std::fmt::Write;
+use std::time::Duration;
 use uuid::Uuid;
 
 /// `PostgreSQL` database implementation
@@ -54,7 +55,14 @@ impl PostgresDatabase {
 #[async_trait]
 impl DatabaseProvider for PostgresDatabase {
     async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
-        let pool = PgPool::connect(database_url).await?;
+        let pool = PgPoolOptions::new()
+            .max_connections(10)
+            .min_connections(1)
+            .acquire_timeout(Duration::from_secs(30))
+            .idle_timeout(Some(Duration::from_secs(600)))
+            .max_lifetime(Some(Duration::from_secs(1800)))
+            .connect(database_url)
+            .await?;
 
         let db = Self {
             pool,
