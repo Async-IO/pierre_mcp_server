@@ -62,14 +62,16 @@ impl DatabaseProvider for PostgresDatabase {
     async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
         // Use very conservative connection pool for CI environments
         let max_connections = if std::env::var("CI").is_ok() { 1 } else { 10 };
-        let min_connections = if std::env::var("CI").is_ok() { 0 } else { 1 };
+        let min_connections = u32::from(std::env::var("CI").is_err());
         let acquire_timeout_secs = if std::env::var("CI").is_ok() { 120 } else { 30 };
-        
+
         // Log connection pool configuration for debugging
         if std::env::var("CI").is_ok() {
-            eprintln!("PostgreSQL CI mode: max_connections={}, timeout={}s", max_connections, acquire_timeout_secs);
+            eprintln!(
+                "PostgreSQL CI mode: max_connections={max_connections}, timeout={acquire_timeout_secs}s"
+            );
         }
-        
+
         let pool = PgPoolOptions::new()
             .max_connections(max_connections)
             .min_connections(min_connections)
@@ -78,7 +80,9 @@ impl DatabaseProvider for PostgresDatabase {
             .max_lifetime(Some(Duration::from_secs(600)))
             .connect(database_url)
             .await
-            .with_context(|| format!("Failed to connect to PostgreSQL with {} max connections", max_connections))?;
+            .with_context(|| {
+                format!("Failed to connect to PostgreSQL with {max_connections} max connections")
+            })?;
 
         let db = Self {
             pool,
