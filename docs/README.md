@@ -22,9 +22,10 @@ Complete documentation for the Pierre MCP Server platform.
 ## Quick Navigation
 
 ### For Developers
-1. **Personal Use**: Start with [Getting Started Guide](getting-started.md)
-2. **AI Integration**: See [API Reference](developer-guide/14-api-reference.md) for MCP tools and prompt examples
-3. **Web Development**: Check [Getting Started Guide](getting-started.md) for authentication and [API Reference](developer-guide/14-api-reference.md) for endpoints
+1. **Quick Start**: Use `./scripts/complete-user-workflow.sh` for automated setup (admin + user + tenant + MCP test)
+2. **Personal Use**: Start with [Getting Started Guide](getting-started.md)
+3. **AI Integration**: See [API Reference](developer-guide/14-api-reference.md) for MCP tools and prompt examples
+4. **Web Development**: Check [Getting Started Guide](getting-started.md) for authentication and [API Reference](developer-guide/14-api-reference.md) for endpoints
 
 ### For Production Use
 1. **Integration Planning**: Review [Deployment Guide](DEPLOYMENT_GUIDE.md) for architecture
