@@ -33,6 +33,11 @@ pub struct PostgresDatabase {
 }
 
 impl PostgresDatabase {
+    /// Close the database connection pool
+    pub async fn close(&self) {
+        self.pool.close().await;
+    }
+
     /// Encrypt a token using AES-256-GCM
     fn encrypt_token(&self, token: &DecryptedToken) -> Result<EncryptedToken> {
         // Use the EncryptedToken::new method for encryption
@@ -55,14 +60,25 @@ impl PostgresDatabase {
 #[async_trait]
 impl DatabaseProvider for PostgresDatabase {
     async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
+        // Use very conservative connection pool for CI environments
+        let max_connections = if std::env::var("CI").is_ok() { 1 } else { 10 };
+        let min_connections = if std::env::var("CI").is_ok() { 0 } else { 1 };
+        let acquire_timeout_secs = if std::env::var("CI").is_ok() { 120 } else { 30 };
+        
+        // Log connection pool configuration for debugging
+        if std::env::var("CI").is_ok() {
+            eprintln!("PostgreSQL CI mode: max_connections={}, timeout={}s", max_connections, acquire_timeout_secs);
+        }
+        
         let pool = PgPoolOptions::new()
-            .max_connections(10)
-            .min_connections(1)
-            .acquire_timeout(Duration::from_secs(30))
-            .idle_timeout(Some(Duration::from_secs(600)))
-            .max_lifetime(Some(Duration::from_secs(1800)))
+            .max_connections(max_connections)
+            .min_connections(min_connections)
+            .acquire_timeout(Duration::from_secs(acquire_timeout_secs))
+            .idle_timeout(Some(Duration::from_secs(300)))
+            .max_lifetime(Some(Duration::from_secs(600)))
             .connect(database_url)
-            .await?;
+            .await
+            .with_context(|| format!("Failed to connect to PostgreSQL with {} max connections", max_connections))?;
 
         let db = Self {
             pool,
