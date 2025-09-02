@@ -39,7 +39,6 @@ use crate::constants::{
 use crate::dashboard_routes::DashboardRoutes;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::providers::ProviderRegistry;
-use crate::routes::OAuthAuthorizationResponse;
 use crate::routes::{AuthRoutes, LoginRequest, OAuthRoutes, RefreshTokenRequest, RegisterRequest};
 use crate::security::SecurityConfig;
 use crate::tenant::{TenantContext, TenantOAuthClient, TenantRole};
@@ -399,7 +398,7 @@ impl MultiTenantMcpServer {
                                 client_secret: client_secret.clone(),
                                 redirect_uri,
                                 scopes: match provider.as_str() {
-                                    oauth_providers::STRAVA => vec!["read".to_string(), "activity:read_all".to_string()],
+                                    oauth_providers::STRAVA => crate::constants::oauth::STRAVA_DEFAULT_SCOPES.split(',').map(str::to_string).collect(),
                                     oauth_providers::FITBIT => vec!["activity".to_string(), "heartrate".to_string(), "location".to_string(), "nutrition".to_string(), "profile".to_string(), "settings".to_string(), "sleep".to_string(), "social".to_string(), "weight".to_string()],
                                     _ => vec!["read".to_string()],
                                 },
@@ -444,15 +443,15 @@ impl MultiTenantMcpServer {
                             .await
                         {
                             Ok(auth_url) => {
-                                let response = OAuthAuthorizationResponse {
-                                    authorization_url: auth_url,
-                                    state: state.clone(),
-                                    instructions: format!(
-                                        "Visit the URL above to authorize access to your {provider} account. You'll be redirected back after authorization."
+                                tracing::info!("Redirecting user {} to {} OAuth authorization URL", user_id, provider);
+                                Ok(warp::reply::with_status(
+                                    warp::reply::with_header(
+                                        warp::reply(),
+                                        "location",
+                                        auth_url,
                                     ),
-                                    expires_in_minutes: 10,
-                                };
-                                Ok(warp::reply::json(&response))
+                                    warp::http::StatusCode::FOUND,
+                                ))
                             }
                             Err(e) => {
                                 tracing::error!("Failed to get OAuth authorization URL: {}", e);
@@ -1833,29 +1832,25 @@ impl MultiTenantMcpServer {
     /// # Errors
     ///
     /// Returns an error if tenant context extraction fails
-    /// Get user's role in a tenant with proper fallback
+    /// Get user's role in a tenant - returns error if user not found in tenant
     async fn get_user_role_for_tenant(
         database: &Arc<Database>,
         user_id: uuid::Uuid,
         tenant_id: uuid::Uuid,
-    ) -> TenantRole {
+    ) -> Result<TenantRole, String> {
         match database.get_user_tenant_role(user_id, tenant_id).await {
-            Ok(Some(role_str)) => TenantRole::from_db_string(&role_str),
+            Ok(Some(role_str)) => Ok(TenantRole::from_db_string(&role_str)),
             Ok(None) => {
-                tracing::warn!(
-                    "User {} not found in tenant {}, defaulting to Member",
+                tracing::error!(
+                    "User {} not found in tenant {} - access denied",
                     user_id,
                     tenant_id
                 );
-                TenantRole::Member
+                Err("User has no valid tenant".to_string())
             }
             Err(e) => {
-                tracing::error!(
-                    "Failed to get user role for tenant {}: {}, defaulting to Member",
-                    tenant_id,
-                    e
-                );
-                TenantRole::Member
+                tracing::error!("Failed to get user role for tenant {}: {}", tenant_id, e);
+                Err(format!("Database error checking tenant membership: {e}"))
             }
         }
     }
@@ -1882,7 +1877,15 @@ impl MultiTenantMcpServer {
             Ok(tenant) => {
                 tracing::debug!("Using explicit tenant from header: {}", tenant.name);
                 let role =
-                    Self::get_user_role_for_tenant(database, auth_result.user_id, tenant_id).await;
+                    match Self::get_user_role_for_tenant(database, auth_result.user_id, tenant_id)
+                        .await
+                    {
+                        Ok(role) => role,
+                        Err(e) => {
+                            tracing::error!("Access denied for tenant {}: {}", tenant_id, e);
+                            return Err(e);
+                        }
+                    };
                 Ok(Some(TenantContext::new(
                     tenant_id,
                     tenant.name,
@@ -1926,9 +1929,19 @@ impl MultiTenantMcpServer {
         if let Ok(tenant_uuid) = uuid::Uuid::parse_str(&user_tenant_id) {
             if let Ok(tenant) = database.get_tenant_by_id(tenant_uuid).await {
                 tracing::debug!("Using user's tenant: {}", tenant.name);
-                let role =
-                    Self::get_user_role_for_tenant(database, auth_result.user_id, tenant_uuid)
-                        .await;
+                let role = match Self::get_user_role_for_tenant(
+                    database,
+                    auth_result.user_id,
+                    tenant_uuid,
+                )
+                .await
+                {
+                    Ok(role) => role,
+                    Err(e) => {
+                        tracing::error!("Access denied for user tenant {}: {}", tenant_uuid, e);
+                        return Err(e);
+                    }
+                };
                 return Ok(Some(TenantContext::new(
                     tenant_uuid,
                     tenant.name,
@@ -1941,8 +1954,23 @@ impl MultiTenantMcpServer {
         // Try as slug if UUID parsing failed
         if let Ok(tenant) = database.get_tenant_by_slug(&user_tenant_id).await {
             tracing::debug!("Using user's tenant slug: {}", tenant.name);
-            let role =
-                Self::get_user_role_for_tenant(database, auth_result.user_id, tenant.id).await;
+            let role = match Self::get_user_role_for_tenant(
+                database,
+                auth_result.user_id,
+                tenant.id,
+            )
+            .await
+            {
+                Ok(role) => role,
+                Err(e) => {
+                    tracing::error!(
+                        "Access denied for user tenant slug '{}': {}",
+                        user_tenant_id,
+                        e
+                    );
+                    return Err(e);
+                }
+            };
             return Ok(Some(TenantContext::new(
                 tenant.id,
                 tenant.name,
@@ -2845,7 +2873,10 @@ impl MultiTenantMcpServer {
                 client_id: id.to_string(),
                 client_secret: secret.to_string(),
                 redirect_uri: crate::constants::env_config::strava_redirect_uri(),
-                scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+                scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
+                    .split(',')
+                    .map(str::to_string)
+                    .collect(),
                 configured_by: tenant_context.user_id,
             };
 
@@ -3138,7 +3169,10 @@ impl MultiTenantMcpServer {
                     client_id: None,     // Use tenant-based OAuth credentials
                     client_secret: None, // Use tenant-based OAuth credentials
                     redirect_uri: None,
-                    scopes: vec!["read".into(), "activity:read_all".into()],
+                    scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
+                        .split(',')
+                        .map(String::from)
+                        .collect(),
                     enabled: false, // Disabled - use tenant OAuth instead
                 },
                 fitbit: crate::config::environment::OAuthProviderConfig {

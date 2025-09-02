@@ -94,7 +94,7 @@ impl OAuthProvider for StravaOAuthProvider {
         _user_id: Uuid,
         state: String,
     ) -> Result<AuthorizationResponse, OAuthError> {
-        let scope = "read,activity:read_all";
+        let scope = "crate::constants::oauth::STRAVA_DEFAULT_SCOPES";
 
         let auth_base_url = crate::constants::env_config::strava_auth_url();
         let auth_url = format!(
@@ -139,7 +139,7 @@ impl OAuthProvider for StravaOAuthProvider {
                     expires_at,
                     scopes: token_response
                         .scope
-                        .unwrap_or_else(|| "read,activity:read_all".into()),
+                        .unwrap_or_else(|| "crate::constants::oauth::STRAVA_DEFAULT_SCOPES".into()),
                     provider: provider.into(),
                 }
             },
@@ -171,7 +171,7 @@ impl OAuthProvider for StravaOAuthProvider {
                     expires_at,
                     scopes: token_response
                         .scope
-                        .unwrap_or_else(|| "read,activity:read_all".into()),
+                        .unwrap_or_else(|| "crate::constants::oauth::STRAVA_DEFAULT_SCOPES".into()),
                     provider: provider.into(),
                 }
             },

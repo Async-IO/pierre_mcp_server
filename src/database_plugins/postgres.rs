@@ -395,7 +395,7 @@ impl DatabaseProvider for PostgresDatabase {
             .ok_or_else(|| anyhow!("User not found after status update"))
     }
 
-    async fn update_user_tenant_id(&self, user_id: Uuid, tenant_slug: &str) -> Result<()> {
+    async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> Result<()> {
         let result = sqlx::query(
             r"
             UPDATE users 
@@ -403,7 +403,7 @@ impl DatabaseProvider for PostgresDatabase {
             WHERE id = $2
             ",
         )
-        .bind(tenant_slug)
+        .bind(tenant_id)
         .bind(user_id)
         .execute(&self.pool)
         .await?;
@@ -2687,6 +2687,11 @@ impl DatabaseProvider for PostgresDatabase {
         .await
         .map_err(|e| anyhow::anyhow!("Failed to add owner to tenant: {}", e))?;
 
+        tracing::info!(
+            "Created tenant: {} ({}) and added owner to tenant_users",
+            tenant.name,
+            tenant.id
+        );
         Ok(())
     }
 

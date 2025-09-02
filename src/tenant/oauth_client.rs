@@ -68,15 +68,7 @@ impl TenantOAuthClient {
         }
 
         // Get tenant credentials
-        let credentials = manager
-            .get_credentials(tenant_context.tenant_id, provider)?
-            .ok_or_else(|| {
-                anyhow!(
-                    "No OAuth credentials configured for tenant {} and provider {}",
-                    tenant_context.tenant_id,
-                    provider
-                )
-            })?;
+        let credentials = manager.get_credentials(tenant_context.tenant_id, provider)?;
         drop(manager);
 
         // Build OAuth2Config from tenant credentials
@@ -233,7 +225,7 @@ impl TenantOAuthClient {
         provider: &str,
     ) -> Result<Option<TenantOAuthCredentials>> {
         let manager = self.oauth_manager.lock().await;
-        manager.get_credentials(tenant_id, provider)
+        manager.get_credentials(tenant_id, provider).map(Some)
     }
 
     /// Store OAuth credentials for a tenant

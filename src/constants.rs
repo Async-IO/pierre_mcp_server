@@ -386,7 +386,7 @@ pub mod security {
 /// `OAuth` scopes and provider defaults
 pub mod oauth {
     /// Default `OAuth` scopes for Strava
-    pub const STRAVA_DEFAULT_SCOPES: &str = "read,activity:read_all";
+    pub const STRAVA_DEFAULT_SCOPES: &str = "activity:read_all";
 
     /// Default `OAuth` scopes for Fitbit  
     pub const FITBIT_DEFAULT_SCOPES: &str = "activity,profile";

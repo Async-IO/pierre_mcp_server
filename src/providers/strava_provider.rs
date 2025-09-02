@@ -75,7 +75,10 @@ impl StravaProvider {
             token_url: "https://www.strava.com/oauth/token".to_string(),
             api_base_url: "https://www.strava.com/api/v3".to_string(),
             revoke_url: Some("https://www.strava.com/oauth/deauthorize".to_string()),
-            default_scopes: vec!["read".to_string(), "activity:read_all".to_string()],
+            default_scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
+                .split(',')
+                .map(str::to_string)
+                .collect(),
         };
 
         Self {

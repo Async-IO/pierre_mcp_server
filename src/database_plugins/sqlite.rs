@@ -96,8 +96,8 @@ impl DatabaseProvider for SqliteDatabase {
             .await
     }
 
-    async fn update_user_tenant_id(&self, user_id: Uuid, tenant_slug: &str) -> Result<()> {
-        self.inner.update_user_tenant_id(user_id, tenant_slug).await
+    async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> Result<()> {
+        self.inner.update_user_tenant_id(user_id, tenant_id).await
     }
 
     async fn update_strava_token(
@@ -984,7 +984,24 @@ impl DatabaseProvider for SqliteDatabase {
             .await
             .context("Failed to create tenant")?;
 
-        tracing::info!("Created tenant: {} ({})", tenant.name, tenant.id);
+        // Add the owner as an admin of the tenant
+        let tenant_user_query = r"
+            INSERT INTO tenant_users (tenant_id, user_id, role, joined_at)
+            VALUES (?1, ?2, 'owner', CURRENT_TIMESTAMP)
+        ";
+
+        sqlx::query(tenant_user_query)
+            .bind(tenant.id.to_string())
+            .bind(tenant.owner_user_id.to_string())
+            .execute(self.inner.pool())
+            .await
+            .context("Failed to add owner to tenant")?;
+
+        tracing::info!(
+            "Created tenant: {} ({}) and added owner to tenant_users",
+            tenant.name,
+            tenant.id
+        );
         Ok(())
     }
 
