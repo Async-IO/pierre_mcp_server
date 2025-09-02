@@ -395,7 +395,7 @@ impl Database {
                 refresh_token: refresh,
                 expires_at: chrono::DateTime::from_timestamp(expires_at, 0).unwrap_or_default(),
                 scope: scope.unwrap_or_default(),
-                nonce: nonce.unwrap_or_else(|| "legacy".into()),
+                nonce: nonce.unwrap_or_else(|| "default_nonce".into()),
             })
         } else {
             None
@@ -415,7 +415,7 @@ impl Database {
                 refresh_token: refresh,
                 expires_at: chrono::DateTime::from_timestamp(expires_at, 0).unwrap_or_default(),
                 scope: scope.unwrap_or_default(),
-                nonce: nonce.unwrap_or_else(|| "legacy".into()),
+                nonce: nonce.unwrap_or_else(|| "default_nonce".into()),
             })
         } else {
             None

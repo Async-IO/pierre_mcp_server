@@ -222,6 +222,7 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
         parameters: json!({}),
         user_id: acme_admin_id.to_string(),
         protocol: "test".to_string(),
+        tenant_id: Some("acme".to_string()),
     };
 
     let acme_response = executor.execute_tool(acme_request).await?;
@@ -241,6 +242,7 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
         parameters: json!({}),
         user_id: beta_admin_id.to_string(),
         protocol: "test".to_string(),
+        tenant_id: Some("beta".to_string()),
     };
 
     let beta_response = executor.execute_tool(beta_request).await?;

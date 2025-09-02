@@ -3088,6 +3088,7 @@ impl MultiTenantMcpServer {
             parameters: args.clone(),
             user_id: auth_result.user_id.to_string(),
             protocol: "mcp".to_string(),
+            tenant_id: Some(tenant_context.tenant_id.to_string()),
         };
 
         // Use the provided ServerResources - no more fake auth managers or secrets!

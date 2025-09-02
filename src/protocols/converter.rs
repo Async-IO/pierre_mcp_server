@@ -71,6 +71,7 @@ impl ProtocolConverter {
             parameters,
             user_id: user_id.to_string(),
             protocol: "a2a".into(),
+            tenant_id: None,
         })
     }
 
@@ -100,7 +101,11 @@ impl ProtocolConverter {
 
     /// Convert MCP tool call to universal format
     #[must_use]
-    pub fn mcp_to_universal(tool_call: ToolCall, user_id: &str) -> UniversalRequest {
+    pub fn mcp_to_universal(
+        tool_call: ToolCall,
+        user_id: &str,
+        tenant_id: Option<String>,
+    ) -> UniversalRequest {
         UniversalRequest {
             tool_name: tool_call.name,
             parameters: tool_call
@@ -108,6 +113,7 @@ impl ProtocolConverter {
                 .unwrap_or_else(|| Value::Object(serde_json::Map::new())),
             user_id: user_id.to_string(),
             protocol: "mcp".into(),
+            tenant_id,
         }
     }
 

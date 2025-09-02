@@ -162,6 +162,7 @@ async fn test_get_configuration_catalog_e2e() {
         tool_name: "get_configuration_catalog".to_string(),
         parameters: json!({}),
         protocol: "mcp".to_string(),
+        tenant_id: None,
     };
 
     let response = executor
@@ -210,6 +211,7 @@ async fn test_get_configuration_profiles_e2e() {
         tool_name: "get_configuration_profiles".to_string(),
         parameters: json!({}),
         protocol: "mcp".to_string(),
+        tenant_id: None,
     };
 
     let response = executor
@@ -261,6 +263,7 @@ async fn test_calculate_personalized_zones_e2e() {
             "sport_efficiency": 1.0
         }),
         protocol: "mcp".to_string(),
+        tenant_id: None,
     };
 
     let response = executor
@@ -314,6 +317,7 @@ async fn test_validate_configuration_e2e() {
             }
         }),
         protocol: "mcp".to_string(),
+        tenant_id: None,
     };
 
     let response = executor
@@ -350,6 +354,7 @@ async fn test_update_user_configuration_e2e() {
             }
         }),
         protocol: "mcp".to_string(),
+        tenant_id: None,
     };
 
     let response = executor
@@ -386,6 +391,7 @@ async fn test_get_user_configuration_e2e() {
         tool_name: "get_user_configuration".to_string(),
         parameters: json!({}),
         protocol: "mcp".to_string(),
+        tenant_id: None,
     };
 
     let response = executor
@@ -423,6 +429,7 @@ async fn test_configuration_tools_via_different_protocols() {
         tool_name: "get_configuration_catalog".to_string(),
         parameters: json!({}),
         protocol: "mcp".to_string(),
+        tenant_id: None,
     };
 
     let mcp_response = executor
@@ -437,6 +444,7 @@ async fn test_configuration_tools_via_different_protocols() {
         tool_name: "get_configuration_catalog".to_string(),
         parameters: json!({}),
         protocol: "a2a".to_string(),
+        tenant_id: None,
     };
 
     let a2a_response = executor
@@ -468,6 +476,7 @@ async fn test_configuration_system_error_handling() {
         tool_name: "invalid_configuration_tool".to_string(),
         parameters: json!({}),
         protocol: "mcp".to_string(),
+        tenant_id: None,
     };
 
     let response = executor.execute_tool(request).await;
@@ -479,6 +488,7 @@ async fn test_configuration_system_error_handling() {
         tool_name: "calculate_personalized_zones".to_string(),
         parameters: json!({}), // Missing required vo2_max
         protocol: "mcp".to_string(),
+        tenant_id: None,
     };
 
     let invalid_response = executor.execute_tool(invalid_request).await;
@@ -494,6 +504,7 @@ async fn test_configuration_system_error_handling() {
             }
         }),
         protocol: "mcp".to_string(),
+        tenant_id: None,
     };
 
     let validation_response = executor

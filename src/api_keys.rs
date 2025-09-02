@@ -484,7 +484,9 @@ impl ApiKeyManager {
                 now.with_year(now.year() + 1)
                     .and_then(|dt| dt.with_month(1))
                     .unwrap_or_else(|| {
-                        tracing::warn!("Failed to calculate next year/January, using fallback");
+                        tracing::warn!(
+                            "Failed to calculate next year/January, using 30-day default"
+                        );
                         now + chrono::Duration::days(30)
                     })
             } else {

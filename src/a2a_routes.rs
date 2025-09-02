@@ -397,6 +397,7 @@ impl A2ARoutes {
             parameters,
             user_id,
             protocol: "a2a".into(),
+            tenant_id: None, // A2A doesn't have tenant context yet
         };
 
         // Execute the tool

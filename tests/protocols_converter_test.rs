@@ -74,7 +74,7 @@ fn test_mcp_to_universal_conversion() {
         arguments: Some(serde_json::json!({"limit": 5})),
     };
 
-    let universal = ProtocolConverter::mcp_to_universal(mcp_call, "test_user");
+    let universal = ProtocolConverter::mcp_to_universal(mcp_call, "test_user", None);
 
     assert_eq!(universal.tool_name, "get_activities");
     assert_eq!(universal.user_id, "test_user");
