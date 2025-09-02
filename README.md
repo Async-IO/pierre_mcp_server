@@ -98,22 +98,19 @@ JWT_TOKEN=$(curl -s -X POST http://localhost:8081/api/auth/login \
 - `analyze_performance_trends` - Track performance over time
 - `compare_activities` - Compare multiple activities
 - `detect_patterns` - Find patterns in training data
-- `calculate_fitness_score` - Overall fitness assessment
 - `predict_performance` - Predict future performance
-- `analyze_training_load` - Assess training stress and recovery
+- `generate_recommendations` - Generate personalized training recommendations
 
 ### Goal Management
-- `set_goal` - Create fitness goals
-- `track_progress` - Monitor goal progress
+- `create_goal` - Create fitness goals
+- `get_goals` - Get all user goals
 - `suggest_goals` - AI-suggested goals based on history
-- `analyze_goal_feasibility` - Assess if goals are achievable
 
-### Configuration
-- `get_configuration_catalog` - Available configuration options
-- `get_user_configuration` - Current user fitness configuration
-- `update_user_configuration` - Modify fitness settings
-- `calculate_personalized_zones` - Heart rate and power zones
-- `validate_configuration` - Check configuration validity
+### Provider Management
+- `connect_provider` - Connect to a fitness data provider (Strava, Fitbit)
+
+### Weather & Context
+- `get_weather_for_activity` - Get weather conditions for activities
 
 ### Example MCP Client Questions
 
@@ -128,14 +125,13 @@ JWT_TOKEN=$(curl -s -X POST http://localhost:8081/api/auth/login \
 - "Predict my 5K time based on my recent training"
 
 **Goal Setting:**
-- "Help me set a realistic marathon training goal"
-- "Track my progress toward my monthly distance goal"
+- "Help me create a realistic marathon training goal"
+- "Show me all my current fitness goals"
 - "What goals should I focus on based on my fitness level?"
 
-**Configuration:**
-- "Calculate my personalized heart rate zones"
-- "What's my current fitness configuration?"
-- "Update my training preferences for winter cycling"
+**Weather & Context:**
+- "What were the weather conditions during my last run?"
+- "Show me how weather affected my cycling performance"
 
 ## A2A Protocol Integration
 

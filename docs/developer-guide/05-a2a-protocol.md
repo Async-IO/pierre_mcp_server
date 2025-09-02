@@ -277,7 +277,7 @@ A2A supports batch operations for efficiency:
                 }
             },
             {
-                "tool": "analyze_training_load",
+                "tool": "analyze_performance_trends",
                 "arguments": {
                     "period": "last_week"
                 }
