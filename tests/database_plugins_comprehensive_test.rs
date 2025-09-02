@@ -688,6 +688,8 @@ mod postgres_tests {
         "postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server";
 
     async fn get_postgres_db() -> Result<PostgresDatabase> {
+        // For now, let's just use individual connections but with better CI settings
+        // The connection pool management we added should handle this better
         let encryption_key = generate_encryption_key().to_vec();
         let db = PostgresDatabase::new(POSTGRES_TEST_URL, encryption_key).await?;
 
@@ -699,8 +701,7 @@ mod postgres_tests {
 
     #[tokio::test]
     async fn test_postgres_database_creation() -> Result<()> {
-        let encryption_key = generate_encryption_key().to_vec();
-        let db = PostgresDatabase::new(POSTGRES_TEST_URL, encryption_key).await?;
+        let db = get_postgres_db().await?;
 
         // Verify database is operational
         let user = User::new(
