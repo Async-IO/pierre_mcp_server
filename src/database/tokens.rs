@@ -113,7 +113,7 @@ impl Database {
                     expires_at: chrono::DateTime::from_timestamp(expires_at, 0)
                         .ok_or_else(|| anyhow::anyhow!("Invalid timestamp: {expires_at}"))?,
                     scope: scope.unwrap_or_default(),
-                    nonce: nonce.unwrap_or_else(|| "legacy".into()),
+                    nonce: nonce.unwrap_or_else(|| "default_nonce".into()),
                 };
 
                 let decrypted = encrypted.decrypt(self.encryption_key())?;

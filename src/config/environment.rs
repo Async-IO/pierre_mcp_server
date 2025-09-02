@@ -643,27 +643,27 @@ impl ServerConfig {
 
     /// Load Strava OAuth configuration from environment (disabled for tenant-based OAuth)
     fn load_strava_oauth_config() -> OAuthProviderConfig {
-        // OAuth configuration is now tenant-based, not environment-based
-        // Return disabled configuration to maintain compatibility
+        // Use environment variables for global provider registration
         OAuthProviderConfig {
-            client_id: None,
-            client_secret: None,
-            redirect_uri: None,
+            client_id: env::var("STRAVA_CLIENT_ID").ok(),
+            client_secret: env::var("STRAVA_CLIENT_SECRET").ok(),
+            redirect_uri: Some(crate::constants::env_config::strava_redirect_uri()),
             scopes: parse_scopes(oauth::STRAVA_DEFAULT_SCOPES),
-            enabled: false, // Disabled for tenant-based OAuth
+            enabled: env::var("STRAVA_CLIENT_ID").is_ok()
+                && env::var("STRAVA_CLIENT_SECRET").is_ok(),
         }
     }
 
     /// Load Fitbit OAuth configuration from environment (disabled for tenant-based OAuth)
     fn load_fitbit_oauth_config() -> OAuthProviderConfig {
-        // OAuth configuration is now tenant-based, not environment-based
-        // Return disabled configuration to maintain compatibility
+        // Use environment variables for global provider registration
         OAuthProviderConfig {
-            client_id: None,
-            client_secret: None,
-            redirect_uri: None,
+            client_id: env::var("FITBIT_CLIENT_ID").ok(),
+            client_secret: env::var("FITBIT_CLIENT_SECRET").ok(),
+            redirect_uri: Some(crate::constants::env_config::fitbit_redirect_uri()),
             scopes: parse_scopes(oauth::FITBIT_DEFAULT_SCOPES),
-            enabled: false, // Disabled for tenant-based OAuth
+            enabled: env::var("FITBIT_CLIENT_ID").is_ok()
+                && env::var("FITBIT_CLIENT_SECRET").is_ok(),
         }
     }
 

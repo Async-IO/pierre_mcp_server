@@ -53,10 +53,8 @@
 // Intelligence config will be used for future enhancements
 use crate::constants::{limits, oauth_providers};
 use crate::database_plugins::DatabaseProvider;
-use crate::utils::{
-    json_responses::{activity_not_found_error, serialization_error},
-    uuid::parse_user_id_for_protocol,
-};
+use crate::providers::strava_provider::StravaProvider;
+use crate::utils::{json_responses::activity_not_found_error, uuid::parse_user_id_for_protocol};
 // Removed unused import
 use crate::intelligence::goal_engine::GoalEngineTrait;
 use crate::intelligence::performance_analyzer::PerformanceAnalyzerTrait;
@@ -109,6 +107,8 @@ pub struct UniversalRequest {
     pub parameters: Value,
     pub user_id: String,
     pub protocol: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tenant_id: Option<String>,
 }
 
 /// Universal response structure
@@ -166,6 +166,37 @@ impl UniversalToolExecutor {
             ),
             metadata: None,
         })
+    }
+
+    /// Create MCP-compatible response format for Claude Desktop
+    /// This ensures all tools return responses in the format expected by MCP clients
+    fn create_mcp_response(
+        &self,
+        text_content: String,
+        structured_data: serde_json::Value,
+        is_error: bool,
+    ) -> UniversalResponse {
+        let result = serde_json::json!({
+            "content": [
+                {
+                    "type": "text",
+                    "text": text_content
+                }
+            ],
+            "structuredContent": structured_data,
+            "isError": is_error
+        });
+
+        UniversalResponse {
+            success: !is_error,
+            result: Some(result),
+            error: if is_error {
+                Some("Tool execution failed".into())
+            } else {
+                None
+            },
+            metadata: None,
+        }
     }
 
     /// Provide real activity intelligence analysis using the `ActivityIntelligence` engine
@@ -264,8 +295,24 @@ impl UniversalToolExecutor {
                                     }
                                 }
                                 oauth_providers::FITBIT => {
-                                    // Skip Fitbit for now until we have proper config structure
-                                    tracing::warn!("Fitbit provider requires tenant configuration");
+                                    if let Ok(tenant_provider) =
+                                        crate::oauth::providers::FitbitOAuthProvider::from_config(
+                                            &crate::config::environment::OAuthProviderConfig {
+                                                client_id: Some(config.client_id.clone()),
+                                                client_secret: Some(config.client_secret.clone()),
+                                                redirect_uri: Some(config.redirect_uri.clone()),
+                                                scopes: config.scopes.clone(),
+                                                enabled: true,
+                                            },
+                                        )
+                                    {
+                                        oauth_manager.register_provider(Box::new(tenant_provider));
+                                        let result = oauth_manager
+                                            .ensure_valid_token(user_id, provider)
+                                            .await;
+                                        drop(oauth_manager);
+                                        return result;
+                                    }
                                 }
                                 _ => {
                                     return Err(crate::oauth::OAuthError::UnsupportedProvider(
@@ -275,27 +322,27 @@ impl UniversalToolExecutor {
                             }
                         }
                         Err(e) => {
-                            tracing::warn!("Failed to get tenant OAuth client for {}: {}. Falling back to global config.", provider, e);
-                            // Fall through to global config as fallback
+                            tracing::warn!("Failed to get tenant OAuth client for {}: {}. Using global config.", provider, e);
+                            // Continue to global config
                         }
                     }
                 } else {
                     tracing::warn!(
-                        "Tenant {} not found in database. Falling back to global config.",
+                        "Tenant {} not found in database. Using global config.",
                         tenant_uuid
                     );
-                    // Fall through to global config as fallback
+                    // Continue to global config
                 }
             } else {
                 tracing::warn!(
-                    "Invalid tenant ID format: {}. Falling back to global config.",
+                    "Invalid tenant ID format: {}. Using global config.",
                     tenant_id_str
                 );
-                // Fall through to global config as fallback
+                // Continue to global config
             }
         }
 
-        // Fallback to global config for backward compatibility
+        // Use pre-registered global config
         // Providers are now pre-registered at startup, so just use read lock
         let oauth_manager = self.resources.oauth_manager.read().await;
 
@@ -332,7 +379,7 @@ impl UniversalToolExecutor {
         // Handle async tools that need database or API access
         match request.tool_name.as_str() {
             "get_activities" => self.handle_get_activities_async(request).await,
-            "get_athlete" => self.handle_get_athlete_async(request),
+            "get_athlete" => self.handle_get_athlete_async(request).await,
             "get_stats" => self.handle_get_stats_async(request).await,
             "analyze_activity" => self.handle_analyze_activity_async(request).await,
             "get_activity_intelligence" => self.handle_get_activity_intelligence_async(request),
@@ -540,12 +587,18 @@ impl UniversalToolExecutor {
                 Ok(user_uuid) => {
                     // Get valid Strava token (with automatic refresh if needed)
                     match self
-                        .get_valid_token(user_uuid, oauth_providers::STRAVA, None)
+                        .get_valid_token(
+                            user_uuid,
+                            oauth_providers::STRAVA,
+                            request.tenant_id.as_deref(),
+                        )
                         .await
                     {
                         Ok(Some(token_data)) => {
                             // Get tenant-aware OAuth credentials
-                            let auth_data = if let Some(tenant_id_str) = None {
+                            let auth_data = if let Some(tenant_id_str) =
+                                request.tenant_id.as_deref()
+                            {
                                 if let Ok(tenant_uuid) = uuid::Uuid::parse_str(tenant_id_str) {
                                     // Look up tenant information from database to create proper TenantContext
                                     if let Ok(tenant) =
@@ -731,10 +784,71 @@ impl UniversalToolExecutor {
             vec![]
         };
 
-        let result = serde_json::json!({
+        // Create human-readable text summary
+        let text_content = if activities.is_empty() {
+            format!("No activities found for {}", provider_type)
+        } else {
+            let mut summary = format!(
+                "Found {} activities from {}:\n\n",
+                activities.len(),
+                provider_type
+            );
+            for (i, activity) in activities.iter().take(5).enumerate() {
+                let name = activity
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Unknown Activity");
+                let sport_type = activity
+                    .get("sport_type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Unknown");
+                let distance_km = activity
+                    .get("distance_meters")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0)
+                    / 1000.0;
+                let duration_min = activity
+                    .get("duration_seconds")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0)
+                    / 60;
+                let date = activity
+                    .get("start_date")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Unknown Date");
+
+                use std::fmt::Write;
+                let _ = write!(
+                    summary,
+                    "{}. {} ({})\n   Distance: {:.2} km, Duration: {} min\n   Date: {}\n\n",
+                    i + 1,
+                    name,
+                    sport_type,
+                    distance_km,
+                    duration_min,
+                    date
+                );
+            }
+            summary
+        };
+
+        // Create the structured content (the actual data)
+        let structured_data = serde_json::json!({
             "activities": activities,
             "total_count": activities.len(),
             "provider": provider_type
+        });
+
+        // Return MCP-compatible response format
+        let result = serde_json::json!({
+            "content": [
+                {
+                    "type": "text",
+                    "text": text_content
+                }
+            ],
+            "structuredContent": structured_data,
+            "isError": false
         });
 
         Ok(UniversalResponse {
@@ -750,18 +864,119 @@ impl UniversalToolExecutor {
     }
 
     /// Handle `get_athlete` with async Strava `API` calls
-    fn handle_get_athlete_async(
+    async fn handle_get_athlete_async(
         &self,
-        _request: UniversalRequest,
+        request: UniversalRequest,
     ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
-        Ok(UniversalResponse {
-            success: false,
-            result: None,
-            error: Some(
-                "Provider authentication not available - use tenant-aware MCP endpoints".into(),
-            ),
-            metadata: None,
-        })
+        let provider_type = request
+            .parameters
+            .get("provider")
+            .and_then(|v| v.as_str())
+            .unwrap_or(oauth_providers::STRAVA);
+
+        // Parse user ID
+        let user_uuid = match crate::utils::uuid::parse_uuid(&request.user_id) {
+            Ok(uuid) => uuid,
+            Err(e) => {
+                let error_text = format!("Invalid user ID: {}", e);
+                let error_data = serde_json::json!({
+                    "error": error_text,
+                    "is_real_data": false
+                });
+                return Ok(self.create_mcp_response(error_text, error_data, true));
+            }
+        };
+
+        // Get REAL athlete data using the same approach as get_activities
+        if provider_type == oauth_providers::STRAVA {
+            // Get valid Strava token (with automatic refresh if needed)
+            match self
+                .get_valid_token(
+                    user_uuid,
+                    oauth_providers::STRAVA,
+                    request.tenant_id.as_deref(),
+                )
+                .await
+            {
+                Ok(Some(token_data)) => {
+                    // Create Strava provider and set credentials
+                    let mut strava_provider = StravaProvider::new();
+                    let credentials = crate::providers::core::OAuth2Credentials {
+                        client_id: String::new(),
+                        client_secret: String::new(),
+                        access_token: Some(token_data.access_token),
+                        refresh_token: Some(token_data.refresh_token),
+                        expires_at: Some(token_data.expires_at),
+                        scopes: vec![],
+                    };
+                    strava_provider
+                        .set_credentials(credentials)
+                        .await
+                        .map_err(|e| {
+                            crate::protocols::ProtocolError::ExecutionFailed(format!(
+                                "Failed to set credentials: {}",
+                                e
+                            ))
+                        })?;
+                    match strava_provider.get_athlete().await {
+                        Ok(athlete) => {
+                            let athlete_data = serde_json::to_value(&athlete).unwrap_or_else(|_| {
+                                serde_json::json!({"error": "Failed to serialize athlete data"})
+                            });
+
+                            // Create human-readable text summary
+                            let text_content = format!(
+                                "Strava Athlete Profile\n\n\
+                                Name: {} {}\n\
+                                Username: {}\n\
+                                Profile Picture: {}\n\
+                                Provider: {}\n\n\
+                                Full Profile Data Available in Structured Content",
+                                athlete.firstname.as_deref().unwrap_or("N/A"),
+                                athlete.lastname.as_deref().unwrap_or("N/A"),
+                                &athlete.username,
+                                athlete.profile_picture.as_deref().unwrap_or("N/A"),
+                                &athlete.provider
+                            );
+
+                            Ok(self.create_mcp_response(text_content, athlete_data, false))
+                        }
+                        Err(e) => {
+                            let error_text =
+                                format!("Failed to get athlete data from Strava: {}", e);
+                            let error_data = serde_json::json!({
+                                "error": error_text,
+                                "is_real_data": false
+                            });
+                            Ok(self.create_mcp_response(error_text, error_data, true))
+                        }
+                    }
+                }
+                Ok(None) => {
+                    let error_text = "No valid Strava token found. Please reconnect to Strava.";
+                    let error_data = serde_json::json!({
+                        "error": error_text,
+                        "is_real_data": false
+                    });
+                    Ok(self.create_mcp_response(error_text.to_string(), error_data, true))
+                }
+                Err(e) => {
+                    let error_text = format!("Token validation failed: {}", e);
+                    let error_data = serde_json::json!({
+                        "error": error_text,
+                        "is_real_data": false
+                    });
+                    Ok(self.create_mcp_response(error_text, error_data, true))
+                }
+            }
+        } else {
+            let error_text = format!("Unsupported provider: {}", provider_type);
+            let error_data = serde_json::json!({
+                "error": error_text,
+                "is_real_data": false
+            });
+            Ok(self.create_mcp_response(error_text, error_data, true))
+        }
     }
 
     // Legacy sync tool handlers for non-async tools
@@ -825,7 +1040,39 @@ impl UniversalToolExecutor {
                         (f64::from(hr) / ASSUMED_MAX_HR) * f64::from(EFFORT_SCORE_MULTIPLIER)
                     });
 
-                let result = serde_json::json!({
+                // Create human-readable text summary
+                let text_content = format!(
+                    "Activity Analysis: {}\n\n\
+                    Sport Type: {:?}\n\
+                    Duration: {} minutes\n\
+                    Distance: {:.2} km\n\
+                    Average Heart Rate: {}\n\
+                    Location: {}, {}\n\n\
+                    Performance Analysis:\n\
+                    • Efficiency Score: {:.1}/100\n\
+                    • Relative Effort: {:.1}%\n\n\
+                    Key Insights:\n{}",
+                    activity.name,
+                    activity.sport_type,
+                    activity.duration_seconds / 60,
+                    activity.distance_meters.unwrap_or(0.0) / 1000.0,
+                    activity
+                        .average_heart_rate
+                        .map_or("N/A".to_string(), |hr| hr.to_string()),
+                    activity.city.as_deref().unwrap_or("Unknown"),
+                    activity.country.as_deref().unwrap_or("Unknown"),
+                    efficiency_score,
+                    relative_effort,
+                    intelligence
+                        .key_insights
+                        .iter()
+                        .map(|insight| insight.message.as_str())
+                        .collect::<Vec<_>>()
+                        .join("\n• ")
+                );
+
+                // Create structured data
+                let structured_data = serde_json::json!({
                     "activity_id": activity_id,
                     "activity": {
                         "id": activity.id,
@@ -847,22 +1094,16 @@ impl UniversalToolExecutor {
                     "is_real_data": true
                 });
 
-                Ok(UniversalResponse {
-                    success: true,
-                    result: Some(result),
-                    error: None,
-                    metadata: None,
-                })
+                Ok(self.create_mcp_response(text_content, structured_data, false))
             }
             None => {
-                let error_result = activity_not_found_error(activity_id, Some("Strava"));
+                // Create error text
+                let error_text = format!("Activity not found: {}\n\nThe activity with ID '{}' could not be found in your Strava account.", activity_id, activity_id);
 
-                Ok(UniversalResponse {
-                    success: false,
-                    result: Some(error_result),
-                    error: Some("Activity not found".into()),
-                    metadata: None,
-                })
+                // Create error structured data
+                let error_data = activity_not_found_error(activity_id, Some("Strava"));
+
+                Ok(self.create_mcp_response(error_text, error_data, true))
             }
         }
     }
@@ -878,35 +1119,104 @@ impl UniversalToolExecutor {
             .and_then(|v| v.as_str())
             .unwrap_or(oauth_providers::STRAVA);
 
-        // Get REAL stats using authenticated provider (no hardcoded fallbacks)
-        let stats = match crate::utils::uuid::parse_uuid(&request.user_id) {
-            Ok(user_uuid) => {
-                match self.create_authenticated_provider(provider_type, user_uuid, None) {
-                    Ok(provider) => match provider.get_stats().await {
-                        Ok(stats) => serde_json::to_value(&stats)
-                            .unwrap_or_else(|_| serialization_error("stats")),
-                        Err(e) => serde_json::json!({
-                            "error": format!("Failed to get stats: {}", e),
-                            "is_real_data": false
-                        }),
-                    },
-                    Err(error_response) => {
-                        return Ok(error_response);
-                    }
-                }
+        // Parse user ID
+        let user_uuid = match crate::utils::uuid::parse_uuid(&request.user_id) {
+            Ok(uuid) => uuid,
+            Err(e) => {
+                let error_text = format!("Invalid user ID: {}", e);
+                let error_data = serde_json::json!({
+                    "error": error_text,
+                    "is_real_data": false
+                });
+                return Ok(self.create_mcp_response(error_text, error_data, true));
             }
-            Err(e) => serde_json::json!({
-                "error": format!("Invalid user ID: {}", e),
-                "is_real_data": false
-            }),
         };
 
-        Ok(UniversalResponse {
-            success: true,
-            result: Some(stats),
-            error: None,
-            metadata: None,
-        })
+        // Get REAL stats using the same approach as get_activities
+        if provider_type == oauth_providers::STRAVA {
+            // Get valid Strava token (with automatic refresh if needed)
+            match self
+                .get_valid_token(
+                    user_uuid,
+                    oauth_providers::STRAVA,
+                    request.tenant_id.as_deref(),
+                )
+                .await
+            {
+                Ok(Some(token_data)) => {
+                    // Create Strava provider and set credentials
+                    let mut strava_provider = StravaProvider::new();
+                    let credentials = crate::providers::core::OAuth2Credentials {
+                        client_id: String::new(),
+                        client_secret: String::new(),
+                        access_token: Some(token_data.access_token),
+                        refresh_token: Some(token_data.refresh_token),
+                        expires_at: Some(token_data.expires_at),
+                        scopes: vec![],
+                    };
+                    strava_provider
+                        .set_credentials(credentials)
+                        .await
+                        .map_err(|e| {
+                            crate::protocols::ProtocolError::ExecutionFailed(format!(
+                                "Failed to set credentials: {}",
+                                e
+                            ))
+                        })?;
+                    match strava_provider.get_stats().await {
+                        Ok(stats) => {
+                            let stats_data = serde_json::to_value(&stats).unwrap_or_else(
+                                |_| serde_json::json!({"error": "Failed to serialize stats"}),
+                            );
+
+                            // Create human-readable text summary
+                            let text_content = format!(
+                                "Strava Statistics Summary\n\n\
+                                Provider: {}\n\
+                                Data Retrieved: Yes\n\n\
+                                Stats Details:\n{}",
+                                provider_type,
+                                serde_json::to_string_pretty(&stats_data)
+                                    .unwrap_or_else(|_| "Unable to format stats".to_string())
+                            );
+
+                            Ok(self.create_mcp_response(text_content, stats_data, false))
+                        }
+                        Err(e) => {
+                            let error_text = format!("Failed to get stats from Strava: {}", e);
+                            let error_data = serde_json::json!({
+                                "error": error_text,
+                                "is_real_data": false
+                            });
+                            Ok(self.create_mcp_response(error_text, error_data, true))
+                        }
+                    }
+                }
+                Ok(None) => {
+                    let error_text = "No valid Strava token found. Please reconnect to Strava.";
+                    let error_data = serde_json::json!({
+                        "error": error_text,
+                        "is_real_data": false
+                    });
+                    Ok(self.create_mcp_response(error_text.to_string(), error_data, true))
+                }
+                Err(e) => {
+                    let error_text = format!("Token validation failed: {}", e);
+                    let error_data = serde_json::json!({
+                        "error": error_text,
+                        "is_real_data": false
+                    });
+                    Ok(self.create_mcp_response(error_text, error_data, true))
+                }
+            }
+        } else {
+            let error_text = format!("Unsupported provider: {}", provider_type);
+            let error_data = serde_json::json!({
+                "error": error_text,
+                "is_real_data": false
+            });
+            Ok(self.create_mcp_response(error_text, error_data, true))
+        }
     }
     /// Handle `get_activity_intelligence` tool (async)
     fn handle_get_activity_intelligence_async(
@@ -926,40 +1236,39 @@ impl UniversalToolExecutor {
 
         // Use the real ActivityIntelligence engine for proper analysis
         match self.get_real_activity_intelligence(&request) {
-            Ok(analysis) => Ok(UniversalResponse {
-                success: true,
-                result: Some(analysis),
-                error: None,
-                metadata: Some({
-                    let mut map = std::collections::HashMap::with_capacity(4);
-                    map.insert(
-                        "analysis_timestamp".into(),
-                        serde_json::Value::String(chrono::Utc::now().to_rfc3339()),
-                    );
-                    map.insert(
-                        "requested_activity_id".into(),
-                        serde_json::Value::String(activity_id.to_string()),
-                    );
-                    map
-                }),
-            }),
-            Err(e) => Ok(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some(format!("Activity intelligence analysis failed: {e}")),
-                metadata: Some({
-                    let mut map = std::collections::HashMap::with_capacity(4);
-                    map.insert(
-                        "analysis_timestamp".into(),
-                        serde_json::Value::String(chrono::Utc::now().to_rfc3339()),
-                    );
-                    map.insert(
-                        "requested_activity_id".into(),
-                        serde_json::Value::String(activity_id.to_string()),
-                    );
-                    map
-                }),
-            }),
+            Ok(analysis) => {
+                // Create human-readable text summary
+                let text_content = format!(
+                    "Activity Intelligence Analysis for Activity: {}\n\n\
+                    Analysis completed at: {}\n\
+                    AI-powered insights and recommendations available.\n\n\
+                    See structured content for detailed analysis data.",
+                    activity_id,
+                    chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC")
+                );
+
+                Ok(self.create_mcp_response(text_content, analysis, false))
+            }
+            Err(e) => {
+                // Create error text
+                let error_text = format!(
+                    "Activity Intelligence Analysis Failed\n\n\
+                    Activity ID: {}\n\
+                    Error: {}\n\
+                    Timestamp: {}",
+                    activity_id,
+                    e,
+                    chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC")
+                );
+
+                let error_data = serde_json::json!({
+                    "error": format!("Activity intelligence analysis failed: {}", e),
+                    "activity_id": activity_id,
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                });
+
+                Ok(self.create_mcp_response(error_text, error_data, true))
+            }
         }
     }
 
@@ -1257,30 +1566,75 @@ impl UniversalToolExecutor {
         // Parse user ID
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
-        // Get activities using authenticated provider (no hardcoded fallbacks)
-        let mut activities = Vec::with_capacity(limits::ACTIVITY_CAPACITY_HINT); // Pre-allocate for typical activity count
-        match self.create_authenticated_provider(oauth_providers::STRAVA, user_uuid, None) {
-            Ok(provider) => {
-                if let Ok(provider_activities) = provider
+        // Get activities using the same approach as get_activities
+        let mut activities = Vec::with_capacity(limits::ACTIVITY_CAPACITY_HINT);
+
+        // Get valid Strava token (with automatic refresh if needed)
+        match self
+            .get_valid_token(
+                user_uuid,
+                oauth_providers::STRAVA,
+                request.tenant_id.as_deref(),
+            )
+            .await
+        {
+            Ok(Some(token_data)) => {
+                // Create Strava provider and set credentials
+                let mut strava_provider = StravaProvider::new();
+                let credentials = crate::providers::core::OAuth2Credentials {
+                    client_id: String::new(),
+                    client_secret: String::new(),
+                    access_token: Some(token_data.access_token),
+                    refresh_token: Some(token_data.refresh_token),
+                    expires_at: Some(token_data.expires_at),
+                    scopes: vec![],
+                };
+                strava_provider
+                    .set_credentials(credentials)
+                    .await
+                    .map_err(|e| {
+                        crate::protocols::ProtocolError::ExecutionFailed(format!(
+                            "Failed to set credentials: {}",
+                            e
+                        ))
+                    })?;
+
+                if let Ok(provider_activities) = strava_provider
                     .get_activities(Some(LARGE_ACTIVITY_LIMIT), None)
                     .await
                 {
                     activities = provider_activities;
                 }
             }
-            Err(error_response) => {
-                // Return error for tenant configuration issues
-                return Ok(error_response);
+            Ok(None) => {
+                let error_text = "No valid Strava token found. Please reconnect to Strava.";
+                let error_data = serde_json::json!({
+                    "error": error_text,
+                    "timeframe": timeframe_str,
+                    "metric": metric
+                });
+                return Ok(self.create_mcp_response(error_text.to_string(), error_data, true));
+            }
+            Err(e) => {
+                let error_text = format!("Token validation failed: {}", e);
+                let error_data = serde_json::json!({
+                    "error": error_text,
+                    "timeframe": timeframe_str,
+                    "metric": metric
+                });
+                return Ok(self.create_mcp_response(error_text, error_data, true));
             }
         }
 
         if activities.is_empty() {
-            return Ok(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some("No activities found or user not connected to any provider".into()),
-                metadata: None,
+            let error_text = "No activities found for performance trend analysis. You may need more activity data or reconnect to Strava.";
+            let error_data = serde_json::json!({
+                "error": error_text,
+                "activities_count": 0,
+                "timeframe": timeframe_str,
+                "metric": metric
             });
+            return Ok(self.create_mcp_response(error_text.to_string(), error_data, true));
         }
 
         // Use the performance analyzer from intelligence module
@@ -1291,9 +1645,9 @@ impl UniversalToolExecutor {
             .analyze_trends(&activities, timeframe, metric)
             .await
         {
-            Ok(trend_analysis) => Ok(UniversalResponse {
-                success: true,
-                result: Some(serde_json::json!({
+            Ok(trend_analysis) => {
+                // Create structured data
+                let analysis_data = serde_json::json!({
                     "timeframe": timeframe_str,
                     "metric": metric,
                     "trend_direction": format!("{:?}", trend_analysis.trend_direction),
@@ -1303,28 +1657,72 @@ impl UniversalToolExecutor {
                     "insights": trend_analysis.insights.iter().map(|i| &i.message).collect::<Vec<_>>(),
                     "recommendations": trend_analysis.insights.iter().filter_map(|i| {
                         if i.insight_type == "recommendation" { Some(&i.message) } else { None }
-                    }).collect::<Vec<_>>()
-                })),
-                error: None,
-                metadata: Some({
-                    let mut map = std::collections::HashMap::with_capacity(4);
-                    map.insert(
-                        "analysis_engine".into(),
-                        serde_json::Value::String("advanced_performance_analyzer".into()),
-                    );
-                    map.insert(
-                        "activities_analyzed".into(),
-                        serde_json::Value::Number(serde_json::Number::from(activities.len())),
-                    );
-                    map
-                }),
-            }),
-            Err(e) => Ok(UniversalResponse {
-                success: false,
-                result: None,
-                error: Some(format!("Failed to analyze performance trends: {}", e)),
-                metadata: None,
-            }),
+                    }).collect::<Vec<_>>(),
+                    "activities_analyzed": activities.len()
+                });
+
+                // Create human-readable text summary
+                let text_content = format!(
+                    "Performance Trends Analysis\n\n\
+                    Timeframe: {}\n\
+                    Metric: {}\n\
+                    Activities Analyzed: {}\n\
+                    Trend Direction: {:?}\n\
+                    Trend Strength: {:.2}\n\
+                    Statistical Significance: {:.3}\n\n\
+                    Key Insights:\n{}\n\n\
+                    Recommendations:\n{}\n\n\
+                    Full analysis data available in structured content.",
+                    timeframe_str,
+                    metric,
+                    activities.len(),
+                    trend_analysis.trend_direction,
+                    trend_analysis.trend_strength,
+                    trend_analysis.statistical_significance,
+                    trend_analysis
+                        .insights
+                        .iter()
+                        .map(|i| format!("• {}", i.message))
+                        .collect::<Vec<_>>()
+                        .join("\n"),
+                    trend_analysis
+                        .insights
+                        .iter()
+                        .filter_map(|i| {
+                            if i.insight_type == "recommendation" {
+                                Some(format!("• {}", i.message))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                );
+
+                Ok(self.create_mcp_response(text_content, analysis_data, false))
+            }
+            Err(e) => {
+                let error_text = format!(
+                    "Performance Trends Analysis Failed\n\n\
+                    Timeframe: {}\n\
+                    Metric: {}\n\
+                    Activities Found: {}\n\
+                    Error: {}",
+                    timeframe_str,
+                    metric,
+                    activities.len(),
+                    e
+                );
+
+                let error_data = serde_json::json!({
+                    "error": format!("Failed to analyze performance trends: {}", e),
+                    "timeframe": timeframe_str,
+                    "metric": metric,
+                    "activities_found": activities.len()
+                });
+
+                Ok(self.create_mcp_response(error_text, error_data, true))
+            }
         }
     }
 
@@ -1357,14 +1755,41 @@ impl UniversalToolExecutor {
         // Parse user ID
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
-        // Get activities using authenticated provider (no hardcoded fallbacks)
+        // Get activities using the same approach as get_activities
         let mut activity1 = None;
         let mut activity2 = None;
 
-        match self.create_authenticated_provider(oauth_providers::STRAVA, user_uuid, None) {
-            Ok(provider) => {
-                // Get activities
-                if let Ok(activities) = provider
+        // Get valid Strava token (with automatic refresh if needed)
+        match self
+            .get_valid_token(
+                user_uuid,
+                oauth_providers::STRAVA,
+                request.tenant_id.as_deref(),
+            )
+            .await
+        {
+            Ok(Some(token_data)) => {
+                // Create Strava provider and set credentials
+                let mut strava_provider = StravaProvider::new();
+                let credentials = crate::providers::core::OAuth2Credentials {
+                    client_id: String::new(),
+                    client_secret: String::new(),
+                    access_token: Some(token_data.access_token),
+                    refresh_token: Some(token_data.refresh_token),
+                    expires_at: Some(token_data.expires_at),
+                    scopes: vec![],
+                };
+                strava_provider
+                    .set_credentials(credentials)
+                    .await
+                    .map_err(|e| {
+                        crate::protocols::ProtocolError::ExecutionFailed(format!(
+                            "Failed to set credentials: {}",
+                            e
+                        ))
+                    })?;
+
+                if let Ok(activities) = strava_provider
                     .get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None)
                     .await
                 {
@@ -1372,21 +1797,58 @@ impl UniversalToolExecutor {
                     activity2 = activities.iter().find(|a| a.id == activity_id2).cloned();
                 }
             }
-            Err(error_response) => {
-                // Return error for tenant configuration issues
-                return Ok(error_response);
+            Ok(None) => {
+                let error_text = "No valid Strava token found. Please reconnect to Strava.";
+                let error_data = serde_json::json!({
+                    "error": error_text,
+                    "activity_id1": activity_id1,
+                    "activity_id2": activity_id2
+                });
+                return Ok(self.create_mcp_response(error_text.to_string(), error_data, true));
+            }
+            Err(e) => {
+                let error_text = format!("Token validation failed: {}", e);
+                let error_data = serde_json::json!({
+                    "error": error_text,
+                    "activity_id1": activity_id1,
+                    "activity_id2": activity_id2
+                });
+                return Ok(self.create_mcp_response(error_text, error_data, true));
             }
         }
+
+        let activity1_found = activity1.is_some();
+        let activity2_found = activity2.is_some();
 
         let (act1, act2) = match (activity1, activity2) {
             (Some(a1), Some(a2)) => (a1, a2),
             _ => {
-                return Ok(UniversalResponse {
-                    success: false,
-                    result: None,
-                    error: Some("One or both activities not found".into()),
-                    metadata: None,
-                })
+                let error_text = format!(
+                    "Activity Comparison Failed\n\n\
+                    One or both activities not found:\n\
+                    Activity 1 ID: {} - {}\n\
+                    Activity 2 ID: {} - {}",
+                    activity_id1,
+                    if activity1_found {
+                        "Found"
+                    } else {
+                        "Not Found"
+                    },
+                    activity_id2,
+                    if activity2_found {
+                        "Found"
+                    } else {
+                        "Not Found"
+                    }
+                );
+                let error_data = serde_json::json!({
+                    "error": "One or both activities not found",
+                    "activity_id1": activity_id1,
+                    "activity_id2": activity_id2,
+                    "activity1_found": activity1_found,
+                    "activity2_found": activity2_found
+                });
+                return Ok(self.create_mcp_response(error_text, error_data, true));
             }
         };
 
@@ -1424,12 +1886,44 @@ impl UniversalToolExecutor {
             }
         });
 
-        Ok(UniversalResponse {
-            success: true,
-            result: Some(comparison),
-            error: None,
-            metadata: None,
-        })
+        // Create human-readable text summary
+        let text_content = format!(
+            "Activity Comparison: {} vs {}\n\n\
+            Activity 1: {}\n\
+            • Distance: {:.2} km\n\
+            • Duration: {} minutes\n\
+            • Average Heart Rate: {}\n\
+            • Elevation Gain: {:.0} m\n\n\
+            Activity 2: {}\n\
+            • Distance: {:.2} km\n\
+            • Duration: {} minutes\n\
+            • Average Heart Rate: {}\n\
+            • Elevation Gain: {:.0} m\n\n\
+            Differences:\n\
+            • Distance: {:.2} km difference\n\
+            • Duration: {} minute difference\n\
+            • Elevation: {:.0} m difference\n\n\
+            Full comparison data available in structured content.",
+            act1.name,
+            act2.name,
+            act1.name,
+            act1.distance_meters.unwrap_or(0.0) / 1000.0,
+            act1.duration_seconds / 60,
+            act1.average_heart_rate
+                .map_or("N/A".to_string(), |hr| hr.to_string()),
+            act1.elevation_gain.unwrap_or(0.0),
+            act2.name,
+            act2.distance_meters.unwrap_or(0.0) / 1000.0,
+            act2.duration_seconds / 60,
+            act2.average_heart_rate
+                .map_or("N/A".to_string(), |hr| hr.to_string()),
+            act2.elevation_gain.unwrap_or(0.0),
+            (act2.distance_meters.unwrap_or(0.0) - act1.distance_meters.unwrap_or(0.0)) / 1000.0,
+            (act2.duration_seconds as i64 - act1.duration_seconds as i64) / 60,
+            act2.elevation_gain.unwrap_or(0.0) - act1.elevation_gain.unwrap_or(0.0)
+        );
+
+        Ok(self.create_mcp_response(text_content, comparison, false))
     }
 
     /// Handle detect_patterns tool asynchronously

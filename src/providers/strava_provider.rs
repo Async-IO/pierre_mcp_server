@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, TimeZone, Utc};
 use reqwest::Client;
 use serde::Deserialize;
-use tracing::{info, warn};
+use tracing::info;
 
 /// Strava API response for athlete data
 #[derive(Debug, Deserialize)]
@@ -103,6 +103,8 @@ impl StravaProvider {
     where
         T: for<'de> Deserialize<'de>,
     {
+        tracing::info!("Starting API request to endpoint: {}", endpoint);
+
         let credentials = self
             .credentials
             .as_ref()
@@ -113,11 +115,15 @@ impl StravaProvider {
             .as_ref()
             .context("No access token available")?;
 
+        tracing::info!("Using access token: {}...", &access_token[..10]);
+
         let url = format!(
             "{}/{}",
             self.config.api_base_url,
             endpoint.trim_start_matches('/')
         );
+
+        tracing::info!("Making HTTP GET request to: {}", url);
 
         let response = self
             .client
@@ -127,9 +133,16 @@ impl StravaProvider {
             .await
             .context("Failed to send request to Strava API")?;
 
+        tracing::info!("Received HTTP response with status: {}", response.status());
+
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
+            tracing::error!(
+                "Strava API request failed - status: {}, body: {}",
+                status,
+                text
+            );
             return Err(anyhow::anyhow!(
                 "Strava API request failed with status {}: {}",
                 status,
@@ -137,10 +150,18 @@ impl StravaProvider {
             ));
         }
 
-        response
+        tracing::info!("Parsing JSON response from Strava API");
+        let result = response
             .json()
             .await
-            .context("Failed to parse Strava API response")
+            .context("Failed to parse Strava API response");
+
+        match &result {
+            Ok(_) => tracing::info!("Successfully parsed JSON response"),
+            Err(e) => tracing::error!("Failed to parse JSON response: {}", e),
+        }
+
+        result
     }
 
     /// Convert Strava activity type to our `SportType` enum
@@ -156,6 +177,96 @@ impl StravaProvider {
             "weighttraining" => SportType::StrengthTraining,
             _ => SportType::Other(strava_type.to_string()),
         }
+    }
+
+    /// Convert Strava activity response to internal Activity model
+    fn convert_strava_activity(activity: StravaActivityResponse) -> Result<Activity> {
+        let start_date = DateTime::parse_from_rfc3339(&activity.start_date)
+            .context("Failed to parse activity start date")?
+            .with_timezone(&Utc);
+
+        Ok(Activity {
+            id: activity.id.to_string(),
+            name: activity.name,
+            sport_type: Self::parse_sport_type(&activity.activity_type),
+            start_date,
+            distance_meters: activity.distance.map(f64::from),
+            duration_seconds: u64::from(activity.elapsed_time.unwrap_or(0)),
+            elevation_gain: activity.total_elevation_gain.map(f64::from),
+            average_speed: activity.average_speed.map(f64::from),
+            max_speed: activity.max_speed.map(f64::from),
+            average_heart_rate: activity.average_heartrate.map(|hr| {
+                // Safe: heart rate values are always positive and within u32 range
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                {
+                    hr as u32
+                }
+            }),
+            max_heart_rate: activity.max_heartrate.map(|hr| {
+                // Safe: heart rate values are always positive and within u32 range
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                {
+                    hr as u32
+                }
+            }),
+            average_cadence: activity.average_cadence.map(|c| {
+                // Safe: cadence values are always positive and within u32 range
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                {
+                    c as u32
+                }
+            }),
+            average_power: activity.average_watts.map(|p| {
+                // Safe: power values are always positive and within u32 range
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                {
+                    p as u32
+                }
+            }),
+            max_power: activity.max_watts.map(|p| {
+                // Safe: power values are always positive and within u32 range
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                {
+                    p as u32
+                }
+            }),
+            calories: None, // Strava doesn't provide calories in basic activity data
+            steps: None,
+            heart_rate_zones: None,
+            normalized_power: None,
+            power_zones: None,
+            ftp: None,
+            max_cadence: None,
+            hrv_score: None,
+            recovery_heart_rate: None,
+            temperature: None,
+            humidity: None,
+            average_altitude: None,
+            wind_speed: None,
+            ground_contact_time: None,
+            vertical_oscillation: None,
+            stride_length: None,
+            running_power: None,
+            breathing_rate: None,
+            spo2: None,
+            training_stress_score: None,
+            intensity_factor: None,
+            suffer_score: activity.suffer_score.map(|s| {
+                // Safe: suffer score values are always positive and within u32 range
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                {
+                    s as u32
+                }
+            }),
+            time_series_data: None,
+            start_latitude: None,
+            start_longitude: None,
+            city: None,
+            region: None,
+            country: None,
+            trail_name: None,
+            provider: oauth_providers::STRAVA.to_string(),
+        })
     }
 }
 
@@ -284,196 +395,40 @@ impl FitnessProvider for StravaProvider {
         limit: Option<usize>,
         offset: Option<usize>,
     ) -> Result<Vec<Activity>> {
+        tracing::info!(
+            "Starting get_activities - limit: {:?}, offset: {:?}",
+            limit,
+            offset
+        );
+
         let limit = limit.unwrap_or(30).min(200); // Strava max is 200
         let page = offset.unwrap_or(0) / limit + 1;
 
         let endpoint = format!("athlete/activities?per_page={limit}&page={page}");
+        tracing::info!("Making API request to endpoint: {}", endpoint);
+
         let strava_activities: Vec<StravaActivityResponse> = self.api_request(&endpoint).await?;
+        tracing::info!(
+            "Received {} activities from Strava API",
+            strava_activities.len()
+        );
 
         let mut activities = Vec::new();
-
         for activity in strava_activities {
-            let start_date = DateTime::parse_from_rfc3339(&activity.start_date)
-                .context("Failed to parse activity start date")?
-                .with_timezone(&Utc);
-
-            activities.push(Activity {
-                id: activity.id.to_string(),
-                name: activity.name,
-                sport_type: Self::parse_sport_type(&activity.activity_type),
-                start_date,
-                distance_meters: activity.distance.map(f64::from),
-                duration_seconds: u64::from(activity.elapsed_time.unwrap_or(0)),
-                elevation_gain: activity.total_elevation_gain.map(f64::from),
-                average_speed: activity.average_speed.map(f64::from),
-                max_speed: activity.max_speed.map(f64::from),
-                average_heart_rate: activity.average_heartrate.map(|hr| {
-                    // Safe: heart rate values are always positive and within u32 range
-                    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                    {
-                        hr as u32
-                    }
-                }),
-                max_heart_rate: activity.max_heartrate.map(|hr| {
-                    // Safe: heart rate values are always positive and within u32 range
-                    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                    {
-                        hr as u32
-                    }
-                }),
-                average_cadence: activity.average_cadence.map(|c| {
-                    // Safe: cadence values are always positive and within u32 range
-                    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                    {
-                        c as u32
-                    }
-                }),
-                average_power: activity.average_watts.map(|p| {
-                    // Safe: power values are always positive and within u32 range
-                    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                    {
-                        p as u32
-                    }
-                }),
-                max_power: activity.max_watts.map(|p| {
-                    // Safe: power values are always positive and within u32 range
-                    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                    {
-                        p as u32
-                    }
-                }),
-                calories: None, // Strava doesn't provide calories in basic activity data
-                steps: None,
-                heart_rate_zones: None,
-                normalized_power: None,
-                power_zones: None,
-                ftp: None,
-                max_cadence: None,
-                hrv_score: None,
-                recovery_heart_rate: None,
-                temperature: None,
-                humidity: None,
-                average_altitude: None,
-                wind_speed: None,
-                ground_contact_time: None,
-                vertical_oscillation: None,
-                stride_length: None,
-                running_power: None,
-                breathing_rate: None,
-                spo2: None,
-                training_stress_score: None,
-                intensity_factor: None,
-                suffer_score: activity.suffer_score.map(|s| {
-                    // Safe: suffer score values are always positive and within u32 range
-                    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                    {
-                        s as u32
-                    }
-                }),
-                time_series_data: None,
-                start_latitude: None,
-                start_longitude: None,
-                city: None,
-                region: None,
-                country: None,
-                trail_name: None,
-                provider: oauth_providers::STRAVA.to_string(),
-            });
+            activities.push(Self::convert_strava_activity(activity)?);
         }
 
+        tracing::info!(
+            "Successfully processed {} activities, returning to caller",
+            activities.len()
+        );
         Ok(activities)
     }
 
     async fn get_activity(&self, id: &str) -> Result<Activity> {
         let endpoint = format!("activities/{id}");
         let strava_activity: StravaActivityResponse = self.api_request(&endpoint).await?;
-
-        let start_date = DateTime::parse_from_rfc3339(&strava_activity.start_date)
-            .context("Failed to parse activity start date")?
-            .with_timezone(&Utc);
-
-        Ok(Activity {
-            id: strava_activity.id.to_string(),
-            name: strava_activity.name,
-            sport_type: Self::parse_sport_type(&strava_activity.activity_type),
-            start_date,
-            distance_meters: strava_activity.distance.map(f64::from),
-            duration_seconds: u64::from(strava_activity.elapsed_time.unwrap_or(0)),
-            elevation_gain: strava_activity.total_elevation_gain.map(f64::from),
-            average_speed: strava_activity.average_speed.map(f64::from),
-            max_speed: strava_activity.max_speed.map(f64::from),
-            average_heart_rate: strava_activity.average_heartrate.map(|hr| {
-                // Safe: heart rate values are always positive and within u32 range
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                {
-                    hr as u32
-                }
-            }),
-            max_heart_rate: strava_activity.max_heartrate.map(|hr| {
-                // Safe: heart rate values are always positive and within u32 range
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                {
-                    hr as u32
-                }
-            }),
-            average_cadence: strava_activity.average_cadence.map(|c| {
-                // Safe: cadence values are always positive and within u32 range
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                {
-                    c as u32
-                }
-            }),
-            average_power: strava_activity.average_watts.map(|p| {
-                // Safe: power values are always positive and within u32 range
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                {
-                    p as u32
-                }
-            }),
-            max_power: strava_activity.max_watts.map(|p| {
-                // Safe: power values are always positive and within u32 range
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                {
-                    p as u32
-                }
-            }),
-            calories: None, // Strava doesn't provide calories in basic activity data
-            steps: None,
-            heart_rate_zones: None,
-            normalized_power: None,
-            power_zones: None,
-            ftp: None,
-            max_cadence: None,
-            hrv_score: None,
-            recovery_heart_rate: None,
-            temperature: None,
-            humidity: None,
-            average_altitude: None,
-            wind_speed: None,
-            ground_contact_time: None,
-            vertical_oscillation: None,
-            stride_length: None,
-            running_power: None,
-            breathing_rate: None,
-            spo2: None,
-            training_stress_score: None,
-            intensity_factor: None,
-            suffer_score: strava_activity.suffer_score.map(|s| {
-                // Safe: suffer score values are always positive and within u32 range
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                {
-                    s as u32
-                }
-            }),
-            time_series_data: None,
-            start_latitude: None,
-            start_longitude: None,
-            city: None,
-            region: None,
-            country: None,
-            trail_name: None,
-            provider: oauth_providers::STRAVA.to_string(),
-        })
+        Self::convert_strava_activity(strava_activity)
     }
 
     async fn get_stats(&self) -> Result<Stats> {
@@ -506,29 +461,29 @@ impl FitnessProvider for StravaProvider {
     }
 
     async fn get_personal_records(&self) -> Result<Vec<PersonalRecord>> {
-        // Strava doesn't have a direct PR endpoint, would need to analyze activities
-        // For now return empty vec - this could be computed from activities
+        // Strava doesn't provide personal records via API in the same format
+        // This would require analyzing activities to determine PRs
         Ok(vec![])
     }
 
     async fn disconnect(&mut self) -> Result<()> {
         if let Some(credentials) = &self.credentials {
             if let Some(access_token) = &credentials.access_token {
-                info!("Revoking Strava access token");
-
+                // Attempt to revoke the token if revoke URL is available
                 if let Some(revoke_url) = &self.config.revoke_url {
-                    let params = [("access_token", access_token.as_str())];
-
-                    let response = self.client.post(revoke_url).form(&params).send().await;
-
-                    match response {
-                        Ok(_) => info!("Successfully revoked Strava token"),
-                        Err(e) => warn!("Failed to revoke Strava token: {}", e),
-                    }
+                    let _result = self
+                        .client
+                        .post(revoke_url)
+                        .form(&[("token", access_token)])
+                        .send()
+                        .await;
+                    // Don't fail if revoke fails, just log it
+                    info!("Attempted to revoke Strava access token");
                 }
             }
         }
 
+        // Clear credentials regardless of revoke success
         self.credentials = None;
         Ok(())
     }

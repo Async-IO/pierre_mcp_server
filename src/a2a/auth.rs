@@ -88,7 +88,7 @@ impl A2AAuthenticator {
             return self.authenticate_a2a_key(api_key).await;
         }
 
-        // Fall back to regular API key authentication using MCP middleware
+        // Use standard API key authentication through MCP middleware
         let middleware = &self.resources.auth_middleware;
 
         middleware.authenticate_request(Some(api_key)).await

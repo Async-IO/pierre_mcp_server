@@ -493,6 +493,7 @@ async fn test_get_activities_with_expired_token() {
             "provider": "strava"
         }),
         protocol: "test".to_string(),
+        tenant_id: None,
     };
 
     // Execute tool - it should attempt to refresh the token
@@ -557,6 +558,7 @@ async fn test_connection_status_with_oauth_manager() {
         tool_name: "get_connection_status".to_string(),
         parameters: json!({}),
         protocol: "test".to_string(),
+        tenant_id: None,
     };
 
     // Execute tool
@@ -635,6 +637,7 @@ async fn test_analyze_activity_token_refresh() {
             "activity_id": "123456789"
         }),
         protocol: "test".to_string(),
+        tenant_id: None,
     };
 
     // Execute - should trigger refresh due to token expiring soon
@@ -716,6 +719,7 @@ async fn test_concurrent_token_operations() {
                 tool_name: "get_connection_status".to_string(),
                 parameters: json!({}),
                 protocol: "test".to_string(),
+                tenant_id: None,
             };
             executor_clone.execute_tool(request).await
         });
@@ -775,6 +779,7 @@ async fn test_oauth_provider_init_failure() {
         tool_name: "get_activities".to_string(),
         parameters: json!({}),
         protocol: "test".to_string(),
+        tenant_id: None,
     };
 
     // Execute - should handle provider initialization failure gracefully

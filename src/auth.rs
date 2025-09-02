@@ -589,9 +589,9 @@ pub fn generate_jwt_secret() -> [u8; 64] {
     let mut secret = [0u8; 64];
     if let Err(e) = rng.fill(&mut secret) {
         // This is a critical security failure - we cannot proceed without a secure random secret
-        // Log the error and fall back to a deterministic but secure method
+        // Log the error and use deterministic but secure alternative method
         tracing::error!("Failed to generate cryptographically secure JWT secret: {e}");
-        // Use a fallback method that's deterministic but still secure for testing
+        // Use deterministic method that's still secure for testing environments
         let fallback_input = b"fallback_jwt_secret_generation_pierre_mcp_server";
         let hash = digest(&SHA256, fallback_input);
         let mut fallback_secret = [0u8; 64];

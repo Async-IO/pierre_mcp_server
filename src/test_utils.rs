@@ -49,7 +49,7 @@ pub fn create_test_user(email: &str, display_name: Option<String>) -> User {
     }
 }
 
-/// Create a test pending user (not yet approved)
+/// Create a test pending user awaiting approval
 #[must_use]
 pub fn create_test_pending_user(email: &str, display_name: Option<String>) -> User {
     User {

@@ -711,7 +711,7 @@ impl SportType {
             return Self::from_internal_string(internal_name);
         }
 
-        // Fall back to direct mapping for backward compatibility
+        // Direct string-to-enum mapping
         match provider_sport {
             "Run" => Self::Run,
             "Ride" => Self::Ride,

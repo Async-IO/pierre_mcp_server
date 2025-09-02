@@ -532,7 +532,7 @@ impl OAuthRoutes {
                 token_response
                     .scope
                     .clone()
-                    .unwrap_or_else(|| "crate::constants::oauth::STRAVA_DEFAULT_SCOPES".into()),
+                    .unwrap_or_else(|| crate::constants::oauth::STRAVA_DEFAULT_SCOPES.into()),
             )
             .await?;
 
