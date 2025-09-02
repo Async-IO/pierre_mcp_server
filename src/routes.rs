@@ -363,7 +363,7 @@ impl OAuthRoutes {
 
                 let redirect_uri = crate::constants::env_config::strava_redirect_uri();
 
-                let scope = "read,activity:read_all";
+                let scope = "crate::constants::oauth::STRAVA_DEFAULT_SCOPES";
 
                 let auth_url = format!(
                     "https://www.strava.com/oauth/authorize?client_id={}&redirect_uri={}&response_type=code&scope={}&state={}",
@@ -532,7 +532,7 @@ impl OAuthRoutes {
                 token_response
                     .scope
                     .clone()
-                    .unwrap_or_else(|| "read,activity:read_all".into()),
+                    .unwrap_or_else(|| "crate::constants::oauth::STRAVA_DEFAULT_SCOPES".into()),
             )
             .await?;
 
@@ -544,7 +544,7 @@ impl OAuthRoutes {
             expires_at: expires_at.to_rfc3339(),
             scopes: token_response
                 .scope
-                .unwrap_or_else(|| "read,activity:read_all".into()),
+                .unwrap_or_else(|| "crate::constants::oauth::STRAVA_DEFAULT_SCOPES".into()),
         })
     }
 
@@ -601,14 +601,16 @@ impl OAuthRoutes {
         tenant_id: uuid::Uuid,
         code: &str,
     ) -> Result<StravaTokenResponse> {
-        // Get tenant OAuth credentials for Strava
+        // Get tenant OAuth credentials for Strava using OAuth manager
         let credentials = self
             .resources
-            .database
-            .get_tenant_oauth_credentials(tenant_id, oauth_providers::STRAVA)
+            .tenant_oauth_client
+            .get_tenant_credentials(tenant_id, oauth_providers::STRAVA)
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to get tenant Strava credentials: {e}"))?
-            .ok_or_else(|| anyhow::anyhow!("No Strava OAuth credentials configured for tenant"))?;
+            .map_err(|e| operation_error("Get tenant Strava credentials", &e.to_string()))?
+            .ok_or_else(|| {
+                operation_error("OAuth", "No Strava OAuth credentials configured for tenant")
+            })?;
 
         let client_id = credentials.client_id;
         let client_secret = credentials.client_secret;
@@ -658,14 +660,16 @@ impl OAuthRoutes {
         tenant_id: uuid::Uuid,
         code: &str,
     ) -> Result<FitbitTokenResponse> {
-        // Get tenant OAuth credentials for Fitbit
+        // Get tenant OAuth credentials for Fitbit using OAuth manager
         let credentials = self
             .resources
-            .database
-            .get_tenant_oauth_credentials(tenant_id, oauth_providers::FITBIT)
+            .tenant_oauth_client
+            .get_tenant_credentials(tenant_id, oauth_providers::FITBIT)
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to get tenant Fitbit credentials: {e}"))?
-            .ok_or_else(|| anyhow::anyhow!("No Fitbit OAuth credentials configured for tenant"))?;
+            .map_err(|e| operation_error("Get tenant Fitbit credentials", &e.to_string()))?
+            .ok_or_else(|| {
+                operation_error("OAuth", "No Fitbit OAuth credentials configured for tenant")
+            })?;
 
         let client_id = credentials.client_id;
         let client_secret = credentials.client_secret;

@@ -580,10 +580,10 @@ impl UniversalToolExecutor {
                                                         token_data.refresh_token.clone(),
                                                     ),
                                                     expires_at: Some(token_data.expires_at),
-                                                    scopes: vec![
-                                                        "read".to_string(),
-                                                        "activity:read_all".to_string(),
-                                                    ],
+                                                    scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
+                                                        .split(',')
+                                                        .map(str::to_string)
+                                                        .collect(),
                                                 }
                                             }
                                             Err(e) => {

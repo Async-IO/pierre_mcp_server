@@ -1972,10 +1972,13 @@ async fn approve_user_with_optional_tenant(
                 );
 
                 // Update user's tenant_id to link them to the new tenant
-                if let Err(e) = database.update_user_tenant_id(user_id, &tenant.slug).await {
+                if let Err(e) = database
+                    .update_user_tenant_id(user_id, &tenant.id.to_string())
+                    .await
+                {
                     error!(
                         "Failed to link user {} to tenant {}: {}",
-                        user.email, tenant.slug, e
+                        user.email, tenant.id, e
                     );
                     // This is critical - if we can't link the user to tenant, return error
                     return Err(operation_error(
@@ -1985,8 +1988,8 @@ async fn approve_user_with_optional_tenant(
                 }
 
                 info!(
-                    "Successfully linked user {} to tenant {}",
-                    user.email, tenant.slug
+                    "Successfully linked user {} to tenant {} ({})",
+                    user.email, tenant.slug, tenant.id
                 );
                 Some(tenant)
             }

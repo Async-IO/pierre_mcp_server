@@ -719,7 +719,7 @@ impl Database {
     /// # Errors
     ///
     /// Returns an error if the user is not found or database update fails
-    pub async fn update_user_tenant_id(&self, user_id: Uuid, tenant_slug: &str) -> Result<()> {
+    pub async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> Result<()> {
         let query = sqlx::query(
             r"
             UPDATE users 
@@ -727,7 +727,7 @@ impl Database {
             WHERE id = $2
             ",
         )
-        .bind(tenant_slug)
+        .bind(tenant_id)
         .bind(user_id.to_string());
 
         let result = query.execute(&self.pool).await?;

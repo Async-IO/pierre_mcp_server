@@ -64,82 +64,27 @@ impl TenantOAuthManager {
     ///
     /// # Errors
     ///
-    /// Returns an error if credential lookup fails
+    /// Returns an error if no credentials are found for the tenant/provider combination
     pub fn get_credentials(
         &self,
         tenant_id: Uuid,
         provider: &str,
-    ) -> Result<Option<TenantOAuthCredentials>> {
-        // Priority 1: Check for tenant-specific credentials
-        if let Some(credentials) = self
-            .credentials
-            .get(&(tenant_id, provider.to_string()))
-            .cloned()
-        {
-            return Ok(Some(credentials));
+    ) -> Result<TenantOAuthCredentials> {
+        // Priority 1: Try server-level environment variables
+        if let Some(credentials) = Self::try_server_level_credentials(tenant_id, provider) {
+            return Ok(credentials);
         }
 
-        // Priority 2: Fallback to server-level environment variables
-        match provider.to_lowercase().as_str() {
-            "strava" => {
-                if let (Ok(client_id), Ok(client_secret)) = (
-                    std::env::var("STRAVA_CLIENT_ID"),
-                    std::env::var("STRAVA_CLIENT_SECRET"),
-                ) {
-                    let redirect_uri = crate::constants::env_config::strava_redirect_uri();
-                    tracing::info!(
-                        "Using server-level Strava OAuth credentials for tenant {}",
-                        tenant_id
-                    );
-                    return Ok(Some(TenantOAuthCredentials {
-                        tenant_id,
-                        provider: provider.to_string(),
-                        client_id,
-                        client_secret,
-                        redirect_uri,
-                        scopes: vec!["read".to_string(), "activity:read_all".to_string()],
-                        rate_limit_per_day: 15000, // Default Strava rate limit
-                    }));
-                }
-            }
-            "fitbit" => {
-                if let (Ok(client_id), Ok(client_secret)) = (
-                    std::env::var("FITBIT_CLIENT_ID"),
-                    std::env::var("FITBIT_CLIENT_SECRET"),
-                ) {
-                    let redirect_uri = crate::constants::env_config::fitbit_redirect_uri();
-                    tracing::info!(
-                        "Using server-level Fitbit OAuth credentials for tenant {}",
-                        tenant_id
-                    );
-                    return Ok(Some(TenantOAuthCredentials {
-                        tenant_id,
-                        provider: provider.to_string(),
-                        client_id,
-                        client_secret,
-                        redirect_uri,
-                        scopes: vec![
-                            "activity".to_string(),
-                            "heartrate".to_string(),
-                            "location".to_string(),
-                            "nutrition".to_string(),
-                            "profile".to_string(),
-                            "settings".to_string(),
-                            "sleep".to_string(),
-                            "social".to_string(),
-                            "weight".to_string(),
-                        ],
-                        rate_limit_per_day: 150, // Default Fitbit rate limit per hour * 24
-                    }));
-                }
-            }
-            _ => {
-                tracing::warn!("Unsupported OAuth provider: {}", provider);
-            }
+        // Priority 2: Fallback to tenant-specific credentials
+        if let Some(credentials) = self.try_tenant_specific_credentials(tenant_id, provider) {
+            return Ok(credentials);
         }
 
-        // No credentials found
-        Ok(None)
+        // No credentials found - return error
+        Err(anyhow::anyhow!(
+            "No OAuth credentials configured for tenant {} and provider {}. Configure {}_CLIENT_ID and {}_CLIENT_SECRET environment variables, or provide tenant-specific credentials via the MCP OAuth configuration tool.",
+            tenant_id, provider, provider.to_uppercase(), provider.to_uppercase()
+        ))
     }
 
     /// Store OAuth credentials for a tenant
@@ -208,6 +153,111 @@ impl TenantOAuthManager {
         self.usage_tracking
             .insert(key, current + successful_requests);
         Ok(())
+    }
+
+    /// Try to load server-level OAuth credentials from environment variables
+    fn try_server_level_credentials(
+        tenant_id: Uuid,
+        provider: &str,
+    ) -> Option<TenantOAuthCredentials> {
+        match provider.to_lowercase().as_str() {
+            "strava" => Self::try_strava_env_credentials(tenant_id),
+            "fitbit" => Self::try_fitbit_env_credentials(tenant_id),
+            _ => {
+                tracing::warn!("Unsupported OAuth provider: {}", provider);
+                None
+            }
+        }
+    }
+
+    /// Try to load Strava credentials from environment variables
+    fn try_strava_env_credentials(tenant_id: Uuid) -> Option<TenantOAuthCredentials> {
+        if let (Ok(client_id), Ok(client_secret)) = (
+            std::env::var("STRAVA_CLIENT_ID"),
+            std::env::var("STRAVA_CLIENT_SECRET"),
+        ) {
+            let redirect_uri = crate::constants::env_config::strava_redirect_uri();
+            tracing::info!(
+                "Using server-level Strava OAuth credentials for tenant {}",
+                tenant_id
+            );
+            return Some(TenantOAuthCredentials {
+                tenant_id,
+                provider: "strava".to_string(),
+                client_id,
+                client_secret,
+                redirect_uri,
+                scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
+                    .split(',')
+                    .map(str::to_string)
+                    .collect(),
+                rate_limit_per_day: 15000, // Default Strava rate limit
+            });
+        }
+        tracing::warn!(
+            "No STRAVA_CLIENT_ID/STRAVA_CLIENT_SECRET environment variables set for tenant {}. MCP client should provide these credentials via OAuth configuration tool.",
+            tenant_id
+        );
+        None
+    }
+
+    /// Try to load Fitbit credentials from environment variables
+    fn try_fitbit_env_credentials(tenant_id: Uuid) -> Option<TenantOAuthCredentials> {
+        if let (Ok(client_id), Ok(client_secret)) = (
+            std::env::var("FITBIT_CLIENT_ID"),
+            std::env::var("FITBIT_CLIENT_SECRET"),
+        ) {
+            let redirect_uri = crate::constants::env_config::fitbit_redirect_uri();
+            tracing::info!(
+                "Using server-level Fitbit OAuth credentials for tenant {}",
+                tenant_id
+            );
+            return Some(TenantOAuthCredentials {
+                tenant_id,
+                provider: "fitbit".to_string(),
+                client_id,
+                client_secret,
+                redirect_uri,
+                scopes: vec![
+                    "activity".to_string(),
+                    "heartrate".to_string(),
+                    "location".to_string(),
+                    "nutrition".to_string(),
+                    "profile".to_string(),
+                    "settings".to_string(),
+                    "sleep".to_string(),
+                    "social".to_string(),
+                    "weight".to_string(),
+                ],
+                rate_limit_per_day: 150, // Default Fitbit rate limit per hour * 24
+            });
+        }
+        tracing::warn!(
+            "No FITBIT_CLIENT_ID/FITBIT_CLIENT_SECRET environment variables set for tenant {}. MCP client should provide these credentials via OAuth configuration tool.",
+            tenant_id
+        );
+        None
+    }
+
+    /// Try to load tenant-specific OAuth credentials from memory cache
+    fn try_tenant_specific_credentials(
+        &self,
+        tenant_id: Uuid,
+        provider: &str,
+    ) -> Option<TenantOAuthCredentials> {
+        if let Some(credentials) = self
+            .credentials
+            .get(&(tenant_id, provider.to_string()))
+            .cloned()
+        {
+            tracing::info!(
+                "Using tenant-specific {} OAuth credentials for tenant {}",
+                provider,
+                tenant_id
+            );
+            return Some(credentials);
+        }
+        None
     }
 }
 

@@ -302,11 +302,11 @@ impl DatabaseProvider for Database {
         }
     }
 
-    async fn update_user_tenant_id(&self, user_id: uuid::Uuid, tenant_slug: &str) -> Result<()> {
+    async fn update_user_tenant_id(&self, user_id: uuid::Uuid, tenant_id: &str) -> Result<()> {
         match self {
-            Self::SQLite(db) => db.inner().update_user_tenant_id(user_id, tenant_slug).await,
+            Self::SQLite(db) => db.inner().update_user_tenant_id(user_id, tenant_id).await,
             #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(db) => db.update_user_tenant_id(user_id, tenant_slug).await,
+            Self::PostgreSQL(db) => db.update_user_tenant_id(user_id, tenant_id).await,
         }
     }
 
