@@ -16,10 +16,20 @@ Pierre is a fitness data API platform that connects AI assistants (like Claude) 
 git clone YOUR_FORK
 cd pierre_mcp_server
 cargo build --release
+
+# Quick setup with automated script
+./scripts/fresh-start.sh
+source .envrc && cargo run --bin pierre-mcp-server &
+./scripts/complete-user-workflow.sh  # Creates admin, user, tenant, tests MCP
+
+# Or manual startup
 cargo run --bin pierre-mcp-server
 # ✅ Server ready on ports 8080 + 8081
 curl http://localhost:8081/api/health  # Should return {"status":"healthy"}
 ```
+**Automated script creates**: admin user, regular user, tenant, and validates 25 MCP tools work correctly.
+**Environment saved**: `source .workflow_test_env` to reuse JWT tokens.
+
 Ready to code - see [CONTRIBUTING.md](../CONTRIBUTING.md) for your first contribution.
 
 ### Path 2: "I want to understand the system" (15 minutes)

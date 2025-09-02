@@ -18,6 +18,25 @@ cargo build --release
 cargo run --bin pierre-mcp-server
 ```
 
+### Automated Setup Script
+
+For development and testing, use the complete user workflow script:
+
+```bash
+# Clean database and start fresh server
+./scripts/fresh-start.sh
+source .envrc && RUST_LOG=debug cargo run --bin pierre-mcp-server &
+
+# Run complete 5-step workflow (admin + user + tenant + login + MCP test)
+./scripts/complete-user-workflow.sh
+
+# Use saved environment variables
+source .workflow_test_env
+echo "Ready! JWT Token: ${JWT_TOKEN:0:50}..."
+```
+
+This automated script performs all 5 setup steps and saves tokens to `.workflow_test_env` for easy reuse.
+
 ## MCP Protocol Integration
 
 ### Claude Desktop Setup

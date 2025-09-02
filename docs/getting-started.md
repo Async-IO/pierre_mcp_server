@@ -19,6 +19,45 @@ Pierre MCP Server runs on two ports:
 
 ## Quick Setup
 
+### Option 1: Automated Setup Script (Recommended for Development)
+
+For development and testing, use our automated workflow script:
+
+```bash
+# Clone and build
+git clone https://github.com/Async-IO/pierre_mcp_server.git
+cd pierre_mcp_server
+cargo build --release
+
+# Clean database and start server
+./scripts/fresh-start.sh
+source .envrc && RUST_LOG=debug cargo run --bin pierre-mcp-server &
+
+# Run complete 5-step setup (admin + user + tenant + login + MCP test)
+./scripts/complete-user-workflow.sh
+```
+
+**What the script does:**
+1. ✅ Creates admin user (admin@pierre.mcp)
+2. ✅ Registers regular user (user@example.com) 
+3. ✅ Approves user with tenant creation
+4. ✅ Tests user login with JWT token
+5. ✅ Validates MCP access (25 tools available)
+
+**Environment variables saved** to `.workflow_test_env`:
+- `ADMIN_TOKEN` - For admin operations
+- `USER_ID` - Regular user identifier
+- `TENANT_ID` - Tenant for multi-tenancy
+- `JWT_TOKEN` - For MCP authentication
+
+```bash
+# Reuse tokens in new terminal session
+source .workflow_test_env
+echo "JWT Token ready: ${JWT_TOKEN:0:50}..."
+```
+
+### Option 2: Manual Setup
+
 ### 1. Install and Build
 
 ```bash
