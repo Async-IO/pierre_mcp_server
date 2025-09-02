@@ -298,7 +298,7 @@ if __name__ == "__main__":
 
 ## Next Steps
 
-1. **Explore More Tools**: Try `calculate_fitness_score`, `generate_recommendations`, and `analyze_activity`
+1. **Explore More Tools**: Try `generate_recommendations`, `analyze_activity`, and `predict_performance`
 2. **Read Full Documentation**: Check [A2A Reference](developer-guide/05-a2a-protocol.md) for complete API reference
 3. **Production Setup**: Review security and scaling considerations
 4. **Error Handling**: Implement robust error handling and retry logic

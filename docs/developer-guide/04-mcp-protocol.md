@@ -284,8 +284,8 @@ pub fn create_tool_schemas() -> Vec<ToolSchema> {
         create_predict_performance_schema(),
         
         // Goal management
-        create_set_goal_schema(),
-        create_track_progress_schema(),
+        create_create_goal_schema(),
+        create_get_goals_schema(),
         create_suggest_goals_schema(),
     ]
 }
@@ -465,7 +465,7 @@ Predict performance for upcoming events or goals.
 
 ### Goal Management Tools
 
-#### `set_goal`
+#### `create_goal`
 Set a training or performance goal.
 
 **Parameters:**
@@ -479,7 +479,7 @@ Set a training or performance goal.
 - Feasibility analysis
 - Training plan outline
 
-#### `track_progress`
+#### `get_goals`
 Track progress toward set goals.
 
 **Parameters:**

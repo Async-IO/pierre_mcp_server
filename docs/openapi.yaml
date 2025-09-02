@@ -5,13 +5,13 @@ info:
     Multi-tenant fitness data API platform that aggregates data across multiple providers through a unified MCP (Model Context Protocol) interface.
     
     ## What is MCP?
-    Model Context Protocol (MCP) is an open standard for connecting AI assistants with external data sources and tools. This API provides 21 specialized fitness tools accessible via MCP protocol.
+    Model Context Protocol (MCP) is an open standard for connecting AI assistants with external data sources and tools. This API provides 18 specialized fitness tools accessible via MCP protocol.
     
     ## Key Features
-    - **Multi-Provider Support**: Strava, Fitbit, Garmin, and more
+    - **Multi-Provider Support**: Strava, Fitbit integration
     - **AI-Ready**: Built specifically for LLM consumption 
-    - **Advanced Analytics**: 13 specialized analytics tools
-    - **Intelligence Engine**: Weather, location, and performance insights
+    - **Advanced Analytics**: Performance analysis and intelligence tools
+    - **Weather Intelligence**: Weather data integration for activities
     - **Real-time Data**: Live activity synchronization
     
     ## Authentication
@@ -24,7 +24,7 @@ info:
     See the [Authentication Guide](/docs/AUTHENTICATION.md) for complete details.
     
     ## Getting Started
-    Connect to the MCP server via WebSocket and authenticate with JWT tokens to access all 21 fitness tools.
+    Connect to the MCP server via WebSocket and authenticate with JWT tokens to access all 18 fitness tools.
   version: 1.0.0
   contact:
     name: Pierre MCP API
@@ -48,157 +48,188 @@ paths:
       description: |
         All fitness tools are accessible via MCP JSON-RPC protocol.
         Send MCP requests to this endpoint with proper authentication.
-      tags:
-        - MCP Protocol
+      security:
+        - JWTAuth: []
+        - APIKeyAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/McpRequest'
+              oneOf:
+                - $ref: '#/components/schemas/McpToolsListRequest'
+                - $ref: '#/components/schemas/McpToolCallRequest'
             examples:
-              initialize:
-                summary: Initialize MCP connection
+              list_tools:
+                summary: List Available Tools
                 value:
                   jsonrpc: "2.0"
-                  method: "initialize"
+                  method: "tools/list"
                   id: 1
-                  params:
-                    protocolVersion: "2025-06-18"
-                    capabilities: {}
-                    clientInfo:
-                      name: "my-fitness-app"
-                      version: "1.0.0"
-              get_activities:
-                summary: Get fitness activities
+              call_tool:
+                summary: Execute Tool
                 value:
                   jsonrpc: "2.0"
                   method: "tools/call"
-                  id: 2
-                  auth: "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
                   params:
                     name: "get_activities"
                     arguments:
+                      limit: 10
                       provider: "strava"
-                      limit: 20
-              fitness_score:
-                summary: Calculate fitness score
-                value:
-                  jsonrpc: "2.0"
-                  method: "tools/call"
-                  id: 3
-                  auth: "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
-                  params:
-                    name: "calculate_fitness_score"
-                    arguments:
-                      timeframe: "month"
+                  id: 2
       responses:
         '200':
-          description: MCP response
+          description: MCP Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/McpResponse'
-              examples:
-                initialize_response:
-                  summary: Initialize response with 21 tools
-                  value:
-                    jsonrpc: "2.0"
-                    id: 1
-                    result:
-                      protocolVersion: "2025-06-18"
-                      serverInfo:
-                        name: "pierre-mcp-server"
-                        version: "1.0.0"
-                      capabilities:
-                        tools:
-                          - name: "get_activities"
-                            description: "Get fitness activities from a provider"
-                          - name: "calculate_fitness_score"
-                            description: "Calculate comprehensive fitness score"
-                activities_response:
-                  summary: Activities response
-                  value:
-                    jsonrpc: "2.0"
-                    id: 2
-                    result:
-                      - id: "123456789"
-                        name: "Morning Run"
-                        sport_type: "Run"
-                        distance_meters: 5000
-                        duration_seconds: 1800
-                        start_date: "2024-01-15T07:00:00Z"
-                fitness_score_response:
-                  summary: Fitness score response
-                  value:
-                    jsonrpc: "2.0"
-                    id: 3
-                    result:
-                      fitness_score:
-                        overall_score: 75
-                        max_score: 100
-                        components:
-                          frequency: 20
-                          consistency: 15
-                          duration: 20
-                          variety: 10
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/McpError'
-        '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/McpError'
+                oneOf:
+                  - $ref: '#/components/schemas/McpToolsListResponse'
+                  - $ref: '#/components/schemas/McpToolCallResponse'
 
-  # A2A Protocol Endpoints
-  /a2a/agent-card:
-    get:
-      summary: Get A2A Agent Card
-      description: Retrieve agent capability information for A2A protocol discovery
-      tags:
-        - A2A Protocol
-      responses:
-        '200':
-          description: Agent card retrieved successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AgentCard'
-
-  /a2a/auth:
+  # Authentication endpoints
+  /api/auth/login:
     post:
-      summary: A2A Authentication
-      description: Authenticate A2A client and receive session token
-      tags:
-        - A2A Protocol
+      summary: User Login
+      description: Authenticate user and receive JWT token
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [client_id, client_secret]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 6
+              required: [email, password]
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jwt_token:
+                    type: string
+                    description: JWT token for authentication
+                  user_id:
+                    type: string
+                    format: uuid
+                  email:
+                    type: string
+                  expires_at:
+                    type: string
+                    format: date-time
+
+  /api/auth/register:
+    post:
+      summary: User Registration
+      description: Register new user account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 6
+                display_name:
+                  type: string
+              required: [email, password, display_name]
+      responses:
+        '201':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id:
+                    type: string
+                    format: uuid
+                  message:
+                    type: string
+                    example: "User registered. Awaiting admin approval."
+
+  # A2A Protocol endpoints
+  /a2a/clients:
+    post:
+      summary: Register A2A Client
+      description: Register agent client for A2A protocol access
+      security:
+        - JWTAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                capabilities:
+                  type: array
+                  items:
+                    type: string
+                contact_email:
+                  type: string
+                  format: email
+              required: [name, description]
+      responses:
+        '201':
+          description: Client registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  client_id:
+                    type: string
+                  client_secret:
+                    type: string
+                  api_key:
+                    type: string
+                  public_key:
+                    type: string
+                  private_key:
+                    type: string
+                  key_type:
+                    type: string
+                    example: "ed25519"
+
+  /a2a/auth:
+    post:
+      summary: A2A Authentication
+      description: Authenticate A2A client and receive session token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
               properties:
                 client_id:
                   type: string
-                  description: A2A client identifier
-                  example: "client_123"
                 client_secret:
                   type: string
-                  description: A2A client secret
-                  example: "secret_456"
                 scopes:
                   type: array
                   items:
                     type: string
-                  description: Requested scopes
-                  example: ["read", "write"]
-                  default: ["read"]
+                    enum: [read, write]
+              required: [client_id, client_secret]
       responses:
         '200':
           description: Authentication successful
@@ -207,1485 +238,350 @@ paths:
               schema:
                 type: object
                 properties:
-                  status:
-                    type: string
-                    example: "authenticated"
                   session_token:
                     type: string
-                    description: Bearer token for A2A requests
-                    example: "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
-                  expires_in:
-                    type: integer
-                    description: Token expiration in seconds
-                    example: 86400
-                  token_type:
+                  expires_at:
                     type: string
-                    example: "Bearer"
-                  scope:
-                    type: string
-                    description: Granted scopes
-                    example: "read write"
-        '401':
-          description: Authentication failed
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/A2AError'
-
-  /a2a/execute:
-    post:
-      summary: Execute A2A Tool
-      description: Execute tools via A2A JSON-RPC protocol
-      tags:
-        - A2A Protocol
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/A2ARequest'
-            examples:
-              get_activities:
-                summary: Get activities via A2A
-                value:
-                  jsonrpc: "2.0"
-                  method: "tools.execute"
-                  id: 1
-                  params:
-                    tool_name: "get_activities"
-                    parameters:
-                      provider: "strava"
-                      limit: 10
-              fitness_score:
-                summary: Calculate fitness score via A2A
-                value:
-                  jsonrpc: "2.0"
-                  method: "tools.execute"
-                  id: 2
-                  params:
-                    tool_name: "calculate_fitness_score"
-                    parameters:
-                      timeframe: "month"
-      responses:
-        '200':
-          description: Tool executed successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/A2AResponse'
-              examples:
-                success_response:
-                  summary: Successful tool execution
-                  value:
-                    jsonrpc: "2.0"
-                    id: 1
-                    result:
-                      activities:
-                        - id: "123456789"
-                          name: "Morning Run"
-                          sport_type: "Run"
-                          distance_meters: 5000
-                error_response:
-                  summary: Tool execution error
-                  value:
-                    jsonrpc: "2.0"
-                    id: 1
-                    error:
-                      code: -32000
-                      message: "Tool execution failed: Invalid provider"
-                      data: null
-
-  /a2a/dashboard/overview:
-    get:
-      summary: Get A2A Dashboard Overview
-      description: Retrieve A2A system dashboard metrics and statistics
-      tags:
-        - A2A Management
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: Dashboard overview retrieved successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/A2ADashboardOverview'
-
-  /a2a/clients:
-    post:
-      summary: Register A2A Client
-      description: Register a new A2A client for agent-to-agent communication
-      tags:
-        - A2A Management
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/A2AClientRequest'
-      responses:
-        '200':
-          description: Client registered successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/A2AClientCredentials'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/A2AError'
-
-    get:
-      summary: List A2A Clients
-      description: Retrieve list of registered A2A clients
-      tags:
-        - A2A Management
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: Clients retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/A2AClient'
-
-  /a2a/clients/{client_id}/usage:
-    get:
-      summary: Get A2A Client Usage Statistics
-      description: Retrieve usage statistics for specific A2A client
-      tags:
-        - A2A Management
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: client_id
-          in: path
-          required: true
-          description: A2A client identifier
-          schema:
-            type: string
-            example: "client_123"
-      responses:
-        '200':
-          description: Usage statistics retrieved successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/A2AClientUsage'
-
-  /a2a/clients/{client_id}/rate-limit:
-    get:
-      summary: Get A2A Client Rate Limit Status
-      description: Check current rate limit status for A2A client
-      tags:
-        - A2A Management
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: client_id
-          in: path
-          required: true
-          description: A2A client identifier
-          schema:
-            type: string
-            example: "client_123"
-      responses:
-        '200':
-          description: Rate limit status retrieved successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/A2ARateLimitStatus'
-
-  /tools/get_activities:
-    post:
-      summary: Get Activities
-      description: Retrieve fitness activities from connected providers
-      tags:
-        - Core Tools
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: '#/components/schemas/McpRequest'
-                - type: object
-                  properties:
-                    params:
-                      type: object
-                      properties:
-                        name:
-                          type: string
-                          example: "get_activities"
-                        arguments:
-                          type: object
-                          properties:
-                            provider:
-                              type: string
-                              example: "strava"
-                              description: "Provider name (strava, fitbit, garmin)"
-                            limit:
-                              type: integer
-                              example: 20
-                              description: "Maximum activities to return"
-                            offset:
-                              type: integer
-                              example: 0
-                              description: "Skip this many activities for pagination"
-                          required: [provider]
-      responses:
-        '200':
-          description: Activities retrieved successfully
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/McpResponse'
-                  - type: object
-                    properties:
-                      result:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Activity'
-
-  /tools/get_athlete:
-    post:
-      summary: Get Athlete Profile
-      description: Get athlete profile information from provider
-      tags:
-        - Core Tools
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: '#/components/schemas/McpRequest'
-                - type: object
-                  properties:
-                    params:
-                      type: object
-                      properties:
-                        name:
-                          type: string
-                          example: "get_athlete"
-                        arguments:
-                          type: object
-                          properties:
-                            provider:
-                              type: string
-                              example: "strava"
-                          required: [provider]
-      responses:
-        '200':
-          description: Athlete profile retrieved successfully
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/McpResponse'
-                  - type: object
-                    properties:
-                      result:
-                        $ref: '#/components/schemas/Athlete'
-
-  /tools/calculate_fitness_score:
-    post:
-      summary: Calculate Fitness Score
-      description: Calculate comprehensive fitness score based on training data
-      tags:
-        - Analytics
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: '#/components/schemas/McpRequest'
-                - type: object
-                  properties:
-                    params:
-                      type: object
-                      properties:
-                        name:
-                          type: string
-                          example: "calculate_fitness_score"
-                        arguments:
-                          type: object
-                          properties:
-                            timeframe:
-                              type: string
-                              enum: [week, month, quarter]
-                              example: "month"
-                              description: "Analysis timeframe"
-      responses:
-        '200':
-          description: Fitness score calculated successfully
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/McpResponse'
-                  - type: object
-                    properties:
-                      result:
-                        type: object
-                        properties:
-                          fitness_score:
-                            $ref: '#/components/schemas/FitnessScore'
-
-  /tools/analyze_training_load:
-    post:
-      summary: Analyze Training Load
-      description: Analyze training load balance and recovery needs
-      tags:
-        - Analytics
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: '#/components/schemas/McpRequest'
-                - type: object
-                  properties:
-                    params:
-                      type: object
-                      properties:
-                        name:
-                          type: string
-                          example: "analyze_training_load"
-                        arguments:
-                          type: object
-                          properties:
-                            timeframe:
-                              type: string
-                              enum: [week, month, quarter]
-                              example: "month"
-                              description: "Analysis period"
-      responses:
-        '200':
-          description: Training load analysis completed
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/McpResponse'
-                  - type: object
-                    properties:
-                      result:
-                        type: object
-                        properties:
-                          training_load_analysis:
-                            type: object
-                            properties:
-                              weekly_hours:
-                                type: number
-                                example: 5.2
-                              load_level:
-                                type: string
-                                example: "moderate"
-                              insights:
-                                type: array
-                                items:
-                                  type: string
-
-  /tools/set_goal:
-    post:
-      summary: Set Fitness Goal
-      description: Create and manage fitness goals with tracking
-      tags:
-        - Goals
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: '#/components/schemas/McpRequest'
-                - type: object
-                  properties:
-                    params:
-                      type: object
-                      properties:
-                        name:
-                          type: string
-                          example: "set_goal"
-                        arguments:
-                          type: object
-                          properties:
-                            title:
-                              type: string
-                              example: "Monthly Distance Challenge"
-                            description:
-                              type: string
-                              example: "Run 100km this month"
-                            goal_type:
-                              type: string
-                              enum: [distance, time, frequency, performance, custom]
-                              example: "distance"
-                            target_value:
-                              type: number
-                              example: 100000
-                            target_date:
-                              type: string
-                              format: date
-                              example: "2024-01-31"
-                          required: [title, goal_type, target_value, target_date]
-      responses:
-        '200':
-          description: Goal created successfully
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/McpResponse'
-                  - type: object
-                    properties:
-                      result:
-                        type: object
-                        properties:
-                          goal_created:
-                            type: object
-                            properties:
-                              goal_id:
-                                type: string
-                                example: "goal_123"
-                              status:
-                                type: string
-                                example: "active"
-
-  /tools/connect_strava:
-    post:
-      summary: Connect Strava
-      description: Generate Strava OAuth authorization URL
-      tags:
-        - Connections
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: '#/components/schemas/McpRequest'
-                - type: object
-                  properties:
-                    params:
-                      type: object
-                      properties:
-                        name:
-                          type: string
-                          example: "connect_strava"
-                        arguments:
-                          type: object
-      responses:
-        '200':
-          description: Authorization URL generated successfully
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/McpResponse'
-                  - type: object
-                    properties:
-                      result:
-                        type: object
-                        properties:
-                          authorization_url:
-                            type: string
-                            format: uri
-                            example: "https://www.strava.com/oauth/authorize?client_id=..."
-                          state:
-                            type: string
-                            example: "random_state_string"
-
-  /tools/get_connection_status:
-    post:
-      summary: Get Connection Status
-      description: Check which fitness providers are currently connected
-      tags:
-        - Connections
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: '#/components/schemas/McpRequest'
-                - type: object
-                  properties:
-                    params:
-                      type: object
-                      properties:
-                        name:
-                          type: string
-                          example: "get_connection_status"
-                        arguments:
-                          type: object
-      responses:
-        '200':
-          description: Connection status retrieved successfully
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/McpResponse'
-                  - type: object
-                    properties:
-                      result:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            provider:
-                              type: string
-                              example: "strava"
-                            connected:
-                              type: boolean
-                              example: true
-                            expires_at:
-                              type: string
-                              format: date-time
-                              example: "2024-12-31T23:59:59Z"
+                    format: date-time
+                  scopes:
+                    type: array
+                    items:
+                      type: string
 
 components:
-  schemas:
-    McpRequest:
-      type: object
-      required: [jsonrpc, method, id]
-      properties:
-        jsonrpc:
-          type: string
-          example: "2.0"
-          description: JSON-RPC version
-        method:
-          type: string
-          enum: [initialize, "tools/call"]
-          description: MCP method name
-        id:
-          oneOf:
-            - type: string
-            - type: number
-          description: Request identifier
-        params:
-          type: object
-          description: Method parameters
-        auth:
-          type: string
-          description: Bearer token for authentication
-          example: "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
-
-    McpResponse:
-      type: object
-      required: [jsonrpc, id]
-      properties:
-        jsonrpc:
-          type: string
-          example: "2.0"
-        id:
-          oneOf:
-            - type: string
-            - type: number
-        result:
-          type: object
-          description: Success response data
-        error:
-          $ref: '#/components/schemas/McpErrorObject'
-
-    McpError:
-      type: object
-      required: [jsonrpc, id, error]
-      properties:
-        jsonrpc:
-          type: string
-          example: "2.0"
-        id:
-          oneOf:
-            - type: string
-            - type: number
-        error:
-          $ref: '#/components/schemas/McpErrorObject'
-
-    McpErrorObject:
-      type: object
-      required: [code, message]
-      properties:
-        code:
-          type: integer
-          description: Error code
-          example: -32601
-        message:
-          type: string
-          description: Error message
-          example: "Method not found"
-        data:
-          type: object
-          description: Additional error data
-
-    Activity:
-      type: object
-      description: Fitness activity data
-      properties:
-        id:
-          type: string
-          description: Unique activity identifier
-          example: "123456789"
-        name:
-          type: string
-          description: Activity name
-          example: "Morning Run"
-        sport_type:
-          type: string
-          description: Type of sport/activity
-          enum: [Run, Ride, Swim, Hike, Walk, WeightTraining, Yoga, Other]
-        distance_meters:
-          type: number
-          format: float
-          description: Distance in meters
-          example: 5000.0
-        duration_seconds:
-          type: integer
-          description: Duration in seconds
-          example: 1800
-        start_date:
-          type: string
-          format: date-time
-          description: Activity start time (ISO 8601)
-          example: "2024-01-15T07:00:00Z"
-        start_latitude:
-          type: number
-          format: float
-          description: Starting latitude coordinate
-          example: 45.5017
-        start_longitude:
-          type: number
-          format: float
-          description: Starting longitude coordinate
-          example: -73.5673
-        average_speed:
-          type: number
-          format: float
-          description: Average speed in m/s
-          example: 2.78
-        max_speed:
-          type: number
-          format: float
-          description: Maximum speed in m/s
-          example: 4.17
-        average_heart_rate:
-          type: integer
-          description: Average heart rate in BPM
-          example: 145
-        max_heart_rate:
-          type: integer
-          description: Maximum heart rate in BPM
-          example: 172
-        elevation_gain:
-          type: number
-          format: float
-          description: Total elevation gain in meters
-          example: 127.3
-        calories:
-          type: integer
-          description: Calories burned
-          example: 342
-
-    Athlete:
-      type: object
-      description: Athlete profile information
-      properties:
-        id:
-          type: string
-          description: Unique athlete identifier
-          example: "athlete_123"
-        first_name:
-          type: string
-          description: First name
-          example: "John"
-        last_name:
-          type: string
-          description: Last name
-          example: "Doe"
-        profile_photo:
-          type: string
-          format: uri
-          description: Profile photo URL
-          example: "https://example.com/profile.jpg"
-        city:
-          type: string
-          description: City
-          example: "Montreal"
-        country:
-          type: string
-          description: Country
-          example: "Canada"
-        sex:
-          type: string
-          enum: [M, F]
-          description: Gender
-          example: "M"
-        weight:
-          type: number
-          format: float
-          description: Weight in kg
-          example: 70.5
-
-    FitnessScore:
-      type: object
-      description: Comprehensive fitness score analysis
-      properties:
-        overall_score:
-          type: integer
-          description: Overall fitness score (0-100)
-          example: 75
-        max_score:
-          type: integer
-          description: Maximum possible score
-          example: 100
-        components:
-          type: object
-          description: Score components breakdown
-          properties:
-            frequency:
-              type: integer
-              description: Training frequency score
-              example: 20
-            consistency:
-              type: integer
-              description: Consistency score
-              example: 15
-            duration:
-              type: integer
-              description: Duration score
-              example: 20
-            variety:
-              type: integer
-              description: Variety score
-              example: 10
-        insights:
-          type: array
-          items:
-            type: string
-          description: AI-generated insights
-          example:
-            - "Your fitness score is 75 out of 100"
-            - "Regular training frequency is your strength"
-
-    # A2A Protocol Schemas
-    AgentCard:
-      type: object
-      description: A2A agent capability information
-      properties:
-        agent_id:
-          type: string
-          description: Unique agent identifier
-          example: "pierre-fitness-ai"
-        name:
-          type: string
-          description: Agent display name
-          example: "Pierre Fitness AI"
-        version:
-          type: string
-          description: Agent version
-          example: "1.0.0"
-        description:
-          type: string
-          description: Agent description
-          example: "AI-powered fitness data analysis and insights platform"
-        capabilities:
-          type: array
-          items:
-            type: string
-          description: Available capabilities
-          example: ["fitness-data-analysis", "goal-management", "activity-insights"]
-        protocols:
-          type: array
-          items:
-            type: string
-          description: Supported protocols
-          example: ["A2A", "MCP"]
-        endpoints:
-          type: object
-          description: Available endpoints
-          properties:
-            auth:
-              type: string
-              example: "/a2a/auth"
-            execute:
-              type: string
-              example: "/a2a/execute"
-
-    A2ARequest:
-      type: object
-      description: A2A JSON-RPC request
-      required: [jsonrpc, method, id]
-      properties:
-        jsonrpc:
-          type: string
-          description: JSON-RPC version
-          example: "2.0"
-        method:
-          type: string
-          description: A2A method name
-          enum: ["tools.execute", "client.info", "session.heartbeat", "capabilities.list"]
-          example: "tools.execute"
-        id:
-          oneOf:
-            - type: string
-            - type: number
-          description: Request identifier
-          example: 1
-        params:
-          type: object
-          description: Method parameters
-          properties:
-            tool_name:
-              type: string
-              description: Tool name to execute
-              example: "get_activities"
-            parameters:
-              type: object
-              description: Tool parameters
-              example:
-                provider: "strava"
-                limit: 10
-
-    A2AResponse:
-      type: object
-      description: A2A JSON-RPC response
-      required: [jsonrpc, id]
-      properties:
-        jsonrpc:
-          type: string
-          example: "2.0"
-        id:
-          oneOf:
-            - type: string
-            - type: number
-          example: 1
-        result:
-          type: object
-          description: Success response data
-        error:
-          $ref: '#/components/schemas/A2AErrorObject'
-
-    A2AError:
-      type: object
-      description: A2A error response
-      required: [jsonrpc, id, error]
-      properties:
-        jsonrpc:
-          type: string
-          example: "2.0"
-        id:
-          oneOf:
-            - type: string
-            - type: number
-        error:
-          $ref: '#/components/schemas/A2AErrorObject'
-
-    A2AErrorObject:
-      type: object
-      description: A2A error details
-      required: [code, message]
-      properties:
-        code:
-          type: integer
-          description: Error code
-          example: -32000
-        message:
-          type: string
-          description: Error message
-          example: "Tool execution failed"
-        data:
-          type: object
-          description: Additional error data
-
-    A2AClientRequest:
-      type: object
-      description: A2A client registration request
-      required: [name, description, capabilities, contact_email]
-      properties:
-        name:
-          type: string
-          description: Client name
-          example: "My Fitness Bot"
-        description:
-          type: string
-          description: Client description
-          example: "AI fitness assistant that analyzes workout data"
-        capabilities:
-          type: array
-          items:
-            type: string
-          description: Required capabilities
-          example: ["fitness-data-analysis", "goal-management"]
-        redirect_uris:
-          type: array
-          items:
-            type: string
-            format: uri
-          description: Authorized redirect URIs
-          example: ["https://myapp.com/callback"]
-        contact_email:
-          type: string
-          format: email
-          description: Contact email for client
-          example: "developer@myapp.com"
-        agent_version:
-          type: string
-          description: Agent version
-          example: "1.0.0"
-        documentation_url:
-          type: string
-          format: uri
-          description: Documentation URL
-          example: "https://myapp.com/docs"
-
-    A2AClientCredentials:
-      type: object
-      description: A2A client credentials
-      properties:
-        client_id:
-          type: string
-          description: Client identifier
-          example: "client_123"
-        client_secret:
-          type: string
-          description: Client secret
-          example: "secret_456"
-        created_at:
-          type: string
-          format: date-time
-          description: Creation timestamp
-          example: "2024-01-15T10:30:00Z"
-
-    A2AClient:
-      type: object
-      description: A2A client information
-      properties:
-        client_id:
-          type: string
-          description: Client identifier
-          example: "client_123"
-        name:
-          type: string
-          description: Client name
-          example: "My Fitness Bot"
-        description:
-          type: string
-          description: Client description
-          example: "AI fitness assistant"
-        capabilities:
-          type: array
-          items:
-            type: string
-          description: Client capabilities
-          example: ["fitness-data-analysis"]
-        is_active:
-          type: boolean
-          description: Whether client is active
-          example: true
-        created_at:
-          type: string
-          format: date-time
-          description: Creation timestamp
-          example: "2024-01-15T10:30:00Z"
-        contact_email:
-          type: string
-          format: email
-          description: Contact email
-          example: "developer@myapp.com"
-
-    A2AClientUsage:
-      type: object
-      description: A2A client usage statistics
-      properties:
-        client_id:
-          type: string
-          description: Client identifier
-          example: "client_123"
-        requests_today:
-          type: integer
-          description: Requests made today
-          example: 142
-        requests_this_month:
-          type: integer
-          description: Requests made this month
-          example: 3842
-        total_requests:
-          type: integer
-          description: Total requests made
-          example: 15732
-        most_used_tool:
-          type: string
-          description: Most frequently used tool
-          example: "get_activities"
-        last_request_at:
-          type: string
-          format: date-time
-          description: Last request timestamp
-          example: "2024-01-15T14:23:00Z"
-
-    A2ARateLimitStatus:
-      type: object
-      description: A2A client rate limit status
-      properties:
-        client_id:
-          type: string
-          description: Client identifier
-          example: "client_123"
-        requests_remaining:
-          type: integer
-          description: Requests remaining in current period
-          example: 858
-        requests_limit:
-          type: integer
-          description: Total requests allowed per period
-          example: 1000
-        reset_time:
-          type: string
-          format: date-time
-          description: When the rate limit resets
-          example: "2024-01-16T00:00:00Z"
-        burst_remaining:
-          type: integer
-          description: Burst requests remaining
-          example: 48
-        burst_limit:
-          type: integer
-          description: Burst limit
-          example: 50
-
-    A2ADashboardOverview:
-      type: object
-      description: A2A system dashboard overview
-      properties:
-        total_clients:
-          type: integer
-          description: Total registered clients
-          example: 15
-        active_clients:
-          type: integer
-          description: Currently active clients
-          example: 12
-        total_sessions:
-          type: integer
-          description: Total active sessions
-          example: 8
-        active_sessions:
-          type: integer
-          description: Currently active sessions
-          example: 5
-        requests_today:
-          type: integer
-          description: Requests processed today
-          example: 1423
-        requests_this_month:
-          type: integer
-          description: Requests processed this month
-          example: 45821
-        most_used_capability:
-          type: string
-          description: Most used capability
-          example: "fitness-data-analysis"
-        error_rate:
-          type: number
-          format: float
-          description: Error rate percentage
-          example: 2.3
-        usage_by_tier:
-          type: array
-          items:
-            type: object
-            properties:
-              tier:
-                type: string
-                example: "basic"
-              client_count:
-                type: integer
-                example: 8
-              request_count:
-                type: integer
-                example: 15420
-              percentage:
-                type: number
-                format: float
-                example: 68.5
-
   securitySchemes:
-    BearerAuth:
+    JWTAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: |
-        JWT token obtained through authentication flow.
-        
-        **For MCP requests**: Include in request `auth` field as "Bearer {token}"
-        **For HTTP requests**: Include in Authorization header as "Bearer {token}"
-        
-        JWT tokens contain:
-        - `sub`: User ID
-        - `email`: User email
-        - `exp`: Expiration (24 hours)
-        - `permissions`: User permissions array
-        
-        Example: `Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...`
-        
-    ApiKeyAuth:
+      description: JWT token obtained from /api/auth/login
+    
+    APIKeyAuth:
       type: apiKey
       in: header
       name: X-API-Key
-      description: |
-        API key for production integrations.
-        
-        **Key formats**:
-        - Trial keys: `pk_trial_...` (1K requests/month, 14 days)
-        - Production keys: `pk_live_...` (tiered limits)
-        
-        Include in X-API-Key header.
-        
-        Example: `X-API-Key: pk_live_1234567890abcdef`
+      description: API key with pk_live_ or pk_trial_ prefix
 
-security:
-  - BearerAuth: []
+  schemas:
+    # MCP Protocol Schemas
+    McpToolsListRequest:
+      type: object
+      properties:
+        jsonrpc:
+          type: string
+          enum: ["2.0"]
+        method:
+          type: string
+          enum: ["tools/list"]
+        id:
+          type: integer
+      required: [jsonrpc, method, id]
+
+    McpToolCallRequest:
+      type: object
+      properties:
+        jsonrpc:
+          type: string
+          enum: ["2.0"]
+        method:
+          type: string
+          enum: ["tools/call"]
+        params:
+          type: object
+          properties:
+            name:
+              type: string
+              enum: [
+                "get_activities",
+                "get_athlete", 
+                "get_stats",
+                "get_activity_intelligence",
+                "analyze_activity",
+                "calculate_metrics",
+                "analyze_performance_trends",
+                "compare_activities",
+                "detect_patterns",
+                "predict_performance",
+                "generate_recommendations",
+                "create_goal",
+                "get_goals",
+                "suggest_goals",
+                "get_weather_for_activity",
+                "connect_provider",
+                "disconnect_provider",
+                "get_connection_status"
+              ]
+            arguments:
+              type: object
+          required: [name]
+        id:
+          type: integer
+      required: [jsonrpc, method, params, id]
+
+    McpToolsListResponse:
+      type: object
+      properties:
+        jsonrpc:
+          type: string
+          enum: ["2.0"]
+        id:
+          type: integer
+        result:
+          type: object
+          properties:
+            tools:
+              type: array
+              items:
+                $ref: '#/components/schemas/McpTool'
+
+    McpToolCallResponse:
+      type: object
+      properties:
+        jsonrpc:
+          type: string
+          enum: ["2.0"]
+        id:
+          type: integer
+        result:
+          type: object
+          properties:
+            content:
+              type: array
+              items:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    enum: ["text"]
+                  text:
+                    type: string
+
+    McpTool:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Tool name
+        description:
+          type: string
+          description: Tool description
+        inputSchema:
+          type: object
+          description: JSON schema for tool parameters
+      required: [name, description, inputSchema]
+
+    # Fitness Data Schemas
+    Activity:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Activity ID from provider
+        name:
+          type: string
+          description: Activity name
+        sport_type:
+          type: string
+          enum: [Run, Ride, Swim, Walk, Hike, Workout, WeightTraining, Yoga]
+        start_date:
+          type: string
+          format: date-time
+        distance_meters:
+          type: number
+          description: Distance in meters
+        duration_seconds:
+          type: integer
+          description: Duration in seconds
+        elevation_gain_meters:
+          type: number
+          description: Elevation gain in meters
+        average_heartrate:
+          type: number
+          nullable: true
+        max_heartrate:
+          type: number
+          nullable: true
+        average_speed:
+          type: number
+          description: Average speed in m/s
+        max_speed:
+          type: number
+          description: Maximum speed in m/s
+        calories:
+          type: integer
+          nullable: true
+        provider:
+          type: string
+          enum: [strava, fitbit]
+
+    Athlete:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Athlete ID from provider
+        first_name:
+          type: string
+        last_name:
+          type: string
+        profile_picture_url:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        state:
+          type: string
+          nullable: true
+        country:
+          type: string
+          nullable: true
+        sex:
+          type: string
+          enum: [M, F]
+          nullable: true
+        weight:
+          type: number
+          nullable: true
+          description: Weight in kg
+        provider:
+          type: string
+          enum: [strava, fitbit]
+
+    Stats:
+      type: object
+      properties:
+        total_activities:
+          type: integer
+        total_distance_meters:
+          type: number
+        total_elevation_gain_meters:
+          type: number
+        total_duration_seconds:
+          type: integer
+        average_speed:
+          type: number
+          description: Average speed in m/s
+        recent_activities:
+          type: array
+          items:
+            $ref: '#/components/schemas/Activity'
+        provider:
+          type: string
+          enum: [strava, fitbit]
+
+    Goal:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        target_value:
+          type: number
+        current_value:
+          type: number
+        unit:
+          type: string
+        target_date:
+          type: string
+          format: date
+        created_at:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [active, completed, paused, cancelled]
+
+    WeatherData:
+      type: object
+      properties:
+        temperature_celsius:
+          type: number
+        humidity_percent:
+          type: number
+        wind_speed_kmh:
+          type: number
+        wind_direction:
+          type: string
+        conditions:
+          type: string
+        visibility_km:
+          type: number
+        timestamp:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error type
+        message:
+          type: string
+          description: Human readable error message
+        details:
+          type: object
+          properties:
+            error_code:
+              type: string
+            timestamp:
+              type: string
+              format: date-time
+            request_id:
+              type: string
 
 tags:
   - name: MCP Protocol
-    description: Core MCP JSON-RPC protocol endpoint
-  - name: A2A Protocol
-    description: Agent-to-Agent communication protocol endpoints
-  - name: A2A Management
-    description: A2A client management and administration
-  - name: Core Tools
-    description: Essential fitness data access tools (8 tools)
-  - name: Analytics
-    description: Advanced analytics and intelligence tools (8 tools)
-  - name: Goals
-    description: Goal setting and progress tracking (4 tools)
-  - name: Connections
-    description: Provider connection management (4 tools)
+    description: Model Context Protocol endpoints for AI assistants
+  - name: Authentication
+    description: User authentication and registration
+  - name: A2A Protocol  
+    description: Agent-to-Agent protocol for autonomous systems
 
-# MCP Tools Documentation
+# Example MCP Tool Implementations
 x-mcp-tools:
-  core_tools:
-    - name: get_activities
-      category: Core Tools
-      description: Retrieve fitness activities from connected providers
-      parameters:
-        provider:
-          type: string
-          required: true
-          description: "Provider name (strava, fitbit, garmin)"
-          example: "strava"
-        limit:
-          type: integer
-          required: false
-          description: "Maximum activities to return (default: 20)"
-          example: 20
-        offset:
-          type: integer
-          required: false
-          description: "Skip this many activities for pagination"
-          example: 0
-      example_response:
-        type: array
-        items:
-          $ref: '#/components/schemas/Activity'
-
-    - name: get_athlete
-      category: Core Tools
-      description: Get athlete profile information
-      parameters:
-        provider:
-          type: string
-          required: true
-          description: "Provider name"
-          example: "strava"
-      example_response:
-        $ref: '#/components/schemas/Athlete'
-
-    - name: get_stats
-      category: Core Tools
-      description: Get fitness statistics and totals
-      parameters:
-        provider:
-          type: string
-          required: true
-          description: "Provider name"
-          example: "strava"
-
-    - name: get_activity_intelligence
-      category: Core Tools
-      description: Generate AI-powered insights for specific activity
-      parameters:
-        provider:
-          type: string
-          required: true
-          description: "Provider name"
-          example: "strava"
-        activity_id:
-          type: string
-          required: true
-          description: "Activity ID to analyze"
-          example: "123456789"
-        include_weather:
-          type: boolean
-          required: false
-          description: "Include weather analysis"
-          default: true
-        include_location:
-          type: boolean
-          required: false
-          description: "Include location intelligence"
-          default: true
-
-  analytics_tools:
-    - name: calculate_fitness_score
-      category: Analytics
-      description: Calculate comprehensive fitness score
-      parameters:
-        timeframe:
-          type: string
-          required: false
-          description: "Analysis timeframe"
-          enum: [week, month, quarter]
-          default: "month"
-      example_response:
-        $ref: '#/components/schemas/FitnessScore'
-
-    - name: analyze_training_load
-      category: Analytics
-      description: Analyze training load and recovery balance
-      parameters:
-        timeframe:
-          type: string
-          required: false
-          description: "Analysis period"
-          enum: [week, month, quarter]
-          default: "month"
-
-    - name: generate_recommendations
-      category: Analytics
-      description: Generate personalized training recommendations
-      parameters:
-        recommendation_type:
-          type: string
-          required: false
-          description: "Type of recommendations"
-          enum: [training, recovery, nutrition, equipment, all]
-          default: "training"
-
-    - name: detect_patterns
-      category: Analytics
-      description: Detect patterns in training data
-      parameters:
-        pattern_type:
-          type: string
-          required: true
-          description: "Pattern type to detect"
-          enum: [training_consistency, seasonal_trends, performance_plateaus, injury_risk]
-          example: "training_consistency"
-
-    - name: analyze_performance_trends
-      category: Analytics
-      description: Analyze performance trends over time
-      parameters:
-        timeframe:
-          type: string
-          required: true
-          description: "Analysis timeframe"
-          enum: [week, month, quarter, sixmonths, year]
-          example: "month"
-        metric:
-          type: string
-          required: true
-          description: "Metric to analyze"
-          enum: [pace, heart_rate, power, distance, duration]
-          example: "pace"
-
-    - name: analyze_activity
-      category: Analytics
-      description: Deep analysis of individual activity
-      parameters:
-        provider:
-          type: string
-          required: true
-          description: "Provider name"
-          example: "strava"
-        activity_id:
-          type: string
-          required: true
-          description: "Activity ID"
-          example: "123456789"
-
-    - name: calculate_metrics
-      category: Analytics
-      description: Calculate advanced fitness metrics
-      parameters:
-        provider:
-          type: string
-          required: true
-          description: "Provider name"
-          example: "strava"
-        activity_id:
-          type: string
-          required: true
-          description: "Activity ID"
-          example: "123456789"
-
-    - name: compare_activities
-      category: Analytics
-      description: Compare activities against benchmarks
-      parameters:
-        provider:
-          type: string
-          required: true
-          description: "Provider name"
-          example: "strava"
-        activity_id1:
-          type: string
-          required: true
-          description: "First activity ID"
-          example: "123456789"
-        activity_id2:
-          type: string
-          required: true
-          description: "Second activity ID"
-          example: "987654321"
-
-    - name: predict_performance
-      category: Analytics
-      description: Predict future performance capabilities
-      parameters:
-        provider:
-          type: string
-          required: true
-          description: "Provider name"
-          example: "strava"
-        target_sport:
-          type: string
-          required: true
-          description: "Sport type for prediction"
-          example: "run"
-        target_distance:
-          type: number
-          required: true
-          description: "Target distance in meters"
-          example: 10000
-
-  goal_tools:
-    - name: set_goal
-      category: Goals
-      description: Create and manage fitness goals
-      parameters:
-        title:
-          type: string
-          required: true
-          description: "Goal title"
-          example: "Monthly Distance Challenge"
-        description:
-          type: string
-          required: false
-          description: "Goal description"
-          example: "Run 100km this month"
-        goal_type:
-          type: string
-          required: true
-          description: "Type of goal"
-          enum: [distance, time, frequency, performance, custom]
-          example: "distance"
-        target_value:
-          type: number
-          required: true
-          description: "Target value to achieve"
-          example: 100000
-        target_date:
-          type: string
-          required: true
-          format: date
-          description: "Target completion date"
-          example: "2024-01-31"
-        sport_type:
-          type: string
-          required: false
-          description: "Sport type for goal"
-          example: "run"
-
-    - name: track_progress
-      category: Goals
-      description: Track progress toward specific goal
-      parameters:
-        goal_id:
-          type: string
-          required: true
-          description: "Goal ID to track"
-          example: "goal_123"
-
-    - name: suggest_goals
-      category: Goals
-      description: Generate AI-powered goal suggestions
-      parameters:
-        goal_category:
-          type: string
-          required: false
-          description: "Category of goals"
-          enum: [distance, performance, consistency, all]
-          default: "all"
-
-    - name: analyze_goal_feasibility
-      category: Goals
-      description: Assess if goal is realistic and achievable
-      parameters:
-        goal_type:
-          type: string
-          required: true
-          description: "Type of goal to analyze"
-          example: "distance"
-        target_value:
-          type: number
-          required: true
-          description: "Target value"
-          example: 100000
-        timeframe:
-          type: string
-          required: false
-          description: "Timeframe for goal"
-          example: "month"
-
-  connection_tools:
-    - name: connect_strava
-      category: Connections
-      description: Generate Strava OAuth authorization URL
-      parameters: {}
-
-    - name: connect_fitbit
-      category: Connections  
-      description: Generate Fitbit OAuth authorization URL
-      parameters: {}
-
-    - name: get_connection_status
-      category: Connections
-      description: Check connected provider status
-      parameters: {}
-
-    - name: disconnect_provider
-      category: Connections
-      description: Disconnect and revoke provider access
-      parameters:
-        provider:
-          type: string
-          required: true
-          description: "Provider to disconnect"
-          enum: [strava, fitbit, garmin]
-          example: "strava"
+  get_activities:
+    description: "Fetch fitness activities with pagination support"
+    parameters:
+      limit:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 10
+        description: "Maximum number of activities to return"
+      provider:
+        type: string
+        enum: ["strava", "fitbit"]
+        default: "strava"
+        description: "Fitness provider to query"
+    
+  get_activity_intelligence:
+    description: "AI-powered activity analysis with full context"
+    parameters:
+      activity_id:
+        type: string
+        description: "ID of the activity to analyze"
+        required: true
+      analysis_type:
+        type: string
+        enum: ["performance", "health", "training", "comprehensive"]
+        default: "comprehensive"
+        description: "Type of analysis to perform"
+    
+  get_weather_for_activity:
+    description: "Get weather conditions for a specific activity"
+    parameters:
+      activity_id:
+        type: string
+        description: "Activity ID to get weather for"
+        required: true
+      units:
+        type: string
+        enum: ["metric", "imperial", "kelvin"]
+        default: "metric"
+        description: "Temperature units"
