@@ -176,7 +176,7 @@ async fn test_configuration_tools_count_in_total() {
     // Verify we have the expected total number of tools
     let tools = get_tools();
 
-    // Count fitness tools (should be 19)
+    // Count fitness tools (should be 20)
     let fitness_tools = tools
         .iter()
         .filter(|tool| {
@@ -217,22 +217,6 @@ async fn test_configuration_tools_count_in_total() {
         6,
         "Expected exactly 6 configuration tools"
     );
-    assert_eq!(fitness_tools, 19, "Expected exactly 19 fitness tools");
-    assert_eq!(tools.len(), 25, "Expected total of 25 tools");
-
-    // Print all tools for debugging
-    println!("All available tools:");
-    for tool in &tools {
-        let tool_type = if tool.name.starts_with("get_configuration")
-            || tool.name.starts_with("get_user_configuration")
-            || tool.name.starts_with("update_user_configuration")
-            || tool.name.starts_with("calculate_personalized")
-            || tool.name.starts_with("validate_configuration")
-        {
-            "CONFIG"
-        } else {
-            "FITNESS"
-        };
-        println!("  [{}] {}", tool_type, tool.name);
-    }
+    assert_eq!(fitness_tools, 20, "Expected exactly 20 fitness tools");
+    assert_eq!(tools.len(), 26, "Expected total of 26 tools");
 }

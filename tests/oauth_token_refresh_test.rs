@@ -655,6 +655,10 @@ async fn test_analyze_activity_token_refresh() {
                         || error.contains("Activity not found")
                         || error.contains("deprecated")
                         || error.contains("tenant-aware MCP endpoints")
+                        || error.contains("Authentication required")
+                        || error.contains("No valid authentication token")
+                        || error.contains("Authentication failed")
+                        || error.contains("No valid Strava token found")
                 );
             }
         }

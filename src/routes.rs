@@ -538,6 +538,23 @@ impl OAuthRoutes {
 
         info!("Strava tokens stored successfully for user: {}", user_id);
 
+        // Store OAuth notification for MCP resource delivery
+        let notification_result = self
+            .resources
+            .database
+            .store_oauth_notification(
+                user_id,
+                oauth_providers::STRAVA,
+                true,
+                "strava account connected successfully!",
+                Some(&expires_at.to_rfc3339()),
+            )
+            .await;
+
+        if let Err(e) = notification_result {
+            error!("Failed to store OAuth notification: {}", e);
+        }
+
         Ok(OAuthCallbackResponse {
             user_id: user_id.to_string(),
             provider: oauth_providers::STRAVA.into(),
@@ -586,6 +603,23 @@ impl OAuthRoutes {
             .await?;
 
         info!("Fitbit tokens stored successfully for user: {}", user_id);
+
+        // Store OAuth notification for MCP resource delivery
+        let notification_result = self
+            .resources
+            .database
+            .store_oauth_notification(
+                user_id,
+                oauth_providers::FITBIT,
+                true,
+                "fitbit account connected successfully!",
+                Some(&expires_at.to_rfc3339()),
+            )
+            .await;
+
+        if let Err(e) = notification_result {
+            error!("Failed to store OAuth notification: {}", e);
+        }
 
         Ok(OAuthCallbackResponse {
             user_id: user_id.to_string(),

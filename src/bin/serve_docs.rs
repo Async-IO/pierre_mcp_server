@@ -52,8 +52,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "name": "Pierre MCP Fitness API",
             "version": "1.0.0",
             "description": "AI-powered fitness data intelligence platform",
-            "tools_count": 21,
-            "providers": ["strava", "fitbit", "garmin"],
+            "tools_count": 18,
+            "providers": ["strava", "fitbit"],
             "features": [
                 "Multi-provider data aggregation",
                 "Advanced analytics and intelligence",

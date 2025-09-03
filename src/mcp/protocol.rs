@@ -16,11 +16,14 @@ use crate::constants::{
     errors::{ERROR_INVALID_PARAMS, ERROR_METHOD_NOT_FOUND},
     protocol::SERVER_VERSION,
 };
+use crate::database_plugins::DatabaseProvider;
+use crate::mcp::resources::ServerResources;
 use crate::mcp::schema::{get_tools, InitializeResponse};
 use crate::models::AuthRequest;
 use serde_json::Value;
 use std::sync::Arc;
-use tracing::info;
+use tracing::{error, info};
+use uuid::Uuid;
 
 /// MCP protocol handlers
 pub struct ProtocolHandler;
@@ -70,9 +73,137 @@ impl ProtocolHandler {
     }
 
     /// Handle resources list request
-    pub fn handle_resources_list(request: McpRequest) -> McpResponse {
+    pub fn handle_resources_list(
+        request: McpRequest,
+        resources: &Arc<ServerResources>,
+    ) -> McpResponse {
         let request_id = request.id.unwrap_or_else(default_request_id);
-        McpResponse::success(request_id, serde_json::json!({ "resources": [] }))
+
+        // Extract user_id from auth context if available
+        let user_id = request.auth_token.as_ref().and_then(|auth_token| {
+            match resources.auth_manager.validate_token(auth_token) {
+                Ok(claims) => {
+                    if let Ok(id) = Uuid::parse_str(&claims.sub) {
+                        Some(id)
+                    } else {
+                        error!("Invalid user ID in token: {}", claims.sub);
+                        None
+                    }
+                }
+                Err(_) => None,
+            }
+        });
+
+        let mut resource_list = Vec::new();
+
+        // Add OAuth notifications resource if user is authenticated
+        if user_id.is_some() {
+            resource_list.push(serde_json::json!({
+                "uri": "oauth://notifications",
+                "name": "OAuth Notifications",
+                "description": "Real-time notifications for OAuth connection status and completion events",
+                "mimeType": "application/json"
+            }));
+        }
+
+        McpResponse::success(
+            request_id,
+            serde_json::json!({ "resources": resource_list }),
+        )
+    }
+
+    /// Handle resources read request
+    pub async fn handle_resources_read(
+        request: McpRequest,
+        resources: &Arc<ServerResources>,
+    ) -> McpResponse {
+        let request_id = request.id.unwrap_or_else(default_request_id);
+
+        // Extract user_id from auth context
+        let user_id = if let Some(auth_token) = &request.auth_token {
+            match resources.auth_manager.validate_token(auth_token) {
+                Ok(claims) => {
+                    if let Ok(id) = Uuid::parse_str(&claims.sub) {
+                        id
+                    } else {
+                        error!("Invalid user ID in token: {}", claims.sub);
+                        return McpResponse::error(
+                            request_id,
+                            ERROR_INVALID_PARAMS,
+                            "Invalid user ID in token".to_string(),
+                        );
+                    }
+                }
+                Err(e) => {
+                    error!("Authentication failed: {}", e);
+                    return McpResponse::error(
+                        request_id,
+                        ERROR_INVALID_PARAMS,
+                        "Authentication required".to_string(),
+                    );
+                }
+            }
+        } else {
+            return McpResponse::error(
+                request_id,
+                ERROR_INVALID_PARAMS,
+                "Authentication token required".to_string(),
+            );
+        };
+
+        // Extract resource URI from params
+        let uri = if let Some(params) = &request.params {
+            if let Some(uri_value) = params.get("uri") {
+                uri_value.as_str().unwrap_or_default()
+            } else {
+                return McpResponse::error(
+                    request_id,
+                    ERROR_INVALID_PARAMS,
+                    "Missing uri parameter".to_string(),
+                );
+            }
+        } else {
+            return McpResponse::error(
+                request_id,
+                ERROR_INVALID_PARAMS,
+                "Missing parameters".to_string(),
+            );
+        };
+
+        match uri {
+            "oauth://notifications" => {
+                // Get unread notifications
+                match resources
+                    .database
+                    .get_unread_oauth_notifications(user_id)
+                    .await
+                {
+                    Ok(notifications) => {
+                        let response_data = serde_json::json!({
+                            "contents": [{
+                                "uri": "oauth://notifications",
+                                "mimeType": "application/json",
+                                "text": serde_json::to_string_pretty(&notifications).unwrap_or_else(|_| "[]".to_string())
+                            }]
+                        });
+                        McpResponse::success(request_id, response_data)
+                    }
+                    Err(e) => {
+                        error!("Failed to fetch OAuth notifications: {}", e);
+                        McpResponse::error(
+                            request_id,
+                            -32603,
+                            "Failed to fetch notifications".to_string(),
+                        )
+                    }
+                }
+            }
+            _ => McpResponse::error(
+                request_id,
+                ERROR_METHOD_NOT_FOUND,
+                format!("Unknown resource URI: {uri}"),
+            ),
+        }
     }
 
     /// Handle unknown method request

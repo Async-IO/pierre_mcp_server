@@ -1738,4 +1738,83 @@ impl DatabaseProvider for Database {
             Self::PostgreSQL(db) => db.update_system_secret(secret_type, new_value).await,
         }
     }
+
+    // ================================
+    // OAuth Notifications
+    // ================================
+
+    /// Store OAuth completion notification for MCP resource delivery
+    async fn store_oauth_notification(
+        &self,
+        user_id: Uuid,
+        provider: &str,
+        success: bool,
+        message: &str,
+        expires_at: Option<&str>,
+    ) -> Result<String> {
+        match self {
+            Self::SQLite(db) => {
+                db.store_oauth_notification(user_id, provider, success, message, expires_at)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.store_oauth_notification(user_id, provider, success, message, expires_at)
+                    .await
+            }
+        }
+    }
+
+    /// Get unread OAuth notifications for a user
+    async fn get_unread_oauth_notifications(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<crate::database::oauth_notifications::OAuthNotification>> {
+        match self {
+            Self::SQLite(db) => db.get_unread_oauth_notifications(user_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_unread_oauth_notifications(user_id).await,
+        }
+    }
+
+    /// Mark OAuth notification as read
+    async fn mark_oauth_notification_read(
+        &self,
+        notification_id: &str,
+        user_id: Uuid,
+    ) -> Result<bool> {
+        match self {
+            Self::SQLite(db) => {
+                db.mark_oauth_notification_read(notification_id, user_id)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.mark_oauth_notification_read(notification_id, user_id)
+                    .await
+            }
+        }
+    }
+
+    /// Mark all OAuth notifications as read for a user
+    async fn mark_all_oauth_notifications_read(&self, user_id: Uuid) -> Result<u64> {
+        match self {
+            Self::SQLite(db) => db.mark_all_oauth_notifications_read(user_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.mark_all_oauth_notifications_read(user_id).await,
+        }
+    }
+
+    /// Get all OAuth notifications for a user (read and unread)
+    async fn get_all_oauth_notifications(
+        &self,
+        user_id: Uuid,
+        limit: Option<i64>,
+    ) -> Result<Vec<crate::database::oauth_notifications::OAuthNotification>> {
+        match self {
+            Self::SQLite(db) => db.get_all_oauth_notifications(user_id, limit).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_all_oauth_notifications(user_id, limit).await,
+        }
+    }
 }

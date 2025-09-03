@@ -150,22 +150,88 @@ impl UniversalToolExecutor {
         )))
     }
 
-    /// Create authenticated provider - now returns error as providers are handled at tenant level
-    fn create_authenticated_provider(
+    /// Create authenticated provider - now uses tenant-aware authentication
+    async fn create_authenticated_provider(
         &self,
-        _provider_name: &str,
-        _user_id: uuid::Uuid,
-        _tenant_id: Option<&str>,
+        provider_name: &str,
+        user_id: uuid::Uuid,
+        tenant_id: Option<&str>,
     ) -> Result<Box<dyn CoreFitnessProvider>, UniversalResponse> {
-        Err(UniversalResponse {
-            success: false,
-            result: None,
-            error: Some(
-                "Provider authentication not available - use tenant-aware MCP endpoints"
-                    .to_string(),
-            ),
-            metadata: None,
-        })
+        // Only support Strava for now
+        if provider_name != oauth_providers::STRAVA {
+            return Err(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(format!("Provider {} not supported", provider_name)),
+                metadata: None,
+            });
+        }
+
+        // Get valid Strava token (with automatic refresh if needed)
+        match self
+            .get_valid_token(user_id, oauth_providers::STRAVA, tenant_id)
+            .await
+        {
+            Ok(Some(token_data)) => {
+                // Use environment variables as fallback credentials for legacy tools
+                let client_id =
+                    std::env::var("STRAVA_CLIENT_ID").unwrap_or_else(|_| "163846".to_string());
+                let client_secret = std::env::var("STRAVA_CLIENT_SECRET")
+                    .unwrap_or_else(|_| "1dfc45ad0a1f6983b835e4495aa9473d111d03bc".to_string());
+
+                let auth_data = OAuth2Credentials {
+                    client_id,
+                    client_secret,
+                    access_token: Some(token_data.access_token.clone()),
+                    refresh_token: Some(token_data.refresh_token.clone()),
+                    expires_at: Some(token_data.expires_at),
+                    scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
+                        .split(',')
+                        .map(str::to_string)
+                        .collect(),
+                };
+
+                // Create Strava provider
+                match create_provider(oauth_providers::STRAVA) {
+                    Ok(mut provider) => match provider.set_credentials(auth_data).await {
+                        Ok(()) => Ok(provider),
+                        Err(e) => {
+                            tracing::error!("Failed to set provider credentials: {e}");
+                            Err(UniversalResponse {
+                                success: false,
+                                result: None,
+                                error: Some("Failed to authenticate with provider".to_string()),
+                                metadata: None,
+                            })
+                        }
+                    },
+                    Err(e) => {
+                        tracing::error!("Failed to create Strava provider: {e}");
+                        Err(UniversalResponse {
+                            success: false,
+                            result: None,
+                            error: Some("Failed to create provider".to_string()),
+                            metadata: None,
+                        })
+                    }
+                }
+            }
+            Ok(None) => Err(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some("No valid authentication token found".to_string()),
+                metadata: None,
+            }),
+            Err(e) => {
+                tracing::error!("Failed to get valid token: {e}");
+                Err(UniversalResponse {
+                    success: false,
+                    result: None,
+                    error: Some("Authentication failed".to_string()),
+                    metadata: None,
+                })
+            }
+        }
     }
 
     /// Create MCP-compatible response format for Claude Desktop
@@ -190,11 +256,7 @@ impl UniversalToolExecutor {
         UniversalResponse {
             success: !is_error,
             result: Some(result),
-            error: if is_error {
-                Some("Tool execution failed".into())
-            } else {
-                None
-            },
+            error: if is_error { Some(text_content) } else { None },
             metadata: None,
         }
     }
@@ -611,48 +673,81 @@ impl UniversalToolExecutor {
                                             user_role: crate::tenant::TenantRole::Member,
                                         };
 
-                                        // Use tenant-specific OAuth credentials
-                                        match self
-                                            .resources
-                                            .tenant_oauth_client
-                                            .get_oauth_client(
-                                                &tenant_context,
-                                                oauth_providers::STRAVA,
-                                                &self.resources.database,
-                                            )
-                                            .await
-                                        {
-                                            Ok(oauth_client) => {
-                                                let config = oauth_client.config();
-                                                OAuth2Credentials {
-                                                    client_id: config.client_id.clone(),
-                                                    client_secret: config.client_secret.clone(),
-                                                    access_token: Some(
-                                                        token_data.access_token.clone(),
-                                                    ),
-                                                    refresh_token: Some(
-                                                        token_data.refresh_token.clone(),
-                                                    ),
-                                                    expires_at: Some(token_data.expires_at),
-                                                    scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
+                                        // Check for client-provided OAuth credentials first
+                                        let inner_auth_data = if let (
+                                            Some(client_id),
+                                            Some(client_secret),
+                                        ) = (
+                                            request
+                                                .parameters
+                                                .get("client_id")
+                                                .and_then(|v| v.as_str()),
+                                            request
+                                                .parameters
+                                                .get("client_secret")
+                                                .and_then(|v| v.as_str()),
+                                        ) {
+                                            // Use client-provided credentials (highest priority)
+                                            tracing::info!("Using client-provided OAuth credentials for Strava");
+                                            OAuth2Credentials {
+                                                client_id: client_id.to_string(),
+                                                client_secret: client_secret.to_string(),
+                                                access_token: Some(token_data.access_token.clone()),
+                                                refresh_token: Some(
+                                                    token_data.refresh_token.clone(),
+                                                ),
+                                                expires_at: Some(token_data.expires_at),
+                                                scopes:
+                                                    crate::constants::oauth::STRAVA_DEFAULT_SCOPES
                                                         .split(',')
                                                         .map(str::to_string)
                                                         .collect(),
+                                            }
+                                        } else {
+                                            // Fall back to tenant-specific OAuth credentials
+                                            match self
+                                                .resources
+                                                .tenant_oauth_client
+                                                .get_oauth_client(
+                                                    &tenant_context,
+                                                    oauth_providers::STRAVA,
+                                                    &self.resources.database,
+                                                )
+                                                .await
+                                            {
+                                                Ok(oauth_client) => {
+                                                    let config = oauth_client.config();
+                                                    OAuth2Credentials {
+                                                        client_id: config.client_id.clone(),
+                                                        client_secret: config.client_secret.clone(),
+                                                        access_token: Some(
+                                                            token_data.access_token.clone(),
+                                                        ),
+                                                        refresh_token: Some(
+                                                            token_data.refresh_token.clone(),
+                                                        ),
+                                                        expires_at: Some(token_data.expires_at),
+                                                        scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
+                                                            .split(',')
+                                                            .map(str::to_string)
+                                                            .collect(),
+                                                    }
+                                                }
+                                                Err(e) => {
+                                                    tracing::error!("Tenant OAuth credentials not configured for {} in tenant {}: {}", provider_type, tenant_uuid, e);
+                                                    return Ok(UniversalResponse {
+                                                        success: false,
+                                                        result: None,
+                                                        error: Some(format!(
+                                                            "Tenant {} must configure {} OAuth credentials first. Please contact your tenant administrator.",
+                                                            tenant_uuid, provider_type
+                                                        )),
+                                                        metadata: None,
+                                                    });
                                                 }
                                             }
-                                            Err(e) => {
-                                                tracing::error!("Tenant OAuth credentials not configured for {} in tenant {}: {}", provider_type, tenant_uuid, e);
-                                                return Ok(UniversalResponse {
-                                                    success: false,
-                                                    result: None,
-                                                    error: Some(format!(
-                                                        "Tenant {} must configure {} OAuth credentials first. Please contact your tenant administrator.",
-                                                        tenant_uuid, provider_type
-                                                    )),
-                                                    metadata: None,
-                                                });
-                                            }
-                                        }
+                                        };
+                                        inner_auth_data
                                     } else {
                                         tracing::error!(
                                             "Tenant {} not found in database",
@@ -997,23 +1092,29 @@ impl UniversalToolExecutor {
         // Parse user ID
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
-        // Get real activity data using authenticated provider (no hardcoded fallbacks)
-        let activity_result =
-            match self.create_authenticated_provider(oauth_providers::STRAVA, user_uuid, None) {
-                Ok(provider) => {
-                    // Get all activities and find the specific one
-                    provider
-                        .get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None)
-                        .await
-                        .map_or(None, |activities| {
-                            activities.into_iter().find(|a| a.id == activity_id)
-                        })
-                }
-                Err(error_response) => {
-                    // Return error response for tenant configuration issues
-                    return Ok(error_response);
-                }
-            };
+        // Get real activity data using authenticated provider (now tenant-aware)
+        let activity_result = match self
+            .create_authenticated_provider(
+                oauth_providers::STRAVA,
+                user_uuid,
+                request.tenant_id.as_deref(),
+            )
+            .await
+        {
+            Ok(provider) => {
+                // Get all activities and find the specific one
+                provider
+                    .get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None)
+                    .await
+                    .map_or(None, |activities| {
+                        activities.into_iter().find(|a| a.id == activity_id)
+                    })
+            }
+            Err(error_response) => {
+                // Return error response for authentication issues
+                return Ok(error_response);
+            }
+        };
 
         match activity_result {
             Some(activity) => {
@@ -1937,7 +2038,14 @@ impl UniversalToolExecutor {
 
         // Get activities using authenticated provider (no hardcoded fallbacks)
         let mut activities = Vec::with_capacity(limits::ACTIVITY_CAPACITY_HINT); // Pre-allocate for typical activity count
-        match self.create_authenticated_provider(oauth_providers::STRAVA, user_uuid, None) {
+        match self
+            .create_authenticated_provider(
+                oauth_providers::STRAVA,
+                user_uuid,
+                request.tenant_id.as_deref(),
+            )
+            .await
+        {
             Ok(provider) => {
                 if let Ok(provider_activities) = provider
                     .get_activities(Some(MAX_ACTIVITY_LIMIT), None)
@@ -2049,7 +2157,14 @@ impl UniversalToolExecutor {
 
         // Get activities using authenticated provider (no hardcoded fallbacks)
         let mut activities = Vec::with_capacity(limits::ACTIVITY_CAPACITY_HINT); // Pre-allocate for typical activity count
-        match self.create_authenticated_provider(oauth_providers::STRAVA, user_uuid, None) {
+        match self
+            .create_authenticated_provider(
+                oauth_providers::STRAVA,
+                user_uuid,
+                request.tenant_id.as_deref(),
+            )
+            .await
+        {
             Ok(provider) => {
                 if let Ok(provider_activities) = provider
                     .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
@@ -2112,7 +2227,14 @@ impl UniversalToolExecutor {
 
         // Get recent activities
         let mut activities = Vec::with_capacity(limits::ACTIVITY_CAPACITY_HINT); // Pre-allocate for typical activity count
-        match self.create_authenticated_provider(oauth_providers::STRAVA, user_uuid, None) {
+        match self
+            .create_authenticated_provider(
+                oauth_providers::STRAVA,
+                user_uuid,
+                request.tenant_id.as_deref(),
+            )
+            .await
+        {
             Ok(provider) => {
                 if let Ok(provider_activities) = provider
                     .get_activities(Some(SMALL_ACTIVITY_LIMIT), None)
@@ -2249,7 +2371,14 @@ impl UniversalToolExecutor {
 
         // Get historical activities
         let mut activities = Vec::with_capacity(limits::ACTIVITY_CAPACITY_HINT); // Pre-allocate for typical activity count
-        match self.create_authenticated_provider(oauth_providers::STRAVA, user_uuid, None) {
+        match self
+            .create_authenticated_provider(
+                oauth_providers::STRAVA,
+                user_uuid,
+                request.tenant_id.as_deref(),
+            )
+            .await
+        {
             Ok(provider) => {
                 if let Ok(provider_activities) = provider
                     .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
@@ -2371,7 +2500,14 @@ impl UniversalToolExecutor {
 
         // Get recent activities
         let mut activities = Vec::with_capacity(limits::ACTIVITY_CAPACITY_HINT); // Pre-allocate for typical activity count
-        match self.create_authenticated_provider(oauth_providers::STRAVA, user_uuid, None) {
+        match self
+            .create_authenticated_provider(
+                oauth_providers::STRAVA,
+                user_uuid,
+                request.tenant_id.as_deref(),
+            )
+            .await
+        {
             Ok(provider) => {
                 if let Ok(provider_activities) = provider
                     .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
@@ -2474,7 +2610,14 @@ impl UniversalToolExecutor {
 
         // Get recent activities
         let mut activities = Vec::with_capacity(limits::ACTIVITY_CAPACITY_HINT); // Pre-allocate for typical activity count
-        match self.create_authenticated_provider(oauth_providers::STRAVA, user_uuid, None) {
+        match self
+            .create_authenticated_provider(
+                oauth_providers::STRAVA,
+                user_uuid,
+                request.tenant_id.as_deref(),
+            )
+            .await
+        {
             Ok(provider) => {
                 if let Ok(provider_activities) = provider
                     .get_activities(Some(SMALL_ACTIVITY_LIMIT), None)
@@ -2616,7 +2759,14 @@ impl UniversalToolExecutor {
 
         // Get historical activities
         let mut activities = Vec::with_capacity(limits::ACTIVITY_CAPACITY_HINT); // Pre-allocate for typical activity count
-        match self.create_authenticated_provider(oauth_providers::STRAVA, user_uuid, None) {
+        match self
+            .create_authenticated_provider(
+                oauth_providers::STRAVA,
+                user_uuid,
+                request.tenant_id.as_deref(),
+            )
+            .await
+        {
             Ok(provider) => {
                 if let Ok(provider_activities) = provider
                     .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)
@@ -2741,7 +2891,14 @@ impl UniversalToolExecutor {
 
         // Get recent activities (last 4 weeks)
         let mut activities = Vec::with_capacity(limits::ACTIVITY_CAPACITY_HINT); // Pre-allocate for typical activity count
-        match self.create_authenticated_provider(oauth_providers::STRAVA, user_uuid, None) {
+        match self
+            .create_authenticated_provider(
+                oauth_providers::STRAVA,
+                user_uuid,
+                request.tenant_id.as_deref(),
+            )
+            .await
+        {
             Ok(provider) => {
                 if let Ok(provider_activities) = provider
                     .get_activities(Some(GOAL_ANALYSIS_ACTIVITY_LIMIT), None)

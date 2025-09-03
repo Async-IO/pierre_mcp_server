@@ -104,6 +104,7 @@ impl DatabaseProvider for PostgresDatabase {
         self.create_a2a_tables().await?;
         self.create_admin_tables().await?;
         self.create_jwt_usage_table().await?;
+        self.create_oauth_notifications_table().await?;
         self.create_tenant_tables().await?; // Add tenant tables
         self.create_indexes().await?;
         Ok(())
@@ -4144,6 +4145,146 @@ impl DatabaseProvider for PostgresDatabase {
 
         Ok(())
     }
+
+    // ================================
+    // OAuth Notifications
+    // ================================
+
+    async fn store_oauth_notification(
+        &self,
+        user_id: Uuid,
+        provider: &str,
+        success: bool,
+        message: &str,
+        expires_at: Option<&str>,
+    ) -> Result<String> {
+        let notification_id = Uuid::new_v4().to_string();
+
+        sqlx::query(
+            r"
+            INSERT INTO oauth_notifications (id, user_id, provider, success, message, expires_at)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            ",
+        )
+        .bind(&notification_id)
+        .bind(user_id.to_string())
+        .bind(provider)
+        .bind(success)
+        .bind(message)
+        .bind(expires_at)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(notification_id)
+    }
+
+    async fn get_unread_oauth_notifications(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<crate::database::oauth_notifications::OAuthNotification>> {
+        let rows = sqlx::query(
+            r"
+            SELECT id, user_id, provider, success, message, expires_at, created_at, read_at
+            FROM oauth_notifications
+            WHERE user_id = $1 AND read_at IS NULL
+            ORDER BY created_at DESC
+            ",
+        )
+        .bind(user_id.to_string())
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut notifications = Vec::new();
+        for row in rows {
+            notifications.push(crate::database::oauth_notifications::OAuthNotification {
+                id: row.get("id"),
+                user_id: row.get("user_id"),
+                provider: row.get("provider"),
+                success: row.get("success"),
+                message: row.get("message"),
+                expires_at: row.get("expires_at"),
+                created_at: row.get("created_at"),
+                read_at: row.get("read_at"),
+            });
+        }
+
+        Ok(notifications)
+    }
+
+    async fn mark_oauth_notification_read(
+        &self,
+        notification_id: &str,
+        user_id: Uuid,
+    ) -> Result<bool> {
+        let result = sqlx::query(
+            r"
+            UPDATE oauth_notifications 
+            SET read_at = CURRENT_TIMESTAMP
+            WHERE id = $1 AND user_id = $2 AND read_at IS NULL
+            ",
+        )
+        .bind(notification_id)
+        .bind(user_id.to_string())
+        .execute(&self.pool)
+        .await?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
+    async fn mark_all_oauth_notifications_read(&self, user_id: Uuid) -> Result<u64> {
+        let result = sqlx::query(
+            r"
+            UPDATE oauth_notifications 
+            SET read_at = CURRENT_TIMESTAMP
+            WHERE user_id = $1 AND read_at IS NULL
+            ",
+        )
+        .bind(user_id.to_string())
+        .execute(&self.pool)
+        .await?;
+
+        Ok(result.rows_affected())
+    }
+
+    async fn get_all_oauth_notifications(
+        &self,
+        user_id: Uuid,
+        limit: Option<i64>,
+    ) -> Result<Vec<crate::database::oauth_notifications::OAuthNotification>> {
+        let mut query_str = String::from(
+            r"
+            SELECT id, user_id, provider, success, message, expires_at, created_at, read_at
+            FROM oauth_notifications
+            WHERE user_id = $1
+            ORDER BY created_at DESC
+            ",
+        );
+
+        if let Some(l) = limit {
+            write!(query_str, " LIMIT {l}").map_err(|e| anyhow!("Format error: {e}"))?;
+        }
+
+        let rows = sqlx::query(&query_str)
+            .bind(user_id.to_string())
+            .fetch_all(&self.pool)
+            .await?;
+
+        let mut notifications = Vec::new();
+        for row in rows {
+            notifications.push(crate::database::oauth_notifications::OAuthNotification {
+                id: row.get("id"),
+                user_id: row.get("user_id"),
+                provider: row.get("provider"),
+                success: row.get("success"),
+                message: row.get("message"),
+                expires_at: row.get("expires_at"),
+                created_at: row.get("created_at"),
+                read_at: row.get("read_at"),
+            });
+        }
+
+        Ok(notifications)
+    }
 }
 
 impl PostgresDatabase {
@@ -4530,6 +4671,49 @@ impl PostgresDatabase {
         )
         .execute(&self.pool)
         .await?;
+        Ok(())
+    }
+
+    /// Create OAuth notifications table for MCP resource delivery
+    async fn create_oauth_notifications_table(&self) -> Result<()> {
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS oauth_notifications (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                success BOOLEAN NOT NULL DEFAULT true,
+                message TEXT NOT NULL,
+                expires_at TEXT,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                read_at TIMESTAMPTZ,
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create indices for efficient queries
+        sqlx::query(
+            r"
+            CREATE INDEX IF NOT EXISTS idx_oauth_notifications_user_id 
+            ON oauth_notifications (user_id)
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r"
+            CREATE INDEX IF NOT EXISTS idx_oauth_notifications_user_unread 
+            ON oauth_notifications (user_id, read_at) 
+            WHERE read_at IS NULL
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
         Ok(())
     }
 

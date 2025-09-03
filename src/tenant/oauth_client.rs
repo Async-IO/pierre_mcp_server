@@ -290,11 +290,6 @@ impl TenantOAuthClient {
                 "https://api.fitbit.com/oauth2/token".to_string(),
                 true,
             ),
-            "garmin" => (
-                "https://connect.garmin.com/oauth/authorize".to_string(),
-                "https://connect.garmin.com/oauth/token".to_string(),
-                false,
-            ),
             _ => {
                 warn!("Unknown provider {}, using generic OAuth URLs", provider);
                 return Err(anyhow!("Unsupported OAuth provider: {}", provider));

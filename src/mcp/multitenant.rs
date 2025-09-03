@@ -1814,7 +1814,8 @@ impl MultiTenantMcpServer {
             "ping" => ProtocolHandler::handle_ping(request),
             "tools/list" => ProtocolHandler::handle_tools_list(request),
             "prompts/list" => ProtocolHandler::handle_prompts_list(request),
-            "resources/list" => ProtocolHandler::handle_resources_list(request),
+            "resources/list" => ProtocolHandler::handle_resources_list(request, resources),
+            "resources/read" => ProtocolHandler::handle_resources_read(request, resources).await,
             "authenticate" => {
                 ProtocolHandler::handle_authenticate(request, &resources.auth_manager)
             }

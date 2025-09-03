@@ -34,6 +34,8 @@ path = "src/bin/serve_docs.rs"
 
 
 
+
+
 [features]
 default = ["sqlite"]
 sqlite = []
