@@ -76,11 +76,12 @@ impl TenantFitnessProvider for TenantStravaProvider {
         &mut self,
         tenant_context: &TenantContext,
         provider: &str,
+        database: &dyn DatabaseProvider,
     ) -> Result<()> {
         // Get tenant credentials
         let credentials = self
             .oauth_client
-            .get_tenant_credentials(tenant_context.tenant_id, provider)
+            .get_tenant_credentials(tenant_context.tenant_id, provider, database)
             .await?
             .ok_or_else(|| {
                 anyhow!(

@@ -1,6 +1,7 @@
 // ABOUTME: Per-tenant OAuth credential management for isolated multi-tenant operation
 // ABOUTME: Handles secure storage, encryption, and retrieval of tenant-specific OAuth applications
 
+use crate::database_plugins::{factory::Database, DatabaseProvider};
 use anyhow::Result;
 use chrono::Utc;
 use std::collections::HashMap;
@@ -65,18 +66,22 @@ impl TenantOAuthManager {
     /// # Errors
     ///
     /// Returns an error if no credentials are found for the tenant/provider combination
-    pub fn get_credentials(
+    pub async fn get_credentials(
         &self,
         tenant_id: Uuid,
         provider: &str,
+        database: &Database,
     ) -> Result<TenantOAuthCredentials> {
-        // Priority 1: Try server-level environment variables
-        if let Some(credentials) = Self::try_server_level_credentials(tenant_id, provider) {
+        // Priority 1: Try tenant-specific credentials first (in-memory cache, then database)
+        if let Some(credentials) = self
+            .try_tenant_specific_credentials(tenant_id, provider, database)
+            .await
+        {
             return Ok(credentials);
         }
 
-        // Priority 2: Fallback to tenant-specific credentials
-        if let Some(credentials) = self.try_tenant_specific_credentials(tenant_id, provider) {
+        // Priority 2: Fallback to server-level environment variables
+        if let Some(credentials) = Self::try_server_level_credentials(tenant_id, provider) {
             return Ok(credentials);
         }
 
@@ -239,24 +244,45 @@ impl TenantOAuthManager {
         None
     }
 
-    /// Try to load tenant-specific OAuth credentials from memory cache
-    fn try_tenant_specific_credentials(
+    /// Try to load tenant-specific OAuth credentials from memory cache and database
+    async fn try_tenant_specific_credentials(
         &self,
         tenant_id: Uuid,
         provider: &str,
+        database: &Database,
     ) -> Option<TenantOAuthCredentials> {
+        // First check in-memory cache
         if let Some(credentials) = self
             .credentials
             .get(&(tenant_id, provider.to_string()))
             .cloned()
         {
             tracing::info!(
-                "Using tenant-specific {} OAuth credentials for tenant {}",
+                "Using cached tenant-specific {} OAuth credentials for tenant {}",
                 provider,
                 tenant_id
             );
             return Some(credentials);
         }
+
+        // Then check database
+        if let Ok(Some(db_credentials)) = database
+            .get_tenant_oauth_credentials(tenant_id, provider)
+            .await
+        {
+            tracing::info!(
+                "Using database-stored tenant-specific {} OAuth credentials for tenant {}",
+                provider,
+                tenant_id
+            );
+            return Some(db_credentials);
+        }
+
+        tracing::debug!(
+            "No tenant-specific {} OAuth credentials found for tenant {}",
+            provider,
+            tenant_id
+        );
         None
     }
 }

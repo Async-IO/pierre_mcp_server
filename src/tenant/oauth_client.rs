@@ -3,6 +3,7 @@
 
 use super::oauth_manager::{CredentialConfig, TenantOAuthCredentials, TenantOAuthManager};
 use super::TenantContext;
+use crate::database_plugins::factory::Database;
 use crate::oauth2_client::{OAuth2Client, OAuth2Config, OAuth2Token, PkceParams};
 use anyhow::{anyhow, Result};
 use std::sync::Arc;
@@ -51,6 +52,7 @@ impl TenantOAuthClient {
         &self,
         tenant_context: &TenantContext,
         provider: &str,
+        database: &Database,
     ) -> Result<OAuth2Client> {
         // Check rate limit first
         let manager = self.oauth_manager.lock().await;
@@ -68,7 +70,9 @@ impl TenantOAuthClient {
         }
 
         // Get tenant credentials
-        let credentials = manager.get_credentials(tenant_context.tenant_id, provider)?;
+        let credentials = manager
+            .get_credentials(tenant_context.tenant_id, provider, database)
+            .await?;
         drop(manager);
 
         // Build OAuth2Config from tenant credentials
@@ -92,8 +96,11 @@ impl TenantOAuthClient {
         tenant_context: &TenantContext,
         provider: &str,
         state: &str,
+        database: &Database,
     ) -> Result<String> {
-        let oauth_client = self.get_oauth_client(tenant_context, provider).await?;
+        let oauth_client = self
+            .get_oauth_client(tenant_context, provider, database)
+            .await?;
         oauth_client.get_authorization_url(state)
     }
 
@@ -108,8 +115,11 @@ impl TenantOAuthClient {
         provider: &str,
         state: &str,
         pkce: &PkceParams,
+        database: &Database,
     ) -> Result<String> {
-        let oauth_client = self.get_oauth_client(tenant_context, provider).await?;
+        let oauth_client = self
+            .get_oauth_client(tenant_context, provider, database)
+            .await?;
         oauth_client.get_authorization_url_with_pkce(state, pkce)
     }
 
@@ -123,8 +133,11 @@ impl TenantOAuthClient {
         tenant_context: &TenantContext,
         provider: &str,
         code: &str,
+        database: &Database,
     ) -> Result<OAuth2Token> {
-        let oauth_client = self.get_oauth_client(tenant_context, provider).await?;
+        let oauth_client = self
+            .get_oauth_client(tenant_context, provider, database)
+            .await?;
         let token = oauth_client.exchange_code(code).await?;
 
         // Increment usage counter
@@ -154,8 +167,11 @@ impl TenantOAuthClient {
         provider: &str,
         code: &str,
         pkce: &PkceParams,
+        database: &Database,
     ) -> Result<OAuth2Token> {
-        let oauth_client = self.get_oauth_client(tenant_context, provider).await?;
+        let oauth_client = self
+            .get_oauth_client(tenant_context, provider, database)
+            .await?;
         let token = oauth_client.exchange_code_with_pkce(code, pkce).await?;
 
         // Increment usage counter
@@ -184,8 +200,11 @@ impl TenantOAuthClient {
         tenant_context: &TenantContext,
         provider: &str,
         refresh_token: &str,
+        database: &Database,
     ) -> Result<OAuth2Token> {
-        let oauth_client = self.get_oauth_client(tenant_context, provider).await?;
+        let oauth_client = self
+            .get_oauth_client(tenant_context, provider, database)
+            .await?;
         let token = oauth_client.refresh_token(refresh_token).await?;
 
         // Increment usage counter
@@ -223,9 +242,13 @@ impl TenantOAuthClient {
         &self,
         tenant_id: Uuid,
         provider: &str,
+        database: &Database,
     ) -> Result<Option<TenantOAuthCredentials>> {
         let manager = self.oauth_manager.lock().await;
-        manager.get_credentials(tenant_id, provider).map(Some)
+        manager
+            .get_credentials(tenant_id, provider, database)
+            .await
+            .map(Some)
     }
 
     /// Store OAuth credentials for a tenant

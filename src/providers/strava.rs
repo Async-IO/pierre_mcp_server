@@ -111,7 +111,7 @@ impl StravaProvider {
             .append_pair("client_id", &self.config.client_id)
             .append_pair("redirect_uri", redirect_uri)
             .append_pair("response_type", "code")
-            .append_pair("scope", "crate::constants::oauth::STRAVA_DEFAULT_SCOPES")
+            .append_pair("scope", crate::constants::oauth::STRAVA_DEFAULT_SCOPES)
             .append_pair("state", state);
 
         Ok(url.into())
@@ -141,7 +141,7 @@ impl StravaProvider {
             .append_pair("client_id", &self.config.client_id)
             .append_pair("redirect_uri", redirect_uri)
             .append_pair("response_type", "code")
-            .append_pair("scope", "crate::constants::oauth::STRAVA_DEFAULT_SCOPES")
+            .append_pair("scope", crate::constants::oauth::STRAVA_DEFAULT_SCOPES)
             .append_pair("state", state)
             .append_pair("code_challenge", &pkce.code_challenge)
             .append_pair("code_challenge_method", &pkce.code_challenge_method);

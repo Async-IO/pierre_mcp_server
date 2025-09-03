@@ -439,7 +439,7 @@ impl MultiTenantMcpServer {
                         let state = format!("{user_id}:{new_uuid}");
 
                         match tenant_oauth_client
-                            .get_authorization_url(&tenant_context, &provider, &state)
+                            .get_authorization_url(&tenant_context, &provider, &state, database.as_ref())
                             .await
                         {
                             Ok(auth_url) => {
@@ -1905,8 +1905,18 @@ impl MultiTenantMcpServer {
         auth_result: &AuthResult,
         database: &Arc<Database>,
     ) -> Result<Option<TenantContext>, String> {
+        eprintln!(
+            "DEBUG: Extracting tenant context for user {}",
+            auth_result.user_id
+        );
         let user = match database.get_user(auth_result.user_id).await {
-            Ok(Some(user)) => user,
+            Ok(Some(user)) => {
+                eprintln!(
+                    "DEBUG: Found user {} with tenant_id: {:?}",
+                    user.email, user.tenant_id
+                );
+                user
+            }
             Ok(None) => {
                 tracing::warn!("User not found: {}", auth_result.user_id);
                 return Err("User not found".to_string());
@@ -1918,37 +1928,50 @@ impl MultiTenantMcpServer {
         };
 
         let Some(user_tenant_id) = user.tenant_id else {
-            tracing::debug!(
-                "User {} has no tenant_id, will use default tenant",
-                auth_result.user_id
+            eprintln!(
+                "DEBUG: User {user_id} has no tenant_id",
+                user_id = auth_result.user_id
             );
             return Ok(None);
         };
 
+        eprintln!("DEBUG: Attempting to parse tenant_id as UUID: {user_tenant_id}");
         // Try parsing as UUID first
         if let Ok(tenant_uuid) = uuid::Uuid::parse_str(&user_tenant_id) {
-            if let Ok(tenant) = database.get_tenant_by_id(tenant_uuid).await {
-                tracing::debug!("Using user's tenant: {}", tenant.name);
-                let role = match Self::get_user_role_for_tenant(
-                    database,
-                    auth_result.user_id,
-                    tenant_uuid,
-                )
-                .await
-                {
-                    Ok(role) => role,
-                    Err(e) => {
-                        tracing::error!("Access denied for user tenant {}: {}", tenant_uuid, e);
-                        return Err(e);
-                    }
-                };
-                return Ok(Some(TenantContext::new(
-                    tenant_uuid,
-                    tenant.name,
-                    auth_result.user_id,
-                    role,
-                )));
+            eprintln!("DEBUG: Successfully parsed UUID: {tenant_uuid}");
+            match database.get_tenant_by_id(tenant_uuid).await {
+                Ok(tenant) => {
+                    eprintln!("DEBUG: Found tenant by ID: {name}", name = tenant.name);
+                    tracing::debug!("Using user's tenant: {}", tenant.name);
+                    eprintln!("DEBUG: Getting user role for tenant");
+                    let role = match Self::get_user_role_for_tenant(
+                        database,
+                        auth_result.user_id,
+                        tenant_uuid,
+                    )
+                    .await
+                    {
+                        Ok(role) => {
+                            eprintln!("DEBUG: Got user role: {role:?}");
+                            role
+                        }
+                        Err(e) => {
+                            eprintln!("DEBUG: Failed to get user role: {e}");
+                            tracing::error!("Access denied for user tenant {}: {}", tenant_uuid, e);
+                            return Err(e);
+                        }
+                    };
+                    let context =
+                        TenantContext::new(tenant_uuid, tenant.name, auth_result.user_id, role);
+                    tracing::debug!("Created tenant context: {:?}", context);
+                    return Ok(Some(context));
+                }
+                Err(e) => {
+                    eprintln!("DEBUG: Failed to get tenant by ID {tenant_uuid}: {e}");
+                }
             }
+        } else {
+            eprintln!("DEBUG: Failed to parse tenant_id as UUID: {user_tenant_id}");
         }
 
         // Try as slug if UUID parsing failed
@@ -1993,20 +2016,36 @@ impl MultiTenantMcpServer {
         auth_result: &AuthResult,
         database: &Arc<Database>,
     ) -> Result<Option<TenantContext>, String> {
+        eprintln!(
+            "DEBUG: Starting tenant context extraction for user {}",
+            auth_result.user_id
+        );
+
         // 1. Try explicit tenant from header
         if let Some(context) =
             Self::extract_tenant_from_header(request, auth_result, database).await?
         {
+            eprintln!(
+                "DEBUG: Found tenant from header: {name}",
+                name = context.tenant_name
+            );
             return Ok(Some(context));
         }
 
         // 2. Try user's tenant association
         if let Some(context) = Self::extract_tenant_from_user(auth_result, database).await? {
+            eprintln!(
+                "DEBUG: Found tenant from user association: {}",
+                context.tenant_name
+            );
             return Ok(Some(context));
         }
 
         // 3. No tenant found - return None for proper error handling
-        tracing::warn!("No tenant context found for user {}", auth_result.user_id);
+        eprintln!(
+            "DEBUG: No tenant context found for user {}",
+            auth_result.user_id
+        );
         Ok(None)
     }
 

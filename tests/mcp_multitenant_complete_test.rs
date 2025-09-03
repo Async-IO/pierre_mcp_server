@@ -126,7 +126,10 @@ struct MultiTenantMcpClient {
 impl MultiTenantMcpClient {
     fn new(port: u16) -> Self {
         Self {
-            http_client: Client::new(),
+            http_client: Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
+                .build()
+                .unwrap(),
             base_url: format!("http://127.0.0.1:{port}"),
             jwt_token: None,
         }
@@ -143,35 +146,36 @@ impl MultiTenantMcpClient {
         // Store tenant OAuth credentials for testing
         let tenant_uuid = Uuid::new_v4();
 
-        // Create a test admin user for approval first (needed for tenant owner)
-        let admin_id = uuid::Uuid::new_v4();
-        let test_admin = pierre_mcp_server::models::User {
-            id: admin_id,
-            email: "test-admin@example.com".to_string(),
-            display_name: Some("Test Admin".to_string()),
-            password_hash: "admin_hash".to_string(),
-            tier: pierre_mcp_server::models::UserTier::Enterprise,
-            tenant_id: Some(tenant_uuid.to_string()),
+        // Create the actual test user first (will be tenant owner)
+        let user_id = uuid::Uuid::new_v4();
+        let password_hash = bcrypt::hash(password, bcrypt::DEFAULT_COST)?;
+        let test_user = pierre_mcp_server::models::User {
+            id: user_id,
+            email: email.to_string(),
+            display_name: Some(display_name.to_string()),
+            password_hash,
+            tier: pierre_mcp_server::models::UserTier::Starter,
+            tenant_id: Some(tenant_uuid.to_string()), // Associate with the tenant that has OAuth credentials
             strava_token: None,
             fitbit_token: None,
             is_active: true,
-            user_status: pierre_mcp_server::models::UserStatus::Active,
-            is_admin: true,
-            approved_by: None,
+            user_status: pierre_mcp_server::models::UserStatus::Active, // Already active
+            is_admin: false,
+            approved_by: Some(user_id), // Self-approved for test
             approved_at: Some(chrono::Utc::now()),
             created_at: chrono::Utc::now(),
             last_active: chrono::Utc::now(),
         };
-        database.create_user(&test_admin).await?;
+        database.create_user(&test_user).await?;
 
-        // Create a test tenant for OAuth credentials
+        // Create a test tenant for OAuth credentials with test user as owner
         let test_tenant = pierre_mcp_server::models::Tenant {
             id: tenant_uuid,
             name: "Test Tenant".to_string(),
             slug: "test-tenant".to_string(),
             domain: None,
             plan: "starter".to_string(),
-            owner_user_id: admin_id,
+            owner_user_id: user_id, // Test user is the owner
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
         };
@@ -203,28 +207,7 @@ impl MultiTenantMcpClient {
             .store_tenant_oauth_credentials(&fitbit_credentials)
             .await?;
 
-        // Now create the actual test user directly with the correct tenant_id
-        // instead of using the regular registration flow
-        let user_id = uuid::Uuid::new_v4();
-        let password_hash = bcrypt::hash(password, bcrypt::DEFAULT_COST)?;
-        let test_user = pierre_mcp_server::models::User {
-            id: user_id,
-            email: email.to_string(),
-            display_name: Some(display_name.to_string()),
-            password_hash,
-            tier: pierre_mcp_server::models::UserTier::Starter,
-            tenant_id: Some(tenant_uuid.to_string()), // Associate with the tenant that has OAuth credentials
-            strava_token: None,
-            fitbit_token: None,
-            is_active: true,
-            user_status: pierre_mcp_server::models::UserStatus::Active, // Already active
-            is_admin: false,
-            approved_by: Some(admin_id),
-            approved_at: Some(chrono::Utc::now()),
-            created_at: chrono::Utc::now(),
-            last_active: chrono::Utc::now(),
-        };
-        database.create_user(&test_user).await?;
+        // User and tenant are already created above
 
         Ok(user_id.to_string())
     }
@@ -254,16 +237,19 @@ impl MultiTenantMcpClient {
 
     /// Get Strava OAuth URL
     async fn get_strava_oauth_url(&self, user_id: &str) -> Result<String> {
-        let response = self
-            .http_client
-            .get(format!(
-                "{}/api/oauth/auth/strava/{}",
-                self.base_url, user_id
-            ))
-            .send()
-            .await?;
+        let url = format!("{}/api/oauth/auth/strava/{user_id}", self.base_url);
+        let response = self.http_client.get(url).send().await?;
 
-        if response.status().is_success() {
+        if response.status() == 302 {
+            // Extract URL from Location header for redirect response
+            if let Some(location) = response.headers().get("location") {
+                let auth_url = location.to_str()?.to_string();
+                Ok(auth_url)
+            } else {
+                Err(anyhow::anyhow!("OAuth redirect missing Location header"))
+            }
+        } else if response.status().is_success() {
+            // Handle JSON response (if server returns JSON instead of redirect)
             let data: Value = response.json().await?;
             Ok(data["authorization_url"].as_str().unwrap().to_string())
         } else {
@@ -276,12 +262,7 @@ impl MultiTenantMcpClient {
 
     /// Send MCP request via HTTP transport (to MCP server on base port)
     async fn send_mcp_request(&self, request: Value) -> Result<Value> {
-        let mut request_with_auth = request;
-
-        // Add JWT authentication
-        if let Some(token) = &self.jwt_token {
-            request_with_auth["auth"] = json!(format!("Bearer {}", token));
-        }
+        let request_with_auth = request;
 
         // MCP server runs on the original server port (HTTP server is on port + 1)
         let mcp_url = if self.base_url.ends_with("8081") {
@@ -294,14 +275,20 @@ impl MultiTenantMcpClient {
             format!("http://127.0.0.1:{mcp_port}/mcp")
         };
 
+        let mut request_builder = self
+            .http_client
+            .post(mcp_url)
+            .header("Content-Type", "application/json")
+            .header("Origin", "http://localhost");
+
+        // Add JWT authentication in Authorization header
+        if let Some(token) = &self.jwt_token {
+            request_builder = request_builder.header("Authorization", format!("Bearer {token}"));
+        }
+
         let response = timeout(
             Duration::from_secs(10),
-            self.http_client
-                .post(mcp_url)
-                .header("Content-Type", "application/json")
-                .header("Origin", "http://localhost")
-                .json(&request_with_auth)
-                .send(),
+            request_builder.json(&request_with_auth).send(),
         )
         .await??;
 
@@ -464,11 +451,11 @@ async fn test_complete_multitenant_workflow() -> Result<()> {
     // Test 3: OAuth URL Generation
     let oauth_url = client.get_strava_oauth_url(&user_id).await?;
     assert!(oauth_url.contains("strava.com/oauth/authorize"));
-    assert!(oauth_url.contains("client_id="));
+    assert!(oauth_url.contains("client_id=test_client_id")); // Verify tenant-specific credentials are used
     assert!(oauth_url.contains("redirect_uri="));
     assert!(oauth_url.contains("response_type=code"));
     assert!(oauth_url.contains("scope="));
-    assert!(oauth_url.contains(&format!("state={user_id}")));
+    assert!(oauth_url.contains(&format!("state={user_id}%3A"))); // URL encoded ":"
 
     // Test 4: MCP Protocol - Initialize
     let init_response = client.initialize_mcp().await?;
@@ -502,8 +489,22 @@ async fn test_complete_multitenant_workflow() -> Result<()> {
     assert_eq!(connection_response["jsonrpc"], "2.0");
     assert_eq!(connection_response["id"], 3);
 
+    // Check if there's an error in the response
+    if connection_response.get("error").is_some() {
+        eprintln!(
+            "DEBUG: MCP error response: {:?}",
+            connection_response["error"]
+        );
+    }
+
     // Should return providers status (not connected yet)
     let result = &connection_response["result"];
+
+    // Debug: print the actual result to see what we're getting
+    if !result.is_object() {
+        eprintln!("DEBUG: Expected result to be object, got: {result:?}");
+        eprintln!("DEBUG: Full response: {connection_response:?}");
+    }
 
     // The result has structuredContent with providers array and tenant_info
     assert!(result.is_object());
