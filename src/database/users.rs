@@ -72,7 +72,7 @@ impl Database {
             CREATE TABLE IF NOT EXISTS user_oauth_app_credentials (
                 id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
                 user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                provider TEXT NOT NULL CHECK (provider IN ('strava', 'fitbit', 'garmin', 'runkeeper')),
+                provider TEXT NOT NULL CHECK (provider IN ('strava', 'fitbit')),
                 client_id TEXT NOT NULL,
                 client_secret TEXT NOT NULL,
                 redirect_uri TEXT NOT NULL,

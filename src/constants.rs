@@ -281,7 +281,7 @@ pub mod limits {
 
     /// Authentication
     pub const MIN_PASSWORD_LENGTH: usize = 8;
-    pub const JWT_EXPIRY_HOURS: i64 = 24;
+    pub const JWT_EXPIRY_HOURS: i64 = 168; // 1 week
     pub const AUTH_THREAD_SLEEP_MS: u64 = 1;
 
     /// Rate limiting defaults
@@ -473,6 +473,9 @@ pub mod tools {
     /// Connection management
     pub const GET_CONNECTION_STATUS: &str = "get_connection_status";
     pub const DISCONNECT_PROVIDER: &str = "disconnect_provider";
+
+    /// Notification management
+    pub const MARK_NOTIFICATIONS_READ: &str = "mark_notifications_read";
 
     /// Analytics tools
     pub const ANALYZE_ACTIVITY: &str = "analyze_activity";

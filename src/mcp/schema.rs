@@ -16,7 +16,7 @@ use crate::constants::{
     json_fields::{ACTIVITY_ID, LIMIT, OFFSET, PROVIDER},
     tools::{
         ANALYZE_ACTIVITY, DISCONNECT_PROVIDER, GET_ACTIVITIES, GET_ACTIVITY_INTELLIGENCE,
-        GET_ATHLETE, GET_CONNECTION_STATUS, GET_STATS,
+        GET_ATHLETE, GET_CONNECTION_STATUS, GET_STATS, MARK_NOTIFICATIONS_READ,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -245,6 +245,7 @@ fn create_fitness_tools() -> Vec<ToolSchema> {
         create_get_activity_intelligence_tool(),
         create_get_connection_status_tool(),
         create_disconnect_provider_tool(),
+        create_mark_notifications_read_tool(),
         // Advanced Analytics Tools
         create_analyze_activity_tool(),
         create_calculate_metrics_tool(),
@@ -476,6 +477,29 @@ fn create_disconnect_provider_tool() -> ToolSchema {
             schema_type: "object".into(),
             properties: Some(properties),
             required: Some(vec![PROVIDER.to_string()]),
+        },
+    }
+}
+
+/// Create mark notifications read tool schema
+fn create_mark_notifications_read_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "notification_id".to_string(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("ID of specific notification to mark as read (optional - if not provided, marks all as read)".into()),
+        },
+    );
+
+    ToolSchema {
+        name: MARK_NOTIFICATIONS_READ.to_string(),
+        description: "Mark OAuth notifications as read. Provide notification_id to mark specific notification, or omit to mark all unread notifications as read.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec![]), // No required fields - can mark all or specific
         },
     }
 }

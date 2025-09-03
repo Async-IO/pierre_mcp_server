@@ -2194,6 +2194,52 @@ impl DatabaseProvider for SqliteDatabase {
 
         Ok(())
     }
+
+    // ================================
+    // OAuth Notifications
+    // ================================
+
+    async fn store_oauth_notification(
+        &self,
+        user_id: Uuid,
+        provider: &str,
+        success: bool,
+        message: &str,
+        expires_at: Option<&str>,
+    ) -> Result<String> {
+        self.inner
+            .store_oauth_notification(user_id, provider, success, message, expires_at)
+            .await
+    }
+
+    async fn get_unread_oauth_notifications(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<crate::database::oauth_notifications::OAuthNotification>> {
+        self.inner.get_unread_oauth_notifications(user_id).await
+    }
+
+    async fn mark_oauth_notification_read(
+        &self,
+        notification_id: &str,
+        user_id: Uuid,
+    ) -> Result<bool> {
+        self.inner
+            .mark_oauth_notification_read(notification_id, user_id)
+            .await
+    }
+
+    async fn mark_all_oauth_notifications_read(&self, user_id: Uuid) -> Result<u64> {
+        self.inner.mark_all_oauth_notifications_read(user_id).await
+    }
+
+    async fn get_all_oauth_notifications(
+        &self,
+        user_id: Uuid,
+        limit: Option<i64>,
+    ) -> Result<Vec<crate::database::oauth_notifications::OAuthNotification>> {
+        self.inner.get_all_oauth_notifications(user_id, limit).await
+    }
 }
 
 impl SqliteDatabase {

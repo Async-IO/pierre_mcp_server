@@ -11,7 +11,7 @@ use crate::constants::{
     tools::{
         ANALYZE_GOAL_FEASIBILITY, ANALYZE_PERFORMANCE_TRENDS, ANALYZE_TRAINING_LOAD,
         CALCULATE_FITNESS_SCORE, DETECT_PATTERNS, DISCONNECT_PROVIDER, GENERATE_RECOMMENDATIONS,
-        GET_CONNECTION_STATUS, SET_GOAL, SUGGEST_GOALS, TRACK_PROGRESS,
+        GET_CONNECTION_STATUS, MARK_NOTIFICATIONS_READ, SET_GOAL, SUGGEST_GOALS, TRACK_PROGRESS,
     },
 };
 use crate::database_plugins::DatabaseProvider;
@@ -225,6 +225,11 @@ impl ToolHandlers {
                 let provider_name = args[PROVIDER].as_str().unwrap_or("");
                 MultiTenantMcpServer::route_disconnect_tool(provider_name, user_id, request_id, ctx)
             }
+            MARK_NOTIFICATIONS_READ => {
+                let notification_id = args.get("notification_id").and_then(|v| v.as_str());
+                Self::handle_mark_notifications_read(notification_id, user_id, request_id, ctx)
+                    .await
+            }
             SET_GOAL
             | TRACK_PROGRESS
             | ANALYZE_GOAL_FEASIBILITY
@@ -253,6 +258,98 @@ impl ToolHandlers {
             _ => {
                 MultiTenantMcpServer::route_provider_tool(tool_name, args, request_id, user_id, ctx)
                     .await
+            }
+        }
+    }
+
+    /// Handle mark notifications read tool
+    async fn handle_mark_notifications_read(
+        notification_id: Option<&str>,
+        user_id: Uuid,
+        request_id: Value,
+        ctx: &ToolRoutingContext<'_>,
+    ) -> McpResponse {
+        match notification_id {
+            Some(id) => {
+                // Mark specific notification as read
+                match ctx
+                    .resources
+                    .database
+                    .mark_oauth_notification_read(id, user_id)
+                    .await
+                {
+                    Ok(marked) => {
+                        if marked {
+                            McpResponse {
+                                jsonrpc: JSONRPC_VERSION.to_string(),
+                                result: Some(serde_json::json!({
+                                    "success": true,
+                                    "message": "Notification marked as read",
+                                    "notification_id": id
+                                })),
+                                error: None,
+                                id: request_id,
+                            }
+                        } else {
+                            McpResponse {
+                                jsonrpc: JSONRPC_VERSION.to_string(),
+                                result: None,
+                                error: Some(McpError {
+                                    code: ERROR_INVALID_PARAMS,
+                                    message: "Notification not found or already read".to_string(),
+                                    data: None,
+                                }),
+                                id: request_id,
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to mark notification as read: {}", e);
+                        McpResponse {
+                            jsonrpc: JSONRPC_VERSION.to_string(),
+                            result: None,
+                            error: Some(McpError {
+                                code: -32603,
+                                message: "Internal error marking notification as read".to_string(),
+                                data: None,
+                            }),
+                            id: request_id,
+                        }
+                    }
+                }
+            }
+            None => {
+                // Mark all notifications as read
+                match ctx
+                    .resources
+                    .database
+                    .mark_all_oauth_notifications_read(user_id)
+                    .await
+                {
+                    Ok(count) => McpResponse {
+                        jsonrpc: JSONRPC_VERSION.to_string(),
+                        result: Some(serde_json::json!({
+                            "success": true,
+                            "message": format!("Marked {} notifications as read", count),
+                            "marked_count": count
+                        })),
+                        error: None,
+                        id: request_id,
+                    },
+                    Err(e) => {
+                        error!("Failed to mark all notifications as read: {}", e);
+                        McpResponse {
+                            jsonrpc: JSONRPC_VERSION.to_string(),
+                            result: None,
+                            error: Some(McpError {
+                                code: -32603,
+                                message: "Internal error marking notifications as read".to_string(),
+                                data: None,
+                            }),
+                            id: request_id,
+                        }
+                    }
+                }
             }
         }
     }

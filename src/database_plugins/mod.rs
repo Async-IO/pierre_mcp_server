@@ -641,4 +641,41 @@ pub trait DatabaseProvider: Send + Sync + Clone {
 
     /// Update system secret (for rotation)
     async fn update_system_secret(&self, secret_type: &str, new_value: &str) -> Result<()>;
+
+    // ================================
+    // OAuth Notifications
+    // ================================
+
+    /// Store OAuth completion notification for MCP resource delivery
+    async fn store_oauth_notification(
+        &self,
+        user_id: Uuid,
+        provider: &str,
+        success: bool,
+        message: &str,
+        expires_at: Option<&str>,
+    ) -> Result<String>;
+
+    /// Get unread OAuth notifications for a user
+    async fn get_unread_oauth_notifications(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<crate::database::oauth_notifications::OAuthNotification>>;
+
+    /// Mark OAuth notification as read
+    async fn mark_oauth_notification_read(
+        &self,
+        notification_id: &str,
+        user_id: Uuid,
+    ) -> Result<bool>;
+
+    /// Mark all OAuth notifications as read for a user
+    async fn mark_all_oauth_notifications_read(&self, user_id: Uuid) -> Result<u64>;
+
+    /// Get all OAuth notifications for a user (read and unread)
+    async fn get_all_oauth_notifications(
+        &self,
+        user_id: Uuid,
+        limit: Option<i64>,
+    ) -> Result<Vec<crate::database::oauth_notifications::OAuthNotification>>;
 }

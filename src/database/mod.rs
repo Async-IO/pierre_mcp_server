@@ -4,6 +4,7 @@
 pub mod a2a;
 pub mod analytics;
 pub mod api_keys;
+pub mod oauth_notifications;
 pub mod user_oauth_tokens;
 pub mod users;
 
@@ -86,6 +87,9 @@ impl Database {
         // UserOAuthToken tables
         self.migrate_user_oauth_tokens().await?;
 
+        // OAuth notifications tables
+        self.migrate_oauth_notifications().await?;
+
         // Tenant management tables
         self.migrate_tenant_management().await?;
 
@@ -128,7 +132,7 @@ impl Database {
             CREATE TABLE IF NOT EXISTS tenant_oauth_credentials (
                 id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
                 tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-                provider TEXT NOT NULL CHECK (provider IN ('strava', 'fitbit', 'garmin', 'runkeeper')),
+                provider TEXT NOT NULL CHECK (provider IN ('strava', 'fitbit')),
                 client_id TEXT NOT NULL,
                 client_secret_encrypted TEXT NOT NULL,
                 redirect_uri TEXT NOT NULL,
