@@ -136,7 +136,7 @@ impl A2ARoutes {
         // Use existing client manager methods for real data
         let clients = self
             .client_manager
-            .list_clients()
+            .list_all_clients()
             .await
             .map_err(|e| A2AError::DatabaseError(e.to_string()))?;
 
@@ -214,7 +214,7 @@ impl A2ARoutes {
         &self,
         _auth_header: Option<&str>,
     ) -> Result<Vec<crate::a2a::auth::A2AClient>, A2AError> {
-        self.client_manager.list_clients().await
+        self.client_manager.list_all_clients().await
     }
 
     /// Get A2A client usage statistics

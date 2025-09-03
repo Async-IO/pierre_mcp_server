@@ -363,15 +363,6 @@ impl A2AClientManager {
             .map_err(crate::a2a::map_db_error("Failed to list all A2A clients"))
     }
 
-    /// Legacy method for backwards compatibility - lists all clients
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if database query fails
-    pub async fn list_clients(&self) -> Result<Vec<A2AClient>, crate::a2a::A2AError> {
-        self.list_all_clients().await
-    }
-
     /// Deactivate a client
     ///
     /// # Errors
