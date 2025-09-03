@@ -742,17 +742,7 @@ async fn test_oauth_provider_init_failure() {
     // Create executor with configuration that has missing OAuth credentials
     let (executor, database) = create_test_executor_without_oauth().await;
 
-    // Create tenant first
-    let tenant = pierre_mcp_server::models::Tenant::new(
-        "Test Tenant".to_string(),
-        "test-tenant".to_string(),
-        Some("test.example.com".to_string()),
-        "starter".to_string(),
-        Uuid::new_v4(), // Owner user ID - will be different but that's OK for this test
-    );
-    database.create_tenant(&tenant).await.unwrap();
-
-    // Create user
+    // Create user first so they can be tenant owner
     let user_id = Uuid::new_v4();
     let user = User {
         id: user_id,
@@ -772,6 +762,16 @@ async fn test_oauth_provider_init_failure() {
         tenant_id: Some("test-tenant".to_string()),
     };
     database.create_user(&user).await.unwrap();
+
+    // Create tenant with the user as owner
+    let tenant = pierre_mcp_server::models::Tenant::new(
+        "Test Tenant".to_string(),
+        "test-tenant".to_string(),
+        Some("test.example.com".to_string()),
+        "starter".to_string(),
+        user_id, // User is now the owner
+    );
+    database.create_tenant(&tenant).await.unwrap();
 
     // Create request
     let request = UniversalRequest {

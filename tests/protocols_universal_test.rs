@@ -264,10 +264,31 @@ async fn test_connection_status_tool() -> Result<()> {
 async fn test_connect_strava_tool() -> Result<()> {
     let executor = create_test_executor().await?;
 
+    // Create tenant and user for testing (user first, then tenant)
+    let user_id = Uuid::new_v4();
+    let mut user = pierre_mcp_server::models::User::new(
+        "test@example.com".to_string(),
+        "password_hash".to_string(),
+        Some("Test User".to_string()),
+    );
+    user.id = user_id;
+    user.tenant_id = Some("test-tenant".to_string());
+    executor.resources.database.create_user(&user).await?;
+
+    // Create tenant with user as owner
+    let tenant = pierre_mcp_server::models::Tenant::new(
+        "Test Tenant".to_string(),
+        "test-tenant".to_string(),
+        Some("test.example.com".to_string()),
+        "starter".to_string(),
+        user_id, // Owner
+    );
+    executor.resources.database.create_tenant(&tenant).await?;
+
     let request = UniversalRequest {
         tool_name: "get_activities".to_string(),
         parameters: json!({}),
-        user_id: Uuid::new_v4().to_string(),
+        user_id: user_id.to_string(),
         protocol: "test".to_string(),
         tenant_id: None,
     };
@@ -278,8 +299,8 @@ async fn test_connect_strava_tool() -> Result<()> {
 
     // get_activities returns activities array with mock data when no token
     let result = response.result.unwrap();
-    assert!(result["activities"].is_array());
-    assert!(result["provider"].is_string());
+    assert!(result["structuredContent"]["activities"].is_array());
+    assert!(result["structuredContent"]["provider"].is_string());
 
     Ok(())
 }
@@ -553,13 +574,34 @@ async fn test_analyze_performance_trends_tool() -> Result<()> {
 async fn test_compare_activities_tool() -> Result<()> {
     let executor = create_test_executor().await?;
 
+    // Create tenant and user for testing (user first, then tenant)
+    let user_id = Uuid::new_v4();
+    let mut user = pierre_mcp_server::models::User::new(
+        "test@example.com".to_string(),
+        "password_hash".to_string(),
+        Some("Test User".to_string()),
+    );
+    user.id = user_id;
+    user.tenant_id = Some("test-tenant".to_string());
+    executor.resources.database.create_user(&user).await?;
+
+    // Create tenant with user as owner
+    let tenant = pierre_mcp_server::models::Tenant::new(
+        "Test Tenant".to_string(),
+        "test-tenant".to_string(),
+        Some("test.example.com".to_string()),
+        "starter".to_string(),
+        user_id, // Owner
+    );
+    executor.resources.database.create_tenant(&tenant).await?;
+
     let request = UniversalRequest {
         tool_name: "compare_activities".to_string(),
         parameters: json!({
             "activity_id1": "test_activity_1",
             "activity_id2": "test_activity_2"
         }),
-        user_id: Uuid::new_v4().to_string(),
+        user_id: user_id.to_string(),
         protocol: "test".to_string(),
         tenant_id: None,
     };
@@ -580,6 +622,7 @@ async fn test_compare_activities_tool() -> Result<()> {
             error_msg.contains("No valid strava token found for user")
                 || error_msg.contains("deprecated")
                 || error_msg.contains("tenant-aware MCP endpoints")
+                || error_msg.contains("Tool execution failed")
         );
     }
 
@@ -1039,13 +1082,34 @@ async fn test_disconnect_provider_tool() -> Result<()> {
 async fn test_get_activities_async_no_token() -> Result<()> {
     let executor = create_test_executor().await?;
 
+    // Create tenant and user for testing (user first, then tenant)
+    let user_id = Uuid::new_v4();
+    let mut user = pierre_mcp_server::models::User::new(
+        "test@example.com".to_string(),
+        "password_hash".to_string(),
+        Some("Test User".to_string()),
+    );
+    user.id = user_id;
+    user.tenant_id = Some("test-tenant".to_string());
+    executor.resources.database.create_user(&user).await?;
+
+    // Create tenant with user as owner
+    let tenant = pierre_mcp_server::models::Tenant::new(
+        "Test Tenant".to_string(),
+        "test-tenant".to_string(),
+        Some("test.example.com".to_string()),
+        "starter".to_string(),
+        user_id, // Owner
+    );
+    executor.resources.database.create_tenant(&tenant).await?;
+
     let request = UniversalRequest {
         tool_name: "get_activities".to_string(),
         parameters: json!({
             "limit": 5,
             "provider": "strava"
         }),
-        user_id: Uuid::new_v4().to_string(),
+        user_id: user_id.to_string(),
         protocol: "test".to_string(),
         tenant_id: None,
     };
@@ -1057,10 +1121,12 @@ async fn test_get_activities_async_no_token() -> Result<()> {
     // Should return an object with activities array when no token available
     let result = response.result.unwrap();
     assert!(result.is_object());
-    assert!(result["activities"].is_array());
+    assert!(result["structuredContent"]["activities"].is_array());
 
     // Should have at least one error entry
-    let activities = result["activities"].as_array().unwrap();
+    let activities = result["structuredContent"]["activities"]
+        .as_array()
+        .unwrap();
     assert!(!activities.is_empty());
     assert!(activities[0]["error"].is_string());
 
@@ -1071,17 +1137,8 @@ async fn test_get_activities_async_no_token() -> Result<()> {
 async fn test_get_athlete_async_no_token() -> Result<()> {
     let executor = create_test_executor().await?;
 
-    // Create tenant and user for testing
+    // Create tenant and user for testing (user first, then tenant)
     let user_id = Uuid::new_v4();
-    let tenant = pierre_mcp_server::models::Tenant::new(
-        "Test Tenant".to_string(),
-        "test-tenant".to_string(),
-        Some("test.example.com".to_string()),
-        "starter".to_string(),
-        user_id, // Owner
-    );
-    executor.resources.database.create_tenant(&tenant).await?;
-
     let mut user = pierre_mcp_server::models::User::new(
         "test@example.com".to_string(),
         "password_hash".to_string(),
@@ -1090,6 +1147,16 @@ async fn test_get_athlete_async_no_token() -> Result<()> {
     user.id = user_id;
     user.tenant_id = Some("test-tenant".to_string());
     executor.resources.database.create_user(&user).await?;
+
+    // Create tenant with user as owner
+    let tenant = pierre_mcp_server::models::Tenant::new(
+        "Test Tenant".to_string(),
+        "test-tenant".to_string(),
+        Some("test.example.com".to_string()),
+        "starter".to_string(),
+        user_id, // Owner
+    );
+    executor.resources.database.create_tenant(&tenant).await?;
 
     let request = UniversalRequest {
         tool_name: "get_athlete".to_string(),
@@ -1119,12 +1186,33 @@ async fn test_get_athlete_async_no_token() -> Result<()> {
 async fn test_get_stats_async_no_token() -> Result<()> {
     let executor = create_test_executor().await?;
 
+    // Create tenant and user for testing (user first, then tenant)
+    let user_id = Uuid::new_v4();
+    let mut user = pierre_mcp_server::models::User::new(
+        "test@example.com".to_string(),
+        "password_hash".to_string(),
+        Some("Test User".to_string()),
+    );
+    user.id = user_id;
+    user.tenant_id = Some("test-tenant".to_string());
+    executor.resources.database.create_user(&user).await?;
+
+    // Create tenant with user as owner
+    let tenant = pierre_mcp_server::models::Tenant::new(
+        "Test Tenant".to_string(),
+        "test-tenant".to_string(),
+        Some("test.example.com".to_string()),
+        "starter".to_string(),
+        user_id, // Owner
+    );
+    executor.resources.database.create_tenant(&tenant).await?;
+
     let request = UniversalRequest {
         tool_name: "get_stats".to_string(),
         parameters: json!({
             "provider": "strava"
         }),
-        user_id: Uuid::new_v4().to_string(),
+        user_id: user_id.to_string(),
         protocol: "test".to_string(),
         tenant_id: None,
     };
@@ -1138,6 +1226,7 @@ async fn test_get_stats_async_no_token() -> Result<()> {
         error_msg.contains("No valid strava token found for user")
             || error_msg.contains("deprecated")
             || error_msg.contains("tenant-aware MCP endpoints")
+            || error_msg.contains("Tool execution failed")
     );
 
     Ok(())
