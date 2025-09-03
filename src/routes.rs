@@ -363,13 +363,13 @@ impl OAuthRoutes {
 
                 let redirect_uri = crate::constants::env_config::strava_redirect_uri();
 
-                let scope = "crate::constants::oauth::STRAVA_DEFAULT_SCOPES";
+                let scope = credentials.scopes.join(",");
 
                 let auth_url = format!(
                     "https://www.strava.com/oauth/authorize?client_id={}&redirect_uri={}&response_type=code&scope={}&state={}",
                     urlencoding::encode(&client_id),
                     urlencoding::encode(&redirect_uri),
-                    urlencoding::encode(scope),
+                    urlencoding::encode(&scope),
                     urlencoding::encode(&state)
                 );
 
@@ -605,7 +605,7 @@ impl OAuthRoutes {
         let credentials = self
             .resources
             .tenant_oauth_client
-            .get_tenant_credentials(tenant_id, oauth_providers::STRAVA)
+            .get_tenant_credentials(tenant_id, oauth_providers::STRAVA, &self.resources.database)
             .await
             .map_err(|e| operation_error("Get tenant Strava credentials", &e.to_string()))?
             .ok_or_else(|| {
@@ -664,7 +664,7 @@ impl OAuthRoutes {
         let credentials = self
             .resources
             .tenant_oauth_client
-            .get_tenant_credentials(tenant_id, oauth_providers::FITBIT)
+            .get_tenant_credentials(tenant_id, oauth_providers::FITBIT, &self.resources.database)
             .await
             .map_err(|e| operation_error("Get tenant Fitbit credentials", &e.to_string()))?
             .ok_or_else(|| {

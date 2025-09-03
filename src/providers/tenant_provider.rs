@@ -1,6 +1,7 @@
 // ABOUTME: Tenant-aware fitness provider factory for multi-tenant OAuth credential management
 // ABOUTME: Routes provider requests through tenant-specific OAuth credentials and rate limiting
 
+use crate::database_plugins::DatabaseProvider;
 use crate::models::{Activity, Athlete, PersonalRecord, Stats};
 use crate::tenant::{TenantContext, TenantOAuthClient};
 use anyhow::{anyhow, Result};
@@ -15,6 +16,7 @@ pub trait TenantFitnessProvider: Send + Sync {
         &mut self,
         tenant_context: &TenantContext,
         provider: &str,
+        database: &dyn DatabaseProvider,
     ) -> Result<()>;
 
     /// Get athlete information for the authenticated tenant user

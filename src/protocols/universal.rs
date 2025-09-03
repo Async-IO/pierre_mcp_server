@@ -263,7 +263,7 @@ impl UniversalToolExecutor {
                     match self
                         .resources
                         .tenant_oauth_client
-                        .get_oauth_client(&tenant_context, provider)
+                        .get_oauth_client(&tenant_context, provider, &self.resources.database)
                         .await
                     {
                         Ok(oauth_client) => {
@@ -618,6 +618,7 @@ impl UniversalToolExecutor {
                                             .get_oauth_client(
                                                 &tenant_context,
                                                 oauth_providers::STRAVA,
+                                                &self.resources.database,
                                             )
                                             .await
                                         {
