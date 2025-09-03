@@ -776,21 +776,6 @@ impl McpAuthMiddleware {
         }
     }
 
-    /// Legacy method for backward compatibility - authenticate and return just user `ID`
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - Authentication header is missing or malformed
-    /// - JWT token or API key validation fails
-    /// - Database queries fail
-    /// - Rate limits are exceeded
-    /// - User lookup fails
-    pub async fn authenticate_request_legacy(&self, auth_header: Option<&str>) -> Result<Uuid> {
-        let auth_result = self.authenticate_request(auth_header).await?;
-        Ok(auth_result.user_id)
-    }
-
     /// Check if user has access to specific provider
     ///
     /// # Errors

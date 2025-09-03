@@ -22,9 +22,7 @@ use crate::api_key_routes::ApiKeyRoutes;
 use crate::auth::{AuthManager, AuthResult};
 use crate::configuration_routes::ConfigurationRoutes;
 use crate::constants::{
-    errors::{
-        ERROR_INTERNAL_ERROR, ERROR_INVALID_PARAMS, ERROR_METHOD_NOT_FOUND, ERROR_UNAUTHORIZED,
-    },
+    errors::{ERROR_INTERNAL_ERROR, ERROR_INVALID_PARAMS, ERROR_METHOD_NOT_FOUND},
     json_fields::{GOAL_ID, PROVIDER},
     oauth_providers, protocol,
     protocol::JSONRPC_VERSION,
@@ -40,7 +38,7 @@ use crate::dashboard_routes::DashboardRoutes;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::providers::ProviderRegistry;
 use crate::routes::{AuthRoutes, LoginRequest, OAuthRoutes, RefreshTokenRequest, RegisterRequest};
-use crate::security::SecurityConfig;
+use crate::security::headers::SecurityConfig;
 use crate::tenant::{TenantContext, TenantOAuthClient, TenantRole};
 use crate::utils::json_responses::{api_error, invalid_format_error, oauth_error};
 
@@ -2060,136 +2058,6 @@ impl MultiTenantMcpServer {
         }
     }
 
-    /// Handle tools/call request with authentication and tenant context
-    #[allow(dead_code)]
-    async fn handle_tools_call(&self, request: McpRequest) -> McpResponse {
-        let auth_token = request.auth_token.as_deref();
-
-        tracing::debug!(
-            "MCP tool call authentication attempt for method: {}",
-            request.method
-        );
-
-        match self
-            .resources
-            .auth_middleware
-            .authenticate_request(auth_token)
-            .await
-        {
-            Ok(auth_result) => {
-                tracing::info!(
-                    "MCP tool call authentication successful for user: {} (method: {})",
-                    auth_result.user_id,
-                    auth_result.auth_method.display_name()
-                );
-
-                // Update user's last active timestamp
-                let _ = self
-                    .resources
-                    .database
-                    .update_last_active(auth_result.user_id)
-                    .await;
-
-                // Extract tenant context from request and auth result
-                let tenant_context = Self::extract_tenant_context_internal(
-                    &request,
-                    &auth_result,
-                    &self.resources.database,
-                )
-                .await
-                .unwrap_or(None);
-
-                self.handle_authenticated_tool_call(request, auth_result, tenant_context)
-                    .await
-            }
-            Err(e) => Self::handle_authentication_error(request, &e),
-        }
-    }
-
-    /// Handle authentication error
-    fn handle_authentication_error(request: McpRequest, e: &anyhow::Error) -> McpResponse {
-        warn!("MCP tool call authentication failed: {}", e);
-
-        // Determine specific error code based on error message
-        let error_message = e.to_string();
-        let (error_code, error_msg) = if error_message.contains("JWT token expired") {
-            (
-                crate::constants::errors::ERROR_TOKEN_EXPIRED,
-                crate::constants::errors::MSG_TOKEN_EXPIRED,
-            )
-        } else if error_message.contains("JWT token signature is invalid") {
-            (
-                crate::constants::errors::ERROR_TOKEN_INVALID,
-                crate::constants::errors::MSG_TOKEN_INVALID,
-            )
-        } else if error_message.contains("JWT token is malformed") {
-            (
-                crate::constants::errors::ERROR_TOKEN_MALFORMED,
-                crate::constants::errors::MSG_TOKEN_MALFORMED,
-            )
-        } else {
-            (ERROR_UNAUTHORIZED, "Authentication required")
-        };
-
-        McpResponse::error_with_data(
-            request.id.unwrap_or_else(default_request_id),
-            error_code,
-            error_msg.to_string(),
-            serde_json::json!({
-                "detailed_error": error_message,
-                "authentication_failed": true
-            }),
-        )
-    }
-
-    /// Handle authenticated tool call with user context and rate limiting
-    #[allow(dead_code)]
-    async fn handle_authenticated_tool_call(
-        &self,
-        request: McpRequest,
-        auth_result: AuthResult,
-        tenant_context: Option<TenantContext>,
-    ) -> McpResponse {
-        let Some(params) = request.params else {
-            tracing::error!("Missing request parameters in tools/call");
-            return McpResponse {
-                jsonrpc: "2.0".to_string(),
-                id: request.id.unwrap_or_else(default_request_id),
-                result: None,
-                error: Some(McpError {
-                    code: ERROR_INVALID_PARAMS,
-                    message: "Invalid params: Missing request parameters".to_string(),
-                    data: None,
-                }),
-            };
-        };
-        let tool_name = params["name"].as_str().unwrap_or("");
-        let args = &params["arguments"];
-        let user_id = auth_result.user_id;
-
-        tracing::info!(
-            "Executing tool call: {} for user: {} using {} authentication",
-            tool_name,
-            user_id,
-            auth_result.auth_method.display_name()
-        );
-
-        let routing_context = ToolRoutingContext {
-            resources: &self.resources,
-            tenant_context: &tenant_context,
-            auth_result: &auth_result,
-        };
-
-        ToolHandlers::route_tool_call(
-            tool_name,
-            args,
-            request.id.unwrap_or_else(default_request_id),
-            user_id,
-            &routing_context,
-        )
-        .await
-    }
-
     #[must_use]
     pub fn route_disconnect_tool(
         provider_name: &str,
@@ -3168,108 +3036,6 @@ impl MultiTenantMcpServer {
                     data: None,
                 }),
                 id: request_id,
-            },
-        }
-    }
-
-    /// Create default server configuration for MCP protocol
-    /// Uses environment configuration if available, otherwise creates a minimal config
-    #[allow(dead_code)]
-    fn create_default_server_config() -> std::sync::Arc<crate::config::environment::ServerConfig> {
-        std::sync::Arc::new(
-            crate::config::environment::ServerConfig::from_env()
-                .unwrap_or_else(|_| Self::create_minimal_mcp_config()),
-        )
-    }
-
-    /// Create minimal fallback config for MCP protocol (based on A2A implementation)
-    #[allow(dead_code)]
-    fn create_minimal_mcp_config() -> crate::config::environment::ServerConfig {
-        crate::config::environment::ServerConfig {
-            mcp_port: 8080,
-            http_port: 8081,
-            log_level: crate::config::environment::LogLevel::Info,
-            database: crate::config::environment::DatabaseConfig {
-                url: crate::config::environment::DatabaseUrl::default(),
-                encryption_key_path: std::path::PathBuf::from("data/encryption.key"),
-                auto_migrate: true,
-                backup: crate::config::environment::BackupConfig {
-                    enabled: false,
-                    interval_seconds: 3600,
-                    retention_count: 7,
-                    directory: std::path::PathBuf::from("data/backups"),
-                },
-            },
-            auth: crate::config::environment::AuthConfig {
-                jwt_secret_path: std::path::PathBuf::from("data/jwt.secret"),
-                jwt_expiry_hours: 24,
-                enable_refresh_tokens: false,
-            },
-            oauth: crate::config::environment::OAuthConfig {
-                strava: crate::config::environment::OAuthProviderConfig {
-                    client_id: None,     // Use tenant-based OAuth credentials
-                    client_secret: None, // Use tenant-based OAuth credentials
-                    redirect_uri: None,
-                    scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
-                        .split(',')
-                        .map(String::from)
-                        .collect(),
-                    enabled: false, // Disabled - use tenant OAuth instead
-                },
-                fitbit: crate::config::environment::OAuthProviderConfig {
-                    client_id: None,     // Use tenant-based OAuth credentials
-                    client_secret: None, // Use tenant-based OAuth credentials
-                    redirect_uri: None,
-                    scopes: vec!["activity".into(), "profile".into()],
-                    enabled: false, // Disabled - use tenant OAuth instead
-                },
-            },
-            security: crate::config::environment::SecurityConfig {
-                cors_origins: vec!["*".into()],
-                rate_limit: crate::config::environment::RateLimitConfig {
-                    enabled: false,
-                    requests_per_window: 100,
-                    window_seconds: 60,
-                },
-                tls: crate::config::environment::TlsConfig {
-                    enabled: false,
-                    cert_path: None,
-                    key_path: None,
-                },
-                headers: crate::config::environment::SecurityHeadersConfig {
-                    environment: crate::config::environment::Environment::Development,
-                },
-            },
-            external_services: crate::config::environment::ExternalServicesConfig {
-                weather: crate::config::environment::WeatherServiceConfig {
-                    api_key: std::env::var("OPENWEATHER_API_KEY").ok(),
-                    base_url: "https://api.openweathermap.org/data/2.5".into(),
-                    enabled: false,
-                },
-                geocoding: crate::config::environment::GeocodingServiceConfig {
-                    base_url: "https://nominatim.openstreetmap.org".into(),
-                    enabled: true,
-                },
-                strava_api: crate::config::environment::StravaApiConfig {
-                    base_url: "https://www.strava.com/api/v3".into(),
-                    auth_url: "https://www.strava.com/oauth/authorize".into(),
-                    token_url: "https://www.strava.com/oauth/token".into(),
-                },
-                fitbit_api: crate::config::environment::FitbitApiConfig {
-                    base_url: "https://api.fitbit.com".into(),
-                    auth_url: "https://www.fitbit.com/oauth2/authorize".into(),
-                    token_url: "https://api.fitbit.com/oauth2/token".into(),
-                },
-            },
-            app_behavior: crate::config::environment::AppBehaviorConfig {
-                max_activities_fetch: 100,
-                default_activities_limit: 20,
-                ci_mode: false,
-                protocol: crate::config::environment::ProtocolConfig {
-                    mcp_version: crate::constants::network_config::DEFAULT_MCP_VERSION.to_string(),
-                    server_name: service_names::PIERRE_MCP_SERVER.into(),
-                    server_version: env!("CARGO_PKG_VERSION").to_string(),
-                },
             },
         }
     }

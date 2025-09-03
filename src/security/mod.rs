@@ -23,10 +23,27 @@ use uuid::Uuid;
 pub mod audit;
 pub mod key_rotation;
 
-// Re-export security headers functionality for backward compatibility
-pub use self::headers::*;
+/// Security audit helper function
+pub fn audit_security_headers<S: ::std::hash::BuildHasher>(
+    headers: &std::collections::HashMap<String, String, S>,
+) -> bool {
+    let required_headers = [
+        "Content-Security-Policy",
+        "X-Frame-Options",
+        "X-Content-Type-Options",
+    ];
 
-mod headers {
+    for header in &required_headers {
+        if !headers.contains_key(*header) {
+            tracing::warn!("Missing required security header: {}", header);
+            return false;
+        }
+    }
+
+    true
+}
+
+pub mod headers {
     use serde::{Deserialize, Serialize};
     use std::collections::HashMap;
 
@@ -104,26 +121,6 @@ mod headers {
             &self.headers
         }
     }
-}
-
-/// Security audit helper function for backward compatibility
-pub fn audit_security_headers<S: ::std::hash::BuildHasher>(
-    headers: &HashMap<String, String, S>,
-) -> bool {
-    let required_headers = [
-        "Content-Security-Policy",
-        "X-Frame-Options",
-        "X-Content-Type-Options",
-    ];
-
-    for header in &required_headers {
-        if !headers.contains_key(*header) {
-            tracing::warn!("Missing required security header: {}", header);
-            return false;
-        }
-    }
-
-    true
 }
 
 /// Enhanced encryption manager with per-tenant key derivation

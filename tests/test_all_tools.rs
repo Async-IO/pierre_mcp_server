@@ -198,134 +198,21 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
 async fn find_or_create_test_user_with_token(
     executor: &UniversalToolExecutor,
 ) -> Result<(User, Tenant)> {
-    // Check if we're in CI mode by looking for test client ID
-    let is_ci_mode = std::env::var("STRAVA_CLIENT_ID")
-        .map(|id| id == "test_client_id_ci")
-        .unwrap_or(false);
-
-    if is_ci_mode {
-        println!("Detected CI/CD environment - creating test user with mock tokens");
-        return create_ci_test_user(executor).await;
-    }
-
-    // Development mode: Use the existing user with real Strava tokens from Claude Desktop
-    let existing_user_id = "921e7b0c-4c04-4f78-a03d-042aed697e68";
-    let user_uuid = Uuid::parse_str(existing_user_id)?;
-
-    // Get the existing user
-    let user = executor
-        .resources
-        .database
-        .get_user(user_uuid)
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("Existing authenticated user not found"))?;
-
-    // Try to get the actual Strava token to verify our decryption works
-    println!("Checking direct Strava token access...");
-    match executor
-        .resources
-        .database
-        .get_strava_token(user_uuid)
-        .await
-    {
-        Ok(Some(token)) => {
-            println!("Successfully decrypted Strava token!");
-            println!("   Access token length: {}", token.access_token.len());
-            println!("   Expires at: {}", token.expires_at);
-            println!("   Scope: {}", token.scope);
-        }
-        Ok(None) => {
-            println!("WARNING: No Strava token found in direct user table");
-            // Store a fresh token for testing since decryption fails
-            println!("Storing fresh test token...");
-            let test_token = pierre_mcp_server::models::DecryptedToken {
-                access_token: "9a60da0c64599d785be1d785ede124620678f3be".to_string(),
-                refresh_token: "e0d6f2716e2e1d76830fd6a6ceb8794adb52be27".to_string(),
-                expires_at: chrono::Utc::now() + chrono::Duration::hours(6),
-                scope: "read,activity:read_all,activity:write".to_string(),
-            };
-            if let Err(e) = executor
-                .resources
-                .database
-                .update_strava_token(
-                    user_uuid,
-                    &test_token.access_token,
-                    &test_token.refresh_token,
-                    test_token.expires_at,
-                    test_token.scope.clone(),
-                )
-                .await
-            {
-                println!("Failed to store test token: {e}");
-            } else {
-                println!("Test token stored successfully");
-            }
-        }
-        Err(e) => {
-            println!("Failed to decrypt direct Strava token: {e}");
-            // Try storing a fresh token since decryption fails
-            println!("Storing fresh test token due to decryption failure...");
-            let test_token = pierre_mcp_server::models::DecryptedToken {
-                access_token: "9a60da0c64599d785be1d785ede124620678f3be".to_string(),
-                refresh_token: "e0d6f2716e2e1d76830fd6a6ceb8794adb52be27".to_string(),
-                expires_at: chrono::Utc::now() + chrono::Duration::hours(6),
-                scope: "read,activity:read_all,activity:write".to_string(),
-            };
-            if let Err(e) = executor
-                .resources
-                .database
-                .update_strava_token(
-                    user_uuid,
-                    &test_token.access_token,
-                    &test_token.refresh_token,
-                    test_token.expires_at,
-                    test_token.scope.clone(),
-                )
-                .await
-            {
-                println!("Failed to store test token: {e}");
-            } else {
-                println!("Test token stored successfully");
-            }
-        }
-    }
-
-    // Get the user's tenant
-    let tenant_id = user
-        .tenant_id
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("User has no tenant assigned"))?;
-    let tenant_uuid = Uuid::parse_str(tenant_id)?;
-
-    let tenant = executor
-        .resources
-        .database
-        .get_tenant_by_id(tenant_uuid)
-        .await?;
-
-    println!(
-        "      Using existing authenticated user: {} (tenant: {})",
-        user.id, tenant.id
-    );
-    println!("      User has active Strava tokens for testing");
-
-    // Ensure tenant has Strava OAuth credentials configured
-    setup_tenant_oauth_credentials(executor, tenant_uuid).await?;
-
-    Ok((user, tenant))
+    // Always create fresh test data for reliable, reproducible tests
+    create_test_user(executor).await
 }
 
-async fn create_ci_test_user(executor: &UniversalToolExecutor) -> Result<(User, Tenant)> {
+async fn create_test_user(executor: &UniversalToolExecutor) -> Result<(User, Tenant)> {
     use pierre_mcp_server::models::{UserStatus, UserTier};
 
-    // Create a test user first (before tenant for foreign key constraints)
+    // Create a unique test user and tenant for this test run
     let user_id = Uuid::new_v4();
     let tenant_id = Uuid::new_v4();
 
     let user = User {
         id: user_id,
-        email: "ci-test@example.com".to_string(),
-        display_name: Some("CI Test User".to_string()),
+        email: format!("test-{user_id}@example.com"),
+        display_name: Some("Test User".to_string()),
         password_hash: "fake_hash_for_ci".to_string(),
         tier: UserTier::Starter,
         tenant_id: Some(tenant_id.to_string()),
@@ -345,8 +232,8 @@ async fn create_ci_test_user(executor: &UniversalToolExecutor) -> Result<(User, 
     // Now create the tenant with the user as owner
     let tenant = Tenant {
         id: tenant_id,
-        name: "ci-test-tenant".to_string(),
-        slug: "ci-test-tenant".to_string(),
+        name: "test-tenant".to_string(),
+        slug: "test-tenant".to_string(),
         domain: None,
         plan: "starter".to_string(),
         owner_user_id: user_id,
@@ -356,22 +243,22 @@ async fn create_ci_test_user(executor: &UniversalToolExecutor) -> Result<(User, 
 
     executor.resources.database.create_tenant(&tenant).await?;
 
-    // Store CI test OAuth credentials for the tenant (simplified approach)
-    println!("CI Mode: Setting up tenant OAuth credentials...");
+    // Set up OAuth credentials for the tenant
+    println!("Setting up tenant OAuth credentials...");
 
     // Use the existing setup function which handles OAuth credentials properly
     match setup_tenant_oauth_credentials(executor, tenant_id).await {
-        Ok(()) => println!("✅ CI OAuth credentials configured successfully"),
+        Ok(()) => println!("✅ OAuth credentials configured successfully"),
         Err(e) => {
-            println!("⚠️ Failed to configure CI OAuth credentials: {e}");
+            println!("⚠️ Failed to configure OAuth credentials: {e}");
             // Continue anyway - tools may still work with fallback mechanisms
         }
     }
 
-    // Store mock Strava tokens for the user if possible
+    // Store test Strava tokens for the user if possible
     let mock_token = pierre_mcp_server::models::DecryptedToken {
-        access_token: "mock_access_token_for_ci".to_string(),
-        refresh_token: "mock_refresh_token_for_ci".to_string(),
+        access_token: "test_access_token".to_string(),
+        refresh_token: "test_refresh_token".to_string(),
         expires_at: chrono::Utc::now() + chrono::Duration::hours(6),
         scope: "read,activity:read_all,activity:write".to_string(),
     };
@@ -388,14 +275,14 @@ async fn create_ci_test_user(executor: &UniversalToolExecutor) -> Result<(User, 
         )
         .await
     {
-        Ok(()) => println!("✅ CI mock tokens stored successfully"),
+        Ok(()) => println!("✅ Test tokens stored successfully"),
         Err(e) => {
-            println!("⚠️ Failed to store CI mock tokens: {e}");
+            println!("⚠️ Failed to store test tokens: {e}");
             // Continue anyway - some tools might work without tokens
         }
     }
 
-    println!("Created CI test user: {} (tenant: {})", user.id, tenant.id);
+    println!("Created test user: {} (tenant: {})", user.id, tenant.id);
 
     Ok((user, tenant))
 }
@@ -467,16 +354,7 @@ async fn test_all_tools(
 ) -> HashMap<String, TestResult> {
     let mut results = HashMap::new();
 
-    // Check if we're in CI mode
-    let is_ci_mode = std::env::var("STRAVA_CLIENT_ID")
-        .map(|id| id == "test_client_id_ci")
-        .unwrap_or(false);
-
-    if is_ci_mode {
-        println!("CI/CD Mode: Testing tool registration and validation logic (not API calls)");
-    } else {
-        println!("Development Mode: Testing with real Strava API calls");
-    }
+    println!("Testing all tools with fresh test data");
 
     // Test 1: Core Data Retrieval Tools
     println!("\nTesting Core Data Retrieval Tools");

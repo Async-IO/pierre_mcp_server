@@ -8,7 +8,7 @@
 
 //! Integration tests for security headers middleware
 
-use pierre_mcp_server::security::{audit_security_headers, SecurityConfig};
+use pierre_mcp_server::security::{audit_security_headers, headers::SecurityConfig};
 use std::collections::HashMap;
 
 #[test]

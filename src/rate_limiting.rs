@@ -12,7 +12,7 @@
 //! API keys and JWT tokens, using the same logic and limits across all
 //! authentication methods.
 
-use crate::api_keys::{ApiKey, ApiKeyTier, RateLimitStatus};
+use crate::api_keys::{ApiKey, ApiKeyTier};
 use crate::constants::tiers;
 use crate::models::{Tenant, User, UserTier};
 use chrono::{DateTime, Datelike, Timelike, Utc};
@@ -535,17 +535,6 @@ impl UnifiedRateLimitCalculator {
                 tracing::warn!("Failed to set reset time components, using next month");
                 next_month
             })
-    }
-
-    /// Convert to legacy `RateLimitStatus` for backward compatibility
-    #[must_use]
-    pub const fn to_legacy_rate_limit_status(info: &UnifiedRateLimitInfo) -> RateLimitStatus {
-        RateLimitStatus {
-            is_rate_limited: info.is_rate_limited,
-            limit: info.limit,
-            remaining: info.remaining,
-            reset_at: info.reset_at,
-        }
     }
 }
 

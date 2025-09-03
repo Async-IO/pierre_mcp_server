@@ -43,12 +43,6 @@ pub mod registry;
 // Provider implementations
 pub mod strava_provider;
 
-// Legacy modules - temporarily disabled during migration to new provider system
-// pub mod fitbit;
-// pub mod strava;
-// pub mod strava_tenant;
-// pub mod tenant_provider;
-
 // Re-export key types for convenience
 pub use core::{
     FitnessProvider as CoreFitnessProvider, OAuth2Credentials, ProviderConfig, TenantProvider,
