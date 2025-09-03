@@ -160,7 +160,7 @@ class FitnessBotIntegration {
                     inline: true
                 },
                 {
-                    name: '🎯 Goals',
+                    name: 'Goals',
                     value: `${summary.goals_completed}/${summary.goals_total} completed`,
                     inline: true
                 }
