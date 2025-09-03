@@ -4,7 +4,8 @@
 # This script enforces all mandatory code quality standards and dev best practices
 # Usage: ./scripts/lint-and-test.sh [--coverage]
 
-set -e  # Exit on any error
+# Manual error handling - collect all failures rather than stopping at first one
+# Fast-fail kept only for critical architectural issues that prevent meaningful testing
 
 echo "Running Pierre MCP Server Validation Suite..."
 
@@ -300,14 +301,16 @@ fi
 
 echo -e "${GREEN}[OK] No legacy functions found that throw nonsense behavior${NC}"
 
-# Run Clippy linter with STRICT settings (dev standards compliance)
-echo -e "${BLUE}==== Running Rust linter (Clippy) - STRICT MODE... ====${NC}"
+# Run Clippy linter with ZERO TOLERANCE (fast-fail on ANY warning)
+echo -e "${BLUE}==== Running Rust linter (Clippy) - ZERO TOLERANCE MODE... ====${NC}"
 if cargo clippy --all-targets --all-features --quiet -- -W clippy::all -W clippy::pedantic -W clippy::nursery -D warnings; then
-    echo -e "${GREEN}[OK] Rust linting passed (STRICT dev standards compliance)${NC}"
+    echo -e "${GREEN}[OK] Rust linting passed - ZERO warnings (excellent!)${NC}"
 else
-    echo -e "${RED}[FAIL] Rust linting failed - dev standards compliance violation${NC}"
-    echo -e "${YELLOW}Fix ALL clippy warnings to meet dev standards${NC}"
-    ALL_PASSED=false
+    echo -e "${RED}[CRITICAL] Rust linting failed - ANY warning triggers fast-fail${NC}"
+    echo -e "${RED}FAST FAIL: Fix ALL linting warnings immediately${NC}"
+    echo -e "${YELLOW}Re-run with verbose output to see warnings:${NC}"
+    echo -e "${YELLOW}  cargo clippy --all-targets --all-features -- -W clippy::all -W clippy::pedantic -W clippy::nursery${NC}"
+    exit 1
 fi
 
 # Check Rust compilation
