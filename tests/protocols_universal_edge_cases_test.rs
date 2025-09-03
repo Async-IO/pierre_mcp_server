@@ -212,22 +212,23 @@ async fn test_oauth_configuration_errors() -> Result<()> {
     let executor = create_executor_no_oauth().await?;
 
     // Create tenant first
-    let tenant = pierre_mcp_server::models::Tenant::new(
-        "Test Tenant".to_string(),
-        "test-tenant".to_string(),
-        Some("test.example.com".to_string()),
-        "starter".to_string(),
-        Uuid::new_v4(), // Owner user ID - will be different but that's OK for this test
-    );
-    executor.resources.database.create_tenant(&tenant).await?;
-
-    // Create test user
+    // Create test user first so they can be tenant owner
     let user_id = Uuid::new_v4();
     let mut user = create_test_user("test@example.com", Some("Test User".to_string()));
     user.id = user_id;
     user.password_hash = bcrypt::hash("password", bcrypt::DEFAULT_COST)?;
     user.tenant_id = Some("test-tenant".to_string()); // Link user to tenant
     executor.resources.database.create_user(&user).await?;
+
+    // Create tenant with user as owner
+    let tenant = pierre_mcp_server::models::Tenant::new(
+        "Test Tenant".to_string(),
+        "test-tenant".to_string(),
+        Some("test.example.com".to_string()),
+        "starter".to_string(),
+        user_id, // User is now the owner
+    );
+    executor.resources.database.create_tenant(&tenant).await?;
 
     // Test get_activities with missing OAuth config
     let request = UniversalRequest {
