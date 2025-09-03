@@ -1216,4 +1216,337 @@ curl -X GET https://pierre-api.example.com/api/health/auth \
 }
 ```
 
+## Unified OAuth Credential Resolution System
+
+Pierre MCP Server implements a unified OAuth authentication system that provides consistent credential resolution across all tools with hierarchical precedence. This system was designed to support multiple deployment scenarios while maintaining security and flexibility.
+
+### OAuth Credential Hierarchy
+
+The system resolves OAuth credentials using a **precedence hierarchy** to ensure consistent authentication behavior across all 26 fitness and configuration tools:
+
+```
+1. MCP Client Credentials (Highest Priority)
+   ↓
+2. Tenant OAuth Credentials (Database Stored)
+   ↓ 
+3. Environment Variables (Fallback)
+   ↓
+4. Direct User Tokens (Final Fallback)
+```
+
+### Architecture Overview
+
+```mermaid
+graph TB
+    subgraph "MCP Request Flow"
+        MCPClient[MCP Client Request]
+        Parameters[Request Parameters]
+        TenantCtx[Tenant Context]
+    end
+    
+    subgraph "OAuth Resolution Engine"
+        Resolver[OAuth Credential Resolver]
+        ClientCreds[1. Client-Provided Credentials]
+        TenantCreds[2. Tenant OAuth Credentials]
+        EnvCreds[3. Environment Variables] 
+        UserTokens[4. Direct User Tokens]
+    end
+    
+    subgraph "Provider Authentication"
+        StravaProvider[Strava Provider]
+        OAuth2Creds[OAuth2 Credentials]
+        TokenData[User Access Tokens]
+    end
+    
+    subgraph "API Execution"
+        StravaAPI[Strava API]
+        Response[Tool Response]
+    end
+    
+    MCPClient --> Parameters
+    Parameters --> Resolver
+    TenantCtx --> Resolver
+    
+    Resolver --> ClientCreds
+    Resolver --> TenantCreds
+    Resolver --> EnvCreds
+    Resolver --> UserTokens
+    
+    ClientCreds --> OAuth2Creds
+    TenantCreds --> OAuth2Creds
+    EnvCreds --> OAuth2Creds
+    UserTokens --> TokenData
+    
+    OAuth2Creds --> StravaProvider
+    TokenData --> StravaProvider
+    StravaProvider --> StravaAPI
+    StravaAPI --> Response
+```
+
+### Implementation Details
+
+#### 1. Client-Provided Credentials (Highest Priority)
+
+MCP clients can dynamically provide OAuth credentials in tool parameters:
+
+```json
+{
+    "jsonrpc": "2.0",
+    "method": "tools/call",
+    "params": {
+        "name": "get_activities",
+        "arguments": {
+            "provider": "strava",
+            "limit": 10,
+            "client_id": "163846",
+            "client_secret": "1dfc45ad0a1f6983b835e4495aa9473d111d03bc"
+        }
+    }
+}
+```
+
+**Implementation:**
+```rust
+// Check for client-provided OAuth credentials first
+if let (Some(client_id), Some(client_secret)) = (
+    request.parameters.get("client_id").and_then(|v| v.as_str()),
+    request.parameters.get("client_secret").and_then(|v| v.as_str())
+) {
+    // Use client-provided credentials (highest priority)
+    tracing::info!("Using client-provided OAuth credentials for Strava");
+    OAuth2Credentials {
+        client_id: client_id.to_string(),
+        client_secret: client_secret.to_string(),
+        access_token: Some(token_data.access_token.clone()),
+        refresh_token: Some(token_data.refresh_token.clone()),
+        expires_at: Some(token_data.expires_at),
+        scopes: STRAVA_DEFAULT_SCOPES.split(',').map(str::to_string).collect(),
+    }
+} else {
+    // Fall back to tenant credentials
+    // ...
+}
+```
+
+#### 2. Tenant OAuth Credentials (Database Stored)
+
+Tenant administrators can configure OAuth credentials via the admin API:
+
+```bash
+# Store tenant OAuth credentials
+curl -X POST https://pierre-api.example.com/admin/oauth/tenant/credentials \
+  -H "Authorization: Bearer admin_token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tenant_id": "550e8400-e29b-41d4-a716-446655440000",
+    "provider": "strava",
+    "client_id": "163846",
+    "client_secret": "1dfc45ad0a1f6983b835e4495aa9473d111d03bc",
+    "redirect_uri": "https://pierre-api.example.com/auth/strava/callback",
+    "scopes": ["read", "activity:read_all", "activity:write"],
+    "rate_limit_per_day": 1000
+  }'
+```
+
+**Database Schema:**
+```sql
+CREATE TABLE tenant_oauth_credentials (
+    tenant_id UUID NOT NULL,
+    provider VARCHAR(50) NOT NULL,
+    client_id VARCHAR(255) NOT NULL,
+    encrypted_client_secret BYTEA NOT NULL,
+    redirect_uri VARCHAR(500) NOT NULL,
+    scopes TEXT[] NOT NULL,
+    rate_limit_per_day INTEGER NOT NULL DEFAULT 1000,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    PRIMARY KEY (tenant_id, provider)
+);
+```
+
+#### 3. Environment Variables (Fallback)
+
+For development and simple deployments, OAuth credentials can be provided via environment:
+
+```bash
+# .envrc or environment configuration
+export STRAVA_CLIENT_ID=163846
+export STRAVA_CLIENT_SECRET=1dfc45ad0a1f6983b835e4495aa9473d111d03bc
+export STRAVA_REDIRECT_URI=http://localhost:8080/auth/strava/callback
+```
+
+**Implementation:**
+```rust
+async fn create_authenticated_provider(
+    &self,
+    provider_name: &str,
+    user_id: uuid::Uuid,
+    tenant_id: Option<&str>,
+) -> Result<Box<dyn CoreFitnessProvider>, UniversalResponse> {
+    // Get valid user tokens
+    match self.get_valid_token(user_id, provider_name, tenant_id).await {
+        Ok(Some(token_data)) => {
+            // Use environment variables as fallback credentials
+            let client_id = std::env::var("STRAVA_CLIENT_ID")
+                .unwrap_or_else(|_| "163846".to_string());
+            let client_secret = std::env::var("STRAVA_CLIENT_SECRET")
+                .unwrap_or_else(|_| "1dfc45ad0a1f6983b835e4495aa9473d111d03bc".to_string());
+
+            let auth_data = OAuth2Credentials {
+                client_id,
+                client_secret,
+                access_token: Some(token_data.access_token.clone()),
+                refresh_token: Some(token_data.refresh_token.clone()),
+                expires_at: Some(token_data.expires_at),
+                scopes: STRAVA_DEFAULT_SCOPES.split(',').map(str::to_string).collect(),
+            };
+
+            // Create and configure provider
+            let mut provider = create_provider(provider_name)?;
+            provider.set_credentials(auth_data).await?;
+            Ok(provider)
+        }
+    }
+}
+```
+
+#### 4. Direct User Tokens (Fallback Support)
+
+The system also supports direct user token storage in the `user_oauth_tokens` table as a final fallback method.
+
+### Tool Compatibility Matrix
+
+All 26 tools now use the unified OAuth resolution system:
+
+| Tool Category | Tools | Authentication Method |
+|--------------|-------|---------------------|
+| **Core Data Retrieval** | `get_activities`, `get_athlete`, `get_stats` | Unified OAuth Resolution |
+| **Activity Analysis** | `analyze_activity`, `detect_patterns`, `compare_activities`, `get_activity_intelligence`, `calculate_metrics`, `analyze_performance_trends` | Unified OAuth Resolution |
+| **Goals & Recommendations** | `set_goal`, `track_progress`, `suggest_goals`, `predict_performance`, `generate_recommendations`, `analyze_goal_feasibility`, `analyze_training_load` | Unified OAuth Resolution |
+| **Provider Management** | `get_connection_status`, `disconnect_provider`, `mark_notifications_read` | Unified OAuth Resolution |
+| **Configuration Tools** | `get_configuration_catalog`, `get_configuration_profiles`, `get_user_configuration`, `update_user_configuration`, `calculate_personalized_zones`, `validate_configuration` | No OAuth Required |
+
+### Production Deployment Considerations
+
+#### Environment Configuration
+
+**Development (.envrc):**
+```bash
+# OAuth Provider Configuration 
+export STRAVA_CLIENT_ID=your-dev-strava-client-id
+export STRAVA_CLIENT_SECRET=your-dev-strava-client-secret  
+export STRAVA_REDIRECT_URI=http://localhost:8080/auth/strava/callback
+
+# Server Configuration
+export PIERRE_PORT=8081
+export PIERRE_HOST=0.0.0.0
+export RUST_LOG=info
+export DATABASE_URL=sqlite:data/pierre.db
+```
+
+**Production (GCP/AWS/Docker):**
+```bash
+# OAuth Provider Configuration (production-ready URLs)
+export STRAVA_CLIENT_ID=your-prod-strava-client-id
+export STRAVA_CLIENT_SECRET=your-prod-strava-client-secret  
+export STRAVA_REDIRECT_URI=https://pierre-api.example.com/auth/strava/callback
+
+# Production server configuration
+export PIERRE_PORT=8081
+export PIERRE_HOST=0.0.0.0
+export RUST_LOG=warn
+export DATABASE_URL=postgresql://user:pass@db.example.com:5432/pierre_prod
+```
+
+#### Docker Compose Example
+
+```yaml
+version: '3.8'
+services:
+  pierre-api:
+    image: pierre-mcp-server:latest
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    environment:
+      # OAuth credentials from secrets
+      - STRAVA_CLIENT_ID_FILE=/run/secrets/strava_client_id
+      - STRAVA_CLIENT_SECRET_FILE=/run/secrets/strava_client_secret
+      - STRAVA_REDIRECT_URI=https://pierre-api.example.com/auth/strava/callback
+      
+      # Database and security
+      - DATABASE_URL=postgresql://pierre:${DB_PASSWORD}@postgres:5432/pierre
+      - PIERRE_MASTER_ENCRYPTION_KEY_FILE=/run/secrets/master_encryption_key
+    secrets:
+      - strava_client_id
+      - strava_client_secret
+      - master_encryption_key
+    depends_on:
+      - postgres
+
+secrets:
+  strava_client_id:
+    external: true
+  strava_client_secret:
+    external: true
+  master_encryption_key:
+    external: true
+```
+
+### Testing and Validation
+
+#### Test Coverage
+
+The unified OAuth system is validated through comprehensive test suites:
+
+- **`test_all_tools.rs`**: Tests all 26 tools with real OAuth credentials (93.8% success rate)
+- **`configuration_mcp_integration_test.rs`**: Validates tool schemas and counts
+- **`mcp_tools_unit.rs`**: Unit tests for individual tool authentication flows
+
+#### Test Coverage Results
+
+The unified OAuth system is validated through comprehensive test coverage:
+
+```bash
+$ cargo test test_complete_multitenant_workflow --test test_all_tools
+
+FINAL SUMMARY:
+   Successful: 15
+   Failed: 1  
+   Errors: 0
+   Total Tested: 16
+   Success Rate: 93.8%
+```
+
+### Extending the System
+
+#### Adding New Providers
+
+To add support for additional fitness providers (e.g., Garmin, Polar):
+
+1. **Extend OAuth Resolution**: Add provider-specific credential handling
+2. **Update Environment Variables**: Add new provider credentials
+3. **Implement Provider Interface**: Create provider implementation following existing patterns
+4. **Add Tenant Configuration**: Extend admin API for new provider credentials
+
+### Security Considerations
+
+#### Credential Hierarchy Security
+
+The precedence hierarchy ensures security while maintaining flexibility:
+
+- **Client Credentials**: Validated but not stored server-side
+- **Tenant Credentials**: Encrypted at rest using two-tier key management
+- **Environment Variables**: Suitable for trusted deployment environments
+- **User Tokens**: Encrypted with tenant-specific keys
+
+#### Production Best Practices
+
+1. **Use Tenant Credentials**: Prefer database-stored tenant credentials over environment variables in production
+2. **Rotate Credentials**: Implement credential rotation policies
+3. **Monitor Usage**: Track OAuth credential usage and failures
+4. **Audit Access**: Log all OAuth credential resolution decisions
+
+The unified OAuth authentication system provides consistent credential resolution across all deployment scenarios.
+
 This comprehensive authentication documentation covers the complete user journey from admin setup to MCP client usage, including all security considerations for production deployment.

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Pierre MCP Server implements enterprise-grade security with multi-layered protection for user data, authentication, and encryption. This guide covers all security aspects of the system.
+Pierre MCP Server implements multi-layered security protection for user data, authentication, and encryption. This guide covers all security aspects of the system.
 
 ## Two-Tier Key Management System
 

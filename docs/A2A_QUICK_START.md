@@ -312,4 +312,4 @@ if __name__ == "__main__":
 
 ---
 
-**🚀 You're now ready to build with the A2A protocol!** The Pierre Fitness API provides comprehensive fitness data access for enterprise integrations.
+You're now ready to build with the A2A protocol. The Pierre Fitness API provides comprehensive fitness data access for autonomous agent integrations.

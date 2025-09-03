@@ -780,4 +780,4 @@ If the server is slow:
 - **Strava API**: https://developers.strava.com/
 - **JSON-RPC 2.0**: https://www.jsonrpc.org/specification
 
-Congratulations! You now have a working Pierre MCP Server development environment. Start building amazing fitness AI integrations! 🏃‍♂️💪
+You now have a working Pierre MCP Server development environment. You can begin building fitness AI integrations.
