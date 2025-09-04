@@ -17,7 +17,7 @@ Pierre MCP Server runs on two ports:
 
 ## Choose Your Path
 
-### Path 1: Quick Start (5 minutes)
+### Path 1: Quick Start
 Perfect for contributors and developers who want to start coding immediately.
 
 ```bash
@@ -45,7 +45,7 @@ curl http://localhost:8081/api/health  # Should return {"status":"healthy"}
 
 Ready to contribute? See [CONTRIBUTING.md](../CONTRIBUTING.md).
 
-### Path 2: Production Setup (30 minutes)
+### Path 2: Production Setup
 For production deployments with security and encryption properly configured.
 
 ## Prerequisites
