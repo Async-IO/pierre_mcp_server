@@ -1758,7 +1758,7 @@ impl MultiTenantMcpServer {
             message = "Not Found";
         } else if matches!(err.find(), Some(McpHttpError::InvalidOrigin)) {
             http_code = warp::http::StatusCode::FORBIDDEN;
-            mcp_error_code = -32000; // Server error
+            mcp_error_code = -32603; // Internal error - invalid origin
             message = "Invalid origin";
         } else if matches!(err.find(), Some(McpHttpError::InvalidRequest)) {
             http_code = warp::http::StatusCode::BAD_REQUEST;
