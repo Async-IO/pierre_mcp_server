@@ -417,6 +417,21 @@ impl From<crate::protocols::ProtocolError> for AppError {
             crate::protocols::ProtocolError::DatabaseError(message) => {
                 Self::internal(format!("Database operation failed: {message}"))
             }
+            crate::protocols::ProtocolError::PluginNotFound(plugin) => {
+                Self::not_found(format!("plugin '{plugin}'"))
+            }
+            crate::protocols::ProtocolError::PluginError(message) => {
+                Self::internal(format!("Plugin error: {message}"))
+            }
+            crate::protocols::ProtocolError::InvalidSchema(message) => {
+                Self::invalid_input(format!("Invalid schema: {message}"))
+            }
+            crate::protocols::ProtocolError::InsufficientSubscription(message) => {
+                Self::auth_invalid(message)
+            }
+            crate::protocols::ProtocolError::RateLimitExceeded(message) => {
+                Self::invalid_input(format!("Rate limit exceeded: {message}"))
+            }
         }
     }
 }
