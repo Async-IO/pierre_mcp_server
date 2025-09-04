@@ -19,7 +19,8 @@
 15. [Getting Started](./15-getting-started.md)
 16. [Testing Strategy](./16-testing-strategy.md)
 17. [Security Guide](./17-security-guide.md)
-18. [A2A Integration Guide](./A2A-INTEGRATION-GUIDE.md)
+18. [Plugin System](./18-plugin-system.md)
+19. [A2A Integration Guide](./A2A-INTEGRATION-GUIDE.md)
 
 ## Overview
 
