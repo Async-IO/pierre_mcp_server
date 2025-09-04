@@ -1,14 +1,22 @@
 # Fitness Analysis Agent
 
-A fully autonomous agent demonstrating real-world A2A (Agent-to-Agent) protocol usage for fitness data analysis.
+Autonomous agent that demonstrates A2A protocol integration by analyzing fitness activity data.
 
-## Overview
+## What This Agent Actually Does
 
-This agent showcases:
-- **Autonomous Operation**: Runs on schedule without human intervention
-- **A2A Protocol**: Direct JSON-RPC over HTTP communication with Pierre server
-- **Intelligent Analysis**: Detects fitness patterns, performance trends, and risk indicators
-- **Business Value**: Generates actionable insights and automated reports
+**Data Processing:**
+1. Authenticates with Pierre server using A2A client credentials
+2. Fetches activity records via `get_activities` tool (runs, rides, etc.)
+3. Calculates training frequency, sport distribution, distance progression
+4. Detects potential overtraining patterns and injury risk indicators
+5. Generates JSON reports with analysis results
+
+**Analysis Algorithms:**
+- Training frequency: activities per week calculation
+- Sport distribution: percentage breakdown by activity type  
+- Volume trend analysis: linear regression on distance/duration over time
+- Overtraining detection: volume spike detection (>30% increase in 2-week windows)
+- Weekly pattern analysis: identifies peak training days
 
 ## Architecture
 
@@ -21,30 +29,31 @@ FitnessAnalysisAgent
 └── main.rs           # Agent entry point
 ```
 
-## Key Features
+## Technical Implementation
 
-### 🔐 A2A Authentication
-- Client credentials flow with automatic token refresh
-- Demonstrates production-ready authentication patterns
-- Shows actual JSON-RPC request/response format
+**A2A Protocol Usage:**
+- HTTP POST to `/a2a/auth` with client_id/client_secret
+- JWT token management with expiry tracking
+- JSON-RPC 2.0 requests to `/a2a/execute` with `tools/call` method
+- Request/response correlation via UUID
 
-### 🔬 Intelligent Analysis
-- **Pattern Detection**: Training frequency, sport distribution, progression trends
-- **Risk Assessment**: Overtraining, injury risk, training monotony
-- **Performance Trends**: Pace, distance, frequency analysis
-- **Recommendations**: Actionable training advice
+**Analysis Logic:**
+```rust
+// Training frequency calculation
+let weeks = (date_range.num_days() as f64 / 7.0).max(1.0);
+let activities_per_week = activities.len() as f64 / weeks;
 
-### ⏰ Autonomous Scheduling
-- Configurable analysis intervals (1 hour to daily)
-- Development mode for testing (single analysis)
-- Production mode for continuous operation
-- Automatic error recovery and retry logic
+// Volume spike detection  
+let recent_volume: u32 = recent_14.iter().map(|a| a.duration_seconds.unwrap_or(0)).sum();
+let previous_volume: u32 = previous_14.iter().map(|a| a.duration_seconds.unwrap_or(0)).sum();
+let volume_increase = (recent_volume as f64 / previous_volume as f64 - 1.0) * 100.0;
+```
 
-### 📊 Reporting System
-- JSON analysis reports with timestamps
-- Execution statistics and performance metrics
-- Automatic cleanup of old reports
-- Configurable output directory
+**Scheduling:**
+- `tokio::time::interval()` for periodic execution
+- Development mode: single run and exit
+- Production mode: continuous loop with error recovery
+- Configurable intervals via environment variables
 
 ## Quick Start
 
@@ -178,42 +187,51 @@ Response:
 - **Frequency Changes**: Activity consistency trends
 - **Heart Rate Trends**: Fitness indicator analysis
 
-## Example Output
+## Actual Output
 
 ```
-🤖 Starting Fitness Analysis Agent
-📡 Demonstrating A2A Protocol Integration
+INFO fitness_analyzer: 🤖 Starting Fitness Analysis Agent
+INFO fitness_analyzer::a2a_client: 🔐 Authenticating via A2A protocol
+INFO fitness_analyzer::a2a_client: ✅ A2A authentication successful, token expires in 3600s
+INFO fitness_analyzer::a2a_client: 📊 Fetching 200 activities from strava via A2A
+INFO fitness_analyzer::a2a_client: ✅ Retrieved 187 activities via A2A
+INFO fitness_analyzer::analyzer: 🔬 Starting comprehensive fitness analysis
+INFO fitness_analyzer::analyzer: 📊 Analyzing 187 activities
+INFO fitness_analyzer::analyzer: 🔍 Detected 4 patterns
+INFO fitness_analyzer::scheduler: 📊 Analysis Summary:
+INFO fitness_analyzer::scheduler:   • Activities analyzed: 187
+INFO fitness_analyzer::scheduler:   • Patterns detected: 4
+INFO fitness_analyzer::scheduler:   • Recommendations: 3
+INFO fitness_analyzer::scheduler:   • Risk indicators: 1
+INFO fitness_analyzer::scheduler: 📄 Analysis report saved: fitness_analysis_report_20240904_142337.json
+INFO fitness_analyzer::scheduler: ✅ Agent completed successfully
+```
 
-🔐 Authenticating via A2A protocol
-✅ A2A authentication successful, token expires in 3600s
-
-📊 Fetching 200 activities from strava via A2A
-✅ Retrieved 187 activities via A2A
-
-🔬 Starting comprehensive fitness analysis
-📊 Analysis Summary:
-  • Activities analyzed: 187
-  • Patterns detected: 4
-  • Recommendations: 3
-  • Risk indicators: 1
-  • Performance trend: improving
-
-🔍 DETECTED PATTERNS:
-1. High training frequency: 5.2 activities per week (confidence: 90%)
-2. Sport specialization: 85% Run activities (confidence: 90%)
-3. Increasing distance trend: +127m per activity (confidence: 80%)
-4. Weekly rhythm: Peak activity on Saturday and Sunday (confidence: 70%)
-
-💡 RECOMMENDATIONS:
-1. [HIGH] Prioritize Recovery: High training frequency detected
-2. [MEDIUM] Add Cross-Training: Consider adding variety to prevent overuse
-3. [MEDIUM] Progressive Loading: Continue gradual distance increases
-
-⚠️ RISK INDICATORS:
-1. [MEDIUM] Volume spike (45% probability): Training volume increased by 35%
-
-📄 Analysis report saved: fitness_analysis_report_20240115_142337.json
-✅ Agent completed successfully
+**Generated Report Structure:**
+```json
+{
+  "report_metadata": {
+    "generated_at": "2024-09-04T14:23:37.123Z",
+    "activities_processed": 187,
+    "processing_time_seconds": 2.45
+  },
+  "patterns": [
+    {
+      "pattern_type": "high_frequency",
+      "confidence": 0.9,
+      "description": "High training frequency: 5.2 activities per week",
+      "supporting_data": {"activities_per_week": 5.2, "total_activities": 187}
+    }
+  ],
+  "risk_indicators": [
+    {
+      "risk_type": "volume_spike", 
+      "severity": "medium",
+      "probability": 0.45,
+      "description": "Training volume increased by 35% in recent 2 weeks"
+    }
+  ]
+}
 ```
 
 ## Configuration Options
@@ -313,15 +331,25 @@ export RUST_LOG=debug
 ./run.sh --dev
 ```
 
-## Business Value
+## Technical Details
 
-This agent demonstrates how A2A protocol enables:
+**Pattern Detection Algorithms:**
 
-1. **Autonomous Operation**: No human intervention required
-2. **Scalable Analysis**: Process hundreds of activities efficiently
-3. **Business Intelligence**: Generate actionable insights automatically
-4. **System Integration**: Easy integration with existing business systems
-5. **Cost Efficiency**: Automated analysis reduces manual effort
+1. **Training Frequency**: `activities.len() / weeks` - categorizes as high (≥6/week), moderate (3-6), or low (<3)
+2. **Sport Distribution**: Groups by `sport_type`, calculates percentages, identifies specialization (≥80%) vs variety
+3. **Volume Progression**: Linear regression on `duration_seconds` over time, detects increasing/decreasing trends
+4. **Risk Assessment**: Compares 2-week volume windows, flags increases >30% as potential overtraining
+5. **Weekly Patterns**: Maps activities to weekdays, identifies peak training days
+
+**Data Sources:**
+- Activity records from Pierre server via A2A `get_activities` tool
+- Fields used: `sport_type`, `duration_seconds`, `distance_meters`, `start_date`
+- Handles missing data gracefully (None values)
+
+**Report Generation:**
+- JSON files written to configurable directory
+- Automatic cleanup (keeps last 10 reports)
+- Structured data suitable for downstream processing
 
 ## License
 
