@@ -159,12 +159,18 @@ PLACEHOLDER_EMAILS=$(rg "@example\.(com|org|net)" src/ --exclude="*.md" --count 
 NOT_YET=$(rg "not yet" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 TEMPORARY=$(rg -i "temporary|temp solution|workaround|hack" src/ --type rust -g '!*.md' -g '!*.rs.backup' --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 
+# Dead code and unused item detection (CRITICAL for code quality)
+ALLOW_DEAD_CODE=$(rg "#\[allow\(dead_code\)\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+ALLOW_UNUSED=$(rg "#\[allow\(unused.*\)\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+DEPRECATED_ITEMS=$(rg "#\[deprecated\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+
 CODE_QUALITY_ISSUES=false
 
 echo "Found: $UNWRAPS unwraps, $EXPECTS expects, $PANICS panics"
 echo "       $TODOS TODOs/FIXMEs, $PLACEHOLDERS placeholders, $STUBS stubs, $UNDERSCORE_NAMES underscore names"
 echo "       $CFG_TESTS #[cfg(test)] modules, $PLACEHOLDER_EMAILS example emails, $NOT_YET 'not yet' phrases"
-echo "       $TEMPORARY temporary solutions"
+echo "       $TEMPORARY temporary solutions, $ALLOW_DEAD_CODE dead code allowances, $ALLOW_UNUSED unused allowances"
+echo "       $DEPRECATED_ITEMS deprecated items"
 
 if [ "$UNWRAPS" -gt 0 ]; then 
     echo -e "${RED}[FAIL] Found $UNWRAPS unwrap() calls (dev standards violation)${NC}"
@@ -249,6 +255,31 @@ if [ "$TEMPORARY" -gt 2 ]; then  # Allow 2 legitimate uses in rate_limiting.rs
     ALL_PASSED=false
 elif [ "$TEMPORARY" -gt 0 ]; then
     echo -e "${YELLOW}[INFO] Found $TEMPORARY uses of 'temporary' - verified as legitimate feature descriptions${NC}"
+fi
+
+# Critical dead code and unused item checks (ZERO TOLERANCE)
+if [ "$ALLOW_DEAD_CODE" -gt 0 ]; then 
+    echo -e "${RED}[CRITICAL] Found $ALLOW_DEAD_CODE #[allow(dead_code)] attributes (FORBIDDEN)${NC}"
+    echo -e "${RED}   CLAUDE.md strictly prohibits #[allow(dead_code)]${NC}"
+    echo -e "${YELLOW}   Examples:${NC}"
+    rg "#\[allow\(dead_code\)\]" src/ -n | head -3
+    CODE_QUALITY_ISSUES=true
+    ALL_PASSED=false
+fi
+if [ "$ALLOW_UNUSED" -gt 0 ]; then 
+    echo -e "${RED}[CRITICAL] Found $ALLOW_UNUSED #[allow(unused*)] attributes (SUSPICIOUS)${NC}"
+    echo -e "${RED}   These may mask real code quality issues${NC}"
+    echo -e "${YELLOW}   Examples:${NC}"
+    rg "#\[allow\(unused.*\)\]" src/ -n | head -3
+    CODE_QUALITY_ISSUES=true
+    ALL_PASSED=false
+fi
+if [ "$DEPRECATED_ITEMS" -gt 0 ]; then 
+    echo -e "${RED}[FAIL] Found $DEPRECATED_ITEMS deprecated items (remove or document)${NC}"
+    echo -e "${YELLOW}   Examples:${NC}"
+    rg "#\[deprecated\]" src/ -n | head -3
+    CODE_QUALITY_ISSUES=true
+    ALL_PASSED=false
 fi
 
 if [ "$CODE_QUALITY_ISSUES" = true ]; then

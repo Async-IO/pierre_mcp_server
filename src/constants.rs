@@ -212,13 +212,13 @@ pub mod errors {
     /// Internal error
     pub const ERROR_INTERNAL_ERROR: i32 = -32603;
 
-    /// Unauthorized (custom error code)
-    pub const ERROR_UNAUTHORIZED: i32 = -32000;
+    /// Unauthorized - using standard JSON-RPC Internal Error for better Claude Desktop integration
+    pub const ERROR_UNAUTHORIZED: i32 = -32603;
 
-    /// Token-specific error codes
-    pub const ERROR_TOKEN_EXPIRED: i32 = -32001;
-    pub const ERROR_TOKEN_INVALID: i32 = -32002;
-    pub const ERROR_TOKEN_MALFORMED: i32 = -32003;
+    /// Token-specific error codes (using standard JSON-RPC codes for better Claude Desktop integration)
+    pub const ERROR_TOKEN_EXPIRED: i32 = -32603; // Internal error - token expired
+    pub const ERROR_TOKEN_INVALID: i32 = -32603; // Internal error - token invalid
+    pub const ERROR_TOKEN_MALFORMED: i32 = -32602; // Invalid params - malformed token
 
     /// Common error messages
     pub const MSG_METHOD_NOT_FOUND: &str = "Method not found";

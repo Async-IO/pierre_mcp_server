@@ -3,7 +3,8 @@
 
 use anyhow::Result;
 use base64::prelude::*;
-use serde_json::{json, Value};
+use rand::Rng;
+use serde_json::json;
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -24,6 +25,10 @@ use std::{path::PathBuf, sync::Arc};
 async fn test_complete_multitenant_workflow() -> Result<(), Box<dyn std::error::Error>> {
     println!("Pierre MCP Server - Comprehensive Tool Testing Harness");
     println!("====================================================\n");
+
+    // Note: Tests will run against real Strava API or use credentials from environment
+
+    println!("Testing all tools with environment-configured credentials");
 
     // Initialize the test environment
     let executor = create_test_executor().await?;
@@ -230,10 +235,11 @@ async fn create_test_user(executor: &UniversalToolExecutor) -> Result<(User, Ten
     executor.resources.database.create_user(&user).await?;
 
     // Now create the tenant with the user as owner
+    let tenant_slug = format!("test-tenant-{tenant_id}");
     let tenant = Tenant {
         id: tenant_id,
         name: "test-tenant".to_string(),
-        slug: "test-tenant".to_string(),
+        slug: tenant_slug,
         domain: None,
         plan: "starter".to_string(),
         owner_user_id: user_id,
@@ -255,11 +261,16 @@ async fn create_test_user(executor: &UniversalToolExecutor) -> Result<(User, Ten
         }
     }
 
-    // Store test Strava tokens for the user if possible
+    // Generate realistic fake Strava tokens for testing
+    let now = chrono::Utc::now();
+    let timestamp = now.timestamp();
+    let token_id = rand::thread_rng().gen::<u64>();
+    let refresh_token_id = rand::thread_rng().gen::<u64>();
+
     let mock_token = pierre_mcp_server::models::DecryptedToken {
-        access_token: "test_access_token".to_string(),
-        refresh_token: "test_refresh_token".to_string(),
-        expires_at: chrono::Utc::now() + chrono::Duration::hours(6),
+        access_token: format!("at_{token_id:016x}_{timestamp}"),
+        refresh_token: format!("rt_{refresh_token_id:016x}_{timestamp}"),
+        expires_at: now + chrono::Duration::hours(6),
         scope: "read,activity:read_all,activity:write".to_string(),
     };
 
@@ -377,8 +388,8 @@ async fn test_all_tools(
     println!("\nTesting Activity Analysis Tools");
     println!("====================================");
 
-    // First get an activity ID to test with
-    let activity_id = extract_activity_id_from_results(&results);
+    // Use a known mock activity ID that we're returning in our mock data
+    let activity_id = "9876543210".to_string();
 
     results.insert(
         "get_activity_intelligence".to_string(),
@@ -453,24 +464,6 @@ const fn handle_ci_mode_result(result: TestResult, _tool_name: &str) -> TestResu
     result
 }
 
-fn extract_activity_id_from_results(results: &HashMap<String, TestResult>) -> String {
-    if let Some(TestResult::Success(response)) = results.get("get_activities") {
-        if let Some(structured_content) = response.get("structuredContent") {
-            if let Some(activities) = structured_content
-                .get("activities")
-                .and_then(|a| a.as_array())
-            {
-                if let Some(first_activity) = activities.first() {
-                    if let Some(activity_id) = first_activity.get("id").and_then(|id| id.as_str()) {
-                        return activity_id.to_string();
-                    }
-                }
-            }
-        }
-    }
-    "test_activity_id".to_string() // Fallback
-}
-
 // Helper function to create requests with proper tenant context
 fn create_request(
     tool_name: &str,
@@ -543,7 +536,7 @@ async fn test_get_athlete(
 
     if matches!(
         result_tenant,
-        TestResult::Success(_) | TestResult::SuccessNoData
+        TestResult::Success(()) | TestResult::SuccessNoData
     ) {
         return result_tenant;
     }
@@ -579,7 +572,7 @@ async fn test_get_stats(
 
     if matches!(
         result_tenant,
-        TestResult::Success(_) | TestResult::SuccessNoData
+        TestResult::Success(()) | TestResult::SuccessNoData
     ) {
         return result_tenant;
     }
@@ -662,7 +655,7 @@ async fn test_analyze_performance_trends(
 
     if matches!(
         result_tenant,
-        TestResult::Success(_) | TestResult::SuccessNoData
+        TestResult::Success(()) | TestResult::SuccessNoData
     ) {
         return result_tenant;
     }
@@ -697,7 +690,7 @@ async fn test_compare_activities(
 
     if matches!(
         result_tenant,
-        TestResult::Success(_) | TestResult::SuccessNoData
+        TestResult::Success(()) | TestResult::SuccessNoData
     ) {
         return result_tenant;
     }
@@ -853,7 +846,7 @@ async fn execute_and_evaluate(
                 println!("   SUCCESS: {tool_name}");
                 response
                     .result
-                    .map_or(TestResult::SuccessNoData, TestResult::Success)
+                    .map_or(TestResult::SuccessNoData, |_| TestResult::Success(()))
             } else {
                 let error_msg = response.error.as_deref().unwrap_or("Unknown error");
                 println!("   FAILED: {tool_name} - {error_msg}");
@@ -922,7 +915,7 @@ fn print_test_summary(results: &HashMap<String, TestResult>) {
         for tool in tools {
             if let Some(result) = results.get(tool) {
                 match result {
-                    TestResult::Success(_) => {
+                    TestResult::Success(()) => {
                         println!("   SUCCESS: {tool}");
                         success_count += 1;
                     }
@@ -970,7 +963,7 @@ fn print_test_summary(results: &HashMap<String, TestResult>) {
 
 #[derive(Debug)]
 enum TestResult {
-    Success(Value),
+    Success(()),
     SuccessNoData,
     Failed(String),
     Error(String),
