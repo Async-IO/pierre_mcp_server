@@ -149,6 +149,9 @@ pub mod errors;
 /// Unified tool execution engine for fitness analysis and data processing
 pub mod tools;
 
+/// Compile-time plugin system for extensible tool architecture
+pub mod plugins;
+
 /// Two-tier key management system for secure database encryption
 pub mod key_management;
 

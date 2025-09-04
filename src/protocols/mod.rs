@@ -43,4 +43,19 @@ pub enum ProtocolError {
 
     #[error("Database operation failed: {0}")]
     DatabaseError(String),
+
+    #[error("Plugin not found: {0}")]
+    PluginNotFound(String),
+
+    #[error("Plugin error: {0}")]
+    PluginError(String),
+
+    #[error("Invalid schema: {0}")]
+    InvalidSchema(String),
+
+    #[error("Insufficient subscription tier: {0}")]
+    InsufficientSubscription(String),
+
+    #[error("Rate limit exceeded: {0}")]
+    RateLimitExceeded(String),
 }

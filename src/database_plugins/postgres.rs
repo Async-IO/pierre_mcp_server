@@ -4680,7 +4680,7 @@ impl PostgresDatabase {
             r"
             CREATE TABLE IF NOT EXISTS oauth_notifications (
                 id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
+                user_id UUID NOT NULL,
                 provider TEXT NOT NULL,
                 success BOOLEAN NOT NULL DEFAULT true,
                 message TEXT NOT NULL,

@@ -88,6 +88,7 @@ jsonwebtoken = "9.3"
 subtle = "2.6"
 warp = { version = "0.3", features = ["websocket"], default-features = false }
 futures-util = "0.3"
+linkme = "0.3"
 # Pin to compatible version to avoid edition2024 requirement
 base64ct = "=1.6.0"
 # For documentation server
