@@ -1,12 +1,52 @@
 # Getting Started with Pierre MCP Server
 
-Complete setup guide to get Pierre MCP Server running from scratch. This guide covers installation, configuration, and first-time usage.
+Complete guide to get Pierre MCP Server running from zero to production-ready deployment.
+
+## What is Pierre MCP Server?
+
+Pierre is a fitness data API platform that connects AI assistants (like Claude) to fitness providers (like Strava). It supports:
+- **MCP protocol** for AI assistants
+- **A2A protocol** for autonomous agents and enterprise integrations  
+- **REST API** for web applications
 
 ## Architecture Overview
 
 Pierre MCP Server runs on two ports:
 - **Port 8080**: MCP protocol server (for AI assistants like Claude)
 - **Port 8081**: HTTP REST API server (for admin management, user authentication)
+
+## Choose Your Path
+
+### Path 1: Quick Start (5 minutes)
+Perfect for contributors and developers who want to start coding immediately.
+
+```bash
+# Clone and build
+git clone https://github.com/Async-IO/pierre_mcp_server.git
+cd pierre_mcp_server
+cargo build --release
+
+# Automated setup - creates admin, user, tenant, tests MCP
+./scripts/fresh-start.sh
+source .envrc && cargo run --bin pierre-mcp-server &
+./scripts/complete-user-workflow.sh
+
+# Reuse generated tokens
+source .workflow_test_env
+curl http://localhost:8081/api/health  # Should return {"status":"healthy"}
+```
+
+**What the automated script creates:**
+- ✅ Admin user (admin@pierre.mcp)
+- ✅ Regular user (user@example.com) with approved status
+- ✅ Default tenant with OAuth configuration
+- ✅ JWT tokens saved to `.workflow_test_env`
+- ✅ Validates 25 MCP tools work correctly
+
+Ready to contribute? See [CONTRIBUTING.md](../CONTRIBUTING.md).
+
+### Path 2: Production Setup (30 minutes)
+For production deployments with security and encryption properly configured.
 
 ## Prerequisites
 
@@ -17,102 +57,74 @@ Pierre MCP Server runs on two ports:
 - **PostgreSQL**: For multi-user deployments (SQLite auto-created for development)
 - **Strava Developer App**: Create at [developers.strava.com](https://developers.strava.com) for real fitness data
 
-## Quick Setup
+## Production Setup Process
 
-### Option 1: Automated Setup Script (Recommended for Development)
+### Step 1: Clean Start
 
-For development and testing, use our automated workflow script:
+Always start with a clean database:
 
 ```bash
-# Clone and build
-git clone https://github.com/Async-IO/pierre_mcp_server.git
-cd pierre_mcp_server
-cargo build --release
-
-# Clean database and start server
 ./scripts/fresh-start.sh
-source .envrc && RUST_LOG=debug cargo run --bin pierre-mcp-server &
-
-# Run complete 5-step setup (admin + user + tenant + login + MCP test)
-./scripts/complete-user-workflow.sh
 ```
 
-**What the script does:**
-1. ✅ Creates admin user (admin@pierre.mcp)
-2. ✅ Registers regular user (user@example.com) 
-3. ✅ Approves user with tenant creation
-4. ✅ Tests user login with JWT token
-5. ✅ Validates MCP access (25 tools available)
+This script:
+- Stops any running Docker containers
+- Removes SQLite databases in `./data/`
+- Removes Docker volumes
+- Provides a clean slate for setup
 
-**Environment variables saved** to `.workflow_test_env`:
-- `ADMIN_TOKEN` - For admin operations
-- `USER_ID` - Regular user identifier
-- `TENANT_ID` - Tenant for multi-tenancy
-- `JWT_TOKEN` - For MCP authentication
+### Step 2: Configure Security (Production)
+
+Pierre uses two-tier encryption (MEK/DEK) with automatic mode detection:
+
+**Development Mode (Auto-generates keys with warnings):**
+```bash
+RUST_LOG=debug cargo run --bin pierre-mcp-server
+
+# System will display:
+# WARN Generated MEK (save for production): PIERRE_MASTER_ENCRYPTION_KEY=<base64_key>
+```
+
+**Production Mode (Explicit security keys):**
+```bash
+# Set Master Encryption Key (save the key from development logs)
+export PIERRE_MASTER_ENCRYPTION_KEY="<base64_key_from_development_logs>"
+
+# Or generate new production key
+export PIERRE_MASTER_ENCRYPTION_KEY="$(openssl rand -base64 32)"
+
+# Start with production security (no warnings)
+RUST_LOG=info cargo run --bin pierre-mcp-server
+```
+
+### Step 3: Create Admin User
+
+Create the first admin user through the server API:
 
 ```bash
-# Reuse tokens in new terminal session
-source .workflow_test_env
-echo "JWT Token ready: ${JWT_TOKEN:0:50}..."
-```
-
-### Option 2: Manual Setup
-
-### 1. Install and Build
-
-```bash
-# Clone and build
-git clone https://github.com/Async-IO/pierre_mcp_server.git
-cd pierre_mcp_server
-cargo build --release
-
-# Start server (auto-creates SQLite database)
-cargo run --bin pierre-mcp-server
-```
-
-**Expected output:**
-```
-INFO Starting Pierre MCP Server...
-INFO Database auto-created at ./data/users.db
-WARN Generated MEK for development (save for deployment): PIERRE_MASTER_ENCRYPTION_KEY=<base64_key>
-INFO MCP server listening on port 8080
-INFO HTTP server listening on port 8081
-INFO Server ready - admin setup available at POST /admin/setup
-```
-
-### 2. Create Admin User via Server API
-
-```bash
-# Create first admin user through server API
 curl -X POST http://localhost:8081/admin/setup \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "admin@example.com",
+    "email": "admin@yourcompany.com",
     "password": "SecurePass123!",
     "display_name": "System Administrator"
   }'
 ```
 
-**Expected output:**
+**Success Output:**
 ```json
 {
   "user_id": "550e8400-e29b-41d4-a716-446655440000",
   "admin_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
-  "message": "Admin user admin@example.com created successfully with token"
+  "message": "Admin user created successfully"
 }
 ```
 
-### 3. Verify Server Health
+**Save the admin_token** - you'll need it for user management.
 
-```bash
-curl http://localhost:8081/api/health
-# Should return: {"status":"healthy"}
-```
+### Step 4: User Management Workflow
 
-## User Management Workflow
-
-### Register a New User
-
+**Register Regular User:**
 ```bash
 curl -X POST http://localhost:8081/api/auth/register \
   -H "Content-Type: application/json" \
@@ -123,24 +135,20 @@ curl -X POST http://localhost:8081/api/auth/register \
   }'
 ```
 
-### Admin Approval Required
-
-New users are created with "pending" status. Admin must approve them:
-
+**Admin Approval (Required):**
 ```bash
-# 1. Use the admin token from the setup step above
-
-# 2. List pending users
+# List pending users
 curl -X GET http://localhost:8081/admin/pending-users \
-  -H "Authorization: Bearer <ADMIN_TOKEN_FROM_SETUP>"
+  -H "Authorization: Bearer <ADMIN_TOKEN>"
 
-# 3. Approve user
+# Approve user
 curl -X POST http://localhost:8081/admin/approve-user/<USER_ID> \
-  -H "Authorization: Bearer <ADMIN_TOKEN_FROM_SETUP>"
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"reason": "Account verified"}'
 ```
 
-### User Login (After Approval)
-
+**User Login:**
 ```bash
 curl -X POST http://localhost:8081/api/auth/login \
   -H "Content-Type: application/json" \
@@ -149,6 +157,8 @@ curl -X POST http://localhost:8081/api/auth/login \
     "password": "UserPass123!"
   }'
 ```
+
+Save the JWT token from login response for MCP integration.
 
 ## Claude Desktop Integration
 
@@ -161,87 +171,66 @@ curl -X POST http://localhost:8081/api/auth/login \
 {
   "mcpServers": {
     "pierre-fitness": {
-      "command": "node",
-      "args": ["/path/to/pierre-mcp-client.js"],
+      "command": "/path/to/pierre_mcp_server/scripts/mcp-client.sh",
       "env": {
-        "PIERRE_API_URL": "http://localhost:8081",
-        "PIERRE_AUTH_TOKEN": "USER_JWT_TOKEN_FROM_LOGIN"
+        "PIERRE_JWT_TOKEN": "USER_JWT_TOKEN_FROM_LOGIN",
+        "PIERRE_SERVER_URL": "http://127.0.0.1:8080/mcp"
       }
     }
   }
 }
 ```
 
-### 2. Connect Strava Account
+### 2. Connect Fitness Provider
 
-Visit in browser: `http://localhost:8081/api/oauth/strava/auth` (requires user login)
+Visit: `http://localhost:8081/api/oauth/strava/auth` (requires user login)
 
 ### 3. Test in Claude Desktop
 
-Ask Claude: "What were my recent activities?"
+Restart Claude Desktop and ask: "What were my recent activities?"
 
-## Advanced Configuration
+## Environment Variables
 
-### Multi-User Deployment
-
+### Development
 ```bash
-# Use explicit encryption key (save the MEK from server logs)
-export PIERRE_MASTER_ENCRYPTION_KEY="<base64_key_from_logs>"
-
-# Configure PostgreSQL (optional)
-export DATABASE_URL="postgresql://user:pass@localhost/pierre"
-
-# Start server and create admin
-cargo run --bin pierre-mcp-server &
-ADMIN_TOKEN=$(curl -s -X POST http://localhost:8081/admin/setup \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "admin@example.com",
-    "password": "SecurePass123!",
-    "display_name": "System Administrator"
-  }' | jq -r '.admin_token')
-
-# Configure Strava OAuth
-curl -X POST http://localhost:8081/api/tenants/<TENANT_UUID>/oauth \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -d '{
-    "provider": "strava",
-    "client_id": "YOUR_STRAVA_CLIENT_ID",
-    "client_secret": "YOUR_STRAVA_CLIENT_SECRET",
-    "redirect_uri": "http://localhost:8081/api/oauth/callback/strava",
-    "scopes": ["read", "activity:read_all"]
-  }'
+DATABASE_URL=sqlite:./data/pierre.db
+RUST_LOG=debug
 ```
 
-### Clean Restart
-
+### Production
 ```bash
-# Reset everything for fresh start
-./scripts/fresh-start.sh
+# Core Configuration
+MCP_PORT=8080
+HTTP_PORT=8081
+DATABASE_URL=postgresql://user:pass@localhost:5432/pierre
+
+# Security (Required)
+PIERRE_MASTER_ENCRYPTION_KEY=your_32_byte_base64_key
+
+# OAuth Providers
+STRAVA_CLIENT_ID=your_strava_client_id
+STRAVA_CLIENT_SECRET=your_strava_client_secret
+
+# Logging
+RUST_LOG=info
 ```
 
 ## Testing Your Setup
 
-### 1. Health Check
-
+### Health Check
 ```bash
 curl http://localhost:8081/api/health
 # Expected: {"status":"healthy"}
 ```
 
-### 2. Admin Access
-
+### Admin Access
 ```bash
-# List users (use admin token from setup)
 curl -X GET http://localhost:8081/admin/users \
-  -H "Authorization: Bearer <ADMIN_TOKEN_FROM_SETUP>"
+  -H "Authorization: Bearer <ADMIN_TOKEN>"
 ```
 
-### 3. MCP Protocol Test
-
+### MCP Protocol Test
 ```bash
-# Test MCP tools list
 curl -X POST http://localhost:8080/mcp \
   -H "Authorization: Bearer <USER_JWT_TOKEN>" \
   -H "Content-Type: application/json" \
@@ -255,60 +244,94 @@ curl -X POST http://localhost:8080/mcp \
 
 ## Troubleshooting
 
-### Common Issues
-
-**Server won't start:**
-- Check port 8080/8081 aren't in use: `lsof -i :8080`
+### Server Won't Start
+- Check ports aren't in use: `lsof -i :8080 -i :8081`
 - Verify Rust installation: `rustc --version`
-
-**Database errors:**
 - Reset database: `./scripts/fresh-start.sh`
-- Check SQLite file permissions in `./data/`
 
-**User can't login:**
+### User Can't Login
 - Verify user status: Admin must approve new users
 - Check password requirements: 8+ characters
 
-**MCP client connection fails:**
+### MCP Client Connection Fails
 - Verify JWT token is valid (expires after 24 hours)
-- Check user has completed OAuth connection to Strava/Fitbit
-- Ensure server is running on correct ports
+- Check user completed OAuth connection to Strava/Fitbit
+- Ensure server running on correct ports
+
+### Database Issues
+- Reset database: `./scripts/fresh-start.sh`
+- Check SQLite file permissions in `./data/`
+- For PostgreSQL: verify connection string and credentials
 
 ### Debug Mode
-
 ```bash
 RUST_LOG=debug cargo run --bin pierre-mcp-server
 ```
 
-### Logs Location
-
-- Server logs: Console output
-- Database: `./data/users.db` (SQLite browser to inspect)
-
 ## Next Steps
 
+Once setup is complete:
+
+### For Developers
 - **API Integration**: See [API Reference](developer-guide/14-api-reference.md)
-- **A2A Protocol**: See [A2A Quick Start](A2A_QUICK_START.md)
 - **Architecture Deep Dive**: See [System Architecture](developer-guide/01-architecture.md)
-- **Security Configuration**: See [Security Guide](developer-guide/17-security-guide.md)
+- **Contributing**: See [CONTRIBUTING.md](../CONTRIBUTING.md)
 
-## Development Workflows
+### For Integrators
+- **MCP Protocol**: See [MCP Protocol Guide](developer-guide/04-mcp-protocol.md)
+- **A2A Protocol**: See [A2A Quick Start](A2A_QUICK_START.md)
+- **REST API**: Complete API documentation in [API Reference](developer-guide/14-api-reference.md)
 
-### Running Tests
+### For Production
+- **Deployment**: See [Deployment Guide](DEPLOYMENT_GUIDE.md)
+- **Database**: See [Database Guide](DATABASE_GUIDE.md)
+- **Security**: See [Security Guide](developer-guide/17-security-guide.md)
 
+## Docker Deployment
+
+### Single Command Deployment
 ```bash
-./scripts/lint-and-test.sh
+docker run -d \
+  -p 8080:8080 -p 8081:8081 \
+  -e STRAVA_CLIENT_ID=your_client_id \
+  -e STRAVA_CLIENT_SECRET=your_client_secret \
+  -e DATABASE_URL=sqlite:./data/pierre.db \
+  -e PIERRE_MASTER_ENCRYPTION_KEY=your_key_here \
+  --name pierre-fitness \
+  --volume pierre-data:/app/data \
+  pierre-mcp-server:latest
 ```
 
-### Code Contribution
+### Docker Compose
+```yaml
+version: '3.8'
+services:
+  pierre-server:
+    image: pierre-mcp-server:latest
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    environment:
+      - STRAVA_CLIENT_ID=${STRAVA_CLIENT_ID}
+      - STRAVA_CLIENT_SECRET=${STRAVA_CLIENT_SECRET}
+      - DATABASE_URL=postgresql://user:pass@db:5432/pierre
+      - PIERRE_MASTER_ENCRYPTION_KEY=${PIERRE_MASTER_ENCRYPTION_KEY}
+    depends_on:
+      - db
+    restart: unless-stopped
 
-```bash
-# Format code
-cargo fmt
+  db:
+    image: postgres:16
+    environment:
+      - POSTGRES_DB=pierre
+      - POSTGRES_USER=pierre_user
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
 
-# Check for issues
-cargo clippy
-
-# Run full test suite
-cargo test
+volumes:
+  postgres_data:
 ```
+
+This consolidated guide eliminates duplication while providing clear paths for different user types and use cases.

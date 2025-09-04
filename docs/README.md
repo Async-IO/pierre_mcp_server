@@ -5,7 +5,7 @@ Complete documentation for the Pierre MCP Server platform.
 ## Documentation Index
 
 ### **Getting Started**
-- [**Getting Started Guide**](getting-started.md) - Complete setup, admin configuration, and first-time usage
+- [**Getting Started Guide**](getting-started.md) - Complete setup guide from development to production deployment
 
 ### **API References**
 - [**API Reference**](developer-guide/14-api-reference.md) - Complete API documentation including MCP tools, endpoints, error handling, and integration examples
@@ -22,8 +22,8 @@ Complete documentation for the Pierre MCP Server platform.
 ## Quick Navigation
 
 ### For Developers
-1. **Quick Start**: Use `./scripts/complete-user-workflow.sh` for automated setup (admin + user + tenant + MCP test)
-2. **Personal Use**: Start with [Getting Started Guide](getting-started.md)
+1. **Quick Start (5 min)**: Use automated setup script in [Getting Started Guide](getting-started.md)
+2. **Production Setup (30 min)**: Follow production path in [Getting Started Guide](getting-started.md)  
 3. **AI Integration**: See [API Reference](developer-guide/14-api-reference.md) for MCP tools and prompt examples
 4. **Web Development**: Check [Getting Started Guide](getting-started.md) for authentication and [API Reference](developer-guide/14-api-reference.md) for endpoints
 
@@ -45,9 +45,9 @@ Complete documentation for the Pierre MCP Server platform.
 ## Reading Guide
 
 ### First Time Setup
-1. [Getting Started Guide](getting-started.md) - Get the server running
+1. [Getting Started Guide](getting-started.md) - Complete setup from development to production
 2. [API Reference](developer-guide/14-api-reference.md) - Understand available tools and endpoints
-3. [Database Guide](database.md) - Set up your database
+3. [Database Guide](database.md) - Database configuration and management
 
 ### Integration Development
 1. [OpenAPI Specification](openapi.yaml) - Complete API reference
