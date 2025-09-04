@@ -1,6 +1,6 @@
 # A2A Quick Start Guide
 
-Get started with the Pierre Fitness API A2A protocol in 5 minutes. This guide shows you how to register your application, authenticate, and execute tools to get real fitness data.
+Get started with the Pierre Fitness API A2A protocol. This guide shows you how to register your application, authenticate, and execute tools to get real fitness data.
 
 ## Prerequisites
 

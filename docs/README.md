@@ -22,8 +22,8 @@ Complete documentation for the Pierre MCP Server platform.
 ## Quick Navigation
 
 ### For Developers
-1. **Quick Start (5 min)**: Use automated setup script in [Getting Started Guide](getting-started.md)
-2. **Production Setup (30 min)**: Follow production path in [Getting Started Guide](getting-started.md)  
+1. **Quick Start**: Use automated setup script in [Getting Started Guide](getting-started.md)
+2. **Production Setup**: Follow production path in [Getting Started Guide](getting-started.md)  
 3. **AI Integration**: See [API Reference](developer-guide/14-api-reference.md) for MCP tools and prompt examples
 4. **Web Development**: Check [Getting Started Guide](getting-started.md) for authentication and [API Reference](developer-guide/14-api-reference.md) for endpoints
 

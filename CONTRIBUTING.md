@@ -1,46 +1,35 @@
 # Contributing to Pierre MCP Server
 
-Thank you for your interest in contributing! This guide will get you from zero to your first contribution in **30 minutes**.
+Thank you for your interest in contributing! This guide covers everything you need to make your first contribution.
 
 ## New Contributor Quick Start
 
-### Step 1: Get the Code (2 minutes)
+**Prerequisites**: Complete the [Getting Started Guide](docs/getting-started.md) first to set up your development environment.
+
+### Step 1: Fork and Setup
 ```bash
 # Fork on GitHub, then clone your fork
 git clone https://github.com/YOUR_USERNAME/pierre_mcp_server.git
 cd pierre_mcp_server
+
+# Use the automated development setup from getting-started guide
+./scripts/fresh-start.sh
+source .envrc && cargo run --bin pierre-mcp-server &
+./scripts/complete-user-workflow.sh
 ```
 
-### Step 2: Environment Setup (5 minutes)
-**Prerequisites**: Only Rust 1.75+ required
-```bash
-# Install Rust if needed
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source ~/.cargo/env
-
-# Build the project
-cargo build --release
-```
-
-### Step 3: Verify Setup (3 minutes)
-```bash
-# Start the server
-cargo run --bin pierre-mcp-server
-# Wait for: "Server ready on ports 8080 (MCP) and 8081 (HTTP)"
-
-# In another terminal, test it works
-curl http://localhost:8081/api/health
-# Should return: {"status":"healthy"}
-```
-
-### Step 4: Run Full Test Suite (10 minutes)
+### Step 2: Validate Your Environment
 ```bash
 # Run all tests and linting (this is what CI runs)
 ./scripts/lint-and-test.sh
 # Should end with: ✅ All checks passed!
+
+# Test server is working
+curl http://localhost:8081/api/health
+# Should return: {"status":"healthy"}
 ```
 
-### Step 5: Make Your First Change (10 minutes)
+### Step 3: Make Your First Change
 ```bash
 # Create a branch
 git checkout -b your-feature-name
@@ -104,17 +93,17 @@ Ready to contribute - create a pull request from your branch.
 
 ## Development Setup
 
-### Easy (30 minutes)
+### Easy
 - **Fix documentation typos** - Look for typos in `README.md` or `docs/`
 - **Add API examples** - Add curl examples to `docs/developer-guide/14-api-reference.md`
 - **Improve error messages** - Make error messages more helpful in `src/errors.rs`
 
-### Medium (2-4 hours)
+### Medium
 - **Add new MCP tool** - Add fitness tool in `src/tools/` (see existing tools as examples)
 - **Add test coverage** - Find untested code with `cargo tarpaulin`
 - **Frontend improvements** - Add features to admin dashboard in `frontend/src/`
 
-### Advanced (1+ days)
+### Advanced
 - **New fitness provider** - Add Garmin/Polar support in `src/providers/`
 - **Performance optimization** - Profile and optimize database queries
 - **Security improvements** - Enhance authentication or encryption
@@ -133,7 +122,7 @@ cargo run --bin pierre-mcp-server
 ### Full Development Setup (Advanced)
 **Additional**: PostgreSQL, Redis, Strava API credentials
 ```bash
-# See docs/developer-guide/15-getting-started.md for complete setup
+# See docs/getting-started.md for complete setup
 ```
 
 ### Frontend Development (Optional)
@@ -254,7 +243,7 @@ Contributors are recognized through:
 ## Getting Help
 
 ### When You're Stuck
-1. **Check existing docs** - [docs/developer-guide/15-getting-started.md](docs/developer-guide/15-getting-started.md)
+1. **Check existing docs** - [docs/getting-started.md](docs/getting-started.md)
 2. **Search closed issues** - Someone may have had the same problem
 3. **Enable debug logging** - `RUST_LOG=debug cargo run --bin pierre-mcp-server`
 4. **Ask in GitHub Discussions** - We're friendly and responsive!
