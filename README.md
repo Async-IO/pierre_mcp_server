@@ -179,7 +179,7 @@ curl -X POST http://localhost:8081/a2a/auth \
 **Developer Resources:**
 - [API Reference](docs/developer-guide/14-api-reference.md) - REST API and tool documentation
 - [Architecture Guide](docs/developer-guide/01-architecture.md) - System design
-- [Python Examples](docs/developer-guide/python-examples.md) - API usage examples
+- [Agent Examples](examples/agents/) - Autonomous agent implementations
 
 ## License
 
