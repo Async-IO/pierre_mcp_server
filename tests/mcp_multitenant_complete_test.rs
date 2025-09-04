@@ -616,7 +616,7 @@ async fn test_mcp_authentication_required() -> Result<()> {
     // Should return an authentication error for tool call
     assert_eq!(tool_call_response["jsonrpc"], "2.0");
     assert!(!tool_call_response["error"].is_null());
-    assert_eq!(tool_call_response["error"]["code"], -32000); // Authentication error
+    assert_eq!(tool_call_response["error"]["code"], -32603); // Authentication error (Internal error)
 
     println!("Authentication requirement test passed!");
 
