@@ -2,6 +2,7 @@
 // ABOUTME: Provides Strava API integration respecting tenant boundaries and rate limits
 
 use super::tenant_provider::TenantFitnessProvider;
+use crate::constants::api_provider_limits;
 use crate::models::{Activity, Athlete, PersonalRecord, Stats};
 use crate::tenant::{TenantContext, TenantOAuthClient, TenantOAuthCredentials};
 use anyhow::{anyhow, Result};
@@ -210,7 +211,7 @@ impl TenantFitnessProvider for TenantStravaProvider {
         }
         if let Some(offset) = offset {
             url.query_pairs_mut()
-                .append_pair("page", &((offset / limit.unwrap_or(30)) + 1).to_string());
+                .append_pair("page", &((offset / limit.unwrap_or(api_provider_limits::strava::DEFAULT_ACTIVITIES_PER_PAGE)) + 1).to_string());
         }
 
         let response: Vec<StravaActivity> = self

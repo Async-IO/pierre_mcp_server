@@ -6,6 +6,7 @@
 //! into the multitenant MCP server and can handle requests correctly.
 
 use anyhow::Result;
+use chrono::Utc;
 use pierre_mcp_server::{
     auth::AuthManager,
     database_plugins::{factory::Database, DatabaseProvider},
@@ -13,7 +14,7 @@ use pierre_mcp_server::{
         multitenant::{McpRequest, MultiTenantMcpServer},
         resources::ServerResources,
     },
-    models::User,
+    models::{Tenant, User},
 };
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -26,13 +27,77 @@ async fn create_authenticated_user(
     database: &Database,
     auth_manager: &AuthManager,
 ) -> Result<(Uuid, String)> {
-    let user = User::new(
+    let tenant_uuid = Uuid::new_v4(); // Configuration tools require tenant context with valid UUID
+    let user_id = Uuid::new_v4();
+
+    // First create the user (without tenant_id initially)
+    let mut user = User::new(
         "config_test@example.com".to_string(),
         "test_password_hash".to_string(),
         Some("Configuration Test User".to_string()),
     );
-    let user_id = user.id;
+    user.id = user_id;
     database.create_user(&user).await?;
+
+    // Then create the tenant with the user as owner
+    let tenant = Tenant {
+        id: tenant_uuid,
+        name: "Configuration Test Tenant".to_string(),
+        slug: "config-test-tenant".to_string(),
+        domain: None,
+        plan: "starter".to_string(),
+        owner_user_id: user_id,
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+    };
+    database.create_tenant(&tenant).await?;
+
+    // Finally, update the user to associate with the tenant
+    user.tenant_id = Some(tenant_uuid.to_string());
+    database
+        .update_user_tenant_id(user_id, &tenant_uuid.to_string())
+        .await?;
+
+    let token = auth_manager.generate_token(&user)?;
+    Ok((user_id, token))
+}
+
+/// Helper to create authenticated user with different tenant (for isolation testing)
+async fn create_authenticated_user_with_different_tenant(
+    database: &Database,
+    auth_manager: &AuthManager,
+    email: &str,
+) -> Result<(Uuid, String)> {
+    let tenant_uuid = Uuid::new_v4(); // Different tenant UUID
+    let user_id = Uuid::new_v4();
+
+    // First create the user (without tenant_id initially)
+    let mut user = User::new(
+        email.to_string(),
+        "test_password_hash".to_string(),
+        Some("Configuration Test User (Different Tenant)".to_string()),
+    );
+    user.id = user_id;
+    database.create_user(&user).await?;
+
+    // Then create the tenant with the user as owner
+    let tenant = Tenant {
+        id: tenant_uuid,
+        name: "Different Configuration Test Tenant".to_string(),
+        slug: "different-config-test-tenant".to_string(),
+        domain: None,
+        plan: "starter".to_string(),
+        owner_user_id: user_id,
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+    };
+    database.create_tenant(&tenant).await?;
+
+    // Finally, update the user to associate with the tenant
+    user.tenant_id = Some(tenant_uuid.to_string());
+    database
+        .update_user_tenant_id(user_id, &tenant_uuid.to_string())
+        .await?;
 
     let token = auth_manager.generate_token(&user)?;
     Ok((user_id, token))
@@ -217,14 +282,13 @@ async fn test_multitenant_isolation_for_configuration_tools() -> Result<()> {
     let (user1_id, token1) =
         create_authenticated_user(&resources.database, &resources.auth_manager).await?;
 
-    let user2 = User::new(
-        "config_test2@example.com".to_string(),
-        "test_password_hash2".to_string(),
-        Some("Configuration Test User 2".to_string()),
-    );
-    let user2_id = user2.id;
-    resources.database.create_user(&user2).await?;
-    let token2 = resources.auth_manager.generate_token(&user2)?;
+    // Create a second user with different tenant for isolation testing
+    let (user2_id, token2) = create_authenticated_user_with_different_tenant(
+        &resources.database,
+        &resources.auth_manager,
+        "config_test2@example.com",
+    )
+    .await?;
 
     // Both users should be able to access configuration tools independently
     let response1 =

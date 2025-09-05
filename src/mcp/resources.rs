@@ -16,9 +16,10 @@ use crate::a2a::system_user::A2ASystemUserService;
 use crate::auth::{AuthManager, McpAuthMiddleware};
 use crate::database_plugins::factory::Database;
 use crate::intelligence::ActivityIntelligence;
+use crate::mcp::progress::ProgressTracker;
 use crate::oauth::manager::OAuthManager;
 use crate::providers::ProviderRegistry;
-use crate::tenant::TenantOAuthClient;
+use crate::tenant::{oauth_manager::TenantOAuthManager, TenantOAuthClient};
 use crate::websocket::WebSocketManager;
 use std::sync::Arc;
 
@@ -40,6 +41,7 @@ pub struct ServerResources {
     pub oauth_manager: Arc<tokio::sync::RwLock<OAuthManager>>,
     pub a2a_client_manager: Arc<A2AClientManager>,
     pub a2a_system_user_service: Arc<A2ASystemUserService>,
+    pub progress_tracker: Arc<ProgressTracker>,
 }
 
 impl ServerResources {
@@ -84,12 +86,12 @@ impl ServerResources {
 
         // Create websocket manager with shared references (no cloning)
         let websocket_manager = Arc::new(WebSocketManager::new(
-            database_arc.as_ref().clone(),
-            auth_manager_arc.as_ref().clone(),
+            database_arc.clone(),
+            &auth_manager_arc,
         ));
 
         // Create tenant OAuth client and provider registry once
-        let tenant_oauth_client = Arc::new(TenantOAuthClient::new());
+        let tenant_oauth_client = Arc::new(TenantOAuthClient::new(TenantOAuthManager::new()));
         let provider_registry = Arc::new(ProviderRegistry::new());
 
         // Create activity intelligence once for shared use
@@ -132,6 +134,9 @@ impl ServerResources {
             a2a_system_user_service.clone(),
         ));
 
+        // Create progress tracker for MCP operations
+        let progress_tracker = Arc::new(ProgressTracker::new());
+
         Self {
             database: database_arc,
             auth_manager: auth_manager_arc,
@@ -145,6 +150,7 @@ impl ServerResources {
             oauth_manager,
             a2a_client_manager,
             a2a_system_user_service,
+            progress_tracker,
         }
     }
 }

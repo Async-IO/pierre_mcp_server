@@ -1,6 +1,6 @@
 # Getting Started Guide
 
-This guide will help you quickly set up, run, and develop with Pierre MCP Server. Follow these steps to get from zero to a working development environment.
+This guide covers setup, configuration, and development workflows for Pierre MCP Server. Follow these steps to establish a working development environment.
 
 ## Table of Contents
 
@@ -18,45 +18,45 @@ This guide will help you quickly set up, run, and develop with Pierre MCP Server
 
 ### Required Software
 
-1. **Rust** (1.70+ recommended)
+1. Rust (1.70+ recommended)
    ```bash
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
    source ~/.cargo/env
    ```
 
-2. **Database** (choose one):
-   - **SQLite** (default, for development)
-   - **PostgreSQL** (recommended for production)
+2. Database (choose one):
+   - SQLite (default, for development)
+   - PostgreSQL (recommended for production)
    ```bash
    # PostgreSQL installation
    brew install postgresql  # macOS
    sudo apt-get install postgresql postgresql-contrib  # Ubuntu
    ```
 
-3. **Redis** (for rate limiting and caching)
+3. Redis (for rate limiting and caching)
    ```bash
    brew install redis  # macOS
    sudo apt-get install redis-server  # Ubuntu
    ```
 
-4. **Git**
+4. Git
    ```bash
    git --version  # Should be 2.0+
    ```
 
 ### Optional Tools
 
-- **Docker** and **Docker Compose** (for containerized development)
-- **Claude Desktop** or other MCP client (for testing)
-- **Postman** or **curl** (for API testing)
+- Docker and Docker Compose (for containerized development)
+- Claude Desktop or other MCP client (for testing)
+- Postman or curl (for API testing)
 
 ### External Services
 
 You'll need accounts and API credentials for:
-- **Strava API** (for fitness data integration)
-- **Fitbit API** (optional, for additional data sources)
+- Strava API (for fitness data integration)
+- Fitbit API (optional, for additional data sources)
 
-## Quick Setup
+## Setup
 
 ### 1. Clone the Repository
 
@@ -180,12 +180,12 @@ cargo clippy
 
 ### IDE Setup
 
-**VS Code Extensions**:
+VS Code Extensions:
 - rust-analyzer
 - Even Better TOML
 - REST Client
 
-**Settings (`.vscode/settings.json`)**:
+Settings (`.vscode/settings.json`):
 ```json
 {
     "rust-analyzer.cargo.features": "all",
@@ -362,7 +362,7 @@ curl -X POST http://localhost:8081/a2a/auth \
 
 ### Adding a New MCP Tool
 
-1. **Define the tool in `src/protocols/mcp/tools/`**:
+1. Define the tool in `src/protocols/mcp/tools/`:
 
 ```rust
 // src/protocols/mcp/tools/my_new_tool.rs
@@ -381,7 +381,7 @@ pub async fn execute_my_new_tool(
 }
 ```
 
-2. **Register the tool**:
+2. Register the tool:
 
 ```rust
 // In src/protocols/mcp/tools/mod.rs
@@ -391,7 +391,7 @@ pub mod my_new_tool;
 tools.insert("my_new_tool", Box::new(my_new_tool::execute_my_new_tool));
 ```
 
-3. **Add tests**:
+3. Add tests:
 
 ```rust
 // tests/mcp_tools_test.rs
@@ -401,7 +401,7 @@ async fn test_my_new_tool() {
 }
 ```
 
-4. **Update documentation**:
+4. Update documentation:
 
 ```markdown
 <!-- In docs/developer-guide/04-mcp-protocol.md -->
@@ -412,7 +412,7 @@ Description of the tool...
 
 ### Adding a New REST Endpoint
 
-1. **Add route handler**:
+1. Add route handler:
 
 ```rust
 // In appropriate routes file
@@ -425,14 +425,14 @@ pub async fn my_new_endpoint(
 }
 ```
 
-2. **Add to router configuration**:
+2. Add to router configuration:
 
 ```rust
 // In server setup
 .route("/api/my-endpoint", post(my_new_endpoint))
 ```
 
-3. **Add request/response types**:
+3. Add request/response types:
 
 ```rust
 #[derive(Deserialize)]
@@ -469,7 +469,7 @@ cargo tarpaulin --out Html
 
 When you add new database tables or columns:
 
-1. **Create migration script**:
+1. Create migration script:
 
 ```sql
 -- migrations/004_add_my_table.sql
@@ -480,7 +480,7 @@ CREATE TABLE my_table (
 );
 ```
 
-2. **Update database schema in code**:
+2. Update database schema in code:
 
 ```rust
 // src/database_plugins/models.rs
@@ -492,7 +492,7 @@ pub struct MyTable {
 }
 ```
 
-3. **Test migration**:
+3. Test migration:
 
 ```bash
 # Migrations run automatically on server start
@@ -503,19 +503,40 @@ cargo run --bin pierre-mcp-server
 
 ### MCP Client Integration
 
-**Claude Desktop Configuration** (`claude_desktop_config.json`):
+#### Claude Desktop Configuration
+
+**Configuration Path:**
+- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 
 ```json
 {
   "mcpServers": {
     "pierre-fitness": {
-      "command": "wscat",
-      "args": [
-        "-c",
-        "ws://localhost:8080/ws",
-        "--header",
-        "X-API-Key: YOUR_API_KEY"
-      ]
+      "command": "/path/to/pierre_mcp_server/scripts/mcp-client.sh",
+      "env": {
+        "PIERRE_JWT_TOKEN": "USER_JWT_TOKEN_FROM_LOGIN", 
+        "PIERRE_SERVER_URL": "http://127.0.0.1:8080/mcp"
+      }
+    }
+  }
+}
+```
+
+#### Other MCP Client Configuration
+
+**Configuration Paths (varies by client):**
+Different MCP clients use different configuration file locations. Consult your MCP client's documentation for the specific path.
+
+```json
+{
+  "mcpServers": {
+    "pierre-fitness": {
+      "command": "/path/to/pierre_mcp_server/scripts/mcp-client.sh",
+      "env": {
+        "PIERRE_JWT_TOKEN": "USER_JWT_TOKEN_FROM_LOGIN",
+        "PIERRE_SERVER_URL": "http://127.0.0.1:8080/mcp"
+      }
     }
   }
 }
@@ -633,9 +654,9 @@ const bot = new PierreBot();
 
 #### 1. Database Connection Failed
 
-**Error**: `Failed to connect to database`
+Error: `Failed to connect to database`
 
-**Solutions**:
+Solutions:
 - Check `DATABASE_URL` in `.env`
 - Ensure PostgreSQL is running: `brew services start postgresql`
 - Create database: `createdb pierre`
@@ -643,9 +664,9 @@ const bot = new PierreBot();
 
 #### 2. Redis Connection Failed
 
-**Error**: `Failed to connect to Redis`
+Error: `Failed to connect to Redis`
 
-**Solutions**:
+Solutions:
 - Install Redis: `brew install redis`
 - Start Redis: `redis-server`
 - Check `REDIS_URL` in `.env`
@@ -653,9 +674,9 @@ const bot = new PierreBot();
 
 #### 3. OAuth Configuration Issues
 
-**Error**: `No OAuth credentials configured for tenant`
+Error: `No OAuth credentials configured for tenant`
 
-**Solutions**:
+Solutions:
 - Ensure OAuth credentials are set in `.env`
 - Register your application with Strava/Fitbit
 - Check redirect URIs match exactly
@@ -663,9 +684,9 @@ const bot = new PierreBot();
 
 #### 4. MCP Connection Issues
 
-**Error**: `WebSocket connection failed`
+Error: `WebSocket connection failed`
 
-**Solutions**:
+Solutions:
 - Check API key is valid: `curl -X GET http://localhost:8081/api/keys/list -H "Authorization: Bearer JWT"`
 - Verify WebSocket endpoint: `ws://localhost:8080/ws`
 - Check server logs for authentication errors
@@ -673,9 +694,9 @@ const bot = new PierreBot();
 
 #### 5. Build Errors
 
-**Error**: `Failed to compile`
+Error: `Failed to compile`
 
-**Solutions**:
+Solutions:
 - Update Rust: `rustup update`
 - Clean build: `cargo clean && cargo build`
 - Check Rust version: `rustc --version` (should be 1.70+)
@@ -699,19 +720,19 @@ This will show:
 
 If the server is slow:
 
-1. **Check database performance**:
+1. Check database performance:
    ```bash
    # Enable SQL query logging
    RUST_LOG=sqlx=debug cargo run
    ```
 
-2. **Monitor resource usage**:
+2. Monitor resource usage:
    ```bash
    # Check CPU/memory usage
    top -p $(pgrep pierre-mcp-server)
    ```
 
-3. **Optimize database**:
+3. Optimize database:
    ```sql
    -- Add indexes for frequently queried columns
    CREATE INDEX idx_users_email ON users(email);
@@ -720,64 +741,64 @@ If the server is slow:
 
 ### Getting Help
 
-1. **Check the logs**:
+1. Check the logs:
    ```bash
    tail -f logs/pierre.log
    ```
 
-2. **Enable debug mode**:
+2. Enable debug mode:
    ```bash
    RUST_LOG=debug cargo run
    ```
 
-3. **Run tests to verify setup**:
+3. Run tests to verify setup:
    ```bash
    cargo test --test integration_tests
    ```
 
-4. **Check GitHub Issues**: Look for similar problems in the repository issues
+4. Check GitHub Issues: Look for similar problems in the repository issues
 
-5. **Community Support**: Join our Discord/Slack for real-time help
+5. Community Support: Join our Discord/Slack for real-time help
 
 ## Next Steps
 
 ### Explore the Codebase
 
-1. **Read the Architecture Guide**: `docs/developer-guide/01-architecture.md`
-2. **Study Protocol Implementation**: `docs/developer-guide/04-mcp-protocol.md`
-3. **Review API Documentation**: `docs/developer-guide/14-api-reference.md`
+1. Read the Architecture Guide: `docs/developer-guide/01-architecture.md`
+2. Study Protocol Implementation: `docs/developer-guide/04-mcp-protocol.md`
+3. Review API Documentation: `docs/developer-guide/14-api-reference.md`
 
 ### Development Tasks
 
-1. **Set up OAuth Integration**:
+1. Set up OAuth Integration:
    - Register Strava application
    - Test OAuth flow
    - Connect fitness accounts
 
-2. **Build Your First Tool**:
+2. Build Your First Tool:
    - Create custom MCP tool
    - Add business logic
    - Write comprehensive tests
 
-3. **Deploy to Production**:
+3. Deploy to Production:
    - Set up PostgreSQL database
    - Configure environment variables
    - Deploy with Docker/Kubernetes
 
 ### Contribution Guidelines
 
-1. **Fork the repository**
-2. **Create a feature branch**: `git checkout -b feature/my-new-feature`
-3. **Make changes and test**: `./scripts/lint-and-test.sh`
-4. **Write tests**: All new code must have tests
-5. **Update documentation**: Keep docs in sync
-6. **Submit pull request**: Follow the PR template
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/my-new-feature`
+3. Make changes and test: `./scripts/lint-and-test.sh`
+4. Write tests: All new code must have tests
+5. Update documentation: Keep docs in sync
+6. Submit pull request: Follow the PR template
 
 ### Learning Resources
 
-- **Rust Book**: https://doc.rust-lang.org/book/
-- **MCP Specification**: https://spec.modelcontextprotocol.io/
-- **Strava API**: https://developers.strava.com/
-- **JSON-RPC 2.0**: https://www.jsonrpc.org/specification
+- Rust Book: https://doc.rust-lang.org/book/
+- MCP Specification: https://spec.modelcontextprotocol.io/
+- Strava API: https://developers.strava.com/
+- JSON-RPC 2.0: https://www.jsonrpc.org/specification
 
 You now have a working Pierre MCP Server development environment. You can begin building fitness AI integrations.

@@ -24,7 +24,7 @@ cargo run
 The Pierre Fitness API supports two integration patterns:
 
 ### 🔄 MCP (Model Context Protocol)
-- **Use Case**: Real-time fitness analysis for AI assistants (Claude, ChatGPT)
+- **Use Case**: Real-time fitness analysis for MCP clients and AI assistants
 - **Benefits**: Low latency, interactive queries, tool-based interface
 - **Target**: AI assistant integration, human-in-the-loop analysis
 

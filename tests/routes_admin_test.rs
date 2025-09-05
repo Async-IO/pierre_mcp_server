@@ -169,6 +169,7 @@ use pierre_mcp_server::{
     models::User,
 };
 use serde_json::{json, Value};
+use std::sync::Arc;
 use uuid::Uuid;
 use warp::test::request;
 use warp::Filter;
@@ -194,8 +195,11 @@ impl AdminTestSetup {
 
         // Create admin context
         let jwt_secret = "test_admin_jwt_secret_for_route_testing";
-        let context =
-            AdminApiContext::new((*database).clone(), jwt_secret, (*auth_manager).clone());
+        let context = AdminApiContext::new(
+            Arc::new((*database).clone()),
+            jwt_secret,
+            auth_manager.clone(),
+        );
 
         // Create test user
         let (user_id, user) = common::create_test_user(&database).await?;

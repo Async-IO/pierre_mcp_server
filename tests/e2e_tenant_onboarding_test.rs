@@ -17,7 +17,10 @@ use pierre_mcp_server::{
     intelligence::ActivityIntelligence,
     models::{OAuthApp, Tenant, User, UserTier},
     protocols::universal::{UniversalRequest, UniversalToolExecutor},
-    tenant::{StoreCredentialsRequest, TenantContext, TenantOAuthClient, TenantRole},
+    tenant::{
+        oauth_manager::TenantOAuthManager, StoreCredentialsRequest, TenantContext,
+        TenantOAuthClient, TenantRole,
+    },
 };
 use serde_json::json;
 use std::sync::Arc;
@@ -144,7 +147,7 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
     database.create_oauth_app(&beta_strava_app).await?;
 
     // Step 6: Set up tenant OAuth client and configure credentials
-    let tenant_oauth_client = Arc::new(TenantOAuthClient::new());
+    let tenant_oauth_client = Arc::new(TenantOAuthClient::new(TenantOAuthManager::new()));
 
     // Configure Acme's Strava credentials
     let acme_credentials = StoreCredentialsRequest {
@@ -376,7 +379,7 @@ async fn test_tenant_context_switching() -> Result<()> {
     database.create_tenant(&tenant2).await?;
 
     // Set up different OAuth credentials for each tenant
-    let tenant_oauth_client = Arc::new(TenantOAuthClient::new());
+    let tenant_oauth_client = Arc::new(TenantOAuthClient::new(TenantOAuthManager::new()));
 
     let tenant1_creds = StoreCredentialsRequest {
         client_id: "tenant1_client".to_string(),

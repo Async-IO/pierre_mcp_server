@@ -15,8 +15,9 @@
 use crate::constants::{
     json_fields::{ACTIVITY_ID, LIMIT, OFFSET, PROVIDER},
     tools::{
-        ANALYZE_ACTIVITY, DISCONNECT_PROVIDER, GET_ACTIVITIES, GET_ACTIVITY_INTELLIGENCE,
-        GET_ATHLETE, GET_CONNECTION_STATUS, GET_STATS, MARK_NOTIFICATIONS_READ,
+        ANALYZE_ACTIVITY, ANNOUNCE_OAUTH_SUCCESS, CHECK_OAUTH_NOTIFICATIONS, DISCONNECT_PROVIDER,
+        GET_ACTIVITIES, GET_ACTIVITY_INTELLIGENCE, GET_ATHLETE, GET_CONNECTION_STATUS,
+        GET_NOTIFICATIONS, GET_STATS, MARK_NOTIFICATIONS_READ,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -92,6 +93,13 @@ pub enum Content {
         text: Option<String>,
         #[serde(rename = "mimeType", skip_serializing_if = "Option::is_none")]
         mime_type: Option<String>,
+    },
+    #[serde(rename = "progress")]
+    Progress {
+        #[serde(rename = "progressToken")]
+        progress_token: String,
+        progress: f64,
+        total: Option<f64>,
     },
 }
 
@@ -217,14 +225,73 @@ impl InitializeResponse {
             },
             capabilities: ServerCapabilities {
                 experimental: None,
-                logging: None,
+                logging: Some(LoggingCapability {}),
                 prompts: None,
-                resources: None,
+                resources: Some(ResourcesCapability {
+                    subscribe: None,
+                    list_changed: Some(false),
+                }),
                 tools: Some(ToolsCapability {
                     list_changed: Some(false),
                 }),
             },
             instructions: Some("This server provides fitness data tools for Strava and Fitbit integration. OAuth must be configured at tenant level via REST API. Use `get_activities`, `get_athlete`, and other analytics tools to access your fitness data.".into()),
+        }
+    }
+}
+
+/// Progress notification for long-running operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProgressNotification {
+    pub jsonrpc: String,
+    pub method: String,
+    pub params: ProgressParams,
+}
+
+/// Progress notification parameters
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProgressParams {
+    #[serde(rename = "progressToken")]
+    pub progress_token: String,
+    pub progress: f64,
+    pub total: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+}
+
+impl ProgressNotification {
+    /// Create a new progress notification
+    #[must_use]
+    pub fn new(
+        progress_token: String,
+        progress: f64,
+        total: Option<f64>,
+        message: Option<String>,
+    ) -> Self {
+        Self {
+            jsonrpc: "2.0".to_string(),
+            method: "notifications/progress".to_string(),
+            params: ProgressParams {
+                progress_token,
+                progress,
+                total,
+                message,
+            },
+        }
+    }
+
+    /// Create a new cancellation notification
+    #[must_use]
+    pub fn cancelled(progress_token: String, message: Option<String>) -> Self {
+        Self {
+            jsonrpc: "2.0".to_string(),
+            method: "notifications/cancelled".to_string(),
+            params: ProgressParams {
+                progress_token,
+                progress: 0.0,
+                total: None,
+                message,
+            },
         }
     }
 }
@@ -245,7 +312,10 @@ fn create_fitness_tools() -> Vec<ToolSchema> {
         create_get_activity_intelligence_tool(),
         create_get_connection_status_tool(),
         create_disconnect_provider_tool(),
+        create_get_notifications_tool(),
         create_mark_notifications_read_tool(),
+        create_announce_oauth_success_tool(),
+        create_check_oauth_notifications_tool(),
         // Advanced Analytics Tools
         create_analyze_activity_tool(),
         create_calculate_metrics_tool(),
@@ -500,6 +570,76 @@ fn create_mark_notifications_read_tool() -> ToolSchema {
             schema_type: "object".into(),
             properties: Some(properties),
             required: Some(vec![]), // No required fields - can mark all or specific
+        },
+    }
+}
+
+/// Create announce OAuth success tool schema
+fn create_announce_oauth_success_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+    properties.insert(
+        PROVIDER.to_string(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("OAuth provider name (e.g., 'strava', 'fitbit')".into()),
+        },
+    );
+    properties.insert(
+        "message".to_string(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("Success message to display to user".into()),
+        },
+    );
+    properties.insert(
+        "notification_id".to_string(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("Original notification ID that triggered this announcement".into()),
+        },
+    );
+    ToolSchema {
+        name: ANNOUNCE_OAUTH_SUCCESS.to_string(),
+        description: "Announce OAuth connection success directly in chat so users can see it. This tool will display a visible message when OAuth authentication completes.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec![PROVIDER.to_string(), "message".to_string(), "notification_id".to_string()]),
+        },
+    }
+}
+
+/// Create get notifications tool schema
+fn create_get_notifications_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "include_read".to_string(),
+        PropertySchema {
+            property_type: "boolean".into(),
+            description: Some(
+                "Whether to include already read notifications (default: false)".into(),
+            ),
+        },
+    );
+
+    properties.insert(
+        "provider".to_string(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some(
+                "Filter notifications by provider (optional - e.g., 'strava', 'fitbit')".into(),
+            ),
+        },
+    );
+
+    ToolSchema {
+        name: GET_NOTIFICATIONS.to_string(),
+        description: "Get OAuth notifications for the user. By default returns only unread notifications. Optionally filter by provider.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec![]), // No required fields
         },
     }
 }
@@ -1172,6 +1312,19 @@ fn create_validate_configuration_tool() -> ToolSchema {
             schema_type: "object".into(),
             properties: Some(properties),
             required: Some(vec!["parameters".into()]),
+        },
+    }
+}
+
+/// Create check OAuth notifications tool schema
+fn create_check_oauth_notifications_tool() -> ToolSchema {
+    ToolSchema {
+        name: CHECK_OAUTH_NOTIFICATIONS.to_string(),
+        description: "Check for new OAuth completion notifications and display them to the user. This tool will announce any successful OAuth connections that happened recently.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: None,
+            required: None,
         },
     }
 }

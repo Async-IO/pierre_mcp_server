@@ -151,9 +151,11 @@
 use anyhow::Result;
 use pierre_mcp_server::{
     auth::{generate_jwt_secret, AuthManager},
+    constants::oauth_providers,
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::resources::ServerResources,
+    models::UserOAuthToken,
     routes::{AuthRoutes, LoginRequest, RegisterRequest},
 };
 use tempfile::TempDir;
@@ -390,21 +392,35 @@ async fn test_database_encryption() -> Result<()> {
 
     // Store encrypted Strava token
     let expires_at = chrono::Utc::now() + chrono::Duration::hours(6);
-    database
-        .update_strava_token(
-            user_id,
-            "secret_access_token_123",
-            "secret_refresh_token_456",
-            expires_at,
-            "read,activity:read_all".to_string(),
-        )
-        .await?;
+    let oauth_token = UserOAuthToken::new(
+        user_id,
+        "00000000-0000-0000-0000-000000000000".to_string(),
+        oauth_providers::STRAVA.to_string(),
+        "secret_access_token_123".to_string(),
+        Some("secret_refresh_token_456".to_string()),
+        Some(expires_at),
+        Some("read,activity:read_all".to_string()),
+    );
+    database.upsert_user_oauth_token(&oauth_token).await?;
 
     // Retrieve and decrypt token
-    let decrypted_token = database.get_strava_token(user_id).await?.unwrap();
+    let decrypted_token = database
+        .get_user_oauth_token(
+            user_id,
+            "00000000-0000-0000-0000-000000000000",
+            oauth_providers::STRAVA,
+        )
+        .await?
+        .unwrap();
     assert_eq!(decrypted_token.access_token, "secret_access_token_123");
-    assert_eq!(decrypted_token.refresh_token, "secret_refresh_token_456");
-    assert_eq!(decrypted_token.scope, "read,activity:read_all");
+    assert_eq!(
+        decrypted_token.refresh_token,
+        Some("secret_refresh_token_456".to_string())
+    );
+    assert_eq!(
+        decrypted_token.scope,
+        Some("read,activity:read_all".to_string())
+    );
 
     Ok(())
 }
@@ -473,31 +489,47 @@ async fn test_user_isolation() -> Result<()> {
     // Store tokens for each user
     let expires_at = chrono::Utc::now() + chrono::Duration::hours(6);
 
-    database
-        .update_strava_token(
-            user1_id,
-            "user1_access_token",
-            "user1_refresh_token",
-            expires_at,
-            "read,activity:read_all".to_string(),
-        )
-        .await?;
+    let oauth_token1 = UserOAuthToken::new(
+        user1_id,
+        "00000000-0000-0000-0000-000000000000".to_string(),
+        oauth_providers::STRAVA.to_string(),
+        "user1_access_token".to_string(),
+        Some("user1_refresh_token".to_string()),
+        Some(expires_at),
+        Some("read,activity:read_all".to_string()),
+    );
+    database.upsert_user_oauth_token(&oauth_token1).await?;
 
-    database
-        .update_strava_token(
-            user2_id,
-            "user2_access_token",
-            "user2_refresh_token",
-            expires_at,
-            "read,activity:read_all".to_string(),
-        )
-        .await?;
+    let oauth_token2 = UserOAuthToken::new(
+        user2_id,
+        "00000000-0000-0000-0000-000000000000".to_string(),
+        oauth_providers::STRAVA.to_string(),
+        "user2_access_token".to_string(),
+        Some("user2_refresh_token".to_string()),
+        Some(expires_at),
+        Some("read,activity:read_all".to_string()),
+    );
+    database.upsert_user_oauth_token(&oauth_token2).await?;
 
     // Verify user isolation - each user can only access their own tokens
-    let user1_token = database.get_strava_token(user1_id).await?.unwrap();
+    let user1_token = database
+        .get_user_oauth_token(
+            user1_id,
+            "00000000-0000-0000-0000-000000000000",
+            oauth_providers::STRAVA,
+        )
+        .await?
+        .unwrap();
     assert_eq!(user1_token.access_token, "user1_access_token");
 
-    let user2_token = database.get_strava_token(user2_id).await?.unwrap();
+    let user2_token = database
+        .get_user_oauth_token(
+            user2_id,
+            "00000000-0000-0000-0000-000000000000",
+            oauth_providers::STRAVA,
+        )
+        .await?
+        .unwrap();
     assert_eq!(user2_token.access_token, "user2_access_token");
 
     // Verify users cannot access each other's data

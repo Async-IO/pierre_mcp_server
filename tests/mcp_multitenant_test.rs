@@ -164,9 +164,10 @@ use futures_util::future;
 use pierre_mcp_server::{
     auth::{generate_jwt_secret, AuthManager, JwtValidationError, McpAuthMiddleware},
     config::environment::ServerConfig,
+    constants::oauth_providers,
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::multitenant::MultiTenantMcpServer,
-    models::{User, UserTier},
+    models::{User, UserOAuthToken, UserTier},
 };
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::RwLock;
@@ -339,40 +340,70 @@ async fn test_tenant_data_isolation() -> Result<()> {
 
     for (i, (user_id, _email, _token)) in users.iter().enumerate() {
         // Store Strava tokens
-        database
-            .update_strava_token(
-                *user_id,
-                &format!("strava_access_{i}"),
-                &format!("strava_refresh_{i}"),
-                expires_at,
-                "read,activity:read_all".to_string(),
-            )
-            .await?;
+        let strava_token = UserOAuthToken::new(
+            *user_id,
+            "00000000-0000-0000-0000-000000000000".to_string(),
+            oauth_providers::STRAVA.to_string(),
+            format!("strava_access_{i}"),
+            Some(format!("strava_refresh_{i}")),
+            Some(expires_at),
+            Some("read,activity:read_all".to_string()),
+        );
+        database.upsert_user_oauth_token(&strava_token).await?;
 
         // Store Fitbit tokens
-        database
-            .update_fitbit_token(
-                *user_id,
-                &format!("fitbit_access_{i}"),
-                &format!("fitbit_refresh_{i}"),
-                expires_at,
-                "activity heartrate profile".to_string(),
-            )
-            .await?;
+        let fitbit_token = UserOAuthToken::new(
+            *user_id,
+            "00000000-0000-0000-0000-000000000000".to_string(),
+            oauth_providers::FITBIT.to_string(),
+            format!("fitbit_access_{i}"),
+            Some(format!("fitbit_refresh_{i}")),
+            Some(expires_at),
+            Some("activity heartrate profile".to_string()),
+        );
+        database.upsert_user_oauth_token(&fitbit_token).await?;
     }
 
     // Verify data isolation
     for (i, (user_id, _email, _token)) in users.iter().enumerate() {
-        let strava_token = database.get_strava_token(*user_id).await?.unwrap();
+        let strava_token = database
+            .get_user_oauth_token(
+                *user_id,
+                "00000000-0000-0000-0000-000000000000",
+                oauth_providers::STRAVA,
+            )
+            .await?
+            .unwrap();
         assert_eq!(strava_token.access_token, format!("strava_access_{i}"));
 
-        let fitbit_token = database.get_fitbit_token(*user_id).await?.unwrap();
+        let fitbit_token = database
+            .get_user_oauth_token(
+                *user_id,
+                "00000000-0000-0000-0000-000000000000",
+                oauth_providers::FITBIT,
+            )
+            .await?
+            .unwrap();
         assert_eq!(fitbit_token.access_token, format!("fitbit_access_{i}"));
     }
 
     // Verify users cannot access each other's data
-    let user0_strava = database.get_strava_token(users[0].0).await?.unwrap();
-    let user1_strava = database.get_strava_token(users[1].0).await?.unwrap();
+    let user0_strava = database
+        .get_user_oauth_token(
+            users[0].0,
+            "00000000-0000-0000-0000-000000000000",
+            oauth_providers::STRAVA,
+        )
+        .await?
+        .unwrap();
+    let user1_strava = database
+        .get_user_oauth_token(
+            users[1].0,
+            "00000000-0000-0000-0000-000000000000",
+            oauth_providers::STRAVA,
+        )
+        .await?
+        .unwrap();
 
     assert_ne!(user0_strava.access_token, user1_strava.access_token);
     assert_ne!(user0_strava.refresh_token, user1_strava.refresh_token);
@@ -411,17 +442,26 @@ async fn test_concurrent_user_operations() -> Result<()> {
 
             // Store some data
             let expires_at = chrono::Utc::now() + chrono::Duration::hours(6);
-            db.update_strava_token(
+            let oauth_token = UserOAuthToken::new(
                 user_id,
-                &format!("access_token_{i}"),
-                &format!("refresh_token_{i}"),
-                expires_at,
-                "read,activity:read_all".to_string(),
-            )
-            .await?;
+                "00000000-0000-0000-0000-000000000000".to_string(),
+                oauth_providers::STRAVA.to_string(),
+                format!("access_token_{i}"),
+                Some(format!("refresh_token_{i}")),
+                Some(expires_at),
+                Some("read,activity:read_all".to_string()),
+            );
+            db.upsert_user_oauth_token(&oauth_token).await?;
 
             // Retrieve and verify data
-            let token_data = db.get_strava_token(user_id).await?.unwrap();
+            let token_data = db
+                .get_user_oauth_token(
+                    user_id,
+                    "00000000-0000-0000-0000-000000000000",
+                    oauth_providers::STRAVA,
+                )
+                .await?
+                .unwrap();
             assert_eq!(token_data.access_token, format!("access_token_{i}"));
 
             Ok::<_, anyhow::Error>(user_id)
@@ -582,29 +622,45 @@ async fn test_database_encryption_isolation() -> Result<()> {
     // Store encrypted data for each user
     let expires_at = chrono::Utc::now() + chrono::Duration::hours(6);
 
-    database
-        .update_strava_token(
-            *user1_id,
-            "secret_access_token_user1",
-            "secret_refresh_token_user1",
-            expires_at,
-            "read,activity:read_all".to_string(),
-        )
-        .await?;
+    let user1_oauth_token = UserOAuthToken::new(
+        *user1_id,
+        "00000000-0000-0000-0000-000000000000".to_string(),
+        oauth_providers::STRAVA.to_string(),
+        "secret_access_token_user1".to_string(),
+        Some("secret_refresh_token_user1".to_string()),
+        Some(expires_at),
+        Some("read,activity:read_all".to_string()),
+    );
+    database.upsert_user_oauth_token(&user1_oauth_token).await?;
 
-    database
-        .update_strava_token(
-            *user2_id,
-            "secret_access_token_user2",
-            "secret_refresh_token_user2",
-            expires_at,
-            "read,activity:read_all".to_string(),
-        )
-        .await?;
+    let user2_oauth_token = UserOAuthToken::new(
+        *user2_id,
+        "00000000-0000-0000-0000-000000000000".to_string(),
+        oauth_providers::STRAVA.to_string(),
+        "secret_access_token_user2".to_string(),
+        Some("secret_refresh_token_user2".to_string()),
+        Some(expires_at),
+        Some("read,activity:read_all".to_string()),
+    );
+    database.upsert_user_oauth_token(&user2_oauth_token).await?;
 
     // Verify data is properly isolated and encrypted/decrypted
-    let user1_token_data = database.get_strava_token(*user1_id).await?.unwrap();
-    let user2_token_data = database.get_strava_token(*user2_id).await?.unwrap();
+    let user1_token_data = database
+        .get_user_oauth_token(
+            *user1_id,
+            "00000000-0000-0000-0000-000000000000",
+            oauth_providers::STRAVA,
+        )
+        .await?
+        .unwrap();
+    let user2_token_data = database
+        .get_user_oauth_token(
+            *user2_id,
+            "00000000-0000-0000-0000-000000000000",
+            oauth_providers::STRAVA,
+        )
+        .await?
+        .unwrap();
 
     assert_eq!(user1_token_data.access_token, "secret_access_token_user1");
     assert_eq!(user2_token_data.access_token, "secret_access_token_user2");
@@ -738,16 +794,25 @@ async fn test_memory_safety_concurrent_access() -> Result<()> {
 
             // Store and retrieve data
             let expires_at = chrono::Utc::now() + chrono::Duration::hours(6);
-            db.update_strava_token(
+            let oauth_token = UserOAuthToken::new(
                 user_id,
-                &format!("access_{i}"),
-                &format!("refresh_{i}"),
-                expires_at,
-                "read,activity:read_all".to_string(),
-            )
-            .await?;
+                "00000000-0000-0000-0000-000000000000".to_string(),
+                oauth_providers::STRAVA.to_string(),
+                format!("access_{i}"),
+                Some(format!("refresh_{i}")),
+                Some(expires_at),
+                Some("read,activity:read_all".to_string()),
+            );
+            db.upsert_user_oauth_token(&oauth_token).await?;
 
-            let token_data = db.get_strava_token(user_id).await?.unwrap();
+            let token_data = db
+                .get_user_oauth_token(
+                    user_id,
+                    "00000000-0000-0000-0000-000000000000",
+                    oauth_providers::STRAVA,
+                )
+                .await?
+                .unwrap();
             assert_eq!(token_data.access_token, format!("access_{i}"));
 
             Ok::<_, anyhow::Error>(i)
@@ -872,16 +937,25 @@ async fn test_large_scale_multitenant_operations() -> Result<()> {
 
             // Store and retrieve data
             let expires_at = chrono::Utc::now() + chrono::Duration::hours(6);
-            db.update_strava_token(
+            let oauth_token = UserOAuthToken::new(
                 user_id,
-                &format!("access_{user_id}"),
-                &format!("refresh_{user_id}"),
-                expires_at,
-                "read,activity:read_all".to_string(),
-            )
-            .await?;
+                "00000000-0000-0000-0000-000000000000".to_string(),
+                oauth_providers::STRAVA.to_string(),
+                format!("access_{user_id}"),
+                Some(format!("refresh_{user_id}")),
+                Some(expires_at),
+                Some("read,activity:read_all".to_string()),
+            );
+            db.upsert_user_oauth_token(&oauth_token).await?;
 
-            let token_data = db.get_strava_token(user_id).await?.unwrap();
+            let token_data = db
+                .get_user_oauth_token(
+                    user_id,
+                    "00000000-0000-0000-0000-000000000000",
+                    oauth_providers::STRAVA,
+                )
+                .await?
+                .unwrap();
             assert_eq!(token_data.access_token, format!("access_{user_id}"));
 
             // Update last active

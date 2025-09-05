@@ -13,7 +13,7 @@ use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
 use crate::constants::oauth_providers;
 use crate::constants::tiers;
 use crate::database::A2AUsage;
-use crate::models::{DecryptedToken, EncryptedToken, User, UserTier};
+use crate::models::{User, UserTier};
 use crate::rate_limiting::JwtUsage;
 use anyhow::Context;
 use anyhow::{anyhow, Result};
@@ -29,7 +29,6 @@ use uuid::Uuid;
 #[derive(Clone)]
 pub struct PostgresDatabase {
     pool: Pool<Postgres>,
-    encryption_key: Vec<u8>,
 }
 
 impl PostgresDatabase {
@@ -37,29 +36,11 @@ impl PostgresDatabase {
     pub async fn close(&self) {
         self.pool.close().await;
     }
-
-    /// Encrypt a token using AES-256-GCM
-    fn encrypt_token(&self, token: &DecryptedToken) -> Result<EncryptedToken> {
-        // Use the EncryptedToken::new method for encryption
-        EncryptedToken::new(
-            &token.access_token,
-            &token.refresh_token,
-            token.expires_at,
-            token.scope.clone(),
-            &self.encryption_key,
-        )
-    }
-
-    /// Decrypt a token using AES-256-GCM
-    fn decrypt_token(&self, encrypted: &EncryptedToken) -> Result<DecryptedToken> {
-        // Use the decrypt method from EncryptedToken
-        encrypted.decrypt(&self.encryption_key)
-    }
 }
 
 #[async_trait]
 impl DatabaseProvider for PostgresDatabase {
-    async fn new(database_url: &str, encryption_key: Vec<u8>) -> Result<Self> {
+    async fn new(database_url: &str, _encryption_key: Vec<u8>) -> Result<Self> {
         // Use very conservative connection pool for CI environments
         let max_connections = if std::env::var("CI").is_ok() { 1 } else { 10 };
         let min_connections = u32::from(std::env::var("CI").is_err());
@@ -84,10 +65,7 @@ impl DatabaseProvider for PostgresDatabase {
                 format!("Failed to connect to PostgreSQL with {max_connections} max connections")
             })?;
 
-        let db = Self {
-            pool,
-            encryption_key,
-        };
+        let db = Self { pool };
 
         // Run migrations
         db.migrate().await?;
@@ -412,185 +390,6 @@ impl DatabaseProvider for PostgresDatabase {
         if result.rows_affected() == 0 {
             return Err(anyhow!("No user found with ID: {user_id}"));
         }
-
-        Ok(())
-    }
-
-    async fn update_strava_token(
-        &self,
-        user_id: Uuid,
-        access_token: &str,
-        refresh_token: &str,
-        expires_at: DateTime<Utc>,
-        scope: String,
-    ) -> Result<()> {
-        let token = DecryptedToken {
-            access_token: access_token.to_string(),
-            refresh_token: refresh_token.to_string(),
-            expires_at,
-            scope,
-        };
-        let encrypted = self.encrypt_token(&token)?;
-
-        sqlx::query(
-            r"
-            UPDATE users
-            SET strava_access_token = $1,
-                strava_refresh_token = $2,
-                strava_expires_at = $3,
-                strava_scope = $4,
-                strava_nonce = $5
-            WHERE id = $6
-            ",
-        )
-        .bind(&encrypted.access_token)
-        .bind(&encrypted.refresh_token)
-        .bind(expires_at)
-        .bind(&token.scope)
-        .bind(&encrypted.nonce)
-        .bind(user_id)
-        .execute(&self.pool)
-        .await?;
-
-        Ok(())
-    }
-
-    async fn get_strava_token(&self, user_id: Uuid) -> Result<Option<DecryptedToken>> {
-        let row = sqlx::query(
-            r"
-            SELECT strava_access_token, strava_refresh_token, strava_expires_at, strava_scope, strava_nonce
-            FROM users
-            WHERE id = $1 AND strava_access_token IS NOT NULL
-            ",
-        )
-        .bind(user_id)
-        .fetch_optional(&self.pool)
-        .await?;
-
-        row.map_or_else(
-            || Ok(None),
-            |row| {
-                let encrypted = EncryptedToken {
-                    access_token: row.get("strava_access_token"),
-                    refresh_token: row.get("strava_refresh_token"),
-                    expires_at: row.get("strava_expires_at"),
-                    scope: row.get("strava_scope"),
-                    nonce: row.get("strava_nonce"),
-                };
-
-                let mut decrypted = self.decrypt_token(&encrypted)?;
-                decrypted.expires_at = row.get("strava_expires_at");
-                decrypted.scope = row.get("strava_scope");
-
-                Ok(Some(decrypted))
-            },
-        )
-    }
-
-    async fn update_fitbit_token(
-        &self,
-        user_id: Uuid,
-        access_token: &str,
-        refresh_token: &str,
-        expires_at: DateTime<Utc>,
-        scope: String,
-    ) -> Result<()> {
-        let token = DecryptedToken {
-            access_token: access_token.to_string(),
-            refresh_token: refresh_token.to_string(),
-            expires_at,
-            scope,
-        };
-        let encrypted = self.encrypt_token(&token)?;
-
-        sqlx::query(
-            r"
-            UPDATE users
-            SET fitbit_access_token = $1,
-                fitbit_refresh_token = $2,
-                fitbit_expires_at = $3,
-                fitbit_scope = $4,
-                fitbit_nonce = $5
-            WHERE id = $6
-            ",
-        )
-        .bind(&encrypted.access_token)
-        .bind(&encrypted.refresh_token)
-        .bind(expires_at)
-        .bind(&token.scope)
-        .bind(&encrypted.nonce)
-        .bind(user_id)
-        .execute(&self.pool)
-        .await?;
-
-        Ok(())
-    }
-
-    async fn get_fitbit_token(&self, user_id: Uuid) -> Result<Option<DecryptedToken>> {
-        let row = sqlx::query(
-            r"
-            SELECT fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope, fitbit_nonce
-            FROM users
-            WHERE id = $1 AND fitbit_access_token IS NOT NULL
-            ",
-        )
-        .bind(user_id)
-        .fetch_optional(&self.pool)
-        .await?;
-
-        if let Some(row) = row {
-            let encrypted = EncryptedToken {
-                access_token: row.get("fitbit_access_token"),
-                refresh_token: row.get("fitbit_refresh_token"),
-                expires_at: row.get("fitbit_expires_at"),
-                scope: row.get("fitbit_scope"),
-                nonce: row.get("fitbit_nonce"),
-            };
-
-            let mut decrypted = self.decrypt_token(&encrypted)?;
-            decrypted.expires_at = row.get("fitbit_expires_at");
-            decrypted.scope = row.get("fitbit_scope");
-
-            Ok(Some(decrypted))
-        } else {
-            Ok(None)
-        }
-    }
-
-    async fn clear_strava_token(&self, user_id: Uuid) -> Result<()> {
-        sqlx::query(
-            r"
-            UPDATE users
-            SET strava_access_token = NULL,
-                strava_refresh_token = NULL,
-                strava_expires_at = NULL,
-                strava_scope = NULL,
-                strava_nonce = NULL
-            WHERE id = $1
-            ",
-        )
-        .bind(user_id)
-        .execute(&self.pool)
-        .await?;
-
-        Ok(())
-    }
-
-    async fn clear_fitbit_token(&self, user_id: Uuid) -> Result<()> {
-        sqlx::query(
-            r"
-            UPDATE users
-            SET fitbit_access_token = NULL,
-                fitbit_refresh_token = NULL,
-                fitbit_expires_at = NULL,
-                fitbit_scope = NULL,
-                fitbit_nonce = NULL
-            WHERE id = $1
-            ",
-        )
-        .bind(user_id)
-        .execute(&self.pool)
-        .await?;
 
         Ok(())
     }

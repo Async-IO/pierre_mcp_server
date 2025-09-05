@@ -21,6 +21,7 @@ use crate::{
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 use warp::{
@@ -32,19 +33,19 @@ use warp::{
 /// Admin API context shared across all endpoints
 #[derive(Clone)]
 pub struct AdminApiContext {
-    pub database: Database,
+    pub database: Arc<Database>,
     pub auth_service: AdminAuthService,
-    pub auth_manager: AuthManager,
+    pub auth_manager: Arc<AuthManager>,
     pub admin_jwt_secret: String,
 }
 
 impl AdminApiContext {
-    pub fn new(database: Database, jwt_secret: &str, auth_manager: AuthManager) -> Self {
+    pub fn new(database: Arc<Database>, jwt_secret: &str, auth_manager: Arc<AuthManager>) -> Self {
         tracing::info!(
             "Creating AdminApiContext with JWT secret (first 10 chars): {}...",
             jwt_secret.chars().take(10).collect::<String>()
         );
-        let auth_service = AdminAuthService::new(database.clone(), jwt_secret);
+        let auth_service = AdminAuthService::new((*database).clone(), jwt_secret);
         Self {
             database,
             auth_service,
@@ -282,6 +283,7 @@ pub fn admin_routes_with_scoped_recovery(
 
 /// Create admin routes filter without recovery (maintains Rejection error type)
 /// This is used for embedding in other servers that handle rejections globally
+#[must_use]
 pub fn admin_routes_with_rejection(
     context: AdminApiContext,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {

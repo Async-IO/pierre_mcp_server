@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 // Import necessary modules from the main crate
 use pierre_mcp_server::config::environment::*;
+use pierre_mcp_server::constants::oauth_providers;
 use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
 use pierre_mcp_server::intelligence::insights::{Insight, InsightType};
 use pierre_mcp_server::intelligence::{
@@ -17,7 +18,7 @@ use pierre_mcp_server::intelligence::{
     TrendIndicators, WeeklyLoad,
 };
 use pierre_mcp_server::mcp::resources::ServerResources;
-use pierre_mcp_server::models::{Tenant, User};
+use pierre_mcp_server::models::{Tenant, User, UserOAuthToken};
 use pierre_mcp_server::protocols::universal::{UniversalRequest, UniversalToolExecutor};
 use std::{path::PathBuf, sync::Arc};
 
@@ -274,16 +275,20 @@ async fn create_test_user(executor: &UniversalToolExecutor) -> Result<(User, Ten
         scope: "read,activity:read_all,activity:write".to_string(),
     };
 
+    let oauth_token = UserOAuthToken::new(
+        user.id,
+        "00000000-0000-0000-0000-000000000000".to_string(), // tenant_id
+        oauth_providers::STRAVA.to_string(),
+        mock_token.access_token.clone(),
+        Some(mock_token.refresh_token.clone()),
+        Some(mock_token.expires_at),
+        Some(mock_token.scope.clone()), // scope as String
+    );
+
     match executor
         .resources
         .database
-        .update_strava_token(
-            user.id,
-            &mock_token.access_token,
-            &mock_token.refresh_token,
-            mock_token.expires_at,
-            mock_token.scope.clone(),
-        )
+        .upsert_user_oauth_token(&oauth_token)
         .await
     {
         Ok(()) => println!("✅ Test tokens stored successfully"),

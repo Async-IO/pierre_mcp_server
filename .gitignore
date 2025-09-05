@@ -77,3 +77,4 @@ frontend/dist/
 # Documentation directory
 claude_docs/
 CLAUDE.md
+.workflow*

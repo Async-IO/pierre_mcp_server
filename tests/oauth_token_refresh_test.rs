@@ -158,13 +158,14 @@
 //! Tests for automatic token refresh in Universal Tool Executor.
 
 use pierre_mcp_server::{
+    constants::oauth_providers,
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
     intelligence::{
         ActivityIntelligence, ContextualFactors, PerformanceMetrics, TimeOfDay, TrendDirection,
         TrendIndicators,
     },
-    models::User,
+    models::{User, UserOAuthToken},
     protocols::universal::{UniversalRequest, UniversalToolExecutor},
 };
 use serde_json::json;
@@ -469,14 +470,17 @@ async fn test_get_activities_with_expired_token() {
 
     // Store expired token
     let expires_at = chrono::Utc::now() - chrono::Duration::hours(1); // Expired
+    let oauth_token = UserOAuthToken::new(
+        user_id,
+        "00000000-0000-0000-0000-000000000000".to_string(),
+        oauth_providers::STRAVA.to_string(),
+        "expired_access_token".to_string(),
+        Some("refresh_token_123".to_string()),
+        Some(expires_at),
+        Some("read,activity:read_all".to_string()),
+    );
     database
-        .update_strava_token(
-            user_id,
-            "expired_access_token",
-            "refresh_token_123",
-            expires_at,
-            "read,activity:read_all".to_string(),
-        )
+        .upsert_user_oauth_token(&oauth_token)
         .await
         .unwrap();
 
@@ -614,14 +618,17 @@ async fn test_analyze_activity_token_refresh() {
 
     // Store token that will expire soon
     let expires_at = chrono::Utc::now() + chrono::Duration::minutes(3); // Expires in 3 minutes (within buffer)
+    let oauth_token = UserOAuthToken::new(
+        user_id,
+        "00000000-0000-0000-0000-000000000000".to_string(),
+        oauth_providers::STRAVA.to_string(),
+        "soon_to_expire_token".to_string(),
+        Some("refresh_token_456".to_string()),
+        Some(expires_at),
+        Some("read,activity:read_all".to_string()),
+    );
     database
-        .update_strava_token(
-            user_id,
-            "soon_to_expire_token",
-            "refresh_token_456",
-            expires_at,
-            "read,activity:read_all".to_string(),
-        )
+        .upsert_user_oauth_token(&oauth_token)
         .await
         .unwrap();
 
@@ -696,14 +703,17 @@ async fn test_concurrent_token_operations() {
 
     // Store valid token
     let expires_at = chrono::Utc::now() + chrono::Duration::hours(1);
+    let oauth_token = UserOAuthToken::new(
+        user_id,
+        "00000000-0000-0000-0000-000000000000".to_string(),
+        oauth_providers::STRAVA.to_string(),
+        "valid_token".to_string(),
+        Some("refresh_token".to_string()),
+        Some(expires_at),
+        Some("read,activity:read_all".to_string()),
+    );
     database
-        .update_strava_token(
-            user_id,
-            "valid_token",
-            "refresh_token",
-            expires_at,
-            "read,activity:read_all".to_string(),
-        )
+        .upsert_user_oauth_token(&oauth_token)
         .await
         .unwrap();
 

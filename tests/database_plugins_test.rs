@@ -1,8 +1,9 @@
 // ABOUTME: Unit tests for database plugin functionality and factory patterns
 // ABOUTME: Tests database creation, user operations, and plugin isolation
 use chrono::Utc;
+use pierre_mcp_server::constants::oauth_providers;
 use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
-use pierre_mcp_server::models::User;
+use pierre_mcp_server::models::{User, UserOAuthToken};
 use serde_json::json;
 use uuid::Uuid;
 
@@ -89,35 +90,50 @@ async fn test_oauth_token_management() {
 
     // Test storing Strava token
     let expires_at = Utc::now() + chrono::Duration::hours(1);
-    db.update_strava_token(
+    let oauth_token = UserOAuthToken::new(
         user_id,
-        "test_access_token",
-        "test_refresh_token",
-        expires_at,
-        "read,activity:read_all".to_string(),
-    )
-    .await
-    .expect("Failed to update Strava token");
+        "00000000-0000-0000-0000-000000000000".to_string(),
+        oauth_providers::STRAVA.to_string(),
+        "test_access_token".to_string(),
+        Some("test_refresh_token".to_string()),
+        Some(expires_at),
+        Some("read,activity:read_all".to_string()),
+    );
+    db.upsert_user_oauth_token(&oauth_token)
+        .await
+        .expect("Failed to update Strava token");
 
     // Test retrieving Strava token
     let token = db
-        .get_strava_token(user_id)
+        .get_user_oauth_token(
+            user_id,
+            "00000000-0000-0000-0000-000000000000",
+            oauth_providers::STRAVA,
+        )
         .await
         .expect("Failed to get Strava token");
     assert!(token.is_some(), "Strava token should exist");
 
     let token = token.unwrap();
     assert_eq!(token.access_token, "test_access_token");
-    assert_eq!(token.refresh_token, "test_refresh_token");
-    assert_eq!(token.scope, "read,activity:read_all");
+    assert_eq!(token.refresh_token, Some("test_refresh_token".to_string()));
+    assert_eq!(token.scope, Some("read,activity:read_all".to_string()));
 
     // Test clearing Strava token
-    db.clear_strava_token(user_id)
-        .await
-        .expect("Failed to clear Strava token");
+    db.delete_user_oauth_token(
+        user_id,
+        "00000000-0000-0000-0000-000000000000",
+        oauth_providers::STRAVA,
+    )
+    .await
+    .expect("Failed to clear Strava token");
 
     let cleared_token = db
-        .get_strava_token(user_id)
+        .get_user_oauth_token(
+            user_id,
+            "00000000-0000-0000-0000-000000000000",
+            oauth_providers::STRAVA,
+        )
         .await
         .expect("Failed to get Strava token after clear");
     assert!(cleared_token.is_none(), "Strava token should be cleared");
