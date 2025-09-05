@@ -25,7 +25,7 @@ use crate::mcp::schema::{get_tools, InitializeRequest, InitializeResponse};
 use crate::models::AuthRequest;
 use serde_json::Value;
 use std::sync::Arc;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 /// MCP protocol handlers
@@ -44,7 +44,55 @@ impl ProtocolHandler {
     const SUPPORTED_VERSIONS: &'static [&'static str] = &["2025-06-18", "2024-11-05"];
 
     /// Handle initialize request with proper version negotiation
+    #[must_use]
     pub fn handle_initialize(request: McpRequest) -> McpResponse {
+        Self::handle_initialize_internal(request, None)
+    }
+
+    /// Handle initialize request with `ServerResources` for OAuth credential storage  
+    pub async fn handle_initialize_with_oauth(
+        request: McpRequest,
+        resources: &Arc<ServerResources>,
+    ) -> McpResponse {
+        // Extract user authentication from request
+        let user_id = match Self::authenticate_request(&request, resources) {
+            Ok(user_id) => user_id,
+            Err(error_response) => return *error_response,
+        };
+
+        // Handle OAuth credentials if provided
+        let response = Self::handle_initialize_internal(request.clone(), None);
+
+        // If initialization successful and OAuth credentials provided, store them
+        if response.error.is_none() {
+            if let Some(params) = &request.params {
+                if let Ok(init_request) =
+                    serde_json::from_value::<InitializeRequest>(params.clone())
+                {
+                    if let Some(oauth_creds) = init_request.oauth_credentials {
+                        if let Err(e) =
+                            Self::store_oauth_credentials(oauth_creds, &user_id, resources).await
+                        {
+                            warn!(
+                                "Failed to store OAuth credentials during initialization: {}",
+                                e
+                            );
+                        } else {
+                            info!("Successfully stored OAuth credentials for user {}", user_id);
+                        }
+                    }
+                }
+            }
+        }
+
+        response
+    }
+
+    /// Internal initialize handler
+    fn handle_initialize_internal(
+        request: McpRequest,
+        _resources: Option<&Arc<ServerResources>>,
+    ) -> McpResponse {
         let request_id = request.id.unwrap_or_else(default_request_id);
 
         // Parse initialize request parameters
@@ -301,5 +349,69 @@ impl ProtocolHandler {
                 format!("Authentication failed: {error_msg}"),
             )
         }
+    }
+
+    /// Authenticate the MCP request and extract user information
+    fn authenticate_request(
+        request: &McpRequest,
+        resources: &Arc<ServerResources>,
+    ) -> Result<uuid::Uuid, Box<McpResponse>> {
+        let request_id = request.id.clone().unwrap_or_else(default_request_id);
+
+        // Extract auth token from request
+        let auth_token = request.auth_token.as_deref().ok_or_else(|| {
+            Box::new(McpResponse::error(
+                request_id.clone(),
+                ERROR_AUTHENTICATION,
+                "Authentication token required for OAuth credential storage".to_string(),
+            ))
+        })?;
+
+        // Validate token and extract user_id
+        match resources.auth_manager.validate_token(auth_token) {
+            Ok(claims) => uuid::Uuid::parse_str(&claims.sub).map_or_else(
+                |_| {
+                    Err(Box::new(McpResponse::error(
+                        request_id.clone(),
+                        ERROR_AUTHENTICATION,
+                        "Invalid user ID in authentication token".to_string(),
+                    )))
+                },
+                Ok,
+            ),
+            Err(_) => Err(Box::new(McpResponse::error(
+                request_id,
+                ERROR_AUTHENTICATION,
+                "Invalid authentication token".to_string(),
+            ))),
+        }
+    }
+
+    /// Store OAuth credentials provided during initialization
+    async fn store_oauth_credentials(
+        oauth_creds: std::collections::HashMap<String, crate::mcp::schema::OAuthAppCredentials>,
+        user_id: &uuid::Uuid,
+        resources: &Arc<ServerResources>,
+    ) -> Result<(), String> {
+        for (provider, creds) in oauth_creds {
+            info!("Storing OAuth credentials for provider {provider} for user {user_id}");
+
+            // Store encrypted OAuth app credentials in database
+            // Use default redirect URI for MCP clients
+            let redirect_uri = format!("urn:ietf:wg:oauth:2.0:oob:{provider}:mcp");
+            resources
+                .database
+                .store_user_oauth_app(
+                    *user_id,
+                    &provider,
+                    &creds.client_id,
+                    &creds.client_secret,
+                    &redirect_uri,
+                )
+                .await
+                .map_err(|e| format!("Failed to store {provider} OAuth credentials: {e}"))?;
+        }
+
+        Ok(())
     }
 }

@@ -24,6 +24,7 @@ async fn test_jsonrpc_2_0_compliance() {
         method: "a2a/initialize".to_string(),
         params: None,
         id: Some(json!(1)),
+        auth_token: None,
     };
 
     let _response = server.handle_request(request).await;
@@ -52,6 +53,7 @@ async fn test_required_methods_implemented() {
             method: method.to_string(),
             params: None,
             id: Some(json!(1)),
+            auth_token: None,
         };
 
         let response = server.handle_request(request).await;
@@ -73,6 +75,7 @@ async fn test_error_code_compliance() {
         method: "unknown/method".to_string(),
         params: None,
         id: Some(json!(1)),
+        auth_token: None,
     };
 
     let response = server.handle_request(request).await;
@@ -141,6 +144,7 @@ async fn test_task_management_compliance() {
         method: "a2a/tasks/create".to_string(),
         params: Some(json!({"task_type": "example"})),
         id: Some(json!(1)),
+        auth_token: None,
     };
 
     let response = server.handle_request(request).await;
@@ -164,6 +168,7 @@ async fn test_tools_schema_compliance() {
         method: "a2a/tools/list".to_string(),
         params: None,
         id: Some(json!(1)),
+        auth_token: None,
     };
 
     let response = server.handle_request(request).await;
@@ -190,6 +195,7 @@ async fn test_streaming_requirements() {
         method: "a2a/message/stream".to_string(),
         params: Some(json!({"stream_id": "test"})),
         id: Some(json!(1)),
+        auth_token: None,
     };
 
     let response = server.handle_request(request).await;
@@ -240,6 +246,7 @@ async fn test_id_preservation() {
             method: "a2a/initialize".to_string(),
             params: None,
             id: Some(test_id.clone()),
+            auth_token: None,
         };
 
         let response = server.handle_request(request).await;
@@ -262,6 +269,7 @@ async fn test_parameter_validation() {
             }
         })),
         id: Some(json!(1)),
+        auth_token: None,
     };
 
     let response = server.handle_request(request).await;
@@ -283,6 +291,7 @@ async fn test_task_cancellation() {
         method: "tasks/cancel".to_string(),
         params: Some(json!({"task_id": "test-task-123"})),
         id: Some(json!(1)),
+        auth_token: None,
     };
 
     let response = server.handle_request(request).await;
@@ -310,6 +319,7 @@ async fn test_push_notification_config() {
         method: "tasks/pushNotificationConfig/set".to_string(),
         params: Some(json!({"config": config})),
         id: Some(json!(1)),
+        auth_token: None,
     };
 
     let response = server.handle_request(request).await;

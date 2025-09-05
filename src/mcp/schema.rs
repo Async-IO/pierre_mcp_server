@@ -204,6 +204,22 @@ pub struct InitializeRequest {
     #[serde(rename = "clientInfo")]
     pub client_info: ClientInfo,
     pub capabilities: ClientCapabilities,
+    /// Optional OAuth application credentials provided by the client
+    #[serde(
+        rename = "oauthCredentials",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub oauth_credentials: Option<std::collections::HashMap<String, OAuthAppCredentials>>,
+}
+
+/// OAuth Application Credentials provided by client
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OAuthAppCredentials {
+    #[serde(rename = "clientId")]
+    pub client_id: String,
+    #[serde(rename = "clientSecret")]
+    pub client_secret: String,
 }
 
 /// Client Information

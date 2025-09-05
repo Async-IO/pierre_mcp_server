@@ -191,11 +191,54 @@ JWT_TOKEN=$(curl -s -X POST http://localhost:8081/api/auth/login \
 
 Pierre MCP Server supports multiple methods for providing OAuth credentials for fitness providers:
 
-1. Server-level credentials (via environment variables): Shared across all tenants
-2. User-specific credentials (via MCP tools): Individual OAuth apps per user
-3. Tenant-specific credentials (via API): Isolated per organization
+1. **Server-level credentials** (default): Environment variables shared across all users
+2. **Client initialization credentials** (for full control): OAuth credentials provided during MCP/A2A connection setup  
+3. **Tenant-specific credentials**: Isolated per organization via API
 
-MCP clients can provide OAuth credentials using the `update_user_configuration` tool, eliminating the need for server-level environment variables.
+#### OAuth Credential Options
+
+By default, Pierre MCP Server uses shared server-level OAuth credentials for all users. If you need full control over your OAuth application (custom rate limits, branding, etc.), you can provide your own credentials during client initialization:
+
+**MCP Client Example:**
+```json
+{
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2025-06-18",
+    "clientInfo": {"name": "MyApp", "version": "1.0.0"},
+    "capabilities": {...},
+    "oauth_credentials": {
+      "strava": {
+        "client_id": "your_client_id",
+        "client_secret": "your_client_secret"
+      },
+      "fitbit": {
+        "client_id": "fitbit_client_id", 
+        "client_secret": "fitbit_client_secret"
+      }
+    }
+  }
+}
+```
+
+**A2A Client Example:**
+```json
+{
+  "method": "initialize",
+  "params": {
+    "protocol_version": "1.0",
+    "client_info": {"name": "MyAgent", "version": "1.0.0"},
+    "oauth_credentials": {
+      "strava": {
+        "client_id": "your_client_id",
+        "client_secret": "your_client_secret"
+      }
+    }
+  }
+}
+```
+
+The server encrypts and stores these credentials securely, making them available for immediate OAuth flows without requiring additional configuration steps.
 
 ### Environment Variables
 
@@ -218,9 +261,11 @@ RUST_LOG=info
 # Database (Production)
 DATABASE_URL=postgresql://user:pass@localhost:5432/pierre
 
-# OAuth Providers (optional - can be provided by MCP clients)
+# OAuth Providers (shared across all users by default)
 STRAVA_CLIENT_ID=your_strava_client_id
 STRAVA_CLIENT_SECRET=your_strava_client_secret
+FITBIT_CLIENT_ID=your_fitbit_client_id
+FITBIT_CLIENT_SECRET=your_fitbit_client_secret
 ```
 
 ### Fitness Configuration

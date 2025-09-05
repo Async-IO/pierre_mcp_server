@@ -1805,7 +1805,14 @@ impl MultiTenantMcpServer {
 
         // Handle regular requests (response needed)
         let response = match request.method.as_str() {
-            "initialize" => ProtocolHandler::handle_initialize(request),
+            "initialize" => {
+                // Use OAuth-aware initialization if authentication is provided
+                if request.auth_token.is_some() {
+                    ProtocolHandler::handle_initialize_with_oauth(request, resources).await
+                } else {
+                    ProtocolHandler::handle_initialize(request)
+                }
+            }
             "ping" => ProtocolHandler::handle_ping(request),
             "tools/list" => ProtocolHandler::handle_tools_list(request),
             "prompts/list" => ProtocolHandler::handle_prompts_list(request),
@@ -2661,7 +2668,7 @@ impl MultiTenantMcpServer {
 }
 
 /// MCP request with optional authentication token and headers
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct McpRequest {
     pub jsonrpc: String,
     pub method: String,

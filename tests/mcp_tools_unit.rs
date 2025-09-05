@@ -105,7 +105,7 @@ fn test_tool_parameter_validation() {
     for tool in &tools {
         // Each tool should have proper schema structure
         assert_eq!(tool.input_schema.schema_type, "object");
-        
+
         // Some tools may not have input properties (like get_connection_status)
         if tool.input_schema.properties.is_none() {
             continue;
