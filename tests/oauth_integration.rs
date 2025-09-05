@@ -455,6 +455,28 @@ async fn test_connection_status_no_providers() {
         },
     });
 
+    let user_id = Uuid::new_v4();
+
+    // Create a test user in the database for the connection status check
+    let user = pierre_mcp_server::models::User {
+        id: user_id,
+        email: format!("test_{user_id}@example.com"),
+        display_name: None,
+        password_hash: "test_hash".to_string(),
+        tier: pierre_mcp_server::models::UserTier::Starter,
+        strava_token: None,
+        fitbit_token: None,
+        tenant_id: Some("00000000-0000-0000-0000-000000000000".to_string()),
+        is_active: true,
+        user_status: pierre_mcp_server::models::UserStatus::Active,
+        is_admin: false,
+        approved_by: None,
+        approved_at: Some(chrono::Utc::now()),
+        created_at: chrono::Utc::now(),
+        last_active: chrono::Utc::now(),
+    };
+    database.create_user(&user).await.unwrap();
+
     let server_resources = Arc::new(ServerResources::new(
         database,
         auth_manager,
@@ -464,7 +486,6 @@ async fn test_connection_status_no_providers() {
 
     let oauth_routes = OAuthRoutes::new(server_resources);
 
-    let user_id = Uuid::new_v4();
     let statuses = oauth_routes.get_connection_status(user_id).await.unwrap();
 
     assert_eq!(statuses.len(), 2);

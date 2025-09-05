@@ -15,6 +15,7 @@ use crate::database_plugins::DatabaseProvider;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 /// A2A JSON-RPC 2.0 Request
@@ -24,6 +25,9 @@ pub struct A2ARequest {
     pub method: String,
     pub params: Option<Value>,
     pub id: Option<Value>,
+    /// Optional authentication token for authenticated A2A sessions
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth_token: Option<String>,
 }
 
 /// A2A JSON-RPC 2.0 Response
@@ -112,6 +116,83 @@ impl From<A2AError> for A2AErrorResponse {
             code,
             message,
             data: None,
+        }
+    }
+}
+
+/// A2A Initialize Request structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct A2AInitializeRequest {
+    /// A2A protocol version
+    #[serde(rename = "protocolVersion")]
+    pub protocol_version: String,
+    /// Client information
+    #[serde(rename = "clientInfo")]
+    pub client_info: A2AClientInfo,
+    /// Client capabilities
+    pub capabilities: Vec<String>,
+    /// Optional OAuth application credentials provided by the client
+    #[serde(
+        rename = "oauthCredentials",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub oauth_credentials: Option<HashMap<String, crate::mcp::schema::OAuthAppCredentials>>,
+}
+
+/// A2A Client Information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct A2AClientInfo {
+    pub name: String,
+    pub version: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+/// A2A Initialize Response structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct A2AInitializeResponse {
+    /// Negotiated protocol version
+    #[serde(rename = "protocolVersion")]
+    pub protocol_version: String,
+    /// Server information
+    #[serde(rename = "serverInfo")]
+    pub server_info: A2AServerInfo,
+    /// Server capabilities
+    pub capabilities: Vec<String>,
+}
+
+/// A2A Server Information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct A2AServerInfo {
+    pub name: String,
+    pub version: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+impl A2AInitializeResponse {
+    #[must_use]
+    pub fn new(protocol_version: String, server_name: String, server_version: String) -> Self {
+        Self {
+            protocol_version,
+            server_info: A2AServerInfo {
+                name: server_name,
+                version: server_version,
+                description: Some(
+                    "AI-powered fitness data analysis and insights platform".to_string(),
+                ),
+            },
+            capabilities: vec![
+                "message/send".to_string(),
+                "message/stream".to_string(),
+                "tasks/create".to_string(),
+                "tasks/get".to_string(),
+                "tasks/cancel".to_string(),
+                "tasks/pushNotificationConfig/set".to_string(),
+                "tools/list".to_string(),
+                "tools/call".to_string(),
+            ],
         }
     }
 }
@@ -215,7 +296,14 @@ impl A2AServer {
     /// Handle incoming A2A request
     pub async fn handle_request(&self, request: A2ARequest) -> A2AResponse {
         match request.method.as_str() {
-            "a2a/initialize" => self.handle_initialize(request),
+            "a2a/initialize" => {
+                // Use OAuth-aware initialization if authentication is provided
+                if request.auth_token.is_some() && self.resources.is_some() {
+                    self.handle_initialize_with_oauth(request).await
+                } else {
+                    self.handle_initialize(request)
+                }
+            }
             "message/send" | "a2a/message/send" => Self::handle_message_send(request),
             "message/stream" | "a2a/message/stream" => Self::handle_message_stream(request),
             "tasks/create" | "a2a/tasks/create" => self.handle_task_create(request).await,
@@ -255,6 +343,170 @@ impl A2AServer {
             error: None,
             id: request.id,
         }
+    }
+
+    /// Handle A2A initialize request with `ServerResources` for OAuth credential storage
+    async fn handle_initialize_with_oauth(&self, request: A2ARequest) -> A2AResponse {
+        // Extract user authentication from request
+        let resources = self.resources.as_ref().unwrap(); // Safe unwrap - checked in caller
+        let user_id = match Self::authenticate_request(&request, resources) {
+            Ok(user_id) => user_id,
+            Err(error_response) => return *error_response,
+        };
+
+        // Handle OAuth credentials if provided
+        let response = self.handle_initialize_internal(request.clone());
+
+        // If initialization successful and OAuth credentials provided, store them
+        if response.error.is_none() {
+            if let Some(params) = &request.params {
+                if let Ok(init_request) =
+                    serde_json::from_value::<A2AInitializeRequest>(params.clone())
+                {
+                    if let Some(oauth_creds) = init_request.oauth_credentials {
+                        if let Err(e) =
+                            Self::store_oauth_credentials(oauth_creds, &user_id, resources).await
+                        {
+                            warn!(
+                                "Failed to store OAuth credentials during A2A initialization: {e}"
+                            );
+                        } else {
+                            info!("Successfully stored OAuth credentials for A2A user {user_id}");
+                        }
+                    }
+                }
+            }
+        }
+
+        response
+    }
+
+    /// Internal A2A initialize handler with proper protocol version negotiation
+    fn handle_initialize_internal(&self, request: A2ARequest) -> A2AResponse {
+        // Parse A2A initialize request parameters
+        let init_request = request
+            .params
+            .as_ref()
+            .and_then(|params| serde_json::from_value::<A2AInitializeRequest>(params.clone()).ok());
+
+        let (protocol_version, client_name) = if let Some(req) = init_request {
+            // For now, accept any protocol version - A2A is more flexible
+            (req.protocol_version, req.client_info.name)
+        } else {
+            // Default values if parsing fails
+            (crate::a2a::A2A_VERSION.to_string(), "unknown".to_string())
+        };
+
+        info!("A2A initialization from client: {client_name} with protocol version: {protocol_version}");
+
+        // Create A2A initialize response
+        let init_response = A2AInitializeResponse::new(
+            protocol_version,
+            "pierre-a2a-server".to_string(),
+            self.version.clone(),
+        );
+
+        match serde_json::to_value(&init_response) {
+            Ok(result) => A2AResponse {
+                jsonrpc: "2.0".into(),
+                result: Some(result),
+                error: None,
+                id: request.id,
+            },
+            Err(e) => A2AResponse {
+                jsonrpc: "2.0".into(),
+                result: None,
+                error: Some(A2AErrorResponse {
+                    code: -32603,
+                    message: format!("Failed to serialize A2A initialize response: {e}"),
+                    data: None,
+                }),
+                id: request.id,
+            },
+        }
+    }
+
+    /// Authenticate the A2A request and extract user information
+    fn authenticate_request(
+        request: &A2ARequest,
+        resources: &std::sync::Arc<crate::mcp::resources::ServerResources>,
+    ) -> Result<uuid::Uuid, Box<A2AResponse>> {
+        let request_id = request
+            .id
+            .clone()
+            .unwrap_or_else(|| serde_json::Value::Number(serde_json::Number::from(0)));
+
+        // Extract auth token from request
+        let auth_token = request.auth_token.as_deref().ok_or_else(|| {
+            Box::new(A2AResponse {
+                jsonrpc: "2.0".into(),
+                result: None,
+                error: Some(A2AErrorResponse {
+                    code: -32001,
+                    message: "Authentication token required for OAuth credential storage"
+                        .to_string(),
+                    data: None,
+                }),
+                id: Some(request_id.clone()),
+            })
+        })?;
+
+        // Validate token and extract user_id
+        match resources.auth_manager.validate_token(auth_token) {
+            Ok(claims) => uuid::Uuid::parse_str(&claims.sub).map_or_else(
+                |_| {
+                    Err(Box::new(A2AResponse {
+                        jsonrpc: "2.0".into(),
+                        result: None,
+                        error: Some(A2AErrorResponse {
+                            code: -32001,
+                            message: "Invalid user ID in authentication token".to_string(),
+                            data: None,
+                        }),
+                        id: Some(request_id.clone()),
+                    }))
+                },
+                Ok,
+            ),
+            Err(_) => Err(Box::new(A2AResponse {
+                jsonrpc: "2.0".into(),
+                result: None,
+                error: Some(A2AErrorResponse {
+                    code: -32001,
+                    message: "Invalid authentication token".to_string(),
+                    data: None,
+                }),
+                id: Some(request_id),
+            })),
+        }
+    }
+
+    /// Store OAuth credentials provided during A2A initialization
+    async fn store_oauth_credentials(
+        oauth_creds: HashMap<String, crate::mcp::schema::OAuthAppCredentials>,
+        user_id: &uuid::Uuid,
+        resources: &std::sync::Arc<crate::mcp::resources::ServerResources>,
+    ) -> Result<(), String> {
+        for (provider, creds) in oauth_creds {
+            info!("Storing OAuth credentials for provider {provider} for A2A user {user_id}");
+
+            // Store encrypted OAuth app credentials in database
+            // Use default redirect URI for A2A clients
+            let redirect_uri = format!("urn:ietf:wg:oauth:2.0:oob:{provider}:a2a");
+            resources
+                .database
+                .store_user_oauth_app(
+                    *user_id,
+                    &provider,
+                    &creds.client_id,
+                    &creds.client_secret,
+                    &redirect_uri,
+                )
+                .await
+                .map_err(|e| format!("Failed to store {provider} OAuth credentials: {e}"))?;
+        }
+
+        Ok(())
     }
 
     fn handle_message_send(request: A2ARequest) -> A2AResponse {
