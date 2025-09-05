@@ -5,13 +5,16 @@ use super::multitenant::{McpError, McpRequest, McpResponse, MultiTenantMcpServer
 use super::resources::ServerResources;
 use crate::auth::AuthResult;
 use crate::constants::{
-    errors::{ERROR_INVALID_PARAMS, ERROR_UNAUTHORIZED},
+    errors::{
+        ERROR_AUTHENTICATION, ERROR_INVALID_PARAMS, ERROR_TOOL_EXECUTION, ERROR_UNAUTHORIZED,
+        MSG_AUTHENTICATION, MSG_TOOL_EXECUTION,
+    },
     json_fields::PROVIDER,
     protocol::JSONRPC_VERSION,
     tools::{
-        ANALYZE_GOAL_FEASIBILITY, ANALYZE_PERFORMANCE_TRENDS, ANALYZE_TRAINING_LOAD,
-        CALCULATE_FITNESS_SCORE, DETECT_PATTERNS, DISCONNECT_PROVIDER, GENERATE_RECOMMENDATIONS,
-        GET_CONNECTION_STATUS, MARK_NOTIFICATIONS_READ, SET_GOAL, SUGGEST_GOALS, TRACK_PROGRESS,
+        ANNOUNCE_OAUTH_SUCCESS, CHECK_OAUTH_NOTIFICATIONS, DISCONNECT_PROVIDER,
+        GET_CONNECTION_STATUS, GET_NOTIFICATIONS, MARK_NOTIFICATIONS_READ, SET_GOAL,
+        TRACK_PROGRESS,
     },
 };
 use crate::database_plugins::DatabaseProvider;
@@ -230,21 +233,43 @@ impl ToolHandlers {
                 Self::handle_mark_notifications_read(notification_id, user_id, request_id, ctx)
                     .await
             }
-            SET_GOAL
-            | TRACK_PROGRESS
-            | ANALYZE_GOAL_FEASIBILITY
-            | SUGGEST_GOALS
-            | CALCULATE_FITNESS_SCORE
-            | GENERATE_RECOMMENDATIONS
-            | ANALYZE_TRAINING_LOAD
-            | DETECT_PATTERNS
-            | ANALYZE_PERFORMANCE_TRENDS
-            | "get_configuration_catalog"
-            | "get_configuration_profiles"
-            | "get_user_configuration"
-            | "update_user_configuration"
-            | "calculate_personalized_zones"
-            | "validate_configuration" => {
+            GET_NOTIFICATIONS => {
+                let include_read = args
+                    .get("include_read")
+                    .and_then(serde_json::Value::as_bool)
+                    .unwrap_or(false);
+                let provider = args.get("provider").and_then(|v| v.as_str());
+                Self::handle_get_notifications(include_read, provider, user_id, request_id, ctx)
+                    .await
+            }
+            ANNOUNCE_OAUTH_SUCCESS => {
+                let provider = args
+                    .get(PROVIDER)
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown");
+                let message = args
+                    .get("message")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("OAuth completed successfully");
+                let notification_id = args
+                    .get("notification_id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown");
+                Self::handle_announce_oauth_success(
+                    provider,
+                    message,
+                    notification_id,
+                    user_id,
+                    request_id,
+                    ctx,
+                )
+                .await
+            }
+            CHECK_OAUTH_NOTIFICATIONS => {
+                Self::handle_check_oauth_notifications(user_id, request_id, ctx).await
+            }
+            // Goal tools - use existing MCP implementations
+            SET_GOAL | TRACK_PROGRESS => {
                 MultiTenantMcpServer::handle_tool_without_provider(
                     tool_name,
                     args,
@@ -309,8 +334,8 @@ impl ToolHandlers {
                             jsonrpc: JSONRPC_VERSION.to_string(),
                             result: None,
                             error: Some(McpError {
-                                code: -32603,
-                                message: "Internal error marking notification as read".to_string(),
+                                code: ERROR_TOOL_EXECUTION,
+                                message: format!("{MSG_TOOL_EXECUTION}: Failed to mark notification as read - {e}"),
                                 data: None,
                             }),
                             id: request_id,
@@ -342,13 +367,241 @@ impl ToolHandlers {
                             jsonrpc: JSONRPC_VERSION.to_string(),
                             result: None,
                             error: Some(McpError {
-                                code: -32603,
-                                message: "Internal error marking notifications as read".to_string(),
+                                code: ERROR_TOOL_EXECUTION,
+                                message: format!("{MSG_TOOL_EXECUTION}: Failed to mark notifications as read - {e}"),
                                 data: None,
                             }),
                             id: request_id,
                         }
                     }
+                }
+            }
+        }
+    }
+
+    /// Handle get notifications tool
+    async fn handle_get_notifications(
+        include_read: bool,
+        provider: Option<&str>,
+        user_id: Uuid,
+        request_id: Value,
+        ctx: &ToolRoutingContext<'_>,
+    ) -> McpResponse {
+        match if include_read {
+            ctx.resources
+                .database
+                .get_all_oauth_notifications(user_id, None)
+        } else {
+            ctx.resources
+                .database
+                .get_unread_oauth_notifications(user_id)
+        }
+        .await
+        {
+            Ok(mut notifications) => {
+                tracing::debug!(
+                    "Retrieved {} notifications from database for user {}",
+                    notifications.len(),
+                    user_id
+                );
+
+                // Filter by provider if specified
+                if let Some(provider_filter) = provider {
+                    let initial_count = notifications.len();
+                    notifications.retain(|n| n.provider.as_str() == provider_filter);
+                    tracing::debug!(
+                        "After provider filter '{}': {} notifications (was {})",
+                        provider_filter,
+                        notifications.len(),
+                        initial_count
+                    );
+                }
+
+                tracing::debug!(
+                    "Final notification count to return: {}",
+                    notifications.len()
+                );
+                for (i, notif) in notifications.iter().enumerate() {
+                    tracing::debug!(
+                        "Notification {}: id={}, provider={}, message={}",
+                        i,
+                        notif.id,
+                        notif.provider,
+                        notif.message
+                    );
+                }
+
+                let response_data = serde_json::json!({
+                    "success": true,
+                    "notifications": notifications,
+                    "count": notifications.len()
+                });
+                tracing::debug!(
+                    "MCP Response JSON: {}",
+                    serde_json::to_string_pretty(&response_data).unwrap_or_default()
+                );
+
+                let mcp_response = McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    result: Some(response_data),
+                    error: None,
+                    id: request_id,
+                };
+                tracing::debug!(
+                    "Full MCP Response: {}",
+                    serde_json::to_string_pretty(&mcp_response).unwrap_or_default()
+                );
+
+                mcp_response
+            }
+            Err(e) => {
+                error!("Failed to retrieve notifications: {}", e);
+                McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    result: None,
+                    error: Some(McpError {
+                        code: ERROR_TOOL_EXECUTION,
+                        message: format!(
+                            "{MSG_TOOL_EXECUTION}: Failed to retrieve notifications - {e}"
+                        ),
+                        data: None,
+                    }),
+                    id: request_id,
+                }
+            }
+        }
+    }
+
+    /// Handle announce OAuth success tool - displays OAuth completion message in chat
+    async fn handle_announce_oauth_success(
+        provider: &str,
+        message: &str,
+        notification_id: &str,
+        user_id: Uuid,
+        request_id: Value,
+        ctx: &ToolRoutingContext<'_>,
+    ) -> McpResponse {
+        info!(
+            "Announcing OAuth success for user {}: provider={}, message={}, notification_id={}",
+            user_id, provider, message, notification_id
+        );
+
+        // Create a visible success message in the chat
+        let success_message = format!(
+            "🎉 **OAuth Connection Successful!**\n\n✅ Successfully connected to **{}**\n📝 {}",
+            provider.to_uppercase(),
+            message
+        );
+
+        // Also mark this notification as read to avoid re-processing
+        if let Err(e) = ctx
+            .resources
+            .database
+            .mark_oauth_notification_read(notification_id, user_id)
+            .await
+        {
+            debug!(
+                "Failed to mark notification {} as read after announcing: {}",
+                notification_id, e
+            );
+        }
+
+        McpResponse {
+            jsonrpc: JSONRPC_VERSION.to_string(),
+            result: Some(serde_json::json!({
+                "success": true,
+                "announcement": success_message,
+                "provider": provider,
+                "original_message": message,
+                "notification_id": notification_id,
+                "visible_to_user": true
+            })),
+            error: None,
+            id: request_id,
+        }
+    }
+
+    /// Handle check OAuth notifications tool - looks for new unread notifications and announces them
+    async fn handle_check_oauth_notifications(
+        user_id: Uuid,
+        request_id: Value,
+        ctx: &ToolRoutingContext<'_>,
+    ) -> McpResponse {
+        info!("Checking for OAuth notifications for user {}", user_id);
+
+        match ctx
+            .resources
+            .database
+            .get_unread_oauth_notifications(user_id)
+            .await
+        {
+            Ok(notifications) => {
+                if notifications.is_empty() {
+                    // No new notifications
+                    McpResponse {
+                        jsonrpc: JSONRPC_VERSION.to_string(),
+                        result: Some(serde_json::json!({
+                            "success": true,
+                            "message": "No new OAuth notifications",
+                            "notifications_count": 0
+                        })),
+                        error: None,
+                        id: request_id,
+                    }
+                } else {
+                    // Announce all new notifications
+                    let mut announcements = Vec::new();
+
+                    for notification in &notifications {
+                        let announcement = format!(
+                            "🎉 **OAuth Connection Successful!**\n\n✅ Successfully connected to **{}**\n📝 {}",
+                            notification.provider.to_uppercase(),
+                            notification.message
+                        );
+                        announcements.push(announcement);
+
+                        // Mark this notification as read
+                        if let Err(e) = ctx
+                            .resources
+                            .database
+                            .mark_oauth_notification_read(&notification.id, user_id)
+                            .await
+                        {
+                            debug!(
+                                "Failed to mark notification {} as read: {}",
+                                notification.id, e
+                            );
+                        }
+                    }
+
+                    let combined_announcement = announcements.join("\n\n---\n\n");
+
+                    McpResponse {
+                        jsonrpc: JSONRPC_VERSION.to_string(),
+                        result: Some(serde_json::json!({
+                            "success": true,
+                            "announcement": combined_announcement,
+                            "notifications_count": notifications.len(),
+                            "visible_to_user": true
+                        })),
+                        error: None,
+                        id: request_id,
+                    }
+                }
+            }
+            Err(e) => {
+                error!("Failed to check OAuth notifications: {}", e);
+                McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    result: None,
+                    error: Some(McpError {
+                        code: ERROR_AUTHENTICATION,
+                        message: format!(
+                            "{MSG_AUTHENTICATION}: Failed to check OAuth notifications - {e}"
+                        ),
+                        data: None,
+                    }),
+                    id: request_id,
                 }
             }
         }

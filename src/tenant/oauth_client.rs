@@ -32,11 +32,11 @@ pub struct TenantOAuthClient {
 }
 
 impl TenantOAuthClient {
-    /// Create new tenant OAuth client
+    /// Create new tenant OAuth client with provided manager
     #[must_use]
-    pub fn new() -> Self {
+    pub fn new(oauth_manager: TenantOAuthManager) -> Self {
         Self {
-            oauth_manager: Arc::new(Mutex::new(TenantOAuthManager::new())),
+            oauth_manager: Arc::new(Mutex::new(oauth_manager)),
         }
     }
 
@@ -310,6 +310,6 @@ impl TenantOAuthClient {
 
 impl Default for TenantOAuthClient {
     fn default() -> Self {
-        Self::new()
+        Self::new(TenantOAuthManager::new())
     }
 }

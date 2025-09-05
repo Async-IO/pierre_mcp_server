@@ -8,6 +8,7 @@ use pierre_mcp_server::{
     database_plugins::{factory::Database, DatabaseProvider},
 };
 use serde_json::Value;
+use std::sync::Arc;
 use warp::test::request;
 
 /// Complete end-to-end test for admin setup and user approval workflow
@@ -31,7 +32,11 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
     let auth_manager = AuthManager::new(jwt_secret.as_bytes().to_vec(), 24);
 
     // Create admin API context
-    let admin_context = AdminApiContext::new(database.clone(), jwt_secret, auth_manager.clone());
+    let admin_context = AdminApiContext::new(
+        Arc::new(database.clone()),
+        jwt_secret,
+        Arc::new(auth_manager.clone()),
+    );
 
     // Create admin routes
     let admin_routes =
@@ -201,7 +206,11 @@ async fn test_admin_token_management_workflow() -> Result<()> {
 
     let jwt_secret = "test_jwt_secret_for_token_management";
     let auth_manager = AuthManager::new(jwt_secret.as_bytes().to_vec(), 24);
-    let admin_context = AdminApiContext::new(database.clone(), jwt_secret, auth_manager);
+    let admin_context = AdminApiContext::new(
+        Arc::new(database.clone()),
+        jwt_secret,
+        Arc::new(auth_manager),
+    );
     let admin_routes =
         pierre_mcp_server::admin_routes::admin_routes_with_scoped_recovery(admin_context);
 
@@ -314,7 +323,8 @@ async fn test_admin_workflow_error_handling() -> Result<()> {
 
     let jwt_secret = "test_jwt_secret_for_error_handling";
     let auth_manager = AuthManager::new(jwt_secret.as_bytes().to_vec(), 24);
-    let admin_context = AdminApiContext::new(database, jwt_secret, auth_manager);
+    let admin_context =
+        AdminApiContext::new(Arc::new(database), jwt_secret, Arc::new(auth_manager));
     let admin_routes =
         pierre_mcp_server::admin_routes::admin_routes_with_scoped_recovery(admin_context);
 

@@ -3,45 +3,162 @@
 [![CI](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml)
 [![Frontend Tests](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/frontend-tests.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/frontend-tests.yml)
 
-> **Development Status**: This project is under active development. APIs and features may change.
+A comprehensive MCP (Model Context Protocol) server implementation for fitness data access, analytics, and intelligence. Connects AI assistants and autonomous agents to fitness providers through secure OAuth integration with advanced data analysis capabilities.
 
-**MCP Server** and **A2A Protocol** implementation for fitness data access. Connects AI assistants (Claude, ChatGPT) and autonomous agents to fitness providers (Strava, Fitbit) with OAuth credential management.
+## Use Cases
 
-## Quick Start
+- Fitness Data Analysis: Access and analyze activities from Strava, Fitbit, and other providers
+- Performance Intelligence: Generate insights from training data with weather and location context
+- AI Assistant Integration: Enable AI assistants to work with fitness data
+- Autonomous Agent Systems: Build fitness-focused AI agents with comprehensive data access
+- Multi-tenant Applications: Support multiple users and organizations with isolated data access
+
+## Installation
+
+### Setup
 
 ```bash
 git clone https://github.com/Async-IO/pierre_mcp_server.git
 cd pierre_mcp_server
 cargo build --release
 
-# Start server
+# Start the server
 cargo run --bin pierre-mcp-server
 ```
 
-### Automated Setup Script
+### Automated Setup
 
-For development and testing, use the complete user workflow script:
+For development and testing, use the automated workflow:
 
 ```bash
 # Clean database and start fresh server
 ./scripts/fresh-start.sh
 source .envrc && RUST_LOG=debug cargo run --bin pierre-mcp-server &
 
-# Run complete 5-step workflow (admin + user + tenant + login + MCP test)
+# Run complete setup (admin + user + tenant + login + MCP test)
 ./scripts/complete-user-workflow.sh
 
 # Use saved environment variables
 source .workflow_test_env
-echo "Ready! JWT Token: ${JWT_TOKEN:0:50}..."
+echo "JWT Token: ${JWT_TOKEN:0:50}..."
 ```
 
-This automated script performs all 5 setup steps and saves tokens to `.workflow_test_env` for easy reuse.
+### Docker Installation
 
-## MCP Protocol Integration
+```bash
+# Build and run with Docker
+docker build -t pierre-mcp-server .
+docker run -p 8080:8080 -p 8081:8081 pierre-mcp-server
+```
 
-### Claude Desktop Setup
+## MCP Client Configuration
 
-1. **Create admin and user accounts:**
+Configure your MCP client to connect to Pierre MCP Server by adding the following to your client's configuration file:
+
+```json
+{
+  "mcpServers": {
+    "pierre-fitness": {
+      "url": "http://127.0.0.1:8080/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_JWT_TOKEN"
+      }
+    }
+  }
+}
+```
+
+Replace `YOUR_JWT_TOKEN` with the JWT token obtained from the authentication process described in the Authentication section below.
+
+## Available Tools
+
+<details>
+<summary><strong>Core Fitness Data Tools</strong></summary>
+
+| Tool | Description | Required Parameters |
+|------|-------------|-------------------|
+| `get_activities` | Fetch activities from connected providers | `limit` (optional) |
+| `get_athlete` | Get athlete profile information | None |
+| `get_stats` | Get fitness statistics and metrics | None |
+| `get_activity_intelligence` | Detailed activity analysis with context | `activity_id` |
+| `get_connection_status` | Check provider connection status | None |
+| `disconnect_provider` | Disconnect from fitness provider | `provider` |
+
+</details>
+
+<details>
+<summary><strong>Analytics & Performance Tools</strong></summary>
+
+| Tool | Description | Required Parameters |
+|------|-------------|-------------------|
+| `analyze_activity` | Deep dive analysis of activities | `activity_id` |
+| `calculate_metrics` | Compute custom performance metrics | `metric_type`, `activities` |
+| `analyze_performance_trends` | Track performance over time | `time_range` (optional) |
+| `compare_activities` | Compare multiple activities | `activity_ids` |
+| `detect_patterns` | Find patterns in training data | `pattern_type` (optional) |
+| `predict_performance` | Predict future performance | `prediction_type` |
+
+</details>
+
+<details>
+<summary><strong>Goal & Training Tools</strong></summary>
+
+| Tool | Description | Required Parameters |
+|------|-------------|-------------------|
+| `create_goal` | Create new fitness goal | `goal_type`, `target_value`, `target_date` |
+| `update_goal` | Update existing goal | `goal_id`, `updates` |
+| `get_goals` | List all goals | None |
+| `delete_goal` | Delete a goal | `goal_id` |
+| `get_goal_progress` | Check progress toward goals | `goal_id` (optional) |
+| `suggest_workouts` | AI-powered workout suggestions | `goal_id` (optional), `preferences` (optional) |
+
+</details>
+
+<details>
+<summary><strong>Configuration & Intelligence Tools</strong></summary>
+
+| Tool | Description | Required Parameters |
+|------|-------------|-------------------|
+| `get_configuration` | Get current configuration | None |
+| `update_configuration` | Update system configuration | `updates` |
+| `reset_configuration` | Reset to default configuration | None |
+| `get_weather_forecast` | Get weather forecast for location | `location` |
+| `analyze_weather_impact` | Analyze weather impact on performance | `activity_id` |
+
+</details>
+
+## Plugin System
+
+Pierre MCP Server features a compile-time plugin architecture for extensible functionality:
+
+```rust
+use pierre_mcp_server::plugins::prelude::*;
+
+pub struct CustomAnalysisPlugin;
+
+impl PluginToolStatic for CustomAnalysisPlugin {
+    fn new() -> Self { Self }
+    
+    const INFO: PluginInfo = plugin_info!(
+        name: "custom_analysis",
+        description: "Custom fitness analysis",
+        category: PluginCategory::Analytics,
+        input_schema: r#"{"type": "object", "properties": {"activity_id": {"type": "string"}}}"#,
+        credit_cost: 1,
+        author: "Your Team",
+        version: "1.0.0",
+    );
+}
+
+// Register plugin for automatic discovery
+register_plugin!(CustomAnalysisPlugin);
+```
+
+## Authentication & Security
+
+### JWT Token Authentication
+
+1. Create admin account and approve users:
 ```bash
 # Create admin
 ADMIN_RESPONSE=$(curl -s -X POST http://localhost:8081/admin/setup \
@@ -50,142 +167,143 @@ ADMIN_RESPONSE=$(curl -s -X POST http://localhost:8081/admin/setup \
 
 ADMIN_TOKEN=$(echo $ADMIN_RESPONSE | jq -r '.admin_token')
 
-# Register user  
+# Register and approve user
 USER_ID=$(curl -s -X POST http://localhost:8081/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email": "user@example.com", "password": "pass123", "display_name": "User"}' | jq -r '.user_id')
 
-# Approve user with tenant
 curl -s -X POST "http://localhost:8081/admin/approve-user/$USER_ID" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"reason": "Approved", "create_default_tenant": true, "tenant_name": "User Org", "tenant_slug": "user-org"}'
+  -d '{"reason": "Approved", "create_default_tenant": true}'
+```
 
-# Get JWT token for MCP
+2. Get JWT token for MCP integration:
+```bash
 JWT_TOKEN=$(curl -s -X POST http://localhost:8081/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email": "user@example.com", "password": "pass123"}' | jq -r '.jwt_token')
 ```
 
-2. **Configure Claude Desktop** (`~/.claude/claude_desktop_config.json`):
-```json
-{
-  "mcpServers": {
-    "pierre-fitness": {
-      "command": "/path/to/pierre_mcp_server/scripts/mcp-client.sh",
-      "env": {
-        "PIERRE_JWT_TOKEN": "YOUR_JWT_TOKEN_FROM_ABOVE",
-        "PIERRE_SERVER_URL": "http://127.0.0.1:8080/mcp"
-      }
-    }
-  }
-}
+## Configuration
+
+### OAuth Provider Integration
+
+Pierre MCP Server supports multiple methods for providing OAuth credentials for fitness providers:
+
+1. Server-level credentials (via environment variables): Shared across all tenants
+2. User-specific credentials (via MCP tools): Individual OAuth apps per user
+3. Tenant-specific credentials (via API): Isolated per organization
+
+MCP clients can provide OAuth credentials using the `update_user_configuration` tool, eliminating the need for server-level environment variables.
+
+### Environment Variables
+
+#### Required
+```bash
+# Core Configuration
+DATABASE_URL=sqlite:./data/pierre.db
+PIERRE_MASTER_ENCRYPTION_KEY=your_32_byte_base64_key
 ```
 
-## Supported MCP Tools
-
-### Core Fitness Data
-- `get_activities` - Fetch activities from fitness providers
-- `get_athlete` - Get athlete profile information  
-- `get_stats` - Get fitness statistics and metrics
-- `get_activity_intelligence` - Detailed activity analysis with weather/location
-- `get_connection_status` - Check provider connection status
-- `disconnect_provider` - Disconnect from fitness provider
-
-### Analytics & Performance
-- `analyze_activity` - Deep dive analysis of specific activities
-- `calculate_metrics` - Compute custom performance metrics
-- `analyze_performance_trends` - Track performance over time
-- `compare_activities` - Compare multiple activities
-- `detect_patterns` - Find patterns in training data
-- `predict_performance` - Predict future performance
-- `generate_recommendations` - Generate personalized training recommendations
-
-### Goal Management
-- `create_goal` - Create fitness goals
-- `get_goals` - Get all user goals
-- `suggest_goals` - AI-suggested goals based on history
-
-### Provider Management
-- `connect_provider` - Connect to a fitness data provider (Strava, Fitbit)
-
-### Weather & Context
-- `get_weather_for_activity` - Get weather conditions for activities
-
-### Example MCP Client Questions
-
-**Activity Analysis:**
-- "Show me my last 5 runs and analyze my pace trends"
-- "What was my best cycling activity this month?"
-- "Compare my morning runs vs evening runs this week"
-
-**Performance Insights:**
-- "Analyze my training load over the past month"
-- "What patterns do you see in my workout data?"  
-- "Predict my 5K time based on my recent training"
-
-**Goal Setting:**
-- "Help me create a realistic marathon training goal"
-- "Show me all my current fitness goals"
-- "What goals should I focus on based on my fitness level?"
-
-**Weather & Context:**
-- "What were the weather conditions during my last run?"
-- "Show me how weather affected my cycling performance"
-
-## A2A Protocol Integration
-
-The A2A (Agent-to-Agent) protocol enables autonomous agents to access fitness data programmatically.
-
-### A2A Client Registration
+#### Optional
 ```bash
-# Register A2A client
-curl -X POST http://localhost:8081/a2a/clients \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -d '{
-    "name": "My Agent",
-    "description": "Fitness data analysis agent", 
-    "capabilities": ["fitness-data-analysis"]
-  }'
+# Server Ports
+MCP_PORT=8080
+HTTP_PORT=8081
+
+# Logging
+RUST_LOG=info
+
+# Database (Production)
+DATABASE_URL=postgresql://user:pass@localhost:5432/pierre
+
+# OAuth Providers (optional - can be provided by MCP clients)
+STRAVA_CLIENT_ID=your_strava_client_id
+STRAVA_CLIENT_SECRET=your_strava_client_secret
 ```
 
-### A2A Authentication Flow
-```bash
-# Authenticate A2A client
-curl -X POST http://localhost:8081/a2a/auth \
-  -H "Content-Type: application/json" \
-  -d '{
-    "client_id": "YOUR_CLIENT_ID",
-    "client_secret": "YOUR_CLIENT_SECRET"
-  }'
+### Fitness Configuration
+
+Pierre supports comprehensive fitness configuration through `fitness_config.toml`:
+
+```toml
+[zones.heart_rate]
+zone_1_max = 142
+zone_2_max = 152
+zone_3_max = 162
+zone_4_max = 172
+zone_5_max = 182
+
+[zones.power]
+ftp = 250
+zone_1_max = 144  # 58% of FTP
+zone_2_max = 175  # 70% of FTP
+zone_3_max = 205  # 82% of FTP
+zone_4_max = 235  # 94% of FTP
+zone_5_max = 325  # 130% of FTP
+
+[athlete_profile]
+weight_kg = 70.0
+max_heart_rate = 190
+resting_heart_rate = 45
+vo2_max = 55.0
 ```
 
 ## Architecture
 
-- **Port 8080**: MCP Protocol server (JSON-RPC over HTTP)
-- **Port 8081**: HTTP API (A2A protocol, admin setup, authentication)
+Pierre MCP Server implements a multi-protocol, multi-tenant architecture:
+
+- **MCP Protocol**: JSON-RPC over WebSocket (port 8080)
+- **HTTP REST API**: Management and OAuth endpoints (port 8081)
+- **A2A Protocol**: Agent-to-Agent communication
+- **Plugin System**: Extensible compile-time plugin architecture
+- **Multi-tenant**: Isolated data access with tenant management
+- **OAuth Integration**: Secure provider authentication
+
+## Testing
+
+```bash
+# Run all tests
+cargo test
+
+# Run with coverage
+cargo test --release
+
+# Lint and test (comprehensive validation)
+./scripts/lint-and-test.sh
+
+# Integration tests
+cargo test --test integration
+
+# MCP protocol tests
+cargo test --test mcp_protocol
+```
 
 ## Documentation
 
-[Complete Documentation](docs/README.md)
+Comprehensive documentation is available in the `docs/` directory:
 
-**Integration Guides:**
-- [MCP Protocol Guide](docs/developer-guide/04-mcp-protocol.md) - MCP implementation details
-- [A2A Protocol Guide](docs/developer-guide/05-a2a-protocol.md) - Agent integration
-- [A2A Quick Start](docs/A2A_QUICK_START.md) - A2A setup guide
-- [Getting Started](docs/getting-started.md) - Server setup and configuration
+- **[Getting Started](docs/developer-guide/15-getting-started.md)** - Quick setup guide
+- **[Installation Guides](docs/installation-guides/)** - Platform-specific installation
+- **[Developer Guide](docs/developer-guide/)** - Complete technical documentation
+- **[Plugin System](docs/developer-guide/18-plugin-system.md)** - Plugin development guide
+- **[API Reference](docs/developer-guide/14-api-reference.md)** - Complete API documentation
+- **[Security Guide](docs/developer-guide/17-security-guide.md)** - Security best practices
 
-**Developer Resources:**
-- [API Reference](docs/developer-guide/14-api-reference.md) - REST API and tool documentation
-- [Architecture Guide](docs/developer-guide/01-architecture.md) - System design
-- [Agent Examples](examples/agents/) - Autonomous agent implementations
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/new-feature`)
+3. Run tests and linting (`./scripts/lint-and-test.sh`)
+4. Commit your changes (`git commit -m 'feat: add new feature'`)
+5. Push to the branch (`git push origin feature/new-feature`)
+6. Open a Pull Request
 
 ## License
 
-This project is dual-licensed under either of:
+This project is dual-licensed under:
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+- MIT License ([LICENSE-MIT](LICENSE-MIT))
 
-* Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
-* MIT License ([LICENSE-MIT](LICENSE-MIT))
-
-at your option.
+You may choose either license for your use.

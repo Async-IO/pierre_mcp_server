@@ -170,7 +170,7 @@ async fn test_websocket_manager_creation() -> Result<()> {
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
 
-    let ws_manager = WebSocketManager::new((*database).clone(), (*auth_manager).clone());
+    let ws_manager = WebSocketManager::new(Arc::new((*database).clone()), &auth_manager);
 
     // Verify manager is created (filter can be built)
     let _ = ws_manager.websocket_filter();
@@ -194,7 +194,7 @@ async fn test_websocket_authentication_flow() -> Result<()> {
     // Generate auth token
     let token = auth_manager.generate_token(&user)?;
 
-    let ws_manager = WebSocketManager::new((*database).clone(), (*auth_manager).clone());
+    let ws_manager = WebSocketManager::new(Arc::new((*database).clone()), &auth_manager);
     let _filter = ws_manager.websocket_filter();
 
     // Test authentication message
@@ -354,7 +354,7 @@ async fn test_websocket_connection_with_invalid_auth() -> Result<()> {
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
 
-    let ws_manager = WebSocketManager::new((*database).clone(), (*auth_manager).clone());
+    let ws_manager = WebSocketManager::new(Arc::new((*database).clone()), &auth_manager);
     let _filter = ws_manager.websocket_filter();
 
     // Create invalid auth message
@@ -375,8 +375,8 @@ async fn test_websocket_concurrent_client_management() -> Result<()> {
     let auth_manager = common::create_test_auth_manager();
 
     let ws_manager = Arc::new(WebSocketManager::new(
-        (*database).clone(),
-        (*auth_manager).clone(),
+        Arc::new((*database).clone()),
+        &auth_manager,
     ));
 
     // Simulate multiple concurrent connections
@@ -527,7 +527,7 @@ async fn test_websocket_broadcast_system_stats() -> Result<()> {
     let database = common::create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
 
-    let _ws_manager = WebSocketManager::new((*database).clone(), (*auth_manager).clone());
+    let _ws_manager = WebSocketManager::new(Arc::new((*database).clone()), &auth_manager);
 
     // Create system stats for broadcast
     let stats = WebSocketMessage::SystemStats {

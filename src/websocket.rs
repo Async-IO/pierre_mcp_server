@@ -53,7 +53,7 @@ pub enum WebSocketMessage {
 
 #[derive(Clone)]
 pub struct WebSocketManager {
-    database: Database,
+    database: Arc<Database>,
     auth_middleware: McpAuthMiddleware,
     clients: Arc<RwLock<HashMap<Uuid, ClientConnection>>>,
     broadcast_tx: broadcast::Sender<WebSocketMessage>,
@@ -67,11 +67,10 @@ struct ClientConnection {
 }
 
 impl WebSocketManager {
-    pub fn new(database: Database, auth_manager: AuthManager) -> Self {
+    pub fn new(database: Arc<Database>, auth_manager: &Arc<AuthManager>) -> Self {
         let (broadcast_tx, _) =
             broadcast::channel(crate::constants::rate_limits::WEBSOCKET_CHANNEL_CAPACITY);
-        let database_arc = std::sync::Arc::new(database.clone());
-        let auth_middleware = McpAuthMiddleware::new(auth_manager, database_arc);
+        let auth_middleware = McpAuthMiddleware::new((**auth_manager).clone(), database.clone());
 
         Self {
             database,

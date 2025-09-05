@@ -119,26 +119,51 @@ impl ProviderManager {
         user_id: Uuid,
         provider_type: ProviderType,
     ) -> Result<ProviderInfo, AppError> {
+        // For now, use global tenant until we have tenant context
+        let tenant_id = "00000000-0000-0000-0000-000000000000";
+
         let token = match provider_type {
-            ProviderType::Strava => self.database.get_strava_token(user_id).await?,
-            ProviderType::Fitbit => self.database.get_fitbit_token(user_id).await?,
+            ProviderType::Strava => {
+                self.database
+                    .get_user_oauth_token(
+                        user_id,
+                        tenant_id,
+                        crate::constants::oauth_providers::STRAVA,
+                    )
+                    .await?
+            }
+            ProviderType::Fitbit => {
+                self.database
+                    .get_user_oauth_token(
+                        user_id,
+                        tenant_id,
+                        crate::constants::oauth_providers::FITBIT,
+                    )
+                    .await?
+            }
         };
 
         let status = match token {
             Some(token_data) => {
-                if token_data.expires_at > chrono::Utc::now() {
-                    ConnectionStatus::Connected {
-                        expires_at: token_data.expires_at,
-                        scopes: token_data
-                            .scope
-                            .split(',')
-                            .map(|s| s.trim().to_string())
-                            .collect(),
+                if let Some(expires_at) = token_data.expires_at {
+                    if expires_at > chrono::Utc::now() {
+                        ConnectionStatus::Connected {
+                            expires_at,
+                            scopes: token_data
+                                .scope
+                                .unwrap_or_default()
+                                .split(',')
+                                .map(|s| s.trim().to_string())
+                                .collect(),
+                        }
+                    } else {
+                        ConnectionStatus::TokenExpired {
+                            expired_at: expires_at,
+                        }
                     }
                 } else {
-                    ConnectionStatus::TokenExpired {
-                        expired_at: token_data.expires_at,
-                    }
+                    // Token has no expiration time, treat as disconnected
+                    ConnectionStatus::Disconnected
                 }
             }
             None => ConnectionStatus::Disconnected,
@@ -170,10 +195,29 @@ impl ProviderManager {
         user_id: Uuid,
         provider_type: ProviderType,
     ) -> Result<(), AppError> {
+        // For now, use global tenant until we have tenant context
+        let tenant_id = "00000000-0000-0000-0000-000000000000";
+
         // Remove from database
         match provider_type {
-            ProviderType::Strava => self.database.clear_strava_token(user_id).await?,
-            ProviderType::Fitbit => self.database.clear_fitbit_token(user_id).await?,
+            ProviderType::Strava => {
+                self.database
+                    .delete_user_oauth_token(
+                        user_id,
+                        tenant_id,
+                        crate::constants::oauth_providers::STRAVA,
+                    )
+                    .await?;
+            }
+            ProviderType::Fitbit => {
+                self.database
+                    .delete_user_oauth_token(
+                        user_id,
+                        tenant_id,
+                        crate::constants::oauth_providers::FITBIT,
+                    )
+                    .await?;
+            }
         }
 
         // Remove from cache

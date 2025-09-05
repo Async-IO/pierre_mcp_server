@@ -12,6 +12,7 @@ use crate::constants::service_names;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
 use tracing::{error, info};
@@ -77,7 +78,7 @@ pub struct HealthChecker {
     /// Service start time
     start_time: Instant,
     /// Database reference
-    database: Database,
+    database: Arc<Database>,
     /// Cached health status
     cached_status: RwLock<Option<(HealthResponse, Instant)>>,
     /// Cache TTL
@@ -87,16 +88,16 @@ pub struct HealthChecker {
 impl HealthChecker {
     /// Create a new health checker
     #[must_use]
-    pub fn new(database: Database) -> Self {
+    pub fn new(database: Arc<Database>) -> Self {
         let health_checker = Self {
             start_time: Instant::now(),
-            database,
+            database: database.clone(),
             cached_status: RwLock::new(None),
             cache_ttl: Duration::from_secs(30), // Cache for 30 seconds
         };
 
         // Start background cleanup task for expired API keys
-        let database_clone = health_checker.database.clone();
+        let database_clone = database;
         tokio::spawn(async move {
             Self::periodic_cleanup_task(database_clone).await;
         });
@@ -105,7 +106,7 @@ impl HealthChecker {
     }
 
     /// Periodic task to clean up expired API keys
-    async fn periodic_cleanup_task(database: Database) {
+    async fn periodic_cleanup_task(database: Arc<Database>) {
         let mut interval = tokio::time::interval(Duration::from_secs(
             crate::constants::time::HOUR_SECONDS as u64,
         )); // Run every hour

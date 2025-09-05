@@ -8,11 +8,13 @@
 use anyhow::Result;
 use pierre_mcp_server::{
     config::environment::*,
+    constants::oauth_providers,
     database_plugins::DatabaseProvider,
     intelligence::{
         ActivityIntelligence, ContextualFactors, PerformanceMetrics, TimeOfDay, TrendDirection,
         TrendIndicators,
     },
+    models::UserOAuthToken,
     protocols::universal::{UniversalRequest, UniversalToolExecutor},
 };
 use serde_json::json;
@@ -273,16 +275,19 @@ async fn test_invalid_provider_tokens() -> Result<()> {
 
     // Store an invalid/expired token
     let expires_at = chrono::Utc::now() - chrono::Duration::hours(1); // Expired
+    let oauth_token = UserOAuthToken::new(
+        user_id,
+        "00000000-0000-0000-0000-000000000000".to_string(), // tenant_id
+        oauth_providers::STRAVA.to_string(),
+        "invalid_access_token".to_string(),
+        Some("invalid_refresh_token".to_string()),
+        Some(expires_at),
+        Some("read".to_string()), // scope as String
+    );
     executor
         .resources
         .database
-        .update_strava_token(
-            user_id,
-            "invalid_access_token",
-            "invalid_refresh_token",
-            expires_at,
-            "read".to_string(),
-        )
+        .upsert_user_oauth_token(&oauth_token)
         .await?;
 
     // Test get_activities with expired token

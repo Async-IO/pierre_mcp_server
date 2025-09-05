@@ -109,6 +109,9 @@ fn test_universal_to_mcp_conversion_success() {
         pierre_mcp_server::mcp::schema::Content::Resource { .. } => {
             panic!("Expected text content, got resource");
         }
+        pierre_mcp_server::mcp::schema::Content::Progress { .. } => {
+            panic!("Expected text content, got progress");
+        }
     }
 }
 
@@ -134,6 +137,9 @@ fn test_universal_to_mcp_conversion_error() {
         }
         pierre_mcp_server::mcp::schema::Content::Resource { .. } => {
             panic!("Expected text content, got resource");
+        }
+        pierre_mcp_server::mcp::schema::Content::Progress { .. } => {
+            panic!("Expected text content, got progress");
         }
     }
 }

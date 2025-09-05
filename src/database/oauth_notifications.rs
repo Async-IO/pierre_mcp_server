@@ -119,6 +119,7 @@ impl Database {
         &self,
         user_id: Uuid,
     ) -> Result<Vec<OAuthNotification>> {
+        tracing::debug!("Querying unread notifications for user_id: {}", user_id);
         let rows = sqlx::query(
             r"
             SELECT id, user_id, provider, success, message, expires_at, created_at, read_at
@@ -130,6 +131,12 @@ impl Database {
         .bind(user_id.to_string())
         .fetch_all(&self.pool)
         .await?;
+
+        tracing::debug!(
+            "Found {} unread notification rows for user {}",
+            rows.len(),
+            user_id
+        );
 
         let mut notifications = Vec::new();
         for row in rows {

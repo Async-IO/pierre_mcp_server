@@ -13,12 +13,15 @@
 
 use crate::auth::AuthManager;
 use crate::constants::{
-    errors::{ERROR_INVALID_PARAMS, ERROR_METHOD_NOT_FOUND},
+    errors::{
+        ERROR_AUTHENTICATION, ERROR_INVALID_PARAMS, ERROR_METHOD_NOT_FOUND, ERROR_SERIALIZATION,
+        ERROR_VERSION_MISMATCH, MSG_AUTHENTICATION, MSG_SERIALIZATION, MSG_VERSION_MISMATCH,
+    },
     protocol::SERVER_VERSION,
 };
 use crate::database_plugins::DatabaseProvider;
 use crate::mcp::resources::ServerResources;
-use crate::mcp::schema::{get_tools, InitializeResponse};
+use crate::mcp::schema::{get_tools, InitializeRequest, InitializeResponse};
 use crate::models::AuthRequest;
 use serde_json::Value;
 use std::sync::Arc;
@@ -37,18 +40,65 @@ fn default_request_id() -> Value {
 }
 
 impl ProtocolHandler {
-    /// Handle initialize request
+    /// Supported MCP protocol versions (in preference order)
+    const SUPPORTED_VERSIONS: &'static [&'static str] = &["2025-06-18", "2024-11-05"];
+
+    /// Handle initialize request with proper version negotiation
     pub fn handle_initialize(request: McpRequest) -> McpResponse {
+        let request_id = request.id.unwrap_or_else(default_request_id);
+
+        // Parse initialize request parameters
+        let Some(init_request) = request
+            .params
+            .as_ref()
+            .and_then(|params| serde_json::from_value::<InitializeRequest>(params.clone()).ok())
+        else {
+            return McpResponse::error(
+                request_id,
+                ERROR_INVALID_PARAMS,
+                "Invalid initialize request parameters".to_string(),
+            );
+        };
+
+        // Validate client protocol version
+        let client_version = &init_request.protocol_version;
+        let negotiated_version = if Self::SUPPORTED_VERSIONS.contains(&client_version.as_str()) {
+            // Use client version if supported
+            client_version.clone()
+        } else {
+            // Return error for unsupported versions
+            let supported_versions = Self::SUPPORTED_VERSIONS.join(", ");
+            return McpResponse::error(
+                request_id,
+                ERROR_VERSION_MISMATCH,
+                format!("{MSG_VERSION_MISMATCH}. Client version: {client_version}, Supported versions: {supported_versions}")
+            );
+        };
+
+        info!(
+            "MCP version negotiated: {} (client: {}, server supports: {:?})",
+            negotiated_version,
+            client_version,
+            Self::SUPPORTED_VERSIONS
+        );
+
+        // Create successful initialize response with negotiated version
         let init_response = InitializeResponse::new(
-            crate::constants::protocol::mcp_protocol_version(),
+            negotiated_version,
             crate::constants::protocol::server_name_multitenant(),
             SERVER_VERSION.to_string(),
         );
 
-        let request_id = request.id.unwrap_or_else(default_request_id);
         match serde_json::to_value(&init_response) {
             Ok(result) => McpResponse::success(request_id, result),
-            Err(_) => McpResponse::error(request_id, -32603, "Internal error".to_string()),
+            Err(e) => {
+                error!("Failed to serialize initialize response: {}", e);
+                McpResponse::error(
+                    request_id,
+                    ERROR_SERIALIZATION,
+                    format!("{MSG_SERIALIZATION}: {e}"),
+                )
+            }
         }
     }
 
@@ -192,8 +242,8 @@ impl ProtocolHandler {
                         error!("Failed to fetch OAuth notifications: {}", e);
                         McpResponse::error(
                             request_id,
-                            -32603,
-                            "Failed to fetch notifications".to_string(),
+                            ERROR_AUTHENTICATION,
+                            format!("{MSG_AUTHENTICATION}: Failed to fetch notifications - {e}"),
                         )
                     }
                 }

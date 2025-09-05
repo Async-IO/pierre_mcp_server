@@ -173,11 +173,23 @@ impl UniversalToolExecutor {
             .await
         {
             Ok(Some(token_data)) => {
-                // Use environment variables as fallback credentials for legacy tools
+                // Use environment variables for legacy tools - fail if not configured
                 let client_id =
-                    std::env::var("STRAVA_CLIENT_ID").unwrap_or_else(|_| "163846".to_string());
-                let client_secret = std::env::var("STRAVA_CLIENT_SECRET")
-                    .unwrap_or_else(|_| "1dfc45ad0a1f6983b835e4495aa9473d111d03bc".to_string());
+                    std::env::var("STRAVA_CLIENT_ID").map_err(|_| UniversalResponse {
+                        success: false,
+                        result: None,
+                        error: Some("STRAVA_CLIENT_ID environment variable required".to_string()),
+                        metadata: None,
+                    })?;
+                let client_secret =
+                    std::env::var("STRAVA_CLIENT_SECRET").map_err(|_| UniversalResponse {
+                        success: false,
+                        result: None,
+                        error: Some(
+                            "STRAVA_CLIENT_SECRET environment variable required".to_string(),
+                        ),
+                        metadata: None,
+                    })?;
 
                 let auth_data = OAuth2Credentials {
                     client_id,
@@ -628,14 +640,17 @@ impl UniversalToolExecutor {
         &self,
         request: UniversalRequest,
     ) -> Result<UniversalResponse, crate::protocols::ProtocolError> {
-        // Extract parameters
-        let limit = request
+        // Extract parameters with validation
+        let requested_limit = request
             .parameters
             .get("limit")
             .and_then(serde_json::Value::as_u64)
             .unwrap_or(10)
             .try_into()
             .unwrap_or(10_usize);
+
+        // Enforce maximum limit to prevent server overload
+        let limit = requested_limit.min(MAX_ACTIVITY_LIMIT);
 
         let provider_type = request
             .parameters
@@ -884,12 +899,22 @@ impl UniversalToolExecutor {
         let text_content = if activities.is_empty() {
             format!("No activities found for {}", provider_type)
         } else {
-            let mut summary = format!(
-                "Found {} activities from {}:\n\n",
-                activities.len(),
-                provider_type
-            );
-            for (i, activity) in activities.iter().take(5).enumerate() {
+            let mut summary = if requested_limit > MAX_ACTIVITY_LIMIT {
+                format!(
+                    "Found {} activities from {} (limited from requested {} to maximum {} for performance):\n\n",
+                    activities.len(),
+                    provider_type,
+                    requested_limit,
+                    MAX_ACTIVITY_LIMIT
+                )
+            } else {
+                format!(
+                    "Found {} activities from {}:\n\n",
+                    activities.len(),
+                    provider_type
+                )
+            };
+            for (i, activity) in activities.iter().enumerate() {
                 let name = activity
                     .get("name")
                     .and_then(|v| v.as_str())
@@ -1382,29 +1407,35 @@ impl UniversalToolExecutor {
         // Parse user ID
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
-        // Use OAuth manager to check connection status for all providers (read-only operation)
-        let oauth_manager = self.resources.oauth_manager.read().await;
+        // Use default tenant if none provided
+        let tenant_id = request.tenant_id.unwrap_or_else(|| "default".to_string());
 
-        let connection_status = oauth_manager
-            .get_connection_status(user_uuid)
+        // Check connection status using tenant-aware token storage
+        let strava_connected = self
+            .resources
+            .database
+            .get_user_oauth_token(user_uuid, &tenant_id, oauth_providers::STRAVA)
             .await
-            .unwrap_or_else(|_| {
-                let mut default_status = std::collections::HashMap::with_capacity(2);
-                default_status.insert(oauth_providers::STRAVA.into(), false);
-                default_status.insert(oauth_providers::FITBIT.into(), false);
-                default_status
-            });
-        drop(oauth_manager);
+            .unwrap_or(None)
+            .is_some();
+
+        let fitbit_connected = self
+            .resources
+            .database
+            .get_user_oauth_token(user_uuid, &tenant_id, oauth_providers::FITBIT)
+            .await
+            .unwrap_or(None)
+            .is_some();
 
         let status = serde_json::json!({
             "providers": {
                 oauth_providers::STRAVA: {
-                    "connected": connection_status.get(oauth_providers::STRAVA).unwrap_or(&false),
-                    "status": if *connection_status.get(oauth_providers::STRAVA).unwrap_or(&false) { "active" } else { "not_connected" }
+                    "connected": strava_connected,
+                    "status": if strava_connected { "active" } else { "not_connected" }
                 },
                 oauth_providers::FITBIT: {
-                    "connected": connection_status.get(oauth_providers::FITBIT).unwrap_or(&false),
-                    "status": if *connection_status.get(oauth_providers::FITBIT).unwrap_or(&false) { "active" } else { "not_connected" }
+                    "connected": fitbit_connected,
+                    "status": if fitbit_connected { "active" } else { "not_connected" }
                 }
             }
         });
@@ -1432,39 +1463,17 @@ impl UniversalToolExecutor {
 
         let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
 
-        // Clear tokens for the specified provider
-        match provider {
-            oauth_providers::STRAVA => {
-                self.resources
-                    .database
-                    .clear_strava_token(user_uuid)
-                    .await
-                    .map_err(|e| {
-                        crate::protocols::ProtocolError::ExecutionFailed(format!(
-                            "Database error: {}",
-                            e
-                        ))
-                    })?;
-            }
-            oauth_providers::FITBIT => {
-                self.resources
-                    .database
-                    .clear_fitbit_token(user_uuid)
-                    .await
-                    .map_err(|e| {
-                        crate::protocols::ProtocolError::ExecutionFailed(format!(
-                            "Database error: {}",
-                            e
-                        ))
-                    })?;
-            }
-            _ => {
-                return Err(crate::protocols::ProtocolError::InvalidParameters(format!(
-                    "Unknown provider: {}",
-                    provider
-                )))
-            }
-        }
+        // Use default tenant if none provided
+        let tenant_id = request.tenant_id.unwrap_or_else(|| "default".to_string());
+
+        // Clear tokens for the specified provider using tenant-aware deletion
+        self.resources
+            .database
+            .delete_user_oauth_token(user_uuid, &tenant_id, provider)
+            .await
+            .map_err(|e| {
+                crate::protocols::ProtocolError::ExecutionFailed(format!("Database error: {}", e))
+            })?;
 
         Ok(UniversalResponse {
             success: true,

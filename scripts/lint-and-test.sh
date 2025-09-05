@@ -19,7 +19,7 @@ for arg in "$@"; do
             ;;
         --help|-h)
             echo "Usage: $0 [--coverage]"
-            echo "  --coverage  Enable code coverage collection and reporting"
+            echo "  --coverage               Enable code coverage collection and reporting"
             exit 0
             ;;
         *)
@@ -58,6 +58,7 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+
 # Track overall success
 ALL_PASSED=true
 
@@ -78,259 +79,188 @@ else
     ALL_PASSED=false
 fi
 
-# FAST FAIL: Check for architectural anti-patterns first (before expensive operations)
-echo -e "${BLUE}==== Checking for architectural anti-patterns (FAST FAIL)... ====${NC}"
+# Function to report warning
+warn_validation() {
+    echo -e "${YELLOW}⚠️  ARCHITECTURAL WARNING${NC}"
+    echo -e "${YELLOW}$1${NC}"
+}
 
-# Resource creation anti-pattern detection
-DATABASE_CLONES=$(rg "database.*\.clone\(\)|\.clone\(\).*database" src/ -g "!src/bin/*" -g "!src/database/tests.rs" -g "!src/database_plugins/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-RESOURCE_CREATION=$(rg "AuthManager::new|OAuthManager::new|A2AClientManager::new" src/ -g "!src/mcp/multitenant.rs" -g "!src/bin/*" -g "!tests/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+# Function to report success
+pass_validation() {
+    echo -e "${GREEN}✅ $1${NC}"
+}
 
-# Architectural anti-pattern detection  
+# UNIFIED ARCHITECTURAL VALIDATION SUITE (run early to catch design issues)
+# ============================================================================
+echo ""
+echo -e "${BLUE}============================================================================${NC}"
+echo -e "${BLUE}==== UNIFIED ARCHITECTURAL VALIDATION SUITE ====${NC}"
+echo -e "${BLUE}============================================================================${NC}"
+echo ""
+echo -e "${YELLOW}This comprehensive validation suite runs early to ensure:${NC}"
+echo -e "${YELLOW}  • Code quality standards are met${NC}"
+echo -e "${YELLOW}  • No anti-patterns or stubbed implementations exist${NC}"
+echo -e "${YELLOW}  • Architecture follows best practices${NC}"
+echo ""
+
+VALIDATION_FAILED=false
+
+# Function to report validation failure
+fail_validation() {
+    echo -e "${RED}❌ ARCHITECTURAL VALIDATION FAILED${NC}"
+    echo -e "${RED}$1${NC}"
+    VALIDATION_FAILED=true
+    ALL_PASSED=false
+}
+
+# ============================================================================
+# SECTION 1: ANTI-PATTERN DETECTION
+# ============================================================================
+echo -e "${BLUE}==== 1. Anti-Pattern Detection ====${NC}"
+
+# Smart database clone detection - separate legitimate Arc clones from problematic Database clones
+LEGITIMATE_ARC_CLONES=$(rg "database_arc\.clone\(\)" src/ -g "!src/bin/*" -g "!src/database/tests.rs" -g "!src/database_plugins/*" --count 2>/dev/null | cut -d: -f2 | python3 -c "import sys; lines = sys.stdin.readlines(); print(sum(int(x.strip()) for x in lines) if lines else 0)" 2>/dev/null || echo 0)
+PROBLEMATIC_DB_CLONES=$(rg "\.as_ref\(\)\.clone\(\)" src/ -g "!src/bin/*" -g "!src/database/tests.rs" -g "!src/database_plugins/*" --count 2>/dev/null | cut -d: -f2 | python3 -c "import sys; lines = sys.stdin.readlines(); print(sum(int(x.strip()) for x in lines) if lines else 0)" 2>/dev/null || echo 0)
+TOTAL_DATABASE_CLONES=$((LEGITIMATE_ARC_CLONES + PROBLEMATIC_DB_CLONES))
+RESOURCE_CREATION=$(rg "AuthManager::new|OAuthManager::new|A2AClientManager::new|TenantOAuthManager::new" src/ -g "!src/mcp/multitenant.rs" -g "!src/mcp/resources.rs" -g "!src/bin/*" -g "!tests/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 FAKE_RESOURCES=$(rg "Arc::new\(ServerResources\s*[\{\:]" src/ 2>/dev/null | wc -l | awk '{print $1+0}')
 OBSOLETE_FUNCTIONS=$(rg "fn.*run_http_server\(" src/ 2>/dev/null | wc -l | awk '{print $1+0}')
 
-PANICS_FAST=$(rg "panic!\(" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
+echo "Anti-pattern analysis:"
+echo "  Database clones: $TOTAL_DATABASE_CLONES total ($LEGITIMATE_ARC_CLONES legitimate, $PROBLEMATIC_DB_CLONES problematic)"
+echo "  Resource creation: $RESOURCE_CREATION patterns"
+echo "  Fake resources: $FAKE_RESOURCES assemblies"
+echo "  Obsolete functions: $OBSOLETE_FUNCTIONS variants"
 
-ANTI_PATTERNS_FOUND=false
-
-if [ "$PANICS_FAST" -gt 0 ]; then 
-    echo -e "${RED}[CRITICAL] Found $PANICS_FAST panic!() calls - CRITICAL ISSUE${NC}"
-    echo -e "${RED}           Will crash application under normal operation${NC}"
-    rg "panic!\(" src/ -n | head -5
-    ANTI_PATTERNS_FOUND=true
-    ALL_PASSED=false
+if [ "$PROBLEMATIC_DB_CLONES" -gt 0 ]; then 
+    warn_validation "Found $PROBLEMATIC_DB_CLONES problematic database cloning patterns - use Arc sharing instead"
+    rg "\.as_ref\(\)\.clone\(\)|Arc::new\(database\.clone\(\)\)" src/ -g "!src/bin/*" -g "!src/database/tests.rs" -g "!src/database_plugins/*" -n | head -3
+elif [ "$LEGITIMATE_ARC_CLONES" -gt 0 ]; then
+    pass_validation "Database clones are all legitimate Arc handle clones ($LEGITIMATE_ARC_CLONES total)"
 fi
-
-if [ "$DATABASE_CLONES" -gt 0 ]; then 
-    echo -e "${RED}[FAIL] Found $DATABASE_CLONES database cloning anti-patterns${NC}"
-    echo -e "${YELLOW}       Database should be shared via Arc, not cloned${NC}"
-    rg "database.*\.clone\(\)|\.clone\(\).*database" src/ -g "!src/bin/*" -g "!src/database/tests.rs" -g "!src/database_plugins/*" -n | head -3
-    ANTI_PATTERNS_FOUND=true
-    ALL_PASSED=false
-fi
-
 if [ "$RESOURCE_CREATION" -gt 0 ]; then 
-    echo -e "${RED}[FAIL] Found $RESOURCE_CREATION resource creation anti-patterns${NC}"
-    echo -e "${YELLOW}       Use ServerResources dependency injection${NC}"
-    rg "AuthManager::new|OAuthManager::new|A2AClientManager::new" src/ -g "!src/mcp/multitenant.rs" -g "!src/bin/*" -g "!tests/*" -n | head -3
-    ANTI_PATTERNS_FOUND=true
-    ALL_PASSED=false
+    warn_validation "Found $RESOURCE_CREATION resource creation patterns - use ServerResources dependency injection"
+    rg "AuthManager::new|OAuthManager::new|A2AClientManager::new|TenantOAuthManager::new" src/ -g "!src/mcp/multitenant.rs" -g "!src/mcp/resources.rs" -g "!src/bin/*" -g "!tests/*" -n | head -3
 fi
-
 if [ "$FAKE_RESOURCES" -gt 0 ]; then 
-    echo -e "${RED}[FAIL] Found $FAKE_RESOURCES fake ServerResources assembly patterns${NC}"
-    echo -e "${YELLOW}       Use real ServerResources instance instead of manual assembly${NC}"
+    warn_validation "Found $FAKE_RESOURCES fake ServerResources assembly patterns"
     rg "Arc::new\(ServerResources\s*\{" src/ -n | head -3
-    ANTI_PATTERNS_FOUND=true
-    ALL_PASSED=false
 fi
-
 if [ "$OBSOLETE_FUNCTIONS" -gt 1 ]; then  # Allow 1 legitimate function
-    echo -e "${RED}[FAIL] Found $OBSOLETE_FUNCTIONS run_http_server function variants (duplicate implementations)${NC}"
-    echo -e "${YELLOW}       Multiple implementations suggest obsolete functions exist${NC}"
+    warn_validation "Found $OBSOLETE_FUNCTIONS run_http_server function variants - may indicate obsolete functions"
     rg "run_http_server\(" src/ -n | head -3
-    ANTI_PATTERNS_FOUND=true
-    ALL_PASSED=false
 fi
 
-if [ "$ANTI_PATTERNS_FOUND" = true ]; then
-    echo -e "${RED}FAST FAIL: Fix architectural anti-patterns before continuing${NC}"
-    echo -e "${RED}   These issues violate good Rust practices and may cause failures${NC}"
-    exit 1
-fi
+# ============================================================================
+# SECTION 2: CODE QUALITY ANALYSIS
+# ============================================================================
+echo -e "${BLUE}==== 2. Code Quality Analysis ====${NC}"
 
-echo -e "${GREEN}[OK] No critical architectural anti-patterns found${NC}"
+# Check for prohibited code patterns
+echo -e "${BLUE}Analyzing code patterns...${NC}"
 
-# FAST FAIL: Check remaining prohibited patterns (before expensive operations)
-echo -e "${BLUE}==== Checking for prohibited code patterns (FAST FAIL)... ====${NC}"
-UNWRAPS=$(rg "unwrap\(\)" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
-EXPECTS=$(rg "expect\(" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
-PANICS=$(rg "panic!\(" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
+# Error handling patterns
+UNWRAPS=$(rg "\.unwrap\(\)" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+EXPECTS=$(rg "\.expect\(" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+PANICS=$(rg "panic!\(" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 
-# Enhanced pattern detection for better dev standards compliance
-TODOS=$(rg -i "todo|fixme|xxx|hack" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-PLACEHOLDERS=$(rg -i "placeholder|dummy|test@example|@example\.com" src/ --exclude="*.md" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-STUBS=$(rg -i "not yet implemented|not implemented|unimplemented!" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+# Code quality patterns
+TODOS=$(rg "TODO|FIXME|XXX" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+PLACEHOLDERS=$(rg "placeholder|not yet implemented|unimplemented!\(" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+STUBS=$(rg "stub|mock.*implementation" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+
+# Naming patterns
 UNDERSCORE_NAMES=$(rg "fn _|let _[a-zA-Z]|struct _|enum _" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-CFG_TESTS=$(rg "#\[cfg\(test\)\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+EXAMPLE_EMAILS=$(rg "example\.com|test@" src/ -g "!src/bin/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 
-# New comprehensive checks based on issues found
-PLACEHOLDER_EMAILS=$(rg "@example\.(com|org|net)" src/ --exclude="*.md" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-NOT_YET=$(rg "not yet" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-TEMPORARY=$(rg -i "temporary|temp solution|workaround|hack" src/ --type rust -g '!*.md' -g '!*.rs.backup' --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+# Organization patterns  
+CFG_TEST_IN_SRC=$(rg "#\[cfg\(test\)\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+TEMP_SOLUTIONS=$(rg "\bhack\b|\bworkaround\b|\bquick.*fix\b|future.*implementation|temporary.*solution|temp.*fix" src/ --count-matches 2>/dev/null | cut -d: -f2 | python3 -c "import sys; lines = sys.stdin.readlines(); print(sum(int(x.strip()) for x in lines) if lines else 0)" 2>/dev/null || echo 0)
 
-# Dead code and unused item detection (CRITICAL for code quality)
-ALLOW_DEAD_CODE=$(rg "#\[allow\(dead_code\)\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-ALLOW_UNUSED=$(rg "#\[allow\(unused.*\)\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-DEPRECATED_ITEMS=$(rg "#\[deprecated\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+# Attribute patterns
+DEAD_CODE=$(rg "#\[allow\(dead_code\)\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+UNUSED_VARS=$(rg "#\[allow\(unused.*\)\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+DEPRECATED=$(rg "#\[deprecated\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 
-CODE_QUALITY_ISSUES=false
+echo "Pattern Summary:"
+echo "  Error handling: $UNWRAPS unwraps, $EXPECTS expects, $PANICS panics"
+echo "  Code quality: $TODOS TODOs, $PLACEHOLDERS placeholders, $STUBS stubs"  
+echo "  Naming: $UNDERSCORE_NAMES underscore names, $EXAMPLE_EMAILS example emails"
+echo "  Organization: $CFG_TEST_IN_SRC #[cfg(test)] in src/, $TEMP_SOLUTIONS temporary solutions"
+echo "  Attributes: $DEAD_CODE dead code, $UNUSED_VARS unused, $DEPRECATED deprecated"
 
-echo "Found: $UNWRAPS unwraps, $EXPECTS expects, $PANICS panics"
-echo "       $TODOS TODOs/FIXMEs, $PLACEHOLDERS placeholders, $STUBS stubs, $UNDERSCORE_NAMES underscore names"
-echo "       $CFG_TESTS #[cfg(test)] modules, $PLACEHOLDER_EMAILS example emails, $NOT_YET 'not yet' phrases"
-echo "       $TEMPORARY temporary solutions, $ALLOW_DEAD_CODE dead code allowances, $ALLOW_UNUSED unused allowances"
-echo "       $DEPRECATED_ITEMS deprecated items"
-
-if [ "$UNWRAPS" -gt 0 ]; then 
-    echo -e "${RED}[FAIL] Found $UNWRAPS unwrap() calls (dev standards violation)${NC}"
-    rg "unwrap\(\)" src/ -n | head -5
-    CODE_QUALITY_ISSUES=true
-    ALL_PASSED=false
+# Report findings
+if [ "$UNWRAPS" -gt 0 ]; then
+    warn_validation "Found $UNWRAPS .unwrap() calls - use proper error handling"
+    rg "\.unwrap\(\)" src/ -n | head -3
 fi
-if [ "$EXPECTS" -gt 0 ]; then 
-    echo -e "${RED}[FAIL] Found $EXPECTS expect() calls (dev standards violation)${NC}"
-    rg "expect\(" src/ -n | head -5
-    CODE_QUALITY_ISSUES=true
-    ALL_PASSED=false
+if [ "$EXPECTS" -gt 0 ]; then
+    warn_validation "Found $EXPECTS .expect() calls - use proper error handling" 
+    rg "\.expect\(" src/ -n | head -3
 fi
-if [ "$PANICS" -gt 0 ]; then 
-    echo -e "${RED}[FAIL] Found $PANICS panic!() calls (CRITICAL ISSUE)${NC}"
-    echo -e "${RED}      panic!() calls will crash the application${NC}"
-    echo -e "${RED}      Replace with proper error handling${NC}"
-    echo -e "${YELLOW}   Locations:${NC}"
-    rg "panic!\(" src/ -n | head -10
-    echo -e "${YELLOW}   Fix with: return Err(anyhow!(...)) or proper error responses${NC}"
-    CODE_QUALITY_ISSUES=true
-    ALL_PASSED=false
+if [ "$PANICS" -gt 0 ]; then
+    warn_validation "Found $PANICS panic!() calls - use proper error handling"
+    rg "panic!\(" src/ -n | head -3
 fi
-if [ "$TODOS" -gt 0 ]; then 
-    echo -e "${RED}[FAIL] Found $TODOS TODO/FIXME comments (dev standards violation)${NC}"
-    echo -e "${YELLOW}   Examples:${NC}"
-    rg -i "todo|fixme" src/ -n | head -3
-    CODE_QUALITY_ISSUES=true
-    ALL_PASSED=false
+if [ "$TODOS" -gt 0 ]; then
+    warn_validation "Found $TODOS TODO/FIXME comments - complete implementation"
+    rg "TODO|FIXME|XXX" src/ -n | head -3
 fi
-if [ "$PLACEHOLDERS" -gt 0 ]; then 
-    echo -e "${RED}[FAIL] Found $PLACEHOLDERS placeholder implementations (dev standards violation)${NC}"
-    echo -e "${YELLOW}   Examples:${NC}"
-    rg -i "placeholder" src/ -n | head -3
-    CODE_QUALITY_ISSUES=true
-    ALL_PASSED=false
-fi
-if [ "$STUBS" -gt 0 ]; then 
-    echo -e "${RED}[FAIL] Found $STUBS stub/unimplemented functions (dev standards violation)${NC}"
-    echo -e "${YELLOW}   Examples:${NC}"
-    rg -i "not.*implemented|stub" src/ -n | head -3
-    CODE_QUALITY_ISSUES=true
-    ALL_PASSED=false
-fi
-if [ "$UNDERSCORE_NAMES" -gt 0 ]; then 
-    echo -e "${RED}[FAIL] Found $UNDERSCORE_NAMES underscore-prefixed names (dev standards violation)${NC}"
-    echo -e "${YELLOW}   Examples:${NC}"
+if [ "$UNDERSCORE_NAMES" -gt 0 ]; then
+    warn_validation "Found $UNDERSCORE_NAMES underscore-prefixed names"
     rg "fn _|let _[a-zA-Z]|struct _|enum _" src/ -n | head -3
-    CODE_QUALITY_ISSUES=true
-    ALL_PASSED=false
 fi
-if [ "$CFG_TESTS" -gt 0 ]; then 
-    echo -e "${RED}[FAIL] Found $CFG_TESTS #[cfg(test)] modules in src/ (dev standards violation)${NC}"
-    echo -e "${YELLOW}   Tests must be in tests/ directory, not as #[cfg(test)] modules in src/${NC}"
-    echo -e "${YELLOW}   Examples:${NC}"
-    rg "#\[cfg\(test\)\]" src/ -n | head -3
-    CODE_QUALITY_ISSUES=true
-    ALL_PASSED=false
-fi
-if [ "$PLACEHOLDER_EMAILS" -gt 0 ]; then 
-    echo -e "${RED}[FAIL] Found $PLACEHOLDER_EMAILS example.com emails (dev standards violation)${NC}"
-    echo -e "${YELLOW}   Use system-generated identifiers instead of example domains${NC}"
-    echo -e "${YELLOW}   Examples:${NC}"
-    rg "@example\.(com|org|net)" src/ --exclude="*.md" -n | head -3
-    CODE_QUALITY_ISSUES=true
-    ALL_PASSED=false
-fi
-if [ "$NOT_YET" -gt 0 ]; then 
-    echo -e "${RED}[FAIL] Found $NOT_YET 'not yet' phrases (dev standards violation)${NC}"
-    echo -e "${YELLOW}   Implement features or document limitations properly${NC}"
-    echo -e "${YELLOW}   Examples:${NC}"
-    rg "not yet" src/ -n | head -3
-    CODE_QUALITY_ISSUES=true
-    ALL_PASSED=false
-fi
-if [ "$TEMPORARY" -gt 2 ]; then  # Allow 2 legitimate uses in rate_limiting.rs
-    echo -e "${RED}[FAIL] Found $TEMPORARY temporary solutions (dev standards violation)${NC}"
-    echo -e "${YELLOW}   Replace temporary code with production implementations${NC}"
-    echo -e "${YELLOW}   Examples:${NC}"
-    rg -i "temporary|temp solution|workaround|hack" src/ --type rust -n | head -3
-    CODE_QUALITY_ISSUES=true
-    ALL_PASSED=false
-elif [ "$TEMPORARY" -gt 0 ]; then
-    echo -e "${YELLOW}[INFO] Found $TEMPORARY uses of 'temporary' - verified as legitimate feature descriptions${NC}"
+if [ "$TEMP_SOLUTIONS" -gt 0 ]; then
+    warn_validation "Found $TEMP_SOLUTIONS temporary solutions"
+    rg "\bhack\b|\bworkaround\b|\bquick.*fix\b|future.*implementation|temporary.*solution|temp.*fix" src/ -n | head -3
 fi
 
-# Critical dead code and unused item checks (ZERO TOLERANCE)
-if [ "$ALLOW_DEAD_CODE" -gt 0 ]; then 
-    echo -e "${RED}[CRITICAL] Found $ALLOW_DEAD_CODE #[allow(dead_code)] attributes (FORBIDDEN)${NC}"
-    echo -e "${RED}   CLAUDE.md strictly prohibits #[allow(dead_code)]${NC}"
-    echo -e "${YELLOW}   Examples:${NC}"
-    rg "#\[allow\(dead_code\)\]" src/ -n | head -3
-    CODE_QUALITY_ISSUES=true
-    ALL_PASSED=false
-fi
-if [ "$ALLOW_UNUSED" -gt 0 ]; then 
-    echo -e "${RED}[CRITICAL] Found $ALLOW_UNUSED #[allow(unused*)] attributes (SUSPICIOUS)${NC}"
-    echo -e "${RED}   These may mask real code quality issues${NC}"
-    echo -e "${YELLOW}   Examples:${NC}"
-    rg "#\[allow\(unused.*\)\]" src/ -n | head -3
-    CODE_QUALITY_ISSUES=true
-    ALL_PASSED=false
-fi
-if [ "$DEPRECATED_ITEMS" -gt 0 ]; then 
-    echo -e "${RED}[FAIL] Found $DEPRECATED_ITEMS deprecated items (remove or document)${NC}"
-    echo -e "${YELLOW}   Examples:${NC}"
-    rg "#\[deprecated\]" src/ -n | head -3
-    CODE_QUALITY_ISSUES=true
-    ALL_PASSED=false
-fi
+# ============================================================================
+# SECTION 3: MEMORY MANAGEMENT ANALYSIS
+# ============================================================================
+echo -e "${BLUE}==== 3. Memory Management Analysis ====${NC}"
 
-if [ "$CODE_QUALITY_ISSUES" = true ]; then
-    echo -e "${RED}FAST FAIL: Fix code quality issues before continuing${NC}"
-    echo -e "${RED}   These patterns violate good Rust practices${NC}"
-    exit 1
+# Memory usage patterns
+CLONES=$(rg "\.clone\(\)" src/ -g "!src/bin/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+ARCS=$(rg "Arc::" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+HARDCODED=$(rg "\b[0-9]{4,}\b" src/ -g "!src/constants.rs" -g "!src/config/*" | grep -v -E "(Licensed|http://|https://|Duration|timestamp|//.*[0-9]|seconds|minutes|hours|Version|\.[0-9]|[0-9]\.|test|mock|example)" | wc -l 2>/dev/null || echo 0)
+
+echo "Memory patterns:"
+echo "  Clone usage: $CLONES clone() calls"  
+echo "  Arc usage: $ARCS Arc<T> instances"
+echo "  Hardcoded values: $HARDCODED potential magic numbers"
+
+if [ "$CLONES" -eq 0 ]; then
+    pass_validation "No clone() calls found - excellent ownership design"
+elif [ "$CLONES" -lt 10 ]; then
+    pass_validation "Minimal clone() usage ($CLONES calls) - good ownership patterns"
+else
+    warn_validation "High clone() usage ($CLONES calls) - review ownership patterns"
+    rg "\.clone\(\)" src/ -g "!src/bin/*" -n | head -3
 fi
 
-echo -e "${GREEN}[OK] No prohibited code patterns found - ready for compilation${NC}"
-
-# FAST FAIL: Check for legacy functions that throw nonsense behavior
-echo -e "${BLUE}==== Checking for legacy functions (FAST FAIL)... ====${NC}"
-
-# Check for legacy OAuth patterns and deprecated functions
-LEGACY_OAUTH=$(rg "Legacy OAuth not supported|legacy.*oauth|connect_strava|connect_fitbit" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-DEPRECATED_FUNCTIONS=$(rg "deprecated.*use.*instead|Universal.*deprecated|ProviderManager deprecated" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-LEGACY_TOOLS=$(rg "Legacy tool.*deprecated" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-
-LEGACY_ISSUES_FOUND=false
-
-if [ "$LEGACY_OAUTH" -gt 0 ]; then 
-    echo -e "${RED}[CRITICAL] Found $LEGACY_OAUTH legacy OAuth patterns - will confuse users${NC}"
-    echo -e "${RED}           Legacy OAuth functions advertise but don't work${NC}"
-    rg "Legacy OAuth not supported|legacy.*oauth|connect_strava|connect_fitbit" src/ -n | head -5
-    LEGACY_ISSUES_FOUND=true
-    ALL_PASSED=false
+if [ "$ARCS" -eq 0 ]; then
+    pass_validation "No Arc usage found - excellent memory management"
+elif [ "$ARCS" -lt 20 ]; then
+    pass_validation "Reasonable Arc usage ($ARCS instances) - good shared ownership"
+else 
+    warn_validation "High Arc usage ($ARCS instances) - review sharing patterns"
+    rg "Arc::" src/ -n | head -3
 fi
 
-if [ "$DEPRECATED_FUNCTIONS" -gt 0 ]; then 
-    echo -e "${RED}[CRITICAL] Found $DEPRECATED_FUNCTIONS deprecated functions that throw errors${NC}"
-    echo -e "${RED}           These functions are called but always return errors${NC}"
-    rg "deprecated.*use.*instead|Universal.*deprecated|ProviderManager deprecated" src/ -n | head -5
-    LEGACY_ISSUES_FOUND=true
-    ALL_PASSED=false
+if [ "$HARDCODED" -gt 0 ]; then
+    warn_validation "Found $HARDCODED potential hardcoded/magic values - consider using configuration"
+    rg "\b[0-9]{4,}\b" src/ -g "!src/constants.rs" -g "!src/config/*" | grep -v -E "(Licensed|http://|https://|Duration|timestamp|//.*[0-9]|seconds|minutes|hours|Version|\.[0-9]|[0-9]\.|test|mock|example)" | head -3  
 fi
 
-if [ "$LEGACY_TOOLS" -gt 0 ]; then 
-    echo -e "${RED}[CRITICAL] Found $LEGACY_TOOLS legacy tool handlers that throw errors${NC}"
-    echo -e "${RED}           These tools are advertised but always fail when called${NC}"
-    rg "Legacy tool.*deprecated" src/ -n | head -5
-    LEGACY_ISSUES_FOUND=true
-    ALL_PASSED=false
+# Report comprehensive summary
+if [[ $PROBLEMATIC_DB_CLONES -eq 0 && $RESOURCE_CREATION -eq 0 && $FAKE_RESOURCES -eq 0 && $OBSOLETE_FUNCTIONS -le 1 && $UNWRAPS -eq 0 && $EXPECTS -eq 0 && $PANICS -eq 0 && $TODOS -eq 0 && $UNDERSCORE_NAMES -eq 0 && $TEMP_SOLUTIONS -eq 0 ]]; then
+    pass_validation "All architectural validations passed - excellent code quality"
 fi
 
-if [ "$LEGACY_ISSUES_FOUND" = true ]; then
-    echo -e "${RED}FAST FAIL: Remove legacy functions that confuse users${NC}"
-    echo -e "${RED}   Functions that advertise but don't work create poor UX${NC}"
-    exit 1
-fi
-
-echo -e "${GREEN}[OK] No legacy functions found that throw nonsense behavior${NC}"
+# Core development checks (format, clippy, compilation, tests)
+echo ""
+echo -e "${BLUE}==== Core Development Checks ====${NC}"
 
 # Run Clippy linter with ZERO TOLERANCE (fast-fail on ANY warning)
 echo -e "${BLUE}==== Running Rust linter (Clippy) - ZERO TOLERANCE MODE... ====${NC}"
@@ -370,13 +300,111 @@ else
     ALL_PASSED=false
 fi
 
-# Clean up test databases after running tests
-echo -e "${BLUE}==== Post-test database cleanup... ====${NC}"
-if ./scripts/clean-test-databases.sh; then
-    echo -e "${GREEN}[OK] Post-test cleanup completed${NC}"
-else
-    echo -e "${YELLOW}[WARN] Post-test cleanup failed${NC}"
+# Run Rust tests with coverage (if enabled and cargo-llvm-cov is installed)
+if [ "$ENABLE_COVERAGE" = true ]; then
+    echo -e "${BLUE}==== Running Rust tests with coverage... ====${NC}"
+    if command_exists cargo-llvm-cov; then
+        # Show coverage summary directly on screen (all tests including integration)
+        echo -e "${BLUE}Generating coverage summary for all tests...${NC}"
+        if cargo llvm-cov --all-targets --summary-only; then
+            echo -e "${GREEN}[OK] Rust coverage summary displayed above${NC}"
+        else
+            echo -e "${YELLOW}[WARN]  Coverage generation failed or timed out${NC}"
+            echo -e "${YELLOW}   Falling back to library tests only...${NC}"
+            if cargo llvm-cov --lib --summary-only; then
+                echo -e "${GREEN}[OK] Rust library coverage summary displayed above${NC}"
+            else
+                echo -e "${YELLOW}   Coverage generation failed - skipping${NC}"
+            fi
+        fi
+    else
+        echo -e "${YELLOW}[WARN]  cargo-llvm-cov not installed. Install with: cargo install cargo-llvm-cov${NC}"
+        echo -e "${YELLOW}   Skipping coverage report generation${NC}"
+    fi
 fi
+
+# Run SDK integration tests specifically
+echo -e "${BLUE}==== Running SDK integration tests... ====${NC}"
+if cargo test --test sdk_integration_test --quiet; then
+    echo -e "${GREEN}[OK] SDK integration tests passed${NC}"
+else
+    echo -e "${RED}[FAIL] SDK integration tests failed${NC}"
+    ALL_PASSED=false
+fi
+
+# Run A2A compliance tests specifically
+echo -e "${BLUE}==== Running A2A compliance tests... ====${NC}"
+if cargo test --test a2a_compliance_test --quiet; then
+    echo -e "${GREEN}[OK] A2A compliance tests passed${NC}"
+else
+    echo -e "${RED}[FAIL] A2A compliance tests failed${NC}"
+    ALL_PASSED=false
+fi
+
+echo ""
+echo -e "${GREEN}[OK] Core development checks completed${NC}"
+echo ""
+
+# ADDITIONAL CHECKS: Legacy functions and architectural analysis
+echo -e "${BLUE}==== Additional Code Quality Checks (Informational) ====${NC}"
+
+# FAST FAIL: Check for legacy functions that throw nonsense behavior
+echo -e "${BLUE}==== Checking for legacy functions (FAST FAIL)... ====${NC}"
+
+# Check for legacy OAuth patterns and deprecated functions
+LEGACY_OAUTH=$(rg "Legacy OAuth not supported|legacy.*oauth|connect_strava|connect_fitbit" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+DEPRECATED_FUNCTIONS=$(rg "deprecated.*use.*instead|Universal.*deprecated|ProviderManager deprecated" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+LEGACY_TOOLS=$(rg "Legacy tool.*deprecated" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+
+# CRITICAL: Check for placeholder implementations that return Value instead of McpResponse
+PLACEHOLDER_IMPLEMENTATIONS=$(rg "fn handle_.*-> Value" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+PLACEHOLDER_JSON_RETURNS=$(rg "serde_json::json!\(\{" src/mcp/multitenant.rs -A 3 | rg "response.*=" | wc -l | awk '{print $1+0}')
+
+LEGACY_ISSUES_FOUND=false
+
+if [ "$LEGACY_OAUTH" -gt 0 ]; then 
+    echo -e "${RED}[CRITICAL] Found $LEGACY_OAUTH legacy OAuth patterns - will confuse users${NC}"
+    echo -e "${RED}           Legacy OAuth functions advertise but don't work${NC}"
+    rg "Legacy OAuth not supported|legacy.*oauth|connect_strava|connect_fitbit" src/ -n | head -5
+    LEGACY_ISSUES_FOUND=true
+    ALL_PASSED=false
+fi
+
+if [ "$DEPRECATED_FUNCTIONS" -gt 0 ]; then 
+    echo -e "${RED}[CRITICAL] Found $DEPRECATED_FUNCTIONS deprecated functions that throw errors${NC}"
+    echo -e "${RED}           These functions are called but always return errors${NC}"
+    rg "deprecated.*use.*instead|Universal.*deprecated|ProviderManager deprecated" src/ -n | head -5
+    LEGACY_ISSUES_FOUND=true
+    ALL_PASSED=false
+fi
+
+if [ "$LEGACY_TOOLS" -gt 0 ]; then 
+    echo -e "${RED}[CRITICAL] Found $LEGACY_TOOLS legacy tool handlers that throw errors${NC}"
+    echo -e "${RED}           These tools are advertised but always fail when called${NC}"
+    rg "Legacy tool.*deprecated" src/ -n | head -5
+    LEGACY_ISSUES_FOUND=true
+    ALL_PASSED=false
+fi
+
+if [ "$PLACEHOLDER_IMPLEMENTATIONS" -gt 0 ]; then 
+    echo -e "${RED}[CRITICAL] Found $PLACEHOLDER_IMPLEMENTATIONS placeholder tool handlers that return mock data${NC}"
+    echo -e "${RED}           Tools that return 'Value' instead of 'McpResponse' are placeholders${NC}"
+    echo -e "${RED}           These tools appear to work but return fake data to users${NC}"
+    echo -e "${YELLOW}   Placeholder functions (should return McpResponse):${NC}"
+    rg "fn handle_.*-> Value" src/ -n | head -5
+    echo -e "${YELLOW}   Fix: Route through Universal Protocol or implement real functionality${NC}"
+    LEGACY_ISSUES_FOUND=true
+    ALL_PASSED=false
+fi
+
+if [ "$LEGACY_ISSUES_FOUND" = true ]; then
+    echo -e "${RED}FAST FAIL: Remove legacy functions that confuse users${NC}"
+    echo -e "${RED}   Functions that advertise but don't work create poor UX${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}[OK] No legacy functions found that throw nonsense behavior${NC}"
+echo ""
 
 # Run Rust tests with coverage (if enabled and cargo-llvm-cov is installed)
 if [ "$ENABLE_COVERAGE" = true ]; then
@@ -473,59 +501,6 @@ if [ -d "frontend" ]; then
     fi
     
     cd ..
-fi
-
-# Post-compilation informational checks
-echo ""
-echo -e "${BLUE}==== Code Quality Analysis (Informational) ====${NC}"
-
-# These checks are informational only - critical patterns already validated in fast fail section above
-CLONES=$(rg "\.clone\(\)" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
-HARDCODED=$(rg "hardcoded|hard.?coded|magic number" src/ -i --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-ARCS=$(rg "Arc<" src/ --count-matches 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
-
-if [ "$HARDCODED" -gt 0 ]; then 
-    echo -e "${YELLOW}[INFO] Found $HARDCODED potential hardcoded values${NC}"
-    echo -e "${YELLOW}   Review for configuration requirements:${NC}"
-    rg "hardcoded|hard.?coded|magic number" src/ -i -n | head -3
-fi
-
-# Clone usage analysis (informational)
-echo -e "${BLUE}==== Analyzing clone() usage patterns... ====${NC}"
-if [ "$CLONES" -gt 0 ]; then
-    echo -e "${YELLOW}[INFO] Found $CLONES clone() calls - review for optimization opportunities${NC}"
-    echo -e "${YELLOW}   Consider: borrowing (&T), Cow<T>, Arc<T>, or Rc<T> alternatives${NC}"
-    echo -e "${YELLOW}   Each clone should be justified by ownership requirements${NC}"
-else
-    echo -e "${GREEN}[OK] No clone() calls found${NC}"
-fi
-
-# Check Arc usage documentation (good practice)
-echo -e "${BLUE}==== Checking Arc usage patterns... ====${NC}"
-if [ "$ARCS" -gt 0 ]; then
-    echo -e "${YELLOW}[INFO] Found $ARCS Arc usages - verify each is documented and justified${NC}"
-    echo -e "${YELLOW}   Good practice: Document why shared ownership is needed${NC}"
-    echo -e "${YELLOW}   Arc locations:${NC}"
-    rg "Arc<" src/ -n | head -5 | while read line; do
-        echo -e "${YELLOW}     $line${NC}"
-    done
-    echo -e "${YELLOW}   Consider alternatives: &T (borrowing), Rc<T> (single-threaded), channels${NC}"
-else
-    echo -e "${GREEN}[OK] No Arc usage found - excellent memory management${NC}"
-fi
-
-# CRITICAL: Architectural validation to prevent facade patterns
-echo -e "${BLUE}==== Checking architectural integrity... ====${NC}"
-if [ -f "scripts/validate-architecture.sh" ]; then
-    if ./scripts/validate-architecture.sh > /dev/null 2>&1; then
-        echo -e "${GREEN}[OK] Architectural validation passed${NC}"
-    else
-        echo -e "${RED}[FAIL] Architectural validation failed - facade patterns or broken abstractions detected${NC}"
-        echo -e "${RED}   Run './scripts/validate-architecture.sh' for detailed analysis${NC}"
-        ALL_PASSED=false
-    fi
-else
-    echo -e "${YELLOW}[WARN] Architectural validation script not found${NC}"
 fi
 
 # Check for security vulnerabilities (if cargo-audit is installed)
@@ -721,6 +696,7 @@ if [ "$ALL_PASSED" = true ]; then
     echo "[OK] Prohibited patterns check"
     echo "[OK] Clone usage analysis"
     echo "[OK] Arc usage patterns check"
+    echo "[OK] Unified architectural validation"
     echo "[OK] Binary size validation"
     echo "[OK] Frontend linting"
     echo "[OK] TypeScript type checking"

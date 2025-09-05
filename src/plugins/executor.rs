@@ -288,9 +288,3 @@ impl Default for PluginToolExecutorBuilder {
         Self::new()
     }
 }
-
-#[cfg(test)]
-mod tests {
-
-    // Tests would go here - omitted for brevity
-}

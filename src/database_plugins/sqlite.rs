@@ -11,7 +11,7 @@ use crate::a2a::client::A2ASession;
 use crate::a2a::protocol::{A2ATask, TaskStatus};
 use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
 use crate::database::A2AUsage;
-use crate::models::{DecryptedToken, User, UserOAuthApp, UserOAuthToken};
+use crate::models::{User, UserOAuthApp, UserOAuthToken};
 use crate::rate_limiting::JwtUsage;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -98,56 +98,6 @@ impl DatabaseProvider for SqliteDatabase {
 
     async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> Result<()> {
         self.inner.update_user_tenant_id(user_id, tenant_id).await
-    }
-
-    async fn update_strava_token(
-        &self,
-        user_id: Uuid,
-        access_token: &str,
-        refresh_token: &str,
-        expires_at: DateTime<Utc>,
-        scope: String,
-    ) -> Result<()> {
-        let token = DecryptedToken {
-            access_token: access_token.to_string(),
-            refresh_token: refresh_token.to_string(),
-            expires_at,
-            scope,
-        };
-        self.inner.update_strava_token(user_id, &token).await
-    }
-
-    async fn get_strava_token(&self, user_id: Uuid) -> Result<Option<DecryptedToken>> {
-        self.inner.get_strava_token(user_id).await
-    }
-
-    async fn update_fitbit_token(
-        &self,
-        user_id: Uuid,
-        access_token: &str,
-        refresh_token: &str,
-        expires_at: DateTime<Utc>,
-        scope: String,
-    ) -> Result<()> {
-        let token = DecryptedToken {
-            access_token: access_token.to_string(),
-            refresh_token: refresh_token.to_string(),
-            expires_at,
-            scope,
-        };
-        self.inner.update_fitbit_token(user_id, &token).await
-    }
-
-    async fn get_fitbit_token(&self, user_id: Uuid) -> Result<Option<DecryptedToken>> {
-        self.inner.get_fitbit_token(user_id).await
-    }
-
-    async fn clear_strava_token(&self, user_id: Uuid) -> Result<()> {
-        self.inner.clear_strava_token(user_id).await
-    }
-
-    async fn clear_fitbit_token(&self, user_id: Uuid) -> Result<()> {
-        self.inner.clear_fitbit_token(user_id).await
     }
 
     async fn upsert_user_profile(&self, user_id: Uuid, profile_data: Value) -> Result<()> {

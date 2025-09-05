@@ -2,7 +2,7 @@
 // ABOUTME: Handles OAuth2 authentication and data fetching with proper error handling
 
 use super::core::{FitnessProvider, OAuth2Credentials, ProviderConfig};
-use crate::constants::oauth_providers;
+use crate::constants::{api_provider_limits, oauth_providers};
 use crate::models::{Activity, Athlete, PersonalRecord, SportType, Stats};
 use crate::utils::http_client::shared_client;
 use anyhow::{Context, Result};
@@ -525,34 +525,26 @@ impl FitnessProvider for StravaProvider {
         limit: Option<usize>,
         offset: Option<usize>,
     ) -> Result<Vec<Activity>> {
+        let requested_limit =
+            limit.unwrap_or(api_provider_limits::strava::DEFAULT_ACTIVITIES_PER_PAGE);
+        let start_offset = offset.unwrap_or(0);
+
         tracing::info!(
-            "Starting get_activities - limit: {:?}, offset: {:?}",
-            limit,
-            offset
+            "Starting get_activities - requested_limit: {}, offset: {}",
+            requested_limit,
+            start_offset
         );
 
-        let limit = limit.unwrap_or(30).min(200); // Strava max is 200
-        let page = offset.unwrap_or(0) / limit + 1;
-
-        let endpoint = format!("athlete/activities?per_page={limit}&page={page}");
-        tracing::info!("Making API request to endpoint: {}", endpoint);
-
-        let strava_activities: Vec<StravaActivityResponse> = self.api_request(&endpoint).await?;
-        tracing::info!(
-            "Received {} activities from Strava API",
-            strava_activities.len()
-        );
-
-        let mut activities = Vec::new();
-        for activity in strava_activities {
-            activities.push(Self::convert_strava_activity(activity)?);
+        // If request is within single page limit, use single page fetch
+        if requested_limit <= api_provider_limits::strava::MAX_ACTIVITIES_PER_REQUEST {
+            return self
+                .get_activities_single_page(requested_limit, start_offset)
+                .await;
         }
 
-        tracing::info!(
-            "Successfully processed {} activities, returning to caller",
-            activities.len()
-        );
-        Ok(activities)
+        // For large requests, use multi-page fetching
+        self.get_activities_multi_page(requested_limit, start_offset)
+            .await
     }
 
     async fn get_activity(&self, id: &str) -> Result<Activity> {
@@ -616,5 +608,128 @@ impl FitnessProvider for StravaProvider {
         // Clear credentials regardless of revoke success
         self.credentials = None;
         Ok(())
+    }
+}
+
+impl StravaProvider {
+    /// Fetch activities using single API call (for requests <= 200)
+    async fn get_activities_single_page(
+        &self,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<Activity>> {
+        let page = offset / limit + 1;
+        let endpoint = format!("athlete/activities?per_page={limit}&page={page}");
+
+        tracing::info!("Single page request - endpoint: {}", endpoint);
+
+        let strava_activities: Vec<StravaActivityResponse> = self.api_request(&endpoint).await?;
+        tracing::info!(
+            "Received {} activities from single page",
+            strava_activities.len()
+        );
+
+        let mut activities = Vec::new();
+        for activity in strava_activities {
+            activities.push(Self::convert_strava_activity(activity)?);
+        }
+
+        Ok(activities)
+    }
+
+    /// Fetch activities using multiple API calls (for requests > 200)
+    async fn get_activities_multi_page(
+        &self,
+        total_limit: usize,
+        start_offset: usize,
+    ) -> Result<Vec<Activity>> {
+        // Pre-allocate vector with expected capacity for efficiency
+        let mut all_activities = Vec::with_capacity(total_limit);
+
+        // Calculate how many pages we need
+        let activities_per_page = api_provider_limits::strava::MAX_ACTIVITIES_PER_REQUEST;
+        let pages_needed = total_limit.div_ceil(activities_per_page);
+
+        tracing::info!(
+            "Multi-page request - total_limit: {}, pages_needed: {}, start_offset: {}",
+            total_limit,
+            pages_needed,
+            start_offset
+        );
+
+        for page_index in 0..pages_needed {
+            // Calculate how many activities to fetch for this page
+            let remaining_activities = total_limit - all_activities.len();
+            let current_page_limit = remaining_activities.min(activities_per_page);
+
+            // Calculate the actual page number accounting for offset
+            let current_offset = start_offset + (page_index * activities_per_page);
+            let page_number = current_offset / activities_per_page + 1;
+
+            let endpoint =
+                format!("athlete/activities?per_page={current_page_limit}&page={page_number}");
+
+            tracing::info!(
+                "Fetching page {} of {} - endpoint: {} (expecting {} activities)",
+                page_index + 1,
+                pages_needed,
+                endpoint,
+                current_page_limit
+            );
+
+            match self
+                .api_request::<Vec<StravaActivityResponse>>(&endpoint)
+                .await
+            {
+                Ok(strava_activities) => {
+                    tracing::info!(
+                        "Page {} returned {} activities",
+                        page_index + 1,
+                        strava_activities.len()
+                    );
+
+                    // Convert and add activities from this page
+                    for activity in strava_activities {
+                        if all_activities.len() >= total_limit {
+                            break; // Stop if we've reached the requested limit
+                        }
+                        all_activities.push(Self::convert_strava_activity(activity)?);
+                    }
+
+                    // If we got fewer activities than expected, we've reached the end
+                    if all_activities.len()
+                        < (page_index + 1) * activities_per_page.min(total_limit)
+                    {
+                        tracing::info!(
+                            "Reached end of activities - got {} total, breaking early",
+                            all_activities.len()
+                        );
+                        break;
+                    }
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "Failed to fetch page {} of {}: {}",
+                        page_index + 1,
+                        pages_needed,
+                        e
+                    );
+                    return Err(e);
+                }
+            }
+
+            // Stop if we have enough activities
+            if all_activities.len() >= total_limit {
+                break;
+            }
+        }
+
+        tracing::info!(
+            "Multi-page fetch completed - requested: {}, retrieved: {}",
+            total_limit,
+            all_activities.len()
+        );
+
+        Ok(all_activities)
     }
 }

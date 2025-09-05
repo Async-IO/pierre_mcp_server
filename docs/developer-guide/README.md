@@ -1,4 +1,4 @@
-# Pierre MCP Server - Developer Guide
+# Pierre MCP Server Developer Guide
 
 ## Table of Contents
 
@@ -24,14 +24,14 @@
 
 ## Overview
 
-Pierre MCP Server is a multi-protocol fitness data API platform designed for LLMs and AI assistants. It provides comprehensive fitness data aggregation, analysis, and intelligence capabilities through multiple protocols:
+Pierre MCP Server is a multi-protocol fitness data API platform designed for LLMs and AI assistants. The system provides fitness data aggregation, analysis, and intelligence capabilities through multiple protocols:
 
-- **MCP (Model Context Protocol)**: Primary interface for AI assistants like Claude
-- **A2A (Agent-to-Agent)**: System-to-system communication protocol
-- **REST API**: Traditional HTTP endpoints for web applications
-- **WebSocket**: Real-time communication support
+- MCP (Model Context Protocol): Primary interface for AI assistants like Claude
+- A2A (Agent-to-Agent): System-to-system communication protocol
+- REST API: Traditional HTTP endpoints for web applications
+- WebSocket: Real-time communication support
 
-## Quick Start
+## Setup
 
 ```bash
 # Install dependencies
@@ -47,7 +47,7 @@ cargo run --bin admin_setup -- create-admin-user
 ## Architecture Principles
 
 ### 1. Multi-Tenancy
-Every user operates in an isolated tenant context with their own data, configurations, and rate limits.
+All users operate in isolated tenant contexts with their own data, configurations, and rate limits.
 
 ### 2. Protocol Agnostic Core
 Business logic is separated from protocol handlers, allowing multiple interfaces to the same functionality.
@@ -64,25 +64,25 @@ Fitness data providers (Strava, Fitbit, etc.) are abstracted behind a common int
 - Comprehensive audit logging
 
 ### 5. Intelligence Layer
-Advanced analytics and recommendations powered by physiological models and ML algorithms.
+Analytics and recommendations powered by physiological models and ML algorithms.
 
 ## Development Workflow
 
-1. **Understanding the Codebase**: Start with the architecture overview
-2. **Setting Up Development**: Follow the deployment guide for local setup
-3. **Adding Features**: Review core components and relevant protocol documentation
-4. **Testing**: Comprehensive test coverage with unit, integration, and e2e tests
-5. **Deployment**: Container-based deployment with health checks and monitoring
+1. Understanding the Codebase: Start with the architecture overview
+2. Setting Up Development: Follow the deployment guide for local setup
+3. Adding Features: Review core components and relevant protocol documentation
+4. Testing: Test coverage includes unit, integration, and e2e tests
+5. Deployment: Container-based deployment with health checks and monitoring
 
 ## Key Technologies
 
-- **Rust**: Core language for performance and safety
-- **Tokio**: Async runtime for concurrent operations
-- **SQLite/PostgreSQL**: Database backends with encrypted storage
-- **JWT**: Authentication tokens
-- **MCP**: Model Context Protocol for AI assistants
-- **WebSocket**: Real-time communication
-- **Docker**: Containerization for deployment
+- Rust: Core language for performance and safety
+- Tokio: Async runtime for concurrent operations
+- SQLite/PostgreSQL: Database backends with encrypted storage
+- JWT: Authentication tokens
+- MCP: Model Context Protocol for AI assistants
+- WebSocket: Real-time communication
+- Docker: Containerization for deployment
 
 ## Project Structure
 

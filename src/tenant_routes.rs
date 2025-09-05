@@ -87,7 +87,7 @@ pub struct TenantOAuthProvider {
     pub enabled: bool,
 }
 
-// OAuth App Registration (for Claude Desktop, ChatGPT, etc.)
+// OAuth App Registration for MCP clients
 
 #[derive(Debug, Deserialize)]
 pub struct RegisterOAuthAppRequest {
@@ -379,7 +379,7 @@ pub async fn get_tenant_oauth(
     Ok(TenantOAuthListResponse { providers })
 }
 
-/// Register OAuth application (for Claude Desktop, `ChatGPT`, etc.)
+/// Register OAuth application for MCP clients
 ///
 /// # Errors
 ///

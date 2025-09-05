@@ -15,8 +15,8 @@ fn test_mcp_tool_schemas() {
     // Test that all analytics tools are properly defined
     let tools = get_tools();
 
-    // Should have all 26 tools (20 fitness + 6 configuration)
-    assert_eq!(tools.len(), 26);
+    // Should have all 29 tools (23 fitness + 6 configuration)
+    assert_eq!(tools.len(), 29);
 
     // Check key analytics tools are present
     let tool_names: Vec<&str> = tools.iter().map(|t| t.name.as_str()).collect();
@@ -105,7 +105,11 @@ fn test_tool_parameter_validation() {
     for tool in &tools {
         // Each tool should have proper schema structure
         assert_eq!(tool.input_schema.schema_type, "object");
-        assert!(tool.input_schema.properties.is_some());
+        
+        // Some tools may not have input properties (like get_connection_status)
+        if tool.input_schema.properties.is_none() {
+            continue;
+        }
 
         // Required parameters should be valid
         if let Some(required) = &tool.input_schema.required {

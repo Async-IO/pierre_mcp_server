@@ -6,6 +6,7 @@ use pierre_mcp_server::{
     database_plugins::factory::Database,
     health::{HealthChecker, HealthStatus},
 };
+use std::sync::Arc;
 
 #[tokio::test]
 async fn test_basic_health_check() {
@@ -13,7 +14,7 @@ async fn test_basic_health_check() {
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
-    let health_checker = HealthChecker::new(database);
+    let health_checker = HealthChecker::new(Arc::new(database));
 
     let response = health_checker.basic_health();
 
@@ -28,7 +29,7 @@ async fn test_comprehensive_health_check() {
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
-    let health_checker = HealthChecker::new(database);
+    let health_checker = HealthChecker::new(Arc::new(database));
 
     let response = health_checker.comprehensive_health().await;
 
@@ -45,7 +46,7 @@ async fn test_readiness_check() {
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
         .unwrap();
-    let health_checker = HealthChecker::new(database);
+    let health_checker = HealthChecker::new(Arc::new(database));
 
     let response = health_checker.readiness().await;
 

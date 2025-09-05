@@ -5,7 +5,7 @@ use crate::a2a::auth::A2AClient;
 use crate::a2a::client::A2ASession;
 use crate::a2a::protocol::{A2ATask, TaskStatus};
 use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
-use crate::models::{DecryptedToken, User, UserOAuthApp, UserOAuthToken};
+use crate::models::{User, UserOAuthApp, UserOAuthToken};
 use crate::rate_limiting::JwtUsage;
 use anyhow::Result;
 use async_trait::async_trait;
@@ -71,42 +71,6 @@ pub trait DatabaseProvider: Send + Sync + Clone {
 
     /// Update user's tenant_id to link them to a tenant (tenant_id should be UUID string)
     async fn update_user_tenant_id(&self, user_id: Uuid, tenant_id: &str) -> Result<()>;
-
-    // ================================
-    // OAuth Token Management
-    // ================================
-
-    /// Update Strava OAuth tokens for a user
-    async fn update_strava_token(
-        &self,
-        user_id: Uuid,
-        access_token: &str,
-        refresh_token: &str,
-        expires_at: DateTime<Utc>,
-        scope: String,
-    ) -> Result<()>;
-
-    /// Get Strava tokens for a user
-    async fn get_strava_token(&self, user_id: Uuid) -> Result<Option<DecryptedToken>>;
-
-    /// Update Fitbit OAuth tokens for a user
-    async fn update_fitbit_token(
-        &self,
-        user_id: Uuid,
-        access_token: &str,
-        refresh_token: &str,
-        expires_at: DateTime<Utc>,
-        scope: String,
-    ) -> Result<()>;
-
-    /// Get Fitbit tokens for a user
-    async fn get_fitbit_token(&self, user_id: Uuid) -> Result<Option<DecryptedToken>>;
-
-    /// Clear Strava tokens for a user
-    async fn clear_strava_token(&self, user_id: Uuid) -> Result<()>;
-
-    /// Clear Fitbit tokens for a user
-    async fn clear_fitbit_token(&self, user_id: Uuid) -> Result<()>;
 
     // ================================
     // User OAuth Tokens (Multi-Tenant)
@@ -545,7 +509,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     // OAuth App Registration
     // ================================
 
-    /// Create OAuth application (for Claude Desktop, ChatGPT, etc.)
+    /// Create OAuth application for MCP clients
     async fn create_oauth_app(&self, app: &crate::models::OAuthApp) -> Result<()>;
 
     /// Get OAuth app by client ID

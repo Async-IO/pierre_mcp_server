@@ -12,7 +12,6 @@
 //! Handles the complete OAuth flow from authorization to token management.
 
 use super::{CallbackResponse, OAuthError, OAuthProvider, ProviderRegistry, TokenData};
-use crate::constants::oauth_providers;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use anyhow::Result;
 use std::collections::HashMap;
@@ -273,90 +272,82 @@ impl OAuthManager {
         Ok(state_data)
     }
 
-    /// Store tokens in database
+    /// Store tokens using tenant-aware storage
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operations fail
     async fn store_tokens(&self, user_id: Uuid, token_data: &TokenData) -> Result<(), OAuthError> {
-        match token_data.provider.as_str() {
-            oauth_providers::STRAVA => {
-                self.database
-                    .update_strava_token(
-                        user_id,
-                        &token_data.access_token,
-                        &token_data.refresh_token,
-                        token_data.expires_at,
-                        token_data.scopes.clone(),
-                    )
-                    .await
-                    .map_err(|e| OAuthError::DatabaseError(e.to_string()))?;
-            }
-            oauth_providers::FITBIT => {
-                self.database
-                    .update_fitbit_token(
-                        user_id,
-                        &token_data.access_token,
-                        &token_data.refresh_token,
-                        token_data.expires_at,
-                        token_data.scopes.clone(),
-                    )
-                    .await
-                    .map_err(|e| OAuthError::DatabaseError(e.to_string()))?;
-            }
-            _ => return Err(OAuthError::UnsupportedProvider(token_data.provider.clone())),
-        }
+        // For now, use global tenant until we have tenant context
+        let tenant_id = "00000000-0000-0000-0000-000000000000";
+
+        // Create UserOAuthToken with token data
+        let oauth_token = crate::models::UserOAuthToken::new(
+            user_id,
+            tenant_id.to_string(),
+            token_data.provider.clone(),
+            token_data.access_token.clone(),
+            Some(token_data.refresh_token.clone()),
+            Some(token_data.expires_at),
+            Some(token_data.scopes.clone()),
+        );
+
+        self.database
+            .upsert_user_oauth_token(&oauth_token)
+            .await
+            .map_err(|e| OAuthError::DatabaseError(e.to_string()))?;
 
         Ok(())
     }
 
-    /// Remove tokens from database
+    /// Remove tokens using tenant-aware storage
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operations fail
     async fn remove_tokens(&self, user_id: Uuid, provider: &str) -> Result<(), OAuthError> {
-        match provider {
-            oauth_providers::STRAVA => {
-                self.database
-                    .clear_strava_token(user_id)
-                    .await
-                    .map_err(|e| OAuthError::DatabaseError(e.to_string()))?;
-                Ok(())
-            }
-            oauth_providers::FITBIT => {
-                self.database
-                    .clear_fitbit_token(user_id)
-                    .await
-                    .map_err(|e| OAuthError::DatabaseError(e.to_string()))?;
-                Ok(())
-            }
-            _ => Err(OAuthError::UnsupportedProvider(provider.to_string())),
-        }
+        // For now, use global tenant until we have tenant context
+        let tenant_id = "00000000-0000-0000-0000-000000000000";
+
+        self.database
+            .delete_user_oauth_token(user_id, tenant_id, provider)
+            .await
+            .map_err(|e| OAuthError::DatabaseError(e.to_string()))?;
+
+        Ok(())
     }
 
-    /// Get token data from database
+    /// Get token data using tenant-aware storage
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operations fail
     async fn get_token_data(
         &self,
         user_id: Uuid,
         provider: &str,
     ) -> Result<Option<TokenData>, OAuthError> {
-        match provider {
-            "strava" => match self.database.get_strava_token(user_id).await {
-                Ok(Some(token)) => Ok(Some(TokenData {
-                    access_token: token.access_token,
-                    refresh_token: token.refresh_token,
-                    expires_at: token.expires_at,
-                    scopes: token.scope,
-                    provider: oauth_providers::STRAVA.into(),
-                })),
-                Ok(None) => Ok(None),
-                Err(e) => Err(OAuthError::DatabaseError(e.to_string())),
-            },
-            "fitbit" => match self.database.get_fitbit_token(user_id).await {
-                Ok(Some(token)) => Ok(Some(TokenData {
-                    access_token: token.access_token,
-                    refresh_token: token.refresh_token,
-                    expires_at: token.expires_at,
-                    scopes: token.scope,
-                    provider: oauth_providers::FITBIT.into(),
-                })),
-                Ok(None) => Ok(None),
-                Err(e) => Err(OAuthError::DatabaseError(e.to_string())),
-            },
-            _ => Err(OAuthError::UnsupportedProvider(provider.to_string())),
+        // For now, use global tenant until we have tenant context
+        let tenant_id = "00000000-0000-0000-0000-000000000000";
+
+        let oauth_token = self
+            .database
+            .get_user_oauth_token(user_id, tenant_id, provider)
+            .await
+            .map_err(|e| OAuthError::DatabaseError(e.to_string()))?;
+
+        if let Some(token) = oauth_token {
+            let token_data = TokenData {
+                provider: provider.to_string(),
+                access_token: token.access_token,
+                refresh_token: token.refresh_token.unwrap_or_default(),
+                expires_at: token.expires_at.unwrap_or_else(chrono::Utc::now),
+                scopes: token.scope.unwrap_or_default(),
+            };
+
+            Ok(Some(token_data))
+        } else {
+            Ok(None)
         }
     }
 }

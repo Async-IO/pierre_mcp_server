@@ -8,7 +8,7 @@
 
 use super::{AuthData, FitnessProvider};
 use crate::config::FitnessConfig;
-use crate::constants::env_config;
+use crate::constants::{api_provider_limits, env_config};
 use crate::models::{Activity, Athlete, PersonalRecord, SportType, Stats};
 use crate::oauth2_client::PkceParams;
 use crate::utils::http_client::api_client;
@@ -365,7 +365,7 @@ impl FitnessProvider for StravaProvider {
         let token = self.access_token.as_ref().context("Not authenticated")?;
 
         // Build query parameters without unnecessary allocations
-        let per_page = limit.unwrap_or(30);
+        let per_page = limit.unwrap_or(api_provider_limits::strava::DEFAULT_ACTIVITIES_PER_PAGE);
         let page = offset.map_or(1, |o| o / per_page + 1);
 
         let query = [

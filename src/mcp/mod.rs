@@ -1,8 +1,9 @@
 // ABOUTME: Model Context Protocol (MCP) implementation for AI assistant integration
-// ABOUTME: Multi-tenant MCP server functionality for Claude, ChatGPT, and other AI assistants
+// ABOUTME: Multi-tenant MCP server functionality for MCP clients and AI assistants
 
 pub mod http_setup;
 pub mod multitenant;
+pub mod progress;
 pub mod protocol;
 pub mod resources;
 pub mod schema;

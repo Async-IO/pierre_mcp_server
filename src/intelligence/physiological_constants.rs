@@ -620,8 +620,8 @@ pub mod api_limits {
     /// Large activity fetch limit for comprehensive analysis
     pub const LARGE_ACTIVITY_LIMIT: usize = 200;
 
-    /// Maximum activity fetch limit
-    pub const MAX_ACTIVITY_LIMIT: usize = 300;
+    /// Maximum activity fetch limit - approximately one year of activities (5x/week)
+    pub const MAX_ACTIVITY_LIMIT: usize = 400;
 
     /// Activities for goal analysis
     pub const GOAL_ANALYSIS_ACTIVITY_LIMIT: usize = 100;

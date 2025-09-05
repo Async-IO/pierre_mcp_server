@@ -1487,7 +1487,7 @@ impl Tenant {
     }
 }
 
-/// OAuth application registration for Claude Desktop, `ChatGPT`, etc.
+/// OAuth application registration for MCP clients
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuthApp {
     /// Unique app identifier

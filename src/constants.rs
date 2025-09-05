@@ -232,6 +232,34 @@ pub mod errors {
     pub const MSG_TOKEN_EXPIRED: &str = "JWT token has expired";
     pub const MSG_TOKEN_INVALID: &str = "JWT token signature is invalid";
     pub const MSG_TOKEN_MALFORMED: &str = "JWT token is malformed";
+
+    /// MCP protocol version error codes
+    pub const ERROR_VERSION_MISMATCH: i32 = -32602; // Invalid params - unsupported protocol version
+
+    /// MCP-specific error codes for better diagnostics
+    pub const ERROR_TOOL_EXECUTION: i32 = -32000; // Server error - tool execution failed
+    pub const ERROR_RESOURCE_ACCESS: i32 = -32001; // Server error - resource access failed
+    pub const ERROR_AUTHENTICATION: i32 = -32002; // Server error - authentication failed
+    pub const ERROR_AUTHORIZATION: i32 = -32003; // Server error - authorization failed
+    pub const ERROR_SERIALIZATION: i32 = -32004; // Server error - data serialization failed
+
+    /// MCP protocol version error messages
+    pub const MSG_VERSION_MISMATCH: &str = "Unsupported MCP protocol version";
+
+    /// MCP-specific error messages
+    pub const MSG_TOOL_EXECUTION: &str = "Tool execution failed";
+    pub const MSG_RESOURCE_ACCESS: &str = "Resource access failed";
+    pub const MSG_AUTHENTICATION: &str = "Authentication failed";
+    pub const MSG_AUTHORIZATION: &str = "Authorization failed";
+    pub const MSG_SERIALIZATION: &str = "Data serialization failed";
+
+    /// Progress tracking error codes
+    pub const ERROR_PROGRESS_TRACKING: i32 = -32005; // Server error - progress tracking failed
+    pub const ERROR_OPERATION_CANCELLED: i32 = -32006; // Server error - operation cancelled
+
+    /// Progress tracking error messages
+    pub const MSG_PROGRESS_TRACKING: &str = "Progress tracking failed";
+    pub const MSG_OPERATION_CANCELLED: &str = "Operation was cancelled";
 }
 
 /// `API` endpoints and `URLs`
@@ -476,6 +504,9 @@ pub mod tools {
 
     /// Notification management
     pub const MARK_NOTIFICATIONS_READ: &str = "mark_notifications_read";
+    pub const GET_NOTIFICATIONS: &str = "get_notifications";
+    pub const ANNOUNCE_OAUTH_SUCCESS: &str = "announce_oauth_success";
+    pub const CHECK_OAUTH_NOTIFICATIONS: &str = "check_oauth_notifications";
 
     /// Analytics tools
     pub const ANALYZE_ACTIVITY: &str = "analyze_activity";
@@ -620,6 +651,47 @@ pub mod demo_data {
 
     /// Test IP address for demos and tests
     pub const TEST_IP_ADDRESS: &str = "127.0.0.1";
+}
+
+/// External API provider limits and configuration constants
+///
+/// These constants define the technical limits and constraints imposed by external
+/// fitness tracking APIs like Strava and Fitbit. They should match the actual
+/// API documentation and be updated when providers change their limits.
+pub mod api_provider_limits {
+    /// Strava API rate limiting and pagination constants
+    /// Reference: <https://developers.strava.com/docs/rate-limits/>
+    pub mod strava {
+        /// Maximum activities that can be requested in a single API call
+        /// This is enforced by Strava's `per_page` parameter limit
+        pub const MAX_ACTIVITIES_PER_REQUEST: usize = 200;
+
+        /// Default number of activities per page when no limit is specified
+        /// This matches Strava's API default behavior
+        pub const DEFAULT_ACTIVITIES_PER_PAGE: usize = 30;
+
+        /// Rate limit for "non-upload" endpoints (activities, athlete data, etc.)
+        /// These endpoints have lower limits than upload endpoints
+        pub const RATE_LIMIT_REQUESTS_PER_15MIN: u32 = 100;
+        pub const RATE_LIMIT_REQUESTS_PER_DAY: u32 = 1000;
+
+        /// Overall API rate limits (applies to all endpoints combined)
+        /// These are higher limits that apply when you haven't hit the non-upload limits
+        pub const OVERALL_RATE_LIMIT_REQUESTS_PER_15MIN: u32 = 200;
+        pub const OVERALL_RATE_LIMIT_REQUESTS_PER_DAY: u32 = 2000;
+
+        /// Rate limit reset intervals (in minutes)
+        /// Strava resets rate limits at natural 15-minute intervals
+        pub const RATE_LIMIT_RESET_INTERVAL_MINUTES: u32 = 15;
+    }
+
+    /// Fitbit API limits and constraints
+    /// Reference: <https://dev.fitbit.com/build/reference/web-api/developer-guide/application-design/>
+    pub mod fitbit {
+        /// Fitbit has different rate limiting structure than Strava
+        pub const RATE_LIMIT_REQUESTS_PER_HOUR: u32 = 150;
+        pub const RATE_LIMIT_REQUESTS_PER_DAY: u32 = 3600; // 150 * 24
+    }
 }
 
 /// API tier constants to eliminate hardcoded strings throughout the codebase

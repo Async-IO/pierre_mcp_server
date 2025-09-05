@@ -152,16 +152,16 @@ impl MultiTenantMcpServer {
 
         // Setup admin routes - API requires owned values
         let admin_context = crate::admin_routes::AdminApiContext::new(
-            resources.database.as_ref().clone(),
+            resources.database.clone(),
             jwt_secret_str,
-            resources.auth_manager.as_ref().clone(),
+            resources.auth_manager.clone(),
         );
         let admin_routes_filter = crate::admin_routes::admin_routes_with_rejection(admin_context);
 
         // Setup tenant management routes - API requires owned values
         let tenant_routes_filter = Self::create_tenant_routes_filter(
-            resources.database.as_ref().clone(),
-            resources.auth_manager.as_ref().clone(),
+            resources.database.clone(),
+            resources.auth_manager.clone(),
         );
 
         // Configure CORS
@@ -1400,13 +1400,10 @@ impl MultiTenantMcpServer {
 
     /// Create tenant management routes filter
     fn create_tenant_routes_filter(
-        database: Database,
-        auth_manager: AuthManager,
+        database: Arc<Database>,
+        auth_manager: Arc<AuthManager>,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
-
-        let database = Arc::new(database);
-        let auth_manager = Arc::new(auth_manager);
 
         let with_auth = Self::create_auth_filter(auth_manager);
 
@@ -2193,21 +2190,6 @@ impl MultiTenantMcpServer {
         let result = match tool_name {
             SET_GOAL => Self::handle_set_goal(args, user_id, database, &id).await,
             TRACK_PROGRESS => Self::handle_track_progress(args, user_id, database, &id).await,
-            ANALYZE_GOAL_FEASIBILITY => Ok(Self::handle_analyze_goal_feasibility(args, user_id)),
-            SUGGEST_GOALS => Ok(Self::handle_suggest_goals()),
-            CALCULATE_FITNESS_SCORE => Ok(Self::handle_calculate_fitness_score()),
-            GENERATE_RECOMMENDATIONS => Ok(Self::handle_generate_recommendations()),
-            ANALYZE_TRAINING_LOAD => Ok(Self::handle_analyze_training_load()),
-            DETECT_PATTERNS => Ok(Self::handle_detect_patterns(args)),
-            ANALYZE_PERFORMANCE_TRENDS => Ok(Self::handle_analyze_performance_trends(args)),
-            "get_configuration_catalog" => Ok(Self::handle_get_configuration_catalog()),
-            "get_configuration_profiles" => Ok(Self::handle_get_configuration_profiles()),
-            "get_user_configuration" => Ok(Self::handle_get_user_configuration(user_id, database)),
-            "update_user_configuration" => Ok(Self::handle_update_user_configuration(
-                args, user_id, database,
-            )),
-            "calculate_personalized_zones" => Ok(Self::handle_calculate_personalized_zones(args)),
-            "validate_configuration" => Ok(Self::handle_validate_configuration(args)),
             PREDICT_PERFORMANCE => {
                 return McpResponse {
                     jsonrpc: JSONRPC_VERSION.to_string(),
@@ -2330,170 +2312,6 @@ impl MultiTenantMcpServer {
         }
     }
 
-    /// Handle `ANALYZE_GOAL_FEASIBILITY` tool call
-    fn handle_analyze_goal_feasibility(args: &Value, user_id: Uuid) -> Value {
-        let goal_data = args.clone();
-
-        // Log goal analysis request
-        tracing::debug!("Analyzing goal feasibility for user {}", user_id);
-        if let Some(goal_type) = goal_data.get("goal_type") {
-            tracing::debug!("Goal type: {}", goal_type);
-        }
-        if let Some(target_value) = goal_data.get("target_value") {
-            tracing::debug!("Target value: {}", target_value);
-        }
-
-        let response = serde_json::json!({
-            "feasibility_analysis": {
-                "feasible": true,
-                "confidence": 0.8,
-                "estimated_completion_time": "8 weeks",
-                "recommendations": [
-                    "Goal appears achievable based on current training patterns",
-                    "Consider gradual increase in training volume"
-                ],
-                "risk_factors": [
-                    "Ensure adequate recovery time",
-                    "Monitor for signs of overtraining"
-                ]
-            }
-        });
-        response
-    }
-
-    /// Handle `SUGGEST_GOALS` tool call
-    fn handle_suggest_goals() -> Value {
-        let response = serde_json::json!({
-            "goal_suggestions": [
-                {
-                    "title": "Monthly Distance Goal",
-                    "description": "Run 100km this month",
-                    "goal_type": "distance",
-                    "target_value": 100.0,
-                    "rationale": "Based on your recent running frequency"
-                },
-                {
-                    "title": "Pace Improvement",
-                    "description": "Improve average pace by 30 seconds per km",
-                    "goal_type": "performance",
-                    "target_value": 30.0,
-                    "rationale": "Your pace has been consistent - time to challenge yourself"
-                }
-            ]
-        });
-        response
-    }
-
-    /// Handle `CALCULATE_FITNESS_SCORE` tool call
-    fn handle_calculate_fitness_score() -> Value {
-        let response = serde_json::json!({
-            "fitness_score": {
-                "overall_score": 75,
-                "max_score": 100,
-                "components": {
-                    "frequency": 20,
-                    "consistency": 15,
-                    "duration": 20,
-                    "variety": 10
-                },
-                "insights": [
-                    "Your fitness score is 75 out of 100",
-                    "Regular training frequency is your strength",
-                    "Consider adding variety to your workouts"
-                ]
-            }
-        });
-        response
-    }
-
-    /// Handle `GENERATE_RECOMMENDATIONS` tool call
-    fn handle_generate_recommendations() -> Value {
-        let response = serde_json::json!({
-            "training_recommendations": [
-                {
-                    "type": "intensity",
-                    "title": "Add Interval Training",
-                    "description": "Include 1-2 high-intensity interval sessions per week",
-                    "priority": "medium",
-                    "rationale": "To improve speed and cardiovascular fitness"
-                },
-                {
-                    "type": "volume",
-                    "title": "Gradual Volume Increase",
-                    "description": "Increase weekly distance by 10% each week",
-                    "priority": "high",
-                    "rationale": "Based on your current training load"
-                },
-                {
-                    "type": "recovery",
-                    "title": "Include Rest Days",
-                    "description": "Schedule at least one complete rest day per week",
-                    "priority": "high",
-                    "rationale": "Essential for adaptation and injury prevention"
-                }
-            ]
-        });
-        response
-    }
-
-    /// Handle `ANALYZE_TRAINING_LOAD` tool call
-    fn handle_analyze_training_load() -> Value {
-        let response = serde_json::json!({
-            "training_load_analysis": {
-                "weekly_hours": 5.2,
-                "weekly_distance_km": 35.0,
-                "load_level": "moderate",
-                "total_activities": 12,
-                "insights": [
-                    "Current training load: moderate (5.2 hours/week)",
-                    "Training load is appropriate for current fitness level",
-                    "Consider periodization for optimal adaptation"
-                ],
-                "recommendations": [
-                    "Maintain current level",
-                    "Focus on consistency"
-                ]
-            }
-        });
-        response
-    }
-
-    /// Handle `DETECT_PATTERNS` tool call
-    fn handle_detect_patterns(args: &Value) -> Value {
-        let response = serde_json::json!({
-            "pattern_analysis": {
-                "pattern_type": args["pattern_type"].as_str().unwrap_or("weekly"),
-                "total_activities": 25,
-                "patterns_detected": [
-                    "Regular training frequency detected",
-                    "Consistent effort levels across activities"
-                ],
-                "recommendations": [
-                    "Continue current training consistency",
-                    "Consider adding variety to workout types"
-                ]
-            }
-        });
-        response
-    }
-
-    /// Handle `ANALYZE_PERFORMANCE_TRENDS` tool call
-    fn handle_analyze_performance_trends(args: &Value) -> Value {
-        let response = serde_json::json!({
-            "trend_analysis": {
-                "timeframe": args["timeframe"].as_str().unwrap_or("month"),
-                "metric": args["metric"].as_str().unwrap_or("pace"),
-                "total_activities": 15,
-                "trend_direction": "stable",
-                "insights": [
-                    "Analyzed 15 activities over the past month",
-                    "Performance trends require more historical data for accurate analysis"
-                ]
-            }
-        });
-        response
-    }
-
     /// Record API key usage for billing and analytics
     ///
     /// # Errors
@@ -2544,220 +2362,6 @@ impl MultiTenantMcpServer {
     #[must_use]
     pub fn auth_manager(&self) -> &AuthManager {
         &self.resources.auth_manager
-    }
-
-    /// Handle get configuration catalog tool call
-    fn handle_get_configuration_catalog() -> Value {
-        use crate::configuration::catalog::CatalogBuilder;
-
-        let catalog = CatalogBuilder::build();
-        serde_json::json!({
-            "catalog": catalog,
-            "metadata": {
-                "timestamp": chrono::Utc::now(),
-                "processing_time_ms": None::<u64>,
-                "api_version": "1.0.0"
-            }
-        })
-    }
-
-    /// Handle get configuration profiles tool call
-    fn handle_get_configuration_profiles() -> Value {
-        use crate::configuration::profiles::ProfileTemplates;
-
-        let all_profiles = ProfileTemplates::all();
-        let profiles: Vec<_> = all_profiles
-            .into_iter()
-            .map(|(name, profile)| {
-                let description = match &profile {
-                    crate::configuration::profiles::ConfigProfile::Default => {
-                        "Standard configuration with default thresholds".to_string()
-                    }
-                    crate::configuration::profiles::ConfigProfile::Research { .. } => {
-                        "Research-grade detailed analysis with high sensitivity".to_string()
-                    }
-                    crate::configuration::profiles::ConfigProfile::Elite { .. } => {
-                        "Elite athlete configuration with strict performance standards".to_string()
-                    }
-                    crate::configuration::profiles::ConfigProfile::Recreational { .. } => {
-                        "Recreational athlete configuration with forgiving thresholds".to_string()
-                    }
-                    crate::configuration::profiles::ConfigProfile::Beginner { .. } => {
-                        "Beginner-friendly configuration with simplified metrics".to_string()
-                    }
-                    crate::configuration::profiles::ConfigProfile::Medical { .. } => {
-                        "Medical/rehabilitation configuration with conservative limits".to_string()
-                    }
-                    crate::configuration::profiles::ConfigProfile::SportSpecific {
-                        sport, ..
-                    } => format!("Sport-specific optimization for {sport}"),
-                    crate::configuration::profiles::ConfigProfile::Custom {
-                        description, ..
-                    } => description.clone(),
-                };
-
-                serde_json::json!({
-                    "name": name,
-                    "profile": profile,
-                    "description": description
-                })
-            })
-            .collect();
-
-        serde_json::json!({
-            "profiles": profiles,
-            "metadata": {
-                "timestamp": chrono::Utc::now(),
-                "total_profiles": profiles.len()
-            }
-        })
-    }
-
-    /// Handle get user configuration tool call
-    fn handle_get_user_configuration(user_id: Uuid, _database: &Arc<Database>) -> Value {
-        // For now, return default configuration
-        // In a full implementation, this would query the database for user preferences
-        let default_config = crate::configuration::profiles::ConfigProfile::Default;
-
-        serde_json::json!({
-            "user_id": user_id,
-            "active_profile": default_config,
-            "parameter_overrides": {},
-            "created_at": chrono::Utc::now(),
-            "updated_at": chrono::Utc::now()
-        })
-    }
-
-    /// Handle update user configuration tool call
-    fn handle_update_user_configuration(
-        args: &Value,
-        user_id: Uuid,
-        _database: &Arc<Database>,
-    ) -> Value {
-        // Extract parameters from args
-        let profile = args.get("profile").and_then(|v| v.as_str());
-        let parameter_overrides = args
-            .get("parameters")
-            .cloned()
-            .unwrap_or_else(|| serde_json::json!({}));
-
-        // For now, just return success with the updated configuration
-        // In a full implementation, this would update the database
-        serde_json::json!({
-            "user_id": user_id,
-            "active_profile": profile.unwrap_or("Default"),
-            "parameter_overrides": parameter_overrides,
-            "updated_at": chrono::Utc::now(),
-            "success": true
-        })
-    }
-
-    /// Handle calculate personalized zones tool call
-    fn handle_calculate_personalized_zones(args: &Value) -> Value {
-        use crate::configuration::vo2_max::VO2MaxCalculator;
-
-        // Extract parameters
-        let vo2_max = args
-            .get("vo2_max")
-            .and_then(serde_json::Value::as_f64)
-            .unwrap_or(50.0);
-        // Safe: heart rate values are small positive integers (80-220 bpm)
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        let max_hr = args
-            .get("max_hr")
-            .and_then(serde_json::Value::as_f64)
-            .map_or(190, |v| v as u16);
-        // Safe: heart rate values are small positive integers (40-100 bpm)
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        let resting_hr = args
-            .get("resting_hr")
-            .and_then(serde_json::Value::as_f64)
-            .map_or(60, |v| v as u16);
-        let lactate_threshold = args
-            .get("lactate_threshold")
-            .and_then(serde_json::Value::as_f64)
-            .unwrap_or(0.85);
-        let sport_efficiency = args
-            .get("sport_efficiency")
-            .and_then(serde_json::Value::as_f64)
-            .unwrap_or(1.0);
-
-        // Create calculator and calculate zones
-        let calculator = VO2MaxCalculator::new(
-            vo2_max,
-            resting_hr,
-            max_hr,
-            lactate_threshold,
-            sport_efficiency,
-        );
-
-        let hr_zones = calculator.calculate_hr_zones();
-        let pace_zones = calculator.calculate_pace_zones();
-
-        serde_json::json!({
-            "zones": {
-                "heart_rate_zones": hr_zones,
-                "pace_zones": pace_zones
-            },
-            "parameters_used": {
-                "vo2_max": vo2_max,
-                "max_hr": max_hr,
-                "resting_hr": resting_hr,
-                "lactate_threshold": lactate_threshold,
-                "sport_efficiency": sport_efficiency
-            },
-            "metadata": {
-                "timestamp": chrono::Utc::now(),
-                "calculation_method": "VO2MaxCalculator"
-            }
-        })
-    }
-
-    /// Handle validate configuration tool call
-    fn handle_validate_configuration(args: &Value) -> Value {
-        use crate::configuration::runtime::ConfigValue;
-        use crate::configuration::validation::ConfigValidator;
-
-        let parameters = args
-            .get("parameters")
-            .cloned()
-            .unwrap_or_else(|| serde_json::json!({}));
-
-        // Convert to HashMap<String, ConfigValue> for validation
-        let mut param_map: std::collections::HashMap<String, ConfigValue> =
-            std::collections::HashMap::new();
-
-        if let Ok(json_map) = serde_json::from_value::<
-            std::collections::HashMap<String, serde_json::Value>,
-        >(parameters)
-        {
-            for (key, value) in json_map {
-                let config_value = match value {
-                    serde_json::Value::Number(n) if n.is_f64() => {
-                        ConfigValue::Float(n.as_f64().unwrap_or(0.0))
-                    }
-                    serde_json::Value::Number(n) if n.is_i64() => {
-                        ConfigValue::Integer(n.as_i64().unwrap_or(0))
-                    }
-                    serde_json::Value::Bool(b) => ConfigValue::Boolean(b),
-                    serde_json::Value::String(s) => ConfigValue::String(s),
-                    _ => continue, // Skip unsupported types
-                };
-                param_map.insert(key, config_value);
-            }
-        }
-
-        // Validate using ConfigValidator
-        let validator = ConfigValidator::new();
-        let validation_result = validator.validate(&param_map, None); // No user profile for now
-
-        serde_json::json!({
-            "validation_result": validation_result,
-            "metadata": {
-                "timestamp": chrono::Utc::now(),
-                "validator_version": "1.0.0"
-            }
-        })
     }
 
     // === Tenant-Aware Tool Handlers ===
@@ -2965,6 +2569,21 @@ impl MultiTenantMcpServer {
             CALCULATE_METRICS,
             COMPARE_ACTIVITIES,
             PREDICT_PERFORMANCE,
+            // Analytics tools - route through Universal Protocol
+            ANALYZE_GOAL_FEASIBILITY,
+            SUGGEST_GOALS,
+            CALCULATE_FITNESS_SCORE,
+            GENERATE_RECOMMENDATIONS,
+            ANALYZE_TRAINING_LOAD,
+            DETECT_PATTERNS,
+            ANALYZE_PERFORMANCE_TRENDS,
+            // Configuration tools - route through Universal Protocol
+            "get_configuration_catalog",
+            "get_configuration_profiles",
+            "get_user_configuration",
+            "update_user_configuration",
+            "calculate_personalized_zones",
+            "validate_configuration",
         ];
 
         if !known_provider_tools.contains(&tool_name) {

@@ -13,7 +13,7 @@ use crate::{
     database_plugins::DatabaseProvider,
     errors::AppError,
     mcp::resources::ServerResources,
-    models::User,
+    models::{User, UserOAuthToken},
     utils::{
         errors::{auth_error, operation_error, user_state_error, validation_error},
         http_client::oauth_client,
@@ -522,18 +522,22 @@ impl OAuthRoutes {
             chrono::Utc::now() + chrono::Duration::seconds(token_response.expires_in)
         };
 
+        let oauth_token = UserOAuthToken::new(
+            user_id,
+            tenant_id.to_string(),
+            oauth_providers::STRAVA.to_string(),
+            token_response.access_token.clone(),
+            Some(token_response.refresh_token.clone()),
+            Some(expires_at),
+            token_response
+                .scope
+                .clone()
+                .or_else(|| Some(crate::constants::oauth::STRAVA_DEFAULT_SCOPES.into())),
+        );
+
         self.resources
             .database
-            .update_strava_token(
-                user_id,
-                &token_response.access_token,
-                &token_response.refresh_token,
-                expires_at,
-                token_response
-                    .scope
-                    .clone()
-                    .unwrap_or_else(|| crate::constants::oauth::STRAVA_DEFAULT_SCOPES.into()),
-            )
+            .upsert_user_oauth_token(&oauth_token)
             .await?;
 
         info!("Strava tokens stored successfully for user: {}", user_id);
@@ -591,15 +595,19 @@ impl OAuthRoutes {
         // Store encrypted tokens in database
         let expires_at = chrono::Utc::now() + chrono::Duration::seconds(token_response.expires_in);
 
+        let oauth_token = UserOAuthToken::new(
+            user_id,
+            tenant_id.to_string(),
+            oauth_providers::FITBIT.to_string(),
+            token_response.access_token.clone(),
+            Some(token_response.refresh_token.clone()),
+            Some(expires_at),
+            Some(token_response.scope.clone()),
+        );
+
         self.resources
             .database
-            .update_fitbit_token(
-                user_id,
-                &token_response.access_token,
-                &token_response.refresh_token,
-                expires_at,
-                token_response.scope.clone(),
-            )
+            .upsert_user_oauth_token(&oauth_token)
             .await?;
 
         info!("Fitbit tokens stored successfully for user: {}", user_id);
@@ -739,52 +747,6 @@ impl OAuthRoutes {
         Ok(token_response)
     }
 
-    /// Get connection status for all providers for a user
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - Database operation fails
-    pub async fn get_connection_status(&self, user_id: Uuid) -> Result<Vec<ConnectionStatus>> {
-        let mut statuses = Vec::with_capacity(2); // Always 2 providers (Strava, Fitbit)
-
-        // Check Strava connection
-        if let Ok(Some(strava_token)) = self.resources.database.get_strava_token(user_id).await {
-            statuses.push(ConnectionStatus {
-                provider: oauth_providers::STRAVA.into(),
-                connected: true,
-                expires_at: Some(strava_token.expires_at.to_rfc3339()),
-                scopes: Some(strava_token.scope),
-            });
-        } else {
-            statuses.push(ConnectionStatus {
-                provider: oauth_providers::STRAVA.into(),
-                connected: false,
-                expires_at: None,
-                scopes: None,
-            });
-        }
-
-        // Check Fitbit connection
-        if let Ok(Some(fitbit_token)) = self.resources.database.get_fitbit_token(user_id).await {
-            statuses.push(ConnectionStatus {
-                provider: oauth_providers::FITBIT.into(),
-                connected: true,
-                expires_at: Some(fitbit_token.expires_at.to_rfc3339()),
-                scopes: Some(fitbit_token.scope),
-            });
-        } else {
-            statuses.push(ConnectionStatus {
-                provider: oauth_providers::FITBIT.into(),
-                connected: false,
-                expires_at: None,
-                scopes: None,
-            });
-        }
-
-        Ok(statuses)
-    }
-
     /// Disconnect a provider by removing stored tokens
     ///
     /// # Errors
@@ -807,6 +769,81 @@ impl OAuthRoutes {
             }
             _ => Err(anyhow::anyhow!("Unsupported provider: {}", provider)),
         }
+    }
+
+    /// Get connection status for all OAuth providers for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Database operation fails
+    ///
+    /// # Panics
+    ///
+    /// Panics if the hardcoded default tenant UUID is invalid (this should never happen)
+    pub async fn get_connection_status(&self, user_id: Uuid) -> Result<Vec<ConnectionStatus>> {
+        // Get user's tenant for OAuth credentials lookup
+        let user = self
+            .resources
+            .database
+            .get_user(user_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("User not found: {}", user_id))?;
+
+        let tenant_id = user
+            .tenant_id
+            .as_ref()
+            .and_then(|id| uuid::Uuid::parse_str(id).ok())
+            .unwrap_or_else(|| {
+                // Safe: hardcoded UUID is always valid
+                uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap()
+            });
+
+        let mut statuses = Vec::new();
+
+        // Check Strava connection
+        let strava_token = self
+            .resources
+            .database
+            .get_user_oauth_token(user_id, &tenant_id.to_string(), oauth_providers::STRAVA)
+            .await?;
+
+        let strava_connected = strava_token.is_some();
+        let strava_expires_at = strava_token
+            .as_ref()
+            .and_then(|t| t.expires_at)
+            .map(|dt| dt.to_rfc3339());
+        let strava_scopes = strava_token.as_ref().and_then(|t| t.scope.clone());
+
+        statuses.push(ConnectionStatus {
+            provider: oauth_providers::STRAVA.to_string(),
+            connected: strava_connected,
+            expires_at: strava_expires_at,
+            scopes: strava_scopes,
+        });
+
+        // Check Fitbit connection
+        let fitbit_token = self
+            .resources
+            .database
+            .get_user_oauth_token(user_id, &tenant_id.to_string(), oauth_providers::FITBIT)
+            .await?;
+
+        let fitbit_connected = fitbit_token.is_some();
+        let fitbit_expires_at = fitbit_token
+            .as_ref()
+            .and_then(|t| t.expires_at)
+            .map(|dt| dt.to_rfc3339());
+        let fitbit_scopes = fitbit_token.as_ref().and_then(|t| t.scope.clone());
+
+        statuses.push(ConnectionStatus {
+            provider: oauth_providers::FITBIT.to_string(),
+            connected: fitbit_connected,
+            expires_at: fitbit_expires_at,
+            scopes: fitbit_scopes,
+        });
+
+        Ok(statuses)
     }
 }
 
