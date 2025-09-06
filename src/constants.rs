@@ -593,6 +593,7 @@ pub mod system_config {
     /// Rate limiting window duration (seconds)
     /// 30 days converted to seconds for rate limit calculations
     pub const RATE_LIMIT_WINDOW_SECONDS: u32 = 30 * 24 * 60 * 60;
+
 }
 
 /// Time conversion constants for various durations
@@ -651,6 +652,25 @@ pub mod demo_data {
 
     /// Test IP address for demos and tests
     pub const TEST_IP_ADDRESS: &str = "127.0.0.1";
+
+    /// Sample activity duration times in seconds for demos
+    pub const SAMPLE_SHORT_RUN_SECONDS: u32 = 1800; // 30 minutes
+    pub const SAMPLE_MEDIUM_RUN_SECONDS: u32 = 3600; // 1 hour
+    pub const SAMPLE_LONG_RUN_SECONDS: u32 = 7200; // 2 hours
+    pub const SAMPLE_ULTRA_RUN_SECONDS: u32 = 18000; // 5 hours
+    pub const SAMPLE_MARATHON_SECONDS: u32 = 8000; // ~2.2 hours
+    pub const SAMPLE_ULTRA_MARATHON_SECONDS: u32 = 19000; // ~5.3 hours
+    pub const SAMPLE_IRONMAN_BIKE_SECONDS: u32 = 72000; // 20 hours
+    pub const SAMPLE_IRONMAN_TOTAL_SECONDS: u32 = 80000; // ~22 hours
+
+    /// Sample distances in meters for demos
+    pub const SAMPLE_5K_METERS: f64 = 5000.0; // 5K run distance
+
+    /// Sample athlete/user IDs for demos
+    pub const SAMPLE_ATHLETE_ID: &str = "9876543210"; // Demo athlete ID
+
+    /// Unit conversion constants
+    pub const METERS_TO_KM: f64 = 1000.0; // Convert meters to kilometers
 }
 
 /// External API provider limits and configuration constants
