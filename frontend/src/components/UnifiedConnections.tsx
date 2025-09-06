@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Button } from './ui';
+import { apiService } from '../services/api';
 import ApiKeyList from './ApiKeyList';
 import CreateApiKey from './CreateApiKey';
 import A2AClientList from './A2AClientList';
@@ -230,10 +231,16 @@ export default function UnifiedConnections() {
       return (
         <AdminTokenList
           onCreateToken={() => setActiveView('create')}
-          onViewDetails={() => {
-            // Find the token by ID from the data we should have
-            // TODO: Implement token details lookup by ID
-            setActiveView('details');
+          onViewDetails={async (tokenId: string) => {
+            try {
+              // Fetch token details from API
+              const tokenDetails = await apiService.getAdminTokenDetails(tokenId);
+              setSelectedToken(tokenDetails);
+              setActiveView('details');
+            } catch (error) {
+              console.error('Failed to fetch token details:', error);
+              // TODO: Add proper error handling with user feedback
+            }
           }}
         />
       );

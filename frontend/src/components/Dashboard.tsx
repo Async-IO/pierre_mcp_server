@@ -1,20 +1,22 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth';
 import { apiService } from '../services/api';
 import type { DashboardOverview, RateLimitOverview, TierUsage } from '../types/api';
 import type { AnalyticsData, TimeSeriesPoint } from '../types/chart';
-import UsageAnalytics from './UsageAnalytics';
-import RequestMonitor from './RequestMonitor';
-import ToolUsageBreakdown from './ToolUsageBreakdown';
-import UnifiedConnections from './UnifiedConnections';
-import UserManagement from './UserManagement';
-import { Line } from 'react-chartjs-2';
 import { useWebSocketContext } from '../hooks/useWebSocketContext';
 import { useEffect } from 'react';
 import { Button, Card, Badge } from './ui';
 import RealTimeIndicator from './RealTimeIndicator';
 import { clsx } from 'clsx';
+
+// Lazy load heavy components to reduce initial bundle size
+const UsageAnalytics = lazy(() => import('./UsageAnalytics'));
+const RequestMonitor = lazy(() => import('./RequestMonitor'));
+const ToolUsageBreakdown = lazy(() => import('./ToolUsageBreakdown'));
+const UnifiedConnections = lazy(() => import('./UnifiedConnections'));
+const UserManagement = lazy(() => import('./UserManagement'));
+const LazyLineChart = lazy(() => import('react-chartjs-2').then(module => ({ default: module.Line })));
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -270,7 +272,9 @@ export default function Dashboard() {
                       </span>
                     </div>
                     <div style={{ height: '120px' }}>
-                      <Line data={miniChartData} options={miniChartOptions} />
+                      <Suspense fallback={<div className="h-[120px] flex items-center justify-center"><div className="pierre-spinner"></div></div>}>
+                        <LazyLineChart data={miniChartData} options={miniChartOptions} />
+                      </Suspense>
                     </div>
                   </Card>
                 )}
@@ -342,8 +346,16 @@ export default function Dashboard() {
           </div>
         )}
 
-        {activeTab === 'connections' && <UnifiedConnections />}
-        {activeTab === 'analytics' && <UsageAnalytics />}
+        {activeTab === 'connections' && (
+          <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
+            <UnifiedConnections />
+          </Suspense>
+        )}
+        {activeTab === 'analytics' && (
+          <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
+            <UsageAnalytics />
+          </Suspense>
+        )}
         {activeTab === 'monitor' && (
           <div className="space-y-6">
             <Card>
@@ -352,7 +364,9 @@ export default function Dashboard() {
                 Monitor API requests in real-time across all your connections. See request status, response times, and error details as they happen.
               </p>
             </Card>
-            <RequestMonitor showAllKeys={true} />
+            <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
+              <RequestMonitor showAllKeys={true} />
+            </Suspense>
           </div>
         )}
         {activeTab === 'tools' && (
@@ -363,7 +377,9 @@ export default function Dashboard() {
                 Analyze which fitness tools are being used most frequently, their performance metrics, and success rates.
               </p>
             </Card>
-            <ToolUsageBreakdown />
+            <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
+              <ToolUsageBreakdown />
+            </Suspense>
           </div>
         )}
         {activeTab === 'users' && (
@@ -374,7 +390,9 @@ export default function Dashboard() {
                 Manage user registrations, approve pending users, and monitor user activity across the platform.
               </p>
             </Card>
-            <UserManagement />
+            <Suspense fallback={<div className="flex justify-center py-8"><div className="pierre-spinner"></div></div>}>
+              <UserManagement />
+            </Suspense>
           </div>
         )}
         </div>
