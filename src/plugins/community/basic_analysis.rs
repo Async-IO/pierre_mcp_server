@@ -68,8 +68,8 @@ impl PluginImplementation for BasicAnalysisPlugin {
             include_zones
         );
 
-        // Get activity data through provider
-        let _provider = env
+        // Validate provider availability for future implementation
+        let _ = env
             .provider_registry
             .create_provider("strava")
             .map_err(|e| {

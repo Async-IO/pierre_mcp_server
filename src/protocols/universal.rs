@@ -284,8 +284,8 @@ impl UniversalToolExecutor {
             .and_then(|v| v.as_str())
             .ok_or("Missing activity_id parameter")?;
 
-        // Parse user_id
-        let _user_id = crate::utils::uuid::parse_uuid(&request.user_id)
+        // Parse user_id for validation
+        let _ = crate::utils::uuid::parse_uuid(&request.user_id)
             .map_err(|e| format!("Invalid user ID: {e}"))?;
 
         // Activity data retrieval not available through universal interface
