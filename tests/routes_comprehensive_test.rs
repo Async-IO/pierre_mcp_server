@@ -7,12 +7,13 @@
 
 use anyhow::Result;
 use pierre_mcp_server::{
-    database_plugins::DatabaseProvider,
+    database_plugins::{factory::Database, DatabaseProvider},
     mcp::resources::ServerResources,
     models::{Tenant, User, UserStatus},
     routes::{AuthRoutes, LoginRequest, OAuthRoutes, RefreshTokenRequest, RegisterRequest},
     tenant::TenantOAuthCredentials,
 };
+use std::sync::Arc;
 use uuid::Uuid;
 
 mod common;
@@ -121,7 +122,7 @@ async fn create_test_auth_routes() -> Result<AuthRoutes> {
 }
 
 #[allow(clippy::too_many_lines)] // Long function: Complex test setup with full configuration
-async fn create_test_oauth_routes() -> Result<(OAuthRoutes, Uuid)> {
+async fn create_test_oauth_routes() -> Result<(OAuthRoutes, Uuid, Arc<Database>)> {
     let database = common::create_test_database().await?;
 
     // Create admin user first
@@ -279,7 +280,7 @@ async fn create_test_oauth_routes() -> Result<(OAuthRoutes, Uuid)> {
         config,
     ));
 
-    Ok((OAuthRoutes::new(server_resources), tenant_id))
+    Ok((OAuthRoutes::new(server_resources), tenant_id, database))
 }
 
 // === AuthRoutes Registration Tests ===
@@ -908,7 +909,7 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
 
 #[tokio::test]
 async fn test_oauth_get_auth_url_strava() -> Result<()> {
-    let (oauth_routes, tenant_id) = create_test_oauth_routes().await?;
+    let (oauth_routes, tenant_id, _database) = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
     let response = oauth_routes
@@ -926,7 +927,7 @@ async fn test_oauth_get_auth_url_strava() -> Result<()> {
 
 #[tokio::test]
 async fn test_oauth_get_auth_url_fitbit() -> Result<()> {
-    let (oauth_routes, tenant_id) = create_test_oauth_routes().await?;
+    let (oauth_routes, tenant_id, _database) = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
     let response = oauth_routes
@@ -944,7 +945,7 @@ async fn test_oauth_get_auth_url_fitbit() -> Result<()> {
 
 #[tokio::test]
 async fn test_oauth_get_auth_url_unsupported_provider() -> Result<()> {
-    let (oauth_routes, tenant_id) = create_test_oauth_routes().await?;
+    let (oauth_routes, tenant_id, _database) = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
     let result = oauth_routes
@@ -962,8 +963,28 @@ async fn test_oauth_get_auth_url_unsupported_provider() -> Result<()> {
 
 #[tokio::test]
 async fn test_oauth_connection_status_no_connections() -> Result<()> {
-    let (oauth_routes, _tenant_id) = create_test_oauth_routes().await?;
+    let (oauth_routes, _tenant_id, database) = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
+
+    // Create the user in the database first
+    let user = pierre_mcp_server::models::User {
+        id: user_id,
+        email: format!("test_{user_id}@example.com"),
+        display_name: Some("Test User".to_string()),
+        password_hash: "test_hash".to_string(),
+        tier: pierre_mcp_server::models::UserTier::Starter,
+        tenant_id: None,
+        strava_token: None,
+        fitbit_token: None,
+        created_at: chrono::Utc::now(),
+        last_active: chrono::Utc::now(),
+        is_active: true,
+        user_status: pierre_mcp_server::models::UserStatus::Active,
+        is_admin: false,
+        approved_by: None,
+        approved_at: None,
+    };
+    database.create_user(&user).await?;
 
     let status = oauth_routes.get_connection_status(user_id).await?;
 
@@ -981,7 +1002,7 @@ async fn test_oauth_connection_status_no_connections() -> Result<()> {
 
 #[tokio::test]
 async fn test_oauth_disconnect_provider_success() -> Result<()> {
-    let (oauth_routes, _tenant_id) = create_test_oauth_routes().await?;
+    let (oauth_routes, _tenant_id, _database) = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
     // Disconnecting a provider that wasn't connected should succeed (idempotent)
@@ -994,7 +1015,7 @@ async fn test_oauth_disconnect_provider_success() -> Result<()> {
 
 #[tokio::test]
 async fn test_oauth_disconnect_invalid_provider() -> Result<()> {
-    let (oauth_routes, _tenant_id) = create_test_oauth_routes().await?;
+    let (oauth_routes, _tenant_id, _database) = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
     let result = oauth_routes.disconnect_provider(user_id, "invalid_provider");
