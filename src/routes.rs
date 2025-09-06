@@ -759,12 +759,10 @@ impl OAuthRoutes {
                 // Token revocation would clear stored tokens from database
                 // Clear provider tokens requires token revocation API calls
                 info!("Disconnecting Strava for user {}", user_id);
-                // self.resources.database.clear_strava_token(user_id).await?;
                 Ok(())
             }
             oauth_providers::FITBIT => {
                 info!("Disconnecting Fitbit for user {}", user_id);
-                // self.resources.database.clear_fitbit_token(user_id).await?;
                 Ok(())
             }
             _ => Err(anyhow::anyhow!("Unsupported provider: {}", provider)),

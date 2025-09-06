@@ -152,53 +152,9 @@ impl Database {
         Ok(())
     }
 
-    /// Update Strava OAuth token for a user (legacy wrapper)
-    ///
-    /// # Errors
-    /// Returns an error if the underlying `update_oauth_token` call fails
-    pub async fn update_strava_token(&self, user_id: Uuid, token: &DecryptedToken) -> Result<()> {
-        self.update_oauth_token(user_id, OAuthProvider::Strava, token)
-            .await
-    }
 
-    /// Get Strava OAuth token for a user (legacy wrapper)
-    ///
-    /// # Errors
-    /// Returns an error if the underlying `get_oauth_token` call fails
-    pub async fn get_strava_token(&self, user_id: Uuid) -> Result<Option<DecryptedToken>> {
-        self.get_oauth_token(user_id, OAuthProvider::Strava).await
-    }
 
-    /// Clear Strava OAuth token for a user (legacy wrapper)
-    ///
-    /// # Errors
-    /// Returns an error if the underlying `clear_oauth_token` call fails
-    pub async fn clear_strava_token(&self, user_id: Uuid) -> Result<()> {
-        self.clear_oauth_token(user_id, OAuthProvider::Strava).await
-    }
 
-    /// Update Fitbit OAuth token for a user (legacy wrapper)
-    ///
-    /// # Errors
-    /// Returns an error if the underlying `update_oauth_token` call fails
-    pub async fn update_fitbit_token(&self, user_id: Uuid, token: &DecryptedToken) -> Result<()> {
-        self.update_oauth_token(user_id, OAuthProvider::Fitbit, token)
-            .await
-    }
 
-    /// Get Fitbit OAuth token for a user (legacy wrapper)
-    ///
-    /// # Errors
-    /// Returns an error if the underlying `get_oauth_token` call fails
-    pub async fn get_fitbit_token(&self, user_id: Uuid) -> Result<Option<DecryptedToken>> {
-        self.get_oauth_token(user_id, OAuthProvider::Fitbit).await
-    }
 
-    /// Clear Fitbit OAuth token for a user (legacy wrapper)
-    ///
-    /// # Errors
-    /// Returns an error if the underlying `clear_oauth_token` call fails
-    pub async fn clear_fitbit_token(&self, user_id: Uuid) -> Result<()> {
-        self.clear_oauth_token(user_id, OAuthProvider::Fitbit).await
-    }
 }
