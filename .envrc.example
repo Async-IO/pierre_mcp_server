@@ -32,6 +32,30 @@ export JWT_SECRET="dev-secret-key-change-in-production"
 # export WEATHER_API_KEY="your-openweathermap-key"
 # export GOOGLE_MAPS_API_KEY="your-google-maps-key"
 
+# Fitness Configuration (optional - overrides fitness_config.toml values)
+# export FITNESS_CONFIG_PATH="./fitness_config.toml"         # Path to fitness config file
+
+# Fitness Effort Thresholds (1-10 scale for workout intensity classification)
+# export FITNESS_EFFORT_LIGHT_MAX="3.0"         # Light effort upper bound
+# export FITNESS_EFFORT_MODERATE_MAX="5.0"      # Moderate effort upper bound  
+# export FITNESS_EFFORT_HARD_MAX="7.0"          # Hard effort upper bound (>7.0 = very high)
+
+# Fitness Heart Rate Zone Thresholds (percentage of max HR)
+# export FITNESS_ZONE_RECOVERY_MAX="60.0"       # Recovery zone upper bound
+# export FITNESS_ZONE_ENDURANCE_MAX="70.0"      # Endurance zone upper bound
+# export FITNESS_ZONE_TEMPO_MAX="80.0"          # Tempo zone upper bound
+# export FITNESS_ZONE_THRESHOLD_MAX="90.0"      # Threshold zone upper bound (>90% = VO2Max)
+
+# Fitness Weather Configuration
+# export FITNESS_WEATHER_WIND_THRESHOLD="15.0"             # Wind speed threshold (km/h) for windy conditions
+# export FITNESS_WEATHER_ENABLED="true"                    # Enable weather API integration
+# export FITNESS_WEATHER_CACHE_DURATION_HOURS="24"        # Weather data cache duration
+# export FITNESS_WEATHER_REQUEST_TIMEOUT_SECONDS="10"     # Weather API request timeout
+# export FITNESS_WEATHER_RATE_LIMIT_PER_MINUTE="60"       # Weather API rate limit
+
+# Fitness Personal Record Configuration
+# export FITNESS_PR_PACE_IMPROVEMENT_THRESHOLD="5.0"      # Minimum pace improvement % to count as PR
+
 # MCP Client Configuration (for testing)
 # These are set when configuring Claude Desktop or Python clients
 # export TENANT_ID="your-tenant-id"
