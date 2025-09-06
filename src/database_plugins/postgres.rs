@@ -25,6 +25,14 @@ use std::fmt::Write;
 use std::time::Duration;
 use uuid::Uuid;
 
+// Default connection pool configuration constants
+const DEFAULT_CI_MAX_CONNECTIONS: u32 = 20;
+const DEFAULT_PROD_MAX_CONNECTIONS: u32 = 10;
+const DEFAULT_CI_ACQUIRE_TIMEOUT_SECS: u64 = 120;
+const DEFAULT_PROD_ACQUIRE_TIMEOUT_SECS: u64 = 30;
+const DEFAULT_CI_MIN_CONNECTIONS: u32 = 1;
+const DEFAULT_PROD_MIN_CONNECTIONS: u32 = 0;
+
 /// `PostgreSQL` database implementation
 #[derive(Clone)]
 pub struct PostgresDatabase {
@@ -42,12 +50,25 @@ impl PostgresDatabase {
 impl DatabaseProvider for PostgresDatabase {
     async fn new(database_url: &str, _encryption_key: Vec<u8>) -> Result<Self> {
         // Use reasonable connection pool for CI environments (tests may run concurrently)
-        let max_connections = if std::env::var("CI").is_ok() { 5 } else { 10 };
-        let min_connections = u32::from(std::env::var("CI").is_ok());
-        let acquire_timeout_secs = if std::env::var("CI").is_ok() { 120 } else { 30 };
+        let is_ci = std::env::var("CI").is_ok();
+        let max_connections = if is_ci {
+            DEFAULT_CI_MAX_CONNECTIONS
+        } else {
+            DEFAULT_PROD_MAX_CONNECTIONS
+        };
+        let min_connections = if is_ci {
+            DEFAULT_CI_MIN_CONNECTIONS
+        } else {
+            DEFAULT_PROD_MIN_CONNECTIONS
+        };
+        let acquire_timeout_secs = if is_ci {
+            DEFAULT_CI_ACQUIRE_TIMEOUT_SECS
+        } else {
+            DEFAULT_PROD_ACQUIRE_TIMEOUT_SECS
+        };
 
         // Log connection pool configuration for debugging
-        if std::env::var("CI").is_ok() {
+        if is_ci {
             eprintln!(
                 "PostgreSQL CI mode: max_connections={max_connections}, timeout={acquire_timeout_secs}s"
             );
