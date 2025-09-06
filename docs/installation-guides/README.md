@@ -10,16 +10,10 @@ This directory contains detailed installation instructions for Pierre MCP Server
 |--------|-------|---------|
 | Claude Desktop | [install-claude.md](install-claude.md) | Full Support |
 | ChatGPT Desktop | [install-chatgpt.md](install-chatgpt.md) | Full Support |
-| Cursor | [install-cursor.md](install-cursor.md) | Full Support |
-| Other MCP Clients | [install-other-clients.md](install-other-clients.md) | Generic Guide |
 
 ### Environment-Specific Installation
 
-| Environment | Guide | Description |
-|-------------|-------|-------------|
-| Docker | [install-docker.md](install-docker.md) | Containerized deployment |
-| Development | [install-development.md](install-development.md) | Local development setup |
-| Production | [install-production.md](install-production.md) | Production deployment |
+Refer to the main README.md and developer guide for environment-specific setup instructions.
 
 ## Installation Methods
 
@@ -85,7 +79,7 @@ echo $STRAVA_CLIENT_SECRET
 If you encounter issues during installation:
 
 1. Check the specific installation guide for your client
-2. Review the [troubleshooting guide](../developer-guide/16-testing-strategy.md)
+2. Review the developer guide documentation
 3. Open an issue on GitHub with:
    - Your operating system
    - MCP client and version

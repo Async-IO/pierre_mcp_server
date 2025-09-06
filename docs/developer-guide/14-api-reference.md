@@ -22,7 +22,6 @@ This document provides a comprehensive reference for all Pierre MCP Server REST 
 ## Base URL and Versioning
 
 ```
-Production: https://api.pierremcp.com (port 8081 behind load balancer)
 Development: http://localhost:8081 (HTTP API and authentication)
 MCP Protocol: http://localhost:8080 (MCP JSON-RPC)
 ```

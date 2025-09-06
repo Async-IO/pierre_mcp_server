@@ -33,8 +33,9 @@ This guide covers setup, configuration, and development workflows for Pierre MCP
    sudo apt-get install postgresql postgresql-contrib  # Ubuntu
    ```
 
-3. Redis (for rate limiting and caching)
+3. Redis (optional, for production caching)
    ```bash
+   # Optional: only needed for production deployments
    brew install redis  # macOS
    sudo apt-get install redis-server  # Ubuntu
    ```
@@ -61,7 +62,7 @@ You'll need accounts and API credentials for:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-org/pierre_mcp_server.git
+git clone https://github.com/Async-IO/pierre_mcp_server.git
 cd pierre_mcp_server
 ```
 
