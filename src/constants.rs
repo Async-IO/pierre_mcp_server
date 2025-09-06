@@ -593,7 +593,6 @@ pub mod system_config {
     /// Rate limiting window duration (seconds)
     /// 30 days converted to seconds for rate limit calculations
     pub const RATE_LIMIT_WINDOW_SECONDS: u32 = 30 * 24 * 60 * 60;
-
 }
 
 /// Time conversion constants for various durations
