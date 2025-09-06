@@ -4,7 +4,7 @@ This guide documents the security implementation and compliance measures for Pie
 
 ## Security Architecture Overview
 
-Pierre MCP Server implements comprehensive security controls across multiple layers to ensure safe data handling and MCP protocol compliance.
+Pierre MCP Server implements security controls across multiple layers to ensure safe data handling and MCP protocol compliance.
 
 ### Core Security Principles
 
@@ -241,7 +241,7 @@ Denial of Service:
 
 ### Security Monitoring
 
-The server implements comprehensive security monitoring:
+The server implements security monitoring:
 
 ```bash
 # Security event monitoring
@@ -318,7 +318,7 @@ For health-related fitness data:
 
 ### Automated Security Auditing
 
-The server provides comprehensive audit capabilities:
+The server provides audit capabilities:
 
 ```bash
 # Generate security audit report

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Pierre MCP Server provides comprehensive HTTP REST API endpoints for web applications, mobile clients, and management interfaces. The API is organized into logical route groups, each handling specific functionality with proper authentication, validation, and error handling.
+Pierre MCP Server provides HTTP REST API endpoints for web applications, mobile clients, and management interfaces. The API is organized into logical route groups, each handling specific functionality with proper authentication, validation, and error handling.
 
 ## Route Architecture
 
@@ -73,7 +73,7 @@ graph TB
 
 ### 1. Authentication Routes (`/api/auth`)
 
-Handles user registration, login, token refresh, and basic authentication operations.
+Handles user registration, login, token refresh, and authentication operations.
 
 #### Register User
 
@@ -1168,4 +1168,4 @@ components:
       name: X-API-Key
 ```
 
-This comprehensive API routes documentation provides developers with everything needed to integrate with Pierre MCP Server's HTTP endpoints, including authentication, error handling, and proper request/response patterns.
+This API routes documentation provides developers with what is needed to integrate with Pierre MCP Server's HTTP endpoints, including authentication, error handling, and proper request/response patterns.

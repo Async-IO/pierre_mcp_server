@@ -2,7 +2,7 @@
 
 ## Overview
 
-Pierre MCP Server implements a comprehensive multi-tenant architecture that provides complete data isolation, per-tenant OAuth configurations, and enterprise-ready SaaS capabilities. Each tenant operates as an independent organization with its own users, data, configurations, and rate limits.
+Pierre MCP Server implements a multi-tenant architecture that provides data isolation, per-tenant OAuth configurations, and SaaS capabilities. Each tenant operates as an independent organization with its own users, data, configurations, and rate limits.
 
 ## Multi-Tenant Architecture
 
@@ -834,4 +834,4 @@ pub struct UsageItem {
 }
 ```
 
-This comprehensive tenant management system ensures complete isolation between organizations while providing enterprise-ready features like custom OAuth configurations, role-based access control, and detailed usage tracking.
+This multi-tenant system ensures isolation between organizations while providing features like custom OAuth configurations, role-based access control, and detailed usage tracking.

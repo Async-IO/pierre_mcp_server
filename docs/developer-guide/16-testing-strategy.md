@@ -7,11 +7,11 @@ This document outlines the comprehensive testing strategy used in Pierre MCP Ser
 Pierre MCP Server uses **ServerResources dependency injection** to eliminate resource creation anti-patterns in tests:
 
 ```rust
-// ✅ CORRECT: ServerResources pattern
+// CORRECT: ServerResources pattern
 let resources = Arc::new(create_test_server_resources(database, auth_manager).await);
 let routes = ApiKeyRoutes::new(resources);
 
-// ❌ ANTI-PATTERN: Resource cloning 
+// ANTI-PATTERN: Resource cloning 
 let routes = ApiKeyRoutes::new(database.clone(), auth_manager.clone()); // Don't do this!
 ```
 
@@ -66,12 +66,12 @@ Pierre MCP Server follows a **Test-Driven Development (TDD)** approach with comp
 ### Quality Gates
 
 All code must pass:
-- ✅ **100% Clippy compliance** (strict mode)
-- ✅ **Zero unwrap/panic/expect** in production code
-- ✅ **Comprehensive test coverage** (unit + integration + E2E)
-- ✅ **Security vulnerability checks**
-- ✅ **Performance benchmarks**
-- ✅ **Protocol compliance tests**
+- **100% Clippy compliance** (strict mode)
+- **Zero unwrap/panic/expect** in production code
+- **Comprehensive test coverage** (unit + integration + E2E)
+- **Security vulnerability checks**
+- **Performance benchmarks**
+- **Protocol compliance tests**
 
 ## Test Types and Hierarchy
 
@@ -1279,12 +1279,12 @@ echo "Running pre-commit validation..."
 
 # Run the validation suite
 if ! ./scripts/lint-and-test.sh; then
-    echo "❌ Pre-commit validation failed"
+    echo "Pre-commit validation failed"
     echo "Fix all issues before committing"
     exit 1
 fi
 
-echo "✅ Pre-commit validation passed"
+echo "Pre-commit validation passed"
 ```
 
 ## Best Practices and Guidelines

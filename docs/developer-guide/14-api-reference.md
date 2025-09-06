@@ -1,6 +1,6 @@
 # API Reference
 
-This document provides a comprehensive reference for all Pierre MCP Server REST API endpoints, request/response formats, and authentication requirements.
+This document provides a reference for all Pierre MCP Server REST API endpoints, request/response formats, and authentication requirements.
 
 ## Table of Contents
 
@@ -1397,4 +1397,4 @@ For WebSocket connections using MCP protocol:
 | -32000 | Tool Error | MCP tool execution failed |
 | -32001 | Auth Error | Authentication/authorization failed |
 
-This API reference provides comprehensive documentation for integrating with Pierre MCP Server. For additional examples and SDKs, see the integration guides in the developer documentation.
+This API reference provides documentation for integrating with Pierre MCP Server. For additional examples and SDKs, see the integration guides in the developer documentation.

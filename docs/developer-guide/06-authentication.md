@@ -2,7 +2,7 @@
 
 ## Overview
 
-Pierre MCP Server implements a comprehensive authentication system supporting multiple authentication flows for different client types. The system uses JWT tokens for user sessions, API keys for A2A communication, and OAuth2 for fitness provider integration.
+Pierre MCP Server implements an authentication system supporting multiple authentication flows for different client types. The system uses JWT tokens for user sessions, API keys for A2A communication, and OAuth2 for fitness provider integration.
 
 ## Authentication Architecture
 
@@ -68,7 +68,7 @@ First, an administrator sets up the system and creates the first admin user.
 #### Step 1: Initial Admin Setup (Server-side)
 
 ```bash
-# Create the first admin user via server API (industry standard)
+# Create the first admin user via server API
 curl -X POST https://pierre.example.com/admin/setup \
   -H "Content-Type: application/json" \
   -d '{
@@ -730,7 +730,7 @@ async fn get_system_admin_user_id(database: &Database) -> Result<String> {
     let users = database.get_users_by_status("active").await?;
     
     for user in &users {
-        if user.is_admin {  // ✅ NEW: Check explicit admin flag
+        if user.is_admin {  // Check explicit admin flag
             return Ok(user.id.to_string());
         }
     }
@@ -755,8 +755,8 @@ curl -X GET http://localhost:8081/admin/users \
 | `is_admin` | `true` | `false` |
 | `user_status` | `active` (auto) | `pending` → `active` (after approval) |
 | `approved_by` | `None` (no approval needed) | Admin user ID |
-| Admin endpoints | ✅ Full access | ❌ Forbidden |
-| User approval capability | ✅ Can approve others | ❌ Cannot approve |
+| Admin endpoints | Full access | Forbidden |
+| User approval capability | Can approve others | Cannot approve |
 
 ### Migration from Tier-Based System
 
@@ -1218,7 +1218,7 @@ curl -X GET https://pierre-api.example.com/api/health/auth \
 
 ## Unified OAuth Credential Resolution System
 
-Pierre MCP Server implements a unified OAuth authentication system that provides consistent credential resolution across all tools with hierarchical precedence. This system was designed to support multiple deployment scenarios while maintaining security and flexibility.
+Pierre MCP Server implements a unified OAuth authentication system that provides credential resolution across all tools with hierarchical precedence. This system supports multiple deployment scenarios while maintaining security and flexibility.
 
 ### OAuth Credential Hierarchy
 

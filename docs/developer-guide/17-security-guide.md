@@ -139,7 +139,7 @@ info!("Database initialized with temporary DEK");
 key_manager.complete_initialization(&database).await?;
 info!("Two-tier key management system fully initialized");
 
-// ✅ CORRECT: Create ServerResources with shared database
+// CORRECT: Create ServerResources with shared database
 let resources = Arc::new(ServerResources {
     database,
     // ... other resources initialized once at startup
@@ -558,53 +558,53 @@ pub struct SecurityThresholds {
 
 ### Pre-Deployment Security
 
-- [ ] **Master Encryption Key (MEK) Security**
-  - [ ] `PIERRE_MASTER_ENCRYPTION_KEY` environment variable set in production
-  - [ ] MEK stored in HSM, Kubernetes secrets, or secure key management system
-  - [ ] MEK never logged, stored in files, or included in application code
-  - [ ] MEK backup stored separately from database backups
-  - [ ] MEK rotation procedure documented and tested
-  - [ ] Development warnings disabled in production (no temporary MEK generation)
+- **Master Encryption Key (MEK) Security**
+  - `PIERRE_MASTER_ENCRYPTION_KEY` environment variable set in production
+  - MEK stored in HSM, Kubernetes secrets, or secure key management system
+  - MEK never logged, stored in files, or included in application code
+  - MEK backup stored separately from database backups
+  - MEK rotation procedure documented and tested
+  - Development warnings disabled in production (no temporary MEK generation)
 
-- [ ] **Database Security**
-  - [ ] Database encryption enabled (TDE)
-  - [ ] Database access restricted to application only
-  - [ ] Database backups encrypted
-  - [ ] Row-level security policies enabled
+- **Database Security**
+  - Database encryption enabled (TDE)
+  - Database access restricted to application only
+  - Database backups encrypted
+  - Row-level security policies enabled
 
-- [ ] **Authentication Security**
-  - [ ] JWT secrets generated from cryptographically secure source
-  - [ ] Password policies enforced (complexity, length, history)
-  - [ ] Multi-factor authentication enabled for admin accounts
-  - [ ] Session timeouts configured appropriately
+- **Authentication Security**
+  - JWT secrets generated from cryptographically secure source
+  - Password policies enforced (complexity, length, history)
+  - Multi-factor authentication enabled for admin accounts
+  - Session timeouts configured appropriately
 
-- [ ] **Network Security**
-  - [ ] TLS 1.3 enabled for all communications
-  - [ ] Certificate pinning implemented
-  - [ ] CORS policies configured restrictively
-  - [ ] Security headers configured (HSTS, CSP, etc.)
+- **Network Security**
+  - TLS 1.3 enabled for all communications
+  - Certificate pinning implemented
+  - CORS policies configured restrictively
+  - Security headers configured (HSTS, CSP, etc.)
 
 ### Runtime Security Monitoring
 
-- [ ] **Continuous Monitoring**
-  - [ ] Security event logging enabled
-  - [ ] Real-time alerting configured
-  - [ ] Anomaly detection system active
-  - [ ] Regular security scans scheduled
+- **Continuous Monitoring**
+  - Security event logging enabled
+  - Real-time alerting configured
+  - Anomaly detection system active
+  - Regular security scans scheduled
 
-- [ ] **Incident Response**
-  - [ ] Security incident response plan documented
-  - [ ] Emergency key rotation procedures tested
-  - [ ] Data breach notification procedures ready
-  - [ ] Forensic logging enabled
+- **Incident Response**
+  - Security incident response plan documented
+  - Emergency key rotation procedures tested
+  - Data breach notification procedures ready
+  - Forensic logging enabled
 
 ### Compliance & Auditing
 
-- [ ] **Audit Requirements**
-  - [ ] All administrative actions logged
-  - [ ] Data access patterns monitored
-  - [ ] Compliance reports automated
-  - [ ] External security audits scheduled
+- **Audit Requirements**
+  - All administrative actions logged
+  - Data access patterns monitored
+  - Compliance reports automated
+  - External security audits scheduled
 
 ## Security Best Practices
 
