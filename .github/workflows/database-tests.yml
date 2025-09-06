@@ -73,12 +73,6 @@ jobs:
     services:
       postgres:
         image: postgres:16-alpine
-        # PostgreSQL configuration parameters
-        args: >-
-          -c max_connections=200
-          -c shared_buffers=256MB
-          -c effective_cache_size=1GB
-          -c work_mem=16MB
         env:
           POSTGRES_USER: pierre
           POSTGRES_PASSWORD: ci_test_password
