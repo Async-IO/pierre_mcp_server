@@ -15,6 +15,12 @@ export RUST_LOG="info"
 export DATABASE_URL="sqlite:data/pierre.db"
 # For PostgreSQL: export DATABASE_URL="postgres://user:pass@localhost/pierre_db"
 
+# PostgreSQL Connection Pool Configuration (when using PostgreSQL)
+# These values are automatically optimized for CI vs production environments
+# export PG_MAX_CONNECTIONS="10"        # Default: 10 (prod), 20 (CI)
+# export PG_MIN_CONNECTIONS="0"         # Default: 0 (prod), 1 (CI)  
+# export PG_ACQUIRE_TIMEOUT_SECS="30"   # Default: 30 (prod), 120 (CI)
+
 # Development settings
 export CARGO_TERM_COLOR="always"
 export RUST_BACKTRACE="1"

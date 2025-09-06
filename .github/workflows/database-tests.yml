@@ -134,6 +134,10 @@ jobs:
         STRAVA_CLIENT_ID: "test_client_id_ci"
         STRAVA_CLIENT_SECRET: "test_client_secret_ci"
         STRAVA_REDIRECT_URI: "http://localhost:8080/auth/strava/callback"
+        # PostgreSQL connection pool configuration for CI
+        PG_MAX_CONNECTIONS: "20"
+        PG_MIN_CONNECTIONS: "1" 
+        PG_ACQUIRE_TIMEOUT_SECS: "120"
         RUST_LOG: "info"
 
     - name: Upload PostgreSQL database coverage to Codecov
