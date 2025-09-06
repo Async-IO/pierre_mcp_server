@@ -182,7 +182,7 @@ fn detect_database_type(database_url: &str) -> Result<DatabaseType> {
 The factory delegates all calls to the underlying provider through ServerResources:
 
 ```rust
-// ✅ CORRECT: Database created once at startup via ServerResources
+// CORRECT: Database created once at startup via ServerResources
 impl MultiTenantMcpServer {
     pub fn new(resources: Arc<ServerResources>) -> Self {
         Self { resources }
@@ -931,7 +931,7 @@ mod tests {
     use super::*;
     use crate::mcp::multitenant::ServerResources;
     
-    // ✅ CORRECT: Create test database and wrap in ServerResources
+    // CORRECT: Create test database and wrap in ServerResources
     async fn create_test_server_resources() -> Arc<ServerResources> {
         let temp_dir = tempdir().unwrap();
         let db_path = temp_dir.path().join("test.db");

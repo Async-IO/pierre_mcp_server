@@ -146,16 +146,16 @@ class FitnessBotIntegration {
     
     createSummaryEmbed(summary) {
         return {
-            title: `🏃 Fitness Summary - ${summary.period}`,
+            title: `Fitness Summary - ${summary.period}`,
             color: 0x00FF00,
             fields: [
                 {
-                    name: '📊 Activities',
+                    name: 'Activities',
                     value: `${summary.total_activities} activities\n${summary.total_distance}km total`,
                     inline: true
                 },
                 {
-                    name: '⏱️ Time',
+                    name: 'Time',
                     value: `${summary.total_time} hours\nAvg: ${summary.avg_duration}min`,
                     inline: true
                 },

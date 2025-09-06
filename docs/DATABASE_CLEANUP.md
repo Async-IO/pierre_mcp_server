@@ -122,8 +122,8 @@ rm -f *.db
 docker volume rm pierre_mcp_server_postgres_data 2>/dev/null || true
 docker volume rm pierre-data 2>/dev/null || true
 
-echo "✅ Database cleanup complete!"
-echo "📝 Run 'cargo run --bin pierre-mcp-server' to start fresh"
+echo "Database cleanup complete!"
+echo "Run 'cargo run --bin pierre-mcp-server' to start fresh"
 ```
 
 Make it executable:

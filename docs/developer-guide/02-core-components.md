@@ -2,7 +2,7 @@
 
 ## Component Overview
 
-The Pierre MCP Server is built with modular, reusable components that work together to provide a robust fitness data platform.
+The Pierre MCP Server is built with modular, reusable components that work together to provide a fitness data platform.
 
 ## Primary Components
 
@@ -100,7 +100,7 @@ pub enum TenantRole {
 
 ### 5. Provider System (`src/providers/`)
 
-Unified provider architecture with trait-based system:
+Unified provider architecture using a trait-based system:
 
 ```rust
 #[async_trait]
@@ -177,7 +177,7 @@ pub struct AgentCard {
 
 ### 8. Intelligence Engine (`src/intelligence/`)
 
-Advanced analytics and recommendations:
+Analytics and recommendations:
 
 ```rust
 pub struct IntelligenceEngine {
