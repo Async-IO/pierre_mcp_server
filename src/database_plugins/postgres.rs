@@ -2650,7 +2650,7 @@ impl DatabaseProvider for PostgresDatabase {
                 client_secret_encrypted = EXCLUDED.client_secret_encrypted,
                 client_secret_nonce = EXCLUDED.client_secret_nonce,
                 redirect_uri = EXCLUDED.redirect_uri,
-                scopes = EXCLUDED.scopes,
+                scope = EXCLUDED.scope,
                 rate_limit_per_day = EXCLUDED.rate_limit_per_day,
                 updated_at = CURRENT_TIMESTAMP
             ",
@@ -3569,7 +3569,7 @@ impl DatabaseProvider for PostgresDatabase {
             r"
             INSERT INTO user_oauth_tokens (
                 id, user_id, tenant_id, provider, access_token, refresh_token,
-                token_type, expires_at, scopes, created_at, updated_at
+                token_type, expires_at, scope, created_at, updated_at
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             ON CONFLICT (user_id, tenant_id, provider) 
             DO UPDATE SET
@@ -3578,7 +3578,7 @@ impl DatabaseProvider for PostgresDatabase {
                 refresh_token = EXCLUDED.refresh_token,
                 token_type = EXCLUDED.token_type,
                 expires_at = EXCLUDED.expires_at,
-                scopes = EXCLUDED.scopes,
+                scope = EXCLUDED.scope,
                 updated_at = EXCLUDED.updated_at
             ",
         )
