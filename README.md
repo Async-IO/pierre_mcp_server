@@ -339,15 +339,33 @@ cargo test --test mcp_protocol_compliance_test
 cargo test --test mcp_multitenant_complete_test
 ```
 
+## Management Dashboard
+
+A web dashboard is available for monitoring and administration:
+
+```bash
+# Start the dashboard (requires server running)
+cd frontend
+npm install && npm run dev
+```
+
+Access at http://localhost:5173 for:
+- User management and approval
+- API key monitoring and rate limits
+- Usage analytics and system metrics
+- Real-time request monitoring
+
+See [frontend/README.md](frontend/README.md) for detailed development information.
+
 ## Documentation
 
-Comprehensive documentation is available in the `docs/` directory:
+Complete documentation is available in the `docs/` directory:
 
-- **[Getting Started](docs/developer-guide/15-getting-started.md)** - Quick setup guide
+- **[Getting Started](docs/developer-guide/15-getting-started.md)** - Setup guide
 - **[Installation Guides](docs/installation-guides/)** - Platform-specific installation
-- **[Developer Guide](docs/developer-guide/)** - Complete technical documentation
+- **[Developer Guide](docs/developer-guide/)** - Technical documentation
 - **[Plugin System](docs/developer-guide/18-plugin-system.md)** - Plugin development guide
-- **[API Reference](docs/developer-guide/14-api-reference.md)** - Complete API documentation
+- **[API Reference](docs/developer-guide/14-api-reference.md)** - API documentation
 - **[Security Guide](docs/developer-guide/17-security-guide.md)** - Security best practices
 
 ## Contributing

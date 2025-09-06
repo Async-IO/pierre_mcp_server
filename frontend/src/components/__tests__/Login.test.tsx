@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import Login from '../Login'
 import { AuthProvider } from '../../contexts/AuthContext'
@@ -16,12 +16,20 @@ vi.mock('../../services/api', () => ({
   }
 }))
 
-function renderLogin() {
-  return render(
-    <AuthProvider>
-      <Login />
-    </AuthProvider>
-  )
+async function renderLogin() {
+  let result;
+  await act(async () => {
+    result = render(
+      <AuthProvider>
+        <Login />
+      </AuthProvider>
+    );
+    // Wait for setup status check to complete
+    await waitFor(() => {
+      expect(screen.queryByText('Checking setup...')).not.toBeInTheDocument();
+    }, { timeout: 1000 });
+  });
+  return result;
 }
 
 describe('Login Component', () => {
@@ -30,7 +38,7 @@ describe('Login Component', () => {
   })
 
   it('should render login form', async () => {
-    renderLogin()
+    await renderLogin()
 
     expect(screen.getByRole('heading', { name: /pierre mcp admin/i })).toBeInTheDocument()
     expect(screen.getByLabelText(/email address/i)).toBeInTheDocument()
@@ -45,7 +53,7 @@ describe('Login Component', () => {
 
   it('should allow user to type in email and password fields', async () => {
     const user = userEvent.setup()
-    renderLogin()
+    await renderLogin()
 
     const emailInput = screen.getByLabelText(/email address/i)
     const passwordInput = screen.getByLabelText(/password/i)
@@ -59,7 +67,7 @@ describe('Login Component', () => {
 
   it('should require email and password fields', async () => {
     const user = userEvent.setup()
-    renderLogin()
+    await renderLogin()
 
     const submitButton = screen.getByRole('button', { name: /sign in/i })
     
@@ -78,7 +86,7 @@ describe('Login Component', () => {
     // Make login hang to test loading state
     vi.mocked(apiService.login).mockImplementation(() => new Promise(() => {}))
     
-    renderLogin()
+    await renderLogin()
 
     const emailInput = screen.getByLabelText(/email address/i)
     const passwordInput = screen.getByLabelText(/password/i)
@@ -106,7 +114,7 @@ describe('Login Component', () => {
     
     vi.mocked(apiService.login).mockRejectedValue(mockError)
     
-    renderLogin()
+    await renderLogin()
 
     const emailInput = screen.getByLabelText(/email address/i)
     const passwordInput = screen.getByLabelText(/password/i)
@@ -131,7 +139,7 @@ describe('Login Component', () => {
     
     vi.mocked(apiService.login).mockRejectedValue(new Error('Network error'))
     
-    renderLogin()
+    await renderLogin()
 
     const emailInput = screen.getByLabelText(/email address/i)
     const passwordInput = screen.getByLabelText(/password/i)
@@ -146,8 +154,8 @@ describe('Login Component', () => {
     })
   })
 
-  it('should have proper accessibility attributes', () => {
-    renderLogin()
+  it('should have proper accessibility attributes', async () => {
+    await renderLogin()
 
     const emailInput = screen.getByLabelText(/email address/i)
     const passwordInput = screen.getByLabelText(/password/i)
