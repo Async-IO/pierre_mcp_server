@@ -38,7 +38,7 @@ Pierre MCP Server is a multi-protocol fitness data API platform designed for LLM
 cargo build --release
 
 # Set up database and authentication
-cargo run --bin admin_setup -- create-admin-user
+cargo run --bin admin-setup -- create-admin-user
 
 # Start the server
 ./target/release/pierre-mcp-server

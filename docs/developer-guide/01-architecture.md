@@ -382,11 +382,18 @@ pub enum AppError {
 
 ```
 src/
-├── protocols/     # Protocol handlers (MCP, A2A, REST)
-├── business/      # Core business logic
-├── providers/     # External integrations
-├── data/         # Data access layer
-└── shared/       # Shared utilities
+├── protocols/         # Protocol handlers (MCP, A2A, REST)
+├── mcp/              # MCP protocol implementation
+├── a2a/              # A2A protocol implementation
+├── providers/        # External fitness integrations
+├── database_plugins/ # Database backends (SQLite/PostgreSQL)
+├── intelligence/     # Analytics and recommendations
+├── tenant/           # Multi-tenant management
+├── security/         # Security components
+├── oauth/            # OAuth management
+├── config/           # Configuration management
+├── crypto/           # Cryptographic utilities
+└── utils/            # Shared utilities
 ```
 
 ### Testing Strategy
