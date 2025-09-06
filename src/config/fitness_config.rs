@@ -83,22 +83,27 @@ impl FitnessConfig {
     ///
     /// Returns an error if the specified config file exists but cannot be read or parsed
     pub fn load(path: Option<String>) -> Result<Self> {
-        // Try explicit path first
-        if let Some(config_path) = path {
+        let mut config = if let Some(config_path) = path {
             if Path::new(&config_path).exists() {
-                return Self::load_from_file(&config_path);
+                Self::load_from_file(&config_path)?
+            } else {
+                Self::default()
             }
-            // If explicit path doesn't exist, use default configuration
-            return Ok(Self::default());
-        }
+        } else if let Ok(env_path) = std::env::var("FITNESS_CONFIG_PATH") {
+            if Path::new(&env_path).exists() {
+                Self::load_from_file(&env_path)?
+            } else {
+                Self::default()
+            }
+        } else if Path::new("fitness_config.toml").exists() {
+            Self::load_from_file("fitness_config.toml")?
+        } else {
+            Self::default()
+        };
 
-        // Try default fitness config file
-        if Path::new("fitness_config.toml").exists() {
-            return Self::load_from_file("fitness_config.toml");
-        }
-
-        // Use embedded default configuration
-        Ok(Self::default())
+        // Apply environment variable overrides
+        Self::apply_environment_overrides(&mut config);
+        Ok(config)
     }
 
     /// Load configuration from a specific file
@@ -128,6 +133,104 @@ impl FitnessConfig {
     #[must_use]
     pub const fn get_sport_mappings(&self) -> &HashMap<String, String> {
         &self.sport_types
+    }
+
+    /// Apply environment variable overrides to the configuration
+    fn apply_environment_overrides(config: &mut Self) {
+        Self::apply_effort_threshold_overrides(&mut config.intelligence.effort_thresholds);
+        Self::apply_zone_threshold_overrides(&mut config.intelligence.zone_thresholds);
+        Self::apply_weather_mapping_overrides(&mut config.intelligence.weather_mapping);
+        Self::apply_personal_record_overrides(&mut config.intelligence.personal_records);
+        Self::apply_weather_api_overrides(&mut config.weather_api);
+    }
+
+    /// Apply environment variable overrides for effort thresholds
+    fn apply_effort_threshold_overrides(effort_thresholds: &mut EffortThresholds) {
+        Self::parse_env_f32("FITNESS_EFFORT_LIGHT_MAX", &mut effort_thresholds.light_max);
+        Self::parse_env_f32(
+            "FITNESS_EFFORT_MODERATE_MAX",
+            &mut effort_thresholds.moderate_max,
+        );
+        Self::parse_env_f32("FITNESS_EFFORT_HARD_MAX", &mut effort_thresholds.hard_max);
+    }
+
+    /// Apply environment variable overrides for zone thresholds
+    fn apply_zone_threshold_overrides(zone_thresholds: &mut ZoneThresholds) {
+        Self::parse_env_f32(
+            "FITNESS_ZONE_RECOVERY_MAX",
+            &mut zone_thresholds.recovery_max,
+        );
+        Self::parse_env_f32(
+            "FITNESS_ZONE_ENDURANCE_MAX",
+            &mut zone_thresholds.endurance_max,
+        );
+        Self::parse_env_f32("FITNESS_ZONE_TEMPO_MAX", &mut zone_thresholds.tempo_max);
+        Self::parse_env_f32(
+            "FITNESS_ZONE_THRESHOLD_MAX",
+            &mut zone_thresholds.threshold_max,
+        );
+    }
+
+    /// Apply environment variable overrides for weather mapping
+    fn apply_weather_mapping_overrides(weather_mapping: &mut WeatherMapping) {
+        Self::parse_env_f32(
+            "FITNESS_WEATHER_WIND_THRESHOLD",
+            &mut weather_mapping.wind_threshold,
+        );
+    }
+
+    /// Apply environment variable overrides for personal record configuration
+    fn apply_personal_record_overrides(personal_records: &mut PersonalRecordConfig) {
+        Self::parse_env_f32(
+            "FITNESS_PR_PACE_IMPROVEMENT_THRESHOLD",
+            &mut personal_records.pace_improvement_threshold,
+        );
+    }
+
+    /// Apply environment variable overrides for weather API configuration
+    fn apply_weather_api_overrides(weather_api: &mut Option<WeatherApiConfig>) {
+        if let Some(ref mut api_config) = weather_api {
+            Self::parse_env_bool("FITNESS_WEATHER_ENABLED", &mut api_config.enabled);
+            Self::parse_env_u64(
+                "FITNESS_WEATHER_CACHE_DURATION_HOURS",
+                &mut api_config.cache_duration_hours,
+            );
+            Self::parse_env_u64(
+                "FITNESS_WEATHER_REQUEST_TIMEOUT_SECONDS",
+                &mut api_config.request_timeout_seconds,
+            );
+            Self::parse_env_u64(
+                "FITNESS_WEATHER_RATE_LIMIT_PER_MINUTE",
+                &mut api_config.rate_limit_requests_per_minute,
+            );
+        }
+    }
+
+    /// Parse environment variable as f32 and update target if valid
+    fn parse_env_f32(env_var: &str, target: &mut f32) {
+        if let Ok(value) = std::env::var(env_var) {
+            if let Ok(parsed) = value.parse::<f32>() {
+                *target = parsed;
+            }
+        }
+    }
+
+    /// Parse environment variable as bool and update target if valid
+    fn parse_env_bool(env_var: &str, target: &mut bool) {
+        if let Ok(value) = std::env::var(env_var) {
+            if let Ok(parsed) = value.parse::<bool>() {
+                *target = parsed;
+            }
+        }
+    }
+
+    /// Parse environment variable as u64 and update target if valid
+    fn parse_env_u64(env_var: &str, target: &mut u64) {
+        if let Ok(value) = std::env::var(env_var) {
+            if let Ok(parsed) = value.parse::<u64>() {
+                *target = parsed;
+            }
+        }
     }
 }
 
