@@ -54,31 +54,31 @@ impl ProtocolHandler {
         request: McpRequest,
         resources: &Arc<ServerResources>,
     ) -> McpResponse {
-        // Extract user authentication from request
-        let user_id = match Self::authenticate_request(&request, resources) {
-            Ok(user_id) => user_id,
-            Err(error_response) => return *error_response,
-        };
-
-        // Handle OAuth credentials if provided
+        // Handle basic initialization first (doesn't require authentication)
         let response = Self::handle_initialize_internal(request.clone(), None);
 
-        // If initialization successful and OAuth credentials provided, store them
+        // If initialization successful and OAuth credentials provided, try to store them
         if response.error.is_none() {
             if let Some(params) = &request.params {
                 if let Ok(init_request) =
                     serde_json::from_value::<InitializeRequest>(params.clone())
                 {
                     if let Some(oauth_creds) = init_request.oauth_credentials {
-                        if let Err(e) =
-                            Self::store_oauth_credentials(oauth_creds, &user_id, resources).await
-                        {
-                            warn!(
-                                "Failed to store OAuth credentials during initialization: {}",
-                                e
-                            );
+                        // Only try to store OAuth credentials if authentication is valid
+                        if let Ok(user_id) = Self::authenticate_request(&request, resources) {
+                            if let Err(e) =
+                                Self::store_oauth_credentials(oauth_creds, &user_id, resources)
+                                    .await
+                            {
+                                warn!(
+                                    "Failed to store OAuth credentials during initialization: {}",
+                                    e
+                                );
+                            } else {
+                                info!("Successfully stored OAuth credentials for user {}", user_id);
+                            }
                         } else {
-                            info!("Successfully stored OAuth credentials for user {}", user_id);
+                            warn!("OAuth credentials provided but authentication failed - credentials not stored");
                         }
                     }
                 }

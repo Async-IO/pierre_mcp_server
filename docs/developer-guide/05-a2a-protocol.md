@@ -80,10 +80,10 @@ All A2A messages follow JSON-RPC 2.0 specification:
 
 ### System User Creation
 
-Before using A2A protocol, systems must register as A2A clients. By default, the server uses shared OAuth credentials for all users. OAuth credentials can optionally be provided during registration for full control over your OAuth application:
+Before using A2A protocol, systems must register as A2A clients:
 
 ```bash
-# Register new A2A client with OAuth credentials
+# Register new A2A client
 curl -X POST http://localhost:8081/api/a2a/register \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <admin_token>" \
@@ -95,19 +95,11 @@ curl -X POST http://localhost:8081/api/a2a/register \
     "rate_limit": {
       "requests_per_minute": 100,
       "burst_size": 20
-    },
-    "oauth_credentials": {
-      "strava": {
-        "client_id": "your_strava_client_id",
-        "client_secret": "your_strava_client_secret"
-      },
-      "fitbit": {
-        "client_id": "your_fitbit_client_id",
-        "client_secret": "your_fitbit_client_secret"
-      }
     }
   }'
 ```
+
+OAuth credentials for A2A clients are managed through environment variables at the server level (shared across all A2A clients by default).
 
 **Response:**
 ```json

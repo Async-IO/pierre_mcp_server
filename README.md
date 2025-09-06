@@ -3,6 +3,8 @@
 [![CI](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml)
 [![Frontend Tests](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/frontend-tests.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/frontend-tests.yml)
 
+**Development Status**: This project is under active development. APIs and features may change.
+
 A comprehensive MCP (Model Context Protocol) server implementation for fitness data access, analytics, and intelligence. Connects AI assistants and autonomous agents to fitness providers through secure OAuth integration with advanced data analysis capabilities.
 
 ## Use Cases
@@ -192,53 +194,42 @@ JWT_TOKEN=$(curl -s -X POST http://localhost:8081/api/auth/login \
 Pierre MCP Server supports multiple methods for providing OAuth credentials for fitness providers:
 
 1. **Server-level credentials** (default): Environment variables shared across all users
-2. **Client initialization credentials** (for full control): OAuth credentials provided during MCP/A2A connection setup  
+2. **Client-specific credentials** (for full control): Environment variables in MCP client configuration  
 3. **Tenant-specific credentials**: Isolated per organization via API
 
-#### OAuth Credential Options
+#### OAuth Credential Configuration
 
-By default, Pierre MCP Server uses shared server-level OAuth credentials for all users. If you need full control over your OAuth application (custom rate limits, branding, etc.), you can provide your own credentials during client initialization:
+By default, Pierre MCP Server uses shared server-level OAuth credentials for all users. 
 
-**MCP Client Example:**
+**Alternative: Client-Specific Credentials**
+
+If you need full control over your OAuth application (custom rate limits, branding, etc.), you can optionally provide your own credentials in the MCP client configuration:
 ```json
 {
-  "method": "initialize",
-  "params": {
-    "protocolVersion": "2025-06-18",
-    "clientInfo": {"name": "MyApp", "version": "1.0.0"},
-    "capabilities": {...},
-    "oauth_credentials": {
-      "strava": {
-        "client_id": "your_client_id",
-        "client_secret": "your_client_secret"
+  "mcpServers": {
+    "pierre-fitness": {
+      "url": "http://127.0.0.1:8080/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_JWT_TOKEN"
       },
-      "fitbit": {
-        "client_id": "fitbit_client_id", 
-        "client_secret": "fitbit_client_secret"
+      "initializationOptions": {
+        "oauthCredentials": {
+          "strava": {
+            "clientId": "your_client_id",
+            "clientSecret": "your_client_secret"
+          },
+          "fitbit": {
+            "clientId": "your_fitbit_client_id",
+            "clientSecret": "your_fitbit_client_secret"
+          }
+        }
       }
     }
   }
 }
 ```
 
-**A2A Client Example:**
-```json
-{
-  "method": "initialize",
-  "params": {
-    "protocol_version": "1.0",
-    "client_info": {"name": "MyAgent", "version": "1.0.0"},
-    "oauth_credentials": {
-      "strava": {
-        "client_id": "your_client_id",
-        "client_secret": "your_client_secret"
-      }
-    }
-  }
-}
-```
-
-The server encrypts and stores these credentials securely, making them available for immediate OAuth flows without requiring additional configuration steps.
+The server will use these client-specific credentials instead of the shared server-level credentials for OAuth flows.
 
 ### Environment Variables
 

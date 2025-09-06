@@ -51,10 +51,10 @@ graph TB
 
 ### Initialization
 
-The MCP protocol starts with an initialization handshake. By default, the server uses shared OAuth credentials for all users. Clients can optionally provide their own OAuth credentials during initialization for full control over their OAuth application:
+The MCP protocol starts with an initialization handshake:
 
 ```json
-// Client -> Server (with OAuth credentials)
+// Client -> Server
 {
     "jsonrpc": "2.0",
     "id": 1,
@@ -69,16 +69,6 @@ The MCP protocol starts with an initialization handshake. By default, the server
         "clientInfo": {
             "name": "Claude",
             "version": "1.0"
-        },
-        "oauth_credentials": {
-            "strava": {
-                "client_id": "your_strava_client_id",
-                "client_secret": "your_strava_client_secret"
-            },
-            "fitbit": {
-                "client_id": "your_fitbit_client_id",
-                "client_secret": "your_fitbit_client_secret"
-            }
         }
     }
 }
@@ -100,21 +90,12 @@ The MCP protocol starts with an initialization handshake. By default, the server
         "serverInfo": {
             "name": "pierre-mcp-server",
             "version": "0.1.0"
-        },
-        "oauth_status": {
-            "strava": "credentials_stored",
-            "fitbit": "credentials_stored"
         }
     }
 }
 ```
 
-When OAuth credentials are provided during initialization, the server:
-
-1. Encrypts and stores the credentials in the `user_oauth_app_credentials` table
-2. Associates them with the authenticated user session
-3. Makes them available immediately for OAuth flows
-4. Returns status in the initialization response indicating successful storage
+OAuth credentials are managed through environment variables either at the server level (shared) or provided in the MCP client configuration (for full control).
 
 ### Tool Discovery
 
