@@ -41,9 +41,9 @@ impl PostgresDatabase {
 #[async_trait]
 impl DatabaseProvider for PostgresDatabase {
     async fn new(database_url: &str, _encryption_key: Vec<u8>) -> Result<Self> {
-        // Use very conservative connection pool for CI environments
-        let max_connections = if std::env::var("CI").is_ok() { 1 } else { 10 };
-        let min_connections = u32::from(std::env::var("CI").is_err());
+        // Use reasonable connection pool for CI environments (tests may run concurrently)
+        let max_connections = if std::env::var("CI").is_ok() { 5 } else { 10 };
+        let min_connections = u32::from(std::env::var("CI").is_ok());
         let acquire_timeout_secs = if std::env::var("CI").is_ok() { 120 } else { 30 };
 
         // Log connection pool configuration for debugging
