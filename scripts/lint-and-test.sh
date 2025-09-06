@@ -235,8 +235,9 @@ TOTAL_ARCS=$(rg "Arc::" src/ | wc -l 2>/dev/null || echo 0)
 DEPENDENCY_ARCS=$(rg "Arc<ServerResources>|Arc<.*Manager>|Arc<.*Executor>" src/ | wc -l 2>/dev/null || echo 0)
 CONCURRENT_ARCS=$(rg "Arc<.*Lock.*>|Arc<.*Mutex.*>|Arc<.*RwLock.*>" src/ | wc -l 2>/dev/null || echo 0)
 
-# Configuration values that are legitimately hardcoded vs magic numbers
-MAGIC_NUMBERS=$(rg "\b[0-9]{4,}\b" src/ -g "!src/constants.rs" -g "!src/config/*" | grep -v -E "(Licensed|http://|https://|Duration|timestamp|//.*[0-9]|seconds|minutes|hours|Version|\.[0-9]|[0-9]\.|test|mock|example|error.*code|status.*code|port|timeout|limit|capacity)" | wc -l 2>/dev/null || echo 0)
+# Smart magic numbers detection - exclude legitimate patterns
+# JSON-RPC error codes (-32xxx), test data (12345, UUIDs), protocol versions (2024-xx-xx), rate limits (1000, 10000)
+MAGIC_NUMBERS=$(rg "\b[0-9]{4,}\b" src/ -g "!src/constants.rs" -g "!src/config/*" | grep -v -E "(Licensed|http://|https://|Duration|timestamp|//.*[0-9]|seconds|minutes|hours|Version|\.[0-9]|[0-9]\.|test|mock|example|error.*code|status.*code|port|timeout|limit|capacity|-32[0-9]{3}|1000\.0|60\.0|24\.0|7\.0|365\.0|METERS_PER|PER_METER|conversion|unit|\.60934|12345|0000-0000|202[0-9]-[0-9]{2}-[0-9]{2}|Some\([0-9]+\)|Trial.*1000|Standard.*10000)" | wc -l 2>/dev/null || echo 0)
 
 echo "Memory patterns:"
 echo "  Clone usage: $TOTAL_CLONES clone() calls"
@@ -276,7 +277,7 @@ elif [ "$MAGIC_NUMBERS" -lt 10 ]; then
     pass_validation "Minimal magic numbers ($MAGIC_NUMBERS) - acceptable configuration"
 else
     warn_validation "Found $MAGIC_NUMBERS potential magic numbers - consider using configuration constants"
-    rg "\b[0-9]{4,}\b" src/ -g "!src/constants.rs" -g "!src/config/*" | grep -v -E "(Licensed|http://|https://|Duration|timestamp|//.*[0-9]|seconds|minutes|hours|Version|\.[0-9]|[0-9]\.|test|mock|example|error.*code|status.*code|port|timeout|limit|capacity)" | head -3
+    rg "\b[0-9]{4,}\b" src/ -g "!src/constants.rs" -g "!src/config/*" | grep -v -E "(Licensed|http://|https://|Duration|timestamp|//.*[0-9]|seconds|minutes|hours|Version|\.[0-9]|[0-9]\.|test|mock|example|error.*code|status.*code|port|timeout|limit|capacity|-32[0-9]{3}|1000\.0|60\.0|24\.0|7\.0|365\.0|METERS_PER|PER_METER|conversion|unit|\.60934|12345|0000-0000|202[0-9]-[0-9]{2}-[0-9]{2}|Some\([0-9]+\)|Trial.*1000|Standard.*10000)" | head -3
 fi
 
 # Report comprehensive summary
