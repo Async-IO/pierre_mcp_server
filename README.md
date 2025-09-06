@@ -5,14 +5,14 @@
 
 **Development Status**: This project is under active development. APIs and features may change.
 
-A comprehensive MCP (Model Context Protocol) server implementation for fitness data access, analytics, and intelligence. Connects AI assistants and autonomous agents to fitness providers through secure OAuth integration with advanced data analysis capabilities.
+A MCP (Model Context Protocol) server that connects AI assistants to fitness data platforms. Enables AI agents to access and analyze fitness data from providers like Strava and Fitbit through secure OAuth integration.
 
 ## Use Cases
 
 - Fitness Data Analysis: Access and analyze activities from Strava, Fitbit, and other providers
 - Performance Intelligence: Generate insights from training data with weather and location context
 - AI Assistant Integration: Enable AI assistants to work with fitness data
-- Autonomous Agent Systems: Build fitness-focused AI agents with comprehensive data access
+- Autonomous Agent Systems: Build fitness-focused AI agents with fitness data access
 - Multi-tenant Applications: Support multiple users and organizations with isolated data access
 
 ## Installation
