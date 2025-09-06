@@ -307,9 +307,3 @@ impl TenantOAuthClient {
         })
     }
 }
-
-impl Default for TenantOAuthClient {
-    fn default() -> Self {
-        Self::new(TenantOAuthManager::new())
-    }
-}

@@ -264,12 +264,15 @@ impl PluginToolExecutorBuilder {
 
     /// Build the plugin-enabled executor
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if resources were not provided
-    #[must_use]
-    pub fn build(self) -> PluginToolExecutor {
-        let resources = self.resources.expect("ServerResources required");
+    /// Returns error if resources were not provided
+    pub fn build(self) -> Result<PluginToolExecutor, ProtocolError> {
+        let resources = self.resources.ok_or_else(|| {
+            ProtocolError::ConfigurationError(
+                "ServerResources required for plugin executor".to_string(),
+            )
+        })?;
         let mut executor = PluginToolExecutor::new(resources);
 
         // Register additional dynamic plugins
@@ -279,7 +282,7 @@ impl PluginToolExecutorBuilder {
             }
         }
 
-        executor
+        Ok(executor)
     }
 }
 
