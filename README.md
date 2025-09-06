@@ -75,57 +75,59 @@ Replace `YOUR_JWT_TOKEN` with the JWT token obtained from the authentication pro
 ## Available Tools
 
 <details>
-<summary><strong>Core Fitness Data Tools</strong></summary>
+<summary>Core Fitness Data Tools</summary>
 
 | Tool | Description | Required Parameters |
 |------|-------------|-------------------|
-| `get_activities` | Fetch activities from connected providers | `limit` (optional) |
-| `get_athlete` | Get athlete profile information | None |
-| `get_stats` | Get fitness statistics and metrics | None |
-| `get_activity_intelligence` | Detailed activity analysis with context | `activity_id` |
+| `get_activities` | Get activities from fitness providers | `limit` (optional) |
+| `get_athlete` | Get athlete information | None |
+| `get_stats` | Get athlete statistics | None |
+| `get_activity_intelligence` | Get AI intelligence for activity | `activity_id` |
 | `get_connection_status` | Check provider connection status | None |
-| `disconnect_provider` | Disconnect from fitness provider | `provider` |
+| `disconnect_provider` | Disconnect and remove stored tokens for a specific fitness provider | `provider` |
 
 </details>
 
 <details>
-<summary><strong>Analytics & Performance Tools</strong></summary>
+<summary>Analytics & Performance Tools</summary>
 
 | Tool | Description | Required Parameters |
 |------|-------------|-------------------|
-| `analyze_activity` | Deep dive analysis of activities | `activity_id` |
-| `calculate_metrics` | Compute custom performance metrics | `metric_type`, `activities` |
-| `analyze_performance_trends` | Track performance over time | `time_range` (optional) |
-| `compare_activities` | Compare multiple activities | `activity_ids` |
-| `detect_patterns` | Find patterns in training data | `pattern_type` (optional) |
-| `predict_performance` | Predict future performance | `prediction_type` |
+| `analyze_activity` | Analyze an activity | `activity_id` |
+| `calculate_metrics` | Calculate advanced fitness metrics for an activity | `activity_id` |
+| `analyze_performance_trends` | Analyze performance trends over time | None |
+| `compare_activities` | Compare an activity against similar activities or personal bests | `activity_ids` |
+| `detect_patterns` | Detect patterns in training data | None |
+| `predict_performance` | Predict future performance capabilities | None |
+| `calculate_fitness_score` | Calculate comprehensive fitness score | None |
+| `analyze_training_load` | Analyze training load balance and recovery needs | None |
+| `generate_recommendations` | Generate personalized training recommendations | None |
 
 </details>
 
 <details>
-<summary><strong>Goal & Training Tools</strong></summary>
+<summary>Goal & Training Tools</summary>
 
 | Tool | Description | Required Parameters |
 |------|-------------|-------------------|
-| `create_goal` | Create new fitness goal | `goal_type`, `target_value`, `target_date` |
-| `update_goal` | Update existing goal | `goal_id`, `updates` |
-| `get_goals` | List all goals | None |
-| `delete_goal` | Delete a goal | `goal_id` |
-| `get_goal_progress` | Check progress toward goals | `goal_id` (optional) |
-| `suggest_workouts` | AI-powered workout suggestions | `goal_id` (optional), `preferences` (optional) |
+| `set_goal` | Set a fitness goal | `goal_type`, `target_value` |
+| `track_progress` | Track progress toward a specific goal | `goal_id` |
+| `suggest_goals` | Generate AI-powered goal suggestions | None |
+| `analyze_goal_feasibility` | Assess whether a goal is realistic and achievable | `goal_data` |
 
 </details>
 
 <details>
-<summary><strong>Configuration & Intelligence Tools</strong></summary>
+<summary>Configuration Tools</summary>
 
 | Tool | Description | Required Parameters |
 |------|-------------|-------------------|
-| `get_configuration` | Get current configuration | None |
-| `update_configuration` | Update system configuration | `updates` |
-| `reset_configuration` | Reset to default configuration | None |
-| `get_weather_forecast` | Get weather forecast for location | `location` |
-| `analyze_weather_impact` | Analyze weather impact on performance | `activity_id` |
+| `get_configuration_catalog` | Get the complete configuration catalog with all available parameters | None |
+| `get_configuration_profiles` | Get available configuration profiles (Research, Elite, Recreational, etc.) | None |
+| `get_user_configuration` | Get current user's configuration settings and overrides | None |
+| `update_user_configuration` | Update user's configuration parameters and session overrides | `profile` or `parameters` |
+| `calculate_personalized_zones` | Calculate personalized training zones based on user's VO2 max and configuration | None |
+| `validate_configuration` | Validate configuration parameters against safety rules and constraints | `parameters` |
 
 </details>
 
@@ -134,7 +136,12 @@ Replace `YOUR_JWT_TOKEN` with the JWT token obtained from the authentication pro
 Pierre MCP Server features a compile-time plugin architecture for extensible functionality:
 
 ```rust
-use pierre_mcp_server::plugins::prelude::*;
+use pierre_mcp_server::plugins::core::{PluginCategory, PluginImplementation, PluginInfo, PluginToolStatic};
+use pierre_mcp_server::plugins::PluginEnvironment;
+use pierre_mcp_server::protocols::universal::{UniversalRequest, UniversalResponse};
+use pierre_mcp_server::protocols::ProtocolError;
+use pierre_mcp_server::{impl_static_plugin, plugin_info, register_plugin};
+use async_trait::async_trait;
 
 pub struct CustomAnalysisPlugin;
 
@@ -151,6 +158,21 @@ impl PluginToolStatic for CustomAnalysisPlugin {
         version: "1.0.0",
     );
 }
+
+#[async_trait]
+impl PluginImplementation for CustomAnalysisPlugin {
+    async fn execute_impl(
+        &self,
+        request: UniversalRequest,
+        env: PluginEnvironment<'_>,
+    ) -> Result<UniversalResponse, ProtocolError> {
+        // Plugin implementation
+        todo!("Implement custom analysis logic")
+    }
+}
+
+// Use macro to implement required traits
+impl_static_plugin!(CustomAnalysisPlugin);
 
 // Register plugin for automatic discovery
 register_plugin!(CustomAnalysisPlugin);
@@ -290,8 +312,8 @@ vo2_max = 55.0
 
 Pierre MCP Server implements a multi-protocol, multi-tenant architecture:
 
-- **MCP Protocol**: JSON-RPC over WebSocket (port 8080)
-- **HTTP REST API**: Management and OAuth endpoints (port 8081)
+- **MCP Protocol**: JSON-RPC over stdio and HTTP transports (port 8080)
+- **HTTP REST API**: Management and OAuth endpoints (port 8081)  
 - **A2A Protocol**: Agent-to-Agent communication
 - **Plugin System**: Extensible compile-time plugin architecture
 - **Multi-tenant**: Isolated data access with tenant management
@@ -309,11 +331,12 @@ cargo test --release
 # Lint and test (comprehensive validation)
 ./scripts/lint-and-test.sh
 
-# Integration tests
-cargo test --test integration
+# MCP protocol compliance tests
+cargo test --test mcp_protocol_comprehensive_test
+cargo test --test mcp_protocol_compliance_test
 
-# MCP protocol tests
-cargo test --test mcp_protocol
+# Multi-tenant integration tests
+cargo test --test mcp_multitenant_complete_test
 ```
 
 ## Documentation
