@@ -144,6 +144,7 @@ impl MultiTenantMcpServer {
             dashboard_routes,
             a2a_routes,
             configuration_routes,
+            fitness_configuration_routes,
         ) = HttpSetup::setup_route_handlers_with_resources(&resources);
 
         // Use JWT secret from resources
@@ -192,6 +193,10 @@ impl MultiTenantMcpServer {
         let specialized_configuration_filter =
             Self::create_specialized_configuration_routes(&configuration_routes);
 
+        // Create fitness configuration routes
+        let fitness_configuration_filter =
+            Self::create_fitness_configuration_routes(&fitness_configuration_routes);
+
         // Security headers middleware
         let security_headers = Self::create_security_headers_filter(&security_config);
 
@@ -215,6 +220,7 @@ impl MultiTenantMcpServer {
             .or(configuration_filter)
             .or(user_configuration_filter)
             .or(specialized_configuration_filter)
+            .or(fitness_configuration_filter)
             .or(admin_routes_filter)
             .or(tenant_routes_filter)
             .or(health_route)
@@ -1303,6 +1309,145 @@ impl MultiTenantMcpServer {
             });
 
         config_zones.or(config_validate)
+    }
+
+    /// Create fitness configuration endpoint routes
+    // Long function: Defines complete fitness configuration API route schema
+    #[allow(clippy::too_many_lines)]
+    fn create_fitness_configuration_routes(
+        fitness_config_routes: &Arc<
+            crate::fitness_configuration_routes::FitnessConfigurationRoutes,
+        >,
+    ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+        use warp::Filter;
+
+        // List fitness configurations
+        let list_configs = warp::path("api")
+            .and(warp::path("fitness-configurations"))
+            .and(warp::path::end())
+            .and(warp::get())
+            .and(warp::header::optional::<String>("authorization"))
+            .and_then({
+                let fitness_routes = fitness_config_routes.clone();
+                move |auth_header: Option<String>| {
+                    let fitness_routes = fitness_routes.clone();
+                    async move {
+                        match fitness_routes
+                            .list_configurations(auth_header.as_deref())
+                            .await
+                        {
+                            Ok(response) => Ok(warp::reply::with_status(
+                                warp::reply::json(&response),
+                                warp::http::StatusCode::OK,
+                            )),
+                            Err(e) => {
+                                tracing::error!("List fitness configurations failed: {}", e);
+                                Err(warp::reject::custom(crate::mcp::multitenant::ApiError(
+                                    serde_json::json!({"error": e.to_string()}),
+                                )))
+                            }
+                        }
+                    }
+                }
+            });
+
+        // Get specific fitness configuration
+        let get_config = warp::path("api")
+            .and(warp::path("fitness-configurations"))
+            .and(warp::path::param::<String>())
+            .and(warp::path::end())
+            .and(warp::get())
+            .and(warp::header::optional::<String>("authorization"))
+            .and_then({
+                let fitness_routes = fitness_config_routes.clone();
+                move |config_name: String, auth_header: Option<String>| {
+                    let fitness_routes = fitness_routes.clone();
+                    async move {
+                        match fitness_routes
+                            .get_configuration(auth_header.as_deref(), &config_name)
+                            .await
+                        {
+                            Ok(response) => Ok(warp::reply::with_status(
+                                warp::reply::json(&response),
+                                warp::http::StatusCode::OK,
+                            )),
+                            Err(e) => {
+                                tracing::error!("Get fitness configuration failed: {}", e);
+                                Err(warp::reject::custom(crate::mcp::multitenant::ApiError(
+                                    serde_json::json!({"error": e.to_string()}),
+                                )))
+                            }
+                        }
+                    }
+                }
+            });
+
+        // Save user fitness configuration
+        let save_user_config = warp::path("api")
+            .and(warp::path("fitness-configurations"))
+            .and(warp::path::end())
+            .and(warp::post())
+            .and(warp::header::optional::<String>("authorization"))
+            .and(warp::body::json::<crate::fitness_configuration_routes::SaveFitnessConfigRequest>())
+            .and_then({
+                let fitness_routes = fitness_config_routes.clone();
+                move |auth_header: Option<String>, request: crate::fitness_configuration_routes::SaveFitnessConfigRequest| {
+                    let fitness_routes = fitness_routes.clone();
+                    async move {
+                        match fitness_routes
+                            .save_user_configuration(auth_header.as_deref(), request)
+                            .await
+                        {
+                            Ok(response) => Ok(warp::reply::with_status(
+                                warp::reply::json(&response),
+                                warp::http::StatusCode::CREATED,
+                            )),
+                            Err(e) => {
+                                tracing::error!("Save user fitness configuration failed: {}", e);
+                                Err(warp::reject::custom(crate::mcp::multitenant::ApiError(
+                                    serde_json::json!({"error": e.to_string()}),
+                                )))
+                            }
+                        }
+                    }
+                }
+            });
+
+        // Delete user fitness configuration
+        let delete_user_config = warp::path("api")
+            .and(warp::path("fitness-configurations"))
+            .and(warp::path::param::<String>())
+            .and(warp::path::end())
+            .and(warp::delete())
+            .and(warp::header::optional::<String>("authorization"))
+            .and_then({
+                let fitness_routes = fitness_config_routes.clone();
+                move |config_name: String, auth_header: Option<String>| {
+                    let fitness_routes = fitness_routes.clone();
+                    async move {
+                        match fitness_routes
+                            .delete_user_configuration(auth_header.as_deref(), &config_name)
+                            .await
+                        {
+                            Ok(response) => Ok(warp::reply::with_status(
+                                warp::reply::json(&response),
+                                warp::http::StatusCode::OK,
+                            )),
+                            Err(e) => {
+                                tracing::error!("Delete user fitness configuration failed: {}", e);
+                                Err(warp::reject::custom(crate::mcp::multitenant::ApiError(
+                                    serde_json::json!({"error": e.to_string()}),
+                                )))
+                            }
+                        }
+                    }
+                }
+            });
+
+        list_configs
+            .or(get_config)
+            .or(save_user_config)
+            .or(delete_user_config)
     }
 
     /// Create security headers filter

@@ -80,6 +80,9 @@ pub mod configuration;
 /// `HTTP` routes for configuration management
 pub mod configuration_routes;
 
+/// `HTTP` routes for fitness configuration management
+pub mod fitness_configuration_routes;
+
 /// A2A (Agent-to-Agent) protocol implementation
 pub mod a2a;
 

@@ -1683,4 +1683,136 @@ impl DatabaseProvider for Database {
             Self::PostgreSQL(db) => db.get_all_oauth_notifications(user_id, limit).await,
         }
     }
+
+    // ================================
+    // Fitness Configuration Management
+    // ================================
+
+    /// Save tenant-level fitness configuration
+    async fn save_tenant_fitness_config(
+        &self,
+        tenant_id: &str,
+        configuration_name: &str,
+        config: &crate::config::fitness_config::FitnessConfig,
+    ) -> Result<String> {
+        match self {
+            Self::SQLite(db) => {
+                db.save_tenant_fitness_config(tenant_id, configuration_name, config)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.save_tenant_fitness_config(tenant_id, configuration_name, config)
+                    .await
+            }
+        }
+    }
+
+    /// Save user-specific fitness configuration
+    async fn save_user_fitness_config(
+        &self,
+        tenant_id: &str,
+        user_id: &str,
+        configuration_name: &str,
+        config: &crate::config::fitness_config::FitnessConfig,
+    ) -> Result<String> {
+        match self {
+            Self::SQLite(db) => {
+                db.save_user_fitness_config(tenant_id, user_id, configuration_name, config)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.save_user_fitness_config(tenant_id, user_id, configuration_name, config)
+                    .await
+            }
+        }
+    }
+
+    /// Get tenant-level fitness configuration
+    async fn get_tenant_fitness_config(
+        &self,
+        tenant_id: &str,
+        configuration_name: &str,
+    ) -> Result<Option<crate::config::fitness_config::FitnessConfig>> {
+        match self {
+            Self::SQLite(db) => {
+                db.get_tenant_fitness_config(tenant_id, configuration_name)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.get_tenant_fitness_config(tenant_id, configuration_name)
+                    .await
+            }
+        }
+    }
+
+    /// Get user-specific fitness configuration
+    async fn get_user_fitness_config(
+        &self,
+        tenant_id: &str,
+        user_id: &str,
+        configuration_name: &str,
+    ) -> Result<Option<crate::config::fitness_config::FitnessConfig>> {
+        match self {
+            Self::SQLite(db) => {
+                db.get_user_fitness_config(tenant_id, user_id, configuration_name)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.get_user_fitness_config(tenant_id, user_id, configuration_name)
+                    .await
+            }
+        }
+    }
+
+    /// List all tenant-level fitness configuration names
+    async fn list_tenant_fitness_configurations(&self, tenant_id: &str) -> Result<Vec<String>> {
+        match self {
+            Self::SQLite(db) => db.list_tenant_fitness_configurations(tenant_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.list_tenant_fitness_configurations(tenant_id).await,
+        }
+    }
+
+    /// List all user-specific fitness configuration names
+    async fn list_user_fitness_configurations(
+        &self,
+        tenant_id: &str,
+        user_id: &str,
+    ) -> Result<Vec<String>> {
+        match self {
+            Self::SQLite(db) => {
+                db.list_user_fitness_configurations(tenant_id, user_id)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.list_user_fitness_configurations(tenant_id, user_id)
+                    .await
+            }
+        }
+    }
+
+    /// Delete fitness configuration (tenant or user-specific)
+    async fn delete_fitness_config(
+        &self,
+        tenant_id: &str,
+        user_id: Option<&str>,
+        configuration_name: &str,
+    ) -> Result<bool> {
+        match self {
+            Self::SQLite(db) => {
+                db.delete_fitness_config(tenant_id, user_id, configuration_name)
+                    .await
+            }
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => {
+                db.delete_fitness_config(tenant_id, user_id, configuration_name)
+                    .await
+            }
+        }
+    }
 }

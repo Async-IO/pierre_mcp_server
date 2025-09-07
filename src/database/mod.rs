@@ -4,6 +4,7 @@
 pub mod a2a;
 pub mod analytics;
 pub mod api_keys;
+pub mod fitness_configurations;
 pub mod oauth_notifications;
 pub mod user_oauth_tokens;
 pub mod users;
@@ -92,6 +93,9 @@ impl Database {
 
         // Tenant management tables
         self.migrate_tenant_management().await?;
+
+        // Fitness configuration tables
+        self.migrate_fitness_configurations().await?;
 
         Ok(())
     }
@@ -503,6 +507,52 @@ impl Database {
         .await?;
 
         Ok(row.map(|r| r.0))
+    }
+
+    /// Create fitness configuration tables
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if table creation fails or database connection is lost
+    async fn migrate_fitness_configurations(&self) -> Result<()> {
+        // Create fitness_configurations table
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS fitness_configurations (
+                id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+                tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                user_id TEXT,
+                configuration_name TEXT NOT NULL DEFAULT 'default',
+                config_data TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                UNIQUE(tenant_id, user_id, configuration_name)
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create indexes for fitness configurations
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_fitness_configs_tenant ON fitness_configurations(tenant_id)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_fitness_configs_user ON fitness_configurations(user_id)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_fitness_configs_tenant_user ON fitness_configurations(tenant_id, user_id)")
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Get fitness configuration manager
+    #[must_use]
+    pub fn fitness_configurations(&self) -> fitness_configurations::FitnessConfigurationManager {
+        fitness_configurations::FitnessConfigurationManager::new(self.pool.clone())
     }
 
     /// Hash sensitive data using SHA-256

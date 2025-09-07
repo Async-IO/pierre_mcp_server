@@ -4105,6 +4105,228 @@ impl DatabaseProvider for PostgresDatabase {
 
         Ok(notifications)
     }
+
+    // ================================
+    // Fitness Configuration Management
+    // ================================
+
+    /// Save tenant-level fitness configuration
+    async fn save_tenant_fitness_config(
+        &self,
+        tenant_id: &str,
+        configuration_name: &str,
+        config: &crate::config::fitness_config::FitnessConfig,
+    ) -> Result<String> {
+        let config_json = serde_json::to_string(config)?;
+
+        let result = sqlx::query(
+            r"
+            INSERT INTO fitness_configurations (tenant_id, user_id, configuration_name, config_data)
+            VALUES ($1, NULL, $2, $3)
+            ON CONFLICT (tenant_id, user_id, configuration_name) 
+            DO UPDATE SET 
+                config_data = EXCLUDED.config_data,
+                updated_at = CURRENT_TIMESTAMP
+            RETURNING id
+            ",
+        )
+        .bind(tenant_id)
+        .bind(configuration_name)
+        .bind(&config_json)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(result.get("id"))
+    }
+
+    /// Save user-specific fitness configuration
+    async fn save_user_fitness_config(
+        &self,
+        tenant_id: &str,
+        user_id: &str,
+        configuration_name: &str,
+        config: &crate::config::fitness_config::FitnessConfig,
+    ) -> Result<String> {
+        let config_json = serde_json::to_string(config)?;
+
+        let result = sqlx::query(
+            r"
+            INSERT INTO fitness_configurations (tenant_id, user_id, configuration_name, config_data)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (tenant_id, user_id, configuration_name) 
+            DO UPDATE SET 
+                config_data = EXCLUDED.config_data,
+                updated_at = CURRENT_TIMESTAMP
+            RETURNING id
+            ",
+        )
+        .bind(tenant_id)
+        .bind(user_id)
+        .bind(configuration_name)
+        .bind(&config_json)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(result.get("id"))
+    }
+
+    /// Get tenant-level fitness configuration
+    async fn get_tenant_fitness_config(
+        &self,
+        tenant_id: &str,
+        configuration_name: &str,
+    ) -> Result<Option<crate::config::fitness_config::FitnessConfig>> {
+        let result = sqlx::query(
+            r"
+            SELECT config_data FROM fitness_configurations
+            WHERE tenant_id = $1 AND user_id IS NULL AND configuration_name = $2
+            ",
+        )
+        .bind(tenant_id)
+        .bind(configuration_name)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = result {
+            let config_json: String = row.get("config_data");
+            let config: crate::config::fitness_config::FitnessConfig =
+                serde_json::from_str(&config_json)?;
+            Ok(Some(config))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Get user-specific fitness configuration
+    async fn get_user_fitness_config(
+        &self,
+        tenant_id: &str,
+        user_id: &str,
+        configuration_name: &str,
+    ) -> Result<Option<crate::config::fitness_config::FitnessConfig>> {
+        // First try to get user-specific configuration
+        let result = sqlx::query(
+            r"
+            SELECT config_data FROM fitness_configurations
+            WHERE tenant_id = $1 AND user_id = $2 AND configuration_name = $3
+            ",
+        )
+        .bind(tenant_id)
+        .bind(user_id)
+        .bind(configuration_name)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = result {
+            let config_json: String = row.get("config_data");
+            let config: crate::config::fitness_config::FitnessConfig =
+                serde_json::from_str(&config_json)?;
+            return Ok(Some(config));
+        }
+
+        // Fall back to tenant default configuration
+        let result = sqlx::query(
+            r"
+            SELECT config_data FROM fitness_configurations
+            WHERE tenant_id = $1 AND user_id IS NULL AND configuration_name = $2
+            ",
+        )
+        .bind(tenant_id)
+        .bind(configuration_name)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = result {
+            let config_json: String = row.get("config_data");
+            let config: crate::config::fitness_config::FitnessConfig =
+                serde_json::from_str(&config_json)?;
+            Ok(Some(config))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// List all tenant-level fitness configuration names
+    async fn list_tenant_fitness_configurations(&self, tenant_id: &str) -> Result<Vec<String>> {
+        let rows = sqlx::query(
+            r"
+            SELECT DISTINCT configuration_name FROM fitness_configurations
+            WHERE tenant_id = $1
+            ORDER BY configuration_name
+            ",
+        )
+        .bind(tenant_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let configurations = rows
+            .into_iter()
+            .map(|row| row.get::<String, _>("configuration_name"))
+            .collect();
+
+        Ok(configurations)
+    }
+
+    /// List all user-specific fitness configuration names
+    async fn list_user_fitness_configurations(
+        &self,
+        tenant_id: &str,
+        user_id: &str,
+    ) -> Result<Vec<String>> {
+        let rows = sqlx::query(
+            r"
+            SELECT DISTINCT configuration_name FROM fitness_configurations
+            WHERE tenant_id = $1 AND user_id = $2
+            ORDER BY configuration_name
+            ",
+        )
+        .bind(tenant_id)
+        .bind(user_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let configurations = rows
+            .into_iter()
+            .map(|row| row.get::<String, _>("configuration_name"))
+            .collect();
+
+        Ok(configurations)
+    }
+
+    /// Delete fitness configuration (tenant or user-specific)
+    async fn delete_fitness_config(
+        &self,
+        tenant_id: &str,
+        user_id: Option<&str>,
+        configuration_name: &str,
+    ) -> Result<bool> {
+        let rows_affected = if let Some(uid) = user_id {
+            sqlx::query(
+                r"
+                DELETE FROM fitness_configurations
+                WHERE tenant_id = $1 AND user_id = $2 AND configuration_name = $3
+                ",
+            )
+            .bind(tenant_id)
+            .bind(uid)
+            .bind(configuration_name)
+            .execute(&self.pool)
+            .await?
+        } else {
+            sqlx::query(
+                r"
+                DELETE FROM fitness_configurations
+                WHERE tenant_id = $1 AND user_id IS NULL AND configuration_name = $2
+                ",
+            )
+            .bind(tenant_id)
+            .bind(configuration_name)
+            .execute(&self.pool)
+            .await?
+        };
+
+        Ok(rows_affected.rows_affected() > 0)
+    }
 }
 
 impl PostgresDatabase {
