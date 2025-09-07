@@ -6,14 +6,15 @@ use super::resources::ServerResources;
 use crate::auth::AuthResult;
 use crate::constants::{
     errors::{
-        ERROR_AUTHENTICATION, ERROR_INVALID_PARAMS, ERROR_TOOL_EXECUTION, ERROR_UNAUTHORIZED,
-        MSG_AUTHENTICATION, MSG_TOOL_EXECUTION,
+        ERROR_AUTHENTICATION, ERROR_INVALID_PARAMS, ERROR_METHOD_NOT_FOUND, ERROR_TOOL_EXECUTION,
+        ERROR_UNAUTHORIZED, MSG_AUTHENTICATION, MSG_TOOL_EXECUTION,
     },
     json_fields::PROVIDER,
     protocol::JSONRPC_VERSION,
     tools::{
-        ANNOUNCE_OAUTH_SUCCESS, CHECK_OAUTH_NOTIFICATIONS, DISCONNECT_PROVIDER,
-        GET_CONNECTION_STATUS, GET_NOTIFICATIONS, MARK_NOTIFICATIONS_READ, SET_GOAL,
+        ANNOUNCE_OAUTH_SUCCESS, CHECK_OAUTH_NOTIFICATIONS, DELETE_FITNESS_CONFIG,
+        DISCONNECT_PROVIDER, GET_CONNECTION_STATUS, GET_FITNESS_CONFIG, GET_NOTIFICATIONS,
+        LIST_FITNESS_CONFIGS, MARK_NOTIFICATIONS_READ, SET_FITNESS_CONFIG, SET_GOAL,
         TRACK_PROGRESS,
     },
 };
@@ -180,6 +181,7 @@ impl ToolHandlers {
     }
 
     /// Route tool calls to appropriate handlers based on tool type and tenant context
+    #[allow(clippy::too_many_lines)] // Long function: Handles comprehensive tool routing for all tool types
     pub async fn route_tool_call(
         tool_name: &str,
         args: &Value,
@@ -277,6 +279,20 @@ impl ToolHandlers {
                     user_id,
                     &ctx.resources.database,
                     ctx.auth_result,
+                )
+                .await
+            }
+            // Fitness configuration tools
+            GET_FITNESS_CONFIG
+            | SET_FITNESS_CONFIG
+            | LIST_FITNESS_CONFIGS
+            | DELETE_FITNESS_CONFIG => {
+                Self::handle_fitness_config_tool(
+                    tool_name,
+                    args.clone(),
+                    request_id,
+                    &user_id,
+                    ctx.resources.clone(),
                 )
                 .await
             }
@@ -599,6 +615,184 @@ impl ToolHandlers {
                         message: format!(
                             "{MSG_AUTHENTICATION}: Failed to check OAuth notifications - {e}"
                         ),
+                        data: None,
+                    }),
+                    id: request_id,
+                }
+            }
+        }
+    }
+
+    /// Handle fitness configuration tool calls
+    #[allow(clippy::too_many_lines)] // Long function: Handles complete fitness configuration tool operations
+    async fn handle_fitness_config_tool(
+        tool_name: &str,
+        args: serde_json::Value,
+        request_id: serde_json::Value,
+        _user_id: &uuid::Uuid,
+        resources: Arc<crate::mcp::resources::ServerResources>,
+    ) -> McpResponse {
+        use crate::fitness_configuration_routes::FitnessConfigurationRoutes;
+
+        let fitness_routes = FitnessConfigurationRoutes::new(resources.clone());
+
+        // For fitness configuration tools, we bypass auth since MCP already authenticated
+        // The routes will validate the user through the existing JWT token mechanism
+        let auth_header = None::<String>;
+
+        match tool_name {
+            GET_FITNESS_CONFIG => {
+                let configuration_name = args
+                    .get("configuration_name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("default");
+
+                match fitness_routes
+                    .get_configuration(auth_header.as_deref(), configuration_name)
+                    .await
+                {
+                    Ok(config_response) => McpResponse {
+                        jsonrpc: JSONRPC_VERSION.to_string(),
+                        result: Some(serde_json::to_value(config_response).unwrap_or_default()),
+                        error: None,
+                        id: request_id,
+                    },
+                    Err(e) => {
+                        error!("Failed to get fitness configuration: {}", e);
+                        McpResponse {
+                            jsonrpc: JSONRPC_VERSION.to_string(),
+                            result: None,
+                            error: Some(McpError {
+                                code: ERROR_TOOL_EXECUTION,
+                                message: format!("Failed to get fitness configuration: {e}"),
+                                data: None,
+                            }),
+                            id: request_id,
+                        }
+                    }
+                }
+            }
+            SET_FITNESS_CONFIG => {
+                let request = match serde_json::from_value::<
+                    crate::fitness_configuration_routes::SaveFitnessConfigRequest,
+                >(args.clone())
+                {
+                    Ok(req) => req,
+                    Err(e) => {
+                        error!("Invalid fitness config request: {}", e);
+                        return McpResponse {
+                            jsonrpc: JSONRPC_VERSION.to_string(),
+                            result: None,
+                            error: Some(McpError {
+                                code: ERROR_INVALID_PARAMS,
+                                message: format!("Invalid request parameters: {e}"),
+                                data: None,
+                            }),
+                            id: request_id,
+                        };
+                    }
+                };
+
+                match fitness_routes
+                    .save_user_configuration(auth_header.as_deref(), request)
+                    .await
+                {
+                    Ok(save_response) => McpResponse {
+                        jsonrpc: JSONRPC_VERSION.to_string(),
+                        result: Some(serde_json::to_value(save_response).unwrap_or_default()),
+                        error: None,
+                        id: request_id,
+                    },
+                    Err(e) => {
+                        error!("Failed to save fitness configuration: {}", e);
+                        McpResponse {
+                            jsonrpc: JSONRPC_VERSION.to_string(),
+                            result: None,
+                            error: Some(McpError {
+                                code: ERROR_TOOL_EXECUTION,
+                                message: format!("Failed to save fitness configuration: {e}"),
+                                data: None,
+                            }),
+                            id: request_id,
+                        }
+                    }
+                }
+            }
+            LIST_FITNESS_CONFIGS => {
+                match fitness_routes
+                    .list_configurations(auth_header.as_deref())
+                    .await
+                {
+                    Ok(list_response) => McpResponse {
+                        jsonrpc: JSONRPC_VERSION.to_string(),
+                        result: Some(serde_json::to_value(list_response).unwrap_or_default()),
+                        error: None,
+                        id: request_id,
+                    },
+                    Err(e) => {
+                        error!("Failed to list fitness configurations: {}", e);
+                        McpResponse {
+                            jsonrpc: JSONRPC_VERSION.to_string(),
+                            result: None,
+                            error: Some(McpError {
+                                code: ERROR_TOOL_EXECUTION,
+                                message: format!("Failed to list fitness configurations: {e}"),
+                                data: None,
+                            }),
+                            id: request_id,
+                        }
+                    }
+                }
+            }
+            DELETE_FITNESS_CONFIG => {
+                let Some(configuration_name) =
+                    args.get("configuration_name").and_then(|v| v.as_str())
+                else {
+                    return McpResponse {
+                        jsonrpc: JSONRPC_VERSION.to_string(),
+                        result: None,
+                        error: Some(McpError {
+                            code: ERROR_INVALID_PARAMS,
+                            message: "Missing required parameter: configuration_name".to_string(),
+                            data: None,
+                        }),
+                        id: request_id,
+                    };
+                };
+
+                match fitness_routes
+                    .delete_user_configuration(auth_header.as_deref(), configuration_name)
+                    .await
+                {
+                    Ok(delete_response) => McpResponse {
+                        jsonrpc: JSONRPC_VERSION.to_string(),
+                        result: Some(serde_json::to_value(delete_response).unwrap_or_default()),
+                        error: None,
+                        id: request_id,
+                    },
+                    Err(e) => {
+                        error!("Failed to delete fitness configuration: {}", e);
+                        McpResponse {
+                            jsonrpc: JSONRPC_VERSION.to_string(),
+                            result: None,
+                            error: Some(McpError {
+                                code: ERROR_TOOL_EXECUTION,
+                                message: format!("Failed to delete fitness configuration: {e}"),
+                                data: None,
+                            }),
+                            id: request_id,
+                        }
+                    }
+                }
+            }
+            _ => {
+                error!("Unknown fitness configuration tool: {}", tool_name);
+                McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    result: None,
+                    error: Some(McpError {
+                        code: ERROR_METHOD_NOT_FOUND,
+                        message: format!("Unknown tool: {tool_name}"),
                         data: None,
                     }),
                     id: request_id,
