@@ -15,8 +15,8 @@ fn test_mcp_tool_schemas() {
     // Test that all analytics tools are properly defined
     let tools = get_tools();
 
-    // Should have all 29 tools (23 fitness + 6 configuration)
-    assert_eq!(tools.len(), 29);
+    // Should have all 33 tools (27 fitness + 6 configuration)
+    assert_eq!(tools.len(), 33);
 
     // Check key analytics tools are present
     let tool_names: Vec<&str> = tools.iter().map(|t| t.name.as_str()).collect();
@@ -49,6 +49,12 @@ fn test_mcp_tool_schemas() {
     assert!(tool_names.contains(&"calculate_fitness_score"));
     assert!(tool_names.contains(&"predict_performance"));
     assert!(tool_names.contains(&"analyze_training_load"));
+
+    // Fitness configuration tools
+    assert!(tool_names.contains(&"get_fitness_config"));
+    assert!(tool_names.contains(&"set_fitness_config"));
+    assert!(tool_names.contains(&"list_fitness_configs"));
+    assert!(tool_names.contains(&"delete_fitness_config"));
 }
 
 #[test]

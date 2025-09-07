@@ -526,6 +526,11 @@ pub mod tools {
     pub const CALCULATE_FITNESS_SCORE: &str = "calculate_fitness_score";
     pub const PREDICT_PERFORMANCE: &str = "predict_performance";
     pub const ANALYZE_TRAINING_LOAD: &str = "analyze_training_load";
+    /// Fitness configuration management
+    pub const GET_FITNESS_CONFIG: &str = "get_fitness_config";
+    pub const SET_FITNESS_CONFIG: &str = "set_fitness_config";
+    pub const LIST_FITNESS_CONFIGS: &str = "list_fitness_configs";
+    pub const DELETE_FITNESS_CONFIG: &str = "delete_fitness_config";
 }
 
 /// Common `JSON` field names

@@ -15,9 +15,10 @@
 use crate::constants::{
     json_fields::{ACTIVITY_ID, LIMIT, OFFSET, PROVIDER},
     tools::{
-        ANALYZE_ACTIVITY, ANNOUNCE_OAUTH_SUCCESS, CHECK_OAUTH_NOTIFICATIONS, DISCONNECT_PROVIDER,
-        GET_ACTIVITIES, GET_ACTIVITY_INTELLIGENCE, GET_ATHLETE, GET_CONNECTION_STATUS,
-        GET_NOTIFICATIONS, GET_STATS, MARK_NOTIFICATIONS_READ,
+        ANALYZE_ACTIVITY, ANNOUNCE_OAUTH_SUCCESS, CHECK_OAUTH_NOTIFICATIONS, DELETE_FITNESS_CONFIG,
+        DISCONNECT_PROVIDER, GET_ACTIVITIES, GET_ACTIVITY_INTELLIGENCE, GET_ATHLETE,
+        GET_CONNECTION_STATUS, GET_FITNESS_CONFIG, GET_NOTIFICATIONS, GET_STATS,
+        LIST_FITNESS_CONFIGS, MARK_NOTIFICATIONS_READ, SET_FITNESS_CONFIG,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -353,6 +354,11 @@ fn create_fitness_tools() -> Vec<ToolSchema> {
         create_update_user_configuration_tool(),
         create_calculate_personalized_zones_tool(),
         create_validate_configuration_tool(),
+        // Fitness Configuration Management Tools
+        create_get_fitness_config_tool(),
+        create_set_fitness_config_tool(),
+        create_list_fitness_configs_tool(),
+        create_delete_fitness_config_tool(),
     ]
 }
 
@@ -1341,6 +1347,102 @@ fn create_check_oauth_notifications_tool() -> ToolSchema {
             schema_type: "object".into(),
             properties: None,
             required: None,
+        },
+    }
+}
+
+// === FITNESS CONFIGURATION TOOLS ===
+
+/// Create the `get_fitness_config` tool schema
+fn create_get_fitness_config_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "configuration_name".to_string(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some(
+                "Name of the fitness configuration to retrieve (defaults to 'default')".into(),
+            ),
+        },
+    );
+
+    ToolSchema {
+        name: GET_FITNESS_CONFIG.to_string(),
+        description: "Get fitness configuration settings including heart rate zones, power zones, and training parameters".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec![]), // configuration_name is optional
+        },
+    }
+}
+
+/// Create the `set_fitness_config` tool schema
+fn create_set_fitness_config_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "configuration_name".to_string(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some(
+                "Name of the fitness configuration to save (defaults to 'default')".into(),
+            ),
+        },
+    );
+
+    properties.insert(
+        "configuration".to_string(),
+        PropertySchema {
+            property_type: "object".into(),
+            description: Some("Fitness configuration object containing zones, thresholds, and training parameters".into()),
+        },
+    );
+
+    ToolSchema {
+        name: SET_FITNESS_CONFIG.to_string(),
+        description: "Save fitness configuration settings for heart rate zones, power zones, and training parameters".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec!["configuration".to_string()]), // configuration is required
+        },
+    }
+}
+
+/// Create the `list_fitness_configs` tool schema
+fn create_list_fitness_configs_tool() -> ToolSchema {
+    ToolSchema {
+        name: LIST_FITNESS_CONFIGS.to_string(),
+        description: "List all available fitness configuration names for the user".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(HashMap::new()),
+            required: Some(vec![]),
+        },
+    }
+}
+
+/// Create the `delete_fitness_config` tool schema
+fn create_delete_fitness_config_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    properties.insert(
+        "configuration_name".to_string(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("Name of the fitness configuration to delete".into()),
+        },
+    );
+
+    ToolSchema {
+        name: DELETE_FITNESS_CONFIG.to_string(),
+        description: "Delete a specific fitness configuration by name".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec!["configuration_name".to_string()]),
         },
     }
 }
