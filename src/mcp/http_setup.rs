@@ -16,6 +16,7 @@ use crate::a2a_routes::A2ARoutes;
 use crate::api_key_routes::ApiKeyRoutes;
 use crate::configuration_routes::ConfigurationRoutes;
 use crate::dashboard_routes::DashboardRoutes;
+use crate::fitness_configuration_routes::FitnessConfigurationRoutes;
 use crate::routes::{AuthRoutes, OAuthRoutes};
 use std::sync::Arc;
 
@@ -48,6 +49,7 @@ impl HttpSetup {
         DashboardRoutes,
         A2ARoutes,
         Arc<ConfigurationRoutes>,
+        Arc<FitnessConfigurationRoutes>,
     ) {
         let auth_routes = AuthRoutes::new(resources.clone());
         let oauth_routes = OAuthRoutes::new(resources.clone());
@@ -55,6 +57,8 @@ impl HttpSetup {
         let dashboard_routes = DashboardRoutes::new(resources.clone());
         let a2a_routes = A2ARoutes::new(resources.clone());
         let configuration_routes = Arc::new(ConfigurationRoutes::new(resources.clone()));
+        let fitness_configuration_routes =
+            Arc::new(FitnessConfigurationRoutes::new(resources.clone()));
 
         (
             auth_routes,
@@ -63,6 +67,7 @@ impl HttpSetup {
             dashboard_routes,
             a2a_routes,
             configuration_routes,
+            fitness_configuration_routes,
         )
     }
 

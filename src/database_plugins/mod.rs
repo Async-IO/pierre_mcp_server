@@ -642,4 +642,58 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         user_id: Uuid,
         limit: Option<i64>,
     ) -> Result<Vec<crate::database::oauth_notifications::OAuthNotification>>;
+
+    // ================================
+    // Fitness Configuration Management
+    // ================================
+
+    /// Save tenant-level fitness configuration
+    async fn save_tenant_fitness_config(
+        &self,
+        tenant_id: &str,
+        configuration_name: &str,
+        config: &crate::config::fitness_config::FitnessConfig,
+    ) -> Result<String>;
+
+    /// Save user-specific fitness configuration
+    async fn save_user_fitness_config(
+        &self,
+        tenant_id: &str,
+        user_id: &str,
+        configuration_name: &str,
+        config: &crate::config::fitness_config::FitnessConfig,
+    ) -> Result<String>;
+
+    /// Get tenant-level fitness configuration
+    async fn get_tenant_fitness_config(
+        &self,
+        tenant_id: &str,
+        configuration_name: &str,
+    ) -> Result<Option<crate::config::fitness_config::FitnessConfig>>;
+
+    /// Get user-specific fitness configuration
+    async fn get_user_fitness_config(
+        &self,
+        tenant_id: &str,
+        user_id: &str,
+        configuration_name: &str,
+    ) -> Result<Option<crate::config::fitness_config::FitnessConfig>>;
+
+    /// List all tenant-level fitness configuration names
+    async fn list_tenant_fitness_configurations(&self, tenant_id: &str) -> Result<Vec<String>>;
+
+    /// List all user-specific fitness configuration names
+    async fn list_user_fitness_configurations(
+        &self,
+        tenant_id: &str,
+        user_id: &str,
+    ) -> Result<Vec<String>>;
+
+    /// Delete fitness configuration (tenant or user-specific)
+    async fn delete_fitness_config(
+        &self,
+        tenant_id: &str,
+        user_id: Option<&str>,
+        configuration_name: &str,
+    ) -> Result<bool>;
 }

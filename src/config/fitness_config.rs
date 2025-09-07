@@ -135,6 +135,47 @@ impl FitnessConfig {
         &self.sport_types
     }
 
+    /// Load fitness configuration with database-first approach
+    ///
+    /// This method follows a hierarchical loading pattern:
+    /// 1. Database (tenant + user-specific configuration) - highest priority
+    /// 2. Database (tenant default configuration)
+    /// 3. Environment variables (override file/default values)
+    /// 4. File configuration
+    /// 5. Built-in defaults - lowest priority
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database operation fails or configuration parsing fails
+    pub async fn load_for_user(
+        db_manager: Option<&crate::database::fitness_configurations::FitnessConfigurationManager>,
+        tenant_id: Option<&str>,
+        user_id: Option<&str>,
+        configuration_name: Option<&str>,
+        file_path: Option<String>,
+    ) -> Result<Self> {
+        let config_name = configuration_name.unwrap_or("default");
+
+        // Try database first if available
+        if let (Some(db), Some(tenant)) = (db_manager, tenant_id) {
+            // Try user-specific config first, then tenant default
+            let db_config = if let Some(uid) = user_id {
+                db.get_user_config(tenant, uid, config_name).await?
+            } else {
+                db.get_tenant_config(tenant, config_name).await?
+            };
+
+            if let Some(mut config) = db_config {
+                // Apply environment variable overrides even for database configs
+                Self::apply_environment_overrides(&mut config);
+                return Ok(config);
+            }
+        }
+
+        // Fall back to file-based loading with environment overrides
+        Self::load(file_path)
+    }
+
     /// Apply environment variable overrides to the configuration
     fn apply_environment_overrides(config: &mut Self) {
         Self::apply_effort_threshold_overrides(&mut config.intelligence.effort_thresholds);
