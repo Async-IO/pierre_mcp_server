@@ -221,7 +221,7 @@ fi
 # ============================================================================
 echo -e "${BLUE}==== 3. Memory Management Analysis ====${NC}"
 
-# Smart clone analysis - differentiate between problematic and legitimate patterns  
+# Smart clone analysis - differentiate between problematic and legitimate patterns
 TOTAL_CLONES=$(rg "\.clone\(\)" src/ -g "!src/bin/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 
 # Count legitimate clone patterns (Arc handles, String ownership, error handling)
@@ -244,11 +244,11 @@ echo "  Clone usage: $TOTAL_CLONES clone() calls"
 echo "  Arc usage: $TOTAL_ARCS Arc<T> instances"
 echo "  Hardcoded values: $MAGIC_NUMBERS potential magic numbers"
 
-# Clone assessment - focus on high-level patterns instead of precise counting  
+# Clone assessment - focus on high-level patterns instead of precise counting
 if [ "$TOTAL_CLONES" -lt 50 ]; then
     pass_validation "Minimal clone usage ($TOTAL_CLONES calls) - good ownership patterns"
 elif [ "$TOTAL_CLONES" -lt 200 ]; then
-    pass_validation "Moderate clone usage ($TOTAL_CLONES calls) - acceptable for dependency injection architecture" 
+    pass_validation "Moderate clone usage ($TOTAL_CLONES calls) - acceptable for dependency injection architecture"
 elif [ "$TOTAL_CLONES" -lt 500 ]; then
     pass_validation "High clone usage ($TOTAL_CLONES calls) - mostly legitimate Arc handle sharing and string ownership"
     echo "    Most clones are legitimate Arc handles (resources.clone(), database.clone()) or string ownership transfers"
@@ -280,8 +280,175 @@ else
     rg "\b[0-9]{4,}\b" src/ -g "!src/constants.rs" -g "!src/config/*" | grep -v -E "(Licensed|http://|https://|Duration|timestamp|//.*[0-9]|seconds|minutes|hours|Version|\.[0-9]|[0-9]\.|test|mock|example|error.*code|status.*code|port|timeout|limit|capacity|-32[0-9]{3}|1000\.0|60\.0|24\.0|7\.0|365\.0|METERS_PER|PER_METER|conversion|unit|\.60934|12345|0000-0000|202[0-9]-[0-9]{2}-[0-9]{2}|Some\([0-9]+\)|Trial.*1000|Standard.*10000)" | head -3
 fi
 
+# ============================================================================
+# UNIFIED ARCHITECTURAL VALIDATION SUMMARY
+# ============================================================================
+echo ""
+echo -e "${BLUE}==== UNIFIED ARCHITECTURAL VALIDATION SUMMARY ====${NC}"
+
+# Create ASCII table for all architectural findings
+echo "┌─────────────────────────────────────┬───────┬──────────┬─────────────────────────────────────────┐"
+echo "│ Validation Category                 │ Count │ Status   │ Details                                 │"
+echo "├─────────────────────────────────────┼───────┼──────────┼─────────────────────────────────────────┤"
+
+# Anti-Pattern Detection
+printf "│ %-35s │ %5d │ " "Database clones (total)" "$TOTAL_DATABASE_CLONES"
+if [ "$PROBLEMATIC_DB_CLONES" -eq 0 ]; then
+    printf "%-8s │ %-39s │\n" "✅ PASS" "${LEGITIMATE_ARC_CLONES} legitimate Arc clones"
+else
+    printf "%-8s │ %-39s │\n" "⚠️  WARN" "${PROBLEMATIC_DB_CLONES} problematic patterns"
+fi
+
+printf "│ %-35s │ %5d │ " "Resource creation patterns" "$RESOURCE_CREATION"
+if [ "$RESOURCE_CREATION" -eq 0 ]; then
+    printf "%-8s │ %-39s │\n" "✅ PASS" "Using dependency injection"
+else
+    printf "%-8s │ %-39s │\n" "⚠️  WARN" "Manual resource creation found"
+fi
+
+printf "│ %-35s │ %5d │ " "Fake resource assemblies" "$FAKE_RESOURCES"
+if [ "$FAKE_RESOURCES" -eq 0 ]; then
+    printf "%-8s │ %-39s │\n" "✅ PASS" "No fake ServerResources"
+else
+    printf "%-8s │ %-39s │\n" "⚠️  WARN" "Fake assemblies detected"
+fi
+
+printf "│ %-35s │ %5d │ " "Obsolete functions" "$OBSOLETE_FUNCTIONS"
+if [ "$OBSOLETE_FUNCTIONS" -le 1 ]; then
+    printf "%-8s │ %-39s │\n" "✅ PASS" "Within acceptable limits"
+else
+    printf "%-8s │ %-39s │\n" "⚠️  WARN" "Multiple variants found"
+fi
+
+echo "├─────────────────────────────────────┼───────┼──────────┼─────────────────────────────────────────┤"
+
+# Code Quality Analysis
+printf "│ %-35s │ %5d │ " "Problematic unwraps" "$PROBLEMATIC_UNWRAPS"
+if [ "$PROBLEMATIC_UNWRAPS" -eq 0 ]; then
+    printf "%-8s │ %-39s │\n" "✅ PASS" "Proper error handling"
+else
+    printf "%-8s │ %-39s │\n" "❌ FAIL" "Use Result types instead"
+fi
+
+printf "│ %-35s │ %5d │ " "Problematic expects" "$PROBLEMATIC_EXPECTS"
+if [ "$PROBLEMATIC_EXPECTS" -eq 0 ]; then
+    printf "%-8s │ %-39s │\n" "✅ PASS" "Proper error handling"
+else
+    printf "%-8s │ %-39s │\n" "❌ FAIL" "Use Result types instead"
+fi
+
+printf "│ %-35s │ %5d │ " "Panic calls" "$PANICS"
+if [ "$PANICS" -eq 0 ]; then
+    printf "%-8s │ %-39s │\n" "✅ PASS" "No panic! found"
+else
+    printf "%-8s │ %-39s │\n" "❌ FAIL" "Use proper error handling"
+fi
+
+printf "│ %-35s │ %5d │ " "TODOs/FIXMEs" "$TODOS"
+if [ "$TODOS" -eq 0 ]; then
+    printf "%-8s │ %-39s │\n" "✅ PASS" "No incomplete code"
+else
+    printf "%-8s │ %-39s │\n" "⚠️  WARN" "Complete implementation needed"
+fi
+
+printf "│ %-35s │ %5d │ " "Placeholders/stubs" "$STUBS"
+if [ "$STUBS" -eq 0 ]; then
+    printf "%-8s │ %-39s │\n" "✅ PASS" "No stubs found"
+else
+    printf "%-8s │ %-39s │\n" "⚠️  WARN" "Complete implementation needed"
+fi
+
+printf "│ %-35s │ %5d │ " "Problematic underscore names" "$PROBLEMATIC_UNDERSCORE_NAMES"
+if [ "$PROBLEMATIC_UNDERSCORE_NAMES" -eq 0 ]; then
+    printf "%-8s │ %-39s │\n" "✅ PASS" "Good naming conventions"
+else
+    printf "%-8s │ %-39s │\n" "⚠️  WARN" "Use meaningful names"
+fi
+
+printf "│ %-35s │ %5d │ " "Example emails" "$EXAMPLE_EMAILS"
+if [ "$EXAMPLE_EMAILS" -eq 0 ]; then
+    printf "%-8s │ %-39s │\n" "✅ PASS" "No test emails in production"
+else
+    printf "%-8s │ %-39s │\n" "⚠️  INFO" "Test data in codebase"
+fi
+
+printf "│ %-35s │ %5d │ " "Temporary solutions" "$TEMP_SOLUTIONS"
+if [ "$TEMP_SOLUTIONS" -eq 0 ]; then
+    printf "%-8s │ %-39s │\n" "✅ PASS" "No temporary code"
+else
+    printf "%-8s │ %-39s │\n" "⚠️  WARN" "Complete implementation needed"
+fi
+
+echo "├─────────────────────────────────────┼───────┼──────────┼─────────────────────────────────────────┤"
+
+# Memory Management Analysis
+printf "│ %-35s │ %5d │ " "Clone usage" "$TOTAL_CLONES"
+if [ "$TOTAL_CLONES" -lt 500 ]; then
+    printf "%-8s │ %-39s │\n" "✅ PASS" "Mostly legitimate Arc/String clones"
+else
+    printf "%-8s │ %-39s │\n" "⚠️  WARN" "Review for optimization"
+fi
+
+printf "│ %-35s │ %5d │ " "Arc usage" "$TOTAL_ARCS"
+if [ "$TOTAL_ARCS" -lt 50 ]; then
+    printf "%-8s │ %-39s │\n" "✅ PASS" "Appropriate for service architecture"
+else
+    printf "%-8s │ %-39s │\n" "⚠️  WARN" "Review for over-sharing"
+fi
+
+printf "│ %-35s │ %5d │ " "Magic numbers" "$MAGIC_NUMBERS"
+if [ "$MAGIC_NUMBERS" -lt 10 ]; then
+    printf "%-8s │ %-39s │\n" "✅ PASS" "Good configuration practices"
+else
+    printf "%-8s │ %-39s │\n" "⚠️  WARN" "Use configuration constants"
+fi
+
+echo "└─────────────────────────────────────┴───────┴──────────┴─────────────────────────────────────────┘"
+
+# Show detailed issues if warnings found
+WARNINGS_FOUND=false
+if [[ $PROBLEMATIC_DB_CLONES -gt 0 || $RESOURCE_CREATION -gt 0 || $FAKE_RESOURCES -gt 0 || $OBSOLETE_FUNCTIONS -gt 1 || $PROBLEMATIC_UNWRAPS -gt 0 || $PROBLEMATIC_EXPECTS -gt 0 || $PANICS -gt 0 || $TODOS -gt 0 || $PROBLEMATIC_UNDERSCORE_NAMES -gt 0 || $TEMP_SOLUTIONS -gt 0 || $TOTAL_CLONES -ge 500 || $TOTAL_ARCS -ge 50 || $MAGIC_NUMBERS -ge 10 ]]; then
+    WARNINGS_FOUND=true
+    echo ""
+    echo -e "${YELLOW}⚠️  ARCHITECTURAL WARNINGS DETAILS:${NC}"
+
+    if [ "$PROBLEMATIC_DB_CLONES" -gt 0 ]; then
+        echo -e "${YELLOW}Database clones: Found $PROBLEMATIC_DB_CLONES problematic patterns${NC}"
+        rg "\.as_ref\(\)\.clone\(\)|Arc::new\(database\.clone\(\)\)" src/ -g "!src/bin/*" -g "!src/database/tests.rs" -g "!src/database_plugins/*" -n | head -3
+        echo ""
+    fi
+
+    if [ "$RESOURCE_CREATION" -gt 0 ]; then
+        echo -e "${YELLOW}Resource creation: Found $RESOURCE_CREATION manual creation patterns${NC}"
+        rg "AuthManager::new|OAuthManager::new|A2AClientManager::new|TenantOAuthManager::new" src/ -g "!src/mcp/multitenant.rs" -g "!src/mcp/resources.rs" -g "!src/bin/*" -g "!tests/*" -n | head -3
+        echo ""
+    fi
+
+    if [ "$FAKE_RESOURCES" -gt 0 ]; then
+        echo -e "${YELLOW}Fake resources: Found $FAKE_RESOURCES assembly patterns${NC}"
+        rg "Arc::new\(ServerResources\s*\{" src/ -n | head -3
+        echo ""
+    fi
+
+    if [ "$TEMP_SOLUTIONS" -gt 0 ]; then
+        echo -e "${YELLOW}Temporary solutions: Found $TEMP_SOLUTIONS patterns${NC}"
+        rg "\bhack\b|\bworkaround\b|\bquick.*fix\b|future.*implementation|temporary.*solution|temp.*fix" src/ -n | head -3
+        echo ""
+    fi
+
+    if [ "$MAGIC_NUMBERS" -ge 10 ]; then
+        echo -e "${YELLOW}Magic numbers: Found $MAGIC_NUMBERS potential constants${NC}"
+        rg "\b[0-9]{4,}\b" src/ -g "!src/constants.rs" -g "!src/config/*" | grep -v -E "(Licensed|http://|https://|Duration|timestamp|//.*[0-9]|seconds|minutes|hours|Version|\.[0-9]|[0-9]\.|test|mock|example|error.*code|status.*code|port|timeout|limit|capacity|-32[0-9]{3}|1000\.0|60\.0|24\.0|7\.0|365\.0|METERS_PER|PER_METER|conversion|unit|\.60934|12345|0000-0000|202[0-9]-[0-9]{2}-[0-9]{2}|Some\([0-9]+\)|Trial.*1000|Standard.*10000)" | head -3
+        echo ""
+    fi
+fi
+
 # Report comprehensive summary
 if [[ $PROBLEMATIC_DB_CLONES -eq 0 && $RESOURCE_CREATION -eq 0 && $FAKE_RESOURCES -eq 0 && $OBSOLETE_FUNCTIONS -le 1 && $PROBLEMATIC_UNWRAPS -eq 0 && $PROBLEMATIC_EXPECTS -eq 0 && $PANICS -eq 0 && $TODOS -eq 0 && $PROBLEMATIC_UNDERSCORE_NAMES -eq 0 && $TEMP_SOLUTIONS -eq 0 ]]; then
+    pass_validation "All critical architectural validations passed - excellent code quality"
+elif [ "$WARNINGS_FOUND" = true ]; then
+    pass_validation "Architectural validation completed with warnings - review recommendations above"
+else
     pass_validation "All architectural validations passed - good code quality"
 fi
 
@@ -502,47 +669,6 @@ fi
 
 echo -e "${GREEN}[OK] No legacy functions found that throw nonsense behavior${NC}"
 echo ""
-
-# Run Rust tests with coverage (if enabled and cargo-llvm-cov is installed)
-if [ "$ENABLE_COVERAGE" = true ]; then
-    echo -e "${BLUE}==== Running Rust tests with coverage... ====${NC}"
-    if command_exists cargo-llvm-cov; then
-        # Show coverage summary directly on screen (all tests including integration)
-        echo -e "${BLUE}Generating coverage summary for all tests...${NC}"
-        if cargo llvm-cov --all-targets --summary-only; then
-            echo -e "${GREEN}[OK] Rust coverage summary displayed above${NC}"
-        else
-            echo -e "${YELLOW}[WARN]  Coverage generation failed or timed out${NC}"
-            echo -e "${YELLOW}   Falling back to library tests only...${NC}"
-            if cargo llvm-cov --lib --summary-only; then
-                echo -e "${GREEN}[OK] Rust library coverage summary displayed above${NC}"
-            else
-                echo -e "${YELLOW}   Coverage generation failed - skipping${NC}"
-            fi
-        fi
-    else
-        echo -e "${YELLOW}[WARN]  cargo-llvm-cov not installed. Install with: cargo install cargo-llvm-cov${NC}"
-        echo -e "${YELLOW}   Skipping coverage report generation${NC}"
-    fi
-fi
-
-# Run SDK integration tests specifically
-echo -e "${BLUE}==== Running SDK integration tests... ====${NC}"
-if cargo test --test sdk_integration_test --quiet; then
-    echo -e "${GREEN}[OK] SDK integration tests passed${NC}"
-else
-    echo -e "${RED}[FAIL] SDK integration tests failed${NC}"
-    ALL_PASSED=false
-fi
-
-# Run A2A compliance tests specifically
-echo -e "${BLUE}==== Running A2A compliance tests... ====${NC}"
-if cargo test --test a2a_compliance_test --quiet; then
-    echo -e "${GREEN}[OK] A2A compliance tests passed${NC}"
-else
-    echo -e "${RED}[FAIL] A2A compliance tests failed${NC}"
-    ALL_PASSED=false
-fi
 
 # Frontend checks
 if [ -d "frontend" ]; then

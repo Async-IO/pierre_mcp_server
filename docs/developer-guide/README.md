@@ -20,7 +20,8 @@
 16. [Testing Strategy](./16-testing-strategy.md)
 17. [Security Guide](./17-security-guide.md)
 18. [Plugin System](./18-plugin-system.md)
-19. [A2A Integration Guide](./A2A-INTEGRATION-GUIDE.md)
+19. [Logging and Observability](./19-logging-and-observability.md)
+20. [A2A Integration Guide](./A2A-INTEGRATION-GUIDE.md)
 
 ## Overview
 
