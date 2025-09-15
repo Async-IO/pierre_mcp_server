@@ -40,13 +40,20 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: Setup Chrome and ChromeDriver
-        uses: browser-actions/setup-chrome@v1
-        with:
-          chrome-version: stable
-      
-      - name: Setup ChromeDriver
-        uses: nanasess/setup-chromedriver@v2
+      - name: Install Chrome
+        run: |
+          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+          
+      - name: Install ChromeDriver
+        run: |
+          CHROME_VERSION=$(google-chrome --version | cut -d " " -f3 | cut -d "." -f1)
+          CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_VERSION}")
+          wget -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip"
+          sudo unzip /tmp/chromedriver.zip chromedriver -d /usr/local/bin/
+          sudo chmod +x /usr/local/bin/chromedriver
 
       - name: Cache Rust dependencies
         uses: actions/cache@v4
@@ -129,13 +136,20 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: Setup Chrome and ChromeDriver
-        uses: browser-actions/setup-chrome@v1
-        with:
-          chrome-version: stable
-      
-      - name: Setup ChromeDriver
-        uses: nanasess/setup-chromedriver@v2
+      - name: Install Chrome
+        run: |
+          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+          
+      - name: Install ChromeDriver
+        run: |
+          CHROME_VERSION=$(google-chrome --version | cut -d " " -f3 | cut -d "." -f1)
+          CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_VERSION}")
+          wget -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip"
+          sudo unzip /tmp/chromedriver.zip chromedriver -d /usr/local/bin/
+          sudo chmod +x /usr/local/bin/chromedriver
 
       - name: Cache Rust dependencies
         uses: actions/cache@v4
