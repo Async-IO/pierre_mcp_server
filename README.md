@@ -364,6 +364,7 @@ Complete documentation is available in the `docs/` directory:
 - **[Getting Started](docs/developer-guide/15-getting-started.md)** - Setup guide
 - **[Installation Guides](docs/installation-guides/)** - Platform-specific installation
 - **[Developer Guide](docs/developer-guide/)** - Technical documentation
+- **[Logging and Observability](docs/developer-guide/19-logging-and-observability.md)** - Logging, debugging, and monitoring
 - **[Plugin System](docs/developer-guide/18-plugin-system.md)** - Plugin development guide
 - **[API Reference](docs/developer-guide/14-api-reference.md)** - API documentation
 - **[Security Guide](docs/developer-guide/17-security-guide.md)** - Security best practices

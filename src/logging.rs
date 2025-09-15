@@ -126,32 +126,60 @@ impl LoggingConfig {
     ///
     /// Returns an error if the tracing subscriber fails to initialize
     pub fn init(&self) -> Result<()> {
-        // Create environment filter with better defaults for application vs dependencies
-        let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-            EnvFilter::new(&self.level)
-                // Quiet noisy dependencies
-                .add_directive(
-                    "hyper=warn"
-                        .parse()
-                        .unwrap_or_else(|_| tracing::Level::WARN.into()),
-                )
-                .add_directive(
-                    "reqwest=warn"
-                        .parse()
-                        .unwrap_or_else(|_| tracing::Level::WARN.into()),
-                )
-                .add_directive(
-                    "warp::server=info"
-                        .parse()
-                        .unwrap_or_else(|_| tracing::Level::INFO.into()),
-                )
-                // Keep our application logs at desired level
-                .add_directive(
-                    format!("pierre_mcp_server={}", self.level)
-                        .parse()
-                        .unwrap_or_else(|_| tracing::Level::INFO.into()),
-                )
-        });
+        // Create environment filter that always applies our noise reduction rules
+        let env_filter = env::var("RUST_LOG")
+            .map_or_else(
+                |_| {
+                    // Default filter
+                    EnvFilter::new(&self.level)
+                },
+                |env_directive| {
+                    // If RUST_LOG is set, use it as base but add our noise reduction
+                    EnvFilter::new(&env_directive)
+                },
+            )
+            // Always apply noise reduction regardless of RUST_LOG setting
+            .add_directive(
+                "hyper=warn"
+                    .parse()
+                    .unwrap_or_else(|_| tracing::Level::WARN.into()),
+            )
+            .add_directive(
+                "hyper::proto=warn"
+                    .parse()
+                    .unwrap_or_else(|_| tracing::Level::WARN.into()),
+            )
+            .add_directive(
+                "reqwest=warn"
+                    .parse()
+                    .unwrap_or_else(|_| tracing::Level::WARN.into()),
+            )
+            .add_directive(
+                "sqlx=info"
+                    .parse()
+                    .unwrap_or_else(|_| tracing::Level::INFO.into()),
+            )
+            .add_directive(
+                "sqlx::query=info"
+                    .parse()
+                    .unwrap_or_else(|_| tracing::Level::INFO.into()),
+            )
+            .add_directive(
+                "warp::server=info"
+                    .parse()
+                    .unwrap_or_else(|_| tracing::Level::INFO.into()),
+            )
+            .add_directive(
+                "tower_http=info"
+                    .parse()
+                    .unwrap_or_else(|_| tracing::Level::INFO.into()),
+            )
+            // Keep our application logs at desired level
+            .add_directive(
+                format!("pierre_mcp_server={}", self.level)
+                    .parse()
+                    .unwrap_or_else(|_| tracing::Level::INFO.into()),
+            );
 
         // Create base registry
         let registry = tracing_subscriber::registry().with(env_filter);

@@ -487,25 +487,37 @@ impl MultiTenantMcpServer {
                     async move {
                         let Some(code) = params.get("code").cloned() else {
                                 tracing::error!("Missing OAuth code parameter in callback");
-                                let error_response = oauth_error(
-                                    "OAuth authorization failed",
-                                    "Missing OAuth code parameter",
+                                let html_content = match Self::render_oauth_error_template(
+                                    "Authorization Failed",
+                                    "Missing OAuth code parameter. Please try connecting again.",
                                     None
-                                );
-                                return Ok(warp::reply::with_status(
-                                    warp::reply::json(&error_response),
+                                ) {
+                                    Ok(html) => html,
+                                    Err(e) => {
+                                        tracing::error!("Failed to render error template: {}", e);
+                                        "<h1>Authorization Failed</h1><p>Missing OAuth code parameter. Please try connecting again.</p>".to_string()
+                                    }
+                                };
+                                return Ok::<warp::http::Response<warp::hyper::Body>, warp::Rejection>(warp::reply::with_status(
+                                    warp::reply::html(html_content),
                                     warp::http::StatusCode::BAD_REQUEST
                                 ).into_response());
                             };
                         let Some(state) = params.get("state").cloned() else {
                                 tracing::error!("Missing OAuth state parameter in callback");
-                                let error_response = oauth_error(
-                                    "OAuth authorization failed",
-                                    "Missing OAuth state parameter",
+                                let html_content = match Self::render_oauth_error_template(
+                                    "Authorization Failed",
+                                    "Missing OAuth state parameter. Please try connecting again.",
                                     None
-                                );
+                                ) {
+                                    Ok(html) => html,
+                                    Err(e) => {
+                                        tracing::error!("Failed to render error template: {}", e);
+                                        "<h1>Authorization Failed</h1><p>Missing OAuth state parameter. Please try connecting again.</p>".to_string()
+                                    }
+                                };
                                 return Ok(warp::reply::with_status(
-                                    warp::reply::json(&error_response),
+                                    warp::reply::html(html_content),
                                     warp::http::StatusCode::BAD_REQUEST
                                 ).into_response());
                             };
@@ -524,24 +536,36 @@ impl MultiTenantMcpServer {
 
                         match oauth_routes.handle_callback(&code, &state, &provider).await {
                             Ok(callback_response) => {
-                                let success_response = serde_json::json!({
-                                    "success": true,
-                                    "message": format!("{provider} account connected successfully!"),
-                                    "provider": provider,
-                                    "user_id": callback_response.user_id,
-                                    "expires_at": callback_response.expires_at
-                                });
+                                let html_content = match Self::render_oauth_success_template(&provider, &callback_response) {
+                                    Ok(html) => html,
+                                    Err(e) => {
+                                        tracing::error!("Failed to render success template: {}", e);
+                                        format!("<h1>Success!</h1><p>Your {} account was connected successfully.</p>", provider.to_uppercase())
+                                    }
+                                };
+
                                 Ok(warp::reply::with_status(
-                                    warp::reply::json(&success_response),
+                                    warp::reply::html(html_content),
                                     warp::http::StatusCode::OK
                                 ).into_response())
                             }
                             Err(e) => {
-                                let error_response = serde_json::json!({
-                                    "error": format!("Failed to process OAuth callback: {e}"),
-                                    "provider": provider
-                                });
-                                Err(warp::reject::custom(ApiError(error_response)))
+                                let html_content = match Self::render_oauth_error_template(
+                                    "Connection Failed",
+                                    &format!("There was an error connecting your {} account to Pierre Fitness.", provider.to_uppercase()),
+                                    Some(&e.to_string())
+                                ) {
+                                    Ok(html) => html,
+                                    Err(template_err) => {
+                                        tracing::error!("Failed to render error template: {}", template_err);
+                                        format!("<h1>Error</h1><p>Failed to connect {} account: {}</p>", provider.to_uppercase(), e)
+                                    }
+                                };
+
+                                Ok(warp::reply::with_status(
+                                    warp::reply::html(html_content),
+                                    warp::http::StatusCode::BAD_REQUEST
+                                ).into_response())
                             }
                         }
                     }
@@ -1686,6 +1710,13 @@ impl MultiTenantMcpServer {
             }
 
             if let Ok(request) = serde_json::from_str::<McpRequest>(trimmed_line) {
+                tracing::debug!(
+                    transport = "stdio",
+                    mcp_method = %request.method,
+                    line_length = trimmed_line.len(),
+                    "Received MCP request via stdio transport"
+                );
+
                 if let Some(response) = Self::handle_request(request, &self.resources).await {
                     let response_str = match serde_json::to_string(&response) {
                         Ok(s) => s,
@@ -1784,6 +1815,10 @@ impl MultiTenantMcpServer {
         body: serde_json::Value,
         ctx: &HttpRequestContext,
     ) -> Result<Box<dyn warp::Reply>, warp::Rejection> {
+        // Store values for logging before validation consumes them
+        let origin_for_logging = origin.clone();
+        let accept_for_logging = accept.clone();
+
         // Validate Origin header for security (DNS rebinding protection)
         if let Some(origin) = origin {
             if !Self::is_valid_origin(&origin) {
@@ -1800,6 +1835,15 @@ impl MultiTenantMcpServer {
                         if request.auth_token.is_none() {
                             request.auth_token = authorization;
                         }
+
+                        tracing::debug!(
+                            transport = "http",
+                            origin = ?origin_for_logging,
+                            accept = ?accept_for_logging,
+                            mcp_method = %request.method,
+                            body_size = body.to_string().len(),
+                            "Received MCP request via HTTP transport"
+                        );
 
                         Self::handle_request(request, &ctx.resources)
                             .await
@@ -1938,13 +1982,43 @@ impl MultiTenantMcpServer {
     }
 
     /// Handle MCP request with `ServerResources`
+    #[tracing::instrument(
+        skip(resources),
+        fields(
+            mcp_method = %request.method,
+            mcp_id = ?request.id,
+            auth_present = request.auth_token.is_some(),
+            request_headers = ?request.headers,
+            response_status = tracing::field::Empty,
+            duration_ms = tracing::field::Empty
+        )
+    )]
     pub async fn handle_request(
         request: McpRequest,
         resources: &Arc<ServerResources>,
     ) -> Option<McpResponse> {
+        let start_time = std::time::Instant::now();
+
+        // Log the full request in debug mode
+        tracing::debug!(
+            mcp_request = ?request,
+            "Received MCP request"
+        );
+
         // Handle notifications (no response needed)
         if request.method.starts_with("notifications/") {
             Self::handle_notification(&request);
+            let duration = start_time.elapsed();
+            tracing::debug!(
+                // Safe: duration will be much less than u64::MAX milliseconds for request processing
+                duration_ms = {
+                    #[allow(clippy::cast_possible_truncation)]
+                    {
+                        duration.as_millis() as u64
+                    }
+                },
+                "MCP notification processed"
+            );
             return None;
         }
 
@@ -1971,6 +2045,21 @@ impl MultiTenantMcpServer {
             }
             _ => ProtocolHandler::handle_unknown_method(request),
         };
+
+        let duration = start_time.elapsed();
+        let duration_ms = u64::try_from(duration.as_millis()).unwrap_or(u64::MAX);
+
+        // Log the full response in debug mode
+        tracing::debug!(
+            mcp_response = ?response,
+            duration_ms = duration_ms,
+            "Sending MCP response"
+        );
+
+        // Record metrics in span
+        tracing::Span::current()
+            .record("duration_ms", duration_ms)
+            .record("response_status", response.error.is_none());
 
         Some(response)
     }
@@ -2837,6 +2926,52 @@ pub struct McpResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<McpError>,
     pub id: Value,
+}
+
+impl MultiTenantMcpServer {
+    /// Render OAuth success template
+    fn render_oauth_success_template(
+        provider: &str,
+        callback_response: &crate::routes::OAuthCallbackResponse,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let template_content = std::fs::read_to_string("templates/oauth_success.html")?;
+
+        let html = template_content
+            .replace("{{provider}}", &provider.to_uppercase())
+            .replace("{{user_id}}", &callback_response.user_id)
+            .replace("{{expires_at}}", &callback_response.expires_at);
+
+        Ok(html)
+    }
+
+    /// Render OAuth error template
+    fn render_oauth_error_template(
+        title: &str,
+        message: &str,
+        error: Option<&str>,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let template_content = std::fs::read_to_string("templates/oauth_error.html")?;
+
+        let html = template_content
+            .replace("{{title}}", title)
+            .replace("{{message}}", message);
+
+        let html = error.map_or_else(
+            || {
+                // Remove the error details section if no error
+                let start = html.find("{{#if error}}").unwrap_or(0);
+                let end = html.find("{{/if}}").map_or(html.len(), |i| i + 7);
+                format!("{}{}", &html[..start], &html[end..])
+            },
+            |error_msg| {
+                html.replace("{{#if error}}", "")
+                    .replace("{{/if}}", "")
+                    .replace("{{error}}", error_msg)
+            },
+        );
+
+        Ok(html)
+    }
 }
 
 /// MCP error
