@@ -98,3 +98,5 @@ env_logger = "0.11"
 [dev-dependencies]
 tempfile = "3.20"
 serial_test = "3.1"
+# For headless browser OAuth automation
+thirtyfour = "0.32"

@@ -6,8 +6,8 @@ use super::resources::ServerResources;
 use crate::auth::AuthResult;
 use crate::constants::{
     errors::{
-        ERROR_AUTHENTICATION, ERROR_INVALID_PARAMS, ERROR_METHOD_NOT_FOUND, ERROR_TOOL_EXECUTION,
-        ERROR_UNAUTHORIZED, MSG_AUTHENTICATION, MSG_TOOL_EXECUTION,
+        ERROR_AUTHENTICATION, ERROR_INTERNAL_ERROR, ERROR_INVALID_PARAMS, ERROR_METHOD_NOT_FOUND,
+        ERROR_TOOL_EXECUTION, ERROR_UNAUTHORIZED, MSG_AUTHENTICATION, MSG_TOOL_EXECUTION,
     },
     json_fields::PROVIDER,
     protocol::JSONRPC_VERSION,
@@ -20,7 +20,7 @@ use crate::constants::{
 };
 use crate::database_plugins::DatabaseProvider;
 use crate::tenant::TenantContext;
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
@@ -502,9 +502,9 @@ impl ToolHandlers {
             user_id, provider, message, notification_id
         );
 
-        // Create a visible success message in the chat
+        // Create a success message in the chat
         let success_message = format!(
-            "🎉 **OAuth Connection Successful!**\n\n✅ Successfully connected to **{}**\n📝 {}",
+            "OAuth Connection Successful!\n\nConnected to {}\n{}",
             provider.to_uppercase(),
             message
         );
@@ -570,7 +570,7 @@ impl ToolHandlers {
 
                     for notification in &notifications {
                         let announcement = format!(
-                            "🎉 **OAuth Connection Successful!**\n\n✅ Successfully connected to **{}**\n📝 {}",
+                            "OAuth Connection Successful!\n\nConnected to {}\n{}",
                             notification.provider.to_uppercase(),
                             notification.message
                         );
@@ -629,155 +629,165 @@ impl ToolHandlers {
         tool_name: &str,
         args: serde_json::Value,
         request_id: serde_json::Value,
-        _user_id: &uuid::Uuid,
+        user_id: &uuid::Uuid,
         resources: Arc<crate::mcp::resources::ServerResources>,
     ) -> McpResponse {
-        use crate::fitness_configuration_routes::FitnessConfigurationRoutes;
-
-        let fitness_routes = FitnessConfigurationRoutes::new(resources.clone());
-
-        // For fitness configuration tools, we bypass auth since MCP already authenticated
-        // The routes will validate the user through the existing JWT token mechanism
-        let auth_header = None::<String>;
-
-        match tool_name {
-            GET_FITNESS_CONFIG => {
-                let configuration_name = args
-                    .get("configuration_name")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("default");
-
-                match fitness_routes
-                    .get_configuration(auth_header.as_deref(), configuration_name)
-                    .await
-                {
-                    Ok(config_response) => McpResponse {
-                        jsonrpc: JSONRPC_VERSION.to_string(),
-                        result: Some(serde_json::to_value(config_response).unwrap_or_default()),
-                        error: None,
-                        id: request_id,
-                    },
-                    Err(e) => {
-                        error!("Failed to get fitness configuration: {}", e);
-                        McpResponse {
-                            jsonrpc: JSONRPC_VERSION.to_string(),
-                            result: None,
-                            error: Some(McpError {
-                                code: ERROR_TOOL_EXECUTION,
-                                message: format!("Failed to get fitness configuration: {e}"),
-                                data: None,
-                            }),
-                            id: request_id,
-                        }
-                    }
-                }
-            }
-            SET_FITNESS_CONFIG => {
-                let request = match serde_json::from_value::<
-                    crate::fitness_configuration_routes::SaveFitnessConfigRequest,
-                >(args.clone())
-                {
-                    Ok(req) => req,
-                    Err(e) => {
-                        error!("Invalid fitness config request: {}", e);
-                        return McpResponse {
-                            jsonrpc: JSONRPC_VERSION.to_string(),
-                            result: None,
-                            error: Some(McpError {
-                                code: ERROR_INVALID_PARAMS,
-                                message: format!("Invalid request parameters: {e}"),
-                                data: None,
-                            }),
-                            id: request_id,
-                        };
-                    }
-                };
-
-                match fitness_routes
-                    .save_user_configuration(auth_header.as_deref(), request)
-                    .await
-                {
-                    Ok(save_response) => McpResponse {
-                        jsonrpc: JSONRPC_VERSION.to_string(),
-                        result: Some(serde_json::to_value(save_response).unwrap_or_default()),
-                        error: None,
-                        id: request_id,
-                    },
-                    Err(e) => {
-                        error!("Failed to save fitness configuration: {}", e);
-                        McpResponse {
-                            jsonrpc: JSONRPC_VERSION.to_string(),
-                            result: None,
-                            error: Some(McpError {
-                                code: ERROR_TOOL_EXECUTION,
-                                message: format!("Failed to save fitness configuration: {e}"),
-                                data: None,
-                            }),
-                            id: request_id,
-                        }
-                    }
-                }
-            }
-            LIST_FITNESS_CONFIGS => {
-                match fitness_routes
-                    .list_configurations(auth_header.as_deref())
-                    .await
-                {
-                    Ok(list_response) => McpResponse {
-                        jsonrpc: JSONRPC_VERSION.to_string(),
-                        result: Some(serde_json::to_value(list_response).unwrap_or_default()),
-                        error: None,
-                        id: request_id,
-                    },
-                    Err(e) => {
-                        error!("Failed to list fitness configurations: {}", e);
-                        McpResponse {
-                            jsonrpc: JSONRPC_VERSION.to_string(),
-                            result: None,
-                            error: Some(McpError {
-                                code: ERROR_TOOL_EXECUTION,
-                                message: format!("Failed to list fitness configurations: {e}"),
-                                data: None,
-                            }),
-                            id: request_id,
-                        }
-                    }
-                }
-            }
-            DELETE_FITNESS_CONFIG => {
-                let Some(configuration_name) =
-                    args.get("configuration_name").and_then(|v| v.as_str())
-                else {
+        // Get user's tenant_id for tenant isolation
+        let tenant_id = match resources.database.get_user(*user_id).await {
+            Ok(Some(user)) => match user.tenant_id {
+                Some(tid) => tid,
+                None => {
                     return McpResponse {
                         jsonrpc: JSONRPC_VERSION.to_string(),
                         result: None,
                         error: Some(McpError {
                             code: ERROR_INVALID_PARAMS,
-                            message: "Missing required parameter: configuration_name".to_string(),
+                            message: "User has no tenant assigned".to_string(),
                             data: None,
                         }),
                         id: request_id,
                     };
+                }
+            },
+            Ok(None) => {
+                return McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    result: None,
+                    error: Some(McpError {
+                        code: ERROR_INVALID_PARAMS,
+                        message: "User not found".to_string(),
+                        data: None,
+                    }),
+                    id: request_id,
                 };
+            }
+            Err(e) => {
+                error!("Database error getting user: {}", e);
+                return McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    result: None,
+                    error: Some(McpError {
+                        code: ERROR_INTERNAL_ERROR,
+                        message: "Database error".to_string(),
+                        data: None,
+                    }),
+                    id: request_id,
+                };
+            }
+        };
 
-                match fitness_routes
-                    .delete_user_configuration(auth_header.as_deref(), configuration_name)
+        match tool_name {
+            GET_FITNESS_CONFIG => {
+                Self::handle_get_fitness_config(
+                    args,
+                    request_id,
+                    &tenant_id,
+                    &user_id.to_string(),
+                    &resources.database,
+                )
+                .await
+            }
+            SET_FITNESS_CONFIG => {
+                Self::handle_set_fitness_config(
+                    args,
+                    request_id,
+                    &tenant_id,
+                    &user_id.to_string(),
+                    &resources.database,
+                )
+                .await
+            }
+            LIST_FITNESS_CONFIGS => {
+                Self::handle_list_fitness_configs(
+                    request_id,
+                    &tenant_id,
+                    &user_id.to_string(),
+                    &resources.database,
+                )
+                .await
+            }
+            DELETE_FITNESS_CONFIG => {
+                Self::handle_delete_fitness_config(
+                    args,
+                    request_id,
+                    &tenant_id,
+                    &user_id.to_string(),
+                    &resources.database,
+                )
+                .await
+            }
+            _ => McpResponse {
+                jsonrpc: JSONRPC_VERSION.to_string(),
+                result: None,
+                error: Some(McpError {
+                    code: ERROR_METHOD_NOT_FOUND,
+                    message: "Unknown fitness config tool".to_string(),
+                    data: None,
+                }),
+                id: request_id,
+            },
+        }
+    }
+
+    async fn handle_get_fitness_config(
+        args: serde_json::Value,
+        request_id: serde_json::Value,
+        tenant_id: &str,
+        user_id: &str,
+        database: &crate::database_plugins::factory::Database,
+    ) -> McpResponse {
+        let config_name = args
+            .get("configuration_name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default");
+
+        match database
+            .get_user_fitness_config(tenant_id, user_id, config_name)
+            .await
+        {
+            Ok(Some(config)) => McpResponse {
+                jsonrpc: JSONRPC_VERSION.to_string(),
+                result: Some(json!({
+                    "configuration_name": config_name,
+                    "configuration": config
+                })),
+                error: None,
+                id: request_id,
+            },
+            Ok(None) => {
+                // Try tenant-level config
+                match database
+                    .get_tenant_fitness_config(tenant_id, config_name)
                     .await
                 {
-                    Ok(delete_response) => McpResponse {
+                    Ok(Some(config)) => McpResponse {
                         jsonrpc: JSONRPC_VERSION.to_string(),
-                        result: Some(serde_json::to_value(delete_response).unwrap_or_default()),
+                        result: Some(json!({
+                            "configuration_name": config_name,
+                            "configuration": config,
+                            "source": "tenant"
+                        })),
                         error: None,
                         id: request_id,
                     },
+                    Ok(None) => McpResponse {
+                        jsonrpc: JSONRPC_VERSION.to_string(),
+                        result: None,
+                        error: Some(McpError {
+                            code: ERROR_INVALID_PARAMS,
+                            message: format!("Configuration '{config_name}' not found"),
+                            data: None,
+                        }),
+                        id: request_id,
+                    },
                     Err(e) => {
-                        error!("Failed to delete fitness configuration: {}", e);
+                        error!("Error getting tenant fitness config: {}", e);
                         McpResponse {
                             jsonrpc: JSONRPC_VERSION.to_string(),
                             result: None,
                             error: Some(McpError {
-                                code: ERROR_TOOL_EXECUTION,
-                                message: format!("Failed to delete fitness configuration: {e}"),
+                                code: ERROR_INTERNAL_ERROR,
+                                message: "Database error".to_string(),
                                 data: None,
                             }),
                             id: request_id,
@@ -785,14 +795,180 @@ impl ToolHandlers {
                     }
                 }
             }
-            _ => {
-                error!("Unknown fitness configuration tool: {}", tool_name);
+            Err(e) => {
+                error!("Error getting user fitness config: {}", e);
                 McpResponse {
                     jsonrpc: JSONRPC_VERSION.to_string(),
                     result: None,
                     error: Some(McpError {
-                        code: ERROR_METHOD_NOT_FOUND,
-                        message: format!("Unknown tool: {tool_name}"),
+                        code: ERROR_INTERNAL_ERROR,
+                        message: "Database error".to_string(),
+                        data: None,
+                    }),
+                    id: request_id,
+                }
+            }
+        }
+    }
+
+    async fn handle_set_fitness_config(
+        args: serde_json::Value,
+        request_id: serde_json::Value,
+        tenant_id: &str,
+        user_id: &str,
+        database: &crate::database_plugins::factory::Database,
+    ) -> McpResponse {
+        let config_name = args
+            .get("configuration_name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default");
+
+        let configuration = match args.get("configuration") {
+            Some(config) => {
+                match serde_json::from_value::<crate::config::fitness_config::FitnessConfig>(
+                    config.clone(),
+                ) {
+                    Ok(fc) => fc,
+                    Err(e) => {
+                        return McpResponse {
+                            jsonrpc: JSONRPC_VERSION.to_string(),
+                            result: None,
+                            error: Some(McpError {
+                                code: ERROR_INVALID_PARAMS,
+                                message: format!("Invalid configuration format: {e}"),
+                                data: None,
+                            }),
+                            id: request_id,
+                        };
+                    }
+                }
+            }
+            None => {
+                return McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    result: None,
+                    error: Some(McpError {
+                        code: ERROR_INVALID_PARAMS,
+                        message: "Missing configuration parameter".to_string(),
+                        data: None,
+                    }),
+                    id: request_id,
+                };
+            }
+        };
+
+        match database
+            .save_user_fitness_config(tenant_id, user_id, config_name, &configuration)
+            .await
+        {
+            Ok(config_id) => McpResponse {
+                jsonrpc: JSONRPC_VERSION.to_string(),
+                result: Some(json!({
+                    "configuration_id": config_id,
+                    "configuration_name": config_name,
+                    "message": "Fitness configuration saved successfully"
+                })),
+                error: None,
+                id: request_id,
+            },
+            Err(e) => {
+                error!("Error saving fitness config: {}", e);
+                McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    result: None,
+                    error: Some(McpError {
+                        code: ERROR_INTERNAL_ERROR,
+                        message: "Failed to save configuration".to_string(),
+                        data: None,
+                    }),
+                    id: request_id,
+                }
+            }
+        }
+    }
+
+    async fn handle_list_fitness_configs(
+        request_id: serde_json::Value,
+        tenant_id: &str,
+        user_id: &str,
+        database: &crate::database_plugins::factory::Database,
+    ) -> McpResponse {
+        let user_configs = database
+            .list_user_fitness_configurations(tenant_id, user_id)
+            .await
+            .unwrap_or_default();
+        let tenant_configs = database
+            .list_tenant_fitness_configurations(tenant_id)
+            .await
+            .unwrap_or_default();
+
+        let mut all_configs = user_configs;
+        all_configs.extend(tenant_configs);
+        all_configs.sort();
+        all_configs.dedup();
+
+        McpResponse {
+            jsonrpc: JSONRPC_VERSION.to_string(),
+            result: Some(json!({
+                "configurations": all_configs,
+                "total_count": all_configs.len()
+            })),
+            error: None,
+            id: request_id,
+        }
+    }
+
+    async fn handle_delete_fitness_config(
+        args: serde_json::Value,
+        request_id: serde_json::Value,
+        tenant_id: &str,
+        user_id: &str,
+        database: &crate::database_plugins::factory::Database,
+    ) -> McpResponse {
+        let Some(config_name) = args.get("configuration_name").and_then(|v| v.as_str()) else {
+            return McpResponse {
+                jsonrpc: JSONRPC_VERSION.to_string(),
+                result: None,
+                error: Some(McpError {
+                    code: ERROR_INVALID_PARAMS,
+                    message: "Missing configuration_name parameter".to_string(),
+                    data: None,
+                }),
+                id: request_id,
+            };
+        };
+
+        match database
+            .delete_fitness_config(tenant_id, Some(user_id), config_name)
+            .await
+        {
+            Ok(true) => McpResponse {
+                jsonrpc: JSONRPC_VERSION.to_string(),
+                result: Some(json!({
+                    "configuration_name": config_name,
+                    "message": "Fitness configuration deleted successfully"
+                })),
+                error: None,
+                id: request_id,
+            },
+            Ok(false) => McpResponse {
+                jsonrpc: JSONRPC_VERSION.to_string(),
+                result: None,
+                error: Some(McpError {
+                    code: ERROR_INVALID_PARAMS,
+                    message: format!("Configuration '{config_name}' not found"),
+                    data: None,
+                }),
+                id: request_id,
+            },
+            Err(e) => {
+                error!("Error deleting fitness config: {}", e);
+                McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    result: None,
+                    error: Some(McpError {
+                        code: ERROR_INTERNAL_ERROR,
+                        message: "Failed to delete configuration".to_string(),
                         data: None,
                     }),
                     id: request_id,
