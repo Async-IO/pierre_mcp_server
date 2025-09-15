@@ -50,6 +50,18 @@ pub struct ToolHandlers;
 
 impl ToolHandlers {
     /// Handle tools/call request with authentication from resources
+    #[tracing::instrument(
+        skip(request, resources),
+        fields(
+            method = %request.method,
+            request_id = ?request.id,
+            tool_name = tracing::field::Empty,
+            user_id = tracing::field::Empty,
+            tenant_id = tracing::field::Empty,
+            success = tracing::field::Empty,
+            duration_ms = tracing::field::Empty,
+        )
+    )]
     pub async fn handle_tools_call_with_resources(
         request: McpRequest,
         resources: &Arc<ServerResources>,
@@ -67,6 +79,11 @@ impl ToolHandlers {
             .await
         {
             Ok(auth_result) => {
+                // Record authentication success in span
+                tracing::Span::current()
+                    .record("user_id", auth_result.user_id.to_string())
+                    .record("tenant_id", auth_result.user_id.to_string()); // Use user_id as tenant_id for now
+
                 info!(
                     "MCP tool call authentication successful for user: {} (method: {})",
                     auth_result.user_id,
@@ -92,11 +109,24 @@ impl ToolHandlers {
                 Self::handle_tool_execution_direct(request, auth_result, tenant_context, resources)
                     .await
             }
-            Err(e) => Self::handle_authentication_error(request, &e),
+            Err(e) => {
+                tracing::Span::current().record("success", false);
+                Self::handle_authentication_error(request, &e)
+            }
         }
     }
 
     /// Handle tool execution directly using provided `ServerResources`
+    #[tracing::instrument(
+        skip(request, auth_result, tenant_context, resources),
+        fields(
+            tool_name = tracing::field::Empty,
+            user_id = %auth_result.user_id,
+            tenant_id = %auth_result.user_id, // Use user_id as tenant_id for now
+            success = tracing::field::Empty,
+            duration_ms = tracing::field::Empty,
+        )
+    )]
     async fn handle_tool_execution_direct(
         request: McpRequest,
         auth_result: AuthResult,
@@ -120,6 +150,11 @@ impl ToolHandlers {
         let args = &params["arguments"];
         let user_id = auth_result.user_id;
 
+        // Record tool name in span
+        tracing::Span::current().record("tool_name", tool_name);
+
+        let start_time = std::time::Instant::now();
+
         info!(
             "Executing tool call: {} for user: {} using {} authentication",
             tool_name,
@@ -134,14 +169,37 @@ impl ToolHandlers {
             auth_result: &auth_result,
         };
 
-        Self::route_tool_call(
+        let result = Self::route_tool_call(
             tool_name,
             args,
             request.id.unwrap_or_else(default_request_id),
             user_id,
             &routing_context,
         )
-        .await
+        .await;
+
+        // Record completion metrics in span
+        let duration = start_time.elapsed();
+        let duration_ms = u64::try_from(duration.as_millis()).unwrap_or(u64::MAX);
+        let success = result.error.is_none();
+
+        tracing::Span::current()
+            .record("duration_ms", duration_ms)
+            .record("success", success);
+
+        if success {
+            info!(
+                "Tool call completed successfully: {} for user: {} in {}ms",
+                tool_name, user_id, duration_ms
+            );
+        } else {
+            warn!(
+                "Tool call failed: {} for user: {} in {}ms - {:?}",
+                tool_name, user_id, duration_ms, result.error
+            );
+        }
+
+        result
     }
 
     /// Handle authentication error

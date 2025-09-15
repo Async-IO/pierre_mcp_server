@@ -8,6 +8,10 @@
 
 //! Production-ready logging configuration with structured output
 
+pub mod tenant;
+
+pub use tenant::*;
+
 use crate::constants::service_names;
 use anyhow::Result;
 use serde_json::json;
@@ -21,8 +25,11 @@ use tracing_subscriber::{
     EnvFilter,
 };
 
+// OpenTelemetry support disabled temporarily due to version compatibility issues
+
 /// Logging configuration
 #[derive(Debug, Clone)]
+#[allow(clippy::struct_excessive_bools)] // Configuration struct needs multiple boolean flags for comprehensive control
 pub struct LoggingConfig {
     /// Log level (trace, debug, info, warn, error)
     pub level: String,
@@ -40,6 +47,12 @@ pub struct LoggingConfig {
     pub service_version: String,
     /// Environment (development, staging, production)
     pub environment: String,
+    /// Enable OpenTelemetry tracing
+    pub enable_telemetry: bool,
+    /// Request ID header name
+    pub request_id_header: String,
+    /// Enable GCP Cloud Logging format
+    pub enable_gcp_format: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -63,6 +76,9 @@ impl Default for LoggingConfig {
             service_name: service_names::PIERRE_MCP_SERVER.into(),
             service_version: env!("CARGO_PKG_VERSION").to_string(),
             environment: "development".into(),
+            enable_telemetry: false,
+            request_id_header: "x-request-id".into(),
+            enable_gcp_format: false,
         }
     }
 }
@@ -96,7 +112,11 @@ impl LoggingConfig {
                 .unwrap_or_else(|_| service_names::PIERRE_MCP_SERVER.into()),
             service_version: env::var("SERVICE_VERSION")
                 .unwrap_or_else(|_| env!("CARGO_PKG_VERSION").to_string()),
-            environment,
+            environment: environment.clone(),
+            enable_telemetry: is_production || env::var("ENABLE_TELEMETRY").is_ok(),
+            request_id_header: env::var("REQUEST_ID_HEADER")
+                .unwrap_or_else(|_| "x-request-id".into()),
+            enable_gcp_format: environment == "production" && env::var("GCP_PROJECT_ID").is_ok(),
         }
     }
 
@@ -106,10 +126,32 @@ impl LoggingConfig {
     ///
     /// Returns an error if the tracing subscriber fails to initialize
     pub fn init(&self) -> Result<()> {
-        // Create environment filter
-        let env_filter = EnvFilter::try_from_default_env()
-            .or_else(|_| EnvFilter::try_new(&self.level))
-            .unwrap_or_else(|_| EnvFilter::new("info"));
+        // Create environment filter with better defaults for application vs dependencies
+        let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+            EnvFilter::new(&self.level)
+                // Quiet noisy dependencies
+                .add_directive(
+                    "hyper=warn"
+                        .parse()
+                        .unwrap_or_else(|_| tracing::Level::WARN.into()),
+                )
+                .add_directive(
+                    "reqwest=warn"
+                        .parse()
+                        .unwrap_or_else(|_| tracing::Level::WARN.into()),
+                )
+                .add_directive(
+                    "warp::server=info"
+                        .parse()
+                        .unwrap_or_else(|_| tracing::Level::INFO.into()),
+                )
+                // Keep our application logs at desired level
+                .add_directive(
+                    format!("pierre_mcp_server={}", self.level)
+                        .parse()
+                        .unwrap_or_else(|_| tracing::Level::INFO.into()),
+                )
+        });
 
         // Create base registry
         let registry = tracing_subscriber::registry().with(env_filter);
@@ -199,6 +241,33 @@ impl LoggingConfig {
         });
 
         info!("Configuration loaded: {}", config_summary);
+    }
+
+    /// Create OpenTelemetry layer for distributed tracing (disabled for now)
+    #[allow(dead_code, clippy::unused_self, clippy::unnecessary_wraps)]
+    fn create_telemetry_layer(&self) -> Result<(), anyhow::Error> {
+        // OpenTelemetry integration disabled due to version compatibility issues
+        // Will be re-enabled in future with proper version alignment
+        tracing::info!("OpenTelemetry layer creation requested but disabled");
+        Ok(())
+    }
+
+    /// Create GCP optimized logging configuration
+    #[must_use]
+    pub fn for_gcp_cloud_run() -> Self {
+        Self {
+            level: "info".into(),
+            format: LogFormat::Json,
+            include_location: false,
+            include_thread: false,
+            include_spans: true,
+            service_name: service_names::PIERRE_MCP_SERVER.into(),
+            service_version: env!("CARGO_PKG_VERSION").to_string(),
+            environment: "production".into(),
+            enable_telemetry: true,
+            request_id_header: "x-request-id".into(),
+            enable_gcp_format: true,
+        }
     }
 }
 

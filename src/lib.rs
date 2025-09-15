@@ -110,6 +110,9 @@ pub mod tenant_routes;
 /// Production logging and structured output
 pub mod logging;
 
+/// HTTP middleware for request tracing and tenant context
+pub mod middleware;
+
 /// Health checks and monitoring
 pub mod health;
 

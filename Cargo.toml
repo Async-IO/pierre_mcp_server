@@ -46,6 +46,7 @@ default = ["sqlite"]
 sqlite = []
 postgresql = ["sqlx/postgres"]
 testing = []
+telemetry = []
 
 [profile.dev]
 debug = 1
@@ -71,6 +72,14 @@ anyhow = "1.0"
 thiserror = "2.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "std", "registry", "json"], default-features = false }
+# OpenTelemetry for distributed tracing and request correlation
+tracing-opentelemetry = "0.23"
+opentelemetry = { version = "0.22", features = ["trace"] }
+opentelemetry_sdk = { version = "0.22", features = ["trace", "rt-tokio"] }
+opentelemetry-stdout = { version = "0.1", features = ["trace"] }
+# HTTP tracing middleware
+tower = { version = "0.4", features = ["util"] }
+tower-http = { version = "0.5", features = ["trace", "request-id"] }
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 base64 = "0.22"
