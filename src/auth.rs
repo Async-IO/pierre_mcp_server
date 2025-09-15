@@ -633,6 +633,15 @@ impl McpAuthMiddleware {
     /// - Database queries fail
     /// - Rate limit calculations fail
     /// - User lookup fails
+    #[tracing::instrument(
+        skip(self, auth_header),
+        fields(
+            auth_method = tracing::field::Empty,
+            user_id = tracing::field::Empty,
+            tenant_id = tracing::field::Empty,
+            success = tracing::field::Empty,
+        )
+    )]
     pub async fn authenticate_request(&self, auth_header: Option<&str>) -> Result<AuthResult> {
         let auth_str = if let Some(header) = auth_header {
             tracing::debug!(
@@ -655,9 +664,14 @@ impl McpAuthMiddleware {
 
         // Try API key authentication first (starts with pk_live_)
         if auth_str.starts_with(key_prefixes::API_KEY_LIVE) {
+            tracing::Span::current().record("auth_method", "API_KEY");
             tracing::debug!("Attempting API key authentication");
             match self.authenticate_api_key(auth_str).await {
                 Ok(result) => {
+                    tracing::Span::current()
+                        .record("user_id", result.user_id.to_string())
+                        .record("tenant_id", result.user_id.to_string()) // Use user_id as tenant_id for now
+                        .record("success", true);
                     tracing::info!(
                         "API key authentication successful for user: {}",
                         result.user_id
@@ -665,6 +679,7 @@ impl McpAuthMiddleware {
                     Ok(result)
                 }
                 Err(e) => {
+                    tracing::Span::current().record("success", false);
                     tracing::warn!("API key authentication failed: {}", e);
                     Err(e)
                 }
@@ -672,18 +687,27 @@ impl McpAuthMiddleware {
         }
         // Then try Bearer token authentication
         else if let Some(token) = auth_str.strip_prefix("Bearer ") {
+            tracing::Span::current().record("auth_method", "JWT_TOKEN");
             tracing::debug!("Attempting JWT token authentication");
             match self.authenticate_jwt_token(token).await {
                 Ok(result) => {
+                    tracing::Span::current()
+                        .record("user_id", result.user_id.to_string())
+                        .record("tenant_id", result.user_id.to_string()) // Use user_id as tenant_id for now
+                        .record("success", true);
                     tracing::info!("JWT authentication successful for user: {}", result.user_id);
                     Ok(result)
                 }
                 Err(e) => {
+                    tracing::Span::current().record("success", false);
                     tracing::warn!("JWT authentication failed: {}", e);
                     Err(e)
                 }
             }
         } else {
+            tracing::Span::current()
+                .record("auth_method", "INVALID")
+                .record("success", false);
             tracing::warn!("Authentication failed: Invalid authorization header format (expected 'Bearer ...' or 'pk_live_...')");
             Err(anyhow::anyhow!("Invalid authorization header format")
                 .context("Authorization header must be 'Bearer <token>' or 'pk_live_<api_key>'"))

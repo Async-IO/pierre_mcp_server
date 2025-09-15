@@ -1,0 +1,3 @@
+[submodule "claude-config"]
+	path = claude-config
+	url = git@github.com:Async-IO/claude-config.git
