@@ -8,11 +8,9 @@
 
 //! Fitness-specific configuration for sport types and intelligence parameters
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fs;
-use std::path::Path;
 
 /// Main fitness configuration structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -77,48 +75,80 @@ pub struct WeatherApiConfig {
 }
 
 impl FitnessConfig {
-    /// Load fitness configuration from file or use defaults
+    /// Load fitness configuration from environment variables with built-in defaults
+    ///
+    /// Cloud-native approach: All configuration via environment variables
+    /// for easy deployment to any cloud platform
     ///
     /// # Errors
     ///
-    /// Returns an error if the specified config file exists but cannot be read or parsed
-    pub fn load(path: Option<String>) -> Result<Self> {
-        let mut config = if let Some(config_path) = path {
-            if Path::new(&config_path).exists() {
-                Self::load_from_file(&config_path)?
-            } else {
-                Self::default()
-            }
-        } else if let Ok(env_path) = std::env::var("FITNESS_CONFIG_PATH") {
-            if Path::new(&env_path).exists() {
-                Self::load_from_file(&env_path)?
-            } else {
-                Self::default()
-            }
-        } else if Path::new("fitness_config.toml").exists() {
-            Self::load_from_file("fitness_config.toml")?
-        } else {
-            Self::default()
-        };
+    /// Returns an error if environment variable parsing fails
+    pub fn load() -> Result<Self> {
+        let mut config = Self::default();
 
-        // Apply environment variable overrides
+        // Load sport type mappings from environment variables
+        Self::load_sport_types_from_env(&mut config.sport_types);
+
+        // Load intelligence configuration from environment variables
         Self::apply_environment_overrides(&mut config);
+
         Ok(config)
     }
 
-    /// Load configuration from a specific file
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the file cannot be read or contains invalid TOML syntax
-    pub fn load_from_file(path: &str) -> Result<Self> {
-        let content = fs::read_to_string(path)
-            .with_context(|| format!("Failed to read fitness config file: {path}"))?;
+    /// Load sport type mappings from environment variables
+    /// Environment variables follow pattern: `SPORT_TYPE_{PROVIDER_NAME}={internal_name}`
+    fn load_sport_types_from_env(sport_types: &mut HashMap<String, String>) {
+        // Standard sport type mappings from environment
+        Self::load_env_sport_type(sport_types, "RUN", "run");
+        Self::load_env_sport_type(sport_types, "RIDE", "bike_ride");
+        Self::load_env_sport_type(sport_types, "SWIM", "swim");
+        Self::load_env_sport_type(sport_types, "WALK", "walk");
+        Self::load_env_sport_type(sport_types, "HIKE", "hike");
+        Self::load_env_sport_type(sport_types, "VIRTUALRIDE", "virtual_ride");
+        Self::load_env_sport_type(sport_types, "VIRTUALRUN", "virtual_run");
+        Self::load_env_sport_type(sport_types, "WORKOUT", "workout");
+        Self::load_env_sport_type(sport_types, "YOGA", "yoga");
+        Self::load_env_sport_type(sport_types, "EBIKERIDE", "ebike_ride");
+        Self::load_env_sport_type(sport_types, "MOUNTAINBIKERIDE", "mountain_bike");
+        Self::load_env_sport_type(sport_types, "GRAVELRIDE", "gravel_ride");
+        // Add more sport types as needed from environment variables
+    }
 
-        let config: Self = toml::from_str(&content)
-            .with_context(|| format!("Failed to parse fitness config file: {path}"))?;
+    /// Load a single sport type mapping from environment variable
+    fn load_env_sport_type(
+        sport_types: &mut HashMap<String, String>,
+        sport_key: &str,
+        default_value: &str,
+    ) {
+        let env_key = format!("SPORT_TYPE_{sport_key}");
+        // Convert sport_key back to proper case (e.g., "RUN" -> "Run")
+        let proper_key = Self::sport_key_to_proper_case(sport_key);
 
-        Ok(config)
+        if let Ok(value) = std::env::var(&env_key) {
+            sport_types.insert(proper_key, value);
+        } else {
+            // Use default mapping if env var not set
+            sport_types.insert(proper_key, default_value.to_string());
+        }
+    }
+
+    /// Convert uppercase sport key to proper case (e.g., "RUN" -> "Run")
+    fn sport_key_to_proper_case(key: &str) -> String {
+        match key {
+            "RUN" => "Run".to_string(),
+            "RIDE" => "Ride".to_string(),
+            "SWIM" => "Swim".to_string(),
+            "WALK" => "Walk".to_string(),
+            "HIKE" => "Hike".to_string(),
+            "VIRTUALRIDE" => "VirtualRide".to_string(),
+            "VIRTUALRUN" => "VirtualRun".to_string(),
+            "WORKOUT" => "Workout".to_string(),
+            "YOGA" => "Yoga".to_string(),
+            "EBIKERIDE" => "EBikeRide".to_string(),
+            "MOUNTAINBIKERIDE" => "MountainBikeRide".to_string(),
+            "GRAVELRIDE" => "GravelRide".to_string(),
+            _ => key.to_string(), // fallback to original
+        }
     }
 
     /// Get the internal sport type name for a provider sport type
@@ -152,7 +182,6 @@ impl FitnessConfig {
         tenant_id: Option<&str>,
         user_id: Option<&str>,
         configuration_name: Option<&str>,
-        file_path: Option<String>,
     ) -> Result<Self> {
         let config_name = configuration_name.unwrap_or("default");
 
@@ -172,8 +201,8 @@ impl FitnessConfig {
             }
         }
 
-        // Fall back to file-based loading with environment overrides
-        Self::load(file_path)
+        // Fall back to environment-based loading (no file dependencies)
+        Self::load()
     }
 
     /// Apply environment variable overrides to the configuration

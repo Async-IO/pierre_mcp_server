@@ -359,74 +359,16 @@ https://pierre-api.example.com/api/oauth/strava/callback?code=AUTH_CODE&state=ab
 {
   "mcpServers": {
     "pierre-fitness": {
-      "command": "node",
-      "args": ["pierre-mcp-client.js"],
-      "env": {
-        "PIERRE_API_URL": "https://pierre-api.example.com",
-        "PIERRE_MCP_URL": "wss://pierre-api.example.com:8080",
-        "PIERRE_AUTH_TOKEN": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      "url": "http://127.0.0.1:8080/mcp",
+      "headers": {
+        "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
       }
     }
   }
 }
 ```
 
-**MCP Client Bridge** (`pierre-mcp-client.js`):
-```javascript
-#!/usr/bin/env node
-
-const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
-const { StdioClientTransport } = require('@modelcontextprotocol/sdk/client/stdio.js');
-const WebSocket = require('ws');
-
-class PierreMCPClient {
-    constructor() {
-        this.apiUrl = process.env.PIERRE_API_URL;
-        this.mcpUrl = process.env.PIERRE_MCP_URL;
-        this.authToken = process.env.PIERRE_AUTH_TOKEN;
-        this.client = null;
-    }
-    
-    async connect() {
-        const ws = new WebSocket(this.mcpUrl, {
-            headers: {
-                'Authorization': `Bearer ${this.authToken}`
-            }
-        });
-        
-        const transport = new WebSocketTransport(ws);
-        this.client = new Client({
-            name: "pierre-mcp-client",
-            version: "1.0.0"
-        }, { capabilities: {} });
-        
-        await this.client.connect(transport);
-        
-        // Handle MCP protocol messages
-        process.stdin.on('data', async (data) => {
-            const request = JSON.parse(data.toString());
-            const response = await this.handleRequest(request);
-            process.stdout.write(JSON.stringify(response) + '\n');
-        });
-    }
-    
-    async handleRequest(request) {
-        switch (request.method) {
-            case 'initialize':
-                return await this.client.initialize();
-            case 'tools/list':
-                return await this.client.listTools();
-            case 'tools/call':
-                return await this.client.callTool(request.params.name, request.params.arguments);
-            default:
-                return { error: { code: -32601, message: "Method not found" } };
-        }
-    }
-}
-
-const client = new PierreMCPClient();
-client.connect().catch(console.error);
-```
+Replace the JWT token with your actual token obtained from the authentication flow.
 
 #### Step 4.2: MCP Protocol Handshake
 

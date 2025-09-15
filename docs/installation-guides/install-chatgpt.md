@@ -65,17 +65,16 @@ Add the following configuration:
 {
   "mcpServers": {
     "pierre-fitness": {
-      "command": "/path/to/pierre_mcp_server/scripts/mcp-client.sh",
-      "env": {
-        "PIERRE_JWT_TOKEN": "YOUR_JWT_TOKEN_FROM_SETUP",
-        "PIERRE_SERVER_URL": "http://127.0.0.1:8080/mcp"
+      "url": "http://127.0.0.1:8080/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_JWT_TOKEN_FROM_SETUP"
       }
     }
   }
 }
 ```
 
-**Note**: Replace `/path/to/pierre_mcp_server` with your actual installation path and `YOUR_JWT_TOKEN_FROM_SETUP` with the token from the automated setup.
+Replace `YOUR_JWT_TOKEN_FROM_SETUP` with the JWT token from the automated setup.
 
 ## Fitness Provider Integration
 
@@ -152,11 +151,13 @@ curl http://localhost:8080/health
 
 ### MCP Connection Issues
 
-1. **Test MCP client script directly:**
+1. **Test MCP connection directly:**
 ```bash
-export PIERRE_JWT_TOKEN="$JWT_TOKEN"
-export PIERRE_SERVER_URL="http://127.0.0.1:8080/mcp"
-./scripts/mcp-client.sh
+# Test the MCP endpoint
+curl -X POST "http://127.0.0.1:8080/mcp" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -d '{"jsonrpc": "2.0", "method": "tools/list", "id": 1}'
 ```
 
 2. **Verify token validity:**
@@ -210,9 +211,9 @@ Update ChatGPT Desktop config:
 {
   "mcpServers": {
     "pierre-fitness": {
-      "env": {
-        "PIERRE_JWT_TOKEN": "YOUR_JWT_TOKEN",
-        "PIERRE_SERVER_URL": "http://127.0.0.1:9080/mcp"
+      "url": "http://127.0.0.1:9080/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_JWT_TOKEN"
       }
     }
   }
