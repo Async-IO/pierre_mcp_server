@@ -40,10 +40,13 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
+      - name: Setup Chrome and ChromeDriver
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+      
       - name: Setup ChromeDriver
         uses: nanasess/setup-chromedriver@v2
-        with:
-          chromedriver-version: 'latest'
 
       - name: Cache Rust dependencies
         uses: actions/cache@v4
@@ -126,10 +129,13 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
+      - name: Setup Chrome and ChromeDriver
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+      
       - name: Setup ChromeDriver
         uses: nanasess/setup-chromedriver@v2
-        with:
-          chromedriver-version: 'latest'
 
       - name: Cache Rust dependencies
         uses: actions/cache@v4
