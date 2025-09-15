@@ -514,10 +514,9 @@ cargo run --bin pierre-mcp-server
 {
   "mcpServers": {
     "pierre-fitness": {
-      "command": "/path/to/pierre_mcp_server/scripts/mcp-client.sh",
-      "env": {
-        "PIERRE_JWT_TOKEN": "USER_JWT_TOKEN_FROM_LOGIN", 
-        "PIERRE_SERVER_URL": "http://127.0.0.1:8080/mcp"
+      "url": "http://127.0.0.1:8080/mcp",
+      "headers": {
+        "Authorization": "Bearer USER_JWT_TOKEN_FROM_LOGIN"
       }
     }
   }
@@ -533,10 +532,9 @@ Different MCP clients use different configuration file locations. Consult your M
 {
   "mcpServers": {
     "pierre-fitness": {
-      "command": "/path/to/pierre_mcp_server/scripts/mcp-client.sh",
-      "env": {
-        "PIERRE_JWT_TOKEN": "USER_JWT_TOKEN_FROM_LOGIN",
-        "PIERRE_SERVER_URL": "http://127.0.0.1:8080/mcp"
+      "url": "http://127.0.0.1:8080/mcp",
+      "headers": {
+        "Authorization": "Bearer USER_JWT_TOKEN_FROM_LOGIN"
       }
     }
   }
