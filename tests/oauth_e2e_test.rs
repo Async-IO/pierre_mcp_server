@@ -273,7 +273,13 @@ async fn test_oauth_flow_through_mcp() {
     });
 
     // Create server instance
-    let _server = MultiTenantMcpServer::new(database, auth_manager, TEST_JWT_SECRET, config);
+    let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+        database,
+        auth_manager,
+        TEST_JWT_SECRET,
+        config,
+    ));
+    let _server = MultiTenantMcpServer::new(resources);
 
     // Start server in background (we'll simulate MCP requests instead of real TCP)
     let server_handle = tokio::spawn(async move {

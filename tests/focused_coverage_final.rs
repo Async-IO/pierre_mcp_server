@@ -6,7 +6,7 @@
 
 use anyhow::Result;
 use pierre_mcp_server::{
-    config::environment::{OAuthProviderConfig, ServerConfig},
+    config::environment::OAuthProviderConfig,
     database_plugins::DatabaseProvider,
     mcp::multitenant::MultiTenantMcpServer,
     models::{Activity, Athlete, EncryptedToken, SportType, Stats, User, UserTier},
@@ -19,24 +19,14 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
-const TEST_JWT_SECRET: &str = "test_jwt_secret_for_focused_coverage_tests";
-
 mod common;
 use common::*;
 
 /// Test MCP multitenant server comprehensive scenarios
 #[tokio::test]
 async fn test_mcp_multitenant_comprehensive() -> Result<()> {
-    let database = create_test_database().await?;
-    let auth_manager = create_test_auth_manager();
-    let config = Arc::new(ServerConfig::from_env()?);
-
-    let server = MultiTenantMcpServer::new(
-        (*database).clone(),
-        (*auth_manager).clone(),
-        TEST_JWT_SECRET,
-        config.clone(),
-    );
+    let resources = create_test_server_resources().await?;
+    let server = MultiTenantMcpServer::new(resources);
 
     // Test server creation and basic access
     let _db_ref = server.database();
@@ -145,23 +135,16 @@ async fn test_mcp_multitenant_comprehensive() -> Result<()> {
 /// Test JSON-RPC request scenarios for MCP server
 #[tokio::test]
 async fn test_jsonrpc_scenarios() -> Result<()> {
-    let database = create_test_database().await?;
-    let auth_manager = create_test_auth_manager();
-    let config = Arc::new(ServerConfig::from_env()?);
-    let _server = MultiTenantMcpServer::new(
-        (*database).clone(),
-        (*auth_manager).clone(),
-        TEST_JWT_SECRET,
-        config,
-    );
+    let resources = create_test_server_resources().await?;
+    let _server = MultiTenantMcpServer::new(resources.clone());
 
     let user = User::new(
         "jsonrpc@example.com".to_string(),
         "hash".to_string(),
         Some("JSONRPC Test".to_string()),
     );
-    database.create_user(&user).await?;
-    let token = auth_manager.generate_token(&user)?;
+    resources.database.create_user(&user).await?;
+    let token = resources.auth_manager.generate_token(&user)?;
 
     // Test various JSON-RPC request formats
     let requests = [
@@ -567,15 +550,8 @@ async fn test_stats_model_scenarios() -> Result<()> {
 /// Test concurrent operations for multitenant scenarios
 #[tokio::test]
 async fn test_concurrent_operations() -> Result<()> {
-    let database = create_test_database().await?;
-    let auth_manager = create_test_auth_manager();
-    let config = Arc::new(ServerConfig::from_env()?);
-    let server = Arc::new(MultiTenantMcpServer::new(
-        (*database).clone(),
-        (*auth_manager).clone(),
-        TEST_JWT_SECRET,
-        config,
-    ));
+    let resources = create_test_server_resources().await?;
+    let server = Arc::new(MultiTenantMcpServer::new(resources));
 
     // Create multiple users concurrently
     let mut handles = Vec::new();

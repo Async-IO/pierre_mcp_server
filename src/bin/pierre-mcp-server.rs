@@ -18,7 +18,7 @@ use pierre_mcp_server::{
     config::environment::ServerConfig,
     database_plugins::{factory::Database, DatabaseProvider},
     logging,
-    mcp::multitenant::MultiTenantMcpServer,
+    mcp::{multitenant::MultiTenantMcpServer, resources::ServerResources},
 };
 use std::sync::Arc;
 use tracing::{error, info};
@@ -123,13 +123,14 @@ async fn main() -> Result<()> {
         };
         info!("Authentication manager initialized");
 
-        // Create and run server
-        let server = MultiTenantMcpServer::new(
+        // Create server resources and server
+        let resources = Arc::new(ServerResources::new(
             database,
             auth_manager,
             &jwt_secret_string,
             Arc::new(config.clone()),
-        );
+        ));
+        let server = MultiTenantMcpServer::new(resources);
 
         info!(
             "MCP server starting on ports {} (MCP) and {} (HTTP)",

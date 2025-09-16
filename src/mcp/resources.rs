@@ -16,12 +16,13 @@ use crate::a2a::system_user::A2ASystemUserService;
 use crate::auth::{AuthManager, McpAuthMiddleware};
 use crate::database_plugins::factory::Database;
 use crate::intelligence::ActivityIntelligence;
-use crate::mcp::progress::ProgressTracker;
+use crate::mcp::schema::OAuthCompletedNotification;
 use crate::oauth::manager::OAuthManager;
 use crate::providers::ProviderRegistry;
 use crate::tenant::{oauth_manager::TenantOAuthManager, TenantOAuthClient};
 use crate::websocket::WebSocketManager;
 use std::sync::Arc;
+use tokio::sync::broadcast;
 
 /// Centralized resource container for dependency injection
 ///
@@ -41,7 +42,8 @@ pub struct ServerResources {
     pub oauth_manager: Arc<tokio::sync::RwLock<OAuthManager>>,
     pub a2a_client_manager: Arc<A2AClientManager>,
     pub a2a_system_user_service: Arc<A2ASystemUserService>,
-    pub progress_tracker: Arc<ProgressTracker>,
+    pub oauth_notification_sender: Option<broadcast::Sender<OAuthCompletedNotification>>,
+    pub sse_manager: Arc<crate::notifications::sse::SseConnectionManager>,
 }
 
 impl ServerResources {
@@ -134,8 +136,8 @@ impl ServerResources {
             a2a_system_user_service.clone(),
         ));
 
-        // Create progress tracker for MCP operations
-        let progress_tracker = Arc::new(ProgressTracker::new());
+        // Create SSE connection manager for real-time notifications
+        let sse_manager = Arc::new(crate::notifications::sse::SseConnectionManager::new());
 
         Self {
             database: database_arc,
@@ -150,7 +152,103 @@ impl ServerResources {
             oauth_manager,
             a2a_client_manager,
             a2a_system_user_service,
-            progress_tracker,
+            oauth_notification_sender: None,
+            sse_manager,
         }
+    }
+
+    /// Set the OAuth notification sender for push notifications
+    pub fn set_oauth_notification_sender(
+        &mut self,
+        sender: broadcast::Sender<OAuthCompletedNotification>,
+    ) {
+        self.oauth_notification_sender = Some(sender);
+    }
+
+    /// Create a new builder for `ServerResources`
+    #[must_use]
+    pub const fn builder() -> ServerResourcesBuilder {
+        ServerResourcesBuilder::new()
+    }
+}
+
+/// Builder pattern for `ServerResources` to avoid manual resource assembly anti-patterns
+pub struct ServerResourcesBuilder {
+    database: Option<Database>,
+    auth_manager: Option<AuthManager>,
+    admin_jwt_secret: Option<String>,
+    config: Option<Arc<crate::config::environment::ServerConfig>>,
+}
+
+impl ServerResourcesBuilder {
+    /// Create a new builder
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            database: None,
+            auth_manager: None,
+            admin_jwt_secret: None,
+            config: None,
+        }
+    }
+
+    /// Set the database
+    #[must_use]
+    pub fn with_database(mut self, database: Database) -> Self {
+        self.database = Some(database);
+        self
+    }
+
+    /// Set the auth manager
+    #[must_use]
+    pub fn with_auth_manager(mut self, auth_manager: AuthManager) -> Self {
+        self.auth_manager = Some(auth_manager);
+        self
+    }
+
+    /// Set the admin JWT secret
+    #[must_use]
+    pub fn with_admin_jwt_secret(mut self, admin_jwt_secret: impl Into<String>) -> Self {
+        self.admin_jwt_secret = Some(admin_jwt_secret.into());
+        self
+    }
+
+    /// Set the server configuration
+    #[must_use]
+    pub fn with_config(mut self, config: Arc<crate::config::environment::ServerConfig>) -> Self {
+        self.config = Some(config);
+        self
+    }
+
+    /// Build the `ServerResources`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any required fields are missing
+    pub fn build(self) -> Result<ServerResources, &'static str> {
+        let database = self.database.ok_or("Database is required")?;
+        let auth_manager = self.auth_manager.ok_or("AuthManager is required")?;
+        let admin_jwt_secret = self
+            .admin_jwt_secret
+            .ok_or("Admin JWT secret is required")?;
+        let config = self.config.ok_or("Server config is required")?;
+
+        let resources = ServerResources::new(database, auth_manager, &admin_jwt_secret, config);
+        Ok(resources)
+    }
+
+    /// Build the `ServerResources` wrapped in an `Arc`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any required fields are missing
+    pub fn build_arc(self) -> Result<Arc<ServerResources>, &'static str> {
+        Ok(Arc::new(self.build()?))
+    }
+}
+
+impl Default for ServerResourcesBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }

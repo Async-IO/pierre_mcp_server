@@ -1,6 +1,5 @@
 // ABOUTME: Production-critical coverage tests for uncovered code paths
 // ABOUTME: Tests specific uncovered code paths that represent production risks
-#![allow(clippy::uninlined_format_args)]
 
 //! Production-Critical Coverage Tests
 //!
@@ -9,7 +8,6 @@
 
 use anyhow::Result;
 use pierre_mcp_server::{
-    config::environment::ServerConfig,
     database_plugins::DatabaseProvider,
     mcp::multitenant::MultiTenantMcpServer,
     models::{EncryptedToken, User, UserTier},
@@ -21,24 +19,14 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
-const TEST_JWT_SECRET: &str = "test_jwt_secret_for_production_coverage_tests";
-
 mod common;
 use common::*;
 
 /// Test actual MCP request handling flow - the core production path
 #[tokio::test]
 async fn test_mcp_request_processing_flow() -> Result<()> {
-    let database = create_test_database().await?;
-    let auth_manager = create_test_auth_manager();
-    let config = Arc::new(ServerConfig::from_env()?);
-
-    let server = MultiTenantMcpServer::new(
-        (*database).clone(),
-        (*auth_manager).clone(),
-        TEST_JWT_SECRET,
-        config,
-    );
+    let resources = create_test_server_resources().await?;
+    let server = MultiTenantMcpServer::new(resources);
 
     // Create test user
     let user_id = Uuid::new_v4();
@@ -204,16 +192,8 @@ async fn test_admin_auth_flow() -> Result<()> {
 /// Test MCP multitenant request routing - core production path
 #[tokio::test]
 async fn test_mcp_multitenant_request_routing() -> Result<()> {
-    let database = create_test_database().await?;
-    let auth_manager = create_test_auth_manager();
-    let config = Arc::new(ServerConfig::from_env()?);
-
-    let server = MultiTenantMcpServer::new(
-        (*database).clone(),
-        (*auth_manager).clone(),
-        TEST_JWT_SECRET,
-        config,
-    );
+    let resources = create_test_server_resources().await?;
+    let server = MultiTenantMcpServer::new(resources);
 
     // Create multiple test users to test tenant isolation
     let mut users = Vec::new();
@@ -221,7 +201,7 @@ async fn test_mcp_multitenant_request_routing() -> Result<()> {
         let user_id = Uuid::new_v4();
         let user = User {
             id: user_id,
-            email: format!("user{}@example.com", i),
+            email: format!("user{i}@example.com"),
             display_name: Some(format!("User {i}")),
             password_hash: bcrypt::hash("password", bcrypt::DEFAULT_COST)?,
             tier: if i == 0 {

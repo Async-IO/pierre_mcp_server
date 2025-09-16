@@ -400,12 +400,13 @@ async fn test_complete_multitenant_workflow() -> Result<()> {
     // Start the server
     let jwt_secret_path = temp_dir.path().join("jwt.secret");
     let encryption_key_path = temp_dir.path().join("encryption.key");
-    let server = MultiTenantMcpServer::new(
+    let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         database,
         auth_manager,
         TEST_JWT_SECRET,
         create_test_config(&jwt_secret_path, &encryption_key_path),
-    );
+    ));
+    let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
         tokio::select! {
             result = server.run_http_only(server_port) => {
@@ -564,12 +565,13 @@ async fn test_mcp_authentication_required() -> Result<()> {
     // Start the server
     let jwt_secret_path = temp_dir.path().join("jwt.secret");
     let encryption_key_path = temp_dir.path().join("encryption.key");
-    let server = MultiTenantMcpServer::new(
+    let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         database,
         auth_manager,
         TEST_JWT_SECRET,
         create_test_config(&jwt_secret_path, &encryption_key_path),
-    );
+    ));
+    let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
         tokio::select! {
             result = server.run_http_only(server_port) => {
@@ -634,12 +636,13 @@ async fn test_mcp_initialization_no_auth() -> Result<()> {
     // Start the server
     let jwt_secret_path = temp_dir.path().join("jwt.secret");
     let encryption_key_path = temp_dir.path().join("encryption.key");
-    let server = MultiTenantMcpServer::new(
+    let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         database,
         auth_manager,
         TEST_JWT_SECRET,
         create_test_config(&jwt_secret_path, &encryption_key_path),
-    );
+    ));
+    let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
         tokio::select! {
             result = server.run_http_only(server_port) => {
@@ -694,12 +697,13 @@ async fn test_mcp_concurrent_requests() -> Result<()> {
     // Start the server
     let jwt_secret_path = temp_dir.path().join("jwt.secret");
     let encryption_key_path = temp_dir.path().join("encryption.key");
-    let server = MultiTenantMcpServer::new(
+    let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         database,
         auth_manager,
         TEST_JWT_SECRET,
         create_test_config(&jwt_secret_path, &encryption_key_path),
-    );
+    ));
+    let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
         tokio::select! {
             result = server.run_http_only(server_port) => {
@@ -788,8 +792,13 @@ async fn test_multitenant_server_config() -> Result<()> {
     let config = create_test_config(&jwt_secret_path, &encryption_key_path);
 
     // Test server creation
-    let _server =
-        MultiTenantMcpServer::new(database, auth_manager, TEST_JWT_SECRET, config.clone());
+    let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
+        database,
+        auth_manager,
+        TEST_JWT_SECRET,
+        config.clone(),
+    ));
+    let _server = MultiTenantMcpServer::new(resources);
 
     // Verify configuration
     assert_eq!(config.mcp_port, 8080);

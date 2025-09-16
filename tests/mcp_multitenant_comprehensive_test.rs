@@ -7,7 +7,6 @@
 
 use anyhow::Result;
 use pierre_mcp_server::{
-    config::environment::ServerConfig,
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::multitenant::{McpRequest, MultiTenantMcpServer},
     models::{Tenant, User},
@@ -18,8 +17,6 @@ use std::sync::Arc;
 
 mod common;
 
-const TEST_JWT_SECRET: &str = "test_jwt_secret_for_multitenant_comprehensive_tests";
-
 // === Test Setup Helpers ===
 
 fn create_mock_provider_registry() -> Arc<ProviderRegistry> {
@@ -27,104 +24,8 @@ fn create_mock_provider_registry() -> Arc<ProviderRegistry> {
 }
 
 async fn create_test_server() -> Result<MultiTenantMcpServer> {
-    let database = common::create_test_database().await?;
-    let auth_manager = common::create_test_auth_manager();
-    let config = Arc::new(ServerConfig::from_env().unwrap_or_else(|_| {
-        use pierre_mcp_server::config::environment::*;
-        ServerConfig {
-            mcp_port: 3000,
-            http_port: 4000,
-            log_level: LogLevel::Info,
-            database: DatabaseConfig {
-                url: DatabaseUrl::SQLite {
-                    path: std::path::PathBuf::from("test.db"),
-                },
-                encryption_key_path: std::path::PathBuf::from("test_encryption.key"),
-                auto_migrate: true,
-                backup: BackupConfig {
-                    enabled: false,
-                    interval_seconds: 3600,
-                    retention_count: 7,
-                    directory: std::path::PathBuf::from("test_backups"),
-                },
-            },
-            auth: AuthConfig {
-                jwt_secret_path: std::path::PathBuf::from("test_jwt.secret"),
-                jwt_expiry_hours: 24,
-                enable_refresh_tokens: false,
-            },
-            oauth: OAuthConfig {
-                strava: OAuthProviderConfig {
-                    client_id: Some("test_client_id".to_string()),
-                    client_secret: Some("test_client_secret".to_string()),
-                    redirect_uri: Some("http://localhost:4000/oauth/callback/strava".to_string()),
-                    scopes: vec!["read".to_string()],
-                    enabled: true,
-                },
-                fitbit: OAuthProviderConfig {
-                    client_id: Some("test_fitbit_id".to_string()),
-                    client_secret: Some("test_fitbit_secret".to_string()),
-                    redirect_uri: Some("http://localhost:4000/oauth/callback/fitbit".to_string()),
-                    scopes: vec!["activity".to_string()],
-                    enabled: true,
-                },
-            },
-            security: SecurityConfig {
-                cors_origins: vec!["*".to_string()],
-                rate_limit: RateLimitConfig {
-                    enabled: false,
-                    requests_per_window: 100,
-                    window_seconds: 60,
-                },
-                tls: TlsConfig {
-                    enabled: false,
-                    cert_path: None,
-                    key_path: None,
-                },
-                headers: SecurityHeadersConfig {
-                    environment: Environment::Development,
-                },
-            },
-            external_services: ExternalServicesConfig {
-                weather: WeatherServiceConfig {
-                    api_key: None,
-                    base_url: "https://api.openweathermap.org/data/2.5".to_string(),
-                    enabled: false,
-                },
-                geocoding: GeocodingServiceConfig {
-                    base_url: "https://nominatim.openstreetmap.org".to_string(),
-                    enabled: true,
-                },
-                strava_api: StravaApiConfig {
-                    base_url: "https://www.strava.com/api/v3".to_string(),
-                    auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                    token_url: "https://www.strava.com/oauth/token".to_string(),
-                },
-                fitbit_api: FitbitApiConfig {
-                    base_url: "https://api.fitbit.com".to_string(),
-                    auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
-                    token_url: "https://api.fitbit.com/oauth2/token".to_string(),
-                },
-            },
-            app_behavior: AppBehaviorConfig {
-                max_activities_fetch: 100,
-                default_activities_limit: 20,
-                ci_mode: true,
-                protocol: ProtocolConfig {
-                    mcp_version: "2024-11-05".to_string(),
-                    server_name: "pierre-mcp-server".to_string(),
-                    server_version: "0.1.0".to_string(),
-                },
-            },
-        }
-    }));
-
-    Ok(MultiTenantMcpServer::new(
-        (*database).clone(),
-        (*auth_manager).clone(),
-        TEST_JWT_SECRET,
-        config,
-    ))
+    let resources = common::create_test_server_resources().await?;
+    Ok(MultiTenantMcpServer::new(resources))
 }
 
 async fn create_test_user_with_auth(database: &Database) -> Result<(User, String)> {

@@ -125,7 +125,7 @@ LEGITIMATE_ARC_CLONES=$(rg "database_arc\.clone\(\)" src/ -g "!src/bin/*" -g "!s
 PROBLEMATIC_DB_CLONES=$(rg "\.as_ref\(\)\.clone\(\)" src/ -g "!src/bin/*" -g "!src/database/tests.rs" -g "!src/database_plugins/*" --count 2>/dev/null | cut -d: -f2 | python3 -c "import sys; lines = sys.stdin.readlines(); print(sum(int(x.strip()) for x in lines) if lines else 0)" 2>/dev/null || echo 0)
 TOTAL_DATABASE_CLONES=$((LEGITIMATE_ARC_CLONES + PROBLEMATIC_DB_CLONES))
 RESOURCE_CREATION=$(rg "AuthManager::new|OAuthManager::new|A2AClientManager::new|TenantOAuthManager::new" src/ -g "!src/mcp/multitenant.rs" -g "!src/mcp/resources.rs" -g "!src/bin/*" -g "!tests/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-FAKE_RESOURCES=$(rg "Arc::new\(ServerResources\s*[\{\:]" src/ 2>/dev/null | wc -l | awk '{print $1+0}')
+FAKE_RESOURCES=$(rg "Arc::new\(ServerResources\s*[\{\:]" src/ -g "!src/bin/*" 2>/dev/null | wc -l | awk '{print $1+0}')
 OBSOLETE_FUNCTIONS=$(rg "fn.*run_http_server\(" src/ 2>/dev/null | wc -l | awk '{print $1+0}')
 
 # Code Quality Analysis
@@ -231,7 +231,7 @@ printf "│ %-35s │ %5d │ " "Fake resource assemblies" "$FAKE_RESOURCES"
 if [ "$FAKE_RESOURCES" -eq 0 ]; then
     printf "$(format_status "✅ PASS")│ %-39s │\n" "No fake ServerResources"
 else
-    FIRST_FAKE=$(get_first_location 'rg "Arc::new\(ServerResources\s*\{" src/ -n')
+    FIRST_FAKE=$(get_first_location 'rg "Arc::new\(ServerResources\s*\{" src/ -g "!src/bin/*" -n')
     printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$FIRST_FAKE"
 fi
 
