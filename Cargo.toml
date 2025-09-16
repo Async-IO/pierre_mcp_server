@@ -65,6 +65,7 @@ lto = "fat"
 
 [dependencies]
 tokio = { version = "1.45", features = ["rt-multi-thread", "macros", "net", "time", "fs", "signal", "io-std", "io-util", "sync"] }
+tokio-stream = "0.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream"], default-features = false }
@@ -84,6 +85,7 @@ tower-http = { version = "0.5", features = ["trace", "request-id"] }
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 base64 = "0.22"
+bytes = "1.8"
 url = "2.5"
 clap = { version = "4.5", features = ["derive", "std"], default-features = false }
 dotenvy = "0.15"

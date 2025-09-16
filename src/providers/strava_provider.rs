@@ -98,130 +98,6 @@ impl StravaProvider {
         }
     }
 
-    /// Generate mock responses for test tokens
-    #[allow(clippy::too_many_lines)] // Long function: Mock data for comprehensive testing
-    fn get_mock_response<T>(endpoint: &str) -> Result<T>
-    where
-        T: for<'de> Deserialize<'de>,
-    {
-        // Strip query parameters for matching
-        let endpoint_base = endpoint.split('?').next().unwrap_or(endpoint);
-
-        let mock_json = match endpoint_base {
-            "athlete" => serde_json::json!({
-                "id": 12345,
-                "username": "test_athlete",
-                "firstname": "Test",
-                "lastname": "Athlete",
-                "profile_medium": "https://dgalywyr863hv.cloudfront.net/pictures/athletes/12345678/avatar/medium.jpg"
-            }),
-            "athlete/activities" => {
-                let now = chrono::Utc::now();
-                serde_json::json!([
-                    {
-                        "id": 9_876_543_210_i64,
-                        "name": "Morning Run",
-                        "type": "Run",
-                        "start_date": (now - chrono::Duration::days(1)).to_rfc3339(),
-                        "distance": crate::constants::demo_data::SAMPLE_5K_METERS,
-                        "elapsed_time": crate::constants::demo_data::SAMPLE_SHORT_RUN_SECONDS,
-                        "total_elevation_gain": 100.0,
-                        "average_speed": 2.78,
-                        "max_speed": 4.5,
-                        "average_heartrate": 155.0,
-                        "max_heartrate": 175.0,
-                        "suffer_score": 85.0
-                    },
-                    {
-                        "id": 9_876_543_211_i64,
-                        "name": "Evening Bike Ride",
-                        "type": "Ride",
-                        "start_date": (now - chrono::Duration::days(2)).to_rfc3339(),
-                        "distance": 25_000.0,
-                        "elapsed_time": crate::constants::demo_data::SAMPLE_MEDIUM_RUN_SECONDS,
-                        "total_elevation_gain": 300.0,
-                        "average_speed": 6.94,
-                        "max_speed": 15.0,
-                        "average_heartrate": 145.0,
-                        "max_heartrate": 165.0,
-                        "suffer_score": 120.0
-                    }
-                ])
-            }
-            endpoint_base if endpoint_base.starts_with("activities/") => {
-                // Extract activity ID from endpoint
-                let id = endpoint_base
-                    .strip_prefix("activities/")
-                    .unwrap_or("9876543210");
-                let now = chrono::Utc::now();
-                serde_json::json!({
-                    "id": id.parse::<i64>().unwrap_or(9_876_543_210),
-                    "name": format!("Test Activity {}", id),
-                    "type": "Run",
-                    "start_date": (now - chrono::Duration::days(1)).to_rfc3339(),
-                    "distance": crate::constants::demo_data::SAMPLE_5K_METERS,
-                    "elapsed_time": crate::constants::demo_data::SAMPLE_SHORT_RUN_SECONDS,
-                    "total_elevation_gain": 100.0,
-                    "average_speed": 2.78,
-                    "max_speed": 4.5,
-                    "average_heartrate": 155.0,
-                    "max_heartrate": 175.0,
-                    "suffer_score": 85.0,
-                    "description": "Test activity for comprehensive testing",
-                    "calories": 250.0
-                })
-            }
-            "athlete/stats" => serde_json::json!({
-                "recent_ride_totals": {
-                    "count": 5,
-                    "distance": 50_000.0,
-                    "moving_time": crate::constants::demo_data::SAMPLE_LONG_RUN_SECONDS,
-                    "elapsed_time": crate::constants::demo_data::SAMPLE_MARATHON_SECONDS,
-                    "elevation_gain": 500.0
-                },
-                "recent_run_totals": {
-                    "count": 10,
-                    "distance": 75_000.0,
-                    "moving_time": crate::constants::demo_data::SAMPLE_ULTRA_RUN_SECONDS,
-                    "elapsed_time": crate::constants::demo_data::SAMPLE_ULTRA_MARATHON_SECONDS,
-                    "elevation_gain": 1000.0
-                },
-                "ytd_ride_totals": {
-                    "count": 50,
-                    "distance": 500_000.0,
-                    "moving_time": crate::constants::demo_data::SAMPLE_IRONMAN_BIKE_SECONDS,
-                    "elapsed_time": crate::constants::demo_data::SAMPLE_IRONMAN_TOTAL_SECONDS,
-                    "elevation_gain": 5000.0
-                },
-                "ytd_run_totals": {
-                    "count": 100,
-                    "distance": 750_000.0,
-                    "moving_time": 180_000,
-                    "elapsed_time": 190_000,
-                    "elevation_gain": 10_000.0
-                },
-                "all_ride_totals": {
-                    "count": 200,
-                    "distance": 2_000_000.0,
-                    "moving_time": 288_000,
-                    "elapsed_time": 320_000,
-                    "elevation_gain": 20_000.0
-                },
-                "all_run_totals": {
-                    "count": 400,
-                    "distance": 3_000_000.0,
-                    "moving_time": 720_000,
-                    "elapsed_time": 760_000,
-                    "elevation_gain": 40_000.0
-                }
-            }),
-            _ => serde_json::json!({}),
-        };
-
-        serde_json::from_value(mock_json)
-            .with_context(|| format!("Failed to parse mock response for endpoint: {endpoint}"))
-    }
-
     /// Make authenticated API request
     async fn api_request<T>(&self, endpoint: &str) -> Result<T>
     where
@@ -239,10 +115,11 @@ impl StravaProvider {
             .as_ref()
             .context("No access token available")?;
 
-        // Return mock data for test tokens
-        if access_token.starts_with("at_") {
-            tracing::info!("Using mock response for test token, endpoint: {}", endpoint);
-            return Self::get_mock_response(endpoint);
+        // Reject test/invalid tokens with proper error message
+        if access_token.starts_with("at_") || access_token.len() < 40 {
+            anyhow::bail!(
+                "Invalid Strava access token. Please authenticate with Strava first to access real data."
+            );
         }
 
         tracing::info!("Using access token: {}...", &access_token[..10]);

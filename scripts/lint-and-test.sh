@@ -134,7 +134,8 @@ PROBLEMATIC_EXPECTS=$(rg "\.expect\(" src/ | rg -v "// Safe|ServerResources.*req
 PANICS=$(rg "panic!\(" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 TODOS=$(rg "TODO|FIXME|XXX" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 PLACEHOLDERS=$(rg "placeholder|not yet implemented|unimplemented!\(" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-STUBS=$(rg "stub|mock.*implementation" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+STUBS=$(rg "placeholder|not yet implemented|unimplemented!\(|stub|mock.*implementation" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+PRODUCTION_MOCKS=$(rg "mock_|get_mock|return.*mock|demo purposes|for demo|stub implementation|mock implementation" src/ -g "!src/bin/*" -g "!tests/*" | wc -l 2>/dev/null || echo 0)
 PROBLEMATIC_UNDERSCORE_NAMES=$(rg "fn _|let _[a-zA-Z]|struct _|enum _" src/ | rg -v "let _[[:space:]]*=" | rg -v "let _result|let _response|let _output" | wc -l 2>/dev/null || echo 0)
 EXAMPLE_EMAILS=$(rg "example\.com|test@" src/ -g "!src/bin/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 CFG_TEST_IN_SRC=$(rg "#\[cfg\(test\)\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
@@ -280,12 +281,12 @@ else
     printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$FIRST_TODO"
 fi
 
-printf "│ %-35s │ %5d │ " "Placeholders/stubs" "$STUBS"
-if [ "$STUBS" -eq 0 ]; then
-    printf "$(format_status "✅ PASS")│ %-39s │\n" "No stubs found"
+printf "│ %-35s │ %5d │ " "Production mock implementations" "$PRODUCTION_MOCKS"
+if [ "$PRODUCTION_MOCKS" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "No mock code in production"
 else
-    FIRST_STUB=$(get_first_location 'rg "stub|mock.*implementation" src/ -n')
-    printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$FIRST_STUB"
+    FIRST_PRODUCTION_MOCK=$(get_first_location 'rg "mock_|get_mock|return.*mock|demo purposes|for demo|stub implementation|mock implementation" src/ -g "!src/bin/*" -g "!tests/*" -n')
+    printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_PRODUCTION_MOCK"
 fi
 
 printf "│ %-35s │ %5d │ " "Problematic underscore names" "$PROBLEMATIC_UNDERSCORE_NAMES"
@@ -318,6 +319,14 @@ if [ "$CLIPPY_ALLOWS_TOO_MANY_LINES" -eq 0 ]; then
 else
     FIRST_LONG_FUNCTION=$(get_first_location 'rg "#\[allow\(clippy::too_many_lines\)\]" src/ -n')
     printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$FIRST_LONG_FUNCTION"
+fi
+
+printf "│ %-35s │ %5d │ " "Dead code annotations" "$DEAD_CODE"
+if [ "$DEAD_CODE" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "Remove dead code instead of hiding"
+else
+    FIRST_DEAD_CODE=$(get_first_location 'rg "#\[allow\(dead_code\)\]" src/ -n')
+    printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_DEAD_CODE"
 fi
 
 printf "│ %-35s │ %5d │ " "Example emails" "$EXAMPLE_EMAILS"

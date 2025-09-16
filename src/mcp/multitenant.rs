@@ -15,6 +15,7 @@ use super::{
     http_setup::HttpSetup,
     protocol::ProtocolHandler,
     resources::ServerResources,
+    sse_transport,
     tool_handlers::{McpOAuthCredentials, ToolHandlers, ToolRoutingContext},
 };
 use crate::a2a_routes::A2ARoutes;
@@ -1999,6 +2000,8 @@ impl MultiTenantMcpServer {
     }
 
     /// Handle MCP HTTP request (Streamable HTTP transport)
+    // Long function: Complex HTTP request handling with comprehensive logging and validation
+    #[allow(clippy::too_many_lines)]
     async fn handle_mcp_http_request(
         method: warp::http::Method,
         origin: Option<String>,
@@ -2087,16 +2090,35 @@ impl MultiTenantMcpServer {
                     .as_ref()
                     .is_some_and(|a| a.contains("text/event-stream"))
                 {
-                    // Return SSE response for streaming
-                    let reply = warp::reply::with_header(
-                        "MCP HTTP transport ready",
+                    // Return proper SSE stream for MCP protocol
+                    let stream =
+                        sse_transport::create_mcp_sse_stream(ctx.resources.clone(), authorization);
+
+                    // Create SSE response with proper headers
+                    let mut response =
+                        warp::http::Response::new(warp::hyper::Body::wrap_stream(stream));
+                    response.headers_mut().insert(
                         "content-type",
-                        "text/event-stream",
+                        warp::http::HeaderValue::from_static("text/event-stream"),
                     );
-                    Ok(Box::new(warp::reply::with_status(
-                        reply,
-                        warp::http::StatusCode::OK,
-                    )))
+                    response.headers_mut().insert(
+                        "cache-control",
+                        warp::http::HeaderValue::from_static("no-cache"),
+                    );
+                    response.headers_mut().insert(
+                        "connection",
+                        warp::http::HeaderValue::from_static("keep-alive"),
+                    );
+                    response.headers_mut().insert(
+                        "access-control-allow-origin",
+                        warp::http::HeaderValue::from_static("*"),
+                    );
+                    response.headers_mut().insert(
+                        "access-control-allow-headers",
+                        warp::http::HeaderValue::from_static("cache-control"),
+                    );
+
+                    Ok(Box::new(response))
                 } else {
                     // Return JSON status
                     let reply = warp::reply::json(&serde_json::json!({

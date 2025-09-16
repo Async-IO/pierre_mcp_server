@@ -81,9 +81,8 @@ impl PluginImplementation for WeatherIntegrationPlugin {
             units
         );
 
-        // This would typically fetch actual weather data from an external API
-        // For now, we'll return mock weather analysis
-        let weather_analysis = perform_weather_analysis(activity_id, include_forecast, units);
+        // Attempt to fetch actual weather data - return error if unavailable
+        let weather_analysis = perform_weather_analysis(activity_id, include_forecast, units)?;
 
         Ok(UniversalResponse {
             success: true,
@@ -108,57 +107,16 @@ impl PluginImplementation for WeatherIntegrationPlugin {
     }
 }
 
-fn perform_weather_analysis(_activity_id: &str, include_forecast: bool, units: &str) -> Value {
-    let temp_unit = if units == "imperial" { "°F" } else { "°C" };
-    let speed_unit = if units == "imperial" { "mph" } else { "km/h" };
-
-    let mut analysis = serde_json::json!({
-        "conditions_during_activity": {
-            "temperature": if units == "imperial" { 68 } else { 20 },
-            "temperature_unit": temp_unit,
-            "humidity": 65,
-            "wind_speed": if units == "imperial" { 8 } else { 13 },
-            "wind_speed_unit": speed_unit,
-            "wind_direction": "NW",
-            "conditions": "partly_cloudy",
-            "uv_index": 6,
-            "feels_like": if units == "imperial" { 72 } else { 22 }
-        },
-        "performance_impact": {
-            "temperature_impact": "optimal",
-            "wind_impact": "slight_headwind",
-            "humidity_impact": "moderate",
-            "overall_conditions": "favorable",
-            "estimated_performance_delta": "+2.3%"
-        }
-    });
-
-    if include_forecast {
-        analysis["upcoming_conditions"] = serde_json::json!({
-            "next_3_days": [
-                {
-                    "date": "2024-01-15",
-                    "conditions": "sunny",
-                    "temperature_high": if units == "imperial" { 72 } else { 22 },
-                    "temperature_low": if units == "imperial" { 58 } else { 14 },
-                    "wind_speed": if units == "imperial" { 5 } else { 8 },
-                    "recommended_activity_window": "07:00-09:00",
-                    "activity_rating": "excellent"
-                },
-                {
-                    "date": "2024-01-16",
-                    "conditions": "light_rain",
-                    "temperature_high": if units == "imperial" { 64 } else { 18 },
-                    "temperature_low": if units == "imperial" { 52 } else { 11 },
-                    "wind_speed": if units == "imperial" { 12 } else { 19 },
-                    "recommended_activity_window": "indoor_recommended",
-                    "activity_rating": "poor"
-                }
-            ]
-        });
-    }
-
-    analysis
+fn perform_weather_analysis(
+    _activity_id: &str,
+    _include_forecast: bool,
+    _units: &str,
+) -> Result<Value, ProtocolError> {
+    // Weather analysis requires external API integration (OpenWeatherMap, etc.)
+    // Return error indicating the service needs proper configuration
+    Err(ProtocolError::ConfigurationError(
+        "Weather analysis requires external weather API configuration. Please configure OPENWEATHER_API_KEY or similar weather service.".to_string()
+    ))
 }
 
 fn generate_weather_insights(_weather_analysis: &Value) -> Vec<String> {

@@ -69,16 +69,16 @@ impl PluginImplementation for BasicAnalysisPlugin {
         );
 
         // Verify Strava provider is available in the registry
-        let _ = env
+        let provider = env
             .provider_registry
             .create_provider("strava")
             .map_err(|e| {
                 ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
             })?;
 
-        // For demo purposes, we'll return mock analysis
-        // In a real implementation, you would fetch the actual activity
-        let analysis_result = perform_basic_analysis(activity_id, include_zones);
+        // Attempt to fetch and analyze real activity data
+        let analysis_result =
+            perform_basic_analysis(activity_id, include_zones, provider.as_ref()).await?;
 
         Ok(UniversalResponse {
             success: true,
@@ -100,46 +100,68 @@ impl PluginImplementation for BasicAnalysisPlugin {
     }
 }
 
-fn perform_basic_analysis(_activity_id: &str, include_zones: bool) -> Value {
-    // Mock analysis for demonstration
-    let mut analysis = serde_json::json!({
-        "pace_metrics": {
-            "average_pace_min_per_km": 5.2,
-            "best_pace_min_per_km": 4.8,
-            "pace_consistency": "good"
-        },
-        "effort_metrics": {
-            "perceived_effort": 7,
-            "efficiency_score": 82,
-            "endurance_factor": 0.91
-        },
-        "distance_metrics": {
-            "total_distance_km": 10.5,
-            "elevation_gain_m": 156,
-            "grade_adjusted_pace": 5.4
-        }
+#[allow(clippy::cast_precision_loss)]
+async fn perform_basic_analysis(
+    activity_id: &str,
+    include_zones: bool,
+    provider: &dyn crate::providers::core::FitnessProvider,
+) -> Result<Value, ProtocolError> {
+    // Fetch actual activity data from the provider
+    let activity = provider.get_activity(activity_id).await.map_err(|e| {
+        ProtocolError::ExecutionFailed(format!("Failed to fetch activity {activity_id}: {e}"))
+    })?;
+
+    // Calculate real pace metrics if distance and duration are available
+    let pace_metrics = if let (Some(distance), Some(duration)) =
+        (activity.distance_meters, Some(activity.duration_seconds))
+    {
+        let distance_km = distance / 1000.0; // Convert meters to km
+                                             // Safe: duration_seconds represents activity time, precision loss acceptable for human-readable metrics
+        let duration_hours = duration as f64 / 3600.0;
+        let average_pace_min_per_km = if distance_km > 0.0 {
+            // Safe: duration_seconds represents activity time, precision loss acceptable for human-readable metrics
+            let duration_minutes = duration as f64 / 60.0;
+            duration_minutes / distance_km
+        } else {
+            0.0
+        };
+
+        serde_json::json!({
+            "average_pace_min_per_km": average_pace_min_per_km,
+            "average_speed_kmh": if duration_hours > 0.0 { distance_km / duration_hours } else { 0.0 },
+            "total_distance_km": distance_km,
+            // Safe: duration_seconds represents activity time, precision loss acceptable for human-readable metrics
+            "duration_minutes": duration as f64 / 60.0
+        })
+    } else {
+        serde_json::json!({
+            "error": "Insufficient data: distance or duration missing"
+        })
+    };
+
+    // Calculate effort metrics from available data
+    let effort_metrics = serde_json::json!({
+        "average_heart_rate": activity.average_heart_rate,
+        "max_heart_rate": activity.max_heart_rate,
+        "average_power": activity.average_power,
+        "max_power": activity.max_power,
+        "elevation_gain_m": activity.elevation_gain
     });
 
-    if include_zones {
-        analysis["heart_rate_zones"] = serde_json::json!({
-            "zone_1_percentage": 15,
-            "zone_2_percentage": 45,
-            "zone_3_percentage": 30,
-            "zone_4_percentage": 8,
-            "zone_5_percentage": 2,
-            "average_hr": 152,
-            "max_hr": 178
-        });
+    let mut analysis = serde_json::json!({
+        "activity_name": activity.name,
+        "activity_type": format!("{:?}", activity.sport_type),
+        "pace_metrics": pace_metrics,
+        "effort_metrics": effort_metrics
+    });
 
-        analysis["power_zones"] = serde_json::json!({
-            "average_power": 245,
-            "normalized_power": 258,
-            "intensity_factor": 0.76,
-            "training_stress_score": 89
-        });
+    // Add zone analysis only if specifically requested and heart rate data is available
+    if include_zones && activity.average_heart_rate.is_some() {
+        analysis["zones_note"] =
+            serde_json::json!("Zone analysis requires additional fitness configuration data");
     }
 
-    analysis
+    Ok(analysis)
 }
 
 // Implement PluginTool for this static plugin

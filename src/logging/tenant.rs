@@ -4,6 +4,18 @@
 use tracing::Span;
 use uuid::Uuid;
 
+/// Context for provider API call logging
+pub struct ProviderApiContext<'a> {
+    pub user_id: Uuid,
+    pub tenant_id: Uuid,
+    pub provider: &'a str,
+    pub endpoint: &'a str,
+    pub method: &'a str,
+    pub success: bool,
+    pub duration_ms: u64,
+    pub status_code: Option<u16>,
+}
+
 /// Tenant-aware logging utilities
 pub struct TenantLogger;
 
@@ -134,26 +146,16 @@ impl TenantLogger {
     }
 
     /// Log provider API call with tenant context
-    #[allow(clippy::too_many_arguments)] // Long function: Provider API logging requires comprehensive context
-    pub fn log_provider_api_call(
-        user_id: Uuid,
-        tenant_id: Uuid,
-        provider: &str,
-        endpoint: &str,
-        method: &str,
-        success: bool,
-        duration_ms: u64,
-        status_code: Option<u16>,
-    ) {
+    pub fn log_provider_api_call(context: &ProviderApiContext) {
         tracing::debug!(
-            user_id = %user_id,
-            tenant_id = %tenant_id,
-            provider = %provider,
-            api_endpoint = %endpoint,
-            api_method = %method,
-            success = %success,
-            duration_ms = %duration_ms,
-            status_code = ?status_code,
+            user_id = %context.user_id,
+            tenant_id = %context.tenant_id,
+            provider = %context.provider,
+            api_endpoint = %context.endpoint,
+            api_method = %context.method,
+            success = %context.success,
+            duration_ms = %context.duration_ms,
+            status_code = ?context.status_code,
             event_type = "provider_api_call",
             "Provider API call completed"
         );
