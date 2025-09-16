@@ -101,16 +101,9 @@ impl TenantFitnessProvider for TenantStravaProvider {
     async fn get_athlete(&self) -> Result<Athlete> {
         let token = self.get_access_token()?;
 
-        // Return mock data for test tokens
+        // Validate token format - test tokens not supported in production
         if token.starts_with("at_") {
-            return Ok(Athlete {
-                id: "12345".to_string(),
-                username: "test_athlete".to_string(),
-                firstname: Some("Test".to_string()),
-                lastname: Some("Athlete".to_string()),
-                profile_picture: Some("https://dgalywyr863hv.cloudfront.net/pictures/athletes/12345678/avatar/medium.jpg".to_string()),
-                provider: "strava".to_string(),
-            });
+            return Err(anyhow!("Test tokens are not supported. Please connect with a valid Strava OAuth token."));
         }
 
         let response: StravaAthlete = self
@@ -151,56 +144,9 @@ impl TenantFitnessProvider for TenantStravaProvider {
     ) -> Result<Vec<Activity>> {
         let token = self.get_access_token()?;
 
-        // Return mock data for test tokens
+        // Validate token format - test tokens not supported in production
         if token.starts_with("at_") {
-            let mock_activities = vec![
-                Activity {
-                    id: "9876543210".to_string(),
-                    name: "Morning Run".to_string(),
-                    sport_type: crate::models::SportType::Running,
-                    start_date: chrono::Utc::now() - chrono::Duration::days(1),
-                    duration_seconds: 1800,
-                    distance_meters: Some(5000.0),
-                    elevation_gain: Some(100.0),
-                    average_speed: Some(2.78),
-                    max_speed: Some(4.5),
-                    average_heart_rate: Some(155),
-                    max_heart_rate: Some(175),
-                    average_cadence: Some(180),
-                    average_power: None,
-                    max_power: None,
-                    suffer_score: Some(85),
-                    provider: "strava".to_string(),
-                    ..Default::default()
-                },
-                Activity {
-                    id: "9876543211".to_string(),
-                    name: "Evening Bike Ride".to_string(),
-                    sport_type: crate::models::SportType::Cycling,
-                    start_date: chrono::Utc::now() - chrono::Duration::days(2),
-                    duration_seconds: 3600,
-                    distance_meters: Some(25000.0),
-                    elevation_gain: Some(300.0),
-                    average_speed: Some(6.94),
-                    max_speed: Some(15.0),
-                    average_heart_rate: Some(145),
-                    max_heart_rate: Some(165),
-                    average_cadence: Some(90),
-                    average_power: Some(200),
-                    max_power: Some(350),
-                    suffer_score: Some(120),
-                    provider: "strava".to_string(),
-                    ..Default::default()
-                },
-            ];
-            
-            let activities_to_return = if let Some(limit) = limit {
-                mock_activities.into_iter().take(limit).collect()
-            } else {
-                mock_activities
-            };
-            
-            return Ok(activities_to_return);
+            return Err(anyhow!("Test tokens are not supported. Please connect with a valid Strava OAuth token."));
         }
 
         let mut url = url::Url::parse(&format!("{}/athlete/activities", crate::constants::api::strava_api_base()))?;
