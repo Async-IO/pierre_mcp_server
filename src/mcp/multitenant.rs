@@ -46,6 +46,7 @@ use anyhow::Result;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::fmt::Write;
 use std::str::FromStr;
 use std::sync::Arc;
 use tracing::{error, info, warn};
@@ -71,20 +72,9 @@ pub struct MultiTenantMcpServer {
 }
 
 impl MultiTenantMcpServer {
-    /// Create a new MCP server with centralized resource management
-    pub fn new(
-        database: Database,
-        auth_manager: AuthManager,
-        admin_jwt_secret: &str,
-        config: Arc<crate::config::environment::ServerConfig>,
-    ) -> Self {
-        let resources = Arc::new(ServerResources::new(
-            database,
-            auth_manager,
-            admin_jwt_secret,
-            config,
-        ));
-
+    /// Create a new MCP server with pre-built resources (dependency injection)
+    #[must_use]
+    pub const fn new(resources: Arc<ServerResources>) -> Self {
         Self { resources }
     }
 
@@ -1632,13 +1622,37 @@ impl MultiTenantMcpServer {
     async fn run_mcp_server(self, port: u16) -> Result<()> {
         info!("Starting MCP server with stdio and HTTP transports");
 
-        // Clone server for both transports
-        let server_for_stdio = self.clone();
-        let server_for_http = self.clone();
+        // Create notification channels for both transports using broadcast for multiple receivers
+        let (notification_sender, _): (
+            tokio::sync::broadcast::Sender<crate::mcp::schema::OAuthCompletedNotification>,
+            tokio::sync::broadcast::Receiver<crate::mcp::schema::OAuthCompletedNotification>,
+        ) = tokio::sync::broadcast::channel(100); // Buffer up to 100 notifications
+
+        // Create separate receivers for stdio and SSE
+        let notification_receiver = notification_sender.subscribe();
+        let sse_notification_receiver = notification_sender.subscribe();
+
+        // Set up notification sender in resources for OAuth callbacks
+        let mut resources_clone = (*self.resources).clone();
+        resources_clone.set_oauth_notification_sender(notification_sender);
+        let shared_resources = Arc::new(resources_clone);
+
+        // Clone server for both transports with shared notification resources
+        let mut server_for_stdio = self.clone();
+        server_for_stdio.resources = shared_resources.clone();
+
+        let mut server_for_http = self.clone();
+        server_for_http.resources = shared_resources.clone();
+
+        let mut server_for_sse = self.clone();
+        server_for_sse.resources = shared_resources;
 
         // Start stdio transport in background - don't wait for it to complete
         let stdio_handle = tokio::spawn(async move {
-            match server_for_stdio.run_stdio_transport().await {
+            match server_for_stdio
+                .run_stdio_transport(notification_receiver)
+                .await
+            {
                 Ok(()) => info!("stdio transport completed successfully"),
                 Err(e) => warn!("stdio transport failed: {}", e),
             }
@@ -1649,6 +1663,20 @@ impl MultiTenantMcpServer {
             match stdio_handle.await {
                 Ok(()) => info!("stdio transport task completed"),
                 Err(e) => warn!("stdio transport task failed: {}", e),
+            }
+        });
+
+        // Start SSE notification forwarder task
+        let sse_manager_for_notifications = server_for_sse.resources.sse_manager.clone();
+        tokio::spawn(async move {
+            if let Err(e) = server_for_sse
+                .run_sse_notification_forwarder(
+                    sse_notification_receiver,
+                    sse_manager_for_notifications,
+                )
+                .await
+            {
+                error!("SSE notification forwarder failed: {}", e);
             }
         });
 
@@ -1691,16 +1719,140 @@ impl MultiTenantMcpServer {
         self.run_http_transport(port).await
     }
 
+    /// Spawn background task to handle OAuth notifications via stdio
+    fn spawn_oauth_notification_handler(
+        mut notification_receiver: tokio::sync::broadcast::Receiver<
+            crate::mcp::schema::OAuthCompletedNotification,
+        >,
+        stdout: Arc<tokio::sync::Mutex<tokio::io::Stdout>>,
+    ) {
+        tokio::spawn(async move {
+            loop {
+                match notification_receiver.recv().await {
+                    Ok(notification) => {
+                        Self::handle_oauth_notification(notification, &stdout).await;
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                        tracing::warn!(
+                            "Stdio notification handler lagged, skipped {} notifications",
+                            skipped
+                        );
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                        tracing::info!("Stdio notification channel closed, ending handler");
+                        break;
+                    }
+                }
+            }
+        });
+    }
+
+    /// Handle a single OAuth notification by writing it to stdout
+    async fn handle_oauth_notification(
+        notification: crate::mcp::schema::OAuthCompletedNotification,
+        stdout: &Arc<tokio::sync::Mutex<tokio::io::Stdout>>,
+    ) {
+        use tokio::io::AsyncWriteExt;
+
+        tracing::info!(
+            "Received OAuth notification for MCP client: {}",
+            notification.params.provider
+        );
+
+        let notification_json = match serde_json::to_string(&notification) {
+            Ok(json) => json,
+            Err(e) => {
+                tracing::error!("Failed to serialize OAuth notification: {}", e);
+                return;
+            }
+        };
+
+        {
+            let mut stdout_guard = stdout.lock().await;
+            if let Err(e) = stdout_guard.write_all(notification_json.as_bytes()).await {
+                tracing::error!("Failed to write OAuth notification to stdout: {}", e);
+                return;
+            }
+            if let Err(e) = stdout_guard.write_all(b"\n").await {
+                tracing::error!("Failed to write newline after OAuth notification: {}", e);
+                return;
+            }
+            if let Err(e) = stdout_guard.flush().await {
+                tracing::error!("Failed to flush OAuth notification to stdout: {}", e);
+                return;
+            }
+        } // stdout_guard is dropped here, releasing the mutex
+
+        tracing::info!("Successfully sent OAuth notification to MCP client via stdout");
+    }
+
+    /// Write MCP response to stdout
+    async fn write_response_to_stdout(
+        response: &McpResponse,
+        stdout: &Arc<tokio::sync::Mutex<tokio::io::Stdout>>,
+    ) -> Result<()> {
+        use tokio::io::AsyncWriteExt;
+
+        let response_str = serde_json::to_string(response)
+            .map_err(|e| anyhow::anyhow!("Failed to serialize response: {}", e))?;
+
+        {
+            let mut stdout_guard = stdout.lock().await;
+            stdout_guard
+                .write_all(response_str.as_bytes())
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to write to stdout: {}", e))?;
+            stdout_guard
+                .write_all(b"\n")
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to write newline to stdout: {}", e))?;
+            stdout_guard
+                .flush()
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to flush stdout: {}", e))?;
+            drop(stdout_guard);
+        }
+
+        Ok(())
+    }
+
+    /// Process a single MCP request and send response
+    async fn process_mcp_request(
+        request: McpRequest,
+        resources: &Arc<ServerResources>,
+        stdout: &Arc<tokio::sync::Mutex<tokio::io::Stdout>>,
+    ) -> Result<()> {
+        tracing::debug!(
+            transport = "stdio",
+            mcp_method = %request.method,
+            "Processing MCP request via stdio transport"
+        );
+
+        if let Some(response) = Self::handle_request(request, resources).await {
+            Self::write_response_to_stdout(&response, stdout).await?;
+        }
+
+        Ok(())
+    }
+
     /// Run MCP server using stdio transport (MCP specification compliant)
-    async fn run_stdio_transport(self) -> Result<()> {
-        use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+    async fn run_stdio_transport(
+        self,
+        notification_receiver: tokio::sync::broadcast::Receiver<
+            crate::mcp::schema::OAuthCompletedNotification,
+        >,
+    ) -> Result<()> {
+        use tokio::io::{AsyncBufReadExt, BufReader};
 
         info!("MCP stdio transport ready - listening on stdin/stdout");
 
         let stdin = tokio::io::stdin();
-        let mut stdout = tokio::io::stdout();
+        let stdout = Arc::new(tokio::sync::Mutex::new(tokio::io::stdout()));
         let mut reader = BufReader::new(stdin);
         let mut line = String::new();
+
+        // Spawn background task to handle OAuth notifications
+        Self::spawn_oauth_notification_handler(notification_receiver, stdout.clone());
 
         while reader.read_line(&mut line).await.unwrap_or(0) > 0 {
             let trimmed_line = line.trim();
@@ -1710,41 +1862,83 @@ impl MultiTenantMcpServer {
             }
 
             if let Ok(request) = serde_json::from_str::<McpRequest>(trimmed_line) {
-                tracing::debug!(
-                    transport = "stdio",
-                    mcp_method = %request.method,
-                    line_length = trimmed_line.len(),
-                    "Received MCP request via stdio transport"
-                );
-
-                if let Some(response) = Self::handle_request(request, &self.resources).await {
-                    let response_str = match serde_json::to_string(&response) {
-                        Ok(s) => s,
-                        Err(e) => {
-                            tracing::error!("Failed to serialize response: {}", e);
-                            line.clear();
-                            continue;
-                        }
-                    };
-
-                    if let Err(e) = stdout.write_all(response_str.as_bytes()).await {
-                        tracing::error!("Failed to write to stdout: {}", e);
-                        break;
-                    }
-                    if let Err(e) = stdout.write_all(b"\n").await {
-                        tracing::error!("Failed to write newline to stdout: {}", e);
-                        break;
-                    }
-                    if let Err(e) = stdout.flush().await {
-                        tracing::error!("Failed to flush stdout: {}", e);
-                        break;
-                    }
+                if let Err(e) = Self::process_mcp_request(request, &self.resources, &stdout).await {
+                    tracing::error!("Failed to process MCP request: {}", e);
+                    break;
                 }
             }
             line.clear();
         }
 
         info!("MCP stdio transport ended");
+        Ok(())
+    }
+
+    /// Run SSE notification forwarder for OAuth notifications
+    async fn run_sse_notification_forwarder(
+        &self,
+        mut notification_receiver: tokio::sync::broadcast::Receiver<
+            crate::mcp::schema::OAuthCompletedNotification,
+        >,
+        sse_manager: Arc<crate::notifications::sse::SseConnectionManager>,
+    ) -> Result<()> {
+        info!("SSE notification forwarder ready - waiting for OAuth notifications");
+
+        loop {
+            match notification_receiver.recv().await {
+                Ok(notification) => {
+                    tracing::info!(
+                        "Received OAuth notification for SSE delivery: {}",
+                        notification.params.provider
+                    );
+
+                    // Convert OAuth notification to database format for SSE
+                    let oauth_notification =
+                        crate::database::oauth_notifications::OAuthNotification {
+                            id: format!(
+                                "oauth-{}-{}",
+                                notification.params.provider,
+                                chrono::Utc::now().timestamp()
+                            ),
+                            user_id: notification
+                                .params
+                                .user_id
+                                .unwrap_or_else(|| "unknown".to_string()),
+                            provider: notification.params.provider.clone(),
+                            success: notification.params.success,
+                            message: notification.params.message.clone(),
+                            expires_at: None,
+                            created_at: chrono::Utc::now(),
+                            read_at: None,
+                        };
+
+                    // Send to all connected SSE clients for this user
+                    if let Err(e) = sse_manager
+                        .send_notification(&oauth_notification.user_id, &oauth_notification)
+                        .await
+                    {
+                        tracing::warn!("Failed to send OAuth notification via SSE: {}", e);
+                    } else {
+                        tracing::info!(
+                            "Successfully sent OAuth notification via SSE for user: {}",
+                            oauth_notification.user_id
+                        );
+                    }
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                    tracing::warn!(
+                        "SSE notification forwarder lagged, skipped {} notifications",
+                        skipped
+                    );
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                    tracing::info!("SSE notification channel closed, ending forwarder");
+                    break;
+                }
+            }
+        }
+
+        info!("SSE notification forwarder ended");
         Ok(())
     }
 
@@ -1999,11 +2193,30 @@ impl MultiTenantMcpServer {
     ) -> Option<McpResponse> {
         let start_time = std::time::Instant::now();
 
-        // Log the full request in debug mode
-        tracing::debug!(
-            mcp_request = ?request,
-            "Received MCP request"
-        );
+        // Log request (with optional truncation)
+        let should_truncate = std::env::var("MCP_LOG_TRUNCATE")
+            .map(|v| v != "false" && v != "0")
+            .unwrap_or(true);
+
+        if should_truncate {
+            let request_summary = format!("{}(id={:?})", request.method, request.id);
+            tracing::debug!(
+                mcp_method = %request.method,
+                mcp_id = ?request.id,
+                mcp_params_preview = ?request.params.as_ref().map(|p| {
+                    let s = p.to_string();
+                    if s.len() > 100 { format!("{}...[truncated]", &s[..100]) } else { s }
+                }),
+                auth_present = request.auth_token.is_some(),
+                "Received MCP request: {}",
+                request_summary
+            );
+        } else {
+            tracing::debug!(
+                mcp_request = ?request,
+                "Received MCP request (full)"
+            );
+        }
 
         // Handle notifications (no response needed)
         if request.method.starts_with("notifications/") {
@@ -2049,12 +2262,35 @@ impl MultiTenantMcpServer {
         let duration = start_time.elapsed();
         let duration_ms = u64::try_from(duration.as_millis()).unwrap_or(u64::MAX);
 
-        // Log the full response in debug mode
-        tracing::debug!(
-            mcp_response = ?response,
-            duration_ms = duration_ms,
-            "Sending MCP response"
-        );
+        // Log response (with optional truncation)
+        let should_truncate = std::env::var("MCP_LOG_TRUNCATE")
+            .map(|v| v != "false" && v != "0")
+            .unwrap_or(true);
+
+        if should_truncate {
+            let response_preview = response.result.as_ref().map(|r| {
+                let s = r.to_string();
+                if s.len() > 150 {
+                    format!("{}...[truncated]", &s[..150])
+                } else {
+                    s
+                }
+            });
+            tracing::debug!(
+                mcp_id = ?response.id,
+                duration_ms = duration_ms,
+                success = response.error.is_none(),
+                result_preview = ?response_preview,
+                error = ?response.error.as_ref().map(|e| &e.message),
+                "Sending MCP response"
+            );
+        } else {
+            tracing::debug!(
+                mcp_response = ?response,
+                duration_ms = duration_ms,
+                "Sending MCP response (full)"
+            );
+        }
 
         // Record metrics in span
         tracing::Span::current()
@@ -2678,9 +2914,12 @@ impl MultiTenantMcpServer {
     }
 
     /// Handle tenant-aware connection status
+    // Long function: Complex transactional function that checks OAuth status, notifications, and generates comprehensive connection status response
+    #[allow(clippy::too_many_lines)]
     pub async fn handle_tenant_connection_status(
         tenant_context: &TenantContext,
         tenant_oauth_client: &Arc<TenantOAuthClient>,
+        database: &Arc<Database>,
         request_id: Value,
         credentials: McpOAuthCredentials<'_>,
     ) -> McpResponse {
@@ -2697,25 +2936,93 @@ impl MultiTenantMcpServer {
         // Using the HTTP API endpoints (port 8081) for OAuth flow
         let base_url = "http://127.0.0.1:8081/api/oauth";
 
-        // In a real implementation, this would check tenant-specific provider connections
-        // For now, return connection status with OAuth URLs using proper MCP content format
+        // Check actual OAuth token status from database
+        // tenant_context.user_id is already a Uuid, no need to parse
+        let user_id = tenant_context.user_id;
+
+        // Get tenant_id as string for database queries
+        let tenant_id_str = tenant_context.tenant_id.to_string();
+
+        // Check Strava connection status
+        tracing::debug!(
+            "Checking Strava token for user_id={}, tenant_id={}, provider=strava",
+            user_id,
+            tenant_id_str
+        );
+        let strava_connected = database
+            .get_user_oauth_token(user_id, &tenant_id_str, "strava")
+            .await
+            .map_or_else(
+                |e| {
+                    tracing::warn!("Failed to query Strava OAuth token: {}", e);
+                    false
+                },
+                |token| {
+                    let connected = token.is_some();
+                    tracing::debug!("Strava token lookup result: connected={}", connected);
+                    connected
+                },
+            );
+
+        // Check Fitbit connection status from stored OAuth tokens
+        let fitbit_connected = database
+            .get_user_oauth_token(user_id, &tenant_id_str, "fitbit")
+            .await
+            .is_ok_and(|token| token.is_some());
+
+        // Get unread OAuth notifications for automatic announcement
+        let unread_notifications = database
+            .get_unread_oauth_notifications(user_id)
+            .await
+            .unwrap_or_else(|e| {
+                tracing::warn!("Failed to fetch unread notifications: {}", e);
+                Vec::new()
+            });
+
+        // Build notifications text for announcement
+        let notifications_text = if unread_notifications.is_empty() {
+            String::new()
+        } else {
+            let mut notifications_msg = String::from("\n\n🎉 Recent OAuth Updates:\n");
+            for notification in &unread_notifications {
+                let status_emoji = if notification.success { "✅" } else { "❌" };
+                writeln!(
+                    notifications_msg,
+                    "{} {}: {}",
+                    status_emoji,
+                    notification.provider.to_uppercase(),
+                    notification.message
+                )
+                .unwrap_or_else(|_| tracing::warn!("Failed to write notification text"));
+            }
+            notifications_msg
+        };
+
         let structured_data = serde_json::json!({
             "providers": [
                 {
                     "provider": "strava",
-                    "connected": false,
+                    "connected": strava_connected,
                     "tenant_id": tenant_context.tenant_id,
                     "last_sync": null,
                     "connect_url": format!("{}/auth/strava/{}", base_url, tenant_context.user_id),
-                    "connect_instructions": "Click this URL to connect your Strava account and authorize access to your fitness data."
+                    "connect_instructions": if strava_connected {
+                        "Your Strava account is connected and ready to use."
+                    } else {
+                        "Click this URL to connect your Strava account and authorize access to your fitness data."
+                    }
                 },
                 {
                     "provider": "fitbit",
-                    "connected": false,
+                    "connected": fitbit_connected,
                     "tenant_id": tenant_context.tenant_id,
                     "last_sync": null,
                     "connect_url": format!("{}/auth/fitbit/{}", base_url, tenant_context.user_id),
-                    "connect_instructions": "Click this URL to connect your Fitbit account and authorize access to your fitness data."
+                    "connect_instructions": if fitbit_connected {
+                        "Your Fitbit account is connected and ready to use."
+                    } else {
+                        "Click this URL to connect your Fitbit account and authorize access to your fitness data."
+                    }
                 }
             ],
             "tenant_info": {
@@ -2726,23 +3033,63 @@ impl MultiTenantMcpServer {
                 "message": "To connect a fitness provider, click the connect_url for the provider you want to use. You'll be redirected to their website to authorize access, then redirected back to complete the connection.",
                 "supported_providers": ["strava", "fitbit"],
                 "note": "After connecting, you can use fitness tools like get_activities, get_athlete, and get_stats with the connected provider."
-            }
+            },
+            "recent_notifications": unread_notifications.iter().map(|n| serde_json::json!({
+                "id": n.id,
+                "provider": n.provider,
+                "success": n.success,
+                "message": n.message,
+                "created_at": n.created_at
+            })).collect::<Vec<_>>()
         });
+
+        let strava_status = if strava_connected {
+            "Connected ✅"
+        } else {
+            "Not Connected"
+        };
+        let fitbit_status = if fitbit_connected {
+            "Connected ✅"
+        } else {
+            "Not Connected"
+        };
 
         let text_content = format!(
             "Fitness Provider Connection Status\n\n\
             Available Providers:\n\n\
-            Strava (Not Connected)\n\
-            Click to connect: {base_url}/auth/strava/{user_id}\n\n\
-            Fitbit (Not Connected)\n\
-            Click to connect: {base_url}/auth/fitbit/{user_id}\n\n\
-            To connect a provider:\n\
-            1. Click one of the URLs above\n\
-            2. You'll be redirected to authorize access\n\
-            3. Complete the OAuth flow to connect your account\n\
-            4. Start using fitness tools like get_activities, get_athlete, and get_stats",
-            base_url = base_url,
-            user_id = tenant_context.user_id
+            Strava ({strava_status})\n\
+            {strava_action}\n\n\
+            Fitbit ({fitbit_status})\n\
+            {fitbit_action}\n\n\
+            {connection_instructions}{notifications_text}",
+            strava_status = strava_status,
+            strava_action = if strava_connected {
+                "✅ Ready to use fitness tools!".to_string()
+            } else {
+                format!(
+                    "Click to connect: {}/auth/strava/{}",
+                    base_url, tenant_context.user_id
+                )
+            },
+            fitbit_status = fitbit_status,
+            fitbit_action = if fitbit_connected {
+                "✅ Ready to use fitness tools!".to_string()
+            } else {
+                format!(
+                    "Click to connect: {}/auth/fitbit/{}",
+                    base_url, tenant_context.user_id
+                )
+            },
+            connection_instructions = if !strava_connected || !fitbit_connected {
+                "To connect a provider:\n\
+                1. Click one of the URLs above\n\
+                2. You'll be redirected to authorize access\n\
+                3. Complete the OAuth flow to connect your account\n\
+                4. Start using fitness tools like get_activities, get_athlete, and get_stats"
+            } else {
+                "All providers connected! You can now use fitness tools like get_activities, get_athlete, and get_stats."
+            },
+            notifications_text = notifications_text
         );
 
         McpResponse {

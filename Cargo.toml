@@ -67,8 +67,9 @@ lto = "fat"
 tokio = { version = "1.45", features = ["rt-multi-thread", "macros", "net", "time", "fs", "signal", "io-std", "io-util", "sync"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream"], default-features = false }
 anyhow = "1.0"
+async-stream = "0.3"
 thiserror = "2.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "std", "registry", "json"], default-features = false }
@@ -103,6 +104,7 @@ subtle = "2.6"
 warp = { version = "0.3", features = ["websocket"], default-features = false }
 futures-util = "0.3"
 linkme = "0.3"
+eventsource-stream = "0.2"
 # Pin to compatible version to avoid edition2024 requirement
 base64ct = "=1.6.0"
 # For documentation server
@@ -111,5 +113,3 @@ env_logger = "0.11"
 [dev-dependencies]
 tempfile = "3.20"
 serial_test = "3.1"
-# For headless browser OAuth automation
-thirtyfour = "0.32"

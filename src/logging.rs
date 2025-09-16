@@ -53,6 +53,8 @@ pub struct LoggingConfig {
     pub request_id_header: String,
     /// Enable GCP Cloud Logging format
     pub enable_gcp_format: bool,
+    /// Truncate long MCP request/response logs for readability
+    pub truncate_mcp_logs: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -79,6 +81,7 @@ impl Default for LoggingConfig {
             enable_telemetry: false,
             request_id_header: "x-request-id".into(),
             enable_gcp_format: false,
+            truncate_mcp_logs: true, // Default to readable logs
         }
     }
 }
@@ -117,6 +120,9 @@ impl LoggingConfig {
             request_id_header: env::var("REQUEST_ID_HEADER")
                 .unwrap_or_else(|_| "x-request-id".into()),
             enable_gcp_format: environment == "production" && env::var("GCP_PROJECT_ID").is_ok(),
+            truncate_mcp_logs: env::var("MCP_LOG_TRUNCATE")
+                .map(|v| v != "false" && v != "0")
+                .unwrap_or(true), // Default to true (truncated) unless explicitly disabled
         }
     }
 
@@ -295,6 +301,7 @@ impl LoggingConfig {
             enable_telemetry: true,
             request_id_header: "x-request-id".into(),
             enable_gcp_format: true,
+            truncate_mcp_logs: false, // Production wants full logs
         }
     }
 }

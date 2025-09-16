@@ -21,6 +21,7 @@ use crate::constants::{
 use crate::database_plugins::DatabaseProvider;
 use crate::tenant::TenantContext;
 use serde_json::{json, Value};
+use std::fmt::Write;
 use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
@@ -178,6 +179,19 @@ impl ToolHandlers {
         )
         .await;
 
+        // Automatically append unread OAuth notifications to successful responses
+        debug!(
+            "About to check for OAuth notifications for user {} after {} tool call",
+            user_id, tool_name
+        );
+        let result = Self::append_oauth_notifications_to_response(
+            result,
+            user_id,
+            tool_name,
+            &routing_context.resources.database,
+        )
+        .await;
+
         // Record completion metrics in span
         let duration = start_time.elapsed();
         let duration_ms = u64::try_from(duration.as_millis()).unwrap_or(u64::MAX);
@@ -266,6 +280,7 @@ impl ToolHandlers {
                     return MultiTenantMcpServer::handle_tenant_connection_status(
                         tenant_ctx,
                         &ctx.resources.tenant_oauth_client,
+                        &ctx.resources.database,
                         request_id,
                         credentials,
                     )
@@ -1033,5 +1048,113 @@ impl ToolHandlers {
                 }
             }
         }
+    }
+
+    /// Automatically append unread OAuth notifications to successful tool responses
+    async fn append_oauth_notifications_to_response(
+        mut response: McpResponse,
+        user_id: Uuid,
+        tool_name: &str,
+        database: &crate::database_plugins::factory::Database,
+    ) -> McpResponse {
+        debug!(
+            "NOTIFICATION_CHECK: Starting notification check for user {} with tool {}",
+            user_id, tool_name
+        );
+
+        // Only append notifications for successful responses
+        if response.error.is_some() {
+            debug!(
+                "NOTIFICATION_CHECK: Skipping notification check due to error response for user {}",
+                user_id
+            );
+            return response;
+        }
+
+        // Skip notification check for notification-related tools to avoid recursion
+        if matches!(
+            tool_name,
+            CHECK_OAUTH_NOTIFICATIONS | GET_NOTIFICATIONS | MARK_NOTIFICATIONS_READ
+        ) {
+            debug!(
+                "NOTIFICATION_CHECK: Skipping notification check for notification-related tool {} for user {}",
+                tool_name, user_id
+            );
+            return response;
+        }
+
+        // Check for unread OAuth notifications
+        match database.get_unread_oauth_notifications(user_id).await {
+            Ok(unread_notifications) if !unread_notifications.is_empty() => {
+                debug!(
+                    "Found {} unread OAuth notifications for user {} during {} tool call",
+                    unread_notifications.len(),
+                    user_id,
+                    tool_name
+                );
+
+                // Build notification alert text
+                let mut notification_text = String::from("\n\n🎉 OAuth Connection Updates:\n");
+                for notification in &unread_notifications {
+                    let status_emoji = if notification.success { "✅" } else { "❌" };
+                    writeln!(
+                        &mut notification_text,
+                        "{} {}: {}",
+                        status_emoji,
+                        notification.provider.to_uppercase(),
+                        notification.message
+                    )
+                    .unwrap_or_else(|_| tracing::warn!("Failed to write notification text"));
+                }
+
+                // Append notification text to response content
+                if let Some(ref mut result) = response.result {
+                    if let Some(content) = result.get_mut("content") {
+                        if let Some(text_value) = content.as_array_mut() {
+                            // Content is an array, append a new text object
+                            text_value.push(json!({
+                                "type": "text",
+                                "text": notification_text
+                            }));
+                        } else if let Some(text_str) = content.as_str() {
+                            // Content is a string, append notification text
+                            *content = json!(format!("{}{}", text_str, notification_text));
+                        }
+                    } else if let Some(message) = result.get_mut("message") {
+                        if let Some(msg_str) = message.as_str() {
+                            // Result has a message field, append notification text
+                            *message = json!(format!("{}{}", msg_str, notification_text));
+                        }
+                    } else {
+                        // Add notifications as a separate field in result
+                        if let Some(obj) = result.as_object_mut() {
+                            obj.insert("oauth_notifications".to_string(), json!(notification_text));
+                        }
+                    }
+                }
+
+                info!(
+                    "Automatically delivered {} OAuth notifications to user {} via {} tool response",
+                    unread_notifications.len(),
+                    user_id,
+                    tool_name
+                );
+            }
+            Ok(_) => {
+                // No unread notifications, continue normally
+                debug!(
+                    "NOTIFICATION_CHECK: No unread OAuth notifications found for user {} during {} tool call",
+                    user_id, tool_name
+                );
+            }
+            Err(e) => {
+                warn!(
+                    "Failed to check OAuth notifications for user {} during {} tool call: {}",
+                    user_id, tool_name, e
+                );
+            }
+        }
+
+        response
     }
 }

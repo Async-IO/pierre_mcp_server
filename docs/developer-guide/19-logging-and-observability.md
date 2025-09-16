@@ -42,6 +42,10 @@ ENABLE_TELEMETRY=1          # Enable OpenTelemetry (when available)
 
 # GCP Cloud Logging (production)
 GCP_PROJECT_ID=your-project # Enables GCP-optimized format
+
+# MCP Request/Response Logging Control
+MCP_LOG_TRUNCATE=true       # Default: truncate long MCP logs for readability
+MCP_LOG_TRUNCATE=false      # Show full MCP request/response bodies
 ```
 
 ### Default Behavior
