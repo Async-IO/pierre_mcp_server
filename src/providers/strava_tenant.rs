@@ -101,9 +101,9 @@ impl TenantFitnessProvider for TenantStravaProvider {
     async fn get_athlete(&self) -> Result<Athlete> {
         let token = self.get_access_token()?;
 
-        // Validate token format - test tokens not supported in production
+        // Validate token format
         if token.starts_with("at_") {
-            return Err(anyhow!("Test tokens are not supported. Please connect with a valid Strava OAuth token."));
+            return Err(anyhow!("Invalid token format. Please ensure you have a valid Strava OAuth access token."));
         }
 
         let response: StravaAthlete = self
@@ -144,9 +144,9 @@ impl TenantFitnessProvider for TenantStravaProvider {
     ) -> Result<Vec<Activity>> {
         let token = self.get_access_token()?;
 
-        // Validate token format - test tokens not supported in production
+        // Validate token format
         if token.starts_with("at_") {
-            return Err(anyhow!("Test tokens are not supported. Please connect with a valid Strava OAuth token."));
+            return Err(anyhow!("Invalid token format. Please ensure you have a valid Strava OAuth access token."));
         }
 
         let mut url = url::Url::parse(&format!("{}/athlete/activities", crate::constants::api::strava_api_base()))?;
@@ -242,27 +242,9 @@ impl TenantFitnessProvider for TenantStravaProvider {
     async fn get_activity(&self, id: &str) -> Result<Activity> {
         let token = self.get_access_token()?;
 
-        // Return mock data for test tokens
+        // Validate token format
         if token.starts_with("at_") {
-            return Ok(Activity {
-                id: id.to_string(),
-                name: format!("Test Activity {id}"),
-                sport_type: crate::models::SportType::Running,
-                start_date: chrono::Utc::now() - chrono::Duration::hours(2),
-                duration_seconds: 1800,
-                distance_meters: Some(5000.0),
-                elevation_gain: Some(100.0),
-                average_speed: Some(2.78),
-                max_speed: Some(4.5),
-                average_heart_rate: Some(155),
-                max_heart_rate: Some(175),
-                average_cadence: Some(180),
-                average_power: None,
-                max_power: None,
-                suffer_score: Some(85),
-                provider: "strava".to_string(),
-                ..Default::default()
-            });
+            return Err(anyhow!("Invalid token format. Please ensure you have a valid Strava OAuth access token."));
         }
 
         let response: StravaActivity = self
@@ -342,14 +324,9 @@ impl TenantFitnessProvider for TenantStravaProvider {
     async fn get_stats(&self) -> Result<Stats> {
         let token = self.get_access_token()?;
 
-        // Return mock stats for test tokens
+        // Validate token format
         if token.starts_with("at_") {
-            return Ok(Stats {
-                total_activities: 42,
-                total_distance: 350.5,
-                total_duration: 15300, // 4.25 hours in seconds
-                total_elevation_gain: 1250.0,
-            });
+            return Err(anyhow!("Invalid token format. Please ensure you have a valid Strava OAuth access token."));
         }
 
         // Strava doesn't have a single stats endpoint, so we'll return empty stats
