@@ -559,6 +559,22 @@ impl OAuthRoutes {
             error!("Failed to store OAuth notification: {}", e);
         }
 
+        // Send immediate push notification if channel is available (cloud/stdio transport)
+        if let Some(notification_sender) = &self.resources.oauth_notification_sender {
+            let push_notification = crate::mcp::schema::OAuthCompletedNotification::new(
+                oauth_providers::STRAVA.to_string(),
+                true,
+                "Strava account connected successfully! You can now use fitness tools.".to_string(),
+                Some(user_id.to_string()),
+            );
+
+            if let Err(e) = notification_sender.send(push_notification) {
+                tracing::warn!("Failed to send OAuth push notification: {}", e);
+            } else {
+                tracing::info!("Sent OAuth push notification for Strava connection");
+            }
+        }
+
         Ok(OAuthCallbackResponse {
             user_id: user_id.to_string(),
             provider: oauth_providers::STRAVA.into(),
@@ -627,6 +643,22 @@ impl OAuthRoutes {
 
         if let Err(e) = notification_result {
             error!("Failed to store OAuth notification: {}", e);
+        }
+
+        // Send immediate push notification if channel is available (cloud/stdio transport)
+        if let Some(notification_sender) = &self.resources.oauth_notification_sender {
+            let push_notification = crate::mcp::schema::OAuthCompletedNotification::new(
+                oauth_providers::FITBIT.to_string(),
+                true,
+                "Fitbit account connected successfully! You can now use fitness tools.".to_string(),
+                Some(user_id.to_string()),
+            );
+
+            if let Err(e) = notification_sender.send(push_notification) {
+                tracing::warn!("Failed to send OAuth push notification: {}", e);
+            } else {
+                tracing::info!("Sent OAuth push notification for Fitbit connection");
+            }
         }
 
         Ok(OAuthCallbackResponse {

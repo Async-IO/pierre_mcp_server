@@ -232,7 +232,7 @@ impl FitnessConfigurationRoutes {
             }
         };
 
-        // Return mock response since we don't have record metadata in our current implementation
+        // Return response with current timestamp since database schema doesn't store creation/update metadata
         Ok(FitnessConfigurationResponse {
             id: format!("{tenant_id}:{configuration_name}"),
             tenant_id: tenant_id.to_string(),

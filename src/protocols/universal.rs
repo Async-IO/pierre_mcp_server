@@ -927,7 +927,7 @@ impl UniversalToolExecutor {
                     .get("distance_meters")
                     .and_then(|v| v.as_f64())
                     .unwrap_or(0.0)
-                    / 1000.0;
+                    / crate::constants::limits::METERS_PER_KILOMETER;
                 let duration_min = activity
                     .get("duration_seconds")
                     .and_then(|v| v.as_u64())
@@ -1182,7 +1182,8 @@ impl UniversalToolExecutor {
                     activity.name,
                     activity.sport_type,
                     activity.duration_seconds / 60,
-                    activity.distance_meters.unwrap_or(0.0) / 1000.0,
+                    activity.distance_meters.unwrap_or(0.0)
+                        / crate::constants::limits::METERS_PER_KILOMETER,
                     activity
                         .average_heart_rate
                         .map_or("N/A".to_string(), |hr| hr.to_string()),
@@ -2018,18 +2019,19 @@ impl UniversalToolExecutor {
             act1.name,
             act2.name,
             act1.name,
-            act1.distance_meters.unwrap_or(0.0) / 1000.0,
+            act1.distance_meters.unwrap_or(0.0) / crate::constants::limits::METERS_PER_KILOMETER,
             act1.duration_seconds / 60,
             act1.average_heart_rate
                 .map_or("N/A".to_string(), |hr| hr.to_string()),
             act1.elevation_gain.unwrap_or(0.0),
             act2.name,
-            act2.distance_meters.unwrap_or(0.0) / 1000.0,
+            act2.distance_meters.unwrap_or(0.0) / crate::constants::limits::METERS_PER_KILOMETER,
             act2.duration_seconds / 60,
             act2.average_heart_rate
                 .map_or("N/A".to_string(), |hr| hr.to_string()),
             act2.elevation_gain.unwrap_or(0.0),
-            (act2.distance_meters.unwrap_or(0.0) - act1.distance_meters.unwrap_or(0.0)) / 1000.0,
+            (act2.distance_meters.unwrap_or(0.0) - act1.distance_meters.unwrap_or(0.0))
+                / crate::constants::limits::METERS_PER_KILOMETER,
             (act2.duration_seconds as i64 - act1.duration_seconds as i64) / 60,
             act2.elevation_gain.unwrap_or(0.0) - act1.elevation_gain.unwrap_or(0.0)
         );

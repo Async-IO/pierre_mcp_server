@@ -854,6 +854,30 @@ pub mod rate_limits {
     pub const DEFAULT_QUERY_LIMIT: u32 = 1000;
 }
 
+/// Logging and debug constants
+pub mod logging {
+    /// Maximum response body size to log in full (bytes)
+    pub const MAX_RESPONSE_BODY_LOG_SIZE: usize = 1000;
+}
+
+/// System monitoring and health check constants
+pub mod system_monitoring {
+    /// Kilobytes to megabytes conversion factor
+    pub const KB_TO_MB_DIVISOR: u64 = 1024;
+
+    /// Bytes to megabytes conversion factor
+    pub const BYTES_TO_MB_DIVISOR: u64 = 1024 * 1024;
+
+    /// Estimated memory percentage used on macOS when precise data unavailable
+    pub const MACOS_ESTIMATED_MEMORY_USAGE_PERCENT: u64 = 7; // For 70% calculation (7/10)
+    pub const MACOS_ESTIMATED_MEMORY_TOTAL_PERCENT: u64 = 10;
+
+    /// Windows platform memory estimates (in MB) when `WinAPI` unavailable
+    pub const WINDOWS_ESTIMATED_TOTAL_MEMORY_MB: u64 = 8192; // 8GB estimate
+    pub const WINDOWS_ESTIMATED_USED_MEMORY_MB: u64 = 4096; // 4GB estimate (50%)
+    pub const WINDOWS_ESTIMATED_USAGE_PERCENT: f64 = 50.0;
+}
+
 /// Physiological constants  
 pub mod physiology {
     /// Default resting heart rate (BPM)
@@ -900,4 +924,25 @@ pub mod oauth_providers {
     pub fn is_supported(provider: &str) -> bool {
         all().contains(&provider)
     }
+}
+
+/// A2A Agent card demo data constants
+pub mod a2a_demo {
+    /// Example activity ID for A2A demos
+    pub const EXAMPLE_ACTIVITY_ID: &str = "123456";
+
+    /// Example activity date for A2A demos (ISO 8601)
+    pub const EXAMPLE_ACTIVITY_DATE: &str = "2024-01-15T07:00:00Z";
+
+    /// Example activity duration for A2A demos (30 minutes in seconds)
+    pub const EXAMPLE_ACTIVITY_DURATION_SECONDS: u32 = 1800;
+
+    /// Example activity distance for A2A demos (5km in meters)
+    pub const EXAMPLE_ACTIVITY_DISTANCE_METERS: u32 = 5000;
+
+    /// Trial tier monthly rate limit for A2A demos
+    pub const TRIAL_REQUESTS_PER_MONTH: u32 = 1000;
+
+    /// Starter tier monthly rate limit for A2A demos
+    pub const STARTER_REQUESTS_PER_MONTH: u32 = 10000;
 }

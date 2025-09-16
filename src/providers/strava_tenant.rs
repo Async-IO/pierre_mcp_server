@@ -108,7 +108,7 @@ impl TenantFitnessProvider for TenantStravaProvider {
                 username: "test_athlete".to_string(),
                 firstname: Some("Test".to_string()),
                 lastname: Some("Athlete".to_string()),
-                profile_picture: Some("https://example.com/profile.jpg".to_string()),
+                profile_picture: Some("https://dgalywyr863hv.cloudfront.net/pictures/athletes/12345678/avatar/medium.jpg".to_string()),
                 provider: "strava".to_string(),
             });
         }

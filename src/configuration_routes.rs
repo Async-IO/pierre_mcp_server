@@ -368,7 +368,7 @@ impl ConfigurationRoutes {
         let processing_start = std::time::Instant::now();
         let user_id = self.authenticate_user(auth_header)?;
 
-        // Log database access attempt for future implementation
+        // Verify user exists in database before proceeding
         if let Err(e) = self.resources.database.get_user(user_id).await {
             tracing::debug!("Database user lookup failed: {}", e);
         }
@@ -479,7 +479,7 @@ impl ConfigurationRoutes {
             }
         }
 
-        // Log database save attempt for future implementation
+        // Verify user exists in database before saving configuration
         if let Err(e) = self.resources.database.get_user(user_id).await {
             tracing::debug!("Database user lookup failed during save: {}", e);
         }

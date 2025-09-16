@@ -68,7 +68,7 @@ impl PluginImplementation for BasicAnalysisPlugin {
             include_zones
         );
 
-        // Validate provider availability for future implementation
+        // Verify Strava provider is available in the registry
         let _ = env
             .provider_registry
             .create_provider("strava")

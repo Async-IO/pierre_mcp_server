@@ -854,7 +854,7 @@ impl SportType {
 ///     username: "runner123".into(),
 ///     firstname: Some("John".into()),
 ///     lastname: Some("Doe".into()),
-///     profile_picture: Some("https://example.com/avatar.jpg".into()),
+///     profile_picture: Some("https://dgalywyr863hv.cloudfront.net/pictures/athletes/12345678/avatar/medium.jpg".into()),
 ///     provider: "strava".into(),
 /// };
 /// ```

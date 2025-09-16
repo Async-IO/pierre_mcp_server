@@ -420,7 +420,7 @@ impl FitnessProvider for StravaProvider {
             .context("Failed to read response body")?;
 
         info!("Strava API response length: {} bytes", response_text.len());
-        if response_text.len() < 1000 {
+        if response_text.len() < crate::constants::logging::MAX_RESPONSE_BODY_LOG_SIZE {
             info!("Strava API response body: {}", response_text);
         } else {
             info!(

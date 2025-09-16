@@ -515,8 +515,8 @@ impl HealthChecker {
             }
         }
 
-        let total_mb = total_kb / 1024;
-        let available_mb = available_kb / 1024;
+        let total_mb = total_kb / crate::constants::system_monitoring::KB_TO_MB_DIVISOR;
+        let available_mb = available_kb / crate::constants::system_monitoring::KB_TO_MB_DIVISOR;
         let used_mb = total_mb - available_mb;
         let used_percent = if total_mb > 0 {
             (used_mb as f64 / total_mb as f64) * 100.0
@@ -545,9 +545,11 @@ impl HealthChecker {
             .unwrap_or("0")
             .parse::<u64>()?;
 
-        let total_mb = total_bytes / (1024 * 1024);
+        let total_mb = total_bytes / crate::constants::system_monitoring::BYTES_TO_MB_DIVISOR;
         // For simplicity, estimate used memory as 70% (would need vm_stat for precision)
-        let used_mb = total_mb.saturating_mul(7) / 10;
+        let used_mb = total_mb.saturating_mul(
+            crate::constants::system_monitoring::MACOS_ESTIMATED_MEMORY_USAGE_PERCENT,
+        ) / crate::constants::system_monitoring::MACOS_ESTIMATED_MEMORY_TOTAL_PERCENT;
         let available_mb = total_mb.saturating_sub(used_mb);
         let used_percent = if total_mb > 0 {
             (f64::from(u32::try_from(used_mb).unwrap_or(u32::MAX))
@@ -568,10 +570,10 @@ impl HealthChecker {
     #[cfg(target_os = "windows")]
     fn get_memory_info_windows(_: &Self) -> Result<MemoryInfo, Box<dyn std::error::Error>> {
         // For Windows, we'd use WinAPI, but for simplicity return estimated values
-        let total_mb = 8192; // Estimate 8GB
-        let used_mb = 4096; // Estimate 50% usage
+        let total_mb = crate::constants::system_monitoring::WINDOWS_ESTIMATED_TOTAL_MEMORY_MB;
+        let used_mb = crate::constants::system_monitoring::WINDOWS_ESTIMATED_USED_MEMORY_MB;
         let available_mb = total_mb - used_mb;
-        let used_percent = 50.0;
+        let used_percent = crate::constants::system_monitoring::WINDOWS_ESTIMATED_USAGE_PERCENT;
 
         Ok(MemoryInfo {
             total_mb,

@@ -161,6 +161,9 @@ pub mod plugins;
 /// Two-tier key management system for secure database encryption
 pub mod key_management;
 
+/// Real-time notification system with SSE support
+pub mod notifications;
+
 // Utility modules
 pub mod tenant;
 pub mod utils;
