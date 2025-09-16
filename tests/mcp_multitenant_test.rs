@@ -163,7 +163,6 @@ use anyhow::Result;
 use futures_util::future;
 use pierre_mcp_server::{
     auth::{generate_jwt_secret, AuthManager, JwtValidationError, McpAuthMiddleware},
-    config::environment::ServerConfig,
     constants::oauth_providers,
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::multitenant::MultiTenantMcpServer,
@@ -173,30 +172,18 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-const TEST_JWT_SECRET: &str = "test_jwt_secret_for_multitenant_tests";
-
 // Import common test utilities
 mod common;
 use common::*;
 
-/// Helper to create a test server configuration
-fn create_test_server_config() -> Result<Arc<ServerConfig>> {
-    Ok(Arc::new(ServerConfig::from_env()?))
-}
-
 /// Helper to create a multitenant MCP server for testing
 async fn create_test_multitenant_server(
 ) -> Result<(MultiTenantMcpServer, Arc<Database>, Arc<AuthManager>)> {
-    let database = create_test_database().await?;
-    let auth_manager = create_test_auth_manager();
-    let config = create_test_server_config()?;
+    let resources = create_test_server_resources().await?;
+    let database = resources.database.clone();
+    let auth_manager = resources.auth_manager.clone();
 
-    let server = MultiTenantMcpServer::new(
-        (*database).clone(),
-        (*auth_manager).clone(),
-        TEST_JWT_SECRET,
-        config,
-    );
+    let server = MultiTenantMcpServer::new(resources);
 
     Ok((server, database, auth_manager))
 }
