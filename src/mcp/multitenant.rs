@@ -87,30 +87,7 @@ impl MultiTenantMcpServer {
         // Create HTTP + MCP server
         info!("Starting server with HTTP and MCP on port {}", port);
 
-        // Create route handlers using shared resources (no more cloning!)
-        let auth_routes = AuthRoutes::new(self.resources.clone());
-        let oauth_routes = OAuthRoutes::new(self.resources.clone());
-
-        // Validate route handlers are properly initialized
-        tracing::debug!(
-            "Initialized auth and OAuth route handlers - auth routes: {:p}, oauth routes: {:p}",
-            &auth_routes,
-            &oauth_routes
-        );
-
-        // Start HTTP server for auth endpoints in background
-        let http_port = port + 1; // Use port+1 for HTTP
-        let resources_http = self.resources.clone();
-
-        tokio::spawn(async move {
-            Box::pin(Self::run_http_server_with_resources(
-                http_port,
-                resources_http,
-            ))
-            .await
-        });
-
-        // Run MCP server on main port
+        // Run MCP server on main port (this sets up notification system and starts HTTP with shared resources)
         self.run_mcp_server(port).await
     }
 
@@ -193,6 +170,9 @@ impl MultiTenantMcpServer {
         // Health check route
         let health_route = Self::create_health_route();
 
+        // SSE notification routes
+        let sse_routes = crate::notifications::sse::sse_routes(resources.sse_manager.clone());
+
         // Create websocket route (method needs to exist)
         // let websocket_route = Self::create_websocket_route(resources.websocket_manager.clone());
 
@@ -213,6 +193,7 @@ impl MultiTenantMcpServer {
             .or(fitness_configuration_filter)
             .or(admin_routes_filter)
             .or(tenant_routes_filter)
+            .or(sse_routes)
             .or(health_route)
             .with(cors)
             .with(security_headers)
@@ -1645,7 +1626,18 @@ impl MultiTenantMcpServer {
         server_for_http.resources = shared_resources.clone();
 
         let mut server_for_sse = self.clone();
-        server_for_sse.resources = shared_resources;
+        server_for_sse.resources = shared_resources.clone();
+
+        // Start HTTP server for auth endpoints in background with shared resources (includes notification sender)
+        let http_port = port + 1; // Use port+1 for HTTP
+        let shared_resources_for_http = shared_resources.clone();
+        tokio::spawn(async move {
+            Box::pin(Self::run_http_server_with_resources(
+                http_port,
+                shared_resources_for_http,
+            ))
+            .await
+        });
 
         // Start stdio transport in background - don't wait for it to complete
         let stdio_handle = tokio::spawn(async move {
@@ -2043,10 +2035,10 @@ impl MultiTenantMcpServer {
                             .await
                             .map_or_else(
                                 || {
-                                    // Notification - return 202 with empty body
+                                    // Notification - return 204 No Content with empty body (JSON-RPC notifications expect no response)
                                     Ok(Box::new(warp::reply::with_status(
                                         warp::reply(),
-                                        warp::http::StatusCode::ACCEPTED,
+                                        warp::http::StatusCode::NO_CONTENT,
                                     ))
                                         as Box<dyn warp::Reply>)
                                 },

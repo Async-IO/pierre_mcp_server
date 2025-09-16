@@ -113,7 +113,7 @@ impl StravaProvider {
                 "username": "test_athlete",
                 "firstname": "Test",
                 "lastname": "Athlete",
-                "profile_medium": "https://example.com/profile.jpg"
+                "profile_medium": "https://dgalywyr863hv.cloudfront.net/pictures/athletes/12345678/avatar/medium.jpg"
             }),
             "athlete/activities" => {
                 let now = chrono::Utc::now();
@@ -123,8 +123,8 @@ impl StravaProvider {
                         "name": "Morning Run",
                         "type": "Run",
                         "start_date": (now - chrono::Duration::days(1)).to_rfc3339(),
-                        "distance": 5000.0,
-                        "elapsed_time": 1800,
+                        "distance": crate::constants::demo_data::SAMPLE_5K_METERS,
+                        "elapsed_time": crate::constants::demo_data::SAMPLE_SHORT_RUN_SECONDS,
                         "total_elevation_gain": 100.0,
                         "average_speed": 2.78,
                         "max_speed": 4.5,
@@ -138,7 +138,7 @@ impl StravaProvider {
                         "type": "Ride",
                         "start_date": (now - chrono::Duration::days(2)).to_rfc3339(),
                         "distance": 25_000.0,
-                        "elapsed_time": 3600,
+                        "elapsed_time": crate::constants::demo_data::SAMPLE_MEDIUM_RUN_SECONDS,
                         "total_elevation_gain": 300.0,
                         "average_speed": 6.94,
                         "max_speed": 15.0,
@@ -159,8 +159,8 @@ impl StravaProvider {
                     "name": format!("Test Activity {}", id),
                     "type": "Run",
                     "start_date": (now - chrono::Duration::days(1)).to_rfc3339(),
-                    "distance": 5000.0,
-                    "elapsed_time": 1800,
+                    "distance": crate::constants::demo_data::SAMPLE_5K_METERS,
+                    "elapsed_time": crate::constants::demo_data::SAMPLE_SHORT_RUN_SECONDS,
                     "total_elevation_gain": 100.0,
                     "average_speed": 2.78,
                     "max_speed": 4.5,
@@ -175,22 +175,22 @@ impl StravaProvider {
                 "recent_ride_totals": {
                     "count": 5,
                     "distance": 50_000.0,
-                    "moving_time": 7200,
-                    "elapsed_time": 8000,
+                    "moving_time": crate::constants::demo_data::SAMPLE_LONG_RUN_SECONDS,
+                    "elapsed_time": crate::constants::demo_data::SAMPLE_MARATHON_SECONDS,
                     "elevation_gain": 500.0
                 },
                 "recent_run_totals": {
                     "count": 10,
                     "distance": 75_000.0,
-                    "moving_time": 18000,
-                    "elapsed_time": 19000,
+                    "moving_time": crate::constants::demo_data::SAMPLE_ULTRA_RUN_SECONDS,
+                    "elapsed_time": crate::constants::demo_data::SAMPLE_ULTRA_MARATHON_SECONDS,
                     "elevation_gain": 1000.0
                 },
                 "ytd_ride_totals": {
                     "count": 50,
                     "distance": 500_000.0,
-                    "moving_time": 72000,
-                    "elapsed_time": 80000,
+                    "moving_time": crate::constants::demo_data::SAMPLE_IRONMAN_BIKE_SECONDS,
+                    "elapsed_time": crate::constants::demo_data::SAMPLE_IRONMAN_TOTAL_SECONDS,
                     "elevation_gain": 5000.0
                 },
                 "ytd_run_totals": {

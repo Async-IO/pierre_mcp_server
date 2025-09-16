@@ -313,6 +313,41 @@ impl ProgressNotification {
     }
 }
 
+/// OAuth completion notification for MCP clients
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OAuthCompletedNotification {
+    pub jsonrpc: String,
+    pub method: String,
+    pub params: OAuthCompletedParams,
+}
+
+/// OAuth completion notification parameters
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OAuthCompletedParams {
+    pub provider: String,
+    pub success: bool,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_id: Option<String>,
+}
+
+impl OAuthCompletedNotification {
+    /// Create a new OAuth completion notification
+    #[must_use]
+    pub fn new(provider: String, success: bool, message: String, user_id: Option<String>) -> Self {
+        Self {
+            jsonrpc: "2.0".to_string(),
+            method: "notifications/oauth_completed".to_string(),
+            params: OAuthCompletedParams {
+                provider,
+                success,
+                message,
+                user_id,
+            },
+        }
+    }
+}
+
 /// Get all available tools (public interface for tests)
 #[must_use]
 pub fn get_tools() -> Vec<ToolSchema> {
