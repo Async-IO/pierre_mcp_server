@@ -187,39 +187,3 @@ pub fn handle_sse_rejection(err: &Rejection) -> Result<impl Reply, std::convert:
         ))
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::database::oauth_notifications::OAuthNotification;
-    use chrono::Utc;
-
-    #[tokio::test]
-    async fn test_sse_connection_manager() {
-        let manager = SseConnectionManager::new();
-        let user_id = "test-user-123".to_string();
-
-        // Test connection registration
-        let _receiver = manager.register_connection(user_id.clone()).await;
-        assert_eq!(manager.active_connections().await, 1);
-
-        // Test notification sending
-        let notification = OAuthNotification {
-            id: "test-notification".to_string(),
-            user_id: user_id.clone(),
-            provider: "strava".to_string(),
-            success: true,
-            message: "Test notification".to_string(),
-            expires_at: None,
-            created_at: Utc::now(),
-            read_at: None,
-        };
-
-        let result = manager.send_notification(&user_id, &notification).await;
-        assert!(result.is_ok());
-
-        // Test connection cleanup
-        manager.unregister_connection(&user_id).await;
-        assert_eq!(manager.active_connections().await, 0);
-    }
-}

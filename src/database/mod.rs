@@ -91,6 +91,9 @@ impl Database {
         // OAuth notifications tables
         self.migrate_oauth_notifications().await?;
 
+        // OAuth 2.0 Server tables
+        self.migrate_oauth2().await?;
+
         // Tenant management tables
         self.migrate_tenant_management().await?;
 
@@ -104,6 +107,67 @@ impl Database {
     ///
     /// # Errors
     ///
+    /// Create OAuth 2.0 server tables for RFC 7591 client registration
+    async fn migrate_oauth2(&self) -> Result<()> {
+        // Create oauth2_clients table
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS oauth2_clients (
+                id TEXT PRIMARY KEY,
+                client_id TEXT UNIQUE NOT NULL,
+                client_secret_hash TEXT NOT NULL,
+                redirect_uris TEXT NOT NULL, -- JSON array
+                grant_types TEXT NOT NULL,   -- JSON array
+                response_types TEXT NOT NULL, -- JSON array
+                client_name TEXT,
+                client_uri TEXT,
+                scope TEXT,
+                created_at DATETIME NOT NULL,
+                expires_at DATETIME
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create oauth2_auth_codes table
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS oauth2_auth_codes (
+                code TEXT PRIMARY KEY,
+                client_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                redirect_uri TEXT NOT NULL,
+                scope TEXT,
+                expires_at DATETIME NOT NULL,
+                used BOOLEAN NOT NULL DEFAULT 0,
+                FOREIGN KEY (client_id) REFERENCES oauth2_clients(client_id) ON DELETE CASCADE
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create indices for performance
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_oauth2_clients_client_id ON oauth2_clients(client_id)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_oauth2_auth_codes_code ON oauth2_auth_codes(code)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_oauth2_auth_codes_expires_at ON oauth2_auth_codes(expires_at)")
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
     /// Returns an error if:
     /// - Table creation SQL fails
     /// - Index creation fails

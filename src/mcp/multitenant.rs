@@ -36,6 +36,7 @@ use crate::constants::{
 };
 use crate::dashboard_routes::DashboardRoutes;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
+use crate::oauth2::routes::oauth2_routes;
 use crate::providers::ProviderRegistry;
 use crate::routes::{AuthRoutes, LoginRequest, OAuthRoutes, RefreshTokenRequest, RegisterRequest};
 use crate::security::headers::SecurityConfig;
@@ -142,6 +143,10 @@ impl MultiTenantMcpServer {
             &resources.database,
             &resources.tenant_oauth_client,
         );
+
+        // Create OAuth 2.0 server routes for mcp-remote compatibility
+        let oauth2_server_routes =
+            oauth2_routes(resources.database.clone(), resources.auth_manager.clone());
         let api_key_route_filter = Self::create_api_key_routes(&api_key_routes);
         let api_key_usage_filter = Self::create_api_key_usage_route(api_key_routes.clone());
         let dashboard_route_filter = Self::create_dashboard_routes(&dashboard_routes);
@@ -179,6 +184,7 @@ impl MultiTenantMcpServer {
         // Combine all routes
         let routes = auth_route_filter
             .or(oauth_route_filter)
+            .or(oauth2_server_routes)
             .or(api_key_route_filter)
             .or(api_key_usage_filter)
             .or(dashboard_route_filter)

@@ -138,6 +138,8 @@ STUBS=$(rg "stub|mock.*implementation" src/ --count 2>/dev/null | awk -F: '{sum+
 PROBLEMATIC_UNDERSCORE_NAMES=$(rg "fn _|let _[a-zA-Z]|struct _|enum _" src/ | rg -v "let _[[:space:]]*=" | rg -v "let _result|let _response|let _output" | wc -l 2>/dev/null || echo 0)
 EXAMPLE_EMAILS=$(rg "example\.com|test@" src/ -g "!src/bin/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 CFG_TEST_IN_SRC=$(rg "#\[cfg\(test\)\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+CLIPPY_ALLOWS_PROBLEMATIC=$(rg "#\[allow\(clippy::" src/ | rg -v "cast_|too_many_lines|struct_excessive_bools" | wc -l 2>/dev/null || echo 0)
+CLIPPY_ALLOWS_TOO_MANY_LINES=$(rg "#\[allow\(clippy::too_many_lines\)\]" src/ | wc -l 2>/dev/null || echo 0)
 TEMP_SOLUTIONS=$(rg "\bhack\b|\bworkaround\b|\bquick.*fix\b|future.*implementation|temporary.*solution|temp.*fix" src/ --count-matches 2>/dev/null | cut -d: -f2 | python3 -c "import sys; lines = sys.stdin.readlines(); print(sum(int(x.strip()) for x in lines) if lines else 0)" 2>/dev/null || echo 0)
 DEAD_CODE=$(rg "#\[allow\(dead_code\)\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 UNUSED_VARS=$(rg "#\[allow\(unused.*\)\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
@@ -292,6 +294,30 @@ if [ "$PROBLEMATIC_UNDERSCORE_NAMES" -eq 0 ]; then
 else
     FIRST_UNDERSCORE=$(get_first_location 'rg "fn _|let _[a-zA-Z]|struct _|enum _" src/ | rg -v "let _[[:space:]]*=" | rg -v "let _result|let _response|let _output" -n')
     printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$FIRST_UNDERSCORE"
+fi
+
+printf "│ %-35s │ %5d │ " "Test modules in src/" "$CFG_TEST_IN_SRC"
+if [ "$CFG_TEST_IN_SRC" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "Tests belong in tests/ directory"
+else
+    FIRST_CFG_TEST=$(get_first_location 'rg "#\[cfg\(test\)\]" src/ -n')
+    printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_CFG_TEST"
+fi
+
+printf "│ %-35s │ %5d │ " "Problematic clippy allows" "$CLIPPY_ALLOWS_PROBLEMATIC"
+if [ "$CLIPPY_ALLOWS_PROBLEMATIC" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "Fix issues instead of silencing"
+else
+    FIRST_PROBLEMATIC_ALLOW=$(get_first_location 'rg "#\[allow\(clippy::" src/ | rg -v "cast_|too_many_lines|struct_excessive_bools" -n')
+    printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_PROBLEMATIC_ALLOW"
+fi
+
+printf "│ %-35s │ %5d │ " "Long functions (too_many_lines)" "$CLIPPY_ALLOWS_TOO_MANY_LINES"
+if [ "$CLIPPY_ALLOWS_TOO_MANY_LINES" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "Functions are appropriately sized"
+else
+    FIRST_LONG_FUNCTION=$(get_first_location 'rg "#\[allow\(clippy::too_many_lines\)\]" src/ -n')
+    printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$FIRST_LONG_FUNCTION"
 fi
 
 printf "│ %-35s │ %5d │ " "Example emails" "$EXAMPLE_EMAILS"

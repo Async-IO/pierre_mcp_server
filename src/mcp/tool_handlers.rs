@@ -68,23 +68,26 @@ impl ToolHandlers {
         resources: &Arc<ServerResources>,
     ) -> McpResponse {
         // Extract auth token from either HTTP Authorization header or MCP params
-        let auth_token_string = if let Some(mcp_token) = request.params.as_ref()
+        let auth_token_string = request
+            .params
+            .as_ref()
             .and_then(|params| params.get("token"))
             .and_then(|token| token.as_str())
-        {
-            // MCP params token (needs "Bearer " prefix for auth middleware)
-            Some(format!("Bearer {}", mcp_token))
-        } else {
-            None
-        };
+            .map(|mcp_token| format!("Bearer {mcp_token}"));
 
-        let auth_token = request.auth_token.as_deref()
-            .or_else(|| auth_token_string.as_deref());
+        let auth_token = request
+            .auth_token
+            .as_deref()
+            .or(auth_token_string.as_deref());
 
         debug!(
             "MCP tool call authentication attempt for method: {} (token source: {})",
             request.method,
-            if request.auth_token.is_some() { "HTTP header" } else { "MCP params" }
+            if request.auth_token.is_some() {
+                "HTTP header"
+            } else {
+                "MCP params"
+            }
         );
 
         match resources

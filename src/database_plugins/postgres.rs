@@ -4327,6 +4327,131 @@ impl DatabaseProvider for PostgresDatabase {
 
         Ok(rows_affected.rows_affected() > 0)
     }
+
+    async fn store_oauth2_client(
+        &self,
+        client: &crate::oauth2::models::OAuth2Client,
+    ) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO oauth2_clients (id, client_id, client_secret_hash, redirect_uris, grant_types, response_types, client_name, client_uri, scope, created_at, expires_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)"
+        )
+        .bind(&client.id)
+        .bind(&client.client_id)
+        .bind(&client.client_secret_hash)
+        .bind(serde_json::to_string(&client.redirect_uris)?)
+        .bind(serde_json::to_string(&client.grant_types)?)
+        .bind(serde_json::to_string(&client.response_types)?)
+        .bind(&client.client_name)
+        .bind(&client.client_uri)
+        .bind(&client.scope)
+        .bind(client.created_at)
+        .bind(client.expires_at)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    async fn get_oauth2_client(
+        &self,
+        client_id: &str,
+    ) -> Result<Option<crate::oauth2::models::OAuth2Client>> {
+        let row = sqlx::query(
+            "SELECT id, client_id, client_secret_hash, redirect_uris, grant_types, response_types, client_name, client_uri, scope, created_at, expires_at
+             FROM oauth2_clients WHERE client_id = $1"
+        )
+        .bind(client_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            let redirect_uris: Vec<String> =
+                serde_json::from_str(&row.get::<String, _>("redirect_uris"))?;
+            let grant_types: Vec<String> =
+                serde_json::from_str(&row.get::<String, _>("grant_types"))?;
+            let response_types: Vec<String> =
+                serde_json::from_str(&row.get::<String, _>("response_types"))?;
+
+            Ok(Some(crate::oauth2::models::OAuth2Client {
+                id: row.get("id"),
+                client_id: row.get("client_id"),
+                client_secret_hash: row.get("client_secret_hash"),
+                redirect_uris,
+                grant_types,
+                response_types,
+                client_name: row.get("client_name"),
+                client_uri: row.get("client_uri"),
+                scope: row.get("scope"),
+                created_at: row.get("created_at"),
+                expires_at: row.get("expires_at"),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn store_oauth2_auth_code(
+        &self,
+        auth_code: &crate::oauth2::models::OAuth2AuthCode,
+    ) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO oauth2_auth_codes (code, client_id, user_id, redirect_uri, scope, expires_at, used)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)"
+        )
+        .bind(&auth_code.code)
+        .bind(&auth_code.client_id)
+        .bind(auth_code.user_id)
+        .bind(&auth_code.redirect_uri)
+        .bind(&auth_code.scope)
+        .bind(auth_code.expires_at)
+        .bind(auth_code.used)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    async fn get_oauth2_auth_code(
+        &self,
+        code: &str,
+    ) -> Result<Option<crate::oauth2::models::OAuth2AuthCode>> {
+        let row = sqlx::query(
+            "SELECT code, client_id, user_id, redirect_uri, scope, expires_at, used
+             FROM oauth2_auth_codes WHERE code = $1",
+        )
+        .bind(code)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        row.map_or_else(
+            || Ok(None),
+            |row| {
+                Ok(Some(crate::oauth2::models::OAuth2AuthCode {
+                    code: row.get("code"),
+                    client_id: row.get("client_id"),
+                    user_id: row.get("user_id"),
+                    redirect_uri: row.get("redirect_uri"),
+                    scope: row.get("scope"),
+                    expires_at: row.get("expires_at"),
+                    used: row.get("used"),
+                }))
+            },
+        )
+    }
+
+    async fn update_oauth2_auth_code(
+        &self,
+        auth_code: &crate::oauth2::models::OAuth2AuthCode,
+    ) -> Result<()> {
+        sqlx::query("UPDATE oauth2_auth_codes SET used = $1 WHERE code = $2")
+            .bind(auth_code.used)
+            .bind(&auth_code.code)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
 }
 
 impl PostgresDatabase {

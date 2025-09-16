@@ -1333,6 +1333,177 @@ impl DatabaseProvider for SqliteDatabase {
         Ok(apps)
     }
 
+    // ================================
+    // OAuth 2.0 Server (RFC 7591)
+    // ================================
+
+    /// Store OAuth 2.0 client registration
+    async fn store_oauth2_client(
+        &self,
+        client: &crate::oauth2::models::OAuth2Client,
+    ) -> Result<()> {
+        let query = r"
+            INSERT INTO oauth2_clients
+            (id, client_id, client_secret_hash, redirect_uris, grant_types, response_types, client_name, client_uri, scope, created_at, expires_at)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+        ";
+
+        // Serialize JSON arrays
+        let redirect_uris_json = serde_json::to_string(&client.redirect_uris)
+            .context("Failed to serialize redirect_uris")?;
+        let grant_types_json = serde_json::to_string(&client.grant_types)
+            .context("Failed to serialize grant_types")?;
+        let response_types_json = serde_json::to_string(&client.response_types)
+            .context("Failed to serialize response_types")?;
+
+        sqlx::query(query)
+            .bind(&client.id)
+            .bind(&client.client_id)
+            .bind(&client.client_secret_hash)
+            .bind(&redirect_uris_json)
+            .bind(&grant_types_json)
+            .bind(&response_types_json)
+            .bind(&client.client_name)
+            .bind(&client.client_uri)
+            .bind(&client.scope)
+            .bind(client.created_at)
+            .bind(client.expires_at)
+            .execute(self.inner.pool())
+            .await
+            .context("Failed to store OAuth2 client")?;
+
+        Ok(())
+    }
+
+    /// Get OAuth 2.0 client by client_id
+    async fn get_oauth2_client(
+        &self,
+        client_id: &str,
+    ) -> Result<Option<crate::oauth2::models::OAuth2Client>> {
+        let query = r"
+            SELECT id, client_id, client_secret_hash, redirect_uris, grant_types, response_types, client_name, client_uri, scope, created_at, expires_at
+            FROM oauth2_clients
+            WHERE client_id = ?1
+        ";
+
+        let row = sqlx::query(query)
+            .bind(client_id)
+            .fetch_optional(self.inner.pool())
+            .await
+            .context("Failed to fetch OAuth2 client")?;
+
+        if let Some(row) = row {
+            // Deserialize JSON arrays
+            let redirect_uris: Vec<String> =
+                serde_json::from_str(&row.get::<String, _>("redirect_uris"))
+                    .context("Failed to deserialize redirect_uris")?;
+            let grant_types: Vec<String> =
+                serde_json::from_str(&row.get::<String, _>("grant_types"))
+                    .context("Failed to deserialize grant_types")?;
+            let response_types: Vec<String> =
+                serde_json::from_str(&row.get::<String, _>("response_types"))
+                    .context("Failed to deserialize response_types")?;
+
+            Ok(Some(crate::oauth2::models::OAuth2Client {
+                id: row.get("id"),
+                client_id: row.get("client_id"),
+                client_secret_hash: row.get("client_secret_hash"),
+                redirect_uris,
+                grant_types,
+                response_types,
+                client_name: row.get("client_name"),
+                client_uri: row.get("client_uri"),
+                scope: row.get("scope"),
+                created_at: row.get("created_at"),
+                expires_at: row.get("expires_at"),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Store OAuth 2.0 authorization code
+    async fn store_oauth2_auth_code(
+        &self,
+        auth_code: &crate::oauth2::models::OAuth2AuthCode,
+    ) -> Result<()> {
+        let query = r"
+            INSERT INTO oauth2_auth_codes
+            (code, client_id, user_id, redirect_uri, scope, expires_at, used)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+        ";
+
+        sqlx::query(query)
+            .bind(&auth_code.code)
+            .bind(&auth_code.client_id)
+            .bind(auth_code.user_id.to_string())
+            .bind(&auth_code.redirect_uri)
+            .bind(&auth_code.scope)
+            .bind(auth_code.expires_at)
+            .bind(auth_code.used)
+            .execute(self.inner.pool())
+            .await
+            .context("Failed to store OAuth2 auth code")?;
+
+        Ok(())
+    }
+
+    /// Get OAuth 2.0 authorization code
+    async fn get_oauth2_auth_code(
+        &self,
+        code: &str,
+    ) -> Result<Option<crate::oauth2::models::OAuth2AuthCode>> {
+        let query = r"
+            SELECT code, client_id, user_id, redirect_uri, scope, expires_at, used
+            FROM oauth2_auth_codes
+            WHERE code = ?1
+        ";
+
+        let row = sqlx::query(query)
+            .bind(code)
+            .fetch_optional(self.inner.pool())
+            .await
+            .context("Failed to fetch OAuth2 auth code")?;
+
+        if let Some(row) = row {
+            let user_id = Uuid::parse_str(&row.get::<String, _>("user_id"))
+                .context("Invalid user_id UUID format")?;
+
+            Ok(Some(crate::oauth2::models::OAuth2AuthCode {
+                code: row.get("code"),
+                client_id: row.get("client_id"),
+                user_id,
+                redirect_uri: row.get("redirect_uri"),
+                scope: row.get("scope"),
+                expires_at: row.get("expires_at"),
+                used: row.get("used"),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Update OAuth 2.0 authorization code (mark as used)
+    async fn update_oauth2_auth_code(
+        &self,
+        auth_code: &crate::oauth2::models::OAuth2AuthCode,
+    ) -> Result<()> {
+        let query = r"
+            UPDATE oauth2_auth_codes
+            SET used = ?1
+            WHERE code = ?2
+        ";
+
+        sqlx::query(query)
+            .bind(auth_code.used)
+            .bind(&auth_code.code)
+            .execute(self.inner.pool())
+            .await
+            .context("Failed to update OAuth2 auth code")?;
+
+        Ok(())
+    }
+
     /// Store authorization code
     async fn store_authorization_code(
         &self,

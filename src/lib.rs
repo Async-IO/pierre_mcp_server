@@ -164,6 +164,9 @@ pub mod key_management;
 /// Real-time notification system with SSE support
 pub mod notifications;
 
+/// OAuth 2.0 server implementation with JWT tokens
+pub mod oauth2;
+
 // Utility modules
 pub mod tenant;
 pub mod utils;

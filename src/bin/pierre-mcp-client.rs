@@ -1,380 +1,173 @@
-// ABOUTME: MCP client for Pierre Fitness API server
-// ABOUTME: Handles JWT authentication and HTTP transport with SSE notifications
+// ABOUTME: MCP client bridge for Pierre Fitness API server
+// ABOUTME: Provides stdio MCP server interface that forwards MCP JSON-RPC over HTTP to pierre-mcp-server
 
 use anyhow::{Context, Result};
-use base64::{engine::general_purpose, Engine as _};
-use chrono::{DateTime, Utc};
-use eventsource_stream::Eventsource;
-use futures_util::StreamExt;
-use reqwest::Client;
-use serde_json::{json, Value};
-use std::{env, sync::Arc, time::Duration};
-use tokio::{sync::RwLock, time::interval};
+use serde_json::Value;
+use std::env;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 #[derive(Debug, Clone)]
 struct Config {
-    #[allow(dead_code)] // Used in future HTTP client features
-    server_url: String,
-    server_auth_url: String, // For token refresh endpoint
-    sse_url: String,         // For SSE notifications
-    jwt_token: Option<String>,
-    timeout_seconds: u64,
-    refresh_enabled: bool,
-    refresh_threshold_minutes: i64, // Minutes before expiry to refresh
-    sse_enabled: bool,              // Enable SSE notifications
+    server_host: String,
+    server_port: u16,
+    jwt_token: String,
 }
 
 impl Config {
-    fn from_env() -> Self {
-        let server_url =
-            env::var("PIERRE_MCP_URL").unwrap_or_else(|_| "http://127.0.0.1:8080/mcp".to_string());
+    fn from_env() -> Result<Self> {
+        let server_host =
+            env::var("PIERRE_SERVER_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
 
-        // Extract auth URL from MCP URL by replacing /mcp with /api/auth
-        let server_auth_url = server_url.replace("/mcp", "/api/auth");
-
-        // Extract SSE URL from MCP URL by replacing /mcp with /api/notifications/sse
-        let sse_url = server_url.replace("/mcp", "/api/notifications/sse");
-
-        let jwt_token = env::var("PIERRE_JWT_TOKEN").ok();
-
-        let timeout_seconds = env::var("PIERRE_MCP_TIMEOUT")
+        let server_port = env::var("PIERRE_SERVER_PORT")
             .ok()
             .and_then(|s| s.parse().ok())
-            .unwrap_or(30);
+            .unwrap_or(8080);
 
-        let refresh_enabled = env::var("PIERRE_AUTO_REFRESH")
-            .unwrap_or_else(|_| "true".to_string())
-            .parse()
-            .unwrap_or(true);
-
-        let refresh_threshold_minutes = env::var("PIERRE_REFRESH_THRESHOLD_MINUTES")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(5); // Default 5 minutes before expiry
-
-        let sse_enabled = env::var("PIERRE_SSE_ENABLED")
-            .unwrap_or_else(|_| "true".to_string())
-            .parse()
-            .unwrap_or(true);
-
-        Self {
-            server_url,
-            server_auth_url,
-            sse_url,
-            jwt_token,
-            timeout_seconds,
-            refresh_enabled,
-            refresh_threshold_minutes,
-            sse_enabled,
-        }
-    }
-
-    fn validate(&self) -> Result<()> {
-        if self.jwt_token.is_none() {
-            anyhow::bail!("PIERRE_JWT_TOKEN environment variable is required");
-        }
-        Ok(())
-    }
-}
-
-/// JWT claims structure for token parsing
-#[derive(Debug, serde::Deserialize)]
-struct Claims {
-    sub: String, // User ID
-    #[allow(dead_code)] // Used for user info logging
-    email: String, // User email
-    exp: i64,    // Expiration timestamp
-    #[allow(dead_code)] // Used for token age validation
-    iat: i64, // Issued at timestamp
-}
-
-/// Token refresh response from server
-#[derive(Debug, serde::Deserialize)]
-struct RefreshResponse {
-    jwt_token: String,
-    #[allow(dead_code)] // Used for token expiry display
-    expires_at: String,
-}
-
-/// Shared token state with thread-safe access
-#[derive(Debug, Clone)]
-struct TokenState {
-    token: String,
-    user_id: String,
-    expires_at: DateTime<Utc>,
-}
-
-struct McpClient {
-    client: Client,
-    config: Config,
-    token_state: Arc<RwLock<Option<TokenState>>>,
-}
-
-impl McpClient {
-    fn new(config: Config) -> Result<Self> {
-        let client = Client::builder()
-            .timeout(std::time::Duration::from_secs(config.timeout_seconds))
-            .build()
-            .context("Failed to create HTTP client")?;
-
-        // Initialize token state from config
-        let token_state = if let Some(token) = &config.jwt_token {
-            Self::parse_initial_token(token)?
-        } else {
-            None
-        };
+        let jwt_token = env::var("PIERRE_JWT_TOKEN")
+            .context("PIERRE_JWT_TOKEN environment variable is required")?;
 
         Ok(Self {
-            client,
-            config,
-            token_state: Arc::new(RwLock::new(token_state)),
+            server_host,
+            server_port,
+            jwt_token,
         })
     }
+}
 
-    /// Parse the initial JWT token to extract user information and expiry
-    fn parse_initial_token(token: &str) -> Result<Option<TokenState>> {
-        // Decode JWT token without verification (just to get claims)
-        let token_parts: Vec<&str> = token.split('.').collect();
-        if token_parts.len() != 3 {
-            return Ok(None);
-        }
+struct McpBridge {
+    config: Config,
+}
 
-        // Decode the payload (middle part)
-        let payload = token_parts[1];
-        let decoded = general_purpose::URL_SAFE_NO_PAD
-            .decode(payload)
-            .with_context(|| "Failed to decode JWT payload")?;
-
-        let claims: Claims =
-            serde_json::from_slice(&decoded).with_context(|| "Failed to parse JWT claims")?;
-
-        let expires_at = DateTime::from_timestamp(claims.exp, 0)
-            .ok_or_else(|| anyhow::anyhow!("Invalid expiration timestamp in JWT"))?;
-
-        Ok(Some(TokenState {
-            token: token.to_string(),
-            user_id: claims.sub,
-            expires_at,
-        }))
+impl McpBridge {
+    const fn new(config: Config) -> Self {
+        Self { config }
     }
 
-    /// Check if current token needs refresh (within threshold of expiry)
-    async fn needs_refresh(&self) -> bool {
-        if !self.config.refresh_enabled {
-            return false;
+    /// Forward MCP JSON-RPC request over HTTP to pierre-mcp-server
+    async fn forward_mcp_request(&self, request: &Value) -> Result<Value> {
+        // Build HTTP client
+        let client = reqwest::Client::new();
+        let server_url = format!(
+            "http://{}:{}/mcp",
+            self.config.server_host, self.config.server_port
+        );
+
+        // Add authentication to the request
+        let mut authenticated_request = request.clone();
+        if let Some(params) = authenticated_request.get_mut("params") {
+            if let Some(params_obj) = params.as_object_mut() {
+                params_obj.insert(
+                    "token".to_string(),
+                    serde_json::Value::String(self.config.jwt_token.clone()),
+                );
+            }
+        } else {
+            // Add params with token if it doesn't exist
+            authenticated_request["params"] = serde_json::json!({
+                "token": self.config.jwt_token
+            });
         }
 
-        let token_state = self.token_state.read().await;
-        token_state.as_ref().is_some_and(|state| {
-            let threshold =
-                Utc::now() + chrono::Duration::minutes(self.config.refresh_threshold_minutes);
-            threshold >= state.expires_at
-        })
-    }
-
-    /// Refresh the JWT token using the server's refresh endpoint
-    async fn refresh_token(&self) -> Result<bool> {
-        let current_state = {
-            let token_state = self.token_state.read().await;
-            token_state.clone()
-        };
-
-        let Some(state) = current_state else {
-            return Ok(false); // No token to refresh
-        };
-
-        tracing::debug!("Refreshing JWT token for user: {}", state.user_id);
-
-        let refresh_request = json!({
-            "token": state.token,
-            "user_id": state.user_id
-        });
-
-        let response = self
-            .client
-            .post(format!("{}/refresh", self.config.server_auth_url))
+        // Send the MCP request as JSON-RPC over HTTP POST
+        let response = client
+            .post(&server_url)
             .header("Content-Type", "application/json")
-            .json(&refresh_request)
+            .json(&authenticated_request)
             .send()
             .await
-            .with_context(|| "Failed to send token refresh request")?;
+            .with_context(|| format!("Failed to send request to MCP server at {server_url}"))?;
 
         if !response.status().is_success() {
-            let status = response.status();
-            let error_text = response.text().await.unwrap_or_default();
-            tracing::warn!("Token refresh failed: {} - {}", status, error_text);
-            return Ok(false);
+            anyhow::bail!("MCP server returned error status: {}", response.status());
         }
 
-        let refresh_response: RefreshResponse = response
+        // Handle notifications (HTTP 204 No Content) - they should have no response in JSON-RPC
+        if response.status() == reqwest::StatusCode::NO_CONTENT {
+            return Ok(serde_json::Value::Null);
+        }
+
+        // Parse JSON response for regular requests
+        let response_json: Value = response
             .json()
             .await
-            .with_context(|| "Failed to parse token refresh response")?;
+            .with_context(|| "Failed to parse MCP server response")?;
 
-        // Parse the new token
-        let new_token_state = Self::parse_initial_token(&refresh_response.jwt_token)?
-            .ok_or_else(|| anyhow::anyhow!("Invalid token received from refresh"))?;
-
-        // Update stored token state
-        {
-            let mut token_state = self.token_state.write().await;
-            *token_state = Some(new_token_state);
-        }
-
-        tracing::info!(
-            "JWT token refreshed successfully for user: {}",
-            state.user_id
-        );
-        Ok(true)
+        Ok(response_json)
     }
 
-    /// Get current valid token, refreshing if necessary
-    async fn get_valid_token(&self) -> Result<Option<String>> {
-        // Check if we need to refresh
-        if self.needs_refresh().await {
-            if let Err(e) = self.refresh_token().await {
-                tracing::error!("Failed to refresh token: {}", e);
-                // Continue with current token - might still work
-            }
-        }
+    /// Main stdio MCP bridge loop
+    async fn run_stdio_bridge(&self) -> Result<()> {
+        let stdin = tokio::io::stdin();
+        let mut reader = BufReader::new(stdin);
+        let mut stdout = tokio::io::stdout();
 
-        let token_state = self.token_state.read().await;
-        Ok(token_state.as_ref().map(|state| state.token.clone()))
-    }
+        let mut line = String::new();
 
-    /// Start background token refresh task
-    fn start_refresh_task(self: Arc<Self>) {
-        if !self.config.refresh_enabled {
-            return;
-        }
+        loop {
+            line.clear();
 
-        let mut refresh_interval = interval(Duration::from_secs(60)); // Check every minute
-
-        tokio::spawn(async move {
-            loop {
-                refresh_interval.tick().await;
-
-                if self.needs_refresh().await {
-                    if let Err(e) = self.refresh_token().await {
-                        tracing::error!("Background token refresh failed: {}", e);
+            // Read JSON-RPC request from stdin (from Claude Desktop)
+            match reader.read_line(&mut line).await {
+                Ok(0) => break, // EOF
+                Ok(_) => {
+                    let line = line.trim();
+                    if line.is_empty() {
+                        continue;
                     }
-                }
-            }
-        });
-    }
 
-    /// Start SSE notification listener
-    async fn start_sse_listener(self: Arc<Self>) -> Result<()> {
-        if !self.config.sse_enabled {
-            tracing::debug!("SSE notifications disabled");
-            return Ok(());
-        }
-
-        let token_state = self.token_state.read().await;
-        let Some(state) = token_state.as_ref() else {
-            tracing::warn!("No token available for SSE connection");
-            return Ok(());
-        };
-
-        let user_id = state.user_id.clone();
-        drop(token_state);
-
-        let sse_url = format!("{}?user_id={}", self.config.sse_url, user_id);
-        tracing::info!("Starting SSE listener: {}", sse_url);
-
-        let client = self.client.clone();
-        tokio::spawn(async move {
-            loop {
-                match Self::connect_sse(&client, &sse_url).await {
-                    Ok(()) => {
-                        tracing::info!("SSE connection ended, reconnecting in 5 seconds...");
-                        tokio::time::sleep(Duration::from_secs(5)).await;
-                    }
-                    Err(e) => {
-                        tracing::error!("SSE connection failed: {}, retrying in 10 seconds...", e);
-                        tokio::time::sleep(Duration::from_secs(10)).await;
-                    }
-                }
-            }
-        });
-
-        Ok(())
-    }
-
-    /// Connect to SSE stream and handle notifications
-    async fn connect_sse(client: &Client, sse_url: &str) -> Result<()> {
-        let response = client
-            .get(sse_url)
-            .header("Accept", "text/event-stream")
-            .header("Cache-Control", "no-cache")
-            .send()
-            .await?;
-
-        if !response.status().is_success() {
-            anyhow::bail!("SSE connection failed with status: {}", response.status());
-        }
-
-        tracing::info!("SSE connection established, listening for OAuth notifications");
-
-        // Convert the response body to an SSE stream
-        let byte_stream = response.bytes_stream();
-        let mut event_stream = byte_stream.eventsource();
-
-        // Process each SSE event
-        while let Some(event) = event_stream.next().await {
-            match event {
-                Ok(event) => {
-                    if !event.data.is_empty() {
-                        tracing::info!("Received SSE event: {}", event.data);
-
-                        // Parse the OAuth notification
-                        if let Ok(notification) = serde_json::from_str::<Value>(&event.data) {
-                            if let Some(event_type) =
-                                notification.get("type").and_then(|t| t.as_str())
-                            {
-                                if event_type == "oauth_notification" {
-                                    let message = notification
-                                        .get("message")
-                                        .and_then(|m| m.as_str())
-                                        .unwrap_or("OAuth notification received");
-                                    let provider = notification
-                                        .get("provider")
-                                        .and_then(|p| p.as_str())
-                                        .unwrap_or("unknown");
-
-                                    tracing::info!(
-                                        "OAuth notification from {}: {}",
-                                        provider,
-                                        message
-                                    );
+                    // Parse MCP request
+                    match serde_json::from_str::<Value>(line) {
+                        Ok(request) => {
+                            // Forward to MCP server over TCP
+                            match self.forward_mcp_request(&request).await {
+                                Ok(response) => {
+                                    // For notifications (Value::Null), don't send anything back to Claude Desktop
+                                    if !response.is_null() {
+                                        // Send response back to Claude Desktop via stdout
+                                        let response_line = serde_json::to_string(&response)?;
+                                        stdout.write_all(response_line.as_bytes()).await?;
+                                        stdout.write_all(b"\n").await?;
+                                        stdout.flush().await?;
+                                    }
+                                }
+                                Err(e) => {
+                                    // Send error response
+                                    let error_response = serde_json::json!({
+                                        "jsonrpc": "2.0",
+                                        "id": request.get("id"),
+                                        "error": {
+                                            "code": -32603,
+                                            "message": format!("Bridge error: {e}")
+                                        }
+                                    });
+                                    let response_line = serde_json::to_string(&error_response)?;
+                                    stdout.write_all(response_line.as_bytes()).await?;
+                                    stdout.write_all(b"\n").await?;
+                                    stdout.flush().await?;
                                 }
                             }
+                        }
+                        Err(e) => {
+                            // Send parse error response
+                            let error_response = serde_json::json!({
+                                "jsonrpc": "2.0",
+                                "id": null,
+                                "error": {
+                                    "code": -32700,
+                                    "message": format!("Parse error: {e}")
+                                }
+                            });
+                            let response_line = serde_json::to_string(&error_response)?;
+                            stdout.write_all(response_line.as_bytes()).await?;
+                            stdout.write_all(b"\n").await?;
+                            stdout.flush().await?;
                         }
                     }
                 }
                 Err(e) => {
-                    tracing::error!("SSE stream error: {}", e);
+                    eprintln!("Error reading stdin: {e}");
                     break;
                 }
-            }
-        }
-
-        tracing::info!("SSE stream ended");
-        Ok(())
-    }
-
-    /// Run HTTP-only MCP client
-    async fn run_http_client(&self) -> Result<()> {
-        tracing::info!("Starting Pierre MCP HTTP client");
-
-        // Keep the client running to maintain connections
-        loop {
-            tokio::time::sleep(Duration::from_secs(60)).await;
-
-            // Health check - ensure we still have a valid token
-            if let Err(e) = self.get_valid_token().await {
-                tracing::error!("Token validation failed: {}", e);
-                break;
             }
         }
 
@@ -384,31 +177,17 @@ impl McpClient {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize logging
-    tracing_subscriber::fmt::init();
-
     // Load configuration
-    let config = Config::from_env();
+    let config = Config::from_env().context("Failed to load configuration")?;
 
-    // Validate configuration
-    config.validate().context("Invalid configuration")?;
+    // Create MCP bridge
+    let bridge = McpBridge::new(config);
 
-    // Create and run client
-    let client = Arc::new(McpClient::new(config).context("Failed to create MCP client")?);
-
-    // Start background token refresh task
-    client.clone().start_refresh_task();
-
-    // Start SSE listener for OAuth notifications
-    if let Err(e) = client.clone().start_sse_listener().await {
-        tracing::warn!("Failed to start SSE listener: {}", e);
-    }
-
-    // Run HTTP client
-    client
-        .run_http_client()
+    // Run stdio MCP bridge
+    bridge
+        .run_stdio_bridge()
         .await
-        .context("MCP HTTP client failed")?;
+        .context("MCP bridge failed")?;
 
     Ok(())
 }

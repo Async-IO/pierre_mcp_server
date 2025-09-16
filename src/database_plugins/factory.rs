@@ -1263,6 +1263,65 @@ impl DatabaseProvider for Database {
         }
     }
 
+    // ================================
+    // OAuth 2.0 Server (RFC 7591)
+    // ================================
+
+    async fn store_oauth2_client(
+        &self,
+        client: &crate::oauth2::models::OAuth2Client,
+    ) -> Result<()> {
+        match self {
+            Self::SQLite(db) => db.store_oauth2_client(client).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.store_oauth2_client(client).await,
+        }
+    }
+
+    async fn get_oauth2_client(
+        &self,
+        client_id: &str,
+    ) -> Result<Option<crate::oauth2::models::OAuth2Client>> {
+        match self {
+            Self::SQLite(db) => db.get_oauth2_client(client_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_oauth2_client(client_id).await,
+        }
+    }
+
+    async fn store_oauth2_auth_code(
+        &self,
+        auth_code: &crate::oauth2::models::OAuth2AuthCode,
+    ) -> Result<()> {
+        match self {
+            Self::SQLite(db) => db.store_oauth2_auth_code(auth_code).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.store_oauth2_auth_code(auth_code).await,
+        }
+    }
+
+    async fn get_oauth2_auth_code(
+        &self,
+        code: &str,
+    ) -> Result<Option<crate::oauth2::models::OAuth2AuthCode>> {
+        match self {
+            Self::SQLite(db) => db.get_oauth2_auth_code(code).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_oauth2_auth_code(code).await,
+        }
+    }
+
+    async fn update_oauth2_auth_code(
+        &self,
+        auth_code: &crate::oauth2::models::OAuth2AuthCode,
+    ) -> Result<()> {
+        match self {
+            Self::SQLite(db) => db.update_oauth2_auth_code(auth_code).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.update_oauth2_auth_code(auth_code).await,
+        }
+    }
+
     async fn store_authorization_code(
         &self,
         code: &str,

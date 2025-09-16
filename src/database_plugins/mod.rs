@@ -519,6 +519,38 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     async fn list_oauth_apps_for_user(&self, user_id: Uuid)
         -> Result<Vec<crate::models::OAuthApp>>;
 
+    // ================================
+    // OAuth 2.0 Server (RFC 7591)
+    // ================================
+
+    /// Store OAuth 2.0 client registration
+    async fn store_oauth2_client(&self, client: &crate::oauth2::models::OAuth2Client)
+        -> Result<()>;
+
+    /// Get OAuth 2.0 client by client_id
+    async fn get_oauth2_client(
+        &self,
+        client_id: &str,
+    ) -> Result<Option<crate::oauth2::models::OAuth2Client>>;
+
+    /// Store OAuth 2.0 authorization code
+    async fn store_oauth2_auth_code(
+        &self,
+        auth_code: &crate::oauth2::models::OAuth2AuthCode,
+    ) -> Result<()>;
+
+    /// Get OAuth 2.0 authorization code
+    async fn get_oauth2_auth_code(
+        &self,
+        code: &str,
+    ) -> Result<Option<crate::oauth2::models::OAuth2AuthCode>>;
+
+    /// Update OAuth 2.0 authorization code (mark as used)
+    async fn update_oauth2_auth_code(
+        &self,
+        auth_code: &crate::oauth2::models::OAuth2AuthCode,
+    ) -> Result<()>;
+
     /// Store authorization code
     async fn store_authorization_code(
         &self,
