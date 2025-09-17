@@ -3421,7 +3421,7 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(())
     }
 
-    // Long function: Parses all audit event types and severity levels from database strings
+    // Long function: Complex audit query with dynamic filtering, pagination, and result mapping
     #[allow(clippy::too_many_lines)]
     async fn get_audit_events(
         &self,
@@ -4884,8 +4884,8 @@ impl PostgresDatabase {
         Ok(())
     }
 
-    #[allow(clippy::too_many_lines)]
     // Long function: Creates complete multi-tenant database schema with all required tables
+    #[allow(clippy::too_many_lines)]
     async fn create_tenant_tables(&self) -> Result<()> {
         // Create tenants table
         sqlx::query(

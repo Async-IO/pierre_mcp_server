@@ -607,6 +607,7 @@ pub mod time_constants {
     pub const SECONDS_PER_DAY: u32 = 86400;
     pub const SECONDS_PER_WEEK: u32 = 604_800;
     pub const SECONDS_PER_MONTH: u32 = 2_592_000;
+    pub const SECONDS_PER_YEAR: u32 = 31_536_000;
 
     /// Hour conversion as floating point for calculations
     pub const SECONDS_PER_HOUR_F64: f64 = 3600.0;
@@ -640,6 +641,18 @@ pub mod network_config {
         "http://127.0.0.1",
         "https://127.0.0.1",
     ];
+
+    /// `OAuth2` configuration constants
+    pub const OAUTH_CODE_VERIFIER_LENGTH: usize = 128;
+
+    /// SSE broadcasting configuration
+    pub const SSE_BROADCAST_CHANNEL_SIZE: usize = 100;
+
+    /// HTTP status code boundaries
+    pub const HTTP_CLIENT_ERROR_THRESHOLD: u16 = 400;
+
+    /// Activity fetching thresholds
+    pub const BULK_ACTIVITY_FETCH_THRESHOLD: usize = 200;
 }
 
 /// Default user configuration constants
@@ -829,6 +842,12 @@ pub mod rate_limits {
 
     /// Database query result limit
     pub const DEFAULT_QUERY_LIMIT: u32 = 1000;
+
+    /// Strava API daily rate limit
+    pub const STRAVA_DEFAULT_DAILY_RATE_LIMIT: u32 = 15000;
+
+    /// Fitbit API daily rate limit (150 requests per hour base limit)
+    pub const FITBIT_DEFAULT_DAILY_RATE_LIMIT: u32 = 150;
 }
 
 /// Logging and debug constants

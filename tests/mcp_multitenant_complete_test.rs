@@ -2,6 +2,7 @@
 // ABOUTME: Tests user registration, JWT auth, OAuth integration, and MCP protocol usage
 
 #![allow(clippy::too_many_lines)]
+#![recursion_limit = "256"]
 
 use anyhow::Result;
 use pierre_mcp_server::{

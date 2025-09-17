@@ -182,6 +182,9 @@ impl MultiTenantMcpServer {
         // SSE notification routes
         let sse_routes = crate::notifications::sse::sse_routes(resources.sse_manager.clone());
 
+        // MCP SSE endpoint for mcp-remote compatibility
+        let mcp_sse_routes = Self::create_mcp_sse_routes(&resources);
+
         // Create websocket route (method needs to exist)
         // let websocket_route = Self::create_websocket_route(resources.websocket_manager.clone());
 
@@ -204,6 +207,7 @@ impl MultiTenantMcpServer {
             .or(admin_routes_filter)
             .or(tenant_routes_filter)
             .or(sse_routes)
+            .or(mcp_sse_routes)
             .or(health_route)
             .with(cors)
             .with(security_headers)
@@ -565,6 +569,101 @@ impl MultiTenantMcpServer {
         let oauth_auth = Self::create_oauth_auth_route(database, tenant_oauth_client);
         let oauth_callback = Self::create_oauth_callback_route(oauth_routes);
         oauth_auth.or(oauth_callback)
+    }
+
+    /// Create dedicated SSE routes for mcp-remote compatibility
+    fn create_mcp_sse_routes(
+        resources: &Arc<ServerResources>,
+    ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+        use warp::Filter;
+
+        tracing::info!("Creating MCP SSE routes for mcp-remote compatibility");
+
+        // GET /sse - Main SSE endpoint for MCP over SSE
+        let sse_endpoint = warp::path("sse")
+            .and(warp::path::end())
+            .and(warp::get())
+            .and(warp::header::optional::<String>("authorization"))
+            .map({
+                let resources = resources.clone();
+                move |authorization: Option<String>| {
+                    tracing::info!("SSE connection request received");
+
+                    // Create SSE stream for MCP protocol
+                    let sse_stream = crate::mcp::sse_transport::create_mcp_sse_stream(
+                        resources.clone(),
+                        authorization,
+                    );
+
+                    // Set proper CORS headers for SSE
+                    warp::reply::with_header(
+                        warp::sse::reply(warp::sse::keep_alive().stream(sse_stream)),
+                        "access-control-allow-origin",
+                        "*",
+                    )
+                }
+            });
+
+        // POST /sse - Handle MCP requests via POST for SSE
+        let sse_post = warp::path("sse")
+            .and(warp::path::end())
+            .and(warp::post())
+            .and(warp::body::content_length_limit(1024 * 1024)) // 1MB limit
+            .and(warp::body::bytes())
+            .and(warp::header::optional::<String>("authorization"))
+            .and_then({
+                let resources = resources.clone();
+                move |body: bytes::Bytes, authorization: Option<String>| {
+                    let resources = resources.clone();
+                    async move {
+                        let request_data = String::from_utf8(body.to_vec()).map_err(|_| {
+                            warp::reject::custom(ApiError(
+                                serde_json::json!({"error": "Invalid UTF-8 in request body"}),
+                            ))
+                        })?;
+
+                        tracing::debug!("MCP SSE POST request: {}", request_data);
+
+                        match crate::mcp::sse_transport::handle_mcp_sse_request(
+                            resources,
+                            Some(request_data),
+                            authorization,
+                        )
+                        .await
+                        {
+                            Ok(response) => Ok(warp::reply::with_header(
+                                warp::reply::json(&response),
+                                "access-control-allow-origin",
+                                "*",
+                            )),
+                            Err(e) => {
+                                tracing::error!("MCP SSE request failed: {}", e);
+                                Err(warp::reject::custom(ApiError(
+                                    serde_json::json!({"error": e.to_string()}),
+                                )))
+                            }
+                        }
+                    }
+                }
+            });
+
+        // OPTIONS /sse - CORS preflight
+        let sse_options = warp::path("sse")
+            .and(warp::path::end())
+            .and(warp::options())
+            .map(|| {
+                warp::reply::with_header(
+                    warp::reply::with_header(
+                        warp::reply::with_header(warp::reply(), "access-control-allow-origin", "*"),
+                        "access-control-allow-methods",
+                        "GET, POST, OPTIONS",
+                    ),
+                    "access-control-allow-headers",
+                    "authorization, content-type",
+                )
+            });
+
+        sse_endpoint.or(sse_post).or(sse_options)
     }
 
     /// Create API key management endpoint routes
@@ -1990,7 +2089,7 @@ impl MultiTenantMcpServer {
             });
 
         // Resource Server Metadata Discovery endpoint for mcp-remote
-        let resources_clone = resources_for_metadata;
+        let resources_clone = resources_for_metadata.clone();
         let resource_server_metadata = warp::path!(".well-known" / "oauth-protected-resource")
             .and(warp::get())
             .map(move || {
@@ -2006,6 +2105,9 @@ impl MultiTenantMcpServer {
                 }))
             });
 
+        // MCP SSE endpoint for mcp-remote compatibility
+        let mcp_sse_routes = Self::create_mcp_sse_routes(&resources_for_metadata);
+
         // Configure CORS for MCP
         let cors = warp::cors()
             .allow_any_origin()
@@ -2014,6 +2116,7 @@ impl MultiTenantMcpServer {
 
         let routes = resource_server_metadata
             .or(mcp_endpoint)
+            .or(mcp_sse_routes)
             .with(cors)
             .recover(|err| async move {
                 Ok::<_, std::convert::Infallible>(Self::handle_mcp_rejection_sync(&err))
@@ -2078,10 +2181,10 @@ impl MultiTenantMcpServer {
                                         as Box<dyn warp::Reply>)
                                 },
                                 |response| {
-                                    // Return 202 Accepted with response body for successful requests
+                                    // Return 200 OK with response body for successful requests
                                     Ok(Box::new(warp::reply::with_status(
                                         warp::reply::json(&response),
-                                        warp::http::StatusCode::ACCEPTED,
+                                        warp::http::StatusCode::OK,
                                     ))
                                         as Box<dyn warp::Reply>)
                                 },
@@ -2120,28 +2223,12 @@ impl MultiTenantMcpServer {
                     let stream =
                         sse_transport::create_mcp_sse_stream(ctx.resources.clone(), authorization);
 
-                    // Create SSE response with proper headers
-                    let mut response =
-                        warp::http::Response::new(warp::hyper::Body::wrap_stream(stream));
-                    response.headers_mut().insert(
-                        "content-type",
-                        warp::http::HeaderValue::from_static("text/event-stream"),
-                    );
-                    response.headers_mut().insert(
-                        "cache-control",
-                        warp::http::HeaderValue::from_static("no-cache"),
-                    );
-                    response.headers_mut().insert(
-                        "connection",
-                        warp::http::HeaderValue::from_static("keep-alive"),
-                    );
-                    response.headers_mut().insert(
-                        "access-control-allow-origin",
-                        warp::http::HeaderValue::from_static("*"),
-                    );
-                    response.headers_mut().insert(
+                    // Use warp's SSE reply with proper CORS headers
+                    let sse_reply = warp::sse::reply(warp::sse::keep_alive().stream(stream));
+                    let response = warp::reply::with_header(
+                        warp::reply::with_header(sse_reply, "access-control-allow-origin", "*"),
                         "access-control-allow-headers",
-                        warp::http::HeaderValue::from_static("cache-control"),
+                        "cache-control",
                     );
 
                     Ok(Box::new(response))

@@ -78,7 +78,7 @@ impl TenantLogger {
         status_code: u16,
         duration_ms: u64,
     ) {
-        if status_code < 400 {
+        if status_code < crate::constants::network_config::HTTP_CLIENT_ERROR_THRESHOLD {
             tracing::info!(
                 user_id = ?user_id,
                 tenant_id = ?tenant_id,

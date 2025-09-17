@@ -105,11 +105,11 @@ impl McpSseConnection {
     }
 }
 
-/// Create raw SSE byte stream for MCP protocol communication
+/// Create SSE event stream for MCP protocol communication
 pub fn create_mcp_sse_stream(
     resources: Arc<ServerResources>,
     _authorization: Option<String>,
-) -> impl Stream<Item = Result<bytes::Bytes, warp::Error>> + Send {
+) -> impl Stream<Item = Result<warp::sse::Event, warp::Error>> + Send {
     let (connection, receiver) = McpSseConnection::new(resources);
 
     // Send connection established event
@@ -117,8 +117,12 @@ pub fn create_mcp_sse_stream(
         tracing::error!("Failed to send connection established event: {}", e);
     }
 
-    // Convert receiver to stream of SSE formatted bytes
-    UnboundedReceiverStream::new(receiver).map(|message| Ok(bytes::Bytes::from(message.format())))
+    // Convert receiver to stream of SSE Event objects
+    UnboundedReceiverStream::new(receiver).map(|message| {
+        Ok(warp::sse::Event::default()
+            .event(&message.event_type)
+            .data(&message.data))
+    })
 }
 
 /// Handle MCP request sent via query parameters or POST data for SSE

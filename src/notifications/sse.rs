@@ -31,7 +31,8 @@ impl SseConnectionManager {
 
     /// Register a new SSE connection for a user
     pub async fn register_connection(&self, user_id: String) -> broadcast::Receiver<String> {
-        let (tx, rx) = broadcast::channel(100);
+        let (tx, rx) =
+            broadcast::channel(crate::constants::network_config::SSE_BROADCAST_CHANNEL_SIZE);
 
         {
             let mut connections = self.connections.write().await;

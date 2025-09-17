@@ -93,7 +93,10 @@ pub mod headers {
             headers.insert("Referrer-Policy".to_string(), "strict-origin".to_string());
             headers.insert(
                 "Strict-Transport-Security".to_string(),
-                "max-age=31536000; includeSubDomains".to_string(),
+                format!(
+                    "max-age={}; includeSubDomains",
+                    crate::constants::time_constants::SECONDS_PER_YEAR
+                ),
             );
             headers.insert(
                 "Permissions-Policy".to_string(),

@@ -41,7 +41,8 @@ impl PkceParams {
         // Generate a cryptographically secure random code verifier (43-128 characters)
         const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
         let mut rng = rand::thread_rng();
-        let code_verifier: String = (0..128)
+        let code_verifier: String = (0
+            ..crate::constants::network_config::OAUTH_CODE_VERIFIER_LENGTH)
             .map(|_| CHARS[rng.gen_range(0..CHARS.len())] as char)
             .collect();
 

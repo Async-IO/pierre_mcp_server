@@ -489,7 +489,7 @@ impl FitnessProvider for StravaProvider {
 }
 
 impl StravaProvider {
-    /// Fetch activities using single API call (for requests <= 200)
+    /// Fetch activities using single API call (for requests <= `BULK_ACTIVITY_FETCH_THRESHOLD`)
     async fn get_activities_single_page(
         &self,
         limit: usize,
@@ -514,7 +514,7 @@ impl StravaProvider {
         Ok(activities)
     }
 
-    /// Fetch activities using multiple API calls (for requests > 200)
+    /// Fetch activities using multiple API calls (for requests > `BULK_ACTIVITY_FETCH_THRESHOLD`)
     async fn get_activities_multi_page(
         &self,
         total_limit: usize,

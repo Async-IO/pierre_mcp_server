@@ -6,6 +6,8 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+#![recursion_limit = "256"]
+
 //! # Pierre Fitness API Server Binary
 //!
 //! This binary starts the multi-protocol Pierre Fitness API with user authentication,
@@ -136,6 +138,10 @@ async fn main() -> Result<()> {
             "MCP server starting on ports {} (MCP) and {} (HTTP)",
             config.mcp_port, config.http_port
         );
+
+        // Display all available API endpoints
+        display_available_endpoints(&config);
+
         info!("Ready to serve fitness data!");
 
         // Run the server (includes all routes)
@@ -146,4 +152,123 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Display all available API endpoints with their ports
+fn display_available_endpoints(config: &ServerConfig) {
+    let host = std::env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
+
+    info!("=== Available API Endpoints ===");
+    display_mcp_endpoints(&host, config.mcp_port);
+    display_auth_endpoints(&host, config.mcp_port);
+    display_oauth2_endpoints(&host, config.mcp_port);
+    display_admin_endpoints(&host, config.mcp_port);
+    display_api_key_endpoints(&host, config.mcp_port);
+    display_tenant_endpoints(&host, config.mcp_port);
+    display_dashboard_endpoints(&host, config.mcp_port);
+    display_a2a_endpoints(&host, config.mcp_port);
+    display_config_endpoints(&host, config.mcp_port);
+    display_fitness_endpoints(&host, config.mcp_port);
+    display_notification_endpoints(&host, config.mcp_port);
+    info!("=== End of Endpoint List ===");
+}
+
+#[allow(clippy::cognitive_complexity)]
+fn display_mcp_endpoints(host: &str, port: u16) {
+    info!("MCP Protocol:");
+    info!("   HTTP Transport:  http://{host}:{port}/mcp");
+    info!("   WebSocket:       ws://{host}:{port}/mcp/ws");
+    info!("   Server-Sent Events: http://{host}:{port}/mcp/sse");
+}
+
+#[allow(clippy::cognitive_complexity)]
+fn display_auth_endpoints(host: &str, port: u16) {
+    info!("Authentication & OAuth:");
+    info!("   User Registration: POST http://{host}:{port}/auth/register");
+    info!("   User Login:        POST http://{host}:{port}/auth/login");
+    info!("   OAuth Authorize:   GET  http://{host}:{port}/oauth/authorize/{{provider}}");
+    info!("   OAuth Callback:    GET  http://{host}:{port}/oauth/callback/{{provider}}");
+    info!("   OAuth Status:      GET  http://{host}:{port}/oauth/status");
+    info!("   OAuth Disconnect:  POST http://{host}:{port}/oauth/disconnect/{{provider}}");
+}
+
+#[allow(clippy::cognitive_complexity)]
+fn display_oauth2_endpoints(host: &str, port: u16) {
+    info!("OAuth 2.0 Server:");
+    info!("   Authorization:     GET  http://{host}:{port}/oauth2/authorize");
+    info!("   Token Exchange:    POST http://{host}:{port}/oauth2/token");
+    info!("   Client Registration: POST http://{host}:{port}/oauth2/register");
+}
+
+#[allow(clippy::cognitive_complexity)]
+fn display_admin_endpoints(host: &str, port: u16) {
+    info!("Admin Management:");
+    info!("   Admin Setup:       POST http://{host}:{port}/admin/setup");
+    info!("   Create User:       POST http://{host}:{port}/admin/users");
+    info!("   List Users:        GET  http://{host}:{port}/admin/users");
+    info!("   Generate Token:    POST http://{host}:{port}/admin/tokens");
+    info!("   List Tokens:       GET  http://{host}:{port}/admin/tokens");
+}
+
+#[allow(clippy::cognitive_complexity)]
+fn display_api_key_endpoints(host: &str, port: u16) {
+    info!("API Key Management:");
+    info!("   Create API Key:    POST http://{host}:{port}/api/keys");
+    info!("   List API Keys:     GET  http://{host}:{port}/api/keys");
+    info!("   Delete API Key:    DELETE http://{host}:{port}/api/keys/{{key_id}}");
+    info!("   API Key Usage:     GET  http://{host}:{port}/api/keys/usage");
+}
+
+#[allow(clippy::cognitive_complexity)]
+fn display_tenant_endpoints(host: &str, port: u16) {
+    info!("Tenant Management:");
+    info!("   Create Tenant:     POST http://{host}:{port}/tenants");
+    info!("   List Tenants:      GET  http://{host}:{port}/tenants");
+    info!("   Get Tenant:        GET  http://{host}:{port}/tenants/{{tenant_id}}");
+    info!("   Update Tenant:     PUT  http://{host}:{port}/tenants/{{tenant_id}}");
+    info!("   Delete Tenant:     DELETE http://{host}:{port}/tenants/{{tenant_id}}");
+}
+
+#[allow(clippy::cognitive_complexity)]
+fn display_dashboard_endpoints(host: &str, port: u16) {
+    info!("Dashboard & Monitoring:");
+    info!("   Health Check:      GET  http://{host}:{port}/health");
+    info!("   System Status:     GET  http://{host}:{port}/dashboard/status");
+    info!("   User Dashboard:    GET  http://{host}:{port}/dashboard/user");
+    info!("   Admin Dashboard:   GET  http://{host}:{port}/dashboard/admin");
+    info!("   Detailed Stats:    GET  http://{host}:{port}/dashboard/detailed");
+}
+
+#[allow(clippy::cognitive_complexity)]
+fn display_a2a_endpoints(host: &str, port: u16) {
+    info!("A2A Protocol:");
+    info!("   A2A Status:        GET  http://{host}:{port}/a2a/status");
+    info!("   A2A Tools:         GET  http://{host}:{port}/a2a/tools");
+    info!("   A2A Execute:       POST http://{host}:{port}/a2a/execute");
+    info!("   A2A Monitoring:    GET  http://{host}:{port}/a2a/monitoring");
+    info!("   Client Tools:      GET  http://{host}:{port}/a2a/client/tools");
+    info!("   Client Execute:    POST http://{host}:{port}/a2a/client/execute");
+}
+
+#[allow(clippy::cognitive_complexity)]
+fn display_config_endpoints(host: &str, port: u16) {
+    info!("Configuration:");
+    info!("   Get Config:        GET  http://{host}:{port}/config");
+    info!("   Update Config:     PUT  http://{host}:{port}/config");
+    info!("   User Config:       GET  http://{host}:{port}/config/user");
+    info!("   Update User Config: PUT  http://{host}:{port}/config/user");
+}
+
+#[allow(clippy::cognitive_complexity)]
+fn display_fitness_endpoints(host: &str, port: u16) {
+    info!("Fitness Configuration:");
+    info!("   Get Fitness Config:    GET  http://{host}:{port}/fitness/config");
+    info!("   Update Fitness Config: PUT  http://{host}:{port}/fitness/config");
+    info!("   Delete Fitness Config: DELETE http://{host}:{port}/fitness/config");
+}
+
+#[allow(clippy::cognitive_complexity)]
+fn display_notification_endpoints(host: &str, port: u16) {
+    info!("Real-time Notifications:");
+    info!("   SSE Stream:        GET  http://{host}:{port}/notifications/sse?user_id={{user_id}}");
 }

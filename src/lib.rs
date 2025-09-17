@@ -6,6 +6,8 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+#![recursion_limit = "256"]
+
 //! # Pierre MCP Server
 //!
 //! A Model Context Protocol (MCP) server for fitness data aggregation and analysis.

@@ -110,7 +110,7 @@ impl TenantOAuthManager {
             client_secret: config.client_secret,
             redirect_uri: config.redirect_uri,
             scopes: config.scopes,
-            rate_limit_per_day: 15000, // Default Strava rate limit
+            rate_limit_per_day: crate::constants::rate_limits::STRAVA_DEFAULT_DAILY_RATE_LIMIT,
         };
 
         self.credentials
@@ -135,7 +135,10 @@ impl TenantOAuthManager {
         let daily_limit = self
             .credentials
             .get(&(tenant_id, provider.to_string()))
-            .map_or(15000, |c| c.rate_limit_per_day);
+            .map_or(
+                crate::constants::rate_limits::STRAVA_DEFAULT_DAILY_RATE_LIMIT,
+                |c| c.rate_limit_per_day,
+            );
 
         Ok((usage, daily_limit))
     }
@@ -196,7 +199,7 @@ impl TenantOAuthManager {
                     .split(',')
                     .map(str::to_string)
                     .collect(),
-                rate_limit_per_day: 15000, // Default Strava rate limit
+                rate_limit_per_day: crate::constants::rate_limits::STRAVA_DEFAULT_DAILY_RATE_LIMIT,
             });
         }
         tracing::warn!(
@@ -234,7 +237,7 @@ impl TenantOAuthManager {
                     "social".to_string(),
                     "weight".to_string(),
                 ],
-                rate_limit_per_day: 150, // Default Fitbit rate limit per hour * 24
+                rate_limit_per_day: crate::constants::rate_limits::FITBIT_DEFAULT_DAILY_RATE_LIMIT,
             });
         }
         tracing::warn!(
