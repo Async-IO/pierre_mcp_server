@@ -1951,6 +1951,7 @@ impl MultiTenantMcpServer {
         info!("MCP HTTP transport starting on port {}", port);
 
         let resources = self.resources.clone();
+        let resources_for_metadata = resources.clone(); // Clone for metadata endpoint
 
         // MCP endpoint for both POST and GET
         let mcp_endpoint = warp::path("mcp")
@@ -1988,15 +1989,35 @@ impl MultiTenantMcpServer {
                 }
             });
 
+        // Resource Server Metadata Discovery endpoint for mcp-remote
+        let resources_clone = resources_for_metadata;
+        let resource_server_metadata = warp::path!(".well-known" / "oauth-protected-resource")
+            .and(warp::get())
+            .map(move || {
+                let host = std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string());
+                let base_url = format!("http://{host}:{port}");
+                warp::reply::json(&serde_json::json!({
+                    "resource": base_url,
+                    "authorization_servers": [format!("http://{host}:{}", resources_clone.config.http_port)],
+                    "jwks_uri": format!("http://{host}:{}/oauth/jwks", resources_clone.config.http_port),
+                    "scopes_supported": ["fitness:read", "activities:read", "profile:read"],
+                    "response_types_supported": ["code"],
+                    "token_endpoint_auth_methods_supported": ["client_secret_post", "client_secret_basic"]
+                }))
+            });
+
         // Configure CORS for MCP
         let cors = warp::cors()
             .allow_any_origin()
             .allow_headers(vec!["content-type", "accept", "origin", "authorization"])
             .allow_methods(vec!["GET", "POST", "OPTIONS"]);
 
-        let routes = mcp_endpoint.with(cors).recover(|err| async move {
-            Ok::<_, std::convert::Infallible>(Self::handle_mcp_rejection_sync(&err))
-        });
+        let routes = resource_server_metadata
+            .or(mcp_endpoint)
+            .with(cors)
+            .recover(|err| async move {
+                Ok::<_, std::convert::Infallible>(Self::handle_mcp_rejection_sync(&err))
+            });
 
         info!("MCP HTTP transport ready on port {}", port);
         warp::serve(routes).run(([127, 0, 0, 1], port)).await;
@@ -2959,7 +2980,8 @@ impl MultiTenantMcpServer {
         Self::store_mcp_oauth_credentials(tenant_context, tenant_oauth_client, &credentials).await;
 
         // Generate OAuth URLs for connecting providers using dynamic HTTP port
-        let base_url = format!("http://127.0.0.1:{}/api/oauth", http_port);
+        let host = std::env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
+        let base_url = format!("http://{host}:{http_port}/api/oauth");
 
         // Check actual OAuth token status from database
         // tenant_context.user_id is already a Uuid, no need to parse

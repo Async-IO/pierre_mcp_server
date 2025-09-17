@@ -22,12 +22,14 @@ pub fn oauth2_routes(
     let authorization_routes = authorization_routes(database.clone(), auth_manager.clone());
     let token_routes = token_routes(database, auth_manager);
     let discovery_route = oauth2_discovery_route(http_port);
+    let jwks_route = jwks_route();
 
     warp::path("oauth").and(
         discovery_route
             .or(client_registration_routes)
             .or(authorization_routes)
-            .or(token_routes),
+            .or(token_routes)
+            .or(jwks_route),
     )
 }
 
@@ -38,7 +40,8 @@ fn oauth2_discovery_route(
     warp::path!(".well-known" / "oauth-authorization-server")
         .and(warp::get())
         .map(move || {
-            let base_url = format!("http://localhost:{http_port}");
+            let host = std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string());
+            let base_url = format!("http://{host}:{http_port}");
             warp::reply::json(&serde_json::json!({
                 "issuer": base_url,
                 "authorization_endpoint": format!("{}/oauth/authorize", base_url),
@@ -269,4 +272,19 @@ fn parse_token_request(form: &HashMap<String, String>) -> Result<TokenRequest, O
         client_secret,
         scope,
     })
+}
+
+/// JWKS (JSON Web Key Set) endpoint route
+fn jwks_route() -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    warp::path("jwks")
+        .and(warp::path::end())
+        .and(warp::get())
+        .map(|| {
+            // For now, return an empty JWKS response
+            // In a production environment, this would contain actual public keys
+            // used to verify JWT tokens issued by this authorization server
+            warp::reply::json(&serde_json::json!({
+                "keys": []
+            }))
+        })
 }

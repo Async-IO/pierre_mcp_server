@@ -91,7 +91,7 @@ impl OAuth2AuthorizationServer {
     /// Returns an error if client validation fails or token generation fails
     pub async fn token(&self, request: TokenRequest) -> Result<TokenResponse, OAuth2Error> {
         // Validate client credentials
-        let _client = self
+        let _ = self
             .client_manager
             .validate_client(&request.client_id, &request.client_secret)
             .await?;

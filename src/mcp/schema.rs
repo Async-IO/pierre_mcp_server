@@ -286,10 +286,10 @@ impl InitializeResponse {
                 }),
                 auth: Some(AuthCapability {
                     oauth2: Some(OAuth2Capability {
-                        discovery_url: format!("http://localhost:{http_port}/oauth/.well-known/oauth-authorization-server"),
-                        authorization_endpoint: format!("http://localhost:{http_port}/oauth/authorize"),
-                        token_endpoint: format!("http://localhost:{http_port}/oauth/token"),
-                        registration_endpoint: format!("http://localhost:{http_port}/oauth/register"),
+                        discovery_url: format!("http://{}:{http_port}/oauth/.well-known/oauth-authorization-server", std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string())),
+                        authorization_endpoint: format!("http://{}:{http_port}/oauth/authorize", std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string())),
+                        token_endpoint: format!("http://{}:{http_port}/oauth/token", std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string())),
+                        registration_endpoint: format!("http://{}:{http_port}/oauth/register", std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string())),
                     }),
                 }),
             },

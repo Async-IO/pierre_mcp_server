@@ -33,7 +33,8 @@ impl MasterEncryptionKey {
     /// - The environment variable contains invalid base64 encoding
     /// - The decoded key is not exactly 32 bytes
     /// - Random key generation fails in development mode
-    #[allow(clippy::cognitive_complexity)] // Long function: Bootstrap sequence with mode detection
+    // Safe: Complex bootstrap sequence with environment detection and dev mode handling
+    #[allow(clippy::cognitive_complexity)]
     pub fn load_or_generate() -> Result<Self> {
         // Try to load from environment first
         if let Ok(encoded_key) = env::var("PIERRE_MASTER_ENCRYPTION_KEY") {
