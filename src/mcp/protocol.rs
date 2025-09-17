@@ -49,13 +49,22 @@ impl ProtocolHandler {
         Self::handle_initialize_internal(request, None)
     }
 
+    /// Handle initialize request with resources (for dynamic port configuration)
+    #[must_use]
+    pub fn handle_initialize_with_resources(
+        request: McpRequest,
+        resources: &Arc<ServerResources>,
+    ) -> McpResponse {
+        Self::handle_initialize_internal(request, Some(resources))
+    }
+
     /// Handle initialize request with `ServerResources` for OAuth credential storage  
     pub async fn handle_initialize_with_oauth(
         request: McpRequest,
         resources: &Arc<ServerResources>,
     ) -> McpResponse {
         // Handle basic initialization first (doesn't require authentication)
-        let response = Self::handle_initialize_internal(request.clone(), None);
+        let response = Self::handle_initialize_internal(request.clone(), Some(resources));
 
         // If initialization successful and OAuth credentials provided, try to store them
         if response.error.is_none() {
@@ -91,7 +100,7 @@ impl ProtocolHandler {
     /// Internal initialize handler
     fn handle_initialize_internal(
         request: McpRequest,
-        _resources: Option<&Arc<ServerResources>>,
+        resources: Option<&Arc<ServerResources>>,
     ) -> McpResponse {
         let request_id = request.id.unwrap_or_else(default_request_id);
 
@@ -131,11 +140,22 @@ impl ProtocolHandler {
         );
 
         // Create successful initialize response with negotiated version
-        let init_response = InitializeResponse::new(
-            negotiated_version,
-            crate::constants::protocol::server_name_multitenant(),
-            SERVER_VERSION.to_string(),
-        );
+        let init_response = if let Some(resources) = resources {
+            // Use dynamic HTTP port from server configuration
+            InitializeResponse::new_with_ports(
+                negotiated_version,
+                crate::constants::protocol::server_name_multitenant(),
+                SERVER_VERSION.to_string(),
+                resources.config.http_port,
+            )
+        } else {
+            // Fallback to default (hardcoded port)
+            InitializeResponse::new(
+                negotiated_version,
+                crate::constants::protocol::server_name_multitenant(),
+                SERVER_VERSION.to_string(),
+            )
+        };
 
         match serde_json::to_value(&init_response) {
             Ok(result) => McpResponse::success(request_id, result),

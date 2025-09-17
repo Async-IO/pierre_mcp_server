@@ -28,7 +28,7 @@ use crate::intelligence::physiological_constants::{
         high_intensity, intensity_thresholds, low_intensity, moderate_intensity,
         moderate_low_intensity, very_high_intensity,
         zone_analysis_thresholds::{
-            DEMO_CONSISTENCY_SCORE, HARD_INTENSITY_EFFORT_THRESHOLD,
+            DEFAULT_CONSISTENCY_SCORE, HARD_INTENSITY_EFFORT_THRESHOLD,
             SIGNIFICANT_ENDURANCE_ZONE_THRESHOLD, TEMPO_ZONE_THRESHOLD, THRESHOLD_ZONE_THRESHOLD,
         },
     },
@@ -258,7 +258,7 @@ impl ActivityAnalyzer {
         if let Some(distance_m) = activity.distance_meters {
             let distance_km = distance_m / 1000.0;
             if distance_km > DISTANCE_PR_THRESHOLD_KM {
-                // Arbitrary threshold for demo
+                // Use default baseline for performance comparison
                 const PREVIOUS_BEST: f64 = DEFAULT_PREVIOUS_BEST_TIME;
                 records.push(PersonalRecord {
                     record_type: "Longest Distance".into(),
@@ -325,7 +325,7 @@ impl ActivityAnalyzer {
             pace_trend: TrendDirection::Improving,
             effort_trend: TrendDirection::Stable,
             distance_trend: TrendDirection::Stable,
-            consistency_score: DEMO_CONSISTENCY_SCORE,
+            consistency_score: DEFAULT_CONSISTENCY_SCORE,
         }
     }
 

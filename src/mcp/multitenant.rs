@@ -146,8 +146,11 @@ impl MultiTenantMcpServer {
         );
 
         // Create OAuth 2.0 server routes for mcp-remote compatibility
-        let oauth2_server_routes =
-            oauth2_routes(resources.database.clone(), resources.auth_manager.clone());
+        let oauth2_server_routes = oauth2_routes(
+            resources.database.clone(),
+            resources.auth_manager.clone(),
+            port,
+        );
         let api_key_route_filter = Self::create_api_key_routes(&api_key_routes);
         let api_key_usage_filter = Self::create_api_key_usage_route(api_key_routes.clone());
         let dashboard_route_filter = Self::create_dashboard_routes(&dashboard_routes);
@@ -1955,11 +1958,13 @@ impl MultiTenantMcpServer {
             .and(warp::header::optional::<String>("origin"))
             .and(warp::header::optional::<String>("accept"))
             .and(warp::header::optional::<String>("authorization"))
-            .and(
-                warp::body::json()
-                    .or(warp::any().map(|| serde_json::Value::Null))
-                    .unify(),
-            )
+            .and(warp::body::bytes().map(|bytes: bytes::Bytes| {
+                if bytes.is_empty() {
+                    serde_json::Value::Null
+                } else {
+                    serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null)
+                }
+            }))
             .and_then({
                 move |method: warp::http::Method,
                       origin: Option<String>,
@@ -2262,7 +2267,7 @@ impl MultiTenantMcpServer {
                 if request.auth_token.is_some() {
                     ProtocolHandler::handle_initialize_with_oauth(request, resources).await
                 } else {
-                    ProtocolHandler::handle_initialize(request)
+                    ProtocolHandler::handle_initialize_with_resources(request, resources)
                 }
             }
             "ping" => ProtocolHandler::handle_ping(request),
@@ -2942,6 +2947,7 @@ impl MultiTenantMcpServer {
         database: &Arc<Database>,
         request_id: Value,
         credentials: McpOAuthCredentials<'_>,
+        http_port: u16,
     ) -> McpResponse {
         tracing::info!(
             "Checking connection status for tenant {} user {}",
@@ -2952,9 +2958,8 @@ impl MultiTenantMcpServer {
         // Store MCP-provided OAuth credentials if supplied
         Self::store_mcp_oauth_credentials(tenant_context, tenant_oauth_client, &credentials).await;
 
-        // Generate OAuth URLs for connecting providers
-        // Using the HTTP API endpoints (port 8081) for OAuth flow
-        let base_url = "http://127.0.0.1:8081/api/oauth";
+        // Generate OAuth URLs for connecting providers using dynamic HTTP port
+        let base_url = format!("http://127.0.0.1:{}/api/oauth", http_port);
 
         // Check actual OAuth token status from database
         // tenant_context.user_id is already a Uuid, no need to parse

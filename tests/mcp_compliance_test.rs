@@ -345,6 +345,7 @@ fn test_server_capabilities() {
         tools: Some(ToolsCapability {
             list_changed: Some(false),
         }),
+        auth: None,
     };
 
     let json_value = serde_json::to_value(&capabilities).expect("Should serialize");

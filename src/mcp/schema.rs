@@ -134,6 +134,8 @@ pub struct ServerCapabilities {
     pub resources: Option<ResourcesCapability>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<ToolsCapability>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth: Option<AuthCapability>,
 }
 
 /// Tools capability
@@ -161,6 +163,26 @@ pub struct ResourcesCapability {
     pub subscribe: Option<bool>,
     #[serde(rename = "listChanged", skip_serializing_if = "Option::is_none")]
     pub list_changed: Option<bool>,
+}
+
+/// Authentication capability
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthCapability {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub oauth2: Option<OAuth2Capability>,
+}
+
+/// OAuth 2.0 capability
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OAuth2Capability {
+    #[serde(rename = "discoveryUrl")]
+    pub discovery_url: String,
+    #[serde(rename = "authorizationEndpoint")]
+    pub authorization_endpoint: String,
+    #[serde(rename = "tokenEndpoint")]
+    pub token_endpoint: String,
+    #[serde(rename = "registrationEndpoint")]
+    pub registration_endpoint: String,
 }
 
 /// Client capabilities (for processing client initialize requests)
@@ -234,6 +256,17 @@ impl InitializeResponse {
     /// Create a new initialize response with current server configuration
     #[must_use]
     pub fn new(protocol_version: String, server_name: String, server_version: String) -> Self {
+        Self::new_with_ports(protocol_version, server_name, server_version, 8081)
+    }
+
+    /// Create a new initialize response with specific HTTP port for OAuth endpoints
+    #[must_use]
+    pub fn new_with_ports(
+        protocol_version: String,
+        server_name: String,
+        server_version: String,
+        http_port: u16,
+    ) -> Self {
         Self {
             protocol_version,
             server_info: ServerInfo {
@@ -250,6 +283,14 @@ impl InitializeResponse {
                 }),
                 tools: Some(ToolsCapability {
                     list_changed: Some(false),
+                }),
+                auth: Some(AuthCapability {
+                    oauth2: Some(OAuth2Capability {
+                        discovery_url: format!("http://localhost:{http_port}/oauth/.well-known/oauth-authorization-server"),
+                        authorization_endpoint: format!("http://localhost:{http_port}/oauth/authorize"),
+                        token_endpoint: format!("http://localhost:{http_port}/oauth/token"),
+                        registration_endpoint: format!("http://localhost:{http_port}/oauth/register"),
+                    }),
                 }),
             },
             instructions: Some("This server provides fitness data tools for Strava and Fitbit integration. OAuth must be configured at tenant level via REST API. Use `get_activities`, `get_athlete`, and other analytics tools to access your fitness data.".into()),

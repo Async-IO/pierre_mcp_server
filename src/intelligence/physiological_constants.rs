@@ -902,8 +902,8 @@ pub mod zone_distributions {
         /// Activities with more than this percentage in Zone 4 are considered threshold-focused
         pub const THRESHOLD_ZONE_THRESHOLD: f32 = 30.0;
 
-        /// Demo consistency score for testing and examples
-        pub const DEMO_CONSISTENCY_SCORE: f32 = 85.0;
+        /// Default consistency score for performance analysis
+        pub const DEFAULT_CONSISTENCY_SCORE: f32 = 85.0;
     }
 
     /// Efficiency calculation multipliers and factors

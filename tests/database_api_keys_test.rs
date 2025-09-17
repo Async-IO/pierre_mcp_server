@@ -100,7 +100,7 @@ async fn test_api_key_usage_tracking() {
         response_time_ms: Some(50),
         request_size_bytes: Some(256),
         response_size_bytes: Some(1024),
-        ip_address: Some(pierre_mcp_server::constants::demo_data::TEST_IP_ADDRESS.to_string()),
+        ip_address: Some("127.0.0.1".to_string()),
         user_agent: Some("TestAgent/1.0".into()),
         error_message: None,
     };

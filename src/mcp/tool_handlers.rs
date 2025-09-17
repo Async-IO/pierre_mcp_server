@@ -299,6 +299,7 @@ impl ToolHandlers {
                         &ctx.resources.database,
                         request_id,
                         credentials,
+                        ctx.resources.config.http_port,
                     )
                     .await;
                 }

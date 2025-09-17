@@ -16,16 +16,42 @@ use warp::{Filter, Rejection, Reply};
 pub fn oauth2_routes(
     database: Arc<Database>,
     auth_manager: Arc<AuthManager>,
+    http_port: u16,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     let client_registration_routes = client_registration_routes(database.clone());
     let authorization_routes = authorization_routes(database.clone(), auth_manager.clone());
     let token_routes = token_routes(database, auth_manager);
+    let discovery_route = oauth2_discovery_route(http_port);
 
     warp::path("oauth").and(
-        client_registration_routes
+        discovery_route
+            .or(client_registration_routes)
             .or(authorization_routes)
             .or(token_routes),
     )
+}
+
+/// OAuth 2.0 discovery route (RFC 8414)
+fn oauth2_discovery_route(
+    http_port: u16,
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    warp::path!(".well-known" / "oauth-authorization-server")
+        .and(warp::get())
+        .map(move || {
+            let base_url = format!("http://localhost:{http_port}");
+            warp::reply::json(&serde_json::json!({
+                "issuer": base_url,
+                "authorization_endpoint": format!("{}/oauth/authorize", base_url),
+                "token_endpoint": format!("{}/oauth/token", base_url),
+                "registration_endpoint": format!("{}/oauth/register", base_url),
+                "grant_types_supported": ["authorization_code", "client_credentials"],
+                "response_types_supported": ["code"],
+                "token_endpoint_auth_methods_supported": ["client_secret_post", "client_secret_basic"],
+                "scopes_supported": ["fitness:read", "activities:read", "profile:read"],
+                "response_modes_supported": ["query"],
+                "code_challenge_methods_supported": ["S256", "plain"]
+            }))
+        })
 }
 
 /// Client registration routes (RFC 7591)

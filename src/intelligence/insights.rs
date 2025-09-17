@@ -182,7 +182,7 @@ impl InsightGenerator {
         if let Some(distance_m) = activity.distance_meters {
             let distance_km = distance_m / 1000.0;
             if distance_km > ACHIEVEMENT_DISTANCE_THRESHOLD_KM {
-                // Arbitrary threshold for demo
+                // Achievement threshold for distance milestones
                 insights.push(Insight {
                     insight_type: InsightType::Achievement,
                     message: format!(
