@@ -14,7 +14,6 @@ use super::{
     TrendDirection, TrendIndicators, ZoneDistribution,
 };
 use crate::intelligence::physiological_constants::{
-    demo_data::{DEMO_PREVIOUS_BEST_PACE, DEMO_PREVIOUS_BEST_TIME},
     efficiency_defaults::{BASE_EFFICIENCY_SCORE, HR_EFFICIENCY_FACTOR, PACE_PER_KM_FACTOR},
     performance_calculation::{
         ASSUMED_RESTING_HR, BIKE_DISTANCE_DIVISOR, BIKE_EFFORT_MULTIPLIER, EFFORT_HOUR_FACTOR,
@@ -22,6 +21,7 @@ use crate::intelligence::physiological_constants::{
         MAX_EFFORT_SCORE, MIN_EFFORT_SCORE, RUN_DISTANCE_DIVISOR, RUN_EFFORT_MULTIPLIER,
         SWIM_DISTANCE_DIVISOR, SWIM_EFFORT_MULTIPLIER,
     },
+    performance_defaults::{DEFAULT_PREVIOUS_BEST_PACE, DEFAULT_PREVIOUS_BEST_TIME},
     personal_records::{DISTANCE_PR_THRESHOLD_KM, PACE_PR_THRESHOLD_SECONDS},
     zone_distributions::{
         efficiency_calculation::{CONSISTENCY_MULTIPLIER, HR_EFFICIENCY_MULTIPLIER},
@@ -259,7 +259,7 @@ impl ActivityAnalyzer {
             let distance_km = distance_m / 1000.0;
             if distance_km > DISTANCE_PR_THRESHOLD_KM {
                 // Arbitrary threshold for demo
-                const PREVIOUS_BEST: f64 = DEMO_PREVIOUS_BEST_TIME;
+                const PREVIOUS_BEST: f64 = DEFAULT_PREVIOUS_BEST_TIME;
                 records.push(PersonalRecord {
                     record_type: "Longest Distance".into(),
                     value: distance_km,
@@ -276,7 +276,7 @@ impl ActivityAnalyzer {
         if let Some(avg_speed) = activity.average_speed {
             let pace_per_km = f64::from(PACE_PER_KM_FACTOR) / avg_speed;
             if pace_per_km < PACE_PR_THRESHOLD_SECONDS {
-                const PREVIOUS_BEST_PACE: f64 = DEMO_PREVIOUS_BEST_PACE;
+                const PREVIOUS_BEST_PACE: f64 = DEFAULT_PREVIOUS_BEST_PACE;
                 records.push(PersonalRecord {
                     record_type: "Fastest Average Pace".into(),
                     value: pace_per_km,

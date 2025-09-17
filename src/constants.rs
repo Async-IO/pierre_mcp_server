@@ -642,39 +642,16 @@ pub mod network_config {
     ];
 }
 
-/// Demo and test data constants
-pub mod demo_data {
-    /// Demo user profile constants
-    pub const DEMO_USER_AGE: u32 = 30;
-    pub const DEMO_PREFERRED_DURATION_MINUTES: u32 = 60;
-
-    /// Demo efficiency score for examples and testing
-    pub const DEMO_EFFICIENCY_SCORE: f64 = 85.0;
-
-    /// Demo consistency score for examples and testing
-    pub const DEMO_CONSISTENCY_SCORE: f64 = 88.0;
-
-    /// Test IP address for demos and tests
-    pub const TEST_IP_ADDRESS: &str = "127.0.0.1";
-
-    /// Sample activity duration times in seconds for demos
-    pub const SAMPLE_SHORT_RUN_SECONDS: u32 = 1800; // 30 minutes
-    pub const SAMPLE_MEDIUM_RUN_SECONDS: u32 = 3600; // 1 hour
-    pub const SAMPLE_LONG_RUN_SECONDS: u32 = 7200; // 2 hours
-    pub const SAMPLE_ULTRA_RUN_SECONDS: u32 = 18000; // 5 hours
-    pub const SAMPLE_MARATHON_SECONDS: u32 = 8000; // ~2.2 hours
-    pub const SAMPLE_ULTRA_MARATHON_SECONDS: u32 = 19000; // ~5.3 hours
-    pub const SAMPLE_IRONMAN_BIKE_SECONDS: u32 = 72000; // 20 hours
-    pub const SAMPLE_IRONMAN_TOTAL_SECONDS: u32 = 80000; // ~22 hours
-
-    /// Sample distances in meters for demos
-    pub const SAMPLE_5K_METERS: f64 = 5000.0; // 5K run distance
-
-    /// Sample athlete/user IDs for demos
-    pub const SAMPLE_ATHLETE_ID: &str = "9876543210"; // Demo athlete ID
+/// Default user configuration constants
+pub mod user_defaults {
+    /// Default user age when not provided (adult average)
+    pub const DEFAULT_USER_AGE: u32 = 30;
 
     /// Unit conversion constants
     pub const METERS_TO_KM: f64 = 1000.0; // Convert meters to kilometers
+
+    /// Default goal distance for fitness calculations (5K in meters)
+    pub const DEFAULT_GOAL_DISTANCE: f64 = 5000.0;
 }
 
 /// External API provider limits and configuration constants
@@ -926,18 +903,18 @@ pub mod oauth_providers {
     }
 }
 
-/// A2A Agent card demo data constants
-pub mod a2a_demo {
-    /// Example activity ID for A2A demos
+/// A2A Agent card example data constants
+pub mod a2a_examples {
+    /// Example activity ID for A2A documentation
     pub const EXAMPLE_ACTIVITY_ID: &str = "123456";
 
-    /// Example activity date for A2A demos (ISO 8601)
+    /// Example activity date for A2A documentation (ISO 8601)
     pub const EXAMPLE_ACTIVITY_DATE: &str = "2024-01-15T07:00:00Z";
 
-    /// Example activity duration for A2A demos (30 minutes in seconds)
+    /// Example activity duration for A2A documentation (30 minutes in seconds)
     pub const EXAMPLE_ACTIVITY_DURATION_SECONDS: u32 = 1800;
 
-    /// Example activity distance for A2A demos (5km in meters)
+    /// Example activity distance for A2A documentation (5km in meters)
     pub const EXAMPLE_ACTIVITY_DISTANCE_METERS: u32 = 5000;
 
     /// Trial tier monthly rate limit for A2A demos

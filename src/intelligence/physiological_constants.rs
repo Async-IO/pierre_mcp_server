@@ -627,16 +627,16 @@ pub mod api_limits {
     pub const GOAL_ANALYSIS_ACTIVITY_LIMIT: usize = 100;
 }
 
-/// Sample data constants for testing and development
-pub mod demo_data {
-    /// Previous best time for demo purposes (minutes)
-    pub const DEMO_PREVIOUS_BEST_TIME: f64 = 18.5;
+/// Default performance benchmarks for physiological calculations
+pub mod performance_defaults {
+    /// Baseline previous best time for performance calculations (minutes)
+    pub const DEFAULT_PREVIOUS_BEST_TIME: f64 = 18.5;
 
-    /// Previous best pace for demo purposes (seconds per km)
-    pub const DEMO_PREVIOUS_BEST_PACE: f64 = 320.0;
+    /// Baseline previous best pace for performance calculations (seconds per km)
+    pub const DEFAULT_PREVIOUS_BEST_PACE: f64 = 320.0;
 
-    /// Demo goal distance for examples (km)
-    pub const DEMO_GOAL_DISTANCE: f64 = 1000.0;
+    /// Default goal distance for performance analysis (km)
+    pub const DEFAULT_GOAL_DISTANCE: f64 = 1000.0;
 }
 
 /// Goal progress and feasibility thresholds

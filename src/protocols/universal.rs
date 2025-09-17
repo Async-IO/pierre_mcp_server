@@ -70,7 +70,7 @@ use crate::intelligence::physiological_constants::{
         MIN_VALID_DISTANCE, PACE_SCORING_BASE, PACE_SCORING_MULTIPLIER,
         SLOW_PACE_THRESHOLD_MIN_PER_KM,
     },
-    demo_data::DEMO_GOAL_DISTANCE,
+    // Removed demo_data import - using constants::user_defaults::DEFAULT_GOAL_DISTANCE instead
     efficiency_defaults::{DEFAULT_EFFICIENCY_SCORE, DEFAULT_EFFICIENCY_WITH_DISTANCE},
     fitness_score_thresholds::{
         BEGINNER_FITNESS_THRESHOLD, EXCELLENT_FITNESS_THRESHOLD, GOOD_FITNESS_THRESHOLD,
@@ -2200,7 +2200,7 @@ impl UniversalToolExecutor {
         let total_duration: u64 = activities.iter().map(|a| a.duration_seconds).sum();
 
         // Use configurable goal target from constants
-        let goal_target = DEMO_GOAL_DISTANCE;
+        let goal_target = crate::constants::user_defaults::DEFAULT_GOAL_DISTANCE;
         let progress_percentage = (total_distance / goal_target) * limits::PERCENTAGE_MULTIPLIER;
 
         Ok(UniversalResponse {
@@ -2268,7 +2268,9 @@ impl UniversalToolExecutor {
         // Create a default user profile for the goal engine
         let user_profile = crate::intelligence::UserFitnessProfile {
             user_id: request.user_id.clone(),
-            age: Some(i32::try_from(crate::constants::demo_data::DEMO_USER_AGE).unwrap_or(30)),
+            age: Some(
+                i32::try_from(crate::constants::user_defaults::DEFAULT_USER_AGE).unwrap_or(30),
+            ),
             gender: None,
             weight: None,
             height: None,
@@ -2542,7 +2544,9 @@ impl UniversalToolExecutor {
         // Create a default user profile for the recommendation engine
         let user_profile = crate::intelligence::UserFitnessProfile {
             user_id: request.user_id.clone(),
-            age: Some(i32::try_from(crate::constants::demo_data::DEMO_USER_AGE).unwrap_or(30)),
+            age: Some(
+                i32::try_from(crate::constants::user_defaults::DEFAULT_USER_AGE).unwrap_or(30),
+            ),
             gender: None,
             weight: None,
             height: None,
