@@ -26,14 +26,26 @@ fn is_port_available(port: u16) -> bool {
     TcpListener::bind(format!("127.0.0.1:{port}")).is_ok()
 }
 
+/// Find an available port using simple random approach
+fn find_available_port() -> u16 {
+    let mut rng = rand::thread_rng();
+    for _ in 0..100 {
+        let port = rng.gen_range(30000..40000);
+        if is_port_available(port) {
+            return port;
+        }
+    }
+    panic!("Could not find an available port after 100 attempts");
+}
+
 /// Test configuration for multi-tenant MCP server
 fn create_test_config(
     jwt_secret_path: &std::path::Path,
     encryption_key_path: &std::path::Path,
+    port: u16,
 ) -> Arc<pierre_mcp_server::config::environment::ServerConfig> {
     Arc::new(pierre_mcp_server::config::environment::ServerConfig {
-        mcp_port: 8080,
-        http_port: 8081,
+        http_port: port,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
@@ -385,17 +397,8 @@ async fn setup_test_environment() -> Result<(Database, AuthManager, u16, TempDir
     // Write encryption key
     std::fs::write(&encryption_key_path, &encryption_key)?;
 
-    // Use a random port to avoid conflicts
-    let mut rng = rand::thread_rng();
-    let mut port = rng.gen_range(20000..30000);
-
-    // Try to find an available port
-    for _ in 0..10 {
-        if is_port_available(port) && is_port_available(port + 1) {
-            break;
-        }
-        port = rng.gen_range(20000..30000);
-    }
+    // Use unified port allocation strategy
+    let port = find_available_port();
 
     Ok((database, auth_manager, port, temp_dir, verified_secret))
 }
@@ -422,7 +425,7 @@ async fn test_complete_multitenant_workflow() -> Result<()> {
         database,
         auth_manager,
         &stored_jwt_secret,
-        create_test_config(&jwt_secret_path, &encryption_key_path),
+        create_test_config(&jwt_secret_path, &encryption_key_path, server_port),
     ));
     let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
@@ -441,16 +444,15 @@ async fn test_complete_multitenant_workflow() -> Result<()> {
     // Give server time to start
     sleep(Duration::from_millis(1000)).await;
 
-    // Wait for server to be ready
-    let http_port = server_port + 1;
+    // Wait for server to be ready (single-port architecture)
     for _attempt in 0..10 {
-        if !is_port_available(http_port) {
+        if !is_port_available(server_port) {
             break; // Port is in use, server is likely ready
         }
         sleep(Duration::from_millis(200)).await;
     }
 
-    let mut client = MultiTenantMcpClient::new(http_port);
+    let mut client = MultiTenantMcpClient::new(server_port);
 
     // Test 1: User Registration
     let email = "test@example.com";
@@ -588,7 +590,7 @@ async fn test_mcp_authentication_required() -> Result<()> {
         database,
         auth_manager,
         &stored_jwt_secret,
-        create_test_config(&jwt_secret_path, &encryption_key_path),
+        create_test_config(&jwt_secret_path, &encryption_key_path, server_port),
     ));
     let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
@@ -607,16 +609,15 @@ async fn test_mcp_authentication_required() -> Result<()> {
     // Give server time to start
     sleep(Duration::from_millis(1000)).await;
 
-    // Wait for server to be ready
-    let http_port = server_port + 1;
+    // Wait for server to be ready (using single-port architecture)
     for _attempt in 0..10 {
-        if !is_port_available(http_port) {
+        if !is_port_available(server_port) {
             break; // Port is in use, server is likely ready
         }
         sleep(Duration::from_millis(200)).await;
     }
 
-    let client = MultiTenantMcpClient::new(http_port);
+    let client = MultiTenantMcpClient::new(server_port);
     // Note: No login, so no JWT token
 
     // Try to list tools without authentication (this should work)
@@ -660,7 +661,7 @@ async fn test_mcp_initialization_no_auth() -> Result<()> {
         database,
         auth_manager,
         &stored_jwt_secret,
-        create_test_config(&jwt_secret_path, &encryption_key_path),
+        create_test_config(&jwt_secret_path, &encryption_key_path, server_port),
     ));
     let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
@@ -679,16 +680,15 @@ async fn test_mcp_initialization_no_auth() -> Result<()> {
     // Give server time to start
     sleep(Duration::from_millis(1000)).await;
 
-    // Wait for server to be ready
-    let http_port = server_port + 1;
+    // Wait for server to be ready (using single-port architecture)
     for _attempt in 0..10 {
-        if !is_port_available(http_port) {
+        if !is_port_available(server_port) {
             break; // Port is in use, server is likely ready
         }
         sleep(Duration::from_millis(200)).await;
     }
 
-    let client = MultiTenantMcpClient::new(http_port);
+    let client = MultiTenantMcpClient::new(server_port);
 
     // Initialize should work without authentication
     let init_response = client.initialize_mcp().await?;
@@ -722,7 +722,7 @@ async fn test_mcp_concurrent_requests() -> Result<()> {
         database,
         auth_manager,
         &stored_jwt_secret,
-        create_test_config(&jwt_secret_path, &encryption_key_path),
+        create_test_config(&jwt_secret_path, &encryption_key_path, server_port),
     ));
     let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
@@ -741,16 +741,15 @@ async fn test_mcp_concurrent_requests() -> Result<()> {
     // Give server time to start
     sleep(Duration::from_millis(1000)).await;
 
-    // Wait for server to be ready
-    let http_port = server_port + 1;
+    // Wait for server to be ready (single-port architecture)
     for _attempt in 0..10 {
-        if !is_port_available(http_port) {
+        if !is_port_available(server_port) {
             break; // Port is in use, server is likely ready
         }
         sleep(Duration::from_millis(200)).await;
     }
 
-    let mut client = MultiTenantMcpClient::new(http_port);
+    let mut client = MultiTenantMcpClient::new(server_port);
 
     // Register and login
     let _user_id = client
@@ -811,7 +810,11 @@ async fn test_multitenant_server_config() -> Result<()> {
 
     let jwt_secret_path = temp_dir.path().join("jwt.secret");
     let encryption_key_path = temp_dir.path().join("encryption.key");
-    let config = create_test_config(&jwt_secret_path, &encryption_key_path);
+    let config = create_test_config(
+        &jwt_secret_path,
+        &encryption_key_path,
+        find_available_port(),
+    );
 
     // Test server creation
     let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
@@ -822,9 +825,8 @@ async fn test_multitenant_server_config() -> Result<()> {
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
-    // Verify configuration
-    assert_eq!(config.mcp_port, 8080);
-    assert_eq!(config.http_port, 8081);
+    // Verify configuration (port is dynamically allocated)
+    assert!(config.http_port >= 30000 && config.http_port < 65535);
     assert!(config.oauth.strava.enabled);
     assert!(!config.oauth.fitbit.enabled);
     assert_eq!(config.app_behavior.protocol.mcp_version, "2025-06-18");

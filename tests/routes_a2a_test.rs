@@ -1569,7 +1569,6 @@ fn create_test_server_config() -> ServerConfig {
     use std::path::PathBuf;
 
     ServerConfig {
-        mcp_port: 8080,
         http_port: 8081,
         log_level: LogLevel::Info,
         database: DatabaseConfig {

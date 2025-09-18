@@ -86,17 +86,17 @@ impl MultiTenantMcpServer {
         Self { resources }
     }
 
-    /// Run the server with both HTTP and MCP endpoints
+    /// Run the unified server with both HTTP and MCP endpoints
     ///
     /// # Errors
     ///
     /// Returns an error if the server fails to start or bind to the specified port
     pub async fn run(self, port: u16) -> Result<()> {
-        // Create HTTP + MCP server
-        info!("Starting server with HTTP and MCP on port {}", port);
+        // Create unified HTTP + MCP server
+        info!("Starting unified server on port {}", port);
 
-        // Run MCP server on main port (this sets up notification system and starts HTTP with shared resources)
-        self.run_mcp_server(port).await
+        // Run unified server (MCP protocol and HTTP routes on same port)
+        self.run_unified_server(port).await
     }
 
     /// Run HTTP server with centralized resources (eliminates parameter passing anti-pattern)
@@ -1881,8 +1881,8 @@ impl MultiTenantMcpServer {
         create_tenant.or(list_tenants).or(configure_oauth)
     }
 
-    /// Run MCP server with both stdio and HTTP transports
-    async fn run_mcp_server(self, port: u16) -> Result<()> {
+    /// Run unified server with both stdio and HTTP transports on single port
+    async fn run_unified_server(self, port: u16) -> Result<()> {
         info!("Starting MCP server with stdio and HTTP transports");
 
         // Create notification channels for both transports using broadcast for multiple receivers
@@ -1910,16 +1910,11 @@ impl MultiTenantMcpServer {
         let mut server_for_sse = self.clone();
         server_for_sse.resources = shared_resources.clone();
 
-        // Start HTTP server for auth endpoints in background with shared resources (includes notification sender)
-        let http_port = port + 1; // Use port+1 for HTTP
-        let shared_resources_for_http = shared_resources.clone();
-        tokio::spawn(async move {
-            Box::pin(Self::run_http_server_with_resources(
-                http_port,
-                shared_resources_for_http,
-            ))
-            .await
-        });
+        // Single-port architecture: unified server handles all routes
+        info!(
+            "Unified server on port {} handles all MCP and HTTP routes",
+            port
+        );
 
         // Start stdio transport in background - don't wait for it to complete
         let stdio_handle = tokio::spawn(async move {
@@ -1954,19 +1949,19 @@ impl MultiTenantMcpServer {
             }
         });
 
-        // Run HTTP transport - this should run indefinitely
+        // Run unified HTTP server with all routes (OAuth2, MCP, etc.) - this should run indefinitely
         loop {
-            info!("Starting HTTP transport on port {}", port);
+            info!("Starting unified HTTP server on port {}", port);
 
-            // Clone server for each iteration since run_http_transport takes ownership
-            match server_for_http.clone().run_http_transport(port).await {
+            // Clone shared resources for each iteration since run_http_server_with_resources takes ownership
+            match Self::run_http_server_with_resources(port, shared_resources.clone()).await {
                 Ok(()) => {
-                    error!("HTTP transport unexpectedly completed - this should never happen");
+                    error!("HTTP server unexpectedly completed - this should never happen");
                     error!("HTTP server should run indefinitely. Restarting in 5 seconds...");
                     tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
                 }
                 Err(e) => {
-                    error!("HTTP transport failed: {}", e);
+                    error!("HTTP server failed: {}", e);
                     error!("Restarting HTTP server in 10 seconds...");
                     tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
                 }
@@ -1980,17 +1975,14 @@ impl MultiTenantMcpServer {
     ///
     /// Returns an error if the HTTP server fails to start or bind to the specified port
     pub async fn run_http_only(self, port: u16) -> Result<()> {
-        info!("Starting MCP server with HTTP transport only");
+        info!(
+            "Starting MCP server with HTTP transport only on port {}",
+            port
+        );
 
-        // Start HTTP server for auth endpoints in background
-        let http_port = port + 1; // Use port+1 for HTTP
-        let resources_http = self.resources.clone();
-        tokio::spawn(async move {
-            Self::run_http_server_with_resources(http_port, resources_http).await
-        });
-
-        // Run MCP HTTP transport only (no stdio)
-        self.run_http_transport(port).await
+        // Use unified server approach with all routes on single port
+        // This eliminates the dual-server problem that causes port conflicts
+        Self::run_http_server_with_resources(port, self.resources).await
     }
 
     /// Spawn background task to handle OAuth notifications via stdio
@@ -2213,91 +2205,6 @@ impl MultiTenantMcpServer {
         }
 
         info!("SSE notification forwarder ended");
-        Ok(())
-    }
-
-    /// Run MCP server using Streamable HTTP transport (MCP specification compliant)
-    async fn run_http_transport(self, port: u16) -> Result<()> {
-        use warp::Filter;
-
-        info!("MCP HTTP transport starting on port {}", port);
-
-        let resources = self.resources.clone();
-        let resources_for_metadata = resources.clone(); // Clone for metadata endpoint
-
-        // MCP endpoint for both POST and GET with conditional authentication
-        let mcp_endpoint = warp::path("mcp")
-            .and(warp::method())
-            .and(warp::header::optional::<String>("authorization"))
-            .and(warp::header::optional::<String>("origin"))
-            .and(warp::header::optional::<String>("accept"))
-            .and(warp::body::bytes().map(|bytes: bytes::Bytes| {
-                if bytes.is_empty() {
-                    serde_json::Value::Null
-                } else {
-                    serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null)
-                }
-            }))
-            .and_then({
-                move |method: warp::http::Method,
-                      auth_header: Option<String>,
-                      origin: Option<String>,
-                      accept: Option<String>,
-                      body: serde_json::Value| {
-                    let resources = resources.clone();
-
-                    async move {
-                        let ctx = HttpRequestContext { resources };
-                        Self::handle_mcp_http_request_with_conditional_auth(
-                            method,
-                            auth_header,
-                            origin,
-                            accept,
-                            body,
-                            &ctx,
-                        )
-                        .await
-                    }
-                }
-            });
-
-        // Resource Server Metadata Discovery endpoint for mcp-remote
-        let resources_clone = resources_for_metadata.clone();
-        let resource_server_metadata = warp::path!(".well-known" / "oauth-protected-resource")
-            .and(warp::get())
-            .map(move || {
-                let host = std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string());
-                let base_url = format!("http://{host}:{port}");
-                warp::reply::json(&serde_json::json!({
-                    "resource": base_url,
-                    "authorization_servers": [format!("http://{host}:{}", resources_clone.config.http_port)],
-                    "jwks_uri": format!("http://{host}:{}/oauth/jwks", resources_clone.config.http_port),
-                    "scopes_supported": ["fitness:read", "activities:read", "profile:read"],
-                    "response_types_supported": ["code"],
-                    "token_endpoint_auth_methods_supported": ["client_secret_post", "client_secret_basic"]
-                }))
-            });
-
-        // MCP SSE endpoint for mcp-remote compatibility
-        let mcp_sse_routes = Self::create_mcp_sse_routes(&resources_for_metadata);
-
-        // Configure CORS for MCP
-        let cors = warp::cors()
-            .allow_any_origin()
-            .allow_headers(vec!["content-type", "accept", "origin", "authorization"])
-            .allow_methods(vec!["GET", "POST", "OPTIONS"]);
-
-        let routes = resource_server_metadata
-            .or(mcp_endpoint)
-            .or(mcp_sse_routes)
-            .with(cors)
-            .recover(|err| async move {
-                Ok::<_, std::convert::Infallible>(Self::handle_mcp_rejection_sync(&err))
-            });
-
-        info!("MCP HTTP transport ready on port {}", port);
-        warp::serve(routes).run(([127, 0, 0, 1], port)).await;
-
         Ok(())
     }
 
@@ -2579,55 +2486,6 @@ impl MultiTenantMcpServer {
             .any(|pattern| origin.starts_with(pattern)) ||
         // Allow null origin for direct connections
         origin == "null"
-    }
-
-    /// Handle HTTP rejection
-    fn handle_mcp_rejection_sync(err: &warp::Rejection) -> impl warp::Reply {
-        let http_code;
-        let mcp_error_code;
-        let message;
-
-        if err.is_not_found() {
-            http_code = warp::http::StatusCode::NOT_FOUND;
-            mcp_error_code = -32601; // Method not found
-            message = "Not Found";
-        } else if matches!(err.find(), Some(McpHttpError::InvalidOrigin)) {
-            http_code = warp::http::StatusCode::FORBIDDEN;
-            mcp_error_code = -32603; // Internal error - invalid origin
-            message = "Invalid origin";
-        } else if matches!(err.find(), Some(McpHttpError::InvalidRequest)) {
-            http_code = warp::http::StatusCode::BAD_REQUEST;
-            mcp_error_code = -32600; // Invalid Request
-            message = "Invalid request";
-        } else if err.find::<warp::reject::MethodNotAllowed>().is_some() {
-            http_code = warp::http::StatusCode::METHOD_NOT_ALLOWED;
-            mcp_error_code = -32601; // Method not found
-            message = "Method not allowed";
-        } else {
-            http_code = warp::http::StatusCode::INTERNAL_SERVER_ERROR;
-            mcp_error_code = -32603; // Internal error
-            message = "Internal server error";
-        }
-
-        // Return proper MCP JSON-RPC error response
-        // Use -1 as ID for rejection errors since we can't determine the original request ID
-        let mcp_response = McpResponse::error(
-            serde_json::Value::Number(serde_json::Number::from(-1)),
-            mcp_error_code,
-            message.to_string(),
-        );
-
-        // Debug log the rejection response we're sending
-        let response_str = serde_json::to_string(&mcp_response)
-            .unwrap_or_else(|_| "failed to serialize rejection response".to_string());
-        tracing::warn!(
-            "Sending rejection response (HTTP {}): {}",
-            http_code.as_u16(),
-            response_str
-        );
-
-        let json = warp::reply::json(&mcp_response);
-        warp::reply::with_status(json, http_code)
     }
 
     /// Handle MCP request with `ServerResources`

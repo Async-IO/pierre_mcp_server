@@ -194,7 +194,6 @@ impl DashboardTestSetup {
         // Create minimal config for ServerResources
         let temp_dir = tempfile::tempdir()?;
         let config = Arc::new(pierre_mcp_server::config::environment::ServerConfig {
-            mcp_port: 8080,
             http_port: 8081,
             log_level: pierre_mcp_server::config::environment::LogLevel::Info,
             database: pierre_mcp_server::config::environment::DatabaseConfig {
@@ -481,7 +480,6 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
     // Create ServerResources for dashboard routes
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(pierre_mcp_server::config::environment::ServerConfig {
-        mcp_port: 8080,
         http_port: 8081,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {

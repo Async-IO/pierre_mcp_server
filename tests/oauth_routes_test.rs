@@ -34,7 +34,6 @@ async fn test_email_validation() {
 
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(ServerConfig {
-        mcp_port: 8080,
         http_port: 8081,
         log_level: LogLevel::Info,
         database: DatabaseConfig {
@@ -191,7 +190,6 @@ async fn test_password_validation() {
 
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(ServerConfig {
-        mcp_port: 8080,
         http_port: 8081,
         log_level: LogLevel::Info,
         database: DatabaseConfig {
@@ -320,7 +318,6 @@ async fn test_duplicate_user_registration() {
 
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(ServerConfig {
-        mcp_port: 8080,
         http_port: 8081,
         log_level: LogLevel::Info,
         database: DatabaseConfig {
@@ -440,7 +437,6 @@ async fn test_login_with_correct_credentials() {
 
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(ServerConfig {
-        mcp_port: 8080,
         http_port: 8081,
         log_level: LogLevel::Info,
         database: DatabaseConfig {
@@ -604,7 +600,6 @@ async fn test_login_with_wrong_password() {
 
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(ServerConfig {
-        mcp_port: 8080,
         http_port: 8081,
         log_level: LogLevel::Info,
         database: DatabaseConfig {
@@ -731,7 +726,6 @@ async fn test_login_with_non_existent_user() {
 
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(ServerConfig {
-        mcp_port: 8080,
         http_port: 8081,
         log_level: LogLevel::Info,
         database: DatabaseConfig {

@@ -176,7 +176,6 @@ use uuid::Uuid;
 fn create_test_server_config_without_oauth(
 ) -> std::sync::Arc<pierre_mcp_server::config::environment::ServerConfig> {
     std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
-        mcp_port: 8080,
         http_port: 8081,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
@@ -265,7 +264,6 @@ fn create_test_server_config_without_oauth(
 fn create_test_server_config(
 ) -> std::sync::Arc<pierre_mcp_server::config::environment::ServerConfig> {
     std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
-        mcp_port: 8080,
         http_port: 8081,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {

@@ -67,7 +67,6 @@ async fn create_test_tool_executor() -> Arc<UniversalToolExecutor> {
 
 fn create_test_config() -> pierre_mcp_server::config::environment::ServerConfig {
     pierre_mcp_server::config::environment::ServerConfig {
-        mcp_port: 3000,
         http_port: 4000,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {

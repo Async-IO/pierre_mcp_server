@@ -61,7 +61,6 @@ async fn test_register_user() {
     // Create ServerResources for auth routes
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(ServerConfig {
-        mcp_port: 8080,
         http_port: 8081,
         log_level: LogLevel::Info,
         database: DatabaseConfig {
@@ -181,7 +180,6 @@ async fn test_register_duplicate_user() {
     // Create ServerResources for auth routes
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(ServerConfig {
-        mcp_port: 8080,
         http_port: 8081,
         log_level: LogLevel::Info,
         database: DatabaseConfig {

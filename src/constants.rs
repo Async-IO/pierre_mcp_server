@@ -46,15 +46,6 @@ pub mod protocol {
 pub mod env_config {
     use super::env;
 
-    /// Get `MCP` server port from environment or default
-    #[must_use]
-    pub fn mcp_port() -> u16 {
-        env::var("MCP_PORT")
-            .unwrap_or_else(|_| crate::constants::ports::DEFAULT_MCP_PORT.to_string())
-            .parse()
-            .unwrap_or(crate::constants::ports::DEFAULT_MCP_PORT)
-    }
-
     /// Get `HTTP` server port from environment or default
     #[must_use]
     pub fn http_port() -> u16 {
@@ -277,8 +268,6 @@ pub mod endpoints {
 
 /// Default port configurations
 pub mod ports {
-    /// Default `MCP` server port
-    pub const DEFAULT_MCP_PORT: u16 = 8080;
     /// Default `HTTP` server port  
     pub const DEFAULT_HTTP_PORT: u16 = 8081;
     /// Default documentation server port

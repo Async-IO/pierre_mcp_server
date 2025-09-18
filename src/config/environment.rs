@@ -199,9 +199,7 @@ impl std::fmt::Display for DatabaseUrl {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ServerConfig {
-    /// MCP server port
-    pub mcp_port: u16,
-    /// HTTP API port  
+    /// Server port (handles both MCP and HTTP)
     pub http_port: u16,
     /// Log level
     pub log_level: LogLevel,
@@ -395,7 +393,6 @@ impl ServerConfig {
         Self::initialize_environment();
 
         let config = Self {
-            mcp_port: env_config::mcp_port(),
             http_port: env_config::http_port(),
             log_level: LogLevel::from_str_or_default(&env_config::log_level()),
             database: Self::load_database_config()?,
@@ -417,10 +414,7 @@ impl ServerConfig {
     ///
     /// Returns an error if configuration values are invalid or conflicting
     pub fn validate(&self) -> Result<()> {
-        // Port validation
-        if self.mcp_port == self.http_port {
-            return Err(anyhow::anyhow!("MCP_PORT and HTTP_PORT cannot be the same"));
-        }
+        // Single-port architecture - no port conflicts possible
 
         // Database validation - URLs are now type-safe, so no need to check emptiness
 
@@ -476,8 +470,7 @@ impl ServerConfig {
     pub fn summary(&self) -> String {
         format!(
             "Pierre MCP Server Configuration:\n\
-             - MCP Port: {}\n\
-             - HTTP Port: {}\n\
+             - Server Port: {}\n\
              - Log Level: {}\n\
              - Database: {}\n\
              - Strava OAuth: {}\n\
@@ -487,7 +480,6 @@ impl ServerConfig {
              - Rate Limiting: {}\n\
              - CI Mode: {}\n\
              - Protocol Version: {}",
-            self.mcp_port,
             self.http_port,
             self.log_level,
             if self.database.url.is_sqlite() {

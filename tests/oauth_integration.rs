@@ -40,8 +40,7 @@ async fn test_oauth_authorization_url_generation() {
 
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(ServerConfig {
-        mcp_port: 8080,
-        http_port: 8081,
+        http_port: 8080,
         log_level: LogLevel::Info,
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
@@ -253,8 +252,7 @@ async fn test_oauth_state_validation() {
 
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(ServerConfig {
-        mcp_port: 8080,
-        http_port: 8081,
+        http_port: 8080,
         log_level: LogLevel::Info,
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
@@ -371,8 +369,7 @@ async fn test_connection_status_no_providers() {
 
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(ServerConfig {
-        mcp_port: 8080,
-        http_port: 8081,
+        http_port: 8080,
         log_level: LogLevel::Info,
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
@@ -512,8 +509,7 @@ async fn test_invalid_provider_error() {
     let auth_manager = AuthManager::new(vec![0u8; 64], 24);
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(ServerConfig {
-        mcp_port: 8080,
-        http_port: 8081,
+        http_port: 8080,
         log_level: LogLevel::Info,
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
@@ -626,8 +622,7 @@ async fn test_disconnect_provider() {
     let auth_manager = AuthManager::new(vec![0u8; 64], 24);
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(ServerConfig {
-        mcp_port: 8080,
-        http_port: 8081,
+        http_port: 8080,
         log_level: LogLevel::Info,
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
@@ -807,8 +802,7 @@ async fn test_oauth_urls_contain_required_parameters() {
     let auth_manager = AuthManager::new(vec![0u8; 64], 24);
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(ServerConfig {
-        mcp_port: 8080,
-        http_port: 8081,
+        http_port: 8080,
         log_level: LogLevel::Info,
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,

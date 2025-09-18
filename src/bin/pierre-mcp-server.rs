@@ -33,10 +33,6 @@ pub struct Args {
     #[arg(short, long)]
     config: Option<String>,
 
-    /// Override MCP port
-    #[arg(long)]
-    mcp_port: Option<u16>,
-
     /// Override HTTP port
     #[arg(long)]
     http_port: Option<u16>,
@@ -53,7 +49,6 @@ async fn main() -> Result<()> {
             // Default to production mode if argument parsing fails
             Args {
                 config: None,
-                mcp_port: None,
                 http_port: None,
             }
         }
@@ -63,10 +58,7 @@ async fn main() -> Result<()> {
         // Load configuration from environment
         let mut config = ServerConfig::from_env()?;
 
-        // Override ports if specified
-        if let Some(mcp_port) = args.mcp_port {
-            config.mcp_port = mcp_port;
-        }
+        // Override port if specified
         if let Some(http_port) = args.http_port {
             config.http_port = http_port;
         }
@@ -135,8 +127,8 @@ async fn main() -> Result<()> {
         let server = MultiTenantMcpServer::new(resources);
 
         info!(
-            "MCP server starting on ports {} (MCP) and {} (HTTP)",
-            config.mcp_port, config.http_port
+            "Server starting on port {} (unified MCP and HTTP)",
+            config.http_port
         );
 
         // Display all available API endpoints
@@ -145,7 +137,7 @@ async fn main() -> Result<()> {
         info!("Ready to serve fitness data!");
 
         // Run the server (includes all routes)
-        if let Err(e) = server.run(config.mcp_port).await {
+        if let Err(e) = server.run(config.http_port).await {
             error!("Server error: {}", e);
             return Err(e);
         }
@@ -159,17 +151,17 @@ fn display_available_endpoints(config: &ServerConfig) {
     let host = std::env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
 
     info!("=== Available API Endpoints ===");
-    display_mcp_endpoints(&host, config.mcp_port);
-    display_auth_endpoints(&host, config.mcp_port);
-    display_oauth2_endpoints(&host, config.mcp_port);
-    display_admin_endpoints(&host, config.mcp_port);
-    display_api_key_endpoints(&host, config.mcp_port);
-    display_tenant_endpoints(&host, config.mcp_port);
-    display_dashboard_endpoints(&host, config.mcp_port);
-    display_a2a_endpoints(&host, config.mcp_port);
-    display_config_endpoints(&host, config.mcp_port);
-    display_fitness_endpoints(&host, config.mcp_port);
-    display_notification_endpoints(&host, config.mcp_port);
+    display_mcp_endpoints(&host, config.http_port);
+    display_auth_endpoints(&host, config.http_port);
+    display_oauth2_endpoints(&host, config.http_port);
+    display_admin_endpoints(&host, config.http_port);
+    display_api_key_endpoints(&host, config.http_port);
+    display_tenant_endpoints(&host, config.http_port);
+    display_dashboard_endpoints(&host, config.http_port);
+    display_a2a_endpoints(&host, config.http_port);
+    display_config_endpoints(&host, config.http_port);
+    display_fitness_endpoints(&host, config.http_port);
+    display_notification_endpoints(&host, config.http_port);
     info!("=== End of Endpoint List ===");
 }
 

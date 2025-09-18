@@ -74,10 +74,9 @@ fn test_database_url_parsing() {
 
 #[test]
 fn test_config_validation() {
-    // Test port conflict
-    let mut config = ServerConfig {
-        mcp_port: 3000,
-        http_port: 3000, // Same as MCP port - should fail validation
+    // Test valid configuration with single-port architecture
+    let config = ServerConfig {
+        http_port: 3000, // Single unified port for all protocols
         log_level: LogLevel::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::SQLite {
@@ -162,9 +161,6 @@ fn test_config_validation() {
         },
     };
 
-    assert!(config.validate().is_err());
-
-    // Fix port conflict
-    config.http_port = 4000;
+    // With single-port architecture, validation should pass
     assert!(config.validate().is_ok());
 }

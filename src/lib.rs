@@ -48,8 +48,8 @@
 //!     let config = ServerConfig::from_env()?;
 //!     
 //!     // Start Pierre MCP Server with loaded configuration
-//!     println!("Pierre MCP Server configured with ports: MCP={}, HTTP={}",
-//!              config.mcp_port, config.http_port);
+//!     println!("Pierre MCP Server configured with port: HTTP={}",
+//!              config.http_port);
 //!     
 //!     Ok(())
 //! }

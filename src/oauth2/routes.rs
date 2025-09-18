@@ -21,16 +21,21 @@ pub fn oauth2_routes(
     let client_registration_routes = client_registration_routes(database.clone());
     let authorization_routes = authorization_routes(database.clone(), auth_manager.clone());
     let token_routes = token_routes(database, auth_manager);
-    let discovery_route = oauth2_discovery_route(http_port);
     let jwks_route = jwks_route();
 
-    warp::path("oauth").and(
-        discovery_route
-            .or(client_registration_routes)
+    // OAuth routes under /oauth2 prefix
+    let oauth_prefixed_routes = warp::path("oauth2").and(
+        client_registration_routes
             .or(authorization_routes)
             .or(token_routes)
             .or(jwks_route),
-    )
+    );
+
+    // Discovery route at root level (RFC 8414 compliance)
+    let discovery_route = oauth2_discovery_route(http_port);
+
+    // Combine root-level discovery with prefixed OAuth routes
+    discovery_route.or(oauth_prefixed_routes)
 }
 
 /// OAuth 2.0 discovery route (RFC 8414)
@@ -44,9 +49,9 @@ fn oauth2_discovery_route(
             let base_url = format!("http://{host}:{http_port}");
             warp::reply::json(&serde_json::json!({
                 "issuer": base_url,
-                "authorization_endpoint": format!("{}/oauth/authorize", base_url),
-                "token_endpoint": format!("{}/oauth/token", base_url),
-                "registration_endpoint": format!("{}/oauth/register", base_url),
+                "authorization_endpoint": format!("{}/oauth2/authorize", base_url),
+                "token_endpoint": format!("{}/oauth2/token", base_url),
+                "registration_endpoint": format!("{}/oauth2/register", base_url),
                 "grant_types_supported": ["authorization_code", "client_credentials"],
                 "response_types_supported": ["code"],
                 "token_endpoint_auth_methods_supported": ["client_secret_post", "client_secret_basic"],

@@ -52,7 +52,6 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, String) {
             let temp_dir = tempfile::tempdir().unwrap();
 
             pierre_mcp_server::config::environment::ServerConfig {
-                mcp_port: 8080,
                 http_port: 8081,
                 log_level: pierre_mcp_server::config::environment::LogLevel::Info,
                 database: pierre_mcp_server::config::environment::DatabaseConfig {

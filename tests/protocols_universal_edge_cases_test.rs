@@ -31,7 +31,6 @@ fn create_test_user(email: &str, display_name: Option<String>) -> pierre_mcp_ser
 /// Create test configuration
 fn create_test_config() -> Arc<ServerConfig> {
     Arc::new(ServerConfig {
-        mcp_port: 3000,
         http_port: 4000,
         log_level: LogLevel::Info,
         database: DatabaseConfig {

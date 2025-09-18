@@ -25,7 +25,6 @@ const TEST_JWT_SECRET: &str = "test_jwt_secret_for_tenant_isolation_tests";
 fn create_test_server_config(
 ) -> std::sync::Arc<pierre_mcp_server::config::environment::ServerConfig> {
     std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
-        mcp_port: 3000,
         http_port: 4000,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {

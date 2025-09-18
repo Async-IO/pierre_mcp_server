@@ -188,7 +188,6 @@ async fn test_oauth_flow_through_mcp() {
 
     // Create test config
     let config = std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
-        mcp_port: 3000,
         http_port: 4000,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
@@ -409,7 +408,6 @@ async fn test_oauth_callback_error_handling() {
     // Create minimal config and ServerResources for OAuth routes
     let temp_dir = tempfile::tempdir().unwrap();
     let config = std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
-        mcp_port: 8080,
         http_port: 8081,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
@@ -591,7 +589,6 @@ async fn test_oauth_state_csrf_protection() {
     // Create ServerResources for OAuth routes
     let temp_dir = tempfile::tempdir().unwrap();
     let config = std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
-        mcp_port: 8080,
         http_port: 8081,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
@@ -721,7 +718,6 @@ async fn test_connection_status_tracking() {
     // Register a test user
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(ServerConfig {
-        mcp_port: 8080,
         http_port: 8081,
         log_level: LogLevel::Info,
         database: DatabaseConfig {

@@ -442,7 +442,6 @@ fn create_test_server_config() -> ServerConfig {
     use std::path::PathBuf;
 
     ServerConfig {
-        mcp_port: 3000,
         http_port: 4000,
         log_level: LogLevel::Info,
         database: DatabaseConfig {

@@ -104,7 +104,6 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
 
     // Create test config with correct structure
     let config = Arc::new(ServerConfig {
-        mcp_port: 3000,
         http_port: 4000,
         log_level: LogLevel::Info,
         database: DatabaseConfig {
