@@ -21,16 +21,20 @@
 17. [Security Guide](./17-security-guide.md)
 18. [Plugin System](./18-plugin-system.md)
 19. [Logging and Observability](./19-logging-and-observability.md)
-20. [A2A Integration Guide](./A2A-INTEGRATION-GUIDE.md)
+20. [OAuth 2.0 Server Implementation](./20-oauth2-server.md)
+21. [Real-Time Notifications & SSE](./21-notifications-sse.md)
+22. [A2A Integration Guide](./A2A-INTEGRATION-GUIDE.md)
 
 ## Overview
 
-Pierre MCP Server is a multi-protocol fitness data API platform designed for LLMs and AI assistants. The system provides fitness data aggregation, analysis, and intelligence capabilities through multiple protocols:
+Pierre MCP Server is a high-performance multi-protocol fitness data API platform designed for LLMs and AI assistants. Built in Rust for enterprise-grade performance, the system provides fitness data aggregation, analysis, and intelligence capabilities through multiple protocols:
 
-- MCP (Model Context Protocol): Primary interface for AI assistants like Claude
-- A2A (Agent-to-Agent): System-to-system communication protocol
-- REST API: Traditional HTTP endpoints for web applications
-- WebSocket: Real-time communication support
+- **MCP (Model Context Protocol)**: Primary interface for AI assistants like Claude
+- **A2A (Agent-to-Agent)**: Inter-agent communication with cryptographic authentication
+- **OAuth 2.0 Authorization Server**: RFC-compliant server supporting mcp-remote integration
+- **REST API**: Traditional HTTP endpoints for web applications and admin operations
+- **Server-Sent Events**: Real-time notifications for OAuth flows and system events
+- **WebSocket**: Real-time bidirectional communication support
 
 ## Setup
 
@@ -90,14 +94,18 @@ Analytics and recommendations powered by physiological models and ML algorithms.
 ```
 pierre_mcp_server/
 ├── src/
-│   ├── bin/              # Binary entry points
-│   ├── a2a/              # A2A protocol implementation
-│   ├── admin/            # Admin functionality
-│   ├── config/           # Configuration management
-│   ├── configuration/    # Runtime configuration
-│   ├── crypto/           # Cryptographic utilities
-│   ├── database/         # Database layer
-│   ├── database_plugins/ # Database backends (SQLite/PostgreSQL)
+│   ├── bin/              # Binary entry points (server, client, admin-setup)
+│   ├── a2a/              # A2A (Agent-to-Agent) protocol implementation
+│   ├── admin/            # Admin functionality and user management
+│   ├── config/           # Configuration management and environment setup
+│   ├── configuration/    # Runtime configuration and dynamic settings
+│   ├── crypto/           # Cryptographic utilities and key management
+│   ├── database/         # Database modules (users, tokens, OAuth, A2A, analytics)
+│   ├── database_plugins/ # Database abstraction layer (SQLite/PostgreSQL backends)
+│   ├── oauth2/           # OAuth 2.0 Authorization Server (RFC 7591 compliant)
+│   ├── notifications/    # Real-time notifications and SSE implementation
+│   ├── plugins/          # Compile-time plugin system with inventory registration
+│   ├── middleware/       # HTTP middleware for tracing and tenant context
 │   ├── intelligence/     # Analytics and recommendations
 │   ├── key_management/   # Two-tier key management system
 │   ├── mcp/             # MCP protocol implementation

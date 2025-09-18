@@ -5,15 +5,26 @@
 
 **Development Status**: This project is under active development. APIs and features may change.
 
-A MCP (Model Context Protocol) server that connects AI assistants to fitness data platforms. Enables AI agents to access and analyze fitness data from providers like Strava and Fitbit through secure OAuth integration.
+A high-performance MCP (Model Context Protocol) server that connects AI assistants to fitness data platforms. Built in Rust for enterprise-grade performance, it provides secure multi-tenant access to fitness data from providers like Strava and Fitbit, with real-time notifications, OAuth 2.0 server capabilities, and extensible plugin architecture.
+
+## Key Features
+
+- **Multi-Protocol Support**: MCP, A2A (Agent-to-Agent), OAuth 2.0 Authorization Server, REST API
+- **Enterprise Multi-Tenancy**: Isolated data and configuration per organization
+- **Real-Time Notifications**: Server-Sent Events for OAuth status and system updates
+- **Compile-Time Plugin System**: Zero-overhead extensible fitness analysis tools
+- **High Performance**: Rust-based implementation with memory safety and fearless concurrency
+- **Standards Compliance**: RFC 7591 OAuth 2.0 dynamic client registration, MCP 1.0 specification
 
 ## Use Cases
 
-- Fitness Data Analysis: Access and analyze activities from Strava, Fitbit, and other providers
-- Performance Intelligence: Generate insights from training data with weather and location context
-- AI Assistant Integration: Enable AI assistants to work with fitness data
-- Autonomous Agent Systems: Build fitness-focused AI agents with fitness data access
-- Multi-tenant Applications: Support multiple users and organizations with isolated data access
+- **Fitness Data Analysis**: Access and analyze activities from Strava, Fitbit, and other providers
+- **Performance Intelligence**: Generate insights from training data with weather and location context
+- **AI Assistant Integration**: Enable Claude, ChatGPT, and other AI assistants to work with fitness data
+- **Autonomous Agent Systems**: Build fitness-focused AI agents with A2A communication capabilities
+- **Multi-tenant SaaS Applications**: Support multiple organizations with isolated data and billing
+- **OAuth 2.0 Provider**: Act as authorization server for fitness applications using mcp-remote
+- **Real-time Dashboards**: Stream live notifications for OAuth flows and system events
 
 ## Installation
 
@@ -189,6 +200,73 @@ impl_static_plugin!(CustomAnalysisPlugin);
 
 // Register plugin for automatic discovery
 register_plugin!(CustomAnalysisPlugin);
+```
+
+## A2A (Agent-to-Agent) Protocol
+
+Pierre supports Agent-to-Agent communication for building autonomous fitness agent networks:
+
+**A2A Protocol Features:**
+- **Agent Cards**: Self-describing agent capabilities and identity
+- **Secure Communication**: Cryptographic authentication between agents
+- **Async Messaging**: Non-blocking inter-agent communication
+- **Protocol Versioning**: Forward-compatible A2A message format
+
+**A2A Endpoints:**
+- `GET /a2a/agents` - Discover available agents
+- `POST /a2a/register` - Register new agent
+- `POST /a2a/message` - Send message to agent
+- `GET /a2a/agent/{id}/capabilities` - Get agent capabilities
+
+**Example A2A Integration:**
+```rust
+use pierre_mcp_server::a2a::A2AClient;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let client = A2AClient::new("https://pierre-server.com/a2a").await?;
+
+    let response = client.send_message(
+        "fitness-analyzer-agent",
+        serde_json::json!({
+            "action": "analyze_performance",
+            "user_id": "user-123",
+            "timeframe": "last_30_days"
+        })
+    ).await?;
+
+    println!("Analysis result: {}", response);
+    Ok(())
+}
+```
+
+## Real-Time Notifications
+
+Pierre provides Server-Sent Events (SSE) for real-time updates:
+
+**Notification Endpoints:**
+- `GET /notifications/sse/{user_id}` - Subscribe to user notifications
+- `GET /oauth/notifications/sse/{user_id}` - Subscribe to OAuth flow updates
+
+**Notification Types:**
+- OAuth authorization completion
+- OAuth errors and failures
+- System status updates
+- A2A message notifications
+
+**Example SSE Integration:**
+```javascript
+const eventSource = new EventSource('/notifications/sse/user-123');
+
+eventSource.onmessage = function(event) {
+    const notification = JSON.parse(event.data);
+    console.log('Received:', notification);
+
+    if (notification.type === 'oauth_complete') {
+        // Handle OAuth completion
+        window.location.reload();
+    }
+};
 ```
 
 ## Authentication & Security
