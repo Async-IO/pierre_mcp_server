@@ -252,6 +252,11 @@ impl AuthManager {
     /// - Token is malformed or not valid JWT format
     /// - Token claims cannot be deserialized
     pub fn validate_token(&self, token: &str) -> Result<Claims> {
+        tracing::debug!(
+            "Validating JWT token with secret (first 10 chars): {}...",
+            String::from_utf8_lossy(&self.jwt_secret[..std::cmp::min(10, self.jwt_secret.len())])
+        );
+
         let mut validation = Validation::new(Algorithm::HS256);
         validation.validate_exp = true;
 
@@ -259,7 +264,11 @@ impl AuthManager {
             token,
             &DecodingKey::from_secret(&self.jwt_secret),
             &validation,
-        )?;
+        )
+        .map_err(|e| {
+            tracing::error!("JWT validation failed: {:?}", e);
+            e
+        })?;
 
         Ok(token_data.claims)
     }
@@ -329,40 +338,57 @@ impl AuthManager {
     /// - Token is malformed or not valid JWT format
     /// - Token claims cannot be deserialized
     pub fn validate_token_detailed(&self, token: &str) -> Result<Claims, JwtValidationError> {
-        tracing::debug!("Validating JWT token (length: {} chars)", token.len());
+        self.log_token_validation_start(token);
 
-        // Try to decode without expiration validation to get claims for error details
+        let claims = self.decode_token_claims(token)?;
+        Self::validate_claims_expiry(&claims)?;
+
+        tracing::debug!("JWT token validation successful for user: {}", claims.sub);
+        Ok(claims)
+    }
+
+    /// Log the start of token validation with debug information
+    fn log_token_validation_start(&self, token: &str) {
+        tracing::debug!(
+            "Validating JWT token (length: {} chars): {}",
+            token.len(),
+            &token[..std::cmp::min(100, token.len())]
+        );
+        tracing::debug!(
+            "Using JWT secret (first 10 chars): {}...",
+            String::from_utf8_lossy(&self.jwt_secret[..std::cmp::min(10, self.jwt_secret.len())])
+        );
+    }
+
+    /// Decode JWT token claims without expiration validation
+    fn decode_token_claims(&self, token: &str) -> Result<Claims, JwtValidationError> {
         let mut validation_no_exp = Validation::new(Algorithm::HS256);
         validation_no_exp.validate_exp = false;
 
-        let claims_result = decode::<Claims>(
+        decode::<Claims>(
             token,
             &DecodingKey::from_secret(&self.jwt_secret),
             &validation_no_exp,
+        )
+        .map(|token_data| token_data.claims)
+        .map_err(|e| Self::convert_jwt_error(&e))
+    }
+
+    /// Validate claims expiration with detailed logging
+    fn validate_claims_expiry(claims: &Claims) -> Result<(), JwtValidationError> {
+        let current_time = Utc::now();
+        let expired_at = DateTime::from_timestamp(claims.exp, 0).unwrap_or_else(Utc::now);
+
+        tracing::debug!(
+            "Token validation details - User: {}, Issued: {}, Expires: {}, Current: {}",
+            claims.sub,
+            DateTime::from_timestamp(claims.iat, 0)
+                .map_or_else(|| "unknown".into(), |d| d.to_rfc3339()),
+            expired_at.to_rfc3339(),
+            current_time.to_rfc3339()
         );
 
-        match claims_result {
-            Ok(token_data) => {
-                let claims = token_data.claims;
-                let current_time = Utc::now();
-                let expired_at = DateTime::from_timestamp(claims.exp, 0).unwrap_or_else(Utc::now);
-
-                tracing::debug!(
-                    "Token validation details - User: {}, Issued: {}, Expires: {}, Current: {}",
-                    claims.sub,
-                    DateTime::from_timestamp(claims.iat, 0)
-                        .map_or_else(|| "unknown".into(), |d| d.to_rfc3339()),
-                    expired_at.to_rfc3339(),
-                    current_time.to_rfc3339()
-                );
-
-                Self::check_token_expiry(&claims, current_time, expired_at)?;
-
-                tracing::debug!("JWT token validation successful for user: {}", claims.sub);
-                Ok(claims)
-            }
-            Err(e) => Err(Self::convert_jwt_error(&e)),
-        }
+        Self::check_token_expiry(claims, current_time, expired_at)
     }
 
     /// Create a user session from a valid user
@@ -643,7 +669,16 @@ impl McpAuthMiddleware {
         )
     )]
     pub async fn authenticate_request(&self, auth_header: Option<&str>) -> Result<AuthResult> {
+        tracing::debug!("=== AUTH MIDDLEWARE AUTHENTICATE_REQUEST START ===");
+        tracing::debug!("Auth header provided: {}", auth_header.is_some());
+
         let auth_str = if let Some(header) = auth_header {
+            tracing::debug!(
+                "Auth header content (first 100 chars): {}",
+                &header[..std::cmp::min(100, header.len())]
+            );
+            tracing::debug!("Auth header length: {} characters", header.len());
+
             tracing::debug!(
                 "Authentication attempt with header type: {}",
                 if header.starts_with(key_prefixes::API_KEY_LIVE) {

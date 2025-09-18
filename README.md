@@ -50,13 +50,14 @@ echo "JWT Token: ${JWT_TOKEN:0:50}..."
 ```bash
 # Build and run with Docker
 docker build -t pierre-mcp-server .
-docker run -p 8080:8080 -p 8081:8081 pierre-mcp-server
+docker run -p 8080:8080 pierre-mcp-server
 ```
 
 ## MCP Client Configuration
 
-Configure your MCP client to connect to Pierre MCP Server by adding the following to your client's configuration file:
+Pierre MCP Server supports multiple MCP client configurations:
 
+### Option 1: Direct Connection (Requires JWT Token)
 ```json
 {
   "mcpServers": {
@@ -70,7 +71,19 @@ Configure your MCP client to connect to Pierre MCP Server by adding the followin
 }
 ```
 
-Replace `YOUR_JWT_TOKEN` with the JWT token obtained from the authentication process described in the Authentication section below.
+### Option 2: OAuth 2.0 with mcp-remote (Recommended)
+```bash
+# Use mcp-remote for automatic OAuth 2.0 authentication
+mcp-remote http://localhost:8080/mcp --allow-http
+```
+
+The OAuth 2.0 flow will automatically:
+1. Register as an OAuth 2.0 client with Pierre
+2. Obtain authorization code via OAuth 2.0 flow
+3. Exchange code for JWT access token
+4. Use JWT for authenticated MCP requests
+
+Replace `YOUR_JWT_TOKEN` with the JWT token obtained from the authentication process or use mcp-remote for automatic OAuth 2.0 authentication.
 
 ## Available Tools
 
@@ -180,23 +193,51 @@ register_plugin!(CustomAnalysisPlugin);
 
 ## Authentication & Security
 
+Pierre MCP Server implements dual authentication modes for maximum compatibility:
+
+### OAuth 2.0 Authorization Server (RFC-Compliant)
+
+Pierre acts as a standards-compliant OAuth 2.0 Authorization Server for mcp-remote compatibility:
+
+**Available OAuth 2.0 Endpoints:**
+- `GET /.well-known/oauth-authorization-server` - Server metadata discovery (RFC 8414)
+- `POST /oauth/register` - Dynamic client registration (RFC 7591)
+- `GET /oauth/authorize` - Authorization endpoint
+- `POST /oauth/token` - Token endpoint (issues JWT access tokens)
+- `GET /oauth/jwks` - JSON Web Key Set
+
+**OAuth 2.0 Flow Example:**
+```bash
+# 1. Client registration (automatic via mcp-remote)
+curl -X POST http://localhost:8080/oauth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "redirect_uris": ["http://localhost:35535/oauth/callback"],
+    "client_name": "mcp-remote",
+    "grant_types": ["authorization_code"]
+  }'
+
+# 2. Use mcp-remote for full OAuth 2.0 flow
+mcp-remote http://localhost:8080/mcp --allow-http
+```
+
 ### JWT Token Authentication
 
 1. Create admin account and approve users:
 ```bash
-# Create admin
-ADMIN_RESPONSE=$(curl -s -X POST http://localhost:8081/admin/setup \
+# Create admin user (single server on port 8080)
+ADMIN_RESPONSE=$(curl -s -X POST http://localhost:8080/admin/setup \
   -H "Content-Type: application/json" \
   -d '{"email": "admin@example.com", "password": "SecurePass123!", "display_name": "Admin"}')
 
 ADMIN_TOKEN=$(echo $ADMIN_RESPONSE | jq -r '.admin_token')
 
 # Register and approve user
-USER_ID=$(curl -s -X POST http://localhost:8081/api/auth/register \
+USER_ID=$(curl -s -X POST http://localhost:8080/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email": "user@example.com", "password": "pass123", "display_name": "User"}' | jq -r '.user_id')
 
-curl -s -X POST "http://localhost:8081/admin/approve-user/$USER_ID" \
+curl -s -X POST "http://localhost:8080/admin/approve-user/$USER_ID" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"reason": "Approved", "create_default_tenant": true}'
@@ -204,9 +245,13 @@ curl -s -X POST "http://localhost:8081/admin/approve-user/$USER_ID" \
 
 2. Get JWT token for MCP integration:
 ```bash
-JWT_TOKEN=$(curl -s -X POST http://localhost:8081/api/auth/login \
+# Direct JWT token approach
+JWT_TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email": "user@example.com", "password": "pass123"}' | jq -r '.jwt_token')
+
+# OR use OAuth 2.0 flow via mcp-remote (recommended)
+mcp-remote http://localhost:8080/mcp --allow-http
 ```
 
 ## Configuration
@@ -264,9 +309,9 @@ PIERRE_MASTER_ENCRYPTION_KEY=your_32_byte_base64_key
 
 #### Optional
 ```bash
-# Server Ports
-MCP_PORT=8080
-HTTP_PORT=8081
+# Server Configuration (Consolidated Architecture)
+PIERRE_PORT=8080  # Single port for all protocols (MCP + OAuth 2.0 + REST API)
+HOST=localhost
 
 # Logging
 RUST_LOG=info
@@ -274,11 +319,13 @@ RUST_LOG=info
 # Database (Production)
 DATABASE_URL=postgresql://user:pass@localhost:5432/pierre
 
-# OAuth Providers (shared across all users by default)
+# OAuth 2.0 Configuration
 STRAVA_CLIENT_ID=your_strava_client_id
 STRAVA_CLIENT_SECRET=your_strava_client_secret
-FITBIT_CLIENT_ID=your_fitbit_client_id
-FITBIT_CLIENT_SECRET=your_fitbit_client_secret
+STRAVA_REDIRECT_URI=http://localhost:8080/oauth/callback/strava
+
+# JWT Configuration
+JWT_EXPIRY_HOURS=24
 ```
 
 ### Fitness Configuration
@@ -310,14 +357,16 @@ vo2_max = 55.0
 
 ## Architecture
 
-Pierre MCP Server implements a multi-protocol, multi-tenant architecture:
+Pierre MCP Server implements a consolidated multi-protocol, multi-tenant architecture on a single port:
 
-- **MCP Protocol**: JSON-RPC over stdio and HTTP transports (port 8080)
-- **HTTP REST API**: Management and OAuth endpoints (port 8081)  
+- **Single Server Port**: All protocols consolidated on port 8080 for simplicity
+- **MCP Protocol**: JSON-RPC with conditional authentication (discovery methods = no auth, execution = JWT auth)
+- **OAuth 2.0 Authorization Server**: RFC-compliant server for mcp-remote compatibility
+- **HTTP REST API**: Management endpoints and legacy OAuth flows
 - **A2A Protocol**: Agent-to-Agent communication
 - **Plugin System**: Extensible compile-time plugin architecture
 - **Multi-tenant**: Isolated data access with tenant management
-- **OAuth Integration**: Secure provider authentication
+- **JWT Authentication**: Standards-compliant token-based authentication
 
 ## Testing
 

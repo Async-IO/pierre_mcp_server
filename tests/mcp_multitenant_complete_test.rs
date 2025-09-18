@@ -229,7 +229,13 @@ impl MultiTenantMcpClient {
 
         if response.status().is_success() {
             let data: Value = response.json().await?;
-            self.jwt_token = Some(data["jwt_token"].as_str().unwrap().to_string());
+            let token = data["jwt_token"].as_str().unwrap().to_string();
+            eprintln!(
+                "DEBUG: Received JWT token from login: {} (first 100 chars)",
+                &token[..std::cmp::min(100, token.len())]
+            );
+            eprintln!("DEBUG: Token length: {} characters", token.len());
+            self.jwt_token = Some(token);
             Ok(())
         } else {
             Err(anyhow::anyhow!("Login failed: {}", response.status()))
@@ -265,16 +271,8 @@ impl MultiTenantMcpClient {
     async fn send_mcp_request(&self, request: Value) -> Result<Value> {
         let request_with_auth = request;
 
-        // MCP server runs on the original server port (HTTP server is on port + 1)
-        let mcp_url = if self.base_url.ends_with("8081") {
-            "http://127.0.0.1:8080/mcp".to_string()
-        } else {
-            // Extract port from base_url and subtract 1
-            let port_str = self.base_url.split(':').next_back().unwrap();
-            let port: u16 = port_str.parse().unwrap();
-            let mcp_port = port - 1;
-            format!("http://127.0.0.1:{mcp_port}/mcp")
-        };
+        // After consolidation, both OAuth and MCP are on the same HTTP server
+        let mcp_url = format!("{}/mcp", self.base_url);
 
         let mut request_builder = self
             .http_client
@@ -293,7 +291,7 @@ impl MultiTenantMcpClient {
         )
         .await??;
 
-        if response.status() == 202 {
+        if response.status() == 200 || response.status() == 202 {
             Ok(response.json().await?)
         } else {
             Err(anyhow::anyhow!("MCP request failed: {}", response.status()))
@@ -350,21 +348,39 @@ impl MultiTenantMcpClient {
 }
 
 /// Setup test environment
-async fn setup_test_environment() -> Result<(Database, AuthManager, u16, TempDir)> {
+async fn setup_test_environment() -> Result<(Database, AuthManager, u16, TempDir, String)> {
     let encryption_key = generate_encryption_key().to_vec();
     let database = Database::new("sqlite::memory:", encryption_key.clone()).await?;
-    let auth_manager = AuthManager::new(vec![0u8; 64], 24);
+
+    // Initialize the system secret in the database to match what the server expects
+    // First get_or_create to ensure the entry exists, then update with our test value
+    let _ = database
+        .get_or_create_system_secret("admin_jwt_secret")
+        .await?;
+    database
+        .update_system_secret("admin_jwt_secret", TEST_JWT_SECRET)
+        .await?;
+
+    // CRITICAL: Create AuthManager with the exact same secret we just stored in the database
+    // This ensures the test AuthManager and any server-created AuthManager use identical secrets
+    let auth_manager = AuthManager::new(TEST_JWT_SECRET.as_bytes().to_vec(), 24);
+
+    // Verify the database contains the expected secret
+    let verified_secret = database
+        .get_or_create_system_secret("admin_jwt_secret")
+        .await?;
+    assert_eq!(
+        verified_secret, TEST_JWT_SECRET,
+        "Database JWT secret mismatch!"
+    );
 
     // Create temporary files for JWT secret and encryption key
     let temp_dir = TempDir::new()?;
     let jwt_secret_path = temp_dir.path().join("jwt.secret");
     let encryption_key_path = temp_dir.path().join("encryption.key");
 
-    // Write JWT secret
-    std::fs::write(
-        &jwt_secret_path,
-        "dGVzdC1qd3Qtc2VjcmV0LWZvci10ZXN0aW5nLXB1cnBvc2VzLW9ubHktbm90LXNlY3VyZQ==",
-    )?;
+    // Write JWT secret (using the actual value stored in database)
+    std::fs::write(&jwt_secret_path, &verified_secret)?;
 
     // Write encryption key
     std::fs::write(&encryption_key_path, &encryption_key)?;
@@ -381,7 +397,7 @@ async fn setup_test_environment() -> Result<(Database, AuthManager, u16, TempDir
         port = rng.gen_range(20000..30000);
     }
 
-    Ok((database, auth_manager, port, temp_dir))
+    Ok((database, auth_manager, port, temp_dir, verified_secret))
 }
 
 /// Test complete multi-tenant MCP server workflow
@@ -393,7 +409,8 @@ async fn test_complete_multitenant_workflow() -> Result<()> {
     std::env::set_var("FITBIT_CLIENT_ID", "test_fitbit_client_id");
     std::env::set_var("FITBIT_CLIENT_SECRET", "test_fitbit_client_secret");
 
-    let (database, auth_manager, server_port, temp_dir) = setup_test_environment().await?;
+    let (database, auth_manager, server_port, temp_dir, stored_jwt_secret) =
+        setup_test_environment().await?;
 
     // Clone database for user approval operations
     let database_for_approval = database.clone();
@@ -404,7 +421,7 @@ async fn test_complete_multitenant_workflow() -> Result<()> {
     let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         database,
         auth_manager,
-        TEST_JWT_SECRET,
+        &stored_jwt_secret,
         create_test_config(&jwt_secret_path, &encryption_key_path),
     ));
     let server = MultiTenantMcpServer::new(resources);
@@ -561,7 +578,8 @@ async fn test_complete_multitenant_workflow() -> Result<()> {
 /// Test MCP server without authentication (should fail)
 #[tokio::test]
 async fn test_mcp_authentication_required() -> Result<()> {
-    let (database, auth_manager, server_port, temp_dir) = setup_test_environment().await?;
+    let (database, auth_manager, server_port, temp_dir, stored_jwt_secret) =
+        setup_test_environment().await?;
 
     // Start the server
     let jwt_secret_path = temp_dir.path().join("jwt.secret");
@@ -569,7 +587,7 @@ async fn test_mcp_authentication_required() -> Result<()> {
     let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         database,
         auth_manager,
-        TEST_JWT_SECRET,
+        &stored_jwt_secret,
         create_test_config(&jwt_secret_path, &encryption_key_path),
     ));
     let server = MultiTenantMcpServer::new(resources);
@@ -632,7 +650,8 @@ async fn test_mcp_authentication_required() -> Result<()> {
 /// Test MCP server initialization without authentication (should work)
 #[tokio::test]
 async fn test_mcp_initialization_no_auth() -> Result<()> {
-    let (database, auth_manager, server_port, temp_dir) = setup_test_environment().await?;
+    let (database, auth_manager, server_port, temp_dir, stored_jwt_secret) =
+        setup_test_environment().await?;
 
     // Start the server
     let jwt_secret_path = temp_dir.path().join("jwt.secret");
@@ -640,7 +659,7 @@ async fn test_mcp_initialization_no_auth() -> Result<()> {
     let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         database,
         auth_manager,
-        TEST_JWT_SECRET,
+        &stored_jwt_secret,
         create_test_config(&jwt_secret_path, &encryption_key_path),
     ));
     let server = MultiTenantMcpServer::new(resources);
@@ -690,7 +709,8 @@ async fn test_mcp_initialization_no_auth() -> Result<()> {
 /// Test rate limiting and concurrent requests
 #[tokio::test]
 async fn test_mcp_concurrent_requests() -> Result<()> {
-    let (database, auth_manager, server_port, temp_dir) = setup_test_environment().await?;
+    let (database, auth_manager, server_port, temp_dir, stored_jwt_secret) =
+        setup_test_environment().await?;
 
     // Clone database for user approval operations
     let database_for_approval = database.clone();
@@ -701,7 +721,7 @@ async fn test_mcp_concurrent_requests() -> Result<()> {
     let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         database,
         auth_manager,
-        TEST_JWT_SECRET,
+        &stored_jwt_secret,
         create_test_config(&jwt_secret_path, &encryption_key_path),
     ));
     let server = MultiTenantMcpServer::new(resources);
@@ -786,7 +806,8 @@ async fn test_mcp_concurrent_requests() -> Result<()> {
 /// Test multi-tenant server configuration creation
 #[tokio::test]
 async fn test_multitenant_server_config() -> Result<()> {
-    let (database, auth_manager, _port, temp_dir) = setup_test_environment().await?;
+    let (database, auth_manager, _port, temp_dir, stored_jwt_secret) =
+        setup_test_environment().await?;
 
     let jwt_secret_path = temp_dir.path().join("jwt.secret");
     let encryption_key_path = temp_dir.path().join("encryption.key");
@@ -796,7 +817,7 @@ async fn test_multitenant_server_config() -> Result<()> {
     let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         database,
         auth_manager,
-        TEST_JWT_SECRET,
+        &stored_jwt_secret,
         config.clone(),
     ));
     let _server = MultiTenantMcpServer::new(resources);

@@ -258,7 +258,7 @@ fn parse_token_request(form: &HashMap<String, String>) -> Result<TokenRequest, O
     let client_secret = form
         .get("client_secret")
         .ok_or_else(|| OAuth2Error::invalid_request("Missing client_secret parameter"))?
-        .clone();
+        .replace(' ', "+"); // Fix URL decoding: spaces back to + for Base64
 
     let code = form.get("code").cloned();
     let redirect_uri = form.get("redirect_uri").cloned();

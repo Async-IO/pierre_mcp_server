@@ -2,7 +2,14 @@
 
 ## Overview
 
-Pierre MCP Server implements the Model Context Protocol (MCP) version 2025-06-18, providing AI assistants like Claude with structured access to fitness data and analytics capabilities.
+Pierre MCP Server implements the Model Context Protocol (MCP) version 2025-06-18 with **conditional authentication** and **OAuth 2.0 integration**, providing AI assistants like Claude with structured access to fitness data and analytics capabilities.
+
+## Key Features
+
+- **Conditional Authentication**: Discovery methods (initialize, tools/list) work without authentication, execution methods require JWT tokens
+- **OAuth 2.0 Integration**: Standards-compliant OAuth 2.0 Authorization Server for mcp-remote compatibility
+- **Single Port Architecture**: All protocols consolidated on port 8080
+- **JWT Access Tokens**: OAuth 2.0 flow issues JWT tokens for MCP authentication
 
 ## MCP Protocol Architecture
 
@@ -95,7 +102,56 @@ The MCP protocol starts with an initialization handshake:
 }
 ```
 
-OAuth credentials are managed through environment variables either at the server level (shared) or provided in the MCP client configuration (for full control).
+## OAuth 2.0 + MCP Integration
+
+Pierre implements a dual authentication model:
+
+### Option 1: OAuth 2.0 Authorization Server (Recommended)
+
+```bash
+# Use mcp-remote for automatic OAuth 2.0 flow
+mcp-remote http://localhost:8080/mcp --allow-http
+```
+
+**OAuth 2.0 to JWT Flow:**
+1. mcp-remote registers as OAuth 2.0 client (`POST /oauth/register`)
+2. Authorization flow (`GET /oauth/authorize`)
+3. Token exchange (`POST /oauth/token`) - **Returns JWT access token**
+4. MCP requests authenticated with JWT via `Authorization: Bearer <jwt>`
+
+### Option 2: Direct JWT Authentication
+
+```json
+{
+  "mcpServers": {
+    "pierre-fitness": {
+      "url": "http://localhost:8080/mcp",
+      "headers": {
+        "Authorization": "Bearer <jwt_token>"
+      }
+    }
+  }
+}
+```
+
+### Conditional Authentication Logic
+
+```rust
+// src/mcp/multitenant.rs
+match request.method.as_str() {
+    "initialize" | "tools/list" => {
+        // No authentication required - discovery methods
+        handle_unauthenticated_request(request).await
+    },
+    "tools/call" => {
+        // JWT authentication required - execution methods
+        match authenticate_request(&headers).await {
+            Ok(user_context) => handle_authenticated_request(request, user_context).await,
+            Err(_) => return_auth_error(),
+        }
+    }
+}
+```
 
 ### Tool Discovery
 

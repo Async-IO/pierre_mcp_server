@@ -15,6 +15,7 @@ graph TB
     
     subgraph "Protocol Layer"
         MCP[MCP Protocol Handler]
+        OAuth2[OAuth 2.0 Authorization Server]
         REST[REST API]
         WS[WebSocket]
         A2A[A2A Protocol]
@@ -46,12 +47,14 @@ graph TB
     end
     
     Claude --> MCP
+    Claude --> OAuth2
     WebApp --> REST
     WebApp --> WS
     A2AClient --> A2A
     SDK --> REST
     
     MCP --> Auth
+    OAuth2 --> Auth
     REST --> Auth
     A2A --> Auth
     WS --> Auth
@@ -98,7 +101,39 @@ pub struct TenantContext {
 }
 ```
 
-### 2. Provider Factory Pattern
+### 2. Consolidated Server Architecture
+
+All protocols run on a single port (8080) for simplified deployment:
+
+```rust
+// src/mcp/multitenant.rs
+let routes = auth_route_filter                    // Legacy authentication routes
+    .or(oauth_route_filter)                      // Legacy OAuth routes
+    .or(oauth2_server_routes)                    // NEW: RFC-compliant OAuth 2.0 routes
+    .or(api_key_route_filter)                    // API key management
+    .or(mcp_endpoint_routes)                     // NEW: MCP JSON-RPC endpoint
+    .or(sse_routes)                              // Server-sent events
+    .or(health_route);                           // Health checks
+```
+
+### 3. OAuth 2.0 Authorization Server
+
+Pierre implements a standards-compliant OAuth 2.0 Authorization Server for mcp-remote compatibility:
+
+```rust
+// OAuth 2.0 endpoints
+pub fn oauth2_routes() -> impl Filter<Extract = impl Reply> {
+    warp::path("oauth").and(
+        discovery_route                          // /.well-known/oauth-authorization-server
+            .or(client_registration_routes)     // POST /oauth/register
+            .or(authorization_routes)           // GET /oauth/authorize
+            .or(token_routes)                   // POST /oauth/token
+            .or(jwks_route)                     // GET /oauth/jwks
+    )
+}
+```
+
+### 4. Provider Factory Pattern
 
 Providers are created dynamically based on tenant configuration:
 

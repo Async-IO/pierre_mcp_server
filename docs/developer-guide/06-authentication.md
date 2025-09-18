@@ -2,7 +2,51 @@
 
 ## Overview
 
-Pierre MCP Server implements an authentication system supporting multiple authentication flows for different client types. The system uses JWT tokens for user sessions, API keys for A2A communication, and OAuth2 for fitness provider integration.
+Pierre MCP Server implements a comprehensive authentication system with **dual OAuth 2.0 capabilities**:
+
+1. **OAuth 2.0 Authorization Server**: Standards-compliant server for mcp-remote integration (RFC 6749, RFC 7591, RFC 8414)
+2. **OAuth 2.0 Client**: For fitness provider integration (Strava, Fitbit)
+3. **JWT Authentication**: Token-based authentication for all protocols
+4. **API Keys**: For A2A communication and system access
+
+## Dual OAuth 2.0 Architecture
+
+Pierre serves as both an **OAuth 2.0 Authorization Server** and **OAuth 2.0 Client**:
+
+```mermaid
+graph TB
+    subgraph "Pierre as OAuth 2.0 Authorization Server"
+        Pierre[Pierre MCP Server]
+        Discovery[/.well-known/oauth-authorization-server]
+        Register[/oauth/register]
+        Authorize[/oauth/authorize]
+        Token[/oauth/token]
+        JWKS[/oauth/jwks]
+    end
+
+    subgraph "Pierre as OAuth 2.0 Client"
+        StravaAuth[Strava OAuth Flow]
+        FitbitAuth[Fitbit OAuth Flow]
+    end
+
+    subgraph "External Systems"
+        McpRemote[mcp-remote]
+        Claude[Claude Desktop]
+        Strava[Strava API]
+        Fitbit[Fitbit API]
+    end
+
+    McpRemote --> Discovery
+    McpRemote --> Register
+    McpRemote --> Authorize
+    McpRemote --> Token
+    Claude --> McpRemote
+
+    Pierre --> StravaAuth
+    Pierre --> FitbitAuth
+    StravaAuth --> Strava
+    FitbitAuth --> Fitbit
+```
 
 ## Authentication Architecture
 
@@ -350,7 +394,76 @@ https://pierre-api.example.com/api/oauth/strava/callback?code=AUTH_CODE&state=ab
 }
 ```
 
-### 4. MCP Client Usage Flow
+### 4. OAuth 2.0 to MCP Authentication Flow (New)
+
+Pierre's OAuth 2.0 Authorization Server integrates with MCP for seamless authentication:
+
+#### Step 4.1: OAuth 2.0 Discovery and Registration
+
+```bash
+# mcp-remote automatically discovers OAuth 2.0 capabilities
+curl -X GET http://localhost:8080/.well-known/oauth-authorization-server
+
+# mcp-remote registers as OAuth 2.0 client
+curl -X POST http://localhost:8080/oauth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "redirect_uris": ["http://localhost:35535/oauth/callback"],
+    "client_name": "mcp-remote",
+    "grant_types": ["authorization_code"],
+    "response_types": ["code"]
+  }'
+```
+
+#### Step 4.2: Authorization Code Flow
+
+```mermaid
+sequenceDiagram
+    participant User as User
+    participant McpRemote as mcp-remote
+    participant Pierre as Pierre Server
+    participant Browser as Browser
+    participant Claude as Claude
+
+    User->>McpRemote: mcp-remote http://localhost:8080/mcp
+    McpRemote->>Pierre: GET /.well-known/oauth-authorization-server
+    Pierre-->>McpRemote: OAuth 2.0 metadata
+
+    McpRemote->>Pierre: POST /oauth/register
+    Pierre-->>McpRemote: client_id, client_secret
+
+    McpRemote->>Pierre: GET /oauth/authorize?response_type=code&client_id=...
+    Pierre-->>McpRemote: authorization_code
+
+    McpRemote->>Pierre: POST /oauth/token (code for JWT)
+    Pierre-->>McpRemote: JWT access token
+
+    McpRemote->>Claude: MCP connection ready
+    Claude->>McpRemote: MCP initialize
+    McpRemote->>Pierre: POST /mcp (no auth needed)
+    Pierre-->>McpRemote: Server capabilities
+
+    Claude->>McpRemote: MCP tools/call
+    McpRemote->>Pierre: POST /mcp (Authorization: Bearer JWT)
+    Pierre-->>McpRemote: Tool execution result
+```
+
+#### Step 4.3: JWT Token in MCP Requests
+
+The OAuth 2.0 flow produces a JWT token that's used for MCP authentication:
+
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "scope": "fitness:read activities:read"
+}
+```
+
+This JWT contains user and tenant information for MCP tool execution.
+
+### 5. MCP Client Usage Flow (Legacy)
 
 #### Step 4.1: MCP Client Configuration
 
