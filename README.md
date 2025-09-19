@@ -279,15 +279,15 @@ Pierre acts as a standards-compliant OAuth 2.0 Authorization Server for mcp-remo
 
 **Available OAuth 2.0 Endpoints:**
 - `GET /.well-known/oauth-authorization-server` - Server metadata discovery (RFC 8414)
-- `POST /oauth/register` - Dynamic client registration (RFC 7591)
-- `GET /oauth/authorize` - Authorization endpoint
-- `POST /oauth/token` - Token endpoint (issues JWT access tokens)
-- `GET /oauth/jwks` - JSON Web Key Set
+- `POST /oauth2/register` - Dynamic client registration (RFC 7591)
+- `GET /oauth2/authorize` - Authorization endpoint
+- `POST /oauth2/token` - Token endpoint (issues JWT access tokens)
+- `GET /oauth2/jwks` - JSON Web Key Set
 
 **OAuth 2.0 Flow Example:**
 ```bash
 # 1. Client registration (automatic via mcp-remote)
-curl -X POST http://localhost:8080/oauth/register \
+curl -X POST http://localhost:8080/oauth2/register \
   -H "Content-Type: application/json" \
   -d '{
     "redirect_uris": ["http://localhost:35535/oauth/callback"],
@@ -388,7 +388,7 @@ PIERRE_MASTER_ENCRYPTION_KEY=your_32_byte_base64_key
 #### Optional
 ```bash
 # Server Configuration (Consolidated Architecture)
-PIERRE_PORT=8080  # Single port for all protocols (MCP + OAuth 2.0 + REST API)
+HTTP_PORT=8080  # Single port for all protocols (MCP + OAuth 2.0 + REST API)
 HOST=localhost
 
 # Logging
@@ -400,7 +400,7 @@ DATABASE_URL=postgresql://user:pass@localhost:5432/pierre
 # OAuth 2.0 Configuration
 STRAVA_CLIENT_ID=your_strava_client_id
 STRAVA_CLIENT_SECRET=your_strava_client_secret
-STRAVA_REDIRECT_URI=http://localhost:8080/oauth/callback/strava
+STRAVA_REDIRECT_URI=http://localhost:8080/api/oauth/callback/strava
 
 # JWT Configuration
 JWT_EXPIRY_HOURS=24

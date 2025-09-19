@@ -2337,21 +2337,19 @@ impl MultiTenantMcpServer {
                 // Pass the original auth header, not the user_id
                 Self::handle_mcp_http_request(method, origin, accept, auth_header, body, ctx).await
             } else {
-                // Return a proper JSON-RPC error response instead of HTTP rejection
-                let error_response = McpResponse {
-                    jsonrpc: "2.0".to_string(),
-                    id: body.get("id").cloned().unwrap_or(serde_json::Value::Null),
-                    result: None,
-                    error: Some(McpError {
-                        code: -32603,
-                        message: format!("Authentication required for MCP method '{mcp_method}'"),
-                        data: Some(serde_json::json!({
-                            "authentication_failed": true,
-                            "method": mcp_method
-                        })),
-                    }),
-                };
-                Ok(Box::new(warp::reply::json(&error_response)))
+                // Return HTTP 401 Unauthorized status code as required by MCP authorization spec
+                tracing::debug!(
+                    "Authentication required for method '{}', returning HTTP 401",
+                    mcp_method
+                );
+                Ok(Box::new(warp::reply::with_status(
+                    warp::reply::json(&serde_json::json!({
+                        "error": "Unauthorized access",
+                        "message": format!("Authentication required for MCP method '{}'", mcp_method),
+                        "method": mcp_method
+                    })),
+                    warp::http::StatusCode::UNAUTHORIZED,
+                )))
             }
         } else {
             // No authentication required for this method

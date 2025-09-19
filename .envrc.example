@@ -3,12 +3,11 @@
 
 # OAuth Provider Configuration (optional - can be set per-tenant via admin API)
 export STRAVA_CLIENT_ID=your-strava-client-id
-export STRAVA_CLIENT_SECRET=your-strava-client-secret  
-export STRAVA_REDIRECT_URI=http://localhost:8080/auth/strava/callback
+export STRAVA_CLIENT_SECRET=your-strava-client-secret
+export STRAVA_REDIRECT_URI=http://localhost:8080/api/oauth/callback/strava
 
-# Server Configuration
-export PIERRE_PORT="8081"
-export PIERRE_HOST="0.0.0.0"
+# Server Configuration - Unified Single Port Architecture
+export HTTP_PORT="8080"
 export RUST_LOG="info"
 
 # Database Configuration (server-side only)
@@ -69,4 +68,4 @@ export FITNESS_PR_PACE_IMPROVEMENT_THRESHOLD="5.0"      # Minimum pace improveme
 # These are set when configuring Claude Desktop or Python clients
 # export TENANT_ID="your-tenant-id"
 # export TENANT_JWT_TOKEN="your-jwt-token"
-# export PIERRE_SERVER_URL="http://localhost:8081"
+# export PIERRE_SERVER_URL="http://localhost:8080"
