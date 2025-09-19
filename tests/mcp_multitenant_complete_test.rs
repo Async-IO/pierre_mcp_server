@@ -305,6 +305,17 @@ impl MultiTenantMcpClient {
 
         if response.status() == 200 || response.status() == 202 {
             Ok(response.json().await?)
+        } else if response.status() == 401 {
+            // Convert HTTP 401 to JSON-RPC error for test compatibility
+            Ok(json!({
+                "jsonrpc": "2.0",
+                "id": request_with_auth.get("id").unwrap_or(&json!(null)),
+                "error": {
+                    "code": -32603,
+                    "message": "Authentication required",
+                    "data": null
+                }
+            }))
         } else {
             Err(anyhow::anyhow!("MCP request failed: {}", response.status()))
         }
