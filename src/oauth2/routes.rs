@@ -52,7 +52,7 @@ fn oauth2_discovery_route(
                 "authorization_endpoint": format!("{}/oauth2/authorize", base_url),
                 "token_endpoint": format!("{}/oauth2/token", base_url),
                 "registration_endpoint": format!("{}/oauth2/register", base_url),
-                "grant_types_supported": ["authorization_code", "client_credentials"],
+                "grant_types_supported": ["authorization_code", "client_credentials", "refresh_token"],
                 "response_types_supported": ["code"],
                 "token_endpoint_auth_methods_supported": ["client_secret_post", "client_secret_basic"],
                 "scopes_supported": ["fitness:read", "activities:read", "profile:read"],

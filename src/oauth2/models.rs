@@ -120,7 +120,9 @@ impl OAuth2Error {
         Self {
             error: "invalid_request".to_string(),
             error_description: Some(description.to_string()),
-            error_uri: None,
+            error_uri: Some(
+                "https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.2.1".to_string(),
+            ),
         }
     }
 
@@ -129,7 +131,9 @@ impl OAuth2Error {
         Self {
             error: "invalid_client".to_string(),
             error_description: Some("Client authentication failed".to_string()),
-            error_uri: None,
+            error_uri: Some(
+                "https://datatracker.ietf.org/doc/html/rfc6749#section-5.2".to_string(),
+            ),
         }
     }
 
@@ -138,7 +142,9 @@ impl OAuth2Error {
         Self {
             error: "invalid_grant".to_string(),
             error_description: Some(description.to_string()),
-            error_uri: None,
+            error_uri: Some(
+                "https://datatracker.ietf.org/doc/html/rfc6749#section-5.2".to_string(),
+            ),
         }
     }
 
@@ -147,7 +153,9 @@ impl OAuth2Error {
         Self {
             error: "unsupported_grant_type".to_string(),
             error_description: Some("Grant type not supported".to_string()),
-            error_uri: None,
+            error_uri: Some(
+                "https://datatracker.ietf.org/doc/html/rfc6749#section-5.2".to_string(),
+            ),
         }
     }
 }

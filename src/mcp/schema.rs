@@ -136,6 +136,8 @@ pub struct ServerCapabilities {
     pub tools: Option<ToolsCapability>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auth: Option<AuthCapability>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub oauth2: Option<OAuth2Capability>,
 }
 
 /// Tools capability
@@ -286,11 +288,17 @@ impl InitializeResponse {
                 }),
                 auth: Some(AuthCapability {
                     oauth2: Some(OAuth2Capability {
-                        discovery_url: format!("http://{}:{http_port}/oauth/.well-known/oauth-authorization-server", std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string())),
-                        authorization_endpoint: format!("http://{}:{http_port}/oauth/authorize", std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string())),
-                        token_endpoint: format!("http://{}:{http_port}/oauth/token", std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string())),
-                        registration_endpoint: format!("http://{}:{http_port}/oauth/register", std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string())),
+                        discovery_url: format!("http://{}:{http_port}/.well-known/oauth-authorization-server", std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string())),
+                        authorization_endpoint: format!("http://{}:{http_port}/oauth2/authorize", std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string())),
+                        token_endpoint: format!("http://{}:{http_port}/oauth2/token", std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string())),
+                        registration_endpoint: format!("http://{}:{http_port}/oauth2/register", std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string())),
                     }),
+                }),
+                oauth2: Some(OAuth2Capability {
+                    discovery_url: format!("http://{}:{http_port}/.well-known/oauth-authorization-server", std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string())),
+                    authorization_endpoint: format!("http://{}:{http_port}/oauth2/authorize", std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string())),
+                    token_endpoint: format!("http://{}:{http_port}/oauth2/token", std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string())),
+                    registration_endpoint: format!("http://{}:{http_port}/oauth2/register", std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string())),
                 }),
             },
             instructions: Some("This server provides fitness data tools for Strava and Fitbit integration. OAuth must be configured at tenant level via REST API. Use `get_activities`, `get_athlete`, and other analytics tools to access your fitness data.".into()),

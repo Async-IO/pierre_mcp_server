@@ -86,7 +86,9 @@ impl ClientRegistrationManager {
             response_types,
             client_name: request.client_name,
             client_uri: request.client_uri,
-            scope: request.scope,
+            scope: request
+                .scope
+                .or_else(|| Some("fitness:read activities:read profile:read".to_string())),
         })
     }
 
@@ -191,7 +193,10 @@ impl ClientRegistrationManager {
 
     /// Check if grant type is supported
     fn is_supported_grant_type(grant_type: &str) -> bool {
-        matches!(grant_type, "authorization_code" | "client_credentials")
+        matches!(
+            grant_type,
+            "authorization_code" | "client_credentials" | "refresh_token"
+        )
     }
 
     /// Check if response type is supported
