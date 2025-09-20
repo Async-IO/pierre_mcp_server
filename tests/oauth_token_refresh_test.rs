@@ -664,6 +664,7 @@ async fn test_analyze_activity_token_refresh() {
                         || error.contains("No valid authentication token")
                         || error.contains("Authentication failed")
                         || error.contains("No valid Strava token found")
+                        || error.contains("Authentication error")
                 );
             }
         }

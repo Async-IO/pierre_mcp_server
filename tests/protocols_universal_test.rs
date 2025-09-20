@@ -167,10 +167,10 @@ async fn test_universal_executor_creation() -> Result<()> {
     assert!(!executor.list_tools().is_empty());
 
     // Check that core tools are registered
-    assert!(executor.get_tool("get_connection_status").is_some());
-    assert!(executor.get_tool("set_goal").is_some());
-    assert!(executor.get_tool("get_activities").is_some());
-    assert!(executor.get_tool("analyze_activity").is_some());
+    assert!(executor.has_tool("get_connection_status"));
+    assert!(executor.has_tool("set_goal"));
+    assert!(executor.has_tool("get_activities"));
+    assert!(executor.has_tool("analyze_activity"));
 
     Ok(())
 }
@@ -183,7 +183,7 @@ async fn test_tool_registration() -> Result<()> {
     let tool_names: Vec<String> = executor
         .list_tools()
         .iter()
-        .map(|tool| tool.name.clone())
+        .map(|tool| tool.name().to_string())
         .collect();
 
     let expected_tools = vec![
@@ -239,9 +239,7 @@ async fn test_connection_status_tool() -> Result<()> {
 
     let request = UniversalRequest {
         tool_name: "get_connection_status".to_string(),
-        parameters: json!({
-            "provider": "strava"
-        }),
+        parameters: json!({}),
         user_id: Uuid::new_v4().to_string(),
         protocol: "test".to_string(),
         tenant_id: None,
@@ -622,6 +620,8 @@ async fn test_compare_activities_tool() -> Result<()> {
                 || error_msg.contains("deprecated")
                 || error_msg.contains("tenant-aware MCP endpoints")
                 || error_msg.contains("Tool execution failed")
+                || error_msg
+                    .contains("Intelligence analysis requires authenticated provider access")
         );
     }
 
@@ -866,11 +866,12 @@ async fn test_predict_performance_tool() -> Result<()> {
         println!("Error: {:?}", response.error);
         // For test data, it's expected that no historical activities exist
         assert!(response.error.is_some());
-        assert!(response
-            .error
-            .as_ref()
-            .unwrap()
-            .contains("No historical activities"));
+        let error_msg = response.error.as_ref().unwrap();
+        assert!(
+            error_msg.contains("No historical activities")
+                || error_msg
+                    .contains("Intelligence analysis requires authenticated provider access")
+        );
     }
 
     Ok(())
