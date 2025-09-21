@@ -1,10 +1,14 @@
 // ABOUTME: Goal tracking and progress monitoring engine for fitness objectives
 // ABOUTME: Tracks training goals, milestones, progress metrics, and provides achievement insights
 //! Goal tracking and progress monitoring engine
+#![allow(clippy::cast_precision_loss)] // Safe: fitness data conversions
+#![allow(clippy::cast_possible_truncation)] // Safe: controlled ranges
+#![allow(clippy::cast_sign_loss)] // Safe: positive values only
+#![allow(clippy::cast_possible_wrap)] // Safe: bounded values
 
 use super::{
-    AdvancedInsight, Confidence, Deserialize, FitnessLevel, Goal, GoalStatus, GoalType,
-    InsightSeverity, Milestone, ProgressReport, Serialize, TimeFrame, UserFitnessProfile,
+    AdvancedInsight, Confidence, Deserialize, FitnessLevel, Goal, GoalType, InsightSeverity,
+    Milestone, ProgressReport, Serialize, TimeFrame, UserFitnessProfile,
 };
 use crate::config::intelligence_config::{
     GoalEngineConfig, IntelligenceConfig, IntelligenceStrategy,
@@ -31,7 +35,7 @@ use crate::intelligence::physiological_constants::{
 };
 use crate::models::Activity;
 use anyhow::Result;
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 
 /// Trait for goal management and progress tracking
@@ -126,6 +130,7 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
     }
 
     /// Calculate goal difficulty based on user's current performance
+    #[allow(dead_code)] // Used in goal generation logic
     fn calculate_goal_difficulty(goal: &Goal, activities: &[Activity]) -> GoalDifficulty {
         let similar_activities: Vec<_> = activities
             .iter()
@@ -269,36 +274,22 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
 
         insights
     }
-}
 
-#[async_trait::async_trait]
-impl<S: IntelligenceStrategy> GoalEngineTrait for AdvancedGoalEngine<S> {
-    #[allow(
-        clippy::cast_precision_loss,
-        clippy::cast_possible_truncation,
-        clippy::too_many_lines
-    )]
-    async fn suggest_goals(
-        &self,
-        user_profile: &UserFitnessProfile,
-        activities: &[Activity],
-    ) -> Result<Vec<GoalSuggestion>> {
-        let mut suggestions = Vec::new();
-
-        // Analyze current activity patterns
-        let recent_activities: Vec<_> = activities
+    fn filter_recent_activities(activities: &[Activity]) -> Vec<&Activity> {
+        activities
             .iter()
             .filter(|a| {
-                let activity_utc = a.start_date;
-                let weeks_ago = (Utc::now() - activity_utc).num_weeks();
+                let weeks_ago = (Utc::now() - a.start_date).num_weeks();
                 weeks_ago <= GOAL_ANALYSIS_WEEKS
             })
-            .collect();
+            .collect()
+    }
 
-        // Group activities by sport
-        let mut sport_stats: HashMap<String, SportStats> = HashMap::new();
+    #[allow(clippy::cast_precision_loss)] // Safe: fitness data conversions
+    fn analyze_sport_patterns(activities: &[&Activity]) -> HashMap<String, SportStats> {
+        let mut sport_stats = HashMap::new();
 
-        for activity in &recent_activities {
+        for activity in activities {
             let sport = format!("{:?}", activity.sport_type);
             let stats = sport_stats.entry(sport).or_insert_with(SportStats::new);
 
@@ -307,95 +298,91 @@ impl<S: IntelligenceStrategy> GoalEngineTrait for AdvancedGoalEngine<S> {
                 stats.total_distance += distance;
                 stats.max_distance = stats.max_distance.max(distance);
             }
-            let duration = activity.duration_seconds;
-            stats.total_duration += if duration > u64::from(u32::MAX) {
+
+            let duration_seconds = if activity.duration_seconds > u64::from(u32::MAX) {
                 f64::from(u32::MAX)
             } else {
-                f64::from(u32::try_from(duration).unwrap_or(u32::MAX))
+                activity.duration_seconds as f64
             };
-            stats.max_duration = stats.max_duration.max(if duration > u64::from(u32::MAX) {
-                f64::from(u32::MAX)
-            } else {
-                f64::from(u32::try_from(duration).unwrap_or(u32::MAX))
-            });
+            stats.total_duration += duration_seconds;
+            stats.max_duration = stats.max_duration.max(duration_seconds);
 
             if let Some(speed) = activity.average_speed {
                 stats.speeds.push(speed);
             }
         }
 
-        // Generate suggestions for each sport
+        sport_stats
+    }
+
+    fn generate_sport_based_suggestions(
+        &self,
+        sport_stats: &HashMap<String, SportStats>,
+        _activities: &[Activity],
+    ) -> Vec<GoalSuggestion> {
+        let mut suggestions = Vec::new();
+
         for (sport, stats) in sport_stats {
             if stats.activity_count < MIN_ACTIVITY_COUNT_FOR_ANALYSIS {
-                continue; // Need more data
+                continue;
             }
 
-            let avg_distance = stats.total_distance
-                / f64::from(u32::try_from(stats.activity_count).unwrap_or(u32::MAX));
-            let avg_speed = if stats.speeds.is_empty() {
-                0.0
+            suggestions.extend(self.create_distance_suggestions(sport, stats));
+            suggestions.extend(Self::create_performance_suggestions(sport, stats));
+            suggestions.extend(Self::create_frequency_suggestions(sport, stats));
+        }
+
+        suggestions
+    }
+
+    fn create_distance_suggestions(&self, sport: &str, stats: &SportStats) -> Vec<GoalSuggestion> {
+        let mut suggestions = Vec::new();
+
+        if stats.activity_count == 0 {
+            return suggestions;
+        }
+
+        let avg_distance = stats.total_distance / stats.activity_count as f64;
+        if avg_distance > 0.0 {
+            let base_multiplier = self
+                .config
+                .feasibility
+                .conservative_multiplier
+                .max(TARGET_INCREASE_MULTIPLIER);
+
+            let weekly_distance = stats.total_distance / GOAL_ANALYSIS_WEEKS as f64;
+            let strategy_multiplier = if self
+                .strategy
+                .should_recommend_volume_increase(weekly_distance / 1000.0)
+            {
+                base_multiplier * 1.2
             } else {
-                stats.speeds.iter().sum::<f64>()
-                    / f64::from(u32::try_from(stats.speeds.len()).unwrap_or(u32::MAX))
+                base_multiplier
             };
 
-            // Distance goal suggestions
-            if avg_distance > 0.0 {
-                // Use config multiplier and strategy thresholds
-                let base_multiplier = self
-                    .config
-                    .feasibility
-                    .conservative_multiplier
-                    .max(TARGET_INCREASE_MULTIPLIER);
+            let target_distance = stats.max_distance * strategy_multiplier;
 
-                // Apply strategy-based adjustments
-                let weekly_distance = stats.total_distance
-                    / f64::from(i32::try_from(GOAL_ANALYSIS_WEEKS).unwrap_or(i32::MAX));
-                let strategy_multiplier = if self
-                    .strategy
-                    .should_recommend_volume_increase(weekly_distance / 1000.0)
-                {
-                    base_multiplier * 1.2 // More aggressive for low-volume athletes
-                } else {
-                    base_multiplier
-                };
+            suggestions.push(GoalSuggestion {
+                goal_type: GoalType::Distance {
+                    sport: sport.to_string(),
+                    timeframe: TimeFrame::Month,
+                },
+                suggested_target: target_distance,
+                rationale: format!("Based on your recent {sport} activities, you could challenge yourself with a longer distance"),
+                difficulty: GoalDifficulty::Moderate,
+                estimated_timeline_days: 30,
+                success_probability: self.config.feasibility.min_success_probability,
+            });
+        }
 
-                let target_distance = stats.max_distance * strategy_multiplier;
+        suggestions
+    }
 
-                let distance_goal = Goal {
-                    id: format!("dist_{sport}_{}", Utc::now().timestamp()),
-                    user_id: "system".into(), // Will be set by caller
-                    title: format!("Increase {sport} Distance"),
-                    description: format!(
-                        "Target distance of {:.1} km for {sport}",
-                        target_distance / 1000.0
-                    ),
-                    goal_type: GoalType::Distance {
-                        sport: sport.clone(),
-                        timeframe: TimeFrame::Month,
-                    },
-                    target_value: target_distance,
-                    target_date: Utc::now() + chrono::Duration::days(30),
-                    current_value: 0.0,
-                    created_at: Utc::now(),
-                    updated_at: Utc::now(),
-                    status: GoalStatus::Active,
-                };
+    fn create_performance_suggestions(sport: &str, stats: &SportStats) -> Vec<GoalSuggestion> {
+        let mut suggestions = Vec::new();
 
-                // Calculate actual difficulty using strategy and user data
-                let difficulty = Self::calculate_goal_difficulty(&distance_goal, activities);
-
-                suggestions.push(GoalSuggestion {
-                    goal_type: distance_goal.goal_type,
-                    suggested_target: target_distance,
-                    rationale: format!("Based on your recent {sport} activities, you could challenge yourself with a longer distance"),
-                    difficulty,
-                    estimated_timeline_days: 30,
-                    success_probability: self.config.feasibility.min_success_probability,
-                });
-            }
-
-            // Performance goal suggestions
+        if !stats.speeds.is_empty() {
+            let avg_speed = stats.speeds.iter().sum::<f64>() / stats.speeds.len() as f64;
             if avg_speed > 0.0 {
                 let target_improvement = TARGET_PERFORMANCE_IMPROVEMENT;
                 suggestions.push(GoalSuggestion {
@@ -403,7 +390,7 @@ impl<S: IntelligenceStrategy> GoalEngineTrait for AdvancedGoalEngine<S> {
                         metric: "speed".into(),
                         improvement_percent: target_improvement,
                     },
-                    suggested_target: avg_speed.mul_add(target_improvement / 100.0, avg_speed),
+                    suggested_target: avg_speed * (1.0 + target_improvement / 100.0),
                     rationale: format!(
                         "Improve your average {sport} pace by {target_improvement}%"
                     ),
@@ -412,28 +399,38 @@ impl<S: IntelligenceStrategy> GoalEngineTrait for AdvancedGoalEngine<S> {
                     success_probability: 0.65,
                 });
             }
-
-            // Frequency goal suggestions
-            let current_frequency =
-                f64::from(u32::try_from(stats.activity_count).unwrap_or(u32::MAX))
-                    / f64::from(i32::try_from(GOAL_ANALYSIS_WEEKS).unwrap_or(i32::MAX));
-            if current_frequency < MAX_WEEKLY_FREQUENCY {
-                let target_frequency = (current_frequency + 1.0).min(MAX_WEEKLY_FREQUENCY) as i32;
-                suggestions.push(GoalSuggestion {
-                    goal_type: GoalType::Frequency {
-                        sport: sport.clone(),
-                        sessions_per_week: target_frequency,
-                    },
-                    suggested_target: f64::from(target_frequency),
-                    rationale: format!("Increase {sport} training consistency"),
-                    difficulty: GoalDifficulty::Moderate,
-                    estimated_timeline_days: 28,
-                    success_probability: 0.80,
-                });
-            }
         }
 
-        // Fitness level specific suggestions
+        suggestions
+    }
+
+    fn create_frequency_suggestions(sport: &str, stats: &SportStats) -> Vec<GoalSuggestion> {
+        let mut suggestions = Vec::new();
+
+        let current_frequency = stats.activity_count as f64 / GOAL_ANALYSIS_WEEKS as f64;
+        if current_frequency < MAX_WEEKLY_FREQUENCY {
+            let target_frequency = ((current_frequency + 1.0).min(MAX_WEEKLY_FREQUENCY)) as u32;
+            suggestions.push(GoalSuggestion {
+                goal_type: GoalType::Frequency {
+                    sport: sport.to_string(),
+                    sessions_per_week: target_frequency as i32,
+                },
+                suggested_target: f64::from(target_frequency),
+                rationale: format!("Increase {sport} training consistency"),
+                difficulty: GoalDifficulty::Moderate,
+                estimated_timeline_days: 28,
+                success_probability: 0.80,
+            });
+        }
+
+        suggestions
+    }
+
+    fn generate_fitness_level_suggestions(
+        user_profile: &UserFitnessProfile,
+    ) -> Vec<GoalSuggestion> {
+        let mut suggestions = Vec::new();
+
         match user_profile.fitness_level {
             FitnessLevel::Beginner => {
                 suggestions.push(GoalSuggestion {
@@ -464,79 +461,51 @@ impl<S: IntelligenceStrategy> GoalEngineTrait for AdvancedGoalEngine<S> {
             FitnessLevel::Intermediate => {}
         }
 
-        // Sort by success probability and difficulty
+        suggestions
+    }
+
+    fn prioritize_suggestions(suggestions: &mut [GoalSuggestion]) {
         suggestions.sort_by(|a, b| {
             b.success_probability
                 .partial_cmp(&a.success_probability)
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
-
-        Ok(suggestions.into_iter().take(5).collect()) // Return top 5 suggestions
     }
 
-    #[allow(
-        clippy::cast_precision_loss,
-        clippy::cast_possible_truncation,
-        clippy::too_many_lines
-    )]
-    async fn track_progress(&self, goal: &Goal, activities: &[Activity]) -> Result<ProgressReport> {
-        // Filter relevant activities since goal creation
-        let relevant_activities: Vec<_> = activities
+    fn filter_relevant_activities<'a>(
+        goal: &Goal,
+        activities: &'a [Activity],
+    ) -> Vec<&'a Activity> {
+        activities
             .iter()
             .filter(|a| {
-                // Must be same sport type
-                if format!("{:?}", a.sport_type) != goal.goal_type.sport_type() {
-                    return false;
-                }
-
-                // Must be after goal creation
-                let activity_utc = a.start_date;
-                activity_utc >= goal.created_at
+                format!("{:?}", a.sport_type) == goal.goal_type.sport_type()
+                    && a.start_date >= goal.created_at
             })
-            .collect();
+            .collect()
+    }
 
-        // Calculate current progress based on goal type
-        let current_value = match &goal.goal_type {
+    fn calculate_current_progress(goal: &Goal, relevant_activities: &[&Activity]) -> f64 {
+        match &goal.goal_type {
             GoalType::Distance { timeframe, .. } => {
-                let timeframe_start = match timeframe {
-                    TimeFrame::Week => Utc::now() - Duration::weeks(1),
-                    TimeFrame::Month => Utc::now() - Duration::days(30),
-                    TimeFrame::Quarter => Utc::now() - Duration::days(90),
-                    _ => goal.created_at,
-                };
-
+                let timeframe_start = Self::get_timeframe_start(timeframe, goal.created_at);
                 relevant_activities
                     .iter()
-                    .filter(|a| {
-                        let activity_utc = a.start_date;
-                        activity_utc >= timeframe_start
-                    })
+                    .filter(|a| a.start_date >= timeframe_start)
                     .filter_map(|a| a.distance_meters)
                     .sum::<f64>()
             }
-            GoalType::Time { distance, .. } => {
-                // Find best time for target distance
-                relevant_activities
-                    .iter()
-                    .filter(|a| {
-                        a.distance_meters.is_some_and(|d| {
-                            (d - distance).abs() < distance * GOAL_DISTANCE_PRECISION
-                        })
-                    })
-                    .map(|a| a.duration_seconds)
-                    .min()
-                    .map_or(f64::MAX, |v| {
-                        if v > u64::from(u32::MAX) {
-                            f64::from(u32::MAX)
-                        } else {
-                            f64::from(u32::try_from(v).unwrap_or(u32::MAX))
-                        }
-                    })
-            }
+            GoalType::Time { distance, .. } => relevant_activities
+                .iter()
+                .filter(|a| {
+                    a.distance_meters
+                        .is_some_and(|d| (d - distance).abs() < distance * GOAL_DISTANCE_PRECISION)
+                })
+                .map(|a| a.duration_seconds as f64)
+                .fold(f64::MAX, f64::min),
             GoalType::Frequency { .. } => {
-                let weeks_elapsed = (Utc::now() - goal.created_at).num_weeks().max(1);
-                f64::from(u32::try_from(relevant_activities.len()).unwrap_or(u32::MAX))
-                    / f64::from(i32::try_from(weeks_elapsed).unwrap_or(i32::MAX))
+                let weeks_elapsed = (Utc::now() - goal.created_at).num_weeks().max(1) as f64;
+                relevant_activities.len() as f64 / weeks_elapsed
             }
             GoalType::Performance { metric, .. } => match metric.as_str() {
                 "speed" => relevant_activities
@@ -546,66 +515,62 @@ impl<S: IntelligenceStrategy> GoalEngineTrait for AdvancedGoalEngine<S> {
                 _ => 0.0,
             },
             GoalType::Custom { .. } => goal.current_value,
-        };
+        }
+    }
 
-        // Calculate progress percentage
-        let progress_percentage = if goal.target_value > 0.0 {
+    fn get_timeframe_start(timeframe: &TimeFrame, goal_created: DateTime<Utc>) -> DateTime<Utc> {
+        match timeframe {
+            TimeFrame::Week => Utc::now() - chrono::Duration::weeks(1),
+            TimeFrame::Month => Utc::now() - chrono::Duration::days(30),
+            TimeFrame::Quarter => Utc::now() - chrono::Duration::days(90),
+            _ => goal_created,
+        }
+    }
+
+    fn calculate_progress_percentage(goal: &Goal, current_value: f64) -> f64 {
+        if goal.target_value > 0.0 {
             (current_value / goal.target_value * 100.0).min(100.0)
         } else {
             0.0
-        };
+        }
+    }
 
-        // Create milestones
-        let milestones = self.create_milestones(goal).await?;
-
-        // Check milestone achievements
-        let mut achieved_milestones = milestones;
-        for milestone in &mut achieved_milestones {
+    fn update_milestone_achievements(
+        mut milestones: Vec<Milestone>,
+        current_value: f64,
+    ) -> Vec<Milestone> {
+        for milestone in &mut milestones {
             if current_value >= milestone.target_value {
                 milestone.achieved = true;
                 milestone.achieved_date = Some(Utc::now());
             }
         }
+        milestones
+    }
 
-        // Estimate completion date
-        let completion_date_estimate = if progress_percentage > 0.0 {
-            let days_elapsed = (Utc::now() - goal.created_at).num_days();
-            let estimated_total_days = (f64::from(i32::try_from(days_elapsed).unwrap_or(i32::MAX))
-                / progress_percentage
-                * 100.0) as i64;
-            Some(goal.created_at + Duration::days(estimated_total_days))
+    fn estimate_completion_date(goal: &Goal, progress_percentage: f64) -> Option<DateTime<Utc>> {
+        if progress_percentage > 0.0 {
+            let days_elapsed = (Utc::now() - goal.created_at).num_days() as f64;
+            let estimated_total_days = (days_elapsed / progress_percentage * 100.0) as i64;
+            Some(goal.created_at + chrono::Duration::days(estimated_total_days))
         } else {
             None
-        };
+        }
+    }
 
-        // Determine if on track
-        let days_elapsed =
-            f64::from(i32::try_from((Utc::now() - goal.created_at).num_days()).unwrap_or(i32::MAX));
-        let days_total = f64::from(
-            i32::try_from((goal.target_date - goal.created_at).num_days()).unwrap_or(i32::MAX),
-        );
+    fn is_on_track(goal: &Goal, progress_percentage: f64) -> bool {
+        let days_elapsed = (Utc::now() - goal.created_at).num_days() as f64;
+        let days_total = (goal.target_date - goal.created_at).num_days() as f64;
         let expected_progress = if days_total > 0.0 {
-            days_elapsed.mul_add(100.0 / days_total, 0.0)
+            days_elapsed / days_total * 100.0
         } else {
             0.0
         };
-        let on_track = progress_percentage >= expected_progress - PROGRESS_TOLERANCE_PERCENTAGE;
+        progress_percentage >= expected_progress - PROGRESS_TOLERANCE_PERCENTAGE
+    }
 
-        let progress_report = ProgressReport {
-            goal_id: goal.id.clone(),
-            progress_percentage,
-            completion_date_estimate,
-            milestones_achieved: achieved_milestones,
-            insights: vec![],        // Will be filled next
-            recommendations: vec![], // Will be filled next
-            on_track,
-        };
-
-        let mut final_report = progress_report;
-        final_report.insights = Self::generate_progress_insights(goal, &final_report);
-
-        // Generate recommendations
-        final_report.recommendations = if on_track {
+    fn generate_progress_recommendations(on_track: bool) -> Vec<String> {
+        if on_track {
             vec![
                 "Maintain current training consistency".into(),
                 "Continue following your current plan".into(),
@@ -616,9 +581,52 @@ impl<S: IntelligenceStrategy> GoalEngineTrait for AdvancedGoalEngine<S> {
                 "Focus on goal-specific activities".into(),
                 "Review and adjust your training plan".into(),
             ]
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl<S: IntelligenceStrategy> GoalEngineTrait for AdvancedGoalEngine<S> {
+    async fn suggest_goals(
+        &self,
+        user_profile: &UserFitnessProfile,
+        activities: &[Activity],
+    ) -> Result<Vec<GoalSuggestion>> {
+        let recent_activities = Self::filter_recent_activities(activities);
+        let sport_stats = Self::analyze_sport_patterns(&recent_activities);
+        let mut suggestions = self.generate_sport_based_suggestions(&sport_stats, activities);
+
+        suggestions.extend(Self::generate_fitness_level_suggestions(user_profile));
+        Self::prioritize_suggestions(&mut suggestions);
+
+        Ok(suggestions.into_iter().take(5).collect())
+    }
+
+    async fn track_progress(&self, goal: &Goal, activities: &[Activity]) -> Result<ProgressReport> {
+        let relevant_activities = Self::filter_relevant_activities(goal, activities);
+        let current_value = Self::calculate_current_progress(goal, &relevant_activities);
+        let progress_percentage = Self::calculate_progress_percentage(goal, current_value);
+
+        let milestones = self.create_milestones(goal).await?;
+        let achieved_milestones = Self::update_milestone_achievements(milestones, current_value);
+
+        let completion_date_estimate = Self::estimate_completion_date(goal, progress_percentage);
+        let on_track = Self::is_on_track(goal, progress_percentage);
+
+        let mut progress_report = ProgressReport {
+            goal_id: goal.id.clone(),
+            progress_percentage,
+            completion_date_estimate,
+            milestones_achieved: achieved_milestones,
+            insights: vec![],
+            recommendations: vec![],
+            on_track,
         };
 
-        Ok(final_report)
+        progress_report.insights = Self::generate_progress_insights(goal, &progress_report);
+        progress_report.recommendations = Self::generate_progress_recommendations(on_track);
+
+        Ok(progress_report)
     }
 
     async fn adjust_goal(

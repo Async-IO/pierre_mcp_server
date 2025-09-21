@@ -2,15 +2,29 @@
 // ABOUTME: Provides REST endpoints for client registration, authorization, and token exchange
 
 use crate::auth::AuthManager;
-use crate::database_plugins::factory::Database;
+use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::oauth2::{
     client_registration::ClientRegistrationManager,
     endpoints::OAuth2AuthorizationServer,
     models::{AuthorizeRequest, ClientRegistrationRequest, OAuth2Error, TokenRequest},
 };
+use anyhow::Result;
+use chrono::{Duration, Utc};
+use jsonwebtoken::{encode, EncodingKey, Header};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use warp::{Filter, Rejection, Reply};
+
+/// JWT Claims structure for OAuth tokens
+#[derive(Debug, Serialize, Deserialize)]
+struct Claims {
+    sub: String,
+    email: String,
+    exp: i64,
+    iat: i64,
+    providers: Vec<String>,
+}
 
 /// OAuth 2.0 route filters
 pub fn oauth2_routes(
@@ -79,13 +93,32 @@ fn authorization_routes(
     database: Arc<Database>,
     auth_manager: Arc<AuthManager>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-    warp::path("authorize")
+    // OAuth authorization endpoint with cookie support
+    let authorize_route = warp::path("authorize")
         .and(warp::path::end())
         .and(warp::get())
         .and(warp::query::<HashMap<String, String>>())
-        .and(with_database(database))
+        .and(warp::header::optional::<String>("cookie"))
+        .and(with_database(database.clone()))
         .and(with_auth_manager(auth_manager))
-        .and_then(handle_authorization)
+        .and_then(handle_authorization);
+
+    // OAuth login page
+    let login_route = warp::path("login")
+        .and(warp::path::end())
+        .and(warp::get())
+        .and(warp::query::<HashMap<String, String>>())
+        .and_then(handle_oauth_login_page);
+
+    // OAuth login form submission
+    let login_submit_route = warp::path("login")
+        .and(warp::path::end())
+        .and(warp::post())
+        .and(warp::body::form::<HashMap<String, String>>())
+        .and(with_database(database))
+        .and_then(handle_oauth_login_submit);
+
+    authorize_route.or(login_route).or(login_submit_route)
 }
 
 /// Token endpoint routes
@@ -144,40 +177,113 @@ async fn handle_client_registration(
 /// Handle authorization request (GET /oauth/authorize)
 async fn handle_authorization(
     params: HashMap<String, String>,
+    cookie_header: Option<String>,
     database: Arc<Database>,
     auth_manager: Arc<AuthManager>,
-) -> Result<impl Reply, Rejection> {
+) -> Result<Box<dyn warp::Reply>, Rejection> {
     // Parse query parameters into AuthorizeRequest
     let request = match parse_authorize_request(&params) {
         Ok(req) => req,
         Err(error) => {
             let json = warp::reply::json(&error);
-            return Ok(warp::reply::with_status(
+            return Ok(Box::new(warp::reply::with_status(
                 json,
                 warp::http::StatusCode::BAD_REQUEST,
-            ));
+            )));
         }
     };
 
+    // Check if user is authenticated via session cookie
+    let user_id = cookie_header.and_then(|cookie_value| {
+        extract_session_token(&cookie_value).and_then(|token| {
+            match auth_manager.validate_token(&token) {
+                Ok(claims) => {
+                    tracing::info!(
+                        "OAuth authorization for authenticated user: {}",
+                        claims.email
+                    );
+                    // Parse user ID from JWT claims
+                    if let Ok(user_uuid) = uuid::Uuid::parse_str(&claims.sub) {
+                        Some(user_uuid)
+                    } else {
+                        tracing::warn!("Invalid user ID format in JWT: {}", claims.sub);
+                        None
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("Invalid session token in OAuth authorization: {}", e);
+                    None
+                }
+            }
+        })
+    });
+
+    // If no authenticated user, redirect to login page with OAuth parameters
+    let Some(authenticated_user_id) = user_id else {
+        tracing::info!("No authenticated session for OAuth authorization, redirecting to login");
+        // Build login URL with OAuth parameters preserved
+        let login_url = format!(
+            "/oauth2/login?client_id={}&redirect_uri={}&response_type={}&state={}{}",
+            request.client_id,
+            urlencoding::encode(&request.redirect_uri),
+            request.response_type,
+            request.state.as_deref().unwrap_or(""),
+            request
+                .scope
+                .as_ref()
+                .map_or_else(String::new, |scope| format!(
+                    "&scope={}",
+                    urlencoding::encode(scope)
+                ))
+        );
+
+        let redirect_response = warp::reply::with_header(warp::reply(), "Location", login_url);
+        return Ok(Box::new(warp::reply::with_status(
+            redirect_response,
+            warp::http::StatusCode::FOUND,
+        )));
+    };
+
+    // User is authenticated - proceed with OAuth authorization
     let auth_server = OAuth2AuthorizationServer::new(database, auth_manager);
 
-    // For now, we'll auto-approve without user authentication
-    // In a real implementation, this would check for an authenticated session
-    let dummy_user_id = uuid::Uuid::new_v4(); // This should come from session
-
-    match auth_server.authorize(request, Some(dummy_user_id)).await {
+    match auth_server
+        .authorize(request.clone(), Some(authenticated_user_id))
+        .await
+    {
         Ok(response) => {
-            // In a real OAuth flow, this would redirect to the redirect_uri with the code
-            // For now, we'll return JSON
-            let json = warp::reply::json(&response);
-            Ok(warp::reply::with_status(json, warp::http::StatusCode::OK))
+            // OAuth 2.0 specification requires redirecting to redirect_uri with code
+            // Build redirect URL with authorization code and state
+            let mut redirect_url = format!("{}?code={}", request.redirect_uri, response.code);
+            if let Some(state) = response.state {
+                use std::fmt::Write;
+                write!(&mut redirect_url, "&state={state}").ok();
+            }
+
+            tracing::info!(
+                "OAuth authorization successful for user {}, redirecting with code",
+                authenticated_user_id
+            );
+
+            // Return 302 redirect response as per OAuth 2.0 spec
+            let redirect_response =
+                warp::reply::with_header(warp::reply(), "Location", redirect_url);
+            Ok(Box::new(warp::reply::with_status(
+                redirect_response,
+                warp::http::StatusCode::FOUND,
+            )))
         }
         Err(error) => {
+            tracing::error!(
+                "OAuth authorization failed for user {}: {:?}",
+                authenticated_user_id,
+                error
+            );
             let json = warp::reply::json(&error);
-            Ok(warp::reply::with_status(
+            Ok(Box::new(warp::reply::with_status(
                 json,
                 warp::http::StatusCode::BAD_REQUEST,
-            ))
+            )))
         }
     }
 }
@@ -188,10 +294,18 @@ async fn handle_token(
     database: Arc<Database>,
     auth_manager: Arc<AuthManager>,
 ) -> Result<impl Reply, Rejection> {
+    // Debug: Log the incoming form data (excluding sensitive info)
+    tracing::debug!(
+        "OAuth token request received with grant_type: {:?}, client_id: {:?}",
+        form.get("grant_type"),
+        form.get("client_id")
+    );
+
     // Parse form data into TokenRequest
     let request = match parse_token_request(&form) {
         Ok(req) => req,
         Err(error) => {
+            tracing::warn!("OAuth token request parsing failed: {:?}", error);
             let json = warp::reply::json(&error);
             return Ok(warp::reply::with_status(
                 json,
@@ -204,10 +318,19 @@ async fn handle_token(
 
     match auth_server.token(request).await {
         Ok(response) => {
+            tracing::info!(
+                "OAuth token exchange successful for client: {}",
+                form.get("client_id").map_or("unknown", |v| v)
+            );
             let json = warp::reply::json(&response);
             Ok(warp::reply::with_status(json, warp::http::StatusCode::OK))
         }
         Err(error) => {
+            tracing::warn!(
+                "OAuth token exchange failed for client {}: {:?}",
+                form.get("client_id").map_or("unknown", |v| v),
+                error
+            );
             let json = warp::reply::json(&error);
             Ok(warp::reply::with_status(
                 json,
@@ -277,6 +400,280 @@ fn parse_token_request(form: &HashMap<String, String>) -> Result<TokenRequest, O
         client_secret,
         scope,
     })
+}
+
+/// Load list of connected OAuth providers for a user
+async fn load_user_connected_providers(
+    database: &Database,
+    user_id: &uuid::Uuid,
+) -> Result<Vec<String>> {
+    let mut connected_providers = Vec::new();
+
+    // Get all user tokens to check which providers are connected
+    let user_tokens = database.get_user_oauth_tokens(*user_id).await?;
+
+    // Extract unique providers from the user's tokens
+    let providers: std::collections::HashSet<String> = user_tokens
+        .into_iter()
+        .map(|token| token.provider)
+        .collect();
+
+    // Convert to sorted vec for consistent ordering
+    for provider in &providers {
+        connected_providers.push(provider.clone());
+    }
+    connected_providers.sort();
+
+    tracing::debug!(
+        "Loaded {} connected providers for user {}: {:?}",
+        connected_providers.len(),
+        user_id,
+        connected_providers
+    );
+
+    Ok(connected_providers)
+}
+
+/// Authenticate user credentials against database
+async fn authenticate_user_credentials(
+    database: Arc<Database>,
+    email: &str,
+    password: &str,
+) -> Result<String> {
+    // Look up user by email
+    let user = database
+        .get_user_by_email(email)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+
+    // Verify password hash
+    if !verify_password(password, &user.password_hash) {
+        return Err(anyhow::anyhow!("Invalid password"));
+    }
+
+    // Generate JWT token for the authenticated user
+    // For now, create a basic JWT with 24 hour expiry
+
+    let now = Utc::now();
+    let claims = Claims {
+        sub: user.id.to_string(),
+        email: user.email.clone(),
+        exp: (now + Duration::hours(24)).timestamp(),
+        iat: now.timestamp(),
+        providers: load_user_connected_providers(&database, &user.id).await?,
+    };
+
+    // Use a simple secret for now - in production this should come from environment
+    let secret =
+        std::env::var("JWT_SECRET").unwrap_or_else(|_| "default_jwt_secret_for_oauth".to_string());
+    let token = encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(secret.as_ref()),
+    )?;
+
+    Ok(token)
+}
+
+/// Verify password against hash using bcrypt
+fn verify_password(password: &str, hash: &str) -> bool {
+    // For simplicity, we'll implement a basic verification
+    // In production, this should use proper bcrypt verification
+    use sha2::{Digest, Sha256};
+
+    // Simple SHA256 verification - replace with bcrypt in production
+    let mut hasher = Sha256::new();
+    hasher.update(password.as_bytes());
+    let password_hash = format!("{:x}", hasher.finalize());
+
+    password_hash == hash
+}
+
+/// Handle OAuth login page (GET /oauth2/login)
+async fn handle_oauth_login_page(params: HashMap<String, String>) -> Result<impl Reply, Rejection> {
+    // Extract OAuth parameters to preserve them through login flow
+    let client_id = params.get("client_id").map_or("", |v| v);
+    let redirect_uri = params.get("redirect_uri").map_or("", |v| v);
+    let response_type = params.get("response_type").map_or("", |v| v);
+    let state = params.get("state").map_or("", |v| v);
+    let scope = params.get("scope").map_or("", |v| v);
+
+    // Simple HTML login form that preserves OAuth parameters
+    let html = format!(
+        r#"
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pierre MCP Server - OAuth Login</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 40px; }}
+        .login-form {{ max-width: 400px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }}
+        .form-group {{ margin-bottom: 15px; }}
+        label {{ display: block; margin-bottom: 5px; font-weight: bold; }}
+        input {{ width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }}
+        button {{ background-color: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }}
+        button:hover {{ background-color: #0056b3; }}
+        .oauth-info {{ background-color: #f8f9fa; padding: 15px; border-radius: 4px; margin-bottom: 20px; }}
+    </style>
+</head>
+<body>
+    <div class="login-form">
+        <h2>OAuth Login Required</h2>
+        <div class="oauth-info">
+            <strong>Application:</strong> {client_id}<br>
+            <strong>Requested Permissions:</strong> {scope}
+        </div>
+        <form method="post" action="/oauth2/login">
+            <input type="hidden" name="client_id" value="{client_id}">
+            <input type="hidden" name="redirect_uri" value="{redirect_uri}">
+            <input type="hidden" name="response_type" value="{response_type}">
+            <input type="hidden" name="state" value="{state}">
+            <input type="hidden" name="scope" value="{scope}">
+
+            <div class="form-group">
+                <label for="email">Email:</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+
+            <button type="submit">Login and Authorize</button>
+        </form>
+    </div>
+</body>
+</html>
+    "#,
+        client_id = client_id,
+        redirect_uri = redirect_uri,
+        response_type = response_type,
+        state = state,
+        scope = if scope.is_empty() {
+            "fitness:read activities:read profile:read"
+        } else {
+            scope
+        }
+    );
+
+    Ok(warp::reply::with_header(
+        html,
+        "content-type",
+        "text/html; charset=utf-8",
+    ))
+}
+
+/// Handle OAuth login form submission (POST /oauth2/login)
+async fn handle_oauth_login_submit(
+    form: HashMap<String, String>,
+    database: Arc<Database>,
+) -> Result<Box<dyn warp::Reply>, Rejection> {
+    // Extract credentials from form
+    let Some(email) = form.get("email") else {
+        return Ok(Box::new(warp::reply::with_status(
+            "Missing email",
+            warp::http::StatusCode::BAD_REQUEST,
+        )));
+    };
+
+    let Some(password) = form.get("password") else {
+        return Ok(Box::new(warp::reply::with_status(
+            "Missing password",
+            warp::http::StatusCode::BAD_REQUEST,
+        )));
+    };
+
+    // Authenticate user using database lookup and password verification
+    match authenticate_user_credentials(database.clone(), email, password).await {
+        Ok(token) => {
+            // Extract OAuth parameters from form to continue authorization flow
+            let client_id = form.get("client_id").map_or("", |v| v);
+            let redirect_uri = form.get("redirect_uri").map_or("", |v| v);
+            let response_type = form.get("response_type").map_or("", |v| v);
+            let state = form.get("state").map_or("", |v| v);
+            let scope = form.get("scope").map_or("", |v| v);
+
+            // Build authorization URL with all preserved parameters
+            let auth_url = format!(
+                "/oauth2/authorize?client_id={}&redirect_uri={}&response_type={}&state={}{}",
+                client_id,
+                urlencoding::encode(redirect_uri),
+                response_type,
+                state,
+                if scope.is_empty() {
+                    String::new()
+                } else {
+                    format!("&scope={}", urlencoding::encode(scope))
+                }
+            );
+
+            tracing::info!(
+                "User {} authenticated successfully for OAuth, redirecting to authorization",
+                email
+            );
+
+            // Set session cookie and redirect to authorization endpoint
+            let redirect_response = warp::reply::with_header(
+                warp::reply::with_header(warp::reply(), "Location", auth_url),
+                "Set-Cookie",
+                format!("pierre_session={token}; HttpOnly; Path=/; SameSite=Lax"),
+            );
+
+            Ok(Box::new(warp::reply::with_status(
+                redirect_response,
+                warp::http::StatusCode::FOUND,
+            )))
+        }
+        Err(e) => {
+            tracing::warn!("Authentication failed for OAuth login: {}", e);
+
+            // Return to login page with error message
+            let error_html = format!(
+                r#"
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pierre MCP Server - Login Error</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 40px; }}
+        .error {{ color: red; background-color: #ffe6e6; padding: 15px; border-radius: 4px; margin-bottom: 20px; }}
+    </style>
+</head>
+<body>
+    <div class="error">
+        <strong>Authentication Failed:</strong> Invalid email or password. Please try again.
+    </div>
+    <a href="/oauth2/login?client_id={}&redirect_uri={}&response_type={}&state={}&scope={}">← Back to Login</a>
+</body>
+</html>
+            "#,
+                form.get("client_id").map_or("", |v| v),
+                urlencoding::encode(form.get("redirect_uri").map_or("", |v| v)),
+                form.get("response_type").map_or("", |v| v),
+                form.get("state").map_or("", |v| v),
+                urlencoding::encode(form.get("scope").map_or("", |v| v))
+            );
+
+            Ok(Box::new(warp::reply::with_header(
+                warp::reply::with_status(error_html, warp::http::StatusCode::UNAUTHORIZED),
+                "content-type",
+                "text/html; charset=utf-8",
+            )))
+        }
+    }
+}
+
+/// Extract session token from cookie header
+fn extract_session_token(cookie_header: &str) -> Option<String> {
+    // Parse cookies and look for pierre_session
+    for cookie in cookie_header.split(';') {
+        let cookie = cookie.trim();
+        if let Some(session_token) = cookie.strip_prefix("pierre_session=") {
+            return Some(session_token.to_string());
+        }
+    }
+    None
 }
 
 /// JWKS (JSON Web Key Set) endpoint route

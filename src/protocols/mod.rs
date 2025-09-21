@@ -58,4 +58,10 @@ pub enum ProtocolError {
 
     #[error("Rate limit exceeded: {0}")]
     RateLimitExceeded(String),
+
+    #[error("Invalid request: {0}")]
+    InvalidRequest(String),
+
+    #[error("Internal error: {0}")]
+    InternalError(String),
 }

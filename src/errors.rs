@@ -401,7 +401,8 @@ impl From<crate::protocols::ProtocolError> for AppError {
             crate::protocols::ProtocolError::ToolNotFound(tool) => {
                 Self::not_found(format!("tool '{tool}'"))
             }
-            crate::protocols::ProtocolError::InvalidParameters(message) => {
+            crate::protocols::ProtocolError::InvalidParameters(message)
+            | crate::protocols::ProtocolError::InvalidRequest(message) => {
                 Self::invalid_input(message)
             }
             crate::protocols::ProtocolError::ConfigurationError(message) => Self::config(message),
@@ -432,6 +433,7 @@ impl From<crate::protocols::ProtocolError> for AppError {
             crate::protocols::ProtocolError::RateLimitExceeded(message) => {
                 Self::invalid_input(format!("Rate limit exceeded: {message}"))
             }
+            crate::protocols::ProtocolError::InternalError(message) => Self::internal(message),
         }
     }
 }

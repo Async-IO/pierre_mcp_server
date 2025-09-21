@@ -1,6 +1,8 @@
 // ABOUTME: Performance trend analysis and historical comparison engine for fitness progression
 // ABOUTME: Tracks fitness improvements, identifies performance patterns, and provides trend analysis
 //! Performance trend analysis and historical comparison engine
+#![allow(clippy::cast_precision_loss)] // Safe: fitness data conversions
+#![allow(clippy::cast_possible_truncation)] // Safe: controlled ranges
 
 use super::{
     AdvancedInsight, Confidence, Deserialize, InsightSeverity, Serialize, TimeFrame, TrendAnalysis,
@@ -60,7 +62,6 @@ fn safe_f64_to_f32(value: f64) -> f32 {
             f32::MIN
         } else {
             // Safe conversion using IEEE 754 standard rounding
-            #[allow(clippy::cast_possible_truncation)]
             {
                 rounded as f32
             }
@@ -73,7 +74,6 @@ fn safe_f64_to_f32(value: f64) -> f32 {
 const fn safe_u64_to_f64(value: u64) -> f64 {
     // u64 to f64 conversion can lose precision for very large values
     // but for duration/count statistics, this is acceptable
-    #[allow(clippy::cast_precision_loss)]
     {
         value as f64
     }
@@ -746,7 +746,6 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
 
                 // Add strategy-based recovery recommendations using the strategy field
                 // Safe: weeks count is small integer value in training period ranges (0-52)
-                #[allow(clippy::cast_possible_truncation)]
                 if self.strategy.should_recommend_recovery(weeks as i32) {
                     recs.push("Your training strategy recommends prioritizing recovery at this load level".into());
                 }

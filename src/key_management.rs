@@ -33,47 +33,67 @@ impl MasterEncryptionKey {
     /// - The environment variable contains invalid base64 encoding
     /// - The decoded key is not exactly 32 bytes
     /// - Random key generation fails in development mode
-    // Safe: Complex bootstrap sequence with environment detection and dev mode handling
-    #[allow(clippy::cognitive_complexity)]
     pub fn load_or_generate() -> Result<Self> {
         // Try to load from environment first
         if let Ok(encoded_key) = env::var("PIERRE_MASTER_ENCRYPTION_KEY") {
-            info!("Loading Master Encryption Key from environment variable");
-            let key_bytes = base64::engine::general_purpose::STANDARD
-                .decode(&encoded_key)
-                .map_err(|e| {
-                    anyhow!(
-                        "Invalid base64 encoding in PIERRE_MASTER_ENCRYPTION_KEY: {}",
-                        e
-                    )
-                })?;
-
-            if key_bytes.len() != 32 {
-                return Err(anyhow!(
-                    "Master encryption key must be exactly 32 bytes, got {} bytes",
-                    key_bytes.len()
-                ));
-            }
-
-            let mut key = [0u8; 32];
-            key.copy_from_slice(&key_bytes);
-            return Ok(Self { key });
+            return Self::load_from_environment(&encoded_key);
         }
 
         // Development mode: generate and log warning
+        Ok(Self::generate_for_development())
+    }
+
+    /// Load MEK from base64-encoded environment variable
+    ///
+    /// # Errors
+    /// Returns error if decoding fails or key is wrong length
+    fn load_from_environment(encoded_key: &str) -> Result<Self> {
+        info!("Loading Master Encryption Key from environment variable");
+        let key_bytes = base64::engine::general_purpose::STANDARD
+            .decode(encoded_key)
+            .map_err(|e| {
+                anyhow!(
+                    "Invalid base64 encoding in PIERRE_MASTER_ENCRYPTION_KEY: {}",
+                    e
+                )
+            })?;
+
+        if key_bytes.len() != 32 {
+            return Err(anyhow!(
+                "Master encryption key must be exactly 32 bytes, got {} bytes",
+                key_bytes.len()
+            ));
+        }
+
+        let mut key = [0u8; 32];
+        key.copy_from_slice(&key_bytes);
+        Ok(Self { key })
+    }
+
+    /// Generate temporary MEK for development with appropriate warnings
+    ///
+    /// Generate a new key for development (never fails)
+    fn generate_for_development() -> Self {
+        Self::log_development_warnings();
+        let key = crate::database::generate_encryption_key();
+        Self::log_generated_key(&key);
+        Self { key }
+    }
+
+    /// Log warning messages for development key generation
+    fn log_development_warnings() {
         warn!("PIERRE_MASTER_ENCRYPTION_KEY not found in environment");
         warn!("Generating temporary MEK for development - NOT SECURE FOR PRODUCTION");
+    }
 
-        let key = crate::database::generate_encryption_key();
+    /// Log the generated key for development use
+    fn log_generated_key(key: &[u8; 32]) {
         let encoded = base64::engine::general_purpose::STANDARD.encode(key);
-
         warn!(
             "Generated MEK (save for production): PIERRE_MASTER_ENCRYPTION_KEY={}",
             encoded
         );
         warn!("Add this to your environment variables for production deployment");
-
-        Ok(Self { key })
     }
 
     /// Get the raw key bytes for encryption operations

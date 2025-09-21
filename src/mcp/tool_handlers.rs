@@ -114,13 +114,15 @@ impl ToolHandlers {
                     .await;
 
                 // Extract tenant context from request and auth result
-                let tenant_context = MultiTenantMcpServer::extract_tenant_context_internal(
-                    &request,
-                    &auth_result,
+                let tenant_context = crate::mcp::tenant_isolation::extract_tenant_context_internal(
                     &resources.database,
+                    Some(auth_result.user_id),
+                    None,
+                    None, // MCP headers are not warp headers, pass None for now
                 )
                 .await
-                .unwrap_or(None);
+                .ok()
+                .flatten();
 
                 // Use the provided ServerResources directly
                 Self::handle_tool_execution_direct(request, auth_result, tenant_context, resources)

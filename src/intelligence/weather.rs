@@ -33,6 +33,7 @@ use std::time::{Duration, SystemTime};
 
 /// Safe casting helper functions to avoid clippy warnings
 #[inline]
+#[allow(clippy::cast_possible_truncation)] // Safe: clamped to f32 range
 fn safe_f64_to_f32(value: f64) -> f32 {
     use std::cmp::Ordering;
 
@@ -55,10 +56,7 @@ fn safe_f64_to_f32(value: f64) -> f32 {
             f32::MIN
         } else {
             // Safe conversion using IEEE 754 standard rounding
-            #[allow(clippy::cast_possible_truncation)]
-            {
-                rounded as f32
-            }
+            rounded as f32
         }
     }
 }

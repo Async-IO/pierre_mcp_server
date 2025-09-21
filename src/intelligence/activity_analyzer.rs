@@ -32,16 +32,20 @@ use std::collections::HashMap;
 /// Safe casting helper functions to avoid clippy warnings
 #[inline]
 // Safe: value range validation performed within function
-#[allow(clippy::cast_possible_truncation)]
 fn safe_f64_to_f32(value: f64) -> f32 {
-    value.clamp(f64::from(f32::MIN), f64::from(f32::MAX)) as f32
+    #[allow(clippy::cast_possible_truncation)] // Safe: clamped to f32 range
+    {
+        value.clamp(f64::from(f32::MIN), f64::from(f32::MAX)) as f32
+    }
 }
 
 #[inline]
 // Safe: value clamped to u16 range within function
-#[allow(clippy::cast_possible_truncation)]
 fn safe_u32_to_u16(value: u32) -> u16 {
-    value.min(u32::from(u16::MAX)) as u16
+    #[allow(clippy::cast_possible_truncation)] // Safe: clamped to u16 range
+    {
+        value.min(u32::from(u16::MAX)) as u16
+    }
 }
 
 /// Trait for analyzing individual activities

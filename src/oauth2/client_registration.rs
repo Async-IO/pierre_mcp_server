@@ -101,24 +101,37 @@ impl ClientRegistrationManager {
         client_id: &str,
         client_secret: &str,
     ) -> Result<OAuth2Client, OAuth2Error> {
-        let client = self
-            .get_client(client_id)
-            .await
-            .map_err(|_| OAuth2Error::invalid_client())?;
+        tracing::debug!("Validating OAuth client: {}", client_id);
+
+        let client = self.get_client(client_id).await.map_err(|e| {
+            tracing::warn!("OAuth client {} not found: {}", client_id, e);
+            OAuth2Error::invalid_client()
+        })?;
+
+        tracing::debug!("OAuth client {} found, validating secret", client_id);
 
         // Verify client secret
         let provided_hash = Self::hash_client_secret(client_secret);
+        tracing::debug!(
+            "Provided secret hash: {}, Stored hash: {}",
+            provided_hash,
+            client.client_secret_hash
+        );
+
         if provided_hash != client.client_secret_hash {
+            tracing::warn!("OAuth client {} secret validation failed", client_id);
             return Err(OAuth2Error::invalid_client());
         }
 
         // Check if client is expired
         if let Some(expires_at) = client.expires_at {
             if Utc::now() > expires_at {
+                tracing::warn!("OAuth client {} has expired", client_id);
                 return Err(OAuth2Error::invalid_client());
             }
         }
 
+        tracing::info!("OAuth client {} validated successfully", client_id);
         Ok(client)
     }
 

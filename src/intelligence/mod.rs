@@ -39,6 +39,12 @@ pub mod performance_analyzer;
 pub mod physiological_constants;
 pub mod recommendation_engine;
 
+// New improved modules addressing critical issues
+pub mod analysis_config;
+pub mod metrics_extractor;
+pub mod performance_analyzer_v2;
+pub mod statistical_analysis;
+
 pub use activity_analyzer::*;
 pub use analyzer::ActivityAnalyzer;
 pub use goal_engine::*;
@@ -46,6 +52,14 @@ pub use insights::Insight;
 pub use metrics::*;
 pub use performance_analyzer::*;
 pub use recommendation_engine::*;
+
+// Re-export improved modules
+pub use analysis_config::{AnalysisConfig, AnalysisConfigError, ConfidenceLevel};
+pub use metrics_extractor::{MetricSummary, MetricType, SafeMetricExtractor};
+pub use performance_analyzer_v2::{
+    ActivityGoal, FitnessScore, PerformanceAnalyzerV2, PerformancePrediction, TrainingLoadAnalysis,
+};
+pub use statistical_analysis::{RegressionResult, SignificanceLevel, StatisticalAnalyzer};
 
 // Re-export configuration types for external use
 pub use crate::config::intelligence_config::{
@@ -121,7 +135,7 @@ pub struct TrendIndicators {
 }
 
 /// Direction of a trend
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum TrendDirection {
     Improving,

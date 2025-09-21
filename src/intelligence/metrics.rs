@@ -1,6 +1,7 @@
 // ABOUTME: Advanced fitness metrics calculation and performance analysis algorithms
 // ABOUTME: Computes training load, power metrics, heart rate zones, and physiological indicators
 //! Advanced fitness metrics calculation and analysis
+#![allow(clippy::cast_possible_truncation)] // Safe: controlled ranges for fitness metrics
 
 // Future: use crate::config::intelligence_config::{IntelligenceConfig};
 use crate::intelligence::physiological_constants::{
@@ -22,7 +23,6 @@ use std::collections::HashMap;
 /// Safe casting helper functions to avoid clippy warnings
 #[inline]
 // Safe: value clamped to u16 range within function
-#[allow(clippy::cast_possible_truncation)]
 fn safe_u32_to_u16(value: u32) -> u16 {
     value.min(u32::from(u16::MAX)) as u16
 }

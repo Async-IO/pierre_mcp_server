@@ -41,9 +41,10 @@ fn safe_f64_to_f32(value: f64) -> f32 {
             f32::MIN
         } else {
             // Safe conversion using IEEE 754 standard rounding
-            #[allow(clippy::cast_possible_truncation)]
+            #[allow(clippy::cast_possible_truncation)] // Safe: bounds checked above
             {
-                rounded as f32
+                let bounded = rounded.clamp(f64::from(f32::MIN), f64::from(f32::MAX));
+                bounded as f32
             }
         }
     }

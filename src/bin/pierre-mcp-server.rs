@@ -40,107 +40,129 @@ pub struct Args {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Handle Docker environment where clap may not work properly
-    let args = match Args::try_parse() {
+    let args = parse_args_or_default();
+    let config = setup_configuration(&args)?;
+    bootstrap_server(config).await
+}
+
+/// Parse command line arguments or use defaults on failure
+fn parse_args_or_default() -> Args {
+    match Args::try_parse() {
         Ok(args) => args,
         Err(e) => {
             eprintln!("Argument parsing failed: {e}");
             eprintln!("Using default configuration for production mode");
-            // Default to production mode if argument parsing fails
             Args {
                 config: None,
                 http_port: None,
             }
         }
-    };
+    }
+}
 
-    {
-        // Load configuration from environment
-        let mut config = ServerConfig::from_env()?;
+/// Setup server configuration from environment and arguments
+fn setup_configuration(args: &Args) -> Result<ServerConfig> {
+    let mut config = ServerConfig::from_env()?;
 
-        // Override port if specified
-        if let Some(http_port) = args.http_port {
-            config.http_port = http_port;
-        }
+    if let Some(http_port) = args.http_port {
+        config.http_port = http_port;
+    }
 
-        // Initialize production logging
-        logging::init_from_env()?;
+    logging::init_from_env()?;
+    info!("Starting Pierre Fitness API - Production Mode");
+    info!("{}", config.summary());
 
-        info!("Starting Pierre Fitness API - Production Mode");
-        info!("{}", config.summary());
+    Ok(config)
+}
 
-        // Initialize two-tier key management system
-        let (mut key_manager, database_encryption_key) =
-            pierre_mcp_server::key_management::KeyManager::bootstrap()?;
-        info!("Two-tier key management system bootstrapped");
+/// Bootstrap the complete server with all dependencies
+async fn bootstrap_server(config: ServerConfig) -> Result<()> {
+    let (database, auth_manager, jwt_secret) = initialize_core_systems(&config).await?;
+    let server = create_server(database, auth_manager, &jwt_secret, &config);
+    run_server(server, &config).await
+}
 
-        // Initialize database with DEK from key manager
-        let database = Database::new(
-            &config.database.url.to_connection_string(),
-            database_encryption_key.to_vec(),
-        )
+/// Initialize core systems (key management, database, auth)
+async fn initialize_core_systems(config: &ServerConfig) -> Result<(Database, AuthManager, String)> {
+    // Initialize two-tier key management system
+    let (mut key_manager, database_encryption_key) =
+        pierre_mcp_server::key_management::KeyManager::bootstrap()?;
+    info!("Two-tier key management system bootstrapped");
+
+    // Initialize database with DEK from key manager
+    let database = Database::new(
+        &config.database.url.to_connection_string(),
+        database_encryption_key.to_vec(),
+    )
+    .await?;
+    info!(
+        "Database initialized successfully: {}",
+        database.backend_info()
+    );
+    info!(
+        "Database URL: {}",
+        &config.database.url.to_connection_string()
+    );
+
+    // Complete key manager initialization with database
+    key_manager.complete_initialization(&database).await?;
+    info!("Two-tier key management system fully initialized");
+
+    // Get or create JWT secret from database (for server-first bootstrap)
+    let jwt_secret_string = database
+        .get_or_create_system_secret("admin_jwt_secret")
         .await?;
-        info!(
-            "Database initialized successfully: {}",
-            database.backend_info()
-        );
-        info!(
-            "Database URL: {}",
-            &config.database.url.to_connection_string()
-        );
 
-        // Complete key manager initialization with database
-        key_manager.complete_initialization(&database).await?;
-        info!("Two-tier key management system fully initialized");
+    info!(
+        "Admin JWT secret ready (first 10 chars): {}...",
+        jwt_secret_string.chars().take(10).collect::<String>()
+    );
+    info!("Server is ready for admin setup via POST /admin/setup");
 
-        // Get or create JWT secret from database (for server-first bootstrap)
-        let jwt_secret_string = database
-            .get_or_create_system_secret("admin_jwt_secret")
-            .await?;
-
-        info!(
-            "Admin JWT secret ready (first 10 chars): {}...",
-            jwt_secret_string.chars().take(10).collect::<String>()
-        );
-        info!("Server is ready for admin setup via POST /admin/setup");
-
-        // Initialize authentication manager
-        let auth_manager = {
-            // Safe: JWT expiry hours are small positive configuration values (1-168)
-            #[allow(clippy::cast_possible_wrap)]
-            {
-                AuthManager::new(
-                    jwt_secret_string.as_bytes().to_vec(),
-                    config.auth.jwt_expiry_hours as i64,
-                )
-            }
-        };
-        info!("Authentication manager initialized");
-
-        // Create server resources and server
-        let resources = Arc::new(ServerResources::new(
-            database,
-            auth_manager,
-            &jwt_secret_string,
-            Arc::new(config.clone()),
-        ));
-        let server = MultiTenantMcpServer::new(resources);
-
-        info!(
-            "Server starting on port {} (unified MCP and HTTP)",
-            config.http_port
-        );
-
-        // Display all available API endpoints
-        display_available_endpoints(&config);
-
-        info!("Ready to serve fitness data!");
-
-        // Run the server (includes all routes)
-        if let Err(e) = server.run(config.http_port).await {
-            error!("Server error: {}", e);
-            return Err(e);
+    // Initialize authentication manager
+    let auth_manager = {
+        // Safe: JWT expiry hours are small positive configuration values (1-168)
+        #[allow(clippy::cast_possible_wrap)]
+        {
+            AuthManager::new(
+                jwt_secret_string.as_bytes().to_vec(),
+                config.auth.jwt_expiry_hours as i64,
+            )
         }
+    };
+    info!("Authentication manager initialized");
+
+    Ok((database, auth_manager, jwt_secret_string))
+}
+
+/// Create server instance with all resources
+fn create_server(
+    database: Database,
+    auth_manager: AuthManager,
+    jwt_secret: &str,
+    config: &ServerConfig,
+) -> MultiTenantMcpServer {
+    let resources = Arc::new(ServerResources::new(
+        database,
+        auth_manager,
+        jwt_secret,
+        Arc::new(config.clone()),
+    ));
+    MultiTenantMcpServer::new(resources)
+}
+
+/// Run the server after displaying endpoints
+async fn run_server(server: MultiTenantMcpServer, config: &ServerConfig) -> Result<()> {
+    info!(
+        "Server starting on port {} (unified MCP and HTTP)",
+        config.http_port
+    );
+    display_available_endpoints(config);
+    info!("Ready to serve fitness data!");
+
+    if let Err(e) = server.run(config.http_port).await {
+        error!("Server error: {}", e);
+        return Err(e);
     }
 
     Ok(())
@@ -165,102 +187,158 @@ fn display_available_endpoints(config: &ServerConfig) {
     info!("=== End of Endpoint List ===");
 }
 
-#[allow(clippy::cognitive_complexity)]
+/// Endpoint category definition for structured display
+struct EndpointCategory {
+    name: &'static str,
+    endpoints: &'static [(&'static str, &'static str, &'static str)], // (description, method, path)
+}
+
+/// Display a category of endpoints with consistent formatting
+fn display_endpoint_category(category: &EndpointCategory, host: &str, port: u16) {
+    info!("{}", category.name);
+    for (description, method, path) in category.endpoints {
+        info!("   {description:18} {method} http://{host}:{port}{path}");
+    }
+}
+
 fn display_mcp_endpoints(host: &str, port: u16) {
-    info!("MCP Protocol:");
-    info!("   HTTP Transport:  http://{host}:{port}/mcp");
-    info!("   WebSocket:       ws://{host}:{port}/mcp/ws");
-    info!("   Server-Sent Events: http://{host}:{port}/mcp/sse");
+    let endpoints = [
+        "MCP Protocol:",
+        &format!("   HTTP Transport:    http://{host}:{port}/mcp"),
+        &format!("   WebSocket:         ws://{host}:{port}/mcp/ws"),
+        &format!("   Server-Sent Events: http://{host}:{port}/mcp/sse"),
+    ];
+    for line in &endpoints {
+        info!("{}", line);
+    }
 }
 
-#[allow(clippy::cognitive_complexity)]
 fn display_auth_endpoints(host: &str, port: u16) {
-    info!("Authentication & OAuth:");
-    info!("   User Registration: POST http://{host}:{port}/auth/register");
-    info!("   User Login:        POST http://{host}:{port}/auth/login");
-    info!("   OAuth Authorize:   GET  http://{host}:{port}/oauth/authorize/{{provider}}");
-    info!("   OAuth Callback:    GET  http://{host}:{port}/oauth/callback/{{provider}}");
-    info!("   OAuth Status:      GET  http://{host}:{port}/oauth/status");
-    info!("   OAuth Disconnect:  POST http://{host}:{port}/oauth/disconnect/{{provider}}");
+    let category = EndpointCategory {
+        name: "Authentication & OAuth:",
+        endpoints: &[
+            ("User Registration:", "POST", "/auth/register"),
+            ("User Login:", "POST", "/auth/login"),
+            ("OAuth Authorize:", "GET", "/oauth/authorize/{provider}"),
+            ("OAuth Callback:", "GET", "/oauth/callback/{provider}"),
+            ("OAuth Status:", "GET", "/oauth/status"),
+            ("OAuth Disconnect:", "POST", "/oauth/disconnect/{provider}"),
+        ],
+    };
+    display_endpoint_category(&category, host, port);
 }
 
-#[allow(clippy::cognitive_complexity)]
 fn display_oauth2_endpoints(host: &str, port: u16) {
-    info!("OAuth 2.0 Server:");
-    info!("   Authorization:     GET  http://{host}:{port}/oauth2/authorize");
-    info!("   Token Exchange:    POST http://{host}:{port}/oauth2/token");
-    info!("   Client Registration: POST http://{host}:{port}/oauth2/register");
+    let category = EndpointCategory {
+        name: "OAuth 2.0 Server:",
+        endpoints: &[
+            ("Authorization:", "GET", "/oauth2/authorize"),
+            ("Token Exchange:", "POST", "/oauth2/token"),
+            ("Client Registration:", "POST", "/oauth2/register"),
+        ],
+    };
+    display_endpoint_category(&category, host, port);
 }
 
-#[allow(clippy::cognitive_complexity)]
 fn display_admin_endpoints(host: &str, port: u16) {
-    info!("Admin Management:");
-    info!("   Admin Setup:       POST http://{host}:{port}/admin/setup");
-    info!("   Create User:       POST http://{host}:{port}/admin/users");
-    info!("   List Users:        GET  http://{host}:{port}/admin/users");
-    info!("   Generate Token:    POST http://{host}:{port}/admin/tokens");
-    info!("   List Tokens:       GET  http://{host}:{port}/admin/tokens");
+    let category = EndpointCategory {
+        name: "Admin Management:",
+        endpoints: &[
+            ("Admin Setup:", "POST", "/admin/setup"),
+            ("Create User:", "POST", "/admin/users"),
+            ("List Users:", "GET", "/admin/users"),
+            ("Generate Token:", "POST", "/admin/tokens"),
+            ("List Tokens:", "GET", "/admin/tokens"),
+        ],
+    };
+    display_endpoint_category(&category, host, port);
 }
 
-#[allow(clippy::cognitive_complexity)]
 fn display_api_key_endpoints(host: &str, port: u16) {
-    info!("API Key Management:");
-    info!("   Create API Key:    POST http://{host}:{port}/api/keys");
-    info!("   List API Keys:     GET  http://{host}:{port}/api/keys");
-    info!("   Delete API Key:    DELETE http://{host}:{port}/api/keys/{{key_id}}");
-    info!("   API Key Usage:     GET  http://{host}:{port}/api/keys/usage");
+    let category = EndpointCategory {
+        name: "API Key Management:",
+        endpoints: &[
+            ("Create API Key:", "POST", "/api/keys"),
+            ("List API Keys:", "GET", "/api/keys"),
+            ("Delete API Key:", "DELETE", "/api/keys/{key_id}"),
+            ("API Key Usage:", "GET", "/api/keys/usage"),
+        ],
+    };
+    display_endpoint_category(&category, host, port);
 }
 
-#[allow(clippy::cognitive_complexity)]
 fn display_tenant_endpoints(host: &str, port: u16) {
-    info!("Tenant Management:");
-    info!("   Create Tenant:     POST http://{host}:{port}/tenants");
-    info!("   List Tenants:      GET  http://{host}:{port}/tenants");
-    info!("   Get Tenant:        GET  http://{host}:{port}/tenants/{{tenant_id}}");
-    info!("   Update Tenant:     PUT  http://{host}:{port}/tenants/{{tenant_id}}");
-    info!("   Delete Tenant:     DELETE http://{host}:{port}/tenants/{{tenant_id}}");
+    let category = EndpointCategory {
+        name: "Tenant Management:",
+        endpoints: &[
+            ("Create Tenant:", "POST", "/tenants"),
+            ("List Tenants:", "GET", "/tenants"),
+            ("Get Tenant:", "GET", "/tenants/{tenant_id}"),
+            ("Update Tenant:", "PUT", "/tenants/{tenant_id}"),
+            ("Delete Tenant:", "DELETE", "/tenants/{tenant_id}"),
+        ],
+    };
+    display_endpoint_category(&category, host, port);
 }
 
-#[allow(clippy::cognitive_complexity)]
 fn display_dashboard_endpoints(host: &str, port: u16) {
-    info!("Dashboard & Monitoring:");
-    info!("   Health Check:      GET  http://{host}:{port}/health");
-    info!("   System Status:     GET  http://{host}:{port}/dashboard/status");
-    info!("   User Dashboard:    GET  http://{host}:{port}/dashboard/user");
-    info!("   Admin Dashboard:   GET  http://{host}:{port}/dashboard/admin");
-    info!("   Detailed Stats:    GET  http://{host}:{port}/dashboard/detailed");
+    let category = EndpointCategory {
+        name: "Dashboard & Monitoring:",
+        endpoints: &[
+            ("Health Check:", "GET", "/health"),
+            ("System Status:", "GET", "/dashboard/status"),
+            ("User Dashboard:", "GET", "/dashboard/user"),
+            ("Admin Dashboard:", "GET", "/dashboard/admin"),
+            ("Detailed Stats:", "GET", "/dashboard/detailed"),
+        ],
+    };
+    display_endpoint_category(&category, host, port);
 }
 
-#[allow(clippy::cognitive_complexity)]
 fn display_a2a_endpoints(host: &str, port: u16) {
-    info!("A2A Protocol:");
-    info!("   A2A Status:        GET  http://{host}:{port}/a2a/status");
-    info!("   A2A Tools:         GET  http://{host}:{port}/a2a/tools");
-    info!("   A2A Execute:       POST http://{host}:{port}/a2a/execute");
-    info!("   A2A Monitoring:    GET  http://{host}:{port}/a2a/monitoring");
-    info!("   Client Tools:      GET  http://{host}:{port}/a2a/client/tools");
-    info!("   Client Execute:    POST http://{host}:{port}/a2a/client/execute");
+    let category = EndpointCategory {
+        name: "A2A Protocol:",
+        endpoints: &[
+            ("A2A Status:", "GET", "/a2a/status"),
+            ("A2A Tools:", "GET", "/a2a/tools"),
+            ("A2A Execute:", "POST", "/a2a/execute"),
+            ("A2A Monitoring:", "GET", "/a2a/monitoring"),
+            ("Client Tools:", "GET", "/a2a/client/tools"),
+            ("Client Execute:", "POST", "/a2a/client/execute"),
+        ],
+    };
+    display_endpoint_category(&category, host, port);
 }
 
-#[allow(clippy::cognitive_complexity)]
 fn display_config_endpoints(host: &str, port: u16) {
-    info!("Configuration:");
-    info!("   Get Config:        GET  http://{host}:{port}/config");
-    info!("   Update Config:     PUT  http://{host}:{port}/config");
-    info!("   User Config:       GET  http://{host}:{port}/config/user");
-    info!("   Update User Config: PUT  http://{host}:{port}/config/user");
+    let category = EndpointCategory {
+        name: "Configuration:",
+        endpoints: &[
+            ("Get Config:", "GET", "/config"),
+            ("Update Config:", "PUT", "/config"),
+            ("User Config:", "GET", "/config/user"),
+            ("Update User Config:", "PUT", "/config/user"),
+        ],
+    };
+    display_endpoint_category(&category, host, port);
 }
 
-#[allow(clippy::cognitive_complexity)]
 fn display_fitness_endpoints(host: &str, port: u16) {
-    info!("Fitness Configuration:");
-    info!("   Get Fitness Config:    GET  http://{host}:{port}/fitness/config");
-    info!("   Update Fitness Config: PUT  http://{host}:{port}/fitness/config");
-    info!("   Delete Fitness Config: DELETE http://{host}:{port}/fitness/config");
+    let category = EndpointCategory {
+        name: "Fitness Configuration:",
+        endpoints: &[
+            ("Get Fitness Config:", "GET", "/fitness/config"),
+            ("Update Fitness Config:", "PUT", "/fitness/config"),
+            ("Delete Fitness Config:", "DELETE", "/fitness/config"),
+        ],
+    };
+    display_endpoint_category(&category, host, port);
 }
 
-#[allow(clippy::cognitive_complexity)]
 fn display_notification_endpoints(host: &str, port: u16) {
-    info!("Real-time Notifications:");
-    info!("   SSE Stream:        GET  http://{host}:{port}/notifications/sse?user_id={{user_id}}");
+    let category = EndpointCategory {
+        name: "Real-time Notifications:",
+        endpoints: &[("SSE Stream:", "GET", "/notifications/sse?user_id={user_id}")],
+    };
+    display_endpoint_category(&category, host, port);
 }
