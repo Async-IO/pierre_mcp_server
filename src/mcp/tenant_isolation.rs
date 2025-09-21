@@ -105,9 +105,22 @@ impl TenantIsolation {
             ));
         }
 
-        // For now, return Member role for all users
-        // TODO: Implement proper role management
-        Ok(TenantRole::Member)
+        // Query database for user's actual role in the tenant
+        if let Some(role_str) = self.database.get_user_tenant_role(user_id, tenant_id).await? {
+            match role_str.to_lowercase().as_str() {
+                "owner" => Ok(TenantRole::Owner),
+                "admin" => Ok(TenantRole::Admin),
+                "billing" => Ok(TenantRole::Billing),
+                "member" => Ok(TenantRole::Member),
+                _ => {
+                    warn!("Unknown role '{}' for user {} in tenant {}, defaulting to Member", role_str, user_id, tenant_id);
+                    Ok(TenantRole::Member)
+                }
+            }
+        } else {
+            // User is not explicitly assigned a role in this tenant, default to Member
+            Ok(TenantRole::Member)
+        }
     }
 
     /// Extract tenant context from request headers
@@ -130,11 +143,12 @@ impl TenantIsolation {
             let tenant_name = self.get_tenant_name(tenant_id).await;
 
             // For header-based tenant context, we don't have user info
+            // This should only be used for tenant-scoped operations that don't require user context
             return Ok(Some(TenantContext {
                 tenant_id,
-                user_id: Uuid::nil(), // Placeholder
+                user_id: Uuid::nil(), // No user context available from headers
                 tenant_name,
-                user_role: TenantRole::Member,
+                user_role: TenantRole::Member, // Default role when user is unknown
             }));
         }
 

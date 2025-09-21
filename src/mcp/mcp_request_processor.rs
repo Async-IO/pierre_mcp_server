@@ -177,7 +177,7 @@ impl McpRequestProcessor {
             .ok_or_else(|| anyhow::anyhow!("Missing parameters for tools/call"))?;
 
         // Execute tool using static method - delegate to ToolHandlers
-        let mock_request = McpRequest {
+        let handler_request = McpRequest {
             jsonrpc: request.jsonrpc.clone(),
             method: request.method.clone(),
             params: request.params.clone(),
@@ -186,7 +186,7 @@ impl McpRequestProcessor {
             headers: request.headers.clone(),
         };
         let response =
-            ToolHandlers::handle_tools_call_with_resources(mock_request, &self.resources).await;
+            ToolHandlers::handle_tools_call_with_resources(handler_request, &self.resources).await;
         Ok(response)
     }
 
