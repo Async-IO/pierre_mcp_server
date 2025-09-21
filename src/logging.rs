@@ -285,7 +285,9 @@ impl LoggingConfig {
     fn create_telemetry_layer(&self) -> Result<(), anyhow::Error> {
         // OpenTelemetry integration disabled due to version compatibility issues
         // Can be enabled once dependency conflicts are resolved
-        tracing::info!("OpenTelemetry layer creation requested but disabled due to dependency conflicts");
+        tracing::info!(
+            "OpenTelemetry layer creation requested but disabled due to dependency conflicts"
+        );
         Ok(())
     }
 

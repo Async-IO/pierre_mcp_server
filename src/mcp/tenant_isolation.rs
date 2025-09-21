@@ -106,16 +106,27 @@ impl TenantIsolation {
         }
 
         // Query database for user's actual role in the tenant
-        (self.resources.database.get_user_tenant_role(user_id, tenant_id).await?).map_or_else(|| Ok(TenantRole::Member), |role_str| match role_str.to_lowercase().as_str() {
-                "owner" => Ok(TenantRole::Owner),
-                "admin" => Ok(TenantRole::Admin),
-                "billing" => Ok(TenantRole::Billing),
-                "member" => Ok(TenantRole::Member),
-                _ => {
-                    warn!("Unknown role '{}' for user {} in tenant {}, defaulting to Member", role_str, user_id, tenant_id);
-                    Ok(TenantRole::Member)
-                }
-            })
+        (self
+            .resources
+            .database
+            .get_user_tenant_role(user_id, tenant_id)
+            .await?)
+            .map_or_else(
+                || Ok(TenantRole::Member),
+                |role_str| match role_str.to_lowercase().as_str() {
+                    "owner" => Ok(TenantRole::Owner),
+                    "admin" => Ok(TenantRole::Admin),
+                    "billing" => Ok(TenantRole::Billing),
+                    "member" => Ok(TenantRole::Member),
+                    _ => {
+                        warn!(
+                            "Unknown role '{}' for user {} in tenant {}, defaulting to Member",
+                            role_str, user_id, tenant_id
+                        );
+                        Ok(TenantRole::Member)
+                    }
+                },
+            )
     }
 
     /// Extract tenant context from request headers

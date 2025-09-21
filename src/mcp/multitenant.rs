@@ -255,9 +255,9 @@ impl MultiTenantMcpServer {
             .and(warp::post())
             .and(warp::body::json())
             .and_then({
-                let auth_routes = auth_routes.clone();
+                let auth_routes = auth_routes.clone(); // Safe: Arc clone for HTTP handler closure
                 move |request: RegisterRequest| {
-                    let auth_routes = auth_routes.clone();
+                    let auth_routes = auth_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match auth_routes.register(request).await {
                             Ok(response) => Ok(warp::reply::json(&response)),
@@ -278,9 +278,9 @@ impl MultiTenantMcpServer {
             .and(warp::post())
             .and(warp::body::json())
             .and_then({
-                let auth_routes = auth_routes.clone();
+                let auth_routes = auth_routes.clone(); // Safe: Arc clone for HTTP handler closure
                 move |request: LoginRequest| {
-                    let auth_routes = auth_routes.clone();
+                    let auth_routes = auth_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match auth_routes.login(request).await {
                             Ok(response) => Ok(warp::reply::json(&response)),
@@ -301,9 +301,9 @@ impl MultiTenantMcpServer {
             .and(warp::post())
             .and(warp::body::json())
             .and_then({
-                let auth_routes = auth_routes.clone();
+                let auth_routes = auth_routes.clone(); // Safe: Arc clone for HTTP handler closure
                 move |request: RefreshTokenRequest| {
-                    let auth_routes = auth_routes.clone();
+                    let auth_routes = auth_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match auth_routes.refresh_token(request).await {
                             Ok(response) => Ok(warp::reply::json(&response)),
@@ -368,9 +368,9 @@ impl MultiTenantMcpServer {
             .and(warp::query::<std::collections::HashMap<String, String>>())
             .and(warp::get())
             .and_then({
-                let oauth_routes = oauth_routes.clone();
+                let oauth_routes = oauth_routes.clone(); // Safe: Arc clone for HTTP handler closure
                 move |provider: String, params: std::collections::HashMap<String, String>| {
-                    let oauth_routes = oauth_routes.clone();
+                    let oauth_routes = oauth_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         let Some(code) = params.get("code").cloned() else {
                                 tracing::error!("Missing OAuth code parameter in callback");
@@ -513,9 +513,9 @@ impl MultiTenantMcpServer {
             .and(warp::body::bytes())
             .and(warp::header::optional::<String>("authorization"))
             .and_then({
-                let resources = resources.clone();
+                let resources = resources.clone(); // Safe: Arc clone for HTTP handler closure
                 move |body: bytes::Bytes, authorization: Option<String>| {
-                    let resources = resources.clone();
+                    let resources = resources.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         let request_data = String::from_utf8(body.to_vec()).map_err(|_| {
                             warp::reject::custom(ApiError(
@@ -624,10 +624,10 @@ impl MultiTenantMcpServer {
             .and(warp::body::json())
             .and(warp::header::optional::<String>("authorization"))
             .and_then({
-                let api_key_routes = api_key_routes.clone();
+                let api_key_routes = api_key_routes.clone(); // Safe: Arc clone for HTTP handler closure
                 move |request: crate::api_keys::CreateApiKeyRequestSimple,
                       auth_header: Option<String>| {
-                    let api_key_routes = api_key_routes.clone();
+                    let api_key_routes = api_key_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match api_key_routes
                             .create_api_key_simple(auth_header.as_deref(), request)
@@ -649,9 +649,9 @@ impl MultiTenantMcpServer {
             .and(warp::get())
             .and(warp::header::optional::<String>("authorization"))
             .and_then({
-                let api_key_routes = api_key_routes.clone();
+                let api_key_routes = api_key_routes.clone(); // Safe: Arc clone for HTTP handler closure
                 move |auth_header: Option<String>| {
-                    let api_key_routes = api_key_routes.clone();
+                    let api_key_routes = api_key_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match api_key_routes.list_api_keys(auth_header.as_deref()).await {
                             Ok(response) => Ok(warp::reply::json(&response)),
@@ -671,9 +671,9 @@ impl MultiTenantMcpServer {
             .and(warp::delete())
             .and(warp::header::optional::<String>("authorization"))
             .and_then({
-                let api_key_routes = api_key_routes.clone();
+                let api_key_routes = api_key_routes.clone(); // Safe: Arc clone for HTTP handler closure
                 move |api_key_id: String, auth_header: Option<String>| {
-                    let api_key_routes = api_key_routes.clone();
+                    let api_key_routes = api_key_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match api_key_routes
                             .deactivate_api_key(auth_header.as_deref(), &api_key_id)
@@ -996,9 +996,9 @@ impl MultiTenantMcpServer {
             .and(warp::get())
             .and(warp::header::optional::<String>("authorization"))
             .and_then({
-                let a2a_routes = a2a_routes.clone();
+                let a2a_routes = a2a_routes.clone(); // Safe: Arc clone for HTTP handler closure
                 move |auth_header: Option<String>| {
-                    let a2a_routes = a2a_routes.clone();
+                    let a2a_routes = a2a_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match a2a_routes
                             .get_dashboard_overview(auth_header.as_deref())
@@ -1030,9 +1030,9 @@ impl MultiTenantMcpServer {
             .and(warp::header::optional::<String>("authorization"))
             .and(warp::body::json())
             .and_then({
-                let a2a_routes = a2a_routes.clone();
+                let a2a_routes = a2a_routes.clone(); // Safe: Arc clone for HTTP handler closure
                 move |auth_header: Option<String>, request: crate::a2a_routes::A2AClientRequest| {
-                    let a2a_routes = a2a_routes.clone();
+                    let a2a_routes = a2a_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match a2a_routes
                             .register_client(auth_header.as_deref(), request)
@@ -1054,9 +1054,9 @@ impl MultiTenantMcpServer {
             .and(warp::get())
             .and(warp::header::optional::<String>("authorization"))
             .and_then({
-                let a2a_routes = a2a_routes.clone();
+                let a2a_routes = a2a_routes.clone(); // Safe: Arc clone for HTTP handler closure
                 move |auth_header: Option<String>| {
-                    let a2a_routes = a2a_routes.clone();
+                    let a2a_routes = a2a_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match a2a_routes.list_clients(auth_header.as_deref()).await {
                             Ok(clients) => Ok(warp::reply::json(&clients)),
@@ -1085,9 +1085,9 @@ impl MultiTenantMcpServer {
             .and(warp::get())
             .and(warp::header::optional::<String>("authorization"))
             .and_then({
-                let a2a_routes = a2a_routes.clone();
+                let a2a_routes = a2a_routes.clone(); // Safe: Arc clone for HTTP handler closure
                 move |client_id: String, auth_header: Option<String>| {
-                    let a2a_routes = a2a_routes.clone();
+                    let a2a_routes = a2a_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match a2a_routes
                             .get_client_usage(auth_header.as_deref(), &client_id)
@@ -1110,9 +1110,9 @@ impl MultiTenantMcpServer {
             .and(warp::get())
             .and(warp::header::optional::<String>("authorization"))
             .and_then({
-                let a2a_routes = a2a_routes.clone();
+                let a2a_routes = a2a_routes.clone(); // Safe: Arc clone for HTTP handler closure
                 move |client_id: String, auth_header: Option<String>| {
-                    let a2a_routes = a2a_routes.clone();
+                    let a2a_routes = a2a_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match a2a_routes
                             .get_client_rate_limit(auth_header.as_deref(), &client_id)
@@ -1143,9 +1143,9 @@ impl MultiTenantMcpServer {
             .and(warp::post())
             .and(warp::body::json())
             .and_then({
-                let a2a_routes = a2a_routes.clone();
+                let a2a_routes = a2a_routes.clone(); // Safe: Arc clone for HTTP handler closure
                 move |request: serde_json::Value| {
-                    let a2a_routes = a2a_routes.clone();
+                    let a2a_routes = a2a_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match a2a_routes.authenticate(request).await {
                             Ok(response) => Ok(warp::reply::json(&response)),
@@ -1165,9 +1165,9 @@ impl MultiTenantMcpServer {
             .and(warp::header::optional::<String>("authorization"))
             .and(warp::body::json())
             .and_then({
-                let a2a_routes = a2a_routes.clone();
+                let a2a_routes = a2a_routes.clone(); // Safe: Arc clone for HTTP handler closure
                 move |auth_header: Option<String>, request: serde_json::Value| {
-                    let a2a_routes = a2a_routes.clone();
+                    let a2a_routes = a2a_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match a2a_routes
                             .execute_tool(auth_header.as_deref(), request)
@@ -1199,9 +1199,9 @@ impl MultiTenantMcpServer {
             .and(warp::get())
             .and(warp::header::optional::<String>("authorization"))
             .and_then({
-                let config_routes = (*configuration_routes).clone();
+                let config_routes = (*configuration_routes).clone(); // Safe: Arc clone for HTTP handler closure
                 move |auth_header: Option<String>| {
-                    let config_routes_inner = config_routes.clone();
+                    let config_routes_inner = config_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match config_routes_inner.get_configuration_catalog(auth_header.as_deref())
                         {
@@ -1222,9 +1222,9 @@ impl MultiTenantMcpServer {
             .and(warp::get())
             .and(warp::header::optional::<String>("authorization"))
             .and_then({
-                let config_routes = (*configuration_routes).clone();
+                let config_routes = (*configuration_routes).clone(); // Safe: Arc clone for HTTP handler closure
                 move |auth_header: Option<String>| {
-                    let config_routes_inner = config_routes.clone();
+                    let config_routes_inner = config_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match config_routes_inner.get_configuration_profiles(auth_header.as_deref())
                         {
@@ -1254,9 +1254,9 @@ impl MultiTenantMcpServer {
             .and(warp::get())
             .and(warp::header::optional::<String>("authorization"))
             .and_then({
-                let config_routes = (*configuration_routes).clone();
+                let config_routes = (*configuration_routes).clone(); // Safe: Arc clone for HTTP handler closure
                 move |auth_header: Option<String>| {
-                    let config_routes = config_routes.clone();
+                    let config_routes = config_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match config_routes
                             .get_user_configuration(auth_header.as_deref())
@@ -1280,9 +1280,9 @@ impl MultiTenantMcpServer {
             .and(warp::header::optional::<String>("authorization"))
             .and(warp::body::json())
             .and_then({
-                let config_routes = (*configuration_routes).clone();
+                let config_routes = (*configuration_routes).clone(); // Safe: Arc clone for HTTP handler closure
                 move |auth_header: Option<String>, request: crate::configuration_routes::UpdateConfigurationRequest| {
-                    let config_routes = config_routes.clone();
+                    let config_routes = config_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match config_routes
                             .update_user_configuration(auth_header.as_deref(), request)
@@ -1315,9 +1315,9 @@ impl MultiTenantMcpServer {
             .and(warp::header::optional::<String>("authorization"))
             .and(warp::body::json())
             .and_then({
-                let config_routes = (*configuration_routes).clone();
+                let config_routes = (*configuration_routes).clone(); // Safe: Arc clone for HTTP handler closure
                 move |auth_header: Option<String>, request: crate::configuration_routes::PersonalizedZonesRequest| {
-                    let config_routes = config_routes.clone();
+                    let config_routes = config_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match config_routes
                             .calculate_personalized_zones(auth_header.as_deref(), &request)
@@ -1340,9 +1340,9 @@ impl MultiTenantMcpServer {
             .and(warp::header::optional::<String>("authorization"))
             .and(warp::body::json())
             .and_then({
-                let config_routes = (*configuration_routes).clone();
+                let config_routes = (*configuration_routes).clone(); // Safe: Arc clone for HTTP handler closure
                 move |auth_header: Option<String>, request: crate::configuration_routes::ValidateConfigurationRequest| {
-                    let config_routes = config_routes.clone();
+                    let config_routes = config_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match config_routes
                             .validate_configuration(auth_header.as_deref(), &request)
@@ -1392,9 +1392,9 @@ impl MultiTenantMcpServer {
             .and(warp::get())
             .and(warp::header::optional::<String>("authorization"))
             .and_then({
-                let fitness_routes = fitness_config_routes.clone();
+                let fitness_routes = fitness_config_routes.clone(); // Safe: Arc clone for HTTP handler closure
                 move |auth_header: Option<String>| {
-                    let fitness_routes = fitness_routes.clone();
+                    let fitness_routes = fitness_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match fitness_routes
                             .list_configurations(auth_header.as_deref())
@@ -1430,9 +1430,9 @@ impl MultiTenantMcpServer {
             .and(warp::get())
             .and(warp::header::optional::<String>("authorization"))
             .and_then({
-                let fitness_routes = fitness_config_routes.clone();
+                let fitness_routes = fitness_config_routes.clone(); // Safe: Arc clone for HTTP handler closure
                 move |config_name: String, auth_header: Option<String>| {
-                    let fitness_routes = fitness_routes.clone();
+                    let fitness_routes = fitness_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match fitness_routes
                             .get_configuration(auth_header.as_deref(), &config_name)
@@ -1468,9 +1468,9 @@ impl MultiTenantMcpServer {
             .and(warp::header::optional::<String>("authorization"))
             .and(warp::body::json::<crate::fitness_configuration_routes::SaveFitnessConfigRequest>())
             .and_then({
-                let fitness_routes = fitness_config_routes.clone();
+                let fitness_routes = fitness_config_routes.clone(); // Safe: Arc clone for HTTP handler closure
                 move |auth_header: Option<String>, request: crate::fitness_configuration_routes::SaveFitnessConfigRequest| {
-                    let fitness_routes = fitness_routes.clone();
+                    let fitness_routes = fitness_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match fitness_routes
                             .save_user_configuration(auth_header.as_deref(), request)
@@ -1506,9 +1506,9 @@ impl MultiTenantMcpServer {
             .and(warp::delete())
             .and(warp::header::optional::<String>("authorization"))
             .and_then({
-                let fitness_routes = fitness_config_routes.clone();
+                let fitness_routes = fitness_config_routes.clone(); // Safe: Arc clone for HTTP handler closure
                 move |config_name: String, auth_header: Option<String>| {
-                    let fitness_routes = fitness_routes.clone();
+                    let fitness_routes = fitness_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match fitness_routes
                             .delete_user_configuration(auth_header.as_deref(), &config_name)
