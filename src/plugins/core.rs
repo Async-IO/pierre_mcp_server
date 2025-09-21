@@ -150,7 +150,7 @@ pub trait PluginToolStatic: PluginTool {
     const INFO: PluginInfo;
 }
 
-// Remove the blanket implementation - plugins will implement PluginTool directly
+// Plugins implement PluginTool directly for type-safe registration
 
 /// Helper macro to implement `PluginTool` for static plugins
 #[macro_export]

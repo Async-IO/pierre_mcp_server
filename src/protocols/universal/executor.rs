@@ -20,7 +20,7 @@ use crate::protocols::ProtocolError;
 use std::sync::Arc;
 
 /// Intelligence service interface for analysis operations
-/// This will be properly implemented when we extract intelligence logic
+/// Provides abstraction layer for future intelligence module integration
 pub struct IntelligenceService {
     _resources: Arc<ServerResources>,
 }
