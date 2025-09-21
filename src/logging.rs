@@ -277,12 +277,15 @@ impl LoggingConfig {
         info!("Configuration loaded: {}", config_summary);
     }
 
-    /// Create OpenTelemetry layer for distributed tracing (disabled for now)
+    /// Create OpenTelemetry layer for distributed tracing
+    ///
+    /// Currently disabled due to dependency version conflicts with tokio-tungstenite.
+    /// OpenTelemetry requires specific versions that conflict with WebSocket dependencies.
     #[allow(dead_code, clippy::unused_self, clippy::unnecessary_wraps)]
     fn create_telemetry_layer(&self) -> Result<(), anyhow::Error> {
         // OpenTelemetry integration disabled due to version compatibility issues
-        // Will be re-enabled in future with proper version alignment
-        tracing::info!("OpenTelemetry layer creation requested but disabled");
+        // Can be enabled once dependency conflicts are resolved
+        tracing::info!("OpenTelemetry layer creation requested but disabled due to dependency conflicts");
         Ok(())
     }
 
