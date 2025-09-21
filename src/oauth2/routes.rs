@@ -477,16 +477,8 @@ async fn authenticate_user_credentials(
 
 /// Verify password against hash using bcrypt
 fn verify_password(password: &str, hash: &str) -> bool {
-    // For simplicity, we'll implement a basic verification
-    // In production, this should use proper bcrypt verification
-    use sha2::{Digest, Sha256};
-
-    // Simple SHA256 verification - replace with bcrypt in production
-    let mut hasher = Sha256::new();
-    hasher.update(password.as_bytes());
-    let password_hash = format!("{:x}", hasher.finalize());
-
-    password_hash == hash
+    // Use bcrypt to verify password against stored hash
+    bcrypt::verify(password, hash).unwrap_or(false)
 }
 
 /// Handle OAuth login page (GET /oauth2/login)
