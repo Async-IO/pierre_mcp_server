@@ -827,9 +827,9 @@ impl MultiTenantMcpServer {
             .and(warp::get())
             .and(warp::header::optional::<String>("authorization"))
             .and_then({
-                let dashboard_routes = dashboard_routes.clone();
+                let dashboard_routes = dashboard_routes.clone(); // Safe: Arc clone for HTTP handler closure
                 move |auth_header: Option<String>| {
-                    let dashboard_routes = dashboard_routes.clone();
+                    let dashboard_routes = dashboard_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match dashboard_routes
                             .get_rate_limit_overview(auth_header.as_deref())
@@ -864,10 +864,10 @@ impl MultiTenantMcpServer {
             .and(warp::header::optional::<String>("authorization"))
             .and(warp::query::<std::collections::HashMap<String, String>>())
             .and_then({
-                let dashboard_routes = dashboard_routes.clone();
+                let dashboard_routes = dashboard_routes.clone(); // Safe: Arc clone for HTTP handler closure
                 move |auth_header: Option<String>,
                       params: std::collections::HashMap<String, String>| {
-                    let dashboard_routes = dashboard_routes.clone();
+                    let dashboard_routes = dashboard_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         let api_key_id = params.get("api_key_id").map(std::string::String::as_str);
                         let time_range = params.get("time_range").map(std::string::String::as_str);
@@ -902,10 +902,10 @@ impl MultiTenantMcpServer {
             .and(warp::header::optional::<String>("authorization"))
             .and(warp::query::<std::collections::HashMap<String, String>>())
             .and_then({
-                let dashboard_routes = dashboard_routes.clone();
+                let dashboard_routes = dashboard_routes.clone(); // Safe: Arc clone for HTTP handler closure
                 move |auth_header: Option<String>,
                       params: std::collections::HashMap<String, String>| {
-                    let dashboard_routes = dashboard_routes.clone();
+                    let dashboard_routes = dashboard_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         let api_key_id = params.get("api_key_id").map(std::string::String::as_str);
                         let time_range = params.get("time_range").map(std::string::String::as_str);
@@ -932,10 +932,10 @@ impl MultiTenantMcpServer {
             .and(warp::header::optional::<String>("authorization"))
             .and(warp::query::<std::collections::HashMap<String, String>>())
             .and_then({
-                let dashboard_routes = dashboard_routes.clone();
+                let dashboard_routes = dashboard_routes.clone(); // Safe: Arc clone for HTTP handler closure
                 move |auth_header: Option<String>,
                       params: std::collections::HashMap<String, String>| {
-                    let dashboard_routes = dashboard_routes.clone();
+                    let dashboard_routes = dashboard_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         let api_key_id = params.get("api_key_id").map(std::string::String::as_str);
                         let time_range = params.get("time_range").map(std::string::String::as_str);
@@ -974,9 +974,9 @@ impl MultiTenantMcpServer {
             .and(warp::path("agent-card"))
             .and(warp::get())
             .and_then({
-                let a2a_routes = a2a_routes.clone();
+                let a2a_routes = a2a_routes.clone(); // Safe: Arc clone for HTTP handler closure
                 move || {
-                    let a2a_routes = a2a_routes.clone();
+                    let a2a_routes = a2a_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match a2a_routes.get_agent_card() {
                             Ok(agent_card) => Ok(warp::reply::json(&agent_card)),
