@@ -40,20 +40,6 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: Install Chrome
-        run: |
-          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
-          echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
-          sudo apt-get update
-          sudo apt-get install -y google-chrome-stable
-          
-      - name: Install ChromeDriver
-        run: |
-          CHROME_VERSION=$(google-chrome --version | cut -d " " -f3 | cut -d "." -f1)
-          CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_VERSION}")
-          wget -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip"
-          sudo unzip /tmp/chromedriver.zip chromedriver -d /usr/local/bin/
-          sudo chmod +x /usr/local/bin/chromedriver
 
       - name: Cache Rust dependencies
         uses: actions/cache@v4
@@ -136,20 +122,6 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: Install Chrome
-        run: |
-          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
-          echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
-          sudo apt-get update
-          sudo apt-get install -y google-chrome-stable
-          
-      - name: Install ChromeDriver
-        run: |
-          CHROME_VERSION=$(google-chrome --version | cut -d " " -f3 | cut -d "." -f1)
-          CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_VERSION}")
-          wget -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip"
-          sudo unzip /tmp/chromedriver.zip chromedriver -d /usr/local/bin/
-          sudo chmod +x /usr/local/bin/chromedriver
 
       - name: Cache Rust dependencies
         uses: actions/cache@v4
@@ -182,6 +154,9 @@ jobs:
           STRAVA_CLIENT_ID: "test_client_id_ci"
           STRAVA_CLIENT_SECRET: "test_client_secret_ci"
           STRAVA_REDIRECT_URI: "http://localhost:8080/auth/strava/callback"
+          POSTGRES_MAX_CONNECTIONS: "3"
+          POSTGRES_MIN_CONNECTIONS: "1"
+          POSTGRES_ACQUIRE_TIMEOUT: "20"
           RUST_LOG: "info"
 
       - name: Run all tests with coverage (PostgreSQL)
@@ -194,6 +169,9 @@ jobs:
           STRAVA_CLIENT_ID: "test_client_id_ci"
           STRAVA_CLIENT_SECRET: "test_client_secret_ci"
           STRAVA_REDIRECT_URI: "http://localhost:8080/auth/strava/callback"
+          POSTGRES_MAX_CONNECTIONS: "3"
+          POSTGRES_MIN_CONNECTIONS: "1"
+          POSTGRES_ACQUIRE_TIMEOUT: "20"
           RUST_LOG: "debug"
 
       - name: Upload PostgreSQL coverage to Codecov
