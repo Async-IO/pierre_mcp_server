@@ -150,26 +150,26 @@ IGNORED_TESTS=$(rg "#\[ignore\]" tests/ --count 2>/dev/null | awk -F: '{sum+=$2}
 # Memory Management Analysis
 TOTAL_CLONES=$(rg "\.clone\(\)" src/ | wc -l 2>/dev/null || echo 0)
 
-# Count documented safe clones (with // Safe comments)
-SAFE_CLONES=$(rg "\.clone\(\).*// Safe" src/ | wc -l 2>/dev/null || echo 0)
+# Get files with file-level clone safety documentation
+FILES_WITH_CLONE_DOCS=$(rg -l "NOTE: All.*clone.*calls.*Safe" src/ 2>/dev/null || echo "")
 
-# Count legitimate Arc and resource clones
-ARC_RESOURCE_CLONES=$(rg "\.clone\(\)" src/ | rg "Arc::|resources\.|database\.|auth_manager\.|shared_client\(\)\.clone|sse_manager\.clone|websocket_manager\.clone" | wc -l 2>/dev/null || echo 0)
+# Count clones in files WITHOUT file-level documentation
+if [ -n "$FILES_WITH_CLONE_DOCS" ]; then
+    # Create a pattern for grep that matches the full path format from rg output
+    UNDOCUMENTED_CLONES=$(rg "\.clone\(\)" src/ | grep -v -f <(echo "$FILES_WITH_CLONE_DOCS") | wc -l 2>/dev/null || echo 0)
+else
+    UNDOCUMENTED_CLONES=$TOTAL_CLONES
+fi
 
-# Count necessary string/token clones for ownership transfer
-STRING_TOKEN_CLONES=$(rg "\.clone\(\)" src/ | rg "access_token|refresh_token|client_id|client_secret|redirect_uri|email|password|\.to_string\(\)|format!|String::from|token|url|name|path|message|error|Error" | wc -l 2>/dev/null || echo 0)
+# Count individual line-level documented safe clones (in files without file-level docs)
+if [ -n "$FILES_WITH_CLONE_DOCS" ]; then
+    SAFE_CLONES=$(rg "\.clone\(\).*// Safe" src/ | grep -v -f <(echo "$FILES_WITH_CLONE_DOCS") | wc -l 2>/dev/null || echo 0)
+else
+    SAFE_CLONES=$(rg "\.clone\(\).*// Safe" src/ | wc -l 2>/dev/null || echo 0)
+fi
 
-# Count context clones (warp framework requirement)
-CONTEXT_CLONES=$(rg "\.clone\(\)" src/ | rg "context\.clone\(\)" | wc -l 2>/dev/null || echo 0)
-
-# Count configuration clones (thread safety)
-CONFIG_CLONES=$(rg "\.clone\(\)" src/ | rg "config\.|profile\.clone|validation_result\.clone" | wc -l 2>/dev/null || echo 0)
-
-# Total legitimate clones (avoid double counting with unique files+lines)
-LEGITIMATE_CLONES=$((SAFE_CLONES + ARC_RESOURCE_CLONES + STRING_TOKEN_CLONES + CONTEXT_CLONES + CONFIG_CLONES))
-
-# Problematic clones are those not in any legitimate category
-PROBLEMATIC_CLONES=$((TOTAL_CLONES - LEGITIMATE_CLONES))
+# Problematic clones are undocumented clones minus individually documented ones
+PROBLEMATIC_CLONES=$((UNDOCUMENTED_CLONES - SAFE_CLONES))
 
 # Advanced Arc analysis
 TOTAL_ARCS=$(rg "Arc::" src/ | wc -l 2>/dev/null || echo 0)
@@ -379,14 +379,24 @@ echo "├───────────────────────�
 # Memory Management Analysis
 printf "│ %-35s │ %5d │ " "Problematic clones found" "$PROBLEMATIC_CLONES"
 if [ "$PROBLEMATIC_CLONES" -eq 0 ]; then
-    printf "$(format_status "✅ PASS")│ %-39s │\n" "All $TOTAL_CLONES clones are legitimate"
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "All clones documented as safe"
 else
-    FIRST_PROBLEMATIC_CLONE=$(get_first_location 'rg "\.clone\(\)" src/ | rg -v "// Safe|Arc::|resources\.|database\.|auth_manager\.|shared_client\(\)\.clone|sse_manager\.clone|websocket_manager\.clone|access_token|refresh_token|client_id|client_secret|redirect_uri|email|password|\.to_string\(\)|format!|String::from|token|url|name|path|message|error|Error|context\.clone\(\)|config\.|profile\.clone|validation_result\.clone" -n')
+    # Get first problematic clone from files without file-level docs, excluding individually documented ones
+    if [ -n "$FILES_WITH_CLONE_DOCS" ]; then
+        FIRST_PROBLEMATIC_CLONE=$(get_first_location 'rg "\.clone\(\)" src/ | grep -v -f <(echo "$FILES_WITH_CLONE_DOCS") | rg -v "// Safe" -n')
+    else
+        FIRST_PROBLEMATIC_CLONE=$(get_first_location 'rg "\.clone\(\)" src/ | rg -v "// Safe" -n')
+    fi
     printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_PROBLEMATIC_CLONE"
 fi
 
-printf "│ %-35s │ %5d │ " "Total clone usage" "$TOTAL_CLONES"
-printf "$(format_status "⚠️ INFO")│ %-39s │\n" "$LEGITIMATE_CLONES legitimate, $PROBLEMATIC_CLONES problematic"
+printf "│ %-35s │ %5d │ " "Clone usage" "$TOTAL_CLONES"
+DOCUMENTED_FILES_COUNT=$(echo "$FILES_WITH_CLONE_DOCS" | grep -v '^$' | wc -l 2>/dev/null || echo 0)
+if [ "$PROBLEMATIC_CLONES" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "All documented as safe"
+else
+    printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$DOCUMENTED_FILES_COUNT files documented, $PROBLEMATIC_CLONES need attention"
+fi
 
 printf "│ %-35s │ %5d │ " "Arc usage" "$TOTAL_ARCS"
 if [ "$TOTAL_ARCS" -lt 50 ]; then
