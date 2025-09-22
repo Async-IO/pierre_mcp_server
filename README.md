@@ -5,7 +5,7 @@
 
 **Development Status**: This project is under active development. APIs and features may change.
 
-A high-performance MCP (Model Context Protocol) server that connects AI assistants to fitness data platforms. Built in Rust for enterprise-grade performance, it provides secure multi-tenant access to fitness data from providers like Strava and Fitbit, with real-time notifications, OAuth 2.0 server capabilities, and extensible plugin architecture.
+A high-performance Model Context Protocol (MCP) server that provides AI assistants with secure access to fitness data and analytics. Built in Rust for enterprise-grade performance, it offers multi-tenant fitness data aggregation from providers like Strava and Fitbit, with advanced analytics, OAuth 2.0 server capabilities, and real-time notifications.
 
 ## Key Features
 
@@ -26,27 +26,53 @@ A high-performance MCP (Model Context Protocol) server that connects AI assistan
 - **OAuth 2.0 Provider**: Act as authorization server for fitness applications using mcp-remote
 - **Real-time Dashboards**: Stream live notifications for OAuth flows and system events
 
-## Installation
+## Quick Start
 
-### Setup
+### Prerequisites
+
+- Rust 1.70+
+- SQLite (default) or PostgreSQL (production)
+
+### Installation
 
 ```bash
 git clone https://github.com/Async-IO/pierre_mcp_server.git
 cd pierre_mcp_server
 cargo build --release
+```
 
-# Start the server
+### Basic Setup
+
+1. **Set required environment variables:**
+```bash
+export DATABASE_URL="sqlite:./data/pierre.db"
+export PIERRE_MASTER_ENCRYPTION_KEY="$(openssl rand -base64 32)"
+```
+
+2. **Start the server:**
+```bash
 cargo run --bin pierre-mcp-server
 ```
 
-### Automated Setup
+3. **Create admin user:**
+```bash
+curl -X POST http://localhost:8081/admin/setup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@example.com",
+    "password": "SecurePass123!",
+    "display_name": "System Administrator"
+  }'
+```
 
-For development and testing, use the automated workflow:
+### Automated Development Setup
+
+For development and testing:
 
 ```bash
 # Clean database and start fresh server
 ./scripts/fresh-start.sh
-source .envrc && RUST_LOG=debug cargo run --bin pierre-mcp-server &
+RUST_LOG=debug cargo run --bin pierre-mcp-server &
 
 # Run complete setup (admin + user + tenant + login + MCP test)
 ./scripts/complete-user-workflow.sh
@@ -85,7 +111,7 @@ Pierre MCP Server supports multiple MCP client configurations:
 ### Option 2: OAuth 2.0 with mcp-remote (Recommended)
 ```bash
 # Use mcp-remote for automatic OAuth 2.0 authentication
-mcp-remote http://localhost:8080/mcp --allow-http
+mcp-remote http://localhost:8081/mcp --allow-http
 ```
 
 The OAuth 2.0 flow will automatically:
@@ -98,22 +124,27 @@ Replace `YOUR_JWT_TOKEN` with the JWT token obtained from the authentication pro
 
 ## Available Tools
 
-<details>
-<summary>Core Fitness Data Tools</summary>
+### Core Fitness Data Tools
 
 | Tool | Description | Required Parameters |
 |------|-------------|-------------------|
-| `get_activities` | Get activities from fitness providers | `limit` (optional) |
+| `get_activities` | Get activities from fitness providers | `provider` (optional), `limit` (optional) |
 | `get_athlete` | Get athlete information | None |
 | `get_stats` | Get athlete statistics | None |
 | `get_activity_intelligence` | Get AI intelligence for activity | `activity_id` |
 | `get_connection_status` | Check provider connection status | None |
 | `disconnect_provider` | Disconnect and remove stored tokens for a specific fitness provider | `provider` |
 
-</details>
+### Notification Management Tools
 
-<details>
-<summary>Analytics & Performance Tools</summary>
+| Tool | Description | Required Parameters |
+|------|-------------|-------------------|
+| `get_notifications` | Get user notifications | None |
+| `mark_notifications_read` | Mark notifications as read | None |
+| `announce_oauth_success` | Announce OAuth flow completion | None |
+| `check_oauth_notifications` | Check for OAuth notifications | None |
+
+### Analytics & Performance Tools
 
 | Tool | Description | Required Parameters |
 |------|-------------|-------------------|
@@ -127,10 +158,7 @@ Replace `YOUR_JWT_TOKEN` with the JWT token obtained from the authentication pro
 | `analyze_training_load` | Analyze training load balance and recovery needs | None |
 | `generate_recommendations` | Generate personalized training recommendations | None |
 
-</details>
-
-<details>
-<summary>Goal & Training Tools</summary>
+### Goal & Training Tools
 
 | Tool | Description | Required Parameters |
 |------|-------------|-------------------|
@@ -139,10 +167,7 @@ Replace `YOUR_JWT_TOKEN` with the JWT token obtained from the authentication pro
 | `suggest_goals` | Generate AI-powered goal suggestions | None |
 | `analyze_goal_feasibility` | Assess whether a goal is realistic and achievable | `goal_data` |
 
-</details>
-
-<details>
-<summary>Configuration Tools</summary>
+### Configuration Tools
 
 | Tool | Description | Required Parameters |
 |------|-------------|-------------------|
@@ -153,7 +178,14 @@ Replace `YOUR_JWT_TOKEN` with the JWT token obtained from the authentication pro
 | `calculate_personalized_zones` | Calculate personalized training zones based on user's VO2 max and configuration | None |
 | `validate_configuration` | Validate configuration parameters against safety rules and constraints | `parameters` |
 
-</details>
+### Fitness Configuration Tools
+
+| Tool | Description | Required Parameters |
+|------|-------------|-------------------|
+| `get_fitness_config` | Get current fitness configuration | None |
+| `set_fitness_config` | Set fitness configuration parameters | `config` |
+| `list_fitness_configs` | List available fitness configurations | None |
+| `delete_fitness_config` | Delete a fitness configuration | `config_id` |
 
 ## Plugin System
 
@@ -213,10 +245,12 @@ Pierre supports Agent-to-Agent communication for building autonomous fitness age
 - **Protocol Versioning**: Forward-compatible A2A message format
 
 **A2A Endpoints:**
-- `GET /a2a/agents` - Discover available agents
-- `POST /a2a/register` - Register new agent
-- `POST /a2a/message` - Send message to agent
-- `GET /a2a/agent/{id}/capabilities` - Get agent capabilities
+- `GET /a2a/status` - Get A2A protocol status
+- `GET /a2a/tools` - Get available A2A tools
+- `POST /a2a/execute` - Execute A2A tool
+- `GET /a2a/monitoring` - Get A2A monitoring information
+- `GET /a2a/client/tools` - Get client-specific A2A tools
+- `POST /a2a/client/execute` - Execute client A2A tool
 
 **Example A2A Integration:**
 ```rust
@@ -245,8 +279,7 @@ async fn main() -> Result<()> {
 Pierre provides Server-Sent Events (SSE) for real-time updates:
 
 **Notification Endpoints:**
-- `GET /notifications/sse/{user_id}` - Subscribe to user notifications
-- `GET /oauth/notifications/sse/{user_id}` - Subscribe to OAuth flow updates
+- `GET /notifications/sse?user_id={user_id}` - Subscribe to user notifications
 
 **Notification Types:**
 - OAuth authorization completion
@@ -256,7 +289,7 @@ Pierre provides Server-Sent Events (SSE) for real-time updates:
 
 **Example SSE Integration:**
 ```javascript
-const eventSource = new EventSource('/notifications/sse/user-123');
+const eventSource = new EventSource('/notifications/sse?user_id=user-123');
 
 eventSource.onmessage = function(event) {
     const notification = JSON.parse(event.data);
@@ -301,34 +334,30 @@ mcp-remote http://localhost:8080/mcp --allow-http
 
 ### JWT Token Authentication
 
-1. Create admin account and approve users:
+1. **Create admin user** (using admin-setup binary):
 ```bash
-# Create admin user (single server on port 8080)
-ADMIN_RESPONSE=$(curl -s -X POST http://localhost:8080/admin/setup \
-  -H "Content-Type: application/json" \
-  -d '{"email": "admin@example.com", "password": "SecurePass123!", "display_name": "Admin"}')
-
-ADMIN_TOKEN=$(echo $ADMIN_RESPONSE | jq -r '.admin_token')
-
-# Register and approve user
-USER_ID=$(curl -s -X POST http://localhost:8080/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email": "user@example.com", "password": "pass123", "display_name": "User"}' | jq -r '.user_id')
-
-curl -s -X POST "http://localhost:8080/admin/approve-user/$USER_ID" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"reason": "Approved", "create_default_tenant": true}'
+# Create admin user with admin-setup binary
+cargo run --bin admin-setup -- create-admin-user \
+  --email admin@example.com \
+  --password SecurePass123!
 ```
 
-2. Get JWT token for MCP integration:
+2. **User registration and login:**
 ```bash
-# Direct JWT token approach
+# Register a new user
+curl -X POST http://localhost:8080/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "pass123", "display_name": "User"}'
+
+# Get JWT token for MCP integration
 JWT_TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email": "user@example.com", "password": "pass123"}' | jq -r '.jwt_token')
+```
 
-# OR use OAuth 2.0 flow via mcp-remote (recommended)
+3. **Alternative: OAuth 2.0 flow** (recommended):
+```bash
+# Use mcp-remote for automatic OAuth 2.0 authentication
 mcp-remote http://localhost:8080/mcp --allow-http
 ```
 
@@ -382,28 +411,32 @@ The server will use these client-specific credentials instead of the shared serv
 ```bash
 # Core Configuration
 DATABASE_URL=sqlite:./data/pierre.db
-PIERRE_MASTER_ENCRYPTION_KEY=your_32_byte_base64_key
+PIERRE_MASTER_ENCRYPTION_KEY=your_32_byte_base64_key  # Generate with: openssl rand -base64 32
 ```
 
 #### Optional
 ```bash
-# Server Configuration (Consolidated Architecture)
+# Server Configuration
 HTTP_PORT=8080  # Single port for all protocols (MCP + OAuth 2.0 + REST API)
 HOST=localhost
 
 # Logging
 RUST_LOG=info
+LOG_FORMAT=json  # For structured logging
 
 # Database (Production)
 DATABASE_URL=postgresql://user:pass@localhost:5432/pierre
 
-# OAuth 2.0 Configuration
+# OAuth Provider Configuration (for fitness data integration)
 STRAVA_CLIENT_ID=your_strava_client_id
 STRAVA_CLIENT_SECRET=your_strava_client_secret
 STRAVA_REDIRECT_URI=http://localhost:8080/api/oauth/callback/strava
 
 # JWT Configuration
 JWT_EXPIRY_HOURS=24
+
+# OpenWeather API (for activity intelligence)
+OPENWEATHER_API_KEY=your_openweather_api_key
 ```
 
 ### Fitness Configuration

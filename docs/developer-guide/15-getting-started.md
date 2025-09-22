@@ -77,26 +77,29 @@ cp .env.example .env
 Edit `.env` with your settings:
 
 ```bash
-# Database Configuration
-DATABASE_URL="sqlite:pierre.db"  # For development
-# DATABASE_URL="postgresql://user:pass@localhost/pierre"  # For PostgreSQL
+# Required Configuration
+DATABASE_URL="sqlite:./data/pierre.db"  # For development
+PIERRE_MASTER_ENCRYPTION_KEY="your_32_byte_base64_key"  # Generate with: openssl rand -base64 32
 
-# Server Configuration
+# Optional Configuration
+HTTP_PORT=8080  # Single port for all protocols
 HOST="127.0.0.1"
-PORT="3000"
-JWT_SECRET="your-super-secret-jwt-key-change-this-in-production"
+RUST_LOG=info
+LOG_FORMAT=json
 
-# Redis Configuration (optional for development)
-REDIS_URL="redis://localhost:6379"
+# Production Database
+# DATABASE_URL="postgresql://user:pass@localhost/pierre"
 
 # OAuth Credentials (get these from provider developer consoles)
 STRAVA_CLIENT_ID="your_strava_client_id"
 STRAVA_CLIENT_SECRET="your_strava_client_secret"
-STRAVA_REDIRECT_URI="http://localhost:8081/api/oauth/strava/callback"
+STRAVA_REDIRECT_URI="http://localhost:8080/api/oauth/callback/strava"
 
-FITBIT_CLIENT_ID="your_fitbit_client_id"
-FITBIT_CLIENT_SECRET="your_fitbit_client_secret"
-FITBIT_REDIRECT_URI="http://localhost:8081/api/oauth/fitbit/callback"
+# JWT Configuration
+JWT_EXPIRY_HOURS=24
+
+# OpenWeather API (for activity intelligence)
+OPENWEATHER_API_KEY="your_openweather_api_key"
 
 # Logging
 RUST_LOG="info,pierre_mcp_server=debug"
@@ -203,20 +206,23 @@ Settings (`.vscode/settings.json`):
 cargo run --bin pierre-mcp-server
 ```
 
+The server will start on port 8081 by default and display all available endpoints.
+
 ### 2. Initialize Admin User
 
-Visit: `http://localhost:8081/admin/setup/status`
+The server is ready for admin setup via REST API. Create the initial admin user:
 
-If setup is needed, create admin user:
 ```bash
 curl -X POST http://localhost:8081/admin/setup \
   -H "Content-Type: application/json" \
   -d '{
     "email": "admin@example.com",
-    "password": "securepassword123",
+    "password": "SecurePass123!",
     "display_name": "System Administrator"
   }'
 ```
+
+This will return an admin token for administrative operations.
 
 ### 3. Register Your First User
 
@@ -224,9 +230,9 @@ curl -X POST http://localhost:8081/admin/setup \
 curl -X POST http://localhost:8081/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "developer@example.com",
-    "password": "securepassword123",
-    "display_name": "Developer User"
+    "email": "user@example.com",
+    "password": "userpass123",
+    "display_name": "Regular User"
   }'
 ```
 
@@ -238,16 +244,19 @@ curl -X POST http://localhost:8081/api/auth/register \
 }
 ```
 
-### 4. Approve the User (Admin Action)
+### 4. Approve User (Admin Action)
 
-New users require admin approval before they can login:
+New users require admin approval:
 
 ```bash
-curl -X POST http://localhost:8081/admin/approve-user/550e8400-e29b-41d4-a716-446655440000 \
-  -H "Authorization: Bearer ADMIN_JWT_TOKEN" \
+curl -X POST "http://localhost:8081/admin/approve-user/550e8400-e29b-41d4-a716-446655440000" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
   -d '{
-    "reason": "Development team member"
+    "reason": "User registration approved",
+    "create_default_tenant": true,
+    "tenant_name": "User Organization",
+    "tenant_slug": "user-org"
   }'
 ```
 
@@ -256,54 +265,56 @@ curl -X POST http://localhost:8081/admin/approve-user/550e8400-e29b-41d4-a716-44
 After approval, users can login:
 
 ```bash
-curl -X POST http://localhost:8081/api/auth/login \
+JWT_TOKEN=$(curl -s -X POST http://localhost:8081/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "developer@example.com",
-    "password": "securepassword123"
-  }'
+    "email": "user@example.com",
+    "password": "userpass123"
+  }' | jq -r '.jwt_token')
+
+echo "JWT Token: $JWT_TOKEN"
 ```
 
-Save the `jwt_token` from the response for API calls.
-
-### 6. Create Your First API Key
-
-```bash
-curl -X POST http://localhost:8081/api/keys/create-simple \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -d '{
-    "name": "Development Key",
-    "description": "My first API key"
-  }'
-```
-
-Save the `api_key` from the response for MCP/A2A clients.
+Save the JWT token for API calls and MCP integration.
 
 ## Testing Your Setup
 
-### 1. Test REST API
+### 1. Test Health Check
 
 ```bash
-# Test API key listing
-curl -X GET http://localhost:8081/api/keys/list \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN"
-
-# Test dashboard overview
-curl -X GET http://localhost:8081/api/dashboard/overview \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+curl -X GET http://localhost:8081/health
 ```
 
-### 2. Test WebSocket/MCP Connection
+### 2. Test MCP Tools Listing
+
+```bash
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/list"
+  }'
+```
+
+### 3. Test OAuth 2.0 Server
+
+```bash
+# Get OAuth 2.0 server metadata
+curl -X GET http://localhost:8081/.well-known/oauth-authorization-server
+```
+
+### 4. Test MCP WebSocket Connection
 
 Create a test file `test_mcp.js`:
 
 ```javascript
 const WebSocket = require('ws');
 
-const ws = new WebSocket('ws://localhost:8080/ws', {
+const ws = new WebSocket('ws://localhost:8080/mcp/ws', {
   headers: {
-    'X-API-Key': 'YOUR_API_KEY'
+    'Authorization': 'Bearer YOUR_JWT_TOKEN'
   }
 });
 
