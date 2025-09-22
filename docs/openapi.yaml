@@ -36,7 +36,7 @@ info:
 servers:
   - url: http://localhost:8081
     description: Local Development (HTTP API)
-  - url: ws://localhost:8080
+  - url: ws://localhost:8081
     description: Local Development (MCP over WebSocket)
   - url: https://api.pierre-fitness.com
     description: Production API

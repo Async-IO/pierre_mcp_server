@@ -103,7 +103,7 @@ pub struct TenantContext {
 
 ### 2. Consolidated Server Architecture
 
-All protocols run on a single port (8080) for simplified deployment:
+All protocols run on a single port (8081) for simplified deployment:
 
 ```rust
 // src/mcp/multitenant.rs

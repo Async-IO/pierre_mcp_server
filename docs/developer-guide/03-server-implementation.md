@@ -623,8 +623,7 @@ pub struct ServerConfig {
 ### Environment Variables
 
 ```bash
-# Server configuration
-PIERRE_MCP_PORT=8080
+# Server configuration (unified port architecture)
 PIERRE_HTTP_PORT=8081
 PIERRE_MAX_CONNECTIONS=1000
 PIERRE_REQUEST_TIMEOUT=30

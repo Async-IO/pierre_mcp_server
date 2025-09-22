@@ -23,7 +23,7 @@ This document provides a reference for all Pierre MCP Server REST API endpoints,
 
 ```
 Development: http://localhost:8081 (HTTP API and authentication)
-MCP Protocol: http://localhost:8080 (MCP JSON-RPC)
+MCP Protocol: http://localhost:8081/mcp (MCP JSON-RPC endpoint)
 ```
 
 **API Version**: All endpoints are currently version 1.0. Future versions will be indicated in the URL path.

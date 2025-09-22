@@ -21,7 +21,7 @@ The server uses JWT tokens for secure authentication:
 
 ```bash
 # Authentication flow example
-curl -X POST http://localhost:8080/admin/setup \
+curl -X POST http://localhost:8081/admin/setup \
   -H "Content-Type: application/json" \
   -d '{"admin_name": "admin", "admin_email": "admin@example.com"}'
 ```

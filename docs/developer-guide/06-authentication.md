@@ -101,9 +101,9 @@ graph TB
 
 For these examples, assume Pierre is deployed at:
 - **Production HTTP API**: `https://pierre-api.example.com` (port 8081 behind load balancer)
-- **Production MCP**: `https://pierre-api.example.com:8080` (MCP protocol)
+- **Production MCP**: `https://pierre-api.example.com/mcp` (MCP protocol endpoint)
 - **Development HTTP API**: `http://localhost:8081` (authentication and admin)
-- **Development MCP**: `http://localhost:8080` (MCP protocol)
+- **Development MCP**: `http://localhost:8081/mcp` (MCP protocol endpoint)
 
 ### 1. Admin Setup Flow
 
@@ -402,10 +402,10 @@ Pierre's OAuth 2.0 Authorization Server integrates with MCP for seamless authent
 
 ```bash
 # mcp-remote automatically discovers OAuth 2.0 capabilities
-curl -X GET http://localhost:8080/.well-known/oauth-authorization-server
+curl -X GET http://localhost:8081/.well-known/oauth-authorization-server
 
 # mcp-remote registers as OAuth 2.0 client
-curl -X POST http://localhost:8080/oauth/register \
+curl -X POST http://localhost:8081/oauth/register \
   -H "Content-Type: application/json" \
   -d '{
     "redirect_uris": ["http://localhost:35535/oauth/callback"],
@@ -425,7 +425,7 @@ sequenceDiagram
     participant Browser as Browser
     participant Claude as Claude
 
-    User->>McpRemote: mcp-remote http://localhost:8080/mcp
+    User->>McpRemote: mcp-remote http://localhost:8081/mcp
     McpRemote->>Pierre: GET /.well-known/oauth-authorization-server
     Pierre-->>McpRemote: OAuth 2.0 metadata
 
@@ -472,7 +472,7 @@ This JWT contains user and tenant information for MCP tool execution.
 {
   "mcpServers": {
     "pierre-fitness": {
-      "url": "http://127.0.0.1:8080/mcp",
+      "url": "http://127.0.0.1:8081/mcp",
       "headers": {
         "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
       }
@@ -1175,8 +1175,7 @@ export STRAVA_CLIENT_SECRET="your_production_strava_client_secret"
 export FITBIT_CLIENT_ID="your_production_fitbit_client_id"
 export FITBIT_CLIENT_SECRET="your_production_fitbit_client_secret"
 
-# Server configuration
-export PIERRE_MCP_PORT=8080
+# Server configuration (unified port architecture)
 export PIERRE_HTTP_PORT=8081
 export PIERRE_BASE_URL="https://pierre-api.example.com"
 
@@ -1204,8 +1203,7 @@ services:
   pierre-api:
     image: pierre-mcp-server:latest
     ports:
-      - "8080:8080"
-      - "8081:8081"
+      - "8081:8081"   # HTTP port (includes MCP endpoint at /mcp)
     environment:
       - DATABASE_URL=postgresql://pierre:${DB_PASSWORD}@postgres:5432/pierre
       # Two-tier key management - MEK from secure source
@@ -1427,7 +1425,7 @@ For development and simple deployments, OAuth credentials can be provided via en
 # .envrc or environment configuration
 export STRAVA_CLIENT_ID=163846
 export STRAVA_CLIENT_SECRET=1dfc45ad0a1f6983b835e4495aa9473d111d03bc
-export STRAVA_REDIRECT_URI=http://localhost:8080/auth/strava/callback
+export STRAVA_REDIRECT_URI=http://localhost:8081/auth/strava/callback
 ```
 
 **Implementation:**
@@ -1487,23 +1485,26 @@ All 26 tools now use the unified OAuth resolution system:
 
 **Development (.envrc):**
 ```bash
-# OAuth Provider Configuration 
+# OAuth Provider Configuration
 export STRAVA_CLIENT_ID=your-dev-strava-client-id
-export STRAVA_CLIENT_SECRET=your-dev-strava-client-secret  
-export STRAVA_REDIRECT_URI=http://localhost:8080/auth/strava/callback
+export STRAVA_CLIENT_SECRET=your-dev-strava-client-secret
+export STRAVA_REDIRECT_URI=http://localhost:8081/auth/strava/callback
 
 # Server Configuration
 export PIERRE_PORT=8081
 export PIERRE_HOST=0.0.0.0
 export RUST_LOG=info
 export DATABASE_URL=sqlite:data/pierre.db
+
+# Authentication
+export JWT_SECRET_PATH=./data/jwt.secret
 ```
 
 **Production (GCP/AWS/Docker):**
 ```bash
 # OAuth Provider Configuration (production-ready URLs)
 export STRAVA_CLIENT_ID=your-prod-strava-client-id
-export STRAVA_CLIENT_SECRET=your-prod-strava-client-secret  
+export STRAVA_CLIENT_SECRET=your-prod-strava-client-secret
 export STRAVA_REDIRECT_URI=https://pierre-api.example.com/auth/strava/callback
 
 # Production server configuration
@@ -1511,6 +1512,9 @@ export PIERRE_PORT=8081
 export PIERRE_HOST=0.0.0.0
 export RUST_LOG=warn
 export DATABASE_URL=postgresql://user:pass@db.example.com:5432/pierre_prod
+
+# Authentication (production)
+export JWT_SECRET_PATH=/secrets/jwt.secret
 ```
 
 #### Docker Compose Example
@@ -1521,8 +1525,7 @@ services:
   pierre-api:
     image: pierre-mcp-server:latest
     ports:
-      - "8080:8080"
-      - "8081:8081"
+      - "8081:8081"   # HTTP port (includes MCP endpoint at /mcp)
     environment:
       # OAuth credentials from secrets
       - STRAVA_CLIENT_ID_FILE=/run/secrets/strava_client_id

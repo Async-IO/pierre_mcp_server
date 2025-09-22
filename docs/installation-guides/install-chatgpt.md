@@ -65,7 +65,7 @@ Add the following configuration:
 {
   "mcpServers": {
     "pierre-fitness": {
-      "url": "http://127.0.0.1:8080/mcp",
+      "url": "http://127.0.0.1:8081/mcp",
       "headers": {
         "Authorization": "Bearer YOUR_JWT_TOKEN_FROM_SETUP"
       }
@@ -142,7 +142,7 @@ cat ~/Library/Application\ Support/ChatGPT/config.json | jq .
 
 2. **Check server status:**
 ```bash
-curl http://localhost:8080/health
+curl http://localhost:8081/health
 ```
 
 3. **Review application logs:**
@@ -154,7 +154,7 @@ curl http://localhost:8080/health
 1. **Test MCP connection directly:**
 ```bash
 # Test the MCP endpoint
-curl -X POST "http://127.0.0.1:8080/mcp" \
+curl -X POST "http://127.0.0.1:8081/mcp" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $JWT_TOKEN" \
   -d '{"jsonrpc": "2.0", "method": "tools/list", "id": 1}'
@@ -229,9 +229,11 @@ Create `.env` file for configuration:
 DATABASE_URL=sqlite:./data/pierre.db
 PIERRE_MASTER_ENCRYPTION_KEY=your_32_byte_key
 
-# Servers
-MCP_PORT=8080
+# Server Configuration
 HTTP_PORT=8081
+
+# Authentication
+JWT_SECRET_PATH=./data/jwt.secret
 
 # OAuth
 STRAVA_CLIENT_ID=your_client_id

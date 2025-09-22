@@ -449,8 +449,7 @@ JWT_SECRET_PATH=data/jwt.secret
 JWT_EXPIRY_HOURS=24
 
 # Server
-HTTP_PORT=8080
-MCP_PORT=8081
+HTTP_PORT=8081  # Single port for all protocols (HTTP API + MCP)
 
 # Providers
 STRAVA_CLIENT_ID=xxx

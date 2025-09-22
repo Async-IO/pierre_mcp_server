@@ -86,7 +86,7 @@ Create or update the configuration file with the following content:
 {
   "mcpServers": {
     "pierre-fitness": {
-      "url": "http://127.0.0.1:8080/mcp",
+      "url": "http://127.0.0.1:8081/mcp",
       "headers": {
         "Authorization": "Bearer YOUR_JWT_TOKEN_FROM_ABOVE"
       }
@@ -105,7 +105,7 @@ If you prefer a direct WebSocket connection (requires server to be running):
 {
   "mcpServers": {
     "pierre-fitness": {
-      "url": "ws://127.0.0.1:8080/ws",
+      "url": "ws://127.0.0.1:8081/ws"
       "headers": {
         "Authorization": "Bearer YOUR_JWT_TOKEN_FROM_ABOVE"
       }
@@ -179,7 +179,7 @@ cat ~/Library/Application\ Support/Claude/claude_desktop_config.json | jq .
 
 2. **Verify server is running:**
 ```bash
-curl http://localhost:8080/health
+curl http://localhost:8081/health
 ```
 
 3. **Check Claude Desktop logs:**
@@ -201,7 +201,7 @@ RUST_LOG=debug cargo run --bin pierre-mcp-server
 3. **Test MCP connection directly:**
 ```bash
 # Test the MCP endpoint
-curl -X POST "http://127.0.0.1:8080/mcp" \
+curl -X POST "http://127.0.0.1:8081/mcp" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $JWT_TOKEN" \
   -d '{"jsonrpc": "2.0", "method": "tools/list", "id": 1}'
@@ -261,9 +261,11 @@ Create a `.env` file for persistent configuration:
 DATABASE_URL=sqlite:./data/pierre.db
 PIERRE_MASTER_ENCRYPTION_KEY=your_32_byte_base64_key
 
-# Server Ports
-MCP_PORT=8080
+# Server Configuration
 HTTP_PORT=8081
+
+# Authentication
+JWT_SECRET_PATH=./data/jwt.secret
 
 # OAuth Providers
 STRAVA_CLIENT_ID=your_strava_client_id

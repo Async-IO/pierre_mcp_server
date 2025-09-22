@@ -82,7 +82,7 @@ DATABASE_URL="sqlite:./data/pierre.db"  # For development
 PIERRE_MASTER_ENCRYPTION_KEY="your_32_byte_base64_key"  # Generate with: openssl rand -base64 32
 
 # Optional Configuration
-HTTP_PORT=8080  # Single port for all protocols
+HTTP_PORT=8081  # Single port for all protocols
 HOST="127.0.0.1"
 RUST_LOG=info
 LOG_FORMAT=json
@@ -93,10 +93,11 @@ LOG_FORMAT=json
 # OAuth Credentials (get these from provider developer consoles)
 STRAVA_CLIENT_ID="your_strava_client_id"
 STRAVA_CLIENT_SECRET="your_strava_client_secret"
-STRAVA_REDIRECT_URI="http://localhost:8080/api/oauth/callback/strava"
+STRAVA_REDIRECT_URI="http://localhost:8081/api/oauth/callback/strava"
 
 # JWT Configuration
 JWT_EXPIRY_HOURS=24
+JWT_SECRET_PATH=./data/jwt.secret
 
 # OpenWeather API (for activity intelligence)
 OPENWEATHER_API_KEY="your_openweather_api_key"
@@ -288,7 +289,7 @@ curl -X GET http://localhost:8081/health
 ### 2. Test MCP Tools Listing
 
 ```bash
-curl -X POST http://localhost:8080/mcp \
+curl -X POST http://localhost:8081/mcp \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $JWT_TOKEN" \
   -d '{
@@ -312,7 +313,7 @@ Create a test file `test_mcp.js`:
 ```javascript
 const WebSocket = require('ws');
 
-const ws = new WebSocket('ws://localhost:8080/mcp/ws', {
+const ws = new WebSocket('ws://localhost:8081/mcp/ws', {
   headers: {
     'Authorization': 'Bearer YOUR_JWT_TOKEN'
   }
@@ -525,7 +526,7 @@ cargo run --bin pierre-mcp-server
 {
   "mcpServers": {
     "pierre-fitness": {
-      "url": "http://127.0.0.1:8080/mcp",
+      "url": "http://127.0.0.1:8081/mcp",
       "headers": {
         "Authorization": "Bearer USER_JWT_TOKEN_FROM_LOGIN"
       }
@@ -543,7 +544,7 @@ Different MCP clients use different configuration file locations. Consult your M
 {
   "mcpServers": {
     "pierre-fitness": {
-      "url": "http://127.0.0.1:8080/mcp",
+      "url": "http://127.0.0.1:8081/mcp",
       "headers": {
         "Authorization": "Bearer USER_JWT_TOKEN_FROM_LOGIN"
       }
@@ -698,7 +699,7 @@ Error: `WebSocket connection failed`
 
 Solutions:
 - Check API key is valid: `curl -X GET http://localhost:8081/api/keys/list -H "Authorization: Bearer JWT"`
-- Verify WebSocket endpoint: `ws://localhost:8080/ws`
+- Verify WebSocket endpoint: `ws://localhost:8081/ws`
 - Check server logs for authentication errors
 - Ensure API key header format: `X-API-Key: your_key`
 

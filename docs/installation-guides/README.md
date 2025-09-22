@@ -63,8 +63,8 @@ DATABASE_URL=sqlite:./data/pierre.db cargo run --bin pierre-mcp-server
 
 ### Port Conflicts
 ```bash
-# Use custom ports
-MCP_PORT=8080 HTTP_PORT=8081 cargo run --bin pierre-mcp-server
+# Use custom port (unified architecture)
+HTTP_PORT=8081 cargo run --bin pierre-mcp-server
 ```
 
 ### OAuth Configuration

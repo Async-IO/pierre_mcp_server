@@ -76,8 +76,7 @@ Configuration values are resolved in the following order (highest priority first
 # === Server Configuration ===
 PIERRE_ENVIRONMENT=production          # development, production, testing
 PIERRE_LOG_LEVEL=info                 # error, warn, info, debug, trace
-PIERRE_MCP_PORT=8080                  # MCP protocol port
-PIERRE_HTTP_PORT=8081                 # HTTP API port
+PIERRE_HTTP_PORT=8081                 # Single port for all protocols (HTTP API + MCP at /mcp)
 PIERRE_BASE_URL=https://pierre-api.example.com
 
 # === Database Configuration ===
@@ -156,8 +155,10 @@ impl ServerConfig {
             log_level: LogLevel::from_str_or_default(
                 &env::var("PIERRE_LOG_LEVEL").unwrap_or_default()
             ),
+            // Note: MCP protocol is now served on the same port as HTTP API
+            // Legacy config kept for backwards compatibility
             mcp_port: env::var("PIERRE_MCP_PORT")
-                .unwrap_or_else(|_| "8080".to_string())
+                .unwrap_or_else(|_| "8081".to_string())
                 .parse()
                 .context("Invalid MCP port")?,
             http_port: env::var("PIERRE_HTTP_PORT")
@@ -489,8 +490,7 @@ services:
   pierre-api:
     image: pierre-mcp-server:latest
     ports:
-      - "8080:8080"   # MCP port
-      - "8081:8081"   # HTTP port
+      - "8081:8081"   # HTTP port (includes MCP endpoint at /mcp)
     environment:
       # Server configuration
       PIERRE_ENVIRONMENT: production
@@ -611,7 +611,6 @@ metadata:
 data:
   PIERRE_ENVIRONMENT: "production"
   PIERRE_LOG_LEVEL: "info"
-  PIERRE_MCP_PORT: "8080"
   PIERRE_HTTP_PORT: "8081"
   PIERRE_BASE_URL: "https://pierre-api.example.com"
   DATABASE_MAX_CONNECTIONS: "50"
@@ -654,10 +653,8 @@ spec:
       - name: pierre-api
         image: pierre-mcp-server:latest
         ports:
-        - containerPort: 8080
-          name: mcp
         - containerPort: 8081
-          name: http
+          name: http-mcp
         envFrom:
         - configMapRef:
             name: pierre-config
@@ -929,7 +926,7 @@ mod tests {
         let config = ServerConfig::from_env().unwrap();
         
         assert_eq!(config.environment, Environment::Development);
-        assert_eq!(config.mcp_port, 8080);
+        assert_eq!(config.mcp_port, 8081);  // Unified port architecture
         assert_eq!(config.http_port, 8081);
         assert!(matches!(config.database.url, DatabaseUrl::SQLite { .. }));
     }

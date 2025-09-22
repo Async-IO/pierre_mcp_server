@@ -5,7 +5,7 @@
 
 **Development Status**: This project is under active development. APIs and features may change.
 
-A high-performance Model Context Protocol (MCP) server that provides AI assistants with secure access to fitness data and analytics. Built in Rust for enterprise-grade performance, it offers multi-tenant fitness data aggregation from providers like Strava and Fitbit, with advanced analytics, OAuth 2.0 server capabilities, and real-time notifications.
+A Model Context Protocol (MCP) server that connects AI assistants to fitness data from providers like Strava. Built in Rust, it provides secure access to activity data, athlete profiles, and basic fitness analytics through the MCP protocol.
 
 ## Key Features
 
@@ -92,14 +92,26 @@ docker run -p 8080:8080 pierre-mcp-server
 
 ## MCP Client Configuration
 
-Pierre MCP Server supports multiple MCP client configurations:
+Pierre MCP Server supports two authentication methods for MCP clients:
 
-### Option 1: Direct Connection (Requires JWT Token)
+### Option 1: OAuth 2.0 with mcp-remote (Recommended)
+```bash
+# Automatic OAuth 2.0 authentication flow
+mcp-remote http://localhost:8081/mcp --allow-http
+```
+
+This will:
+1. Register a new OAuth client automatically
+2. Open browser for user login and authorization
+3. Exchange authorization code for JWT token
+4. Use JWT for subsequent MCP requests
+
+### Option 2: Direct Connection with JWT
 ```json
 {
   "mcpServers": {
     "pierre-fitness": {
-      "url": "http://127.0.0.1:8080/mcp",
+      "url": "http://localhost:8081/mcp",
       "headers": {
         "Authorization": "Bearer YOUR_JWT_TOKEN"
       }
@@ -108,19 +120,13 @@ Pierre MCP Server supports multiple MCP client configurations:
 }
 ```
 
-### Option 2: OAuth 2.0 with mcp-remote (Recommended)
+To obtain a JWT token manually, use the authentication endpoints or the complete workflow script:
 ```bash
-# Use mcp-remote for automatic OAuth 2.0 authentication
-mcp-remote http://localhost:8081/mcp --allow-http
+# Run automated setup to get JWT token
+./scripts/complete-user-workflow.sh
+source .workflow_test_env
+echo $JWT_TOKEN
 ```
-
-The OAuth 2.0 flow will automatically:
-1. Register as an OAuth 2.0 client with Pierre
-2. Obtain authorization code via OAuth 2.0 flow
-3. Exchange code for JWT access token
-4. Use JWT for authenticated MCP requests
-
-Replace `YOUR_JWT_TOKEN` with the JWT token obtained from the authentication process or use mcp-remote for automatic OAuth 2.0 authentication.
 
 ## Available Tools
 
@@ -417,7 +423,7 @@ PIERRE_MASTER_ENCRYPTION_KEY=your_32_byte_base64_key  # Generate with: openssl r
 #### Optional
 ```bash
 # Server Configuration
-HTTP_PORT=8080  # Single port for all protocols (MCP + OAuth 2.0 + REST API)
+HTTP_PORT=8081  # Default port for all protocols (MCP + OAuth 2.0 + REST API)
 HOST=localhost
 
 # Logging
@@ -432,7 +438,8 @@ STRAVA_CLIENT_ID=your_strava_client_id
 STRAVA_CLIENT_SECRET=your_strava_client_secret
 STRAVA_REDIRECT_URI=http://localhost:8080/api/oauth/callback/strava
 
-# JWT Configuration
+# JWT Configuration (Required for OAuth 2.0)
+JWT_SECRET=your_jwt_secret_key  # Required for OAuth 2.0 authorization server
 JWT_EXPIRY_HOURS=24
 
 # OpenWeather API (for activity intelligence)
@@ -468,16 +475,15 @@ vo2_max = 55.0
 
 ## Architecture
 
-Pierre MCP Server implements a consolidated multi-protocol, multi-tenant architecture on a single port:
+Pierre MCP Server implements a multi-protocol architecture:
 
-- **Single Server Port**: All protocols consolidated on port 8080 for simplicity
-- **MCP Protocol**: JSON-RPC with conditional authentication (discovery methods = no auth, execution = JWT auth)
-- **OAuth 2.0 Authorization Server**: RFC-compliant server for mcp-remote compatibility
-- **HTTP REST API**: Management endpoints and legacy OAuth flows
-- **A2A Protocol**: Agent-to-Agent communication
-- **Plugin System**: Extensible compile-time plugin architecture
-- **Multi-tenant**: Isolated data access with tenant management
-- **JWT Authentication**: Standards-compliant token-based authentication
+- **HTTP Server**: Single port (default 8081) for all protocols
+- **MCP Protocol**: JSON-RPC over HTTP with JWT authentication for tool execution
+- **OAuth 2.0 Authorization Server**: RFC-compliant server supporting dynamic client registration (RFC 7591)
+- **REST API**: User management and fitness provider OAuth endpoints
+- **Plugin System**: Compile-time plugin architecture for extensible fitness analysis
+- **Multi-tenant Support**: Isolated user data and configuration
+- **JWT Authentication**: Standard token-based authentication with configurable secrets
 
 ## Testing
 
