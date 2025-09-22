@@ -26,9 +26,9 @@ use std::time::Duration;
 use uuid::Uuid;
 
 // Default connection pool configuration constants
-const DEFAULT_CI_MAX_CONNECTIONS: u32 = 5;  // Reduced for CI to avoid connection exhaustion
+const DEFAULT_CI_MAX_CONNECTIONS: u32 = 5; // Reduced for CI to avoid connection exhaustion
 const DEFAULT_PROD_MAX_CONNECTIONS: u32 = 10;
-const DEFAULT_CI_ACQUIRE_TIMEOUT_SECS: u64 = 30;  // Reduced timeout for faster failure detection
+const DEFAULT_CI_ACQUIRE_TIMEOUT_SECS: u64 = 30; // Reduced timeout for faster failure detection
 const DEFAULT_PROD_ACQUIRE_TIMEOUT_SECS: u64 = 30;
 const DEFAULT_CI_MIN_CONNECTIONS: u32 = 1;
 const DEFAULT_PROD_MIN_CONNECTIONS: u32 = 0;
@@ -56,7 +56,7 @@ impl DatabaseProvider for PostgresDatabase {
         let max_connections = std::env::var("POSTGRES_MAX_CONNECTIONS")
             .ok()
             .and_then(|v| v.parse().ok())
-            .unwrap_or_else(|| {
+            .unwrap_or({
                 if is_ci {
                     DEFAULT_CI_MAX_CONNECTIONS
                 } else {
@@ -67,7 +67,7 @@ impl DatabaseProvider for PostgresDatabase {
         let min_connections = std::env::var("POSTGRES_MIN_CONNECTIONS")
             .ok()
             .and_then(|v| v.parse().ok())
-            .unwrap_or_else(|| {
+            .unwrap_or({
                 if is_ci {
                     DEFAULT_CI_MIN_CONNECTIONS
                 } else {
@@ -78,7 +78,7 @@ impl DatabaseProvider for PostgresDatabase {
         let acquire_timeout_secs = std::env::var("POSTGRES_ACQUIRE_TIMEOUT")
             .ok()
             .and_then(|v| v.parse().ok())
-            .unwrap_or_else(|| {
+            .unwrap_or({
                 if is_ci {
                     DEFAULT_CI_ACQUIRE_TIMEOUT_SECS
                 } else {
