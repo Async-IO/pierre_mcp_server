@@ -382,23 +382,11 @@ else
     printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_PROBLEMATIC_CLONE"
 fi
 
-# Show total clone usage
-printf "│ %-35s │ %5d │ " "Clone usage (total)" "$TOTAL_CLONES"
-printf "$(format_status "⚠️ INFO")│ %-39s │\n" "$LEGITIMATE_CLONES legitimate, $PROBLEMATIC_CLONES need review"
-
-# Show problematic clones specifically
-printf "│ %-35s │ %5d │ " "Problematic clones found" "$PROBLEMATIC_CLONES"
+printf "│ %-35s │ %5d │ " "Clone usage" "$TOTAL_CLONES"
 if [ "$PROBLEMATIC_CLONES" -eq 0 ]; then
     printf "$(format_status "✅ PASS")│ %-39s │\n" "All clones follow best practices"
 else
-    FIRST_PROBLEMATIC_CLONE=$(get_first_location 'rg "\.clone\(\)" src/ | grep -v 'src/bin/' | rg -v "Arc::|resources\.|database\.|auth_manager\.|\.to_string\(\)|format!|String::from|token|url|name|path|message|error|Error" -n')
-    printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_PROBLEMATIC_CLONE"
-fi
-
-# Show file-level documentation status if any
-if [ "$DOCUMENTED_FILES_COUNT" -gt 0 ]; then
-    printf "│ %-35s │ %5d │ " "Clone usage" "$TOTAL_CLONES"
-    printf "$(format_status "⚠️ WARN")│ %-39s │\n" "      $DOCUMENTED_FILES_COUNT files documented, $PROBLEMATIC_CLONES need attention"
+    printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$LEGITIMATE_CLONES legitimate, $PROBLEMATIC_CLONES need review"
 fi
 
 printf "│ %-35s │ %5d │ " "Arc usage" "$TOTAL_ARCS"
