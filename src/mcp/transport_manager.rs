@@ -1,6 +1,10 @@
 // ABOUTME: Transport coordination for MCP server with stdio, HTTP, and SSE transports
 // ABOUTME: Manages notification channels and coordinates multiple transport methods
 
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - Arc resource clones for parallel transport protocol handling
+// - Shared resource distribution across stdio, SSE, and HTTP transports
+
 use super::resources::ServerResources;
 use crate::mcp::schema::OAuthCompletedNotification;
 use anyhow::Result;
@@ -48,8 +52,8 @@ impl TransportManager {
         let sse_notification_receiver = self.notification_sender.subscribe();
 
         // Set up notification sender in resources for OAuth callbacks
-        let mut resources_clone = (*self.resources).clone();
-        resources_clone.set_oauth_notification_sender(self.notification_sender.clone());
+        let mut resources_clone = (*self.resources).clone(); // Safe: ServerResources clone for notification setup
+        resources_clone.set_oauth_notification_sender(self.notification_sender.clone()); // Safe: Sender clone for notification
         let shared_resources = Arc::new(resources_clone);
 
         // Start stdio transport in background

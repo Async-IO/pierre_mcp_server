@@ -133,7 +133,7 @@ impl A2AAuthenticator {
 
                 // Update auth method to indicate A2A authentication
                 auth_result.auth_method = AuthMethod::ApiKey {
-                    key_id: key_id.clone(),
+                    key_id: key_id.clone(), // Safe: String ownership for auth method
                     tier: format!("A2A-{}", rate_limit_status.tier.display_name()),
                 };
 
@@ -318,7 +318,7 @@ pub fn with_a2a_auth(
 ) -> impl warp::Filter<Extract = (AuthResult,), Error = warp::Rejection> + Clone {
     warp::header::optional::<String>("authorization").and_then(
         move |auth_header: Option<String>| {
-            let authenticator = authenticator.clone();
+            let authenticator = authenticator.clone(); // Safe: Arc clone for async closure
             async move {
                 match auth_header {
                     Some(header) => {

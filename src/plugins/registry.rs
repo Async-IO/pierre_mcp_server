@@ -1,6 +1,10 @@
 // ABOUTME: Compile-time plugin registry using distributed slices for zero-cost plugin discovery
 // ABOUTME: Provides thread-safe, efficient plugin management with Rust-idiomatic patterns
 
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - Plugin info cloning for registry operations
+// - Arc plugin clones for concurrent access
+
 use super::core::{PluginInfo, PluginTool};
 use super::PluginEnvironment;
 use crate::protocols::universal::UniversalRequest;

@@ -617,6 +617,7 @@ impl Database {
     #[must_use]
     pub fn fitness_configurations(&self) -> fitness_configurations::FitnessConfigurationManager {
         fitness_configurations::FitnessConfigurationManager::new(self.pool.clone())
+        // Safe: Pool clone for database manager
     }
 
     /// Hash sensitive data using SHA-256

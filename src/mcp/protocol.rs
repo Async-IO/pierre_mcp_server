@@ -8,6 +8,10 @@
 
 //! # MCP Protocol Handlers
 //!
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - JSON value ownership for MCP protocol message serialization
+// - Resource Arc sharing for concurrent protocol message processing
+//!
 //! Core MCP protocol message handling for initialization, tools listing,
 //! and authentication operations.
 

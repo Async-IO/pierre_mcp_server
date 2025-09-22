@@ -253,9 +253,9 @@ async fn generate_token_command(
 
     // Create token request
     let mut request = if super_admin {
-        CreateAdminTokenRequest::super_admin(service.clone())
+        CreateAdminTokenRequest::super_admin(service.clone()) // Safe: String ownership for request
     } else {
-        CreateAdminTokenRequest::new(service.clone())
+        CreateAdminTokenRequest::new(service.clone()) // Safe: String ownership for request
     };
 
     if let Some(desc) = description {

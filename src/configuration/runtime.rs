@@ -7,6 +7,10 @@
 // except according to those terms.
 
 //! Runtime configuration management with session-scoped overrides
+//!
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - Configuration value ownership transfers for runtime updates and validation
+// - Profile data ownership for configuration loading and session management
 
 use super::profiles::ConfigProfile;
 use super::vo2_max::{SportEfficiency, VO2MaxCalculator};

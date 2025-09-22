@@ -170,7 +170,7 @@ static REGISTRY: std::sync::OnceLock<Arc<ProviderRegistry>> = std::sync::OnceLoc
 pub fn global_registry() -> Arc<ProviderRegistry> {
     REGISTRY
         .get_or_init(|| Arc::new(ProviderRegistry::new()))
-        .clone()
+        .clone() // Safe: Arc clone for provider registry access
 }
 
 /// Convenience function to create a provider

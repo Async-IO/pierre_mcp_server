@@ -1,5 +1,10 @@
 // ABOUTME: MCP request processing and protocol handling for multi-tenant server
 // ABOUTME: Validates, routes, and executes MCP protocol requests with proper error handling
+//
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - Request/response ownership transfers across async boundaries
+// - Resource Arc sharing for concurrent request processing
+// - JSON value ownership for MCP protocol serialization
 
 use super::{
     multitenant::{McpError, McpRequest, McpResponse},

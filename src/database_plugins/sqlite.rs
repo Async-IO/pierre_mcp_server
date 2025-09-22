@@ -584,7 +584,7 @@ impl DatabaseProvider for SqliteDatabase {
                     AdminPermissions::default_admin()
                 }
             },
-            |perms| AdminPermissions::new(perms.clone()),
+            |perms| AdminPermissions::new(perms.clone()), // Safe: Vec<String> ownership for permissions struct
         );
 
         // Calculate expiration
@@ -638,7 +638,7 @@ impl DatabaseProvider for SqliteDatabase {
 
         Ok(GeneratedAdminToken {
             token_id,
-            service_name: request.service_name.clone(),
+            service_name: request.service_name.clone(), // Safe: String ownership for GeneratedAdminToken struct
             jwt_token,
             token_prefix,
             permissions,

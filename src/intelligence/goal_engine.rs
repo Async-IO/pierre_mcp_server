@@ -19,19 +19,13 @@ use crate::intelligence::physiological_constants::{
         PROGRESS_TOLERANCE_PERCENTAGE,
     },
     frequency_targets::{MAX_WEEKLY_FREQUENCY, TARGET_PERFORMANCE_IMPROVEMENT},
-    goal_difficulty::{
-        CHALLENGING_GOAL_RATIO, EASY_GOAL_RATIO, GOAL_DISTANCE_PRECISION, GOAL_DISTANCE_TOLERANCE,
-        MODERATE_GOAL_RATIO,
-    },
+    goal_difficulty::GOAL_DISTANCE_PRECISION,
     goal_progress::{
         AHEAD_OF_SCHEDULE_THRESHOLD, BEHIND_SCHEDULE_THRESHOLD, TARGET_DECREASE_MULTIPLIER,
         TARGET_INCREASE_MULTIPLIER,
     },
     milestones::{MILESTONE_NAMES, MILESTONE_PERCENTAGES},
-    time_periods::{
-        GOAL_ADJUSTMENT_THRESHOLD, GOAL_ANALYSIS_WEEKS, GOAL_DAYS_REMAINING_THRESHOLD,
-        TRAINING_PATTERN_ANALYSIS_WEEKS,
-    },
+    time_periods::{GOAL_ADJUSTMENT_THRESHOLD, GOAL_ANALYSIS_WEEKS, GOAL_DAYS_REMAINING_THRESHOLD},
 };
 use crate::models::Activity;
 use anyhow::Result;
@@ -127,93 +121,6 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
     /// Set user profile for this engine
     pub fn set_profile(&mut self, profile: UserFitnessProfile) {
         self.user_profile = Some(profile);
-    }
-
-    /// Calculate goal difficulty based on user's current performance
-    #[allow(dead_code)] // Used in goal generation logic
-    fn calculate_goal_difficulty(goal: &Goal, activities: &[Activity]) -> GoalDifficulty {
-        let similar_activities: Vec<_> = activities
-            .iter()
-            .filter(|a| format!("{:?}", a.sport_type) == goal.goal_type.sport_type())
-            .collect();
-
-        if similar_activities.is_empty() {
-            return GoalDifficulty::Unknown;
-        }
-
-        let current_performance = match &goal.goal_type {
-            GoalType::Distance { .. } => {
-                let avg_distance = similar_activities
-                    .iter()
-                    .filter_map(|a| a.distance_meters)
-                    .sum::<f64>()
-                    / f64::from(u32::try_from(similar_activities.len()).unwrap_or(u32::MAX));
-                avg_distance
-            }
-            GoalType::Time { distance, .. } => {
-                let similar_distance_activities: Vec<_> = similar_activities
-                    .iter()
-                    .filter(|a| {
-                        a.distance_meters.is_some_and(|d| {
-                            (d - distance).abs() < distance * GOAL_DISTANCE_TOLERANCE
-                        })
-                    })
-                    .collect();
-
-                if similar_distance_activities.is_empty() {
-                    return GoalDifficulty::Unknown;
-                }
-
-                let avg_time = similar_distance_activities
-                    .iter()
-                    .map(|a| a.duration_seconds)
-                    .sum::<u64>()
-                    / u64::try_from(similar_distance_activities.len()).unwrap_or(1);
-                // Safe conversion for time values
-                if avg_time > u64::from(u32::MAX) {
-                    f64::from(u32::MAX)
-                } else {
-                    f64::from(u32::try_from(avg_time).unwrap_or(u32::MAX))
-                }
-            }
-            GoalType::Performance { .. } => {
-                // Use average speed as performance metric
-                let avg_speed = similar_activities
-                    .iter()
-                    .filter_map(|a| a.average_speed)
-                    .sum::<f64>()
-                    / f64::from(u32::try_from(similar_activities.len()).unwrap_or(u32::MAX));
-                avg_speed
-            }
-            GoalType::Frequency { .. } => {
-                // Calculate current weekly frequency
-                let weeks = 4;
-                let recent_count = similar_activities
-                    .iter()
-                    .filter(|a| {
-                        let activity_utc = a.start_date;
-                        let weeks_ago = (Utc::now() - activity_utc).num_weeks();
-                        weeks_ago <= TRAINING_PATTERN_ANALYSIS_WEEKS
-                    })
-                    .count();
-                f64::from(u32::try_from(recent_count).unwrap_or(u32::MAX)) / f64::from(weeks)
-            }
-            GoalType::Custom { .. } => {
-                return GoalDifficulty::Unknown;
-            }
-        };
-
-        let improvement_ratio = goal.target_value / current_performance;
-
-        if improvement_ratio < EASY_GOAL_RATIO {
-            GoalDifficulty::Easy
-        } else if improvement_ratio < MODERATE_GOAL_RATIO {
-            GoalDifficulty::Moderate
-        } else if improvement_ratio < CHALLENGING_GOAL_RATIO {
-            GoalDifficulty::Challenging
-        } else {
-            GoalDifficulty::Ambitious
-        }
     }
 
     /// Generate progress insights based on current status
@@ -614,7 +521,7 @@ impl<S: IntelligenceStrategy> GoalEngineTrait for AdvancedGoalEngine<S> {
         let on_track = Self::is_on_track(goal, progress_percentage);
 
         let mut progress_report = ProgressReport {
-            goal_id: goal.id.clone(),
+            goal_id: goal.id.clone(), // Safe: String ownership for progress report
             progress_percentage,
             completion_date_estimate,
             milestones_achieved: achieved_milestones,
@@ -775,7 +682,7 @@ impl GoalType {
         match self {
             Self::Distance { sport, .. }
             | Self::Time { sport, .. }
-            | Self::Frequency { sport, .. } => sport.clone(),
+            | Self::Frequency { sport, .. } => sport.clone(), // Safe: String ownership for goal sport
             Self::Performance { .. } | Self::Custom { .. } => "Any".into(),
         }
     }

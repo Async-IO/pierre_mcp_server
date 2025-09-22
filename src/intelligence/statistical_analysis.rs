@@ -1,7 +1,6 @@
 // ABOUTME: Proper statistical analysis engine for fitness trend calculations
 // ABOUTME: Implements correct linear regression, R-squared calculations, and trend strength analysis
 #![allow(clippy::cast_precision_loss)] // Safe: statistical calculations with controlled ranges
-#![allow(clippy::suboptimal_flops)] // Readability preferred over micro-optimizations
 
 use super::{TrendDataPoint, TrendDirection};
 use anyhow::Result;
@@ -95,20 +94,20 @@ impl StatisticalAnalyzer {
         let mean_y = sum_y / n;
 
         // Calculate slope and intercept
-        let denominator = sum_xx - n * mean_x * mean_x;
+        let denominator = (n * mean_x).mul_add(-mean_x, sum_xx);
         if denominator.abs() < f64::EPSILON {
             return Err(anyhow::anyhow!(
                 "Cannot calculate regression: zero variance in x"
             ));
         }
 
-        let slope = (sum_x_y - n * mean_x * mean_y) / denominator;
-        let intercept = mean_y - slope * mean_x;
+        let slope = (n * mean_x).mul_add(-mean_y, sum_x_y) / denominator;
+        let intercept = slope.mul_add(-mean_x, mean_y);
 
         // Calculate correlation coefficient
-        let numerator = sum_x_y - n * mean_x * mean_y;
+        let numerator = (n * mean_x).mul_add(-mean_y, sum_x_y);
         let denominator_corr =
-            ((sum_xx - n * mean_x * mean_x) * (sum_yy - n * mean_y * mean_y)).sqrt();
+            ((n * mean_x).mul_add(-mean_x, sum_xx) * (n * mean_y).mul_add(-mean_y, sum_yy)).sqrt();
 
         let correlation = if denominator_corr == 0.0 {
             0.0
@@ -124,7 +123,10 @@ impl StatisticalAnalyzer {
         let sse = y_values
             .iter()
             .zip(&y_predicted)
-            .map(|(actual, predicted)| (actual - predicted).powi(2))
+            .map(|(actual, predicted)| {
+                let diff = actual - predicted;
+                diff * diff
+            })
             .sum::<f64>();
 
         let degrees_of_freedom = data_points.len().saturating_sub(2);
@@ -136,7 +138,7 @@ impl StatisticalAnalyzer {
 
         // Calculate p-value for slope significance (simplified t-test)
         let p_value = if degrees_of_freedom > 0 && standard_error > 0.0 {
-            let se_slope = standard_error / (sum_xx - n * mean_x * mean_x).sqrt();
+            let se_slope = standard_error / (n * mean_x).mul_add(-mean_x, sum_xx).sqrt();
             let t_stat = slope / se_slope;
             Some(Self::t_test_p_value(t_stat.abs(), degrees_of_freedom))
         } else {
@@ -299,7 +301,7 @@ impl StatisticalAnalyzer {
 
         // Very rough approximation based on normal distribution
         // This is not mathematically rigorous but provides reasonable estimates
-        let z_equivalent = t_stat / (1.0 + t_stat.powi(2) / (4.0 * df as f64)).sqrt();
+        let z_equivalent = t_stat / (1.0 + t_stat * t_stat / (4.0 * df as f64)).sqrt();
 
         // Two-tailed test
         2.0 * (1.0 - Self::standard_normal_cdf(z_equivalent.abs()))

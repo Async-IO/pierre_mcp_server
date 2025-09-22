@@ -234,7 +234,7 @@ impl ApiKeyManager {
         let key_prefix = if full_key.len() >= 12 {
             full_key[..12].to_string()
         } else {
-            full_key.clone()
+            full_key.clone() // Safe: String ownership for API key display
         };
 
         // Hash the full key for storage

@@ -115,7 +115,7 @@ impl LoggingConfig {
                 .unwrap_or_else(|_| service_names::PIERRE_MCP_SERVER.into()),
             service_version: env::var("SERVICE_VERSION")
                 .unwrap_or_else(|_| env!("CARGO_PKG_VERSION").to_string()),
-            environment: environment.clone(),
+            environment: environment.clone(), // Safe: String ownership for logging config
             enable_telemetry: is_production || env::var("ENABLE_TELEMETRY").is_ok(),
             request_id_header: env::var("REQUEST_ID_HEADER")
                 .unwrap_or_else(|_| "x-request-id".into()),

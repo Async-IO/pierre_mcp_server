@@ -1,5 +1,8 @@
 // ABOUTME: Tenant-aware Strava provider implementation with isolated OAuth credentials
 // ABOUTME: Provides Strava API integration respecting tenant boundaries and rate limits
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - HTTP client Arc sharing across async operations (shared_client().clone())
+// - String ownership for name formatting (firstname.clone(), lastname.clone())
 
 use super::tenant_provider::TenantFitnessProvider;
 use crate::constants::api_provider_limits;

@@ -328,7 +328,7 @@ impl Database {
             api_key_id
         );
 
-        Ok(client.id.clone())
+        Ok(client.id.clone()) // Safe: String ownership needed for return value
     }
 
     /// Get an A2A client by ID

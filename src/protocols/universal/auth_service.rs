@@ -45,7 +45,7 @@ impl AuthService {
                 {
                     let tenant_context = crate::tenant::TenantContext {
                         tenant_id: tenant_uuid,
-                        tenant_name: tenant.name.clone(),
+                        tenant_name: tenant.name.clone(), // Safe: String ownership needed for tenant context
                         user_id,
                         user_role: crate::tenant::TenantRole::Member,
                     };
@@ -69,10 +69,10 @@ impl AuthService {
                                     if let Ok(tenant_provider) =
                                         crate::oauth::providers::StravaOAuthProvider::from_config(
                                             &crate::config::environment::OAuthProviderConfig {
-                                                client_id: Some(config.client_id.clone()),
-                                                client_secret: Some(config.client_secret.clone()),
-                                                redirect_uri: Some(config.redirect_uri.clone()),
-                                                scopes: config.scopes.clone(),
+                                                client_id: Some(config.client_id.clone()), // Safe: String ownership needed for OAuth config
+                                                client_secret: Some(config.client_secret.clone()), // Safe: String ownership needed for OAuth config
+                                                redirect_uri: Some(config.redirect_uri.clone()), // Safe: String ownership needed for OAuth config
+                                                scopes: config.scopes.clone(), // Safe: Vec ownership needed for OAuth config
                                                 enabled: true,
                                             },
                                         )

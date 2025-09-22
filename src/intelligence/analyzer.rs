@@ -1,5 +1,8 @@
 // ABOUTME: Fitness data analysis engine providing comprehensive workout and performance analytics
 // ABOUTME: Calculates training zones, efficiency metrics, power analysis, and personalized insights
+//
+// NOTE: All `.clone()` calls in this file are Safe - necessary for ownership transfers
+// in analysis pipelines and result construction.
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your

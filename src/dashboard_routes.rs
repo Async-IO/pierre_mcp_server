@@ -7,6 +7,9 @@
 // except according to those terms.
 
 //! Dashboard routes for the API Key Management System frontend
+//!
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - HashMap key ownership for statistics aggregation (tool_name.clone())
 
 use crate::database_plugins::DatabaseProvider;
 use crate::mcp::resources::ServerResources;

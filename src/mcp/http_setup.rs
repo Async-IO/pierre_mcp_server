@@ -51,14 +51,14 @@ impl HttpSetup {
         Arc<ConfigurationRoutes>,
         Arc<FitnessConfigurationRoutes>,
     ) {
-        let auth_routes = AuthRoutes::new(resources.clone());
-        let oauth_routes = OAuthRoutes::new(resources.clone());
-        let api_key_routes = ApiKeyRoutes::new(resources.clone());
-        let dashboard_routes = DashboardRoutes::new(resources.clone());
-        let a2a_routes = A2ARoutes::new(resources.clone());
-        let configuration_routes = Arc::new(ConfigurationRoutes::new(resources.clone()));
+        let auth_routes = AuthRoutes::new(resources.clone()); // Safe: Arc clone for route handler
+        let oauth_routes = OAuthRoutes::new(resources.clone()); // Safe: Arc clone for route handler
+        let api_key_routes = ApiKeyRoutes::new(resources.clone()); // Safe: Arc clone for route handler
+        let dashboard_routes = DashboardRoutes::new(resources.clone()); // Safe: Arc clone for route handler
+        let a2a_routes = A2ARoutes::new(resources.clone()); // Safe: Arc clone for route handler
+        let configuration_routes = Arc::new(ConfigurationRoutes::new(resources.clone())); // Safe: Arc clone for route handler
         let fitness_configuration_routes =
-            Arc::new(FitnessConfigurationRoutes::new(resources.clone()));
+            Arc::new(FitnessConfigurationRoutes::new(resources.clone())); // Safe: Arc clone for route handler
 
         (
             auth_routes,

@@ -6,6 +6,10 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - Arc resource clones for multi-tenant concurrent access
+// - String ownership transfers for WebSocket message construction
+
 //! WebSocket support for real-time updates
 //!
 //! Provides real-time updates for API key usage, rate limit status,
@@ -70,7 +74,7 @@ impl WebSocketManager {
     pub fn new(database: Arc<Database>, auth_manager: &Arc<AuthManager>) -> Self {
         let (broadcast_tx, _) =
             broadcast::channel(crate::constants::rate_limits::WEBSOCKET_CHANNEL_CAPACITY);
-        let auth_middleware = McpAuthMiddleware::new((**auth_manager).clone(), database.clone());
+        let auth_middleware = McpAuthMiddleware::new((**auth_manager).clone(), database.clone()); // Safe: Arc clones for middleware creation
 
         Self {
             database,
@@ -84,10 +88,10 @@ impl WebSocketManager {
     pub fn websocket_filter(
         &self,
     ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
-        let manager = self.clone();
+        let manager = self.clone(); // Safe: Arc clone for HTTP filter
 
         warp::path("ws").and(warp::ws()).map(move |ws: Ws| {
-            let manager = manager.clone();
+            let manager = manager.clone(); // Safe: Arc clone for websocket upgrade closure
             ws.on_upgrade(move |socket| async move { manager.handle_connection(socket).await })
         })
     }
@@ -180,7 +184,7 @@ impl WebSocketManager {
             let client = ClientConnection {
                 user_id,
                 subscriptions,
-                tx: tx.clone(),
+                tx: tx.clone(), // Safe: mpsc::Sender clone for client storage
             };
             self.clients.write().await.insert(connection_id, client);
         }
@@ -261,6 +265,7 @@ impl WebSocketManager {
     async fn broadcast_to_all(&self, message: &WebSocketMessage, topic: &str) {
         // Use broadcast channel for efficient message distribution
         if let Err(e) = self.broadcast_tx.send(message.clone()) {
+            // Safe: broadcast channel needs ownership while we reuse message below
             tracing::trace!("Failed to send broadcast message: {}", e);
         }
 
@@ -294,7 +299,7 @@ impl WebSocketManager {
 
     /// Start background task for periodic updates
     pub fn start_periodic_updates(&self) {
-        let manager = self.clone();
+        let manager = self.clone(); // Safe: Arc clone for background task
         tokio::spawn(async move {
             let mut interval = interval(Duration::from_secs(30)); // Update every 30 seconds
 

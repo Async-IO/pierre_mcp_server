@@ -8,6 +8,10 @@
 
 //! Configuration Management Routes
 //!
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - Configuration key ownership transfers in map operations (`k.clone()`)
+// - Configuration value ownership for profile descriptions and session data
+// - Validation result ownership transfers and HashMap ownership for responses
 //! HTTP endpoints for managing runtime configuration parameters,
 //! physiological profiles, and personalized training zones.
 
@@ -333,7 +337,7 @@ impl ConfigurationRoutes {
                     ConfigProfile::SportSpecific { sport, .. } => {
                         format!("Sport-specific optimization for {sport}")
                     }
-                    ConfigProfile::Custom { description, .. } => description.clone(),
+                    ConfigProfile::Custom { description, .. } => description.clone(), // Safe: String ownership for response description
                 };
 
                 ProfileInfo {
@@ -382,7 +386,7 @@ impl ConfigurationRoutes {
             active_profile: profile.name(),
             configuration: ConfigurationDetails {
                 profile,
-                session_overrides: config.get_session_overrides().clone(),
+                session_overrides: config.get_session_overrides().clone(), // Safe: HashMap ownership for response
                 last_modified: chrono::Utc::now(),
             },
             available_parameters: CatalogBuilder::build().total_parameters,

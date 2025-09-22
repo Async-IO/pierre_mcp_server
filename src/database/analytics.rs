@@ -371,7 +371,7 @@ impl Database {
             .unwrap_or("general");
 
         // Call the full 4-parameter version with defaults
-        self.store_insight_full(user_id, None, insight_type, insight_data.clone())
+        self.store_insight_full(user_id, None, insight_type, insight_data.clone()) // Safe: JSON value ownership for insight storage
             .await
     }
 

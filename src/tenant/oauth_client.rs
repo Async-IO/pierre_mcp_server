@@ -1,5 +1,8 @@
 // ABOUTME: Tenant-aware OAuth client for multi-tenant fitness platform authentication
 // ABOUTME: Provides OAuth flow integration with tenant-specific credentials and rate limiting
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - OAuth credential string ownership transfers (client_id, client_secret, redirect_uri)
+// - Tenant context ownership for multi-tenant OAuth flows
 
 use super::oauth_manager::{CredentialConfig, TenantOAuthCredentials, TenantOAuthManager};
 use super::TenantContext;
@@ -302,7 +305,7 @@ impl TenantOAuthClient {
             auth_url,
             token_url,
             redirect_uri: credentials.redirect_uri.clone(),
-            scopes: credentials.scopes.clone(),
+            scopes: credentials.scopes.clone(), // Safe: Option<String> ownership for OAuth config
             use_pkce,
         })
     }

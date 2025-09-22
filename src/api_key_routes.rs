@@ -296,7 +296,7 @@ impl ApiKeyRoutes {
         Ok(ApiKeyCreateResponse {
             api_key: full_key,
             key_info: ApiKeyInfo {
-                id: api_key.id.clone(),
+                id: api_key.id.clone(), // Safe: String ownership for API key info struct
                 name: api_key.name,
                 description: api_key.description,
                 tier: api_key.tier,

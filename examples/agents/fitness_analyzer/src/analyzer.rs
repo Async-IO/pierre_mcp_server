@@ -343,7 +343,7 @@ impl FitnessAnalyzer {
 
         let mut supporting_data = HashMap::new();
         supporting_data.insert("peak_days".to_string(),
-            Value::Array(peak_days.iter().map(|d| Value::String(d.clone())).collect()));
+            Value::Array(peak_days.iter().map(|d| Value::String(d.clone())).collect())); // Safe: String ownership for JSON value
         supporting_data.insert("max_day_count".to_string(),
             Value::Number(serde_json::Number::from(max_count)));
 
@@ -413,7 +413,7 @@ impl FitnessAnalyzer {
         match self.client.generate_recommendations("strava").await {
             Ok(a2a_recommendations) => {
                 if let Some(recs) = a2a_recommendations.get("training_recommendations") {
-                    if let Ok(parsed_recs) = serde_json::from_value::<Vec<HashMap<String, Value>>>(recs.clone()) {
+                    if let Ok(parsed_recs) = serde_json::from_value::<Vec<HashMap<String, Value>>>(recs.clone()) { // Safe: JSON value ownership for deserialization
                         for rec in parsed_recs {
                             if let (Some(title), Some(description)) = (
                                 rec.get("title").and_then(|v| v.as_str()),

@@ -8,6 +8,10 @@
 
 //! A2A Client Management
 //!
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - Arc resource sharing for A2A client management
+// - String ownership for client IDs, names, and API keys
+//!
 //! Handles registration, management, and monitoring of A2A clients
 //! that connect to Pierre for agent-to-agent communication.
 
@@ -188,9 +192,9 @@ impl A2AClientManager {
             id: client_id.clone(),
             user_id: uuid::Uuid::new_v4(), // Generate consistent user ID for this A2A client
             name: request.name.clone(),
-            description: request.description.clone(),
-            public_key: keypair.public_key.clone(),
-            capabilities: request.capabilities.clone(),
+            description: request.description.clone(), // Safe: Option<String> ownership for client struct
+            public_key: keypair.public_key.clone(),   // Safe: String ownership for client struct
+            capabilities: request.capabilities.clone(), // Safe: Vec ownership for client struct
             redirect_uris: request.redirect_uris.clone(),
             is_active: true,
             created_at: chrono::Utc::now(),
@@ -570,7 +574,7 @@ impl A2AClientManager {
                 {
                     let mut cache = self.active_sessions.write().await;
                     for session in &db_sessions {
-                        cache.insert(session.id.clone(), session.clone());
+                        cache.insert(session.id.clone(), session.clone()); // Safe: Session ownership for cache HashMap
                     }
                 }
                 db_sessions

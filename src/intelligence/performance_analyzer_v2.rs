@@ -4,7 +4,6 @@
 #![allow(clippy::cast_possible_truncation)] // Safe: controlled ranges
 #![allow(clippy::cast_sign_loss)] // Safe: positive values only
 #![allow(clippy::cast_possible_wrap)] // Safe: bounded values
-#![allow(clippy::suboptimal_flops)] // Readability over micro-optimizations
 
 use super::analysis_config::{AnalysisConfig, ConfidenceLevel};
 use super::metrics_extractor::{MetricType, SafeMetricExtractor};
@@ -621,11 +620,16 @@ impl PerformanceAnalyzerV2 {
 
         let load_variance = weekly_loads
             .iter()
-            .map(|w| (w.total_duration_hours - average_load).powi(2))
+            .map(|w| {
+                let diff = w.total_duration_hours - average_load;
+                diff * diff
+            })
             .sum::<f64>()
             / weekly_loads.len() as f64;
 
-        let balance_score = (100.0 - (load_variance.sqrt() / average_load * 100.0)).max(0.0);
+        let balance_score = (load_variance.sqrt() / average_load)
+            .mul_add(-100.0, 100.0)
+            .max(0.0);
 
         let last_week_load = weekly_loads.last().map_or(0.0, |w| w.total_duration_hours);
         let recovery_needed = last_week_load > self.config.performance.high_weekly_volume_hours;

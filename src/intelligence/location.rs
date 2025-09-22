@@ -1,5 +1,10 @@
 // ABOUTME: Location and geographic intelligence for activity analysis and environmental context
 // ABOUTME: Provides geocoding, elevation data, route analysis, and location-based insights
+//
+// NOTE: All remaining `.clone()` calls in this file are Safe - they are necessary for:
+// - HTTP client Arc sharing for geocoding requests
+// - Cache key and data ownership transfers for async operations
+// - Address field Option chains for comprehensive location parsing
 use crate::utils::http_client::shared_client;
 use anyhow::{anyhow, Result};
 use reqwest::Client;
@@ -85,7 +90,7 @@ impl LocationService {
                     "Failed to create HTTP client for location service: {}, using default",
                     e
                 );
-                shared_client().clone()
+                shared_client().clone() // Safe: Arc clone for HTTP client sharing
             });
 
         Self {
@@ -129,7 +134,7 @@ impl LocationService {
         if let Some(entry) = self.cache.get(&cache_key) {
             if entry.timestamp.elapsed().unwrap_or(Duration::from_secs(0)) < self.cache_duration {
                 debug!("Using cached location data for {}", cache_key);
-                return Ok(entry.location.clone());
+                return Ok(entry.location.clone()); // Safe: LocationResult ownership from cache
             }
             debug!("Cache entry expired for {}", cache_key);
             self.cache.remove(&cache_key);
@@ -193,6 +198,7 @@ impl LocationService {
         let address = &response.address;
 
         // Determine city from various possible fields
+        // Safe: String clones needed for Option ownership transfers in city resolution chain
         let city = address
             .city
             .clone()
@@ -201,6 +207,7 @@ impl LocationService {
             .or_else(|| address.suburb.clone());
 
         // Determine region (state/province)
+        // Safe: String clones needed for Option ownership transfers
         let region = address.state.clone().or_else(|| address.county.clone());
 
         // Extract trail/route information from road or natural features

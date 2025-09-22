@@ -21,7 +21,7 @@ use super::postgres::PostgresDatabase;
 use super::sqlite::SqliteDatabase;
 
 /// Supported database types
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DatabaseType {
     SQLite,
     PostgreSQL,

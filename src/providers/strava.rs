@@ -173,7 +173,7 @@ impl StravaProvider {
         .await?;
 
         // Store tokens without unnecessary cloning
-        self.access_token = Some(token.access_token.clone());
+        self.access_token = Some(token.access_token.clone()); // Safe: String ownership for struct field storage
         self.refresh_token.clone_from(&token.refresh_token);
 
         if let Some(ref athlete) = athlete {
@@ -222,7 +222,7 @@ impl StravaProvider {
         )
         .await?;
 
-        self.access_token = Some(token.access_token.clone());
+        self.access_token = Some(token.access_token.clone()); // Safe: String ownership for struct field storage
         self.refresh_token.clone_from(&token.refresh_token);
 
         if let Some(ref athlete) = athlete {
@@ -271,7 +271,7 @@ impl StravaProvider {
         )
         .await?;
 
-        self.access_token = Some(new_token.access_token.clone());
+        self.access_token = Some(new_token.access_token.clone()); // Safe: String ownership for struct field storage
         self.refresh_token.clone_from(&new_token.refresh_token);
 
         info!("Token refreshed successfully");

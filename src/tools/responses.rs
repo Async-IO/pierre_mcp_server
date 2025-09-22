@@ -1,6 +1,10 @@
 // ABOUTME: Unified response formatting for all APIs
 // ABOUTME: Provides consistent response formatting across MCP, A2A, and HTTP APIs
 
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - String ownership for error message extraction from structs
+// - Option field cloning for response construction
+
 use crate::errors::AppError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -127,7 +131,7 @@ impl ResponseFormatter {
                 request_id,
                 timestamp: chrono::Utc::now(),
                 processing_time_ms,
-                version: self.version.clone(),
+                version: self.version.clone(), // Safe: String ownership needed for response metadata
                 user_id,
             },
         }
@@ -156,7 +160,7 @@ impl ResponseFormatter {
                 request_id: params.request_id,
                 timestamp: chrono::Utc::now(),
                 processing_time_ms: params.processing_time_ms,
-                version: self.version.clone(),
+                version: self.version.clone(), // Safe: String ownership needed for response metadata
                 user_id: params.user_id,
             },
         }
@@ -181,7 +185,7 @@ impl ResponseFormatter {
                 request_id: request_id.or_else(|| error.request_id.clone()),
                 timestamp: chrono::Utc::now(),
                 processing_time_ms,
-                version: self.version.clone(),
+                version: self.version.clone(), // Safe: String ownership needed for response metadata
                 user_id: None,
             },
         }

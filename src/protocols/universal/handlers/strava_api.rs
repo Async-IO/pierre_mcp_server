@@ -22,8 +22,8 @@ async fn create_configured_strava_provider(
     let credentials = crate::providers::OAuth2Credentials {
         client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
         client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
-        access_token: Some(token_data.access_token.clone()),
-        refresh_token: Some(token_data.refresh_token.clone()),
+        access_token: Some(token_data.access_token.clone()), // Safe: String ownership needed for OAuth credentials
+        refresh_token: Some(token_data.refresh_token.clone()), // Safe: String ownership needed for OAuth credentials
         expires_at: Some(token_data.expires_at),
         scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
             .split(',')
@@ -108,7 +108,7 @@ fn create_activity_metadata(
     map.insert(
         "tenant_id".to_string(),
         tenant_id.map_or(serde_json::Value::Null, |id| {
-            serde_json::Value::String(id.clone())
+            serde_json::Value::String(id.clone()) // Safe: String ownership for JSON value
         }),
     );
     map

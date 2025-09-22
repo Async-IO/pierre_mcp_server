@@ -8,6 +8,10 @@
 
 //! # Data Models
 //!
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - HashMap key ownership for statistics aggregation (stage_type.clone())
+// - Data structure ownership transfers across model boundaries
+//!
 //! This module contains the core data structures used throughout the Pierre MCP Server.
 //! These models provide a unified representation of fitness data from various providers
 //! like Strava and Fitbit.
@@ -71,7 +75,7 @@ pub struct SleepStage {
 }
 
 /// Types of sleep stages
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum SleepStageType {
     Awake,
@@ -453,7 +457,7 @@ impl SleepSession {
     pub fn stage_summary(&self) -> HashMap<SleepStageType, u32> {
         let mut summary = HashMap::new();
         for stage in &self.stages {
-            *summary.entry(stage.stage_type.clone()).or_insert(0) += stage.duration_minutes;
+            *summary.entry(stage.stage_type).or_insert(0) += stage.duration_minutes;
         }
         summary
     }
@@ -1436,7 +1440,7 @@ impl EncryptedToken {
             access_token,
             refresh_token,
             expires_at: self.expires_at,
-            scope: self.scope.clone(),
+            scope: self.scope.clone(), // Safe: Option<String> ownership for struct creation
         })
     }
 }
