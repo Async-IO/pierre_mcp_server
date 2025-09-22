@@ -1,5 +1,10 @@
 // ABOUTME: OAuth 2.0 HTTP route handlers for warp web framework
 // ABOUTME: Provides REST endpoints for client registration, authorization, and token exchange
+//
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - OAuth client field ownership transfers for registration and token requests
+// - Resource Arc sharing for HTTP route handlers
+// - String ownership for OAuth protocol responses
 
 use crate::auth::AuthManager;
 use crate::database_plugins::{factory::Database, DatabaseProvider};

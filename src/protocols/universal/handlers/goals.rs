@@ -115,7 +115,7 @@ pub fn handle_suggest_goals(
 
         // Create a default user profile for the goal engine
         let user_profile = crate::intelligence::UserFitnessProfile {
-            user_id: request.user_id.clone(),
+            user_id: request.user_id.clone(), // Safe: String ownership for profile struct
             age: Some(i32::try_from(user_defaults::DEFAULT_USER_AGE).unwrap_or(30)),
             gender: None,
             weight: None,

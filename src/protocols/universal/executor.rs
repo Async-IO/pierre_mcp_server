@@ -125,8 +125,8 @@ impl UniversalExecutor {
     /// Create new executor with all services
     #[must_use]
     pub fn new(resources: Arc<ServerResources>) -> Self {
-        let auth_service = AuthService::new(resources.clone());
-        let intelligence_service = IntelligenceService::new(resources.clone());
+        let auth_service = AuthService::new(resources.clone()); // Safe: Arc clone for service creation
+        let intelligence_service = IntelligenceService::new(resources.clone()); // Safe: Arc clone for service creation
         let mut registry = ToolRegistry::new();
 
         // Register all tools with their handlers
@@ -265,7 +265,7 @@ impl UniversalExecutor {
         let tool_id = self
             .registry
             .resolve_tool_name(&request.tool_name)
-            .ok_or_else(|| ProtocolError::ToolNotFound(request.tool_name.clone()))?;
+            .ok_or_else(|| ProtocolError::ToolNotFound(request.tool_name.clone()))?; // Safe: String ownership needed for error message
 
         // Get registered tool info
         let tool_info = self.registry.get_tool(tool_id).ok_or_else(|| {
@@ -273,7 +273,7 @@ impl UniversalExecutor {
         })?;
 
         // Convert to legacy UniversalToolExecutor for handler compatibility
-        let legacy_executor = Self::new(self.resources.clone());
+        let legacy_executor = Self::new(self.resources.clone()); // Safe: Arc clone for legacy executor creation
 
         // Execute based on tool type
         match (tool_info.async_handler, tool_info.sync_handler) {

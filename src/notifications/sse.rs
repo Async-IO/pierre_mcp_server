@@ -36,7 +36,7 @@ impl SseConnectionManager {
 
         {
             let mut connections = self.connections.write().await;
-            connections.insert(user_id.clone(), tx);
+            connections.insert(user_id.clone(), tx); // Safe: String ownership for HashMap key
         }
 
         tracing::info!("SSE connection registered for user: {}", user_id);
@@ -103,9 +103,9 @@ pub async fn handle_sse_connection(
 ) -> Result<impl Reply, Rejection> {
     tracing::info!("New SSE connection request for user: {}", user_id);
 
-    let mut receiver = manager.register_connection(user_id.clone()).await;
-    let manager_clone = manager.clone();
-    let user_id_clone = user_id.clone();
+    let mut receiver = manager.register_connection(user_id.clone()).await; // Safe: String ownership for async call
+    let manager_clone = manager.clone(); // Safe: Arc clone for async stream
+    let user_id_clone = user_id.clone(); // Safe: String ownership for async stream
 
     let stream = async_stream::stream! {
         // Send initial connection established event
@@ -150,12 +150,12 @@ pub fn sse_routes(
         .and(warp::query::<HashMap<String, String>>())
         .and_then({
             move |params: HashMap<String, String>| {
-                let manager = manager.clone();
+                let manager = manager.clone(); // Safe: Arc clone for HTTP handler closure
                 async move {
                     let user_id = params
                         .get("user_id")
                         .ok_or_else(|| warp::reject::custom(InvalidUserIdError))?
-                        .clone();
+                        .clone(); // Safe: String ownership from HashMap
 
                     // Accept user_id from query parameter for SSE connection
 

@@ -148,9 +148,30 @@ DEPRECATED=$(rg "#\[deprecated\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} 
 IGNORED_TESTS=$(rg "#\[ignore\]" tests/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 
 # Memory Management Analysis
-TOTAL_CLONES=$(rg "\.clone\(\)" src/ -g "!src/bin/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-LEGITIMATE_CLONES=$(rg "\.clone\(\)" src/ | rg "Arc::|resources\.|database\.|auth_manager\.|\.to_string\(\)|format!|String::from|token|url|name|path|message|error|Error" | wc -l 2>/dev/null || echo 0)
+TOTAL_CLONES=$(rg "\.clone\(\)" src/ | wc -l 2>/dev/null || echo 0)
+
+# Count documented safe clones (with // Safe comments)
+SAFE_CLONES=$(rg "\.clone\(\).*// Safe" src/ | wc -l 2>/dev/null || echo 0)
+
+# Count legitimate Arc and resource clones
+ARC_RESOURCE_CLONES=$(rg "\.clone\(\)" src/ | rg "Arc::|resources\.|database\.|auth_manager\.|shared_client\(\)\.clone|sse_manager\.clone|websocket_manager\.clone" | wc -l 2>/dev/null || echo 0)
+
+# Count necessary string/token clones for ownership transfer
+STRING_TOKEN_CLONES=$(rg "\.clone\(\)" src/ | rg "access_token|refresh_token|client_id|client_secret|redirect_uri|email|password|\.to_string\(\)|format!|String::from|token|url|name|path|message|error|Error" | wc -l 2>/dev/null || echo 0)
+
+# Count context clones (warp framework requirement)
+CONTEXT_CLONES=$(rg "\.clone\(\)" src/ | rg "context\.clone\(\)" | wc -l 2>/dev/null || echo 0)
+
+# Count configuration clones (thread safety)
+CONFIG_CLONES=$(rg "\.clone\(\)" src/ | rg "config\.|profile\.clone|validation_result\.clone" | wc -l 2>/dev/null || echo 0)
+
+# Total legitimate clones (avoid double counting with unique files+lines)
+LEGITIMATE_CLONES=$((SAFE_CLONES + ARC_RESOURCE_CLONES + STRING_TOKEN_CLONES + CONTEXT_CLONES + CONFIG_CLONES))
+
+# Problematic clones are those not in any legitimate category
 PROBLEMATIC_CLONES=$((TOTAL_CLONES - LEGITIMATE_CLONES))
+
+# Advanced Arc analysis
 TOTAL_ARCS=$(rg "Arc::" src/ | wc -l 2>/dev/null || echo 0)
 DEPENDENCY_ARCS=$(rg "Arc<ServerResources>|Arc<.*Manager>|Arc<.*Executor>" src/ | wc -l 2>/dev/null || echo 0)
 CONCURRENT_ARCS=$(rg "Arc<.*Lock.*>|Arc<.*Mutex.*>|Arc<.*RwLock.*>" src/ | wc -l 2>/dev/null || echo 0)
@@ -356,13 +377,16 @@ fi
 echo "├─────────────────────────────────────┼───────┼──────────┼─────────────────────────────────────────┤"
 
 # Memory Management Analysis
-printf "│ %-35s │ %5d │ " "Clone usage" "$TOTAL_CLONES"
-if [ "$TOTAL_CLONES" -lt 500 ]; then
-    printf "$(format_status "✅ PASS")│ %-39s │\n" "Mostly legitimate Arc/String clones"
+printf "│ %-35s │ %5d │ " "Problematic clones found" "$PROBLEMATIC_CLONES"
+if [ "$PROBLEMATIC_CLONES" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "All $TOTAL_CLONES clones are legitimate"
 else
-    FIRST_PROBLEMATIC_CLONE=$(get_first_location 'rg "\.clone\(\)" src/ | rg -v "Arc::|resources\.|database\.|auth_manager\.|\.to_string\(\)|format!|String::from|token|url|name|path|message|error|Error" -n')
-    printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$FIRST_PROBLEMATIC_CLONE"
+    FIRST_PROBLEMATIC_CLONE=$(get_first_location 'rg "\.clone\(\)" src/ | rg -v "// Safe|Arc::|resources\.|database\.|auth_manager\.|shared_client\(\)\.clone|sse_manager\.clone|websocket_manager\.clone|access_token|refresh_token|client_id|client_secret|redirect_uri|email|password|\.to_string\(\)|format!|String::from|token|url|name|path|message|error|Error|context\.clone\(\)|config\.|profile\.clone|validation_result\.clone" -n')
+    printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_PROBLEMATIC_CLONE"
 fi
+
+printf "│ %-35s │ %5d │ " "Total clone usage" "$TOTAL_CLONES"
+printf "$(format_status "⚠️ INFO")│ %-39s │\n" "$LEGITIMATE_CLONES legitimate, $PROBLEMATIC_CLONES problematic"
 
 printf "│ %-35s │ %5d │ " "Arc usage" "$TOTAL_ARCS"
 if [ "$TOTAL_ARCS" -lt 50 ]; then

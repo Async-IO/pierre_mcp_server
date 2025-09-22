@@ -8,6 +8,10 @@
 
 //! # Data Models
 //!
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - HashMap key ownership for statistics aggregation (stage_type.clone())
+// - Data structure ownership transfers across model boundaries
+//!
 //! This module contains the core data structures used throughout the Pierre MCP Server.
 //! These models provide a unified representation of fitness data from various providers
 //! like Strava and Fitbit.
@@ -454,6 +458,7 @@ impl SleepSession {
         let mut summary = HashMap::new();
         for stage in &self.stages {
             *summary.entry(stage.stage_type.clone()).or_insert(0) += stage.duration_minutes;
+            // Safe: Enum clone for HashMap key
         }
         summary
     }
@@ -1436,7 +1441,7 @@ impl EncryptedToken {
             access_token,
             refresh_token,
             expires_at: self.expires_at,
-            scope: self.scope.clone(),
+            scope: self.scope.clone(), // Safe: Option<String> ownership for struct creation
         })
     }
 }

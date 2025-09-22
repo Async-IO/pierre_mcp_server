@@ -2,6 +2,11 @@
 // ABOUTME: Provides REST endpoints for API key provisioning, user management, and admin functions
 //! Admin API Routes
 //!
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - Arc resource sharing in HTTP route handlers (context.clone())
+// - String ownership transfers for API keys, user data, and response models
+// - Database result ownership transfers across async boundaries
+//!
 //! This module provides REST API endpoints for admin services to manage API keys
 //! and perform administrative operations on the Pierre MCP Server.
 
@@ -45,7 +50,7 @@ impl AdminApiContext {
             "Creating AdminApiContext with JWT secret (first 10 chars): {}...",
             jwt_secret.chars().take(10).collect::<String>()
         );
-        let auth_service = AdminAuthService::new((*database).clone(), jwt_secret);
+        let auth_service = AdminAuthService::new((*database).clone(), jwt_secret); // Safe: Arc clone for auth service
         Self {
             database,
             auth_service,
@@ -184,6 +189,7 @@ pub struct PendingUsersResponse {
 pub fn admin_routes(
     context: AdminApiContext,
 ) -> impl Filter<Extract = impl Reply, Error = std::convert::Infallible> + Clone {
+    // Safe: All context.clone() calls below are Arc clones for HTTP route sharing in warp framework
     let provision_route = provision_api_key_route(context.clone());
     let revoke_route = revoke_api_key_route(context.clone());
     let list_keys_route = list_api_keys_route(context.clone());

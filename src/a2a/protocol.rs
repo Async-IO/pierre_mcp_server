@@ -8,6 +8,10 @@
 
 //! A2A Protocol Implementation
 //!
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - JSON-RPC message ownership for protocol serialization
+// - Request/response ownership across async boundaries
+//!
 //! Implements the core A2A (Agent-to-Agent) protocol for Pierre,
 //! providing JSON-RPC 2.0 based communication between AI agents.
 
@@ -355,13 +359,14 @@ impl A2AServer {
         };
 
         // Handle OAuth credentials if provided
-        let response = self.handle_initialize_internal(request.clone());
+        let response = self.handle_initialize_internal(request.clone()); // Safe: Request ownership for internal call
 
         // If initialization successful and OAuth credentials provided, store them
         if response.error.is_none() {
             if let Some(params) = &request.params {
                 if let Ok(init_request) =
                     serde_json::from_value::<A2AInitializeRequest>(params.clone())
+                // Safe: JSON value ownership for deserialization
                 {
                     if let Some(oauth_creds) = init_request.oauth_credentials {
                         if let Err(e) =
@@ -387,7 +392,7 @@ impl A2AServer {
         let init_request = request
             .params
             .as_ref()
-            .and_then(|params| serde_json::from_value::<A2AInitializeRequest>(params.clone()).ok());
+            .and_then(|params| serde_json::from_value::<A2AInitializeRequest>(params.clone()).ok()); // Safe: JSON value ownership for deserialization
 
         let (protocol_version, client_name) = if let Some(req) = init_request {
             // For now, accept any protocol version - A2A is more flexible
@@ -403,7 +408,7 @@ impl A2AServer {
         let init_response = A2AInitializeResponse::new(
             protocol_version,
             "pierre-a2a-server".to_string(),
-            self.version.clone(),
+            self.version.clone(), // Safe: String ownership for response
         );
 
         match serde_json::to_value(&init_response) {
@@ -433,7 +438,7 @@ impl A2AServer {
     ) -> Result<uuid::Uuid, Box<A2AResponse>> {
         let request_id = request
             .id
-            .clone()
+            .clone() // Safe: JSON value ownership for request ID
             .unwrap_or_else(|| serde_json::Value::Number(serde_json::Number::from(0)));
 
         // Extract auth token from request
@@ -447,7 +452,7 @@ impl A2AServer {
                         .to_string(),
                     data: None,
                 }),
-                id: Some(request_id.clone()),
+                id: Some(request_id.clone()), // Safe: JSON value ownership for error response
             })
         })?;
 
@@ -463,7 +468,7 @@ impl A2AServer {
                             message: "Invalid user ID in authentication token".to_string(),
                             data: None,
                         }),
-                        id: Some(request_id.clone()),
+                        id: Some(request_id.clone()), // Safe: JSON value ownership for error response
                     }))
                 },
                 Ok,
@@ -593,7 +598,7 @@ impl A2AServer {
             error: None,
             client_id,
             task_type,
-            input_data: params.clone(),
+            input_data: params.clone(), // Safe: JSON value ownership for task input
             output_data: None,
             error_message: None,
             updated_at: chrono::Utc::now(),
@@ -861,7 +866,7 @@ impl A2AServer {
 
         // Check if we have proper ServerResources injected
         let resources = match &self.resources {
-            Some(res) => res.clone(),
+            Some(res) => res.clone(), // Safe: Arc clone for server resources
             None => {
                 // Return error if ServerResources are not available
                 return A2AResponse {

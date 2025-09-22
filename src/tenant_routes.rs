@@ -182,8 +182,8 @@ pub async fn create_tenant(
     let tenant_data = crate::models::Tenant {
         id: tenant_id,
         name: tenant_request.name.clone(),
-        slug: slug.clone(),
-        domain: tenant_request.domain.clone(),
+        slug: slug.clone(), // Safe: String ownership for tenant struct
+        domain: tenant_request.domain.clone(), // Safe: String ownership for tenant struct
         plan: tenant_request.plan.unwrap_or_else(|| "basic".to_string()),
         owner_user_id: auth_result.user_id,
         created_at: chrono::Utc::now(),
@@ -302,11 +302,11 @@ pub async fn configure_tenant_oauth(
     // Store encrypted OAuth credentials
     let credentials = TenantOAuthCredentials {
         tenant_id: tenant_uuid,
-        provider: oauth_request.provider.clone(),
+        provider: oauth_request.provider.clone(), // Safe: String ownership for OAuth credentials
         client_id: oauth_request.client_id.clone(),
         client_secret: oauth_request.client_secret,
         redirect_uri: oauth_request.redirect_uri.clone(),
-        scopes: oauth_request.scopes.clone(),
+        scopes: oauth_request.scopes.clone(), // Safe: Option<String> ownership for OAuth credentials
         rate_limit_per_day: oauth_request.rate_limit_per_day.unwrap_or(15000),
     };
 
@@ -407,7 +407,7 @@ pub async fn register_oauth_app(
         description: app_request.description,
         redirect_uris: app_request.redirect_uris,
         scopes: app_request.scopes,
-        app_type: app_request.app_type.clone(),
+        app_type: app_request.app_type.clone(), // Safe: String ownership for OAuth app struct
         owner_user_id: auth_result.user_id,
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),

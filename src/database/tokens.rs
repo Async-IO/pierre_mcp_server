@@ -1,5 +1,7 @@
 // ABOUTME: OAuth token management database operations
 // ABOUTME: Handles encryption, storage, and retrieval of OAuth tokens
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - Option<String> ownership for OAuth token scope fields
 
 use super::{Database, EncryptionHelper};
 use crate::models::{DecryptedToken, EncryptedToken};

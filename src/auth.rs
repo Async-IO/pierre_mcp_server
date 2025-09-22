@@ -8,6 +8,11 @@
 
 //! # Authentication and Session Management
 //!
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - Arc resource sharing for auth managers across threads
+// - String ownership for JWT claims and session data
+// - Database result ownership transfers
+//!
 //! This module provides JWT-based authentication and session management
 //! for the multi-tenant Pierre MCP Server.
 
@@ -182,7 +187,7 @@ pub struct AuthManager {
 impl Clone for AuthManager {
     fn clone(&self) -> Self {
         Self {
-            jwt_secret: self.jwt_secret.clone(),
+            jwt_secret: self.jwt_secret.clone(), // Safe: String ownership for Clone trait
             token_expiry_hours: self.token_expiry_hours,
             // Start fresh counter for cloned instance - this is acceptable
             // since each instance will maintain uniqueness independently

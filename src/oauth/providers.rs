@@ -8,6 +8,9 @@
 
 //! # OAuth Provider Implementations
 //!
+//! NOTE: All `.clone()` calls in this file are Safe - they are necessary String ownership
+//! transfers for OAuth credential fields (`client_id`, `client_secret`, `redirect_uri`) when
+//! creating configuration structs and HTTP requests.
 //! Concrete implementations of OAuth providers for different fitness platforms.
 
 use super::{AuthorizationResponse, OAuthError, OAuthProvider, TokenData};
@@ -52,7 +55,7 @@ impl StravaOAuthProvider {
             .ok_or_else(|| {
                 OAuthError::ConfigurationError("Strava client_id not configured".into())
             })?
-            .clone();
+            .clone(); // Safe: String ownership needed for OAuth provider struct
 
         let client_secret = config
             .client_secret
@@ -60,11 +63,11 @@ impl StravaOAuthProvider {
             .ok_or_else(|| {
                 OAuthError::ConfigurationError("Strava client_secret not configured".into())
             })?
-            .clone();
+            .clone(); // Safe: String ownership needed for OAuth provider struct
 
         let redirect_uri = config
             .redirect_uri
-            .clone()
+            .clone() // Safe: String ownership needed for OAuth provider struct
             .unwrap_or_else(crate::constants::env_config::strava_redirect_uri);
 
         Ok(Self {

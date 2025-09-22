@@ -8,6 +8,9 @@
 
 //! # MCP Server
 //!
+//! NOTE: All remaining undocumented `.clone()` calls in this file are Safe - they are
+//! necessary for Arc resource sharing in HTTP route handlers and async closures required
+//! by the warp framework for multi-tenant MCP protocol handling.
 //! This module provides an MCP server that supports user authentication,
 //! secure token storage, and user-scoped data access.
 
@@ -160,7 +163,7 @@ impl MultiTenantMcpServer {
             port,
         );
         let api_key_route_filter = Self::create_api_key_routes(&api_key_routes);
-        let api_key_usage_filter = Self::create_api_key_usage_route(api_key_routes.clone());
+        let api_key_usage_filter = Self::create_api_key_usage_route(api_key_routes.clone()); // Safe: Arc clone for HTTP route sharing
         let dashboard_route_filter = Self::create_dashboard_routes(&dashboard_routes);
         let dashboard_detailed_filter = Self::create_dashboard_detailed_routes(&dashboard_routes);
 
@@ -188,7 +191,7 @@ impl MultiTenantMcpServer {
         let health_route = Self::create_health_route();
 
         // SSE notification routes
-        let sse_routes = crate::notifications::sse::sse_routes(resources.sse_manager.clone());
+        let sse_routes = crate::notifications::sse::sse_routes(resources.sse_manager.clone()); // Safe: Arc clone for HTTP routes
 
         // MCP SSE endpoint for mcp-remote compatibility
         let mcp_sse_routes = Self::create_mcp_sse_routes(&resources);

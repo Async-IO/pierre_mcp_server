@@ -240,7 +240,7 @@ impl ToolEngine {
                             .map(|props| serde_json::from_value(props).unwrap_or_default()),
                         required: input_schema
                             .get("required")
-                            .and_then(|req| serde_json::from_value(req.clone()).ok()),
+                            .and_then(|req| serde_json::from_value(req.clone()).ok()), // Safe: JSON value ownership for schema parsing
                     },
                 })
             })

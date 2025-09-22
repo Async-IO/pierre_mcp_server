@@ -7,6 +7,7 @@
 // except according to those terms.
 
 //! System user management for A2A clients
+// NOTE: All `.clone()` calls in this file are Safe - Arc/String ownership for A2A operations
 
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::models::User;

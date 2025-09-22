@@ -91,15 +91,14 @@ impl HealthChecker {
     pub fn new(database: Arc<Database>) -> Self {
         let health_checker = Self {
             start_time: Instant::now(),
-            database: database.clone(),
+            database: database.clone(), // Safe: Arc clone needed for both struct and background task
             cached_status: RwLock::new(None),
             cache_ttl: Duration::from_secs(30), // Cache for 30 seconds
         };
 
         // Start background cleanup task for expired API keys
-        let database_clone = database;
         tokio::spawn(async move {
-            Self::periodic_cleanup_task(database_clone).await;
+            Self::periodic_cleanup_task(database).await;
         });
 
         health_checker
@@ -172,7 +171,7 @@ impl HealthChecker {
             let cached = self.cached_status.read().await;
             if let Some((response, cached_at)) = cached.as_ref() {
                 if cached_at.elapsed() < self.cache_ttl {
-                    return response.clone();
+                    return response.clone(); // Safe: HealthResponse ownership from cache
                 }
             }
         }
@@ -227,7 +226,7 @@ impl HealthChecker {
         // Cache the response
         {
             let mut cached = self.cached_status.write().await;
-            *cached = Some((response.clone(), Instant::now()));
+            *cached = Some((response.clone(), Instant::now())); // Safe: HealthResponse ownership for cache storage
         }
 
         response
@@ -435,7 +434,7 @@ impl HealthChecker {
 
         // Add readiness-specific checks
         let db_check = self.check_database().await;
-        response.checks.push(db_check.clone());
+        response.checks.push(db_check.clone()); // Safe: HealthCheck ownership for response vec
 
         // Service is ready if database is healthy
         response.status = if db_check.status == HealthStatus::Healthy {
@@ -546,11 +545,40 @@ impl HealthChecker {
             .parse::<u64>()?;
 
         let total_mb = total_bytes / crate::constants::system_monitoring::BYTES_TO_MB_DIVISOR;
-        // For simplicity, estimate used memory as 70% (would need vm_stat for precision)
-        let used_mb = total_mb.saturating_mul(
-            crate::constants::system_monitoring::MACOS_ESTIMATED_MEMORY_USAGE_PERCENT,
-        ) / crate::constants::system_monitoring::MACOS_ESTIMATED_MEMORY_TOTAL_PERCENT;
-        let available_mb = total_mb.saturating_sub(used_mb);
+        // Get detailed memory statistics using vm_stat for accurate usage
+        let vm_output = Command::new("vm_stat").output()?;
+        let vm_stats = String::from_utf8(vm_output.stdout)?;
+
+        // Parse vm_stat output to get page counts
+        let mut pages_free = 0u64;
+        let mut pages_active = 0u64;
+        let mut pages_inactive = 0u64;
+        let mut pages_wired = 0u64;
+        let mut pages_compressed = 0u64;
+
+        for line in vm_stats.lines() {
+            if let Some(value_str) = line.strip_prefix("Pages free:") {
+                pages_free = value_str.trim().trim_end_matches('.').parse().unwrap_or(0);
+            } else if let Some(value_str) = line.strip_prefix("Pages active:") {
+                pages_active = value_str.trim().trim_end_matches('.').parse().unwrap_or(0);
+            } else if let Some(value_str) = line.strip_prefix("Pages inactive:") {
+                pages_inactive = value_str.trim().trim_end_matches('.').parse().unwrap_or(0);
+            } else if let Some(value_str) = line.strip_prefix("Pages wired down:") {
+                pages_wired = value_str.trim().trim_end_matches('.').parse().unwrap_or(0);
+            } else if let Some(value_str) = line.strip_prefix("Pages stored in compressor:") {
+                pages_compressed = value_str.trim().trim_end_matches('.').parse().unwrap_or(0);
+            }
+        }
+
+        // macOS page size is typically 4096 bytes
+        let page_size = 4096u64;
+        let used_bytes =
+            (pages_active + pages_inactive + pages_wired + pages_compressed) * page_size;
+        let available_bytes = pages_free * page_size;
+
+        let used_mb = used_bytes / crate::constants::system_monitoring::BYTES_TO_MB_DIVISOR;
+        let available_mb =
+            available_bytes / crate::constants::system_monitoring::BYTES_TO_MB_DIVISOR;
         let used_percent = if total_mb > 0 {
             (f64::from(u32::try_from(used_mb).unwrap_or(u32::MAX))
                 / f64::from(u32::try_from(total_mb).unwrap_or(u32::MAX)))
@@ -569,11 +597,49 @@ impl HealthChecker {
 
     #[cfg(target_os = "windows")]
     fn get_memory_info_windows(_: &Self) -> Result<MemoryInfo, Box<dyn std::error::Error>> {
-        // For Windows, we'd use WinAPI, but for simplicity return estimated values
-        let total_mb = crate::constants::system_monitoring::WINDOWS_ESTIMATED_TOTAL_MEMORY_MB;
-        let used_mb = crate::constants::system_monitoring::WINDOWS_ESTIMATED_USED_MEMORY_MB;
-        let available_mb = total_mb - used_mb;
-        let used_percent = crate::constants::system_monitoring::WINDOWS_ESTIMATED_USAGE_PERCENT;
+        // Use Windows API GlobalMemoryStatusEx for accurate memory information
+        use std::mem;
+
+        #[repr(C)]
+        struct MemoryStatusEx {
+            dw_length: u32,
+            dw_memory_load: u32,
+            ull_total_phys: u64,
+            ull_avail_phys: u64,
+            ull_total_page_file: u64,
+            ull_avail_page_file: u64,
+            ull_total_virtual: u64,
+            ull_avail_virtual: u64,
+            ull_avail_extended_virtual: u64,
+        }
+
+        extern "system" {
+            fn GlobalMemoryStatusEx(lpBuffer: *mut MemoryStatusEx) -> i32;
+        }
+
+        let mut mem_status = MemoryStatusEx {
+            dw_length: mem::size_of::<MemoryStatusEx>() as u32,
+            dw_memory_load: 0,
+            ull_total_phys: 0,
+            ull_avail_phys: 0,
+            ull_total_page_file: 0,
+            ull_avail_page_file: 0,
+            ull_total_virtual: 0,
+            ull_avail_virtual: 0,
+            ull_avail_extended_virtual: 0,
+        };
+
+        let result = unsafe { GlobalMemoryStatusEx(&mut mem_status) };
+        if result == 0 {
+            return Err("Failed to get Windows memory status".into());
+        }
+
+        let total_mb =
+            mem_status.ull_total_phys / crate::constants::system_monitoring::BYTES_TO_MB_DIVISOR;
+        let available_mb =
+            mem_status.ull_avail_phys / crate::constants::system_monitoring::BYTES_TO_MB_DIVISOR;
+        let used_mb = total_mb - available_mb;
+        let used_percent = f64::from(mem_status.dw_memory_load);
 
         Ok(MemoryInfo {
             total_mb,
@@ -635,13 +701,63 @@ impl HealthChecker {
         _: &Self,
         path: &std::path::Path,
     ) -> Result<DiskInfo, Box<dyn std::error::Error>> {
-        // For Windows, we'd use WinAPI, but for simplicity return estimated values
+        // Use Windows API GetDiskFreeSpaceEx for accurate disk information
+        use std::ffi::OsStr;
+        use std::os::windows::ffi::OsStrExt;
+
+        extern "system" {
+            fn GetDiskFreeSpaceExW(
+                lpDirectoryName: *const u16,
+                lpFreeBytesAvailableToCaller: *mut u64,
+                lpTotalNumberOfBytes: *mut u64,
+                lpTotalNumberOfFreeBytes: *mut u64,
+            ) -> i32;
+        }
+
+        // Convert path to wide string for Windows API
+        let wide_path: Vec<u16> = OsStr::new(path)
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+
+        let mut free_bytes_available = 0u64;
+        let mut total_bytes = 0u64;
+        let mut total_free_bytes = 0u64;
+
+        let result = unsafe {
+            GetDiskFreeSpaceExW(
+                wide_path.as_ptr(),
+                &mut free_bytes_available,
+                &mut total_bytes,
+                &mut total_free_bytes,
+            )
+        };
+
+        if result == 0 {
+            return Err(format!(
+                "Failed to get Windows disk space for path: {}",
+                path.display()
+            )
+            .into());
+        }
+
+        let total_gb =
+            total_bytes as f64 / crate::constants::system_monitoring::BYTES_TO_GB_DIVISOR as f64;
+        let available_gb = free_bytes_available as f64
+            / crate::constants::system_monitoring::BYTES_TO_GB_DIVISOR as f64;
+        let used_gb = total_gb - available_gb;
+        let used_percent = if total_gb > 0.0 {
+            (used_gb / total_gb) * 100.0
+        } else {
+            0.0
+        };
+
         Ok(DiskInfo {
             path: path.to_string_lossy().to_string(),
-            total_gb: 500.0,
-            used_gb: 250.0,
-            available_gb: 250.0,
-            used_percent: 50.0,
+            total_gb,
+            used_gb,
+            available_gb,
+            used_percent,
         })
     }
 }
@@ -676,12 +792,12 @@ pub mod middleware {
 
         let health = warp::path("health")
             .and(warp::get())
-            .and(with_health_checker(health_checker.clone()))
+            .and(with_health_checker(health_checker.clone())) // Safe: Arc clone for HTTP route
             .and_then(health_handler);
 
         let ready = warp::path("ready")
             .and(warp::get())
-            .and(with_health_checker(health_checker.clone()))
+            .and(with_health_checker(health_checker.clone())) // Safe: Arc clone for HTTP route
             .and_then(readiness_handler);
 
         let live = warp::path("live")
@@ -696,7 +812,7 @@ pub mod middleware {
         health_checker: std::sync::Arc<HealthChecker>,
     ) -> impl Filter<Extract = (std::sync::Arc<HealthChecker>,), Error = std::convert::Infallible> + Clone
     {
-        warp::any().map(move || health_checker.clone())
+        warp::any().map(move || health_checker.clone()) // Safe: Arc clone for warp filter
     }
 
     async fn health_handler(

@@ -127,7 +127,7 @@ impl ResponseFormatter {
                 request_id,
                 timestamp: chrono::Utc::now(),
                 processing_time_ms,
-                version: self.version.clone(),
+                version: self.version.clone(), // Safe: String ownership needed for response metadata
                 user_id,
             },
         }
@@ -156,7 +156,7 @@ impl ResponseFormatter {
                 request_id: params.request_id,
                 timestamp: chrono::Utc::now(),
                 processing_time_ms: params.processing_time_ms,
-                version: self.version.clone(),
+                version: self.version.clone(), // Safe: String ownership needed for response metadata
                 user_id: params.user_id,
             },
         }
@@ -181,7 +181,7 @@ impl ResponseFormatter {
                 request_id: request_id.or_else(|| error.request_id.clone()),
                 timestamp: chrono::Utc::now(),
                 processing_time_ms,
-                version: self.version.clone(),
+                version: self.version.clone(), // Safe: String ownership needed for response metadata
                 user_id: None,
             },
         }

@@ -61,11 +61,11 @@ impl ClientRegistrationManager {
             client_id: client_id.clone(),
             client_secret_hash,
             redirect_uris: request.redirect_uris.clone(),
-            grant_types: grant_types.clone(),
-            response_types: response_types.clone(),
-            client_name: request.client_name.clone(),
-            client_uri: request.client_uri.clone(),
-            scope: request.scope.clone(),
+            grant_types: grant_types.clone(), // Safe: Vec ownership for OAuth client
+            response_types: response_types.clone(), // Safe: Vec ownership for OAuth client
+            client_name: request.client_name.clone(), // Safe: String ownership for OAuth client
+            client_uri: request.client_uri.clone(), // Safe: Option<String> ownership for OAuth client
+            scope: request.scope.clone(), // Safe: Option<String> ownership for OAuth client
             created_at,
             expires_at,
         };

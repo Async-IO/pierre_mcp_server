@@ -200,8 +200,8 @@ impl ProtocolConverter {
         tool: &crate::protocols::universal::UniversalTool,
     ) -> crate::mcp::schema::Tool {
         crate::mcp::schema::Tool {
-            name: tool.name.clone(),
-            description: tool.description.clone(),
+            name: tool.name.clone(), // Safe: String ownership needed for MCP tool schema
+            description: tool.description.clone(), // Safe: String ownership for MCP tool schema
             input_schema: serde_json::json!({
                 "type": "object",
                 "properties": {},

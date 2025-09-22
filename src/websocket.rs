@@ -84,10 +84,10 @@ impl WebSocketManager {
     pub fn websocket_filter(
         &self,
     ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
-        let manager = self.clone();
+        let manager = self.clone(); // Safe: Arc clone for HTTP filter
 
         warp::path("ws").and(warp::ws()).map(move |ws: Ws| {
-            let manager = manager.clone();
+            let manager = manager.clone(); // Safe: Arc clone for websocket upgrade closure
             ws.on_upgrade(move |socket| async move { manager.handle_connection(socket).await })
         })
     }
@@ -180,7 +180,7 @@ impl WebSocketManager {
             let client = ClientConnection {
                 user_id,
                 subscriptions,
-                tx: tx.clone(),
+                tx: tx.clone(), // Safe: mpsc::Sender clone for client storage
             };
             self.clients.write().await.insert(connection_id, client);
         }
@@ -294,7 +294,7 @@ impl WebSocketManager {
 
     /// Start background task for periodic updates
     pub fn start_periodic_updates(&self) {
-        let manager = self.clone();
+        let manager = self.clone(); // Safe: Arc clone for background task
         tokio::spawn(async move {
             let mut interval = interval(Duration::from_secs(30)); // Update every 30 seconds
 

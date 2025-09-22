@@ -614,7 +614,7 @@ impl<S: IntelligenceStrategy> GoalEngineTrait for AdvancedGoalEngine<S> {
         let on_track = Self::is_on_track(goal, progress_percentage);
 
         let mut progress_report = ProgressReport {
-            goal_id: goal.id.clone(),
+            goal_id: goal.id.clone(), // Safe: String ownership for progress report
             progress_percentage,
             completion_date_estimate,
             milestones_achieved: achieved_milestones,
@@ -775,7 +775,7 @@ impl GoalType {
         match self {
             Self::Distance { sport, .. }
             | Self::Time { sport, .. }
-            | Self::Frequency { sport, .. } => sport.clone(),
+            | Self::Frequency { sport, .. } => sport.clone(), // Safe: String ownership for goal sport
             Self::Performance { .. } | Self::Custom { .. } => "Any".into(),
         }
     }

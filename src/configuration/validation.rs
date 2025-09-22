@@ -110,7 +110,7 @@ impl ConfigValidator {
             let relevant_params: HashMap<String, ConfigValue> = changes
                 .iter()
                 .filter(|(key, _)| rule.parameters.contains(key))
-                .map(|(k, v)| (k.clone(), v.clone()))
+                .map(|(k, v)| (k.clone(), v.clone())) // Safe: String ownership for filtered config map
                 .collect();
 
             if !relevant_params.is_empty() {

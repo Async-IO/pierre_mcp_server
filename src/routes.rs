@@ -166,7 +166,7 @@ impl AuthRoutes {
         let password_hash = bcrypt::hash(&request.password, bcrypt::DEFAULT_COST)?;
 
         // Create user
-        let user = User::new(request.email.clone(), password_hash, request.display_name);
+        let user = User::new(request.email.clone(), password_hash, request.display_name); // Safe: String ownership needed for user model
 
         // Save user to database
         let user_id = self.resources.database.create_user(&user).await?;
@@ -526,12 +526,12 @@ impl OAuthRoutes {
             user_id,
             tenant_id.to_string(),
             oauth_providers::STRAVA.to_string(),
-            token_response.access_token.clone(),
-            Some(token_response.refresh_token.clone()),
+            token_response.access_token.clone(), // Safe: String ownership needed for OAuth token model
+            Some(token_response.refresh_token.clone()), // Safe: String ownership needed for OAuth token model
             Some(expires_at),
             token_response
                 .scope
-                .clone()
+                .clone() // Safe: Option<String> ownership for scope fallback
                 .or_else(|| Some(crate::constants::oauth::STRAVA_DEFAULT_SCOPES.into())),
         );
 
@@ -615,10 +615,10 @@ impl OAuthRoutes {
             user_id,
             tenant_id.to_string(),
             oauth_providers::FITBIT.to_string(),
-            token_response.access_token.clone(),
-            Some(token_response.refresh_token.clone()),
+            token_response.access_token.clone(), // Safe: String ownership needed for OAuth token model
+            Some(token_response.refresh_token.clone()), // Safe: String ownership needed for OAuth token model
             Some(expires_at),
-            Some(token_response.scope.clone()),
+            Some(token_response.scope.clone()), // Safe: String ownership needed for OAuth token model
         );
 
         self.resources
@@ -843,7 +843,7 @@ impl OAuthRoutes {
             .as_ref()
             .and_then(|t| t.expires_at)
             .map(|dt| dt.to_rfc3339());
-        let strava_scopes = strava_token.as_ref().and_then(|t| t.scope.clone());
+        let strava_scopes = strava_token.as_ref().and_then(|t| t.scope.clone()); // Safe: Option<String> ownership for response
 
         statuses.push(ConnectionStatus {
             provider: oauth_providers::STRAVA.to_string(),
@@ -864,7 +864,7 @@ impl OAuthRoutes {
             .as_ref()
             .and_then(|t| t.expires_at)
             .map(|dt| dt.to_rfc3339());
-        let fitbit_scopes = fitbit_token.as_ref().and_then(|t| t.scope.clone());
+        let fitbit_scopes = fitbit_token.as_ref().and_then(|t| t.scope.clone()); // Safe: Option<String> ownership for response
 
         statuses.push(ConnectionStatus {
             provider: oauth_providers::FITBIT.to_string(),

@@ -31,7 +31,7 @@ pub fn detailed_success(message: &str, data: &Value) -> Value {
     json!({
         "success": true,
         "message": message,
-        "data": data.clone()
+        "data": data.clone() // Safe: JSON value ownership for response
     })
 }
 
@@ -56,7 +56,7 @@ pub fn validation_error(message: &str, details: &Value) -> Value {
     json!({
         "error": "validation_failed",
         "message": message,
-        "details": details.clone()
+        "details": details.clone() // Safe: JSON value ownership for error response
     })
 }
 

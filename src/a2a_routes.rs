@@ -100,10 +100,10 @@ impl A2ARoutes {
 
     #[must_use]
     pub fn new(resources: Arc<crate::mcp::resources::ServerResources>) -> Self {
-        let client_manager = resources.a2a_client_manager.clone();
-        let authenticator = Arc::new(A2AAuthenticator::new(resources.clone()));
+        let client_manager = resources.a2a_client_manager.clone(); // Safe: Arc clone for shared client manager
+        let authenticator = Arc::new(A2AAuthenticator::new(resources.clone())); // Safe: Arc clone for authenticator creation
 
-        let tool_executor = UniversalToolExecutor::new(resources.clone());
+        let tool_executor = UniversalToolExecutor::new(resources.clone()); // Safe: Arc clone for tool executor creation
 
         Self {
             resources,
@@ -575,12 +575,12 @@ impl A2ARoutes {
 impl Clone for A2ARoutes {
     fn clone(&self) -> Self {
         // Clone uses shared ServerResources - no expensive object recreation
-        let tool_executor = UniversalToolExecutor::new(self.resources.clone());
+        let tool_executor = UniversalToolExecutor::new(self.resources.clone()); // Safe: Arc clone for tool executor creation
 
         Self {
-            resources: self.resources.clone(),
-            client_manager: self.client_manager.clone(),
-            authenticator: self.authenticator.clone(),
+            resources: self.resources.clone(), // Safe: Arc clone for resource sharing
+            client_manager: self.client_manager.clone(), // Safe: Arc clone for A2A context
+            authenticator: self.authenticator.clone(), // Safe: Arc clone for A2A context
             tool_executor,
         }
     }

@@ -1267,7 +1267,7 @@ impl DatabaseProvider for PostgresDatabase {
         .execute(&self.pool)
         .await?;
 
-        Ok(client.id.clone())
+        Ok(client.id.clone()) // Safe: String ownership for return value
     }
 
     async fn get_a2a_client(&self, client_id: &str) -> Result<Option<A2AClient>> {
@@ -1642,7 +1642,7 @@ impl DatabaseProvider for PostgresDatabase {
                 status,
                 created_at: row.try_get("created_at")?,
                 completed_at: row.try_get("updated_at")?,
-                result: result_data.clone(),
+                result: result_data.clone(), // Safe: JSON value ownership for A2ATask struct
                 error: row.try_get("method")?,
                 client_id: row
                     .try_get("client_id")
@@ -1761,7 +1761,7 @@ impl DatabaseProvider for PostgresDatabase {
                 status,
                 created_at: row.try_get("created_at")?,
                 completed_at: row.try_get("updated_at")?,
-                result: result_data.clone(),
+                result: result_data.clone(), // Safe: JSON value ownership for A2ATask struct
                 error: row.try_get("method")?,
                 client_id: row
                     .try_get("client_id")
@@ -2115,7 +2115,7 @@ impl DatabaseProvider for PostgresDatabase {
                     AdminPermissions::default_admin()
                 }
             },
-            |perms| AdminPermissions::new(perms.clone()),
+            |perms| AdminPermissions::new(perms.clone()), // Safe: Vec<String> ownership for permissions struct
         );
 
         // Calculate expiration

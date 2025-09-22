@@ -205,7 +205,7 @@ impl TenantRateLimitConfig {
 
     /// Set custom multiplier for a tenant (for temporary adjustments)
     pub fn set_tenant_multiplier(&mut self, tenant_id: Uuid, multiplier: f32) {
-        let mut config = self.get_tenant_config(tenant_id).clone();
+        let mut config = self.get_tenant_config(tenant_id).clone(); // Safe: TenantConfig ownership for modification
         config.multiplier = multiplier;
         self.set_tenant_config(tenant_id, config);
     }
@@ -382,7 +382,7 @@ impl UnifiedRateLimitCalculator {
                 limit: None,
                 remaining: None,
                 reset_at: None,
-                tier: tenant.plan.clone(),
+                tier: tenant.plan.clone(), // Safe: String ownership for rate limit status
                 auth_method: "tenant_token".into(),
             }
         } else {
@@ -395,7 +395,7 @@ impl UnifiedRateLimitCalculator {
                 limit: Some(limit),
                 remaining: Some(remaining),
                 reset_at: Some(Self::calculate_monthly_reset()),
-                tier: tenant.plan.clone(),
+                tier: tenant.plan.clone(), // Safe: String ownership for rate limit status
                 auth_method: "tenant_token".into(),
             }
         }

@@ -584,7 +584,7 @@ impl DatabaseProvider for SqliteDatabase {
                     AdminPermissions::default_admin()
                 }
             },
-            |perms| AdminPermissions::new(perms.clone()),
+            |perms| AdminPermissions::new(perms.clone()), // Safe: Vec<String> ownership for permissions struct
         );
 
         // Calculate expiration

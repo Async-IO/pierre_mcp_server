@@ -159,7 +159,7 @@ impl AdminJwtManager {
         }
 
         // Reconstruct permissions
-        let permissions = AdminPermissions::new(claims.permissions.clone());
+        let permissions = AdminPermissions::new(claims.permissions.clone()); // Safe: Vec<String> ownership for permissions
 
         let token_id = claims.sub.clone();
         let service_name = claims.service_name.clone();

@@ -65,7 +65,7 @@ impl TenantIsolation {
     /// Returns an error if tenant ID is missing or invalid
     pub fn extract_tenant_id(&self, user: &crate::models::User) -> Result<Uuid> {
         user.tenant_id
-            .clone()
+            .clone() // Safe: Option<String> ownership for UUID parsing
             .ok_or_else(|| anyhow::anyhow!("User does not belong to any tenant"))?
             .parse()
             .map_err(|_| anyhow::anyhow!("Invalid tenant ID format"))
@@ -373,7 +373,7 @@ pub async fn validate_jwt_token_for_mcp(
 
     let tenant_id = user
         .tenant_id
-        .clone()
+        .clone() // Safe: Option<String> ownership for UUID parsing
         .ok_or_else(|| anyhow::anyhow!("User does not belong to any tenant"))?
         .parse()
         .map_err(|_| anyhow::anyhow!("Invalid tenant ID format"))?;

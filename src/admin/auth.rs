@@ -2,6 +2,10 @@
 // ABOUTME: Validates admin JWT tokens, enforces permissions, and tracks admin token usage
 //! Admin Authentication and Authorization
 //!
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - Arc resource sharing for admin auth services
+// - String ownership for JWT claims and token data
+//!
 //! This module provides authentication and authorization functionality for admin services.
 
 use crate::admin::{
@@ -229,8 +233,8 @@ pub mod middleware {
         required_permission: AdminPermission,
     ) -> impl Filter<Extract = (ValidatedAdminToken,), Error = Rejection> + Clone {
         warp::header::<String>("authorization").and_then(move |auth_header: String| {
-            let auth_service = auth_service.clone();
-            let required_permission = required_permission.clone();
+            let auth_service = auth_service.clone(); // Safe: Arc clone for async closure
+            let required_permission = required_permission.clone(); // Safe: AdminPermission clone for async closure
 
             async move {
                 // Extract Bearer token

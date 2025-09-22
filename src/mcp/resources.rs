@@ -8,6 +8,10 @@
 
 //! # Server Resources Module
 //!
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - Arc sharing of expensive resources (database, auth managers) across threads
+// - Resource ownership transfers for dependency injection
+//!
 //! Centralized resource container for dependency injection.
 //! Eliminates anti-patterns of recreating expensive objects and excessive Arc cloning.
 
