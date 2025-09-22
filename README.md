@@ -102,35 +102,40 @@ Pierre MCP Server is designed to work with `mcp-remote`, which handles the OAuth
 
 #### Installation
 
-Install mcp-remote using one of these methods:
+mcp-remote can be used directly via npx (recommended) or installed globally:
 
 ```bash
-# Option 1: Using npm globally
+# Option 1: Use via npx (recommended - no installation required)
+npx mcp-remote http://localhost:8081/mcp --allow-http --debug --transport http-first --auth-timeout 120 --timeout 120
+
+# Option 2: Install globally first, then use
 npm install -g mcp-remote
-
-# Option 2: Using npx (no installation required)
-npx mcp-remote --version
-```
-
-#### Command Line Usage
-
-```bash
-# Using globally installed mcp-remote
 mcp-remote http://localhost:8081/mcp --allow-http --debug --transport http-first --auth-timeout 120 --timeout 120
-
-# Or using npx (runs latest version without installation)
-npx @anthropic/mcp-remote http://localhost:8081/mcp --allow-http --debug --transport http-first --auth-timeout 120 --timeout 120
 ```
 
 #### Claude Desktop Configuration
 
 Add this to your Claude Desktop configuration file (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
 
+**Option 1: Using npx (recommended)**
 ```json
 {
   "mcpServers": {
     "pierre-fitness": {
-      "command": "/opt/homebrew/bin/mcp-remote",
+      "command": "npx",
+      "args": ["mcp-remote", "http://localhost:8081/mcp", "--allow-http", "--debug", "--transport", "http-first", "--auth-timeout", "120", "--timeout", "120"],
+      "env": {}
+    }
+  }
+}
+```
+
+**Option 2: Using globally installed mcp-remote**
+```json
+{
+  "mcpServers": {
+    "pierre-fitness": {
+      "command": "mcp-remote",
       "args": ["http://localhost:8081/mcp", "--allow-http", "--debug", "--transport", "http-first", "--auth-timeout", "120", "--timeout", "120"],
       "env": {}
     }
