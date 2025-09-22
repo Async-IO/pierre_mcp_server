@@ -26,9 +26,9 @@ use std::time::Duration;
 use uuid::Uuid;
 
 // Default connection pool configuration constants
-const DEFAULT_CI_MAX_CONNECTIONS: u32 = 20;
+const DEFAULT_CI_MAX_CONNECTIONS: u32 = 5;  // Reduced for CI to avoid connection exhaustion
 const DEFAULT_PROD_MAX_CONNECTIONS: u32 = 10;
-const DEFAULT_CI_ACQUIRE_TIMEOUT_SECS: u64 = 120;
+const DEFAULT_CI_ACQUIRE_TIMEOUT_SECS: u64 = 30;  // Reduced timeout for faster failure detection
 const DEFAULT_PROD_ACQUIRE_TIMEOUT_SECS: u64 = 30;
 const DEFAULT_CI_MIN_CONNECTIONS: u32 = 1;
 const DEFAULT_PROD_MIN_CONNECTIONS: u32 = 0;
@@ -51,21 +51,40 @@ impl DatabaseProvider for PostgresDatabase {
     async fn new(database_url: &str, _encryption_key: Vec<u8>) -> Result<Self> {
         // Use reasonable connection pool for CI environments (tests may run concurrently)
         let is_ci = std::env::var("CI").is_ok();
-        let max_connections = if is_ci {
-            DEFAULT_CI_MAX_CONNECTIONS
-        } else {
-            DEFAULT_PROD_MAX_CONNECTIONS
-        };
-        let min_connections = if is_ci {
-            DEFAULT_CI_MIN_CONNECTIONS
-        } else {
-            DEFAULT_PROD_MIN_CONNECTIONS
-        };
-        let acquire_timeout_secs = if is_ci {
-            DEFAULT_CI_ACQUIRE_TIMEOUT_SECS
-        } else {
-            DEFAULT_PROD_ACQUIRE_TIMEOUT_SECS
-        };
+
+        // Allow environment variable overrides for connection pool settings
+        let max_connections = std::env::var("POSTGRES_MAX_CONNECTIONS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or_else(|| {
+                if is_ci {
+                    DEFAULT_CI_MAX_CONNECTIONS
+                } else {
+                    DEFAULT_PROD_MAX_CONNECTIONS
+                }
+            });
+
+        let min_connections = std::env::var("POSTGRES_MIN_CONNECTIONS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or_else(|| {
+                if is_ci {
+                    DEFAULT_CI_MIN_CONNECTIONS
+                } else {
+                    DEFAULT_PROD_MIN_CONNECTIONS
+                }
+            });
+
+        let acquire_timeout_secs = std::env::var("POSTGRES_ACQUIRE_TIMEOUT")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or_else(|| {
+                if is_ci {
+                    DEFAULT_CI_ACQUIRE_TIMEOUT_SECS
+                } else {
+                    DEFAULT_PROD_ACQUIRE_TIMEOUT_SECS
+                }
+            });
 
         // Log connection pool configuration for debugging
         if is_ci {

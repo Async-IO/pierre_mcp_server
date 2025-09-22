@@ -765,38 +765,62 @@ async fn test_database_connection_reuse() -> Result<()> {
 #[cfg(feature = "postgresql")]
 mod postgres_tests {
     use super::*;
+    use std::sync::Arc;
+    use tokio::sync::OnceCell;
 
     const POSTGRES_TEST_URL: &str =
         "postgresql://pierre:ci_test_password@localhost:5432/pierre_mcp_server";
 
-    async fn get_postgres_db() -> Result<PostgresDatabase> {
-        // For now, let's just use individual connections but with better CI settings
-        // The connection pool management we added should handle this better
-        let encryption_key = generate_encryption_key().to_vec();
-        let db = PostgresDatabase::new(POSTGRES_TEST_URL, encryption_key).await?;
+    // Shared database instance to avoid connection pool exhaustion in CI
+    static SHARED_DB: OnceCell<Arc<PostgresDatabase>> = OnceCell::const_new();
 
-        // Always run migrations to ensure schema is up-to-date
-        db.migrate().await?;
+    async fn get_postgres_db() -> Result<Arc<PostgresDatabase>> {
+        SHARED_DB
+            .get_or_try_init(|| async {
+                let encryption_key = generate_encryption_key().to_vec();
+                let db = PostgresDatabase::new(POSTGRES_TEST_URL, encryption_key).await?;
 
-        Ok(db)
+                // Always run migrations to ensure schema is up-to-date
+                db.migrate().await?;
+
+                Ok(Arc::new(db))
+            })
+            .await
+            .map(Arc::clone)
+    }
+
+    // Helper function to clean up test data between tests
+    async fn cleanup_test_data(db: &PostgresDatabase, user_email: &str) -> Result<()> {
+        // Clean up any test data to prevent conflicts between tests
+        if let Ok(user) = db.get_user_by_email(user_email).await {
+            let _ = db.delete_user(&user.id).await; // Ignore errors for non-existent data
+        }
+        Ok(())
     }
 
     #[tokio::test]
     async fn test_postgres_database_creation() -> Result<()> {
         let db = get_postgres_db().await?;
 
+        // Use unique test identifier to avoid conflicts
+        let test_id = uuid::Uuid::new_v4();
+        let user_email = format!("postgres_creation_test_{}@example.com", test_id);
+
+        // Clean up any existing data
+        cleanup_test_data(&db, &user_email).await?;
+
         // Verify database is operational
         let user = User::new(
-            format!(
-                "postgres_creation_test_{}@example.com",
-                uuid::Uuid::new_v4()
-            ),
+            user_email.clone(),
             "password123".to_string(),
             Some("PostgreSQL Creation Test".to_string()),
         );
 
         let user_id = db.create_user(&user).await?;
         assert_eq!(user_id, user.id);
+
+        // Clean up after test
+        cleanup_test_data(&db, &user_email).await?;
 
         // Clean up would happen on test drop or next run
 
