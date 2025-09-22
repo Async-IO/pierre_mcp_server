@@ -774,7 +774,6 @@ mod postgres_tests {
 
     // Per-test database instances to prevent connection leaks
 
-
     async fn get_postgres_db() -> Result<PostgresDatabase> {
         // Create fresh database instance per test to eliminate connection leaks
         std::env::set_var("POSTGRES_MAX_CONNECTIONS", "5");
