@@ -220,52 +220,6 @@ For Claude Desktop users, use `mcp-remote` as an intermediary client to access P
 | `list_fitness_configs` | List available fitness configurations | None |
 | `delete_fitness_config` | Delete a fitness configuration | `config_id` |
 
-## Plugin System
-
-Pierre MCP Server features a compile-time plugin architecture for extensible functionality:
-
-```rust
-use pierre_mcp_server::plugins::core::{PluginCategory, PluginImplementation, PluginInfo, PluginToolStatic};
-use pierre_mcp_server::plugins::PluginEnvironment;
-use pierre_mcp_server::protocols::universal::{UniversalRequest, UniversalResponse};
-use pierre_mcp_server::protocols::ProtocolError;
-use pierre_mcp_server::{impl_static_plugin, plugin_info, register_plugin};
-use async_trait::async_trait;
-
-pub struct CustomAnalysisPlugin;
-
-impl PluginToolStatic for CustomAnalysisPlugin {
-    fn new() -> Self { Self }
-    
-    const INFO: PluginInfo = plugin_info!(
-        name: "custom_analysis",
-        description: "Custom fitness analysis",
-        category: PluginCategory::Analytics,
-        input_schema: r#"{"type": "object", "properties": {"activity_id": {"type": "string"}}}"#,
-        credit_cost: 1,
-        author: "Your Team",
-        version: "1.0.0",
-    );
-}
-
-#[async_trait]
-impl PluginImplementation for CustomAnalysisPlugin {
-    async fn execute_impl(
-        &self,
-        request: UniversalRequest,
-        env: PluginEnvironment<'_>,
-    ) -> Result<UniversalResponse, ProtocolError> {
-        // Plugin implementation
-        todo!("Implement custom analysis logic")
-    }
-}
-
-// Use macro to implement required traits
-impl_static_plugin!(CustomAnalysisPlugin);
-
-// Register plugin for automatic discovery
-register_plugin!(CustomAnalysisPlugin);
-```
 
 ## A2A (Agent-to-Agent) Protocol
 
@@ -473,32 +427,6 @@ JWT_EXPIRY_HOURS=24
 OPENWEATHER_API_KEY=your_openweather_api_key
 ```
 
-### Fitness Configuration
-
-Pierre supports comprehensive fitness configuration through `fitness_config.toml`:
-
-```toml
-[zones.heart_rate]
-zone_1_max = 142
-zone_2_max = 152
-zone_3_max = 162
-zone_4_max = 172
-zone_5_max = 182
-
-[zones.power]
-ftp = 250
-zone_1_max = 144  # 58% of FTP
-zone_2_max = 175  # 70% of FTP
-zone_3_max = 205  # 82% of FTP
-zone_4_max = 235  # 94% of FTP
-zone_5_max = 325  # 130% of FTP
-
-[athlete_profile]
-weight_kg = 70.0
-max_heart_rate = 190
-resting_heart_rate = 45
-vo2_max = 55.0
-```
 
 ## Architecture
 
@@ -557,6 +485,7 @@ Complete documentation is available in the `docs/` directory:
 - **[Getting Started](docs/developer-guide/15-getting-started.md)** - Setup guide
 - **[Installation Guides](docs/installation-guides/)** - Platform-specific installation
 - **[Developer Guide](docs/developer-guide/)** - Technical documentation
+- **[Fitness Configuration](docs/developer-guide/20-fitness-configuration.md)** - Comprehensive fitness configuration guide
 - **[Logging and Observability](docs/developer-guide/19-logging-and-observability.md)** - Logging, debugging, and monitoring
 - **[Plugin System](docs/developer-guide/18-plugin-system.md)** - Plugin development guide
 - **[API Reference](docs/developer-guide/14-api-reference.md)** - API documentation
