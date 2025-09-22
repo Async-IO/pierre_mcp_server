@@ -23,8 +23,8 @@ use tracing::info;
 pub struct AdminAuthService {
     database: Database,
     jwt_manager: AdminJwtManager,
-    // Cache for validated tokens (in production, use Redis)
-    token_cache: Arc<tokio::sync::RwLock<HashMap<String, ValidatedAdminToken>>>,
+    // TTL cache for validated tokens with automatic expiration
+    token_cache: Arc<tokio::sync::RwLock<HashMap<String, (ValidatedAdminToken, std::time::Instant)>>>,
 }
 
 impl AdminAuthService {

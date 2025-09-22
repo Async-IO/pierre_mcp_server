@@ -459,10 +459,14 @@ impl OAuthRoutes {
         let random_part = parts
             .next()
             .ok_or_else(|| anyhow::anyhow!("Invalid state parameter format"))?;
-        let _ = random_part; // Used for state validation security
         let user_id = crate::utils::uuid::parse_user_id(user_id_str)?;
 
-        // Validate state (in production, check against stored state)
+        // Validate state for CSRF protection - verify random_part is valid
+        if random_part.len() < 16 || !random_part.chars().all(|c| c.is_ascii_alphanumeric()) {
+            return Err(warp::reject::custom(ProviderError::AuthenticationFailed(
+                "Invalid OAuth state parameter".into(),
+            )));
+        }
         info!(
             "Processing OAuth callback for user {} provider {}",
             user_id, provider

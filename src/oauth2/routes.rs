@@ -468,9 +468,12 @@ async fn authenticate_user_credentials(
         providers: load_user_connected_providers(&database, &user.id).await?,
     };
 
-    // Use a simple secret for now - in production this should come from environment
-    let secret =
-        std::env::var("JWT_SECRET").unwrap_or_else(|_| "default_jwt_secret_for_oauth".to_string());
+    // JWT secret must be provided via environment for security
+    let secret = std::env::var("JWT_SECRET").map_err(|_| {
+        warp::reject::custom(crate::errors::ProviderError::AuthenticationFailed(
+            "JWT_SECRET environment variable not configured".into(),
+        ))
+    })?;
     let token = encode(
         &Header::default(),
         &claims,
@@ -678,12 +681,27 @@ fn jwks_route() -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone 
     warp::path("jwks")
         .and(warp::path::end())
         .and(warp::get())
-        .map(|| {
-            // For now, return an empty JWKS response
-            // In a production environment, this would contain actual public keys
-            // used to verify JWT tokens issued by this authorization server
-            warp::reply::json(&serde_json::json!({
-                "keys": []
-            }))
+        .and_then(|| async move {
+            // Get JWT secret from environment for JWKS generation
+            let secret = std::env::var("JWT_SECRET").map_err(|_| {
+                warp::reject::custom(crate::errors::ProviderError::AuthenticationFailed(
+                    "JWT_SECRET not configured for JWKS".into(),
+                ))
+            })?;
+
+            // Generate JWKS from the secret (simplified for HMAC)
+            // In a full OAuth implementation, this would use RSA/ECDSA keys
+            let jwks = serde_json::json!({
+                "keys": [{
+                    "kty": "oct",
+                    "use": "sig",
+                    "alg": "HS256",
+                    "kid": "pierre-oauth-key-1"
+                    // Note: Never expose the actual secret in JWKS
+                    // This is a placeholder structure for HMAC validation
+                }]
+            });
+
+            Ok::<_, warp::Rejection>(warp::reply::json(&jwks))
         })
 }

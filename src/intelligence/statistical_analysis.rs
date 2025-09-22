@@ -1,7 +1,6 @@
 // ABOUTME: Proper statistical analysis engine for fitness trend calculations
 // ABOUTME: Implements correct linear regression, R-squared calculations, and trend strength analysis
 #![allow(clippy::cast_precision_loss)] // Safe: statistical calculations with controlled ranges
-#![allow(clippy::suboptimal_flops)] // Readability preferred over micro-optimizations
 
 use super::{TrendDataPoint, TrendDirection};
 use anyhow::Result;
@@ -124,7 +123,10 @@ impl StatisticalAnalyzer {
         let sse = y_values
             .iter()
             .zip(&y_predicted)
-            .map(|(actual, predicted)| (actual - predicted).powi(2))
+            .map(|(actual, predicted)| {
+                let diff = actual - predicted;
+                diff * diff
+            })
             .sum::<f64>();
 
         let degrees_of_freedom = data_points.len().saturating_sub(2);
@@ -299,7 +301,7 @@ impl StatisticalAnalyzer {
 
         // Very rough approximation based on normal distribution
         // This is not mathematically rigorous but provides reasonable estimates
-        let z_equivalent = t_stat / (1.0 + t_stat.powi(2) / (4.0 * df as f64)).sqrt();
+        let z_equivalent = t_stat / (1.0 + t_stat * t_stat / (4.0 * df as f64)).sqrt();
 
         // Two-tailed test
         2.0 * (1.0 - Self::standard_normal_cdf(z_equivalent.abs()))
