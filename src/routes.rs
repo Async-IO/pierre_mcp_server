@@ -465,8 +465,12 @@ impl OAuthRoutes {
             .ok_or_else(|| anyhow::anyhow!("Invalid state parameter format"))?;
         let user_id = crate::utils::uuid::parse_user_id(user_id_str)?;
 
-        // Validate state for CSRF protection - verify random_part is valid
-        if random_part.len() < 16 || !random_part.chars().all(|c| c.is_ascii_alphanumeric()) {
+        // Validate state for CSRF protection - verify random_part is valid UUID format
+        if random_part.len() < 16
+            || !random_part
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-')
+        {
             return Err(anyhow::anyhow!("Invalid OAuth state parameter"));
         }
         info!(
