@@ -92,12 +92,50 @@ docker run -p 8080:8080 pierre-mcp-server
 
 ## MCP Client Configuration
 
-Pierre MCP Server supports two authentication methods for MCP clients:
+### MCP Client Support
 
-### Option 1: OAuth 2.0 with mcp-remote (Recommended)
+Pierre MCP Server supports any MCP-compliant client. However, `mcp-remote` is the recommended client for OAuth 2.0 authentication.
+
+#### Using mcp-remote
+
+Pierre MCP Server is designed to work with `mcp-remote`, which handles the OAuth 2.0 flow automatically.
+
+#### Installation
+
+Install mcp-remote using one of these methods:
+
 ```bash
-# Automatic OAuth 2.0 authentication flow
-mcp-remote http://localhost:8081/mcp --allow-http
+# Option 1: Using npm globally
+npm install -g mcp-remote
+
+# Option 2: Using npx (no installation required)
+npx mcp-remote --version
+```
+
+#### Command Line Usage
+
+```bash
+# Using globally installed mcp-remote
+mcp-remote http://localhost:8081/mcp --allow-http --debug --transport http-first --auth-timeout 120 --timeout 120
+
+# Or using npx (runs latest version without installation)
+npx @anthropic/mcp-remote http://localhost:8081/mcp --allow-http --debug --transport http-first --auth-timeout 120 --timeout 120
+```
+
+#### Claude Desktop Configuration
+
+Add this to your Claude Desktop configuration file (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+
+```json
+{
+  "mcpServers": {
+    "pierre-fitness": {
+      "command": "/opt/homebrew/bin/mcp-remote",
+      "args": ["http://localhost:8081/mcp", "--allow-http", "--debug", "--transport", "http-first", "--auth-timeout", "120", "--timeout", "120"],
+      "env": {}
+    }
+  }
+}
 ```
 
 This will:
@@ -106,27 +144,11 @@ This will:
 3. Exchange authorization code for JWT token
 4. Use JWT for subsequent MCP requests
 
-### Option 2: Direct Connection with JWT
-```json
-{
-  "mcpServers": {
-    "pierre-fitness": {
-      "url": "http://localhost:8081/mcp",
-      "headers": {
-        "Authorization": "Bearer YOUR_JWT_TOKEN"
-      }
-    }
-  }
-}
-```
+### Claude Desktop Integration
 
-To obtain a JWT token manually, use the authentication endpoints or the complete workflow script:
-```bash
-# Run automated setup to get JWT token
-./scripts/complete-user-workflow.sh
-source .workflow_test_env
-echo $JWT_TOKEN
-```
+**Note:** Direct Claude Desktop integration has not been reliably tested. The recommended approach is to use `mcp-remote` as your MCP client, which provides a stable interface to Pierre MCP Server's OAuth 2.0 authentication system.
+
+For Claude Desktop users, use `mcp-remote` as an intermediary client to access Pierre's fitness tools through the command line.
 
 ## Available Tools
 
