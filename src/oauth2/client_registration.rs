@@ -58,12 +58,12 @@ impl ClientRegistrationManager {
         // Create client record
         let client = OAuth2Client {
             id: Uuid::new_v4().to_string(),
-            client_id: client_id.clone(),
+            client_id: client_id.clone(), // Safe: String ownership for OAuth client struct
             client_secret_hash,
-            redirect_uris: request.redirect_uris.clone(),
-            grant_types: grant_types.clone(), // Safe: Vec ownership for OAuth client
-            response_types: response_types.clone(), // Safe: Vec ownership for OAuth client
-            client_name: request.client_name.clone(), // Safe: String ownership for OAuth client
+            redirect_uris: request.redirect_uris.clone(), // Safe: Vec ownership for OAuth client struct
+            grant_types: grant_types.clone(),             // Safe: Vec ownership for OAuth client
+            response_types: response_types.clone(),       // Safe: Vec ownership for OAuth client
+            client_name: request.client_name.clone(),     // Safe: String ownership for OAuth client
             client_uri: request.client_uri.clone(), // Safe: Option<String> ownership for OAuth client
             scope: request.scope.clone(), // Safe: Option<String> ownership for OAuth client
             created_at,

@@ -6,6 +6,10 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - Arc resource clones for multi-tenant concurrent access
+// - String ownership transfers for WebSocket message construction
+
 //! WebSocket support for real-time updates
 //!
 //! Provides real-time updates for API key usage, rate limit status,
@@ -70,7 +74,7 @@ impl WebSocketManager {
     pub fn new(database: Arc<Database>, auth_manager: &Arc<AuthManager>) -> Self {
         let (broadcast_tx, _) =
             broadcast::channel(crate::constants::rate_limits::WEBSOCKET_CHANNEL_CAPACITY);
-        let auth_middleware = McpAuthMiddleware::new((**auth_manager).clone(), database.clone());
+        let auth_middleware = McpAuthMiddleware::new((**auth_manager).clone(), database.clone()); // Safe: Arc clones for middleware creation
 
         Self {
             database,
@@ -261,6 +265,7 @@ impl WebSocketManager {
     async fn broadcast_to_all(&self, message: &WebSocketMessage, topic: &str) {
         // Use broadcast channel for efficient message distribution
         if let Err(e) = self.broadcast_tx.send(message.clone()) {
+            // Safe: broadcast channel needs ownership while we reuse message below
             tracing::trace!("Failed to send broadcast message: {}", e);
         }
 

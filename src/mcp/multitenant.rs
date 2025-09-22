@@ -1760,7 +1760,7 @@ impl MultiTenantMcpServer {
         if requires_auth {
             // Authentication is required - validate the auth header
             tracing::debug!("Authentication is required for method '{}'", mcp_method);
-            if let Some(header) = auth_header.clone() {
+            if let Some(header) = auth_header.as_ref() {
                 tracing::debug!(
                     "Auth header present: {} (first 20 chars)",
                     &header[..std::cmp::min(20, header.len())]

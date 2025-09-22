@@ -135,17 +135,15 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
 
     /// Analyze training patterns to identify areas for improvement
     fn analyze_training_patterns(&self, activities: &[Activity]) -> TrainingPatternAnalysis {
-        let recent_activities: Vec<_> = activities
+        let recent_activities: Vec<Activity> = activities
             .iter()
             .filter(|a| {
                 let activity_utc = a.start_date;
                 let weeks_ago = (Utc::now() - activity_utc).num_weeks();
                 weeks_ago <= TRAINING_PATTERN_ANALYSIS_WEEKS
             })
+            .cloned()
             .collect();
-
-        let owned_activities: Vec<Activity> =
-            recent_activities.iter().map(|a| (*a).clone()).collect();
         let mut sport_frequency: HashMap<String, usize> = HashMap::new();
         let mut weekly_load = 0.0;
         let mut high_intensity_count = 0;
@@ -239,7 +237,7 @@ impl<S: IntelligenceStrategy> AdvancedRecommendationEngine<S> {
                 .iter()
                 .max_by_key(|(_, &count)| count)
                 .map_or_else(|| "Unknown".into(), |(sport, _)| sport.clone()),
-            training_gaps: self.identify_training_gaps(&owned_activities),
+            training_gaps: self.identify_training_gaps(&recent_activities),
         }
     }
 
@@ -658,17 +656,15 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
         let mut recommendations = Vec::new();
 
         // Analyze recent training load
-        let recent_activities: Vec<_> = activities
+        let recent_activities: Vec<Activity> = activities
             .iter()
             .filter(|a| {
                 let activity_utc = a.start_date;
                 let days_ago = (Utc::now() - activity_utc).num_days();
                 days_ago <= RECOVERY_ANALYSIS_DAYS
             })
+            .cloned()
             .collect();
-
-        let owned_activities: Vec<Activity> =
-            recent_activities.iter().map(|a| (*a).clone()).collect();
         let total_duration: u64 = recent_activities.iter().map(|a| a.duration_seconds).sum();
 
         let high_intensity_sessions = recent_activities
@@ -699,7 +695,7 @@ impl RecommendationEngineTrait for AdvancedRecommendationEngine {
         }
 
         // Check for consecutive training days
-        let consecutive_days = Self::count_consecutive_training_days(&owned_activities);
+        let consecutive_days = Self::count_consecutive_training_days(&recent_activities);
         if consecutive_days > MAX_CONSECUTIVE_TRAINING_DAYS {
             recommendations.push(TrainingRecommendation {
                 recommendation_type: RecommendationType::Recovery,

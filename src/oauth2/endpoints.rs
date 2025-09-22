@@ -1,6 +1,10 @@
 // ABOUTME: OAuth 2.0 authorization and token endpoints implementation
 // ABOUTME: Handles OAuth 2.0 flow with JWT tokens as access tokens for mcp-remote compatibility
 
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - String ownership transfers to struct constructors (OAuth2AuthCode, TokenResponse)
+// - Arc clone for database manager creation
+
 use crate::auth::AuthManager;
 use crate::database_plugins::DatabaseProvider;
 use crate::oauth2::client_registration::ClientRegistrationManager;
@@ -26,7 +30,7 @@ impl OAuth2AuthorizationServer {
         database: Arc<crate::database_plugins::factory::Database>,
         auth_manager: Arc<AuthManager>,
     ) -> Self {
-        let client_manager = ClientRegistrationManager::new(database.clone());
+        let client_manager = ClientRegistrationManager::new(database.clone()); // Safe: Arc clone for manager construction
 
         Self {
             client_manager,
@@ -174,7 +178,7 @@ impl OAuth2AuthorizationServer {
         let expires_at = Utc::now() + Duration::minutes(10); // 10 minute expiry
 
         let auth_code = OAuth2AuthCode {
-            code: code.clone(),
+            code: code.clone(), // Safe: String ownership for OAuth2AuthCode struct
             client_id: client_id.to_string(),
             user_id,
             redirect_uri: redirect_uri.to_string(),

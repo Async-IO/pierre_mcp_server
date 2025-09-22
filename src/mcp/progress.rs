@@ -108,8 +108,8 @@ impl ProgressTracker {
             }
 
             state.current = current;
-            if let Some(msg) = message.clone() {
-                state.message = Some(msg);
+            if let Some(ref msg) = message {
+                state.message = Some(msg.clone()); // Safe: String ownership required for state storage
             }
 
             debug!(
@@ -156,8 +156,8 @@ impl ProgressTracker {
         if let Some(state) = progress_map.get_mut(progress_token) {
             state.completed = true;
             state.current = state.total.unwrap_or(100.0);
-            if let Some(msg) = final_message.clone() {
-                state.message = Some(msg);
+            if let Some(ref msg) = final_message {
+                state.message = Some(msg.clone()); // Safe: String ownership required for state storage
             }
 
             debug!(

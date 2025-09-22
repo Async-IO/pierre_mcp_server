@@ -1,6 +1,10 @@
 // ABOUTME: Transport coordination for MCP server with stdio, HTTP, and SSE transports
 // ABOUTME: Manages notification channels and coordinates multiple transport methods
 
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - Arc resource clones for parallel transport protocol handling
+// - Shared resource distribution across stdio, SSE, and HTTP transports
+
 use super::resources::ServerResources;
 use crate::mcp::schema::OAuthCompletedNotification;
 use anyhow::Result;

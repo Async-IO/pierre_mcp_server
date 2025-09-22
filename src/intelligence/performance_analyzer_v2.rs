@@ -627,7 +627,9 @@ impl PerformanceAnalyzerV2 {
             .sum::<f64>()
             / weekly_loads.len() as f64;
 
-        let balance_score = (100.0 - (load_variance.sqrt() / average_load * 100.0)).max(0.0);
+        let balance_score = (load_variance.sqrt() / average_load)
+            .mul_add(-100.0, 100.0)
+            .max(0.0);
 
         let last_week_load = weekly_loads.last().map_or(0.0, |w| w.total_duration_hours);
         let recovery_needed = last_week_load > self.config.performance.high_weekly_volume_hours;

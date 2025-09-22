@@ -24,7 +24,8 @@ pub struct AdminAuthService {
     database: Database,
     jwt_manager: AdminJwtManager,
     // TTL cache for validated tokens with automatic expiration
-    token_cache: Arc<tokio::sync::RwLock<HashMap<String, (ValidatedAdminToken, std::time::Instant)>>>,
+    token_cache:
+        Arc<tokio::sync::RwLock<HashMap<String, (ValidatedAdminToken, std::time::Instant)>>>,
 }
 
 impl AdminAuthService {
@@ -119,7 +120,10 @@ impl AdminAuthService {
         // Step 7: Update cache
         {
             let mut cache = self.token_cache.write().await;
-            cache.insert(validated_token.token_id.clone(), validated_token.clone());
+            cache.insert(
+                validated_token.token_id.clone(),
+                (validated_token.clone(), std::time::Instant::now()),
+            );
         }
 
         info!(
@@ -146,7 +150,7 @@ impl AdminAuthService {
 
         {
             let cache = self.token_cache.read().await;
-            if let Some(cached_token) = cache.get(&token_id) {
+            if let Some((cached_token, _timestamp)) = cache.get(&token_id) {
                 if cached_token
                     .permissions
                     .has_permission(&required_permission)

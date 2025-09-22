@@ -94,20 +94,20 @@ impl StatisticalAnalyzer {
         let mean_y = sum_y / n;
 
         // Calculate slope and intercept
-        let denominator = sum_xx - n * mean_x * mean_x;
+        let denominator = (n * mean_x).mul_add(-mean_x, sum_xx);
         if denominator.abs() < f64::EPSILON {
             return Err(anyhow::anyhow!(
                 "Cannot calculate regression: zero variance in x"
             ));
         }
 
-        let slope = (sum_x_y - n * mean_x * mean_y) / denominator;
-        let intercept = mean_y - slope * mean_x;
+        let slope = (n * mean_x).mul_add(-mean_y, sum_x_y) / denominator;
+        let intercept = slope.mul_add(-mean_x, mean_y);
 
         // Calculate correlation coefficient
-        let numerator = sum_x_y - n * mean_x * mean_y;
+        let numerator = (n * mean_x).mul_add(-mean_y, sum_x_y);
         let denominator_corr =
-            ((sum_xx - n * mean_x * mean_x) * (sum_yy - n * mean_y * mean_y)).sqrt();
+            ((n * mean_x).mul_add(-mean_x, sum_xx) * (n * mean_y).mul_add(-mean_y, sum_yy)).sqrt();
 
         let correlation = if denominator_corr == 0.0 {
             0.0
@@ -138,7 +138,7 @@ impl StatisticalAnalyzer {
 
         // Calculate p-value for slope significance (simplified t-test)
         let p_value = if degrees_of_freedom > 0 && standard_error > 0.0 {
-            let se_slope = standard_error / (sum_xx - n * mean_x * mean_x).sqrt();
+            let se_slope = standard_error / (n * mean_x).mul_add(-mean_x, sum_xx).sqrt();
             let t_stat = slope / se_slope;
             Some(Self::t_test_p_value(t_stat.abs(), degrees_of_freedom))
         } else {

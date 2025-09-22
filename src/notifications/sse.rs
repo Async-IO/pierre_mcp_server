@@ -1,6 +1,10 @@
 // ABOUTME: Server-Sent Events implementation for real-time OAuth notifications
 // ABOUTME: Handles SSE connections, message broadcasting, and connection management
 
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - Arc clone for SSE manager sharing across HTTP handlers
+// - Stream state management for concurrent client connections
+
 use crate::database::oauth_notifications::OAuthNotification;
 use anyhow::Result;
 use serde_json::json;

@@ -16,7 +16,7 @@ use crate::protocols::universal::{UniversalRequest, UniversalResponse};
 use serde_json::Value;
 
 /// Supported protocol types
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProtocolType {
     MCP,
     A2A,

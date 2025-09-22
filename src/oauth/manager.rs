@@ -6,6 +6,10 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - String ownership transfers for UserOAuthToken struct construction
+// - Token data extraction from OAuth responses
+
 //! # OAuth Manager
 //!
 //! Central OAuth management for all providers and servers.
@@ -285,11 +289,11 @@ impl OAuthManager {
         let oauth_token = crate::models::UserOAuthToken::new(
             user_id,
             tenant_id.to_string(),
-            token_data.provider.clone(),
-            token_data.access_token.clone(),
-            Some(token_data.refresh_token.clone()),
+            token_data.provider.clone(), // Safe: String ownership for UserOAuthToken struct
+            token_data.access_token.clone(), // Safe: String ownership for UserOAuthToken struct
+            Some(token_data.refresh_token.clone()), // Safe: String ownership for UserOAuthToken struct
             Some(token_data.expires_at),
-            Some(token_data.scopes.clone()),
+            Some(token_data.scopes.clone()), // Safe: String ownership for UserOAuthToken struct
         );
 
         self.database

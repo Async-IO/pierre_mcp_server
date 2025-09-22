@@ -5,6 +5,10 @@
 //! This module provides secure JWT token generation and validation for admin services.
 //! Tokens are signed with strong secrets and include proper claims for authorization.
 
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - String ownership for JWT claims extraction and token validation
+// - Permission data cloning for validated token construction
+
 use crate::admin::models::{AdminPermissions, ValidatedAdminToken};
 use crate::constants::service_names;
 use crate::database_plugins::DatabaseProvider;
@@ -161,8 +165,8 @@ impl AdminJwtManager {
         // Reconstruct permissions
         let permissions = AdminPermissions::new(claims.permissions.clone()); // Safe: Vec<String> ownership for permissions
 
-        let token_id = claims.sub.clone();
-        let service_name = claims.service_name.clone();
+        let token_id = claims.sub.clone(); // Safe: String ownership for token validation
+        let service_name = claims.service_name.clone(); // Safe: String ownership for token validation
         let is_super_admin = claims.is_super_admin;
         let user_info = serde_json::to_value(&claims)?;
 

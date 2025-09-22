@@ -19,19 +19,13 @@ use crate::intelligence::physiological_constants::{
         PROGRESS_TOLERANCE_PERCENTAGE,
     },
     frequency_targets::{MAX_WEEKLY_FREQUENCY, TARGET_PERFORMANCE_IMPROVEMENT},
-    goal_difficulty::{
-        CHALLENGING_GOAL_RATIO, EASY_GOAL_RATIO, GOAL_DISTANCE_PRECISION, GOAL_DISTANCE_TOLERANCE,
-        MODERATE_GOAL_RATIO,
-    },
+    goal_difficulty::GOAL_DISTANCE_PRECISION,
     goal_progress::{
         AHEAD_OF_SCHEDULE_THRESHOLD, BEHIND_SCHEDULE_THRESHOLD, TARGET_DECREASE_MULTIPLIER,
         TARGET_INCREASE_MULTIPLIER,
     },
     milestones::{MILESTONE_NAMES, MILESTONE_PERCENTAGES},
-    time_periods::{
-        GOAL_ADJUSTMENT_THRESHOLD, GOAL_ANALYSIS_WEEKS, GOAL_DAYS_REMAINING_THRESHOLD,
-        TRAINING_PATTERN_ANALYSIS_WEEKS,
-    },
+    time_periods::{GOAL_ADJUSTMENT_THRESHOLD, GOAL_ANALYSIS_WEEKS, GOAL_DAYS_REMAINING_THRESHOLD},
 };
 use crate::models::Activity;
 use anyhow::Result;
@@ -128,7 +122,6 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
     pub fn set_profile(&mut self, profile: UserFitnessProfile) {
         self.user_profile = Some(profile);
     }
-
 
     /// Generate progress insights based on current status
     fn generate_progress_insights(goal: &Goal, progress: &ProgressReport) -> Vec<AdvancedInsight> {

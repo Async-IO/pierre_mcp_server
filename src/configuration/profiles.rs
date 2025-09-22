@@ -94,7 +94,7 @@ impl ConfigProfile {
             Self::Beginner { .. } => "beginner".into(),
             Self::Medical { .. } => "medical".into(),
             Self::SportSpecific { sport, .. } => format!("sport_{}", sport.to_lowercase()),
-            Self::Custom { name, .. } => name.clone(),
+            Self::Custom { name, .. } => name.clone(), // Safe: String ownership required for return value
         }
     }
 
@@ -169,13 +169,13 @@ impl ConfigProfile {
                 ..
             } => {
                 for (key, value) in specialization_factors {
-                    adjustments.insert(key.clone(), *value);
+                    adjustments.insert(key.clone(), *value); // Safe: HashMap.insert requires key ownership
                 }
             }
 
             Self::Custom { overrides, .. } => {
                 for (key, value) in overrides {
-                    adjustments.insert(key.clone(), *value);
+                    adjustments.insert(key.clone(), *value); // Safe: HashMap.insert requires key ownership
                 }
             }
 

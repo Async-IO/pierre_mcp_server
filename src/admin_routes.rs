@@ -933,7 +933,7 @@ async fn handle_token_info(
 
 /// Handle admin setup - create first admin user and return token
 // Long function: Creates complete initial admin setup with validation and token generation
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines)] // Safe: Complex admin setup function with comprehensive validation
 async fn handle_admin_setup(
     request: AdminSetupRequest,
     context: AdminApiContext,

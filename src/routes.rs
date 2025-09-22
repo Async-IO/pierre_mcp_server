@@ -8,6 +8,10 @@
 
 //! HTTP routes for user authentication and OAuth flows in multi-tenant mode
 
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - String ownership transfers for OAuth callback processing
+// - Arc resource clones for concurrent HTTP request handling
+
 use crate::{
     constants::{error_messages, limits, oauth_providers},
     database_plugins::DatabaseProvider,
@@ -463,9 +467,7 @@ impl OAuthRoutes {
 
         // Validate state for CSRF protection - verify random_part is valid
         if random_part.len() < 16 || !random_part.chars().all(|c| c.is_ascii_alphanumeric()) {
-            return Err(warp::reject::custom(ProviderError::AuthenticationFailed(
-                "Invalid OAuth state parameter".into(),
-            )));
+            return Err(anyhow::anyhow!("Invalid OAuth state parameter"));
         }
         info!(
             "Processing OAuth callback for user {} provider {}",

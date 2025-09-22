@@ -1,6 +1,10 @@
 // ABOUTME: HTTP REST API routes for multi-tenant management and tenant OAuth configuration
 // ABOUTME: Handles tenant creation, OAuth app management, and tenant-isolated authentication flows
 
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - String ownership transfers for tenant, OAuth, and app struct construction
+// - Required field cloning for database entity creation
+
 use crate::{
     auth::{AuthManager, AuthResult},
     constants::oauth_providers,
@@ -181,8 +185,8 @@ pub async fn create_tenant(
     // Create tenant in database
     let tenant_data = crate::models::Tenant {
         id: tenant_id,
-        name: tenant_request.name.clone(),
-        slug: slug.clone(), // Safe: String ownership for tenant struct
+        name: tenant_request.name.clone(), // Safe: String ownership for tenant struct
+        slug: slug.clone(),                // Safe: String ownership for tenant struct
         domain: tenant_request.domain.clone(), // Safe: String ownership for tenant struct
         plan: tenant_request.plan.unwrap_or_else(|| "basic".to_string()),
         owner_user_id: auth_result.user_id,
@@ -303,9 +307,9 @@ pub async fn configure_tenant_oauth(
     let credentials = TenantOAuthCredentials {
         tenant_id: tenant_uuid,
         provider: oauth_request.provider.clone(), // Safe: String ownership for OAuth credentials
-        client_id: oauth_request.client_id.clone(),
+        client_id: oauth_request.client_id.clone(), // Safe: String ownership for OAuth credentials
         client_secret: oauth_request.client_secret,
-        redirect_uri: oauth_request.redirect_uri.clone(),
+        redirect_uri: oauth_request.redirect_uri.clone(), // Safe: String ownership for OAuth credentials
         scopes: oauth_request.scopes.clone(), // Safe: Option<String> ownership for OAuth credentials
         rate_limit_per_day: oauth_request.rate_limit_per_day.unwrap_or(15000),
     };
@@ -401,9 +405,9 @@ pub async fn register_oauth_app(
     // Store OAuth app in database
     let oauth_app = crate::models::OAuthApp {
         id: Uuid::new_v4(),
-        client_id: client_id.clone(),
-        client_secret: client_secret.clone(),
-        name: app_request.name.clone(),
+        client_id: client_id.clone(), // Safe: String ownership for OAuth app struct
+        client_secret: client_secret.clone(), // Safe: String ownership for OAuth app struct
+        name: app_request.name.clone(), // Safe: String ownership for OAuth app struct
         description: app_request.description,
         redirect_uris: app_request.redirect_uris,
         scopes: app_request.scopes,

@@ -1,6 +1,10 @@
 // ABOUTME: Plugin-enabled tool executor with builder pattern for flexible tool registration
 // ABOUTME: Bridges the plugin system with the existing UniversalToolExecutor architecture
 
+// NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
+// - Arc resource clones for parallel plugin execution
+// - String ownership for tool names and plugin identifiers
+
 use super::registry::PluginRegistry;
 use super::{PluginContext, PluginEnvironment};
 use crate::mcp::resources::ServerResources;
