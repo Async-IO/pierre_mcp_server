@@ -74,24 +74,6 @@ impl HttpSetup {
     /// Configure CORS settings
     #[must_use]
     pub fn setup_cors() -> warp::cors::Builder {
-        warp::cors()
-            .allow_any_origin()
-            .allow_headers(vec![
-                "content-type",
-                "authorization",
-                "x-requested-with",
-                "accept",
-                "origin",
-                "access-control-request-method",
-                "access-control-request-headers",
-                "x-strava-client-id",
-                "x-strava-client-secret",
-                "x-fitbit-client-id",
-                "x-fitbit-client-secret",
-                "x-pierre-api-key",
-                "x-tenant-name",
-                "x-tenant-id",
-            ])
-            .allow_methods(vec!["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"])
+        crate::middleware::cors::setup_cors()
     }
 }

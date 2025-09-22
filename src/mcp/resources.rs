@@ -17,10 +17,11 @@
 
 use crate::a2a::client::A2AClientManager;
 use crate::a2a::system_user::A2ASystemUserService;
-use crate::auth::{AuthManager, McpAuthMiddleware};
+use crate::auth::AuthManager;
 use crate::database_plugins::factory::Database;
 use crate::intelligence::ActivityIntelligence;
 use crate::mcp::schema::OAuthCompletedNotification;
+use crate::middleware::McpAuthMiddleware;
 use crate::oauth::manager::OAuthManager;
 use crate::providers::ProviderRegistry;
 use crate::tenant::{oauth_manager::TenantOAuthManager, TenantOAuthClient};

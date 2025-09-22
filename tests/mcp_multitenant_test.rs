@@ -162,10 +162,11 @@
 use anyhow::Result;
 use futures_util::future;
 use pierre_mcp_server::{
-    auth::{generate_jwt_secret, AuthManager, JwtValidationError, McpAuthMiddleware},
+    auth::{generate_jwt_secret, AuthManager, JwtValidationError},
     constants::oauth_providers,
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::multitenant::MultiTenantMcpServer,
+    middleware::McpAuthMiddleware,
     models::{User, UserOAuthToken, UserTier},
 };
 use std::{collections::HashMap, sync::Arc, time::Duration};

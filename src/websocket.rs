@@ -15,8 +15,9 @@
 //! Provides real-time updates for API key usage, rate limit status,
 //! and system metrics via WebSocket connections.
 
-use crate::auth::{AuthManager, AuthResult, McpAuthMiddleware};
+use crate::auth::{AuthManager, AuthResult};
 use crate::database_plugins::{factory::Database, DatabaseProvider};
+use crate::middleware::McpAuthMiddleware;
 use anyhow::Result;
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};

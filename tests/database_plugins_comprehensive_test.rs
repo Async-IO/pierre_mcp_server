@@ -806,7 +806,7 @@ mod postgres_tests {
 
         // Use unique test identifier to avoid conflicts
         let test_id = uuid::Uuid::new_v4();
-        let user_email = format!("postgres_creation_test_{}@example.com", test_id);
+        let user_email = format!("postgres_creation_test_{test_id}@example.com");
 
         // Clean up any existing data
         cleanup_test_data(&db, &user_email).await?;

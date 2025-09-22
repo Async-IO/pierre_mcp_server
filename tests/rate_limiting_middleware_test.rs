@@ -3,10 +3,10 @@
 
 use chrono::Utc;
 use pierre_mcp_server::errors::ErrorCode;
-use pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo;
-use pierre_mcp_server::rate_limiting_middleware::{
+use pierre_mcp_server::middleware::rate_limiting::{
     check_rate_limit_and_respond, create_rate_limit_error,
 };
+use pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo;
 
 #[test]
 fn test_rate_limit_error_creation() {

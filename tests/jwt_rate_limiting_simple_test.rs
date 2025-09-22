@@ -11,9 +11,10 @@
 //! This is a focused test to verify that the critical security vulnerability
 //! where JWT tokens had unlimited API access has been fixed.
 
-use pierre_mcp_server::auth::{AuthManager, McpAuthMiddleware};
+use pierre_mcp_server::auth::AuthManager;
 use pierre_mcp_server::database::generate_encryption_key;
 use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
+use pierre_mcp_server::middleware::McpAuthMiddleware;
 use pierre_mcp_server::models::User;
 use std::sync::Arc;
 

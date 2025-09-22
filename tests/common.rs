@@ -20,10 +20,11 @@
 use anyhow::Result;
 use pierre_mcp_server::{
     api_keys::{ApiKey, ApiKeyManager, ApiKeyTier, CreateApiKeyRequest},
-    auth::{AuthManager, McpAuthMiddleware},
+    auth::AuthManager,
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
     mcp::resources::ServerResources,
+    middleware::McpAuthMiddleware,
     models::{User, UserTier},
 };
 use std::sync::{Arc, Once};

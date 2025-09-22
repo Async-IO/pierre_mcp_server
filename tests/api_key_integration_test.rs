@@ -16,9 +16,10 @@
 use chrono::{Duration, Utc};
 use pierre_mcp_server::{
     api_keys::{ApiKeyManager, ApiKeyTier, ApiKeyUsage, CreateApiKeyRequest},
-    auth::{AuthManager, McpAuthMiddleware},
+    auth::AuthManager,
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
+    middleware::McpAuthMiddleware,
     models::User,
 };
 use std::sync::Arc;
