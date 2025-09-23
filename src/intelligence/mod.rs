@@ -45,19 +45,34 @@ pub mod metrics_extractor;
 pub mod performance_analyzer_v2;
 pub mod statistical_analysis;
 
-pub use activity_analyzer::*;
+// Activity analysis capabilities
+pub use activity_analyzer::{ActivityAnalyzerTrait, AdvancedActivityAnalyzer};
 pub use analyzer::ActivityAnalyzer;
-pub use goal_engine::*;
-pub use insights::Insight;
-pub use metrics::*;
-pub use performance_analyzer::*;
-pub use recommendation_engine::*;
 
-// Re-export improved modules
+// Goal engine for training targets and progress tracking
+pub use goal_engine::{
+    AdvancedGoalEngine, AdjustmentType, GoalAdjustment, GoalDifficulty, GoalEngineTrait,
+    GoalSuggestion,
+};
+
+// Insights generation and analysis
+pub use insights::Insight;
+
+// Metrics calculation and zone analysis
+pub use metrics::{AdvancedMetrics, MetricsCalculator, ZoneAnalysis};
+
+// Performance analysis (v1) - avoiding conflicting types with v2
+pub use performance_analyzer::{AdvancedPerformanceAnalyzer, PerformanceAnalyzerTrait};
+
+// Recommendation engine for training suggestions
+pub use recommendation_engine::{AdvancedRecommendationEngine, RecommendationEngineTrait};
+
+// Re-export improved modules with v2 types (preferred versions)
 pub use analysis_config::{AnalysisConfig, AnalysisConfigError, ConfidenceLevel};
 pub use metrics_extractor::{MetricSummary, MetricType, SafeMetricExtractor};
 pub use performance_analyzer_v2::{
     ActivityGoal, FitnessScore, PerformanceAnalyzerV2, PerformancePrediction, TrainingLoadAnalysis,
+    WeeklyLoad,
 };
 pub use statistical_analysis::{RegressionResult, SignificanceLevel, StatisticalAnalyzer};
 
@@ -151,7 +166,7 @@ pub struct ContextualFactors {
     pub location: Option<LocationContext>,
     pub time_of_day: TimeOfDay,
     pub days_since_last_activity: Option<i32>,
-    pub weekly_load: Option<WeeklyLoad>,
+    pub weekly_load: Option<ContextualWeeklyLoad>,
 }
 
 /// Weather conditions during activity
@@ -187,9 +202,9 @@ pub enum TimeOfDay {
     Night,        // 9 PM - 5 AM
 }
 
-/// Weekly training load summary
+/// Weekly training load summary for contextual factors
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WeeklyLoad {
+pub struct ContextualWeeklyLoad {
     pub total_distance_km: f64,
     pub total_duration_hours: f64,
     pub activity_count: i32,

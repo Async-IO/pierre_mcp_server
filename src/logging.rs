@@ -10,7 +10,11 @@
 
 pub mod tenant;
 
-pub use tenant::*;
+// Tenant-aware logging utilities and context management
+pub use tenant::{
+    record_performance_metrics, record_request_context, record_tenant_context, ProviderApiContext,
+    TenantLogger,
+};
 
 use crate::constants::service_names;
 use anyhow::Result;
