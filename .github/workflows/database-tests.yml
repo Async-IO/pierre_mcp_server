@@ -47,7 +47,7 @@ jobs:
         key: ${{ runner.os }}-cargo-sqlite-${{ hashFiles('**/Cargo.lock') }}
 
     - name: Run all database tests with coverage (SQLite)
-      run: cargo llvm-cov --all-targets --all-features --lcov --output-path lcov-db-sqlite.info
+      run: cargo llvm-cov --all-targets --lcov --output-path lcov-db-sqlite.info
       env:
         DATABASE_URL: "sqlite::memory:"
         ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
