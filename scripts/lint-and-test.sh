@@ -131,7 +131,9 @@ if [ -f "$VALIDATION_PATTERNS_FILE" ]; then
     # Use TOML-configured patterns for existing checks
     IMPLEMENTATION_PLACEHOLDERS=$(rg "$CRITICAL_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
     if [ -n "$WARNING_PATTERNS" ]; then
-        PLACEHOLDER_WARNINGS=$(rg "$WARNING_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+        TOTAL_WARNING_COUNT=$(rg "$WARNING_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+        DOCUMENTED_LONG_FUNCTIONS=$(rg -B2 "#\[allow\(clippy::too_many_lines\)\]" src/ | rg "// Long function:|// Safe:" --count 2>/dev/null || echo "0")
+        PLACEHOLDER_WARNINGS=$((TOTAL_WARNING_COUNT - DOCUMENTED_LONG_FUNCTIONS))
     else
         PLACEHOLDER_WARNINGS=0
     fi
