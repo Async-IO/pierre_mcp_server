@@ -10,6 +10,15 @@ pub mod auth;
 pub mod jwt;
 pub mod models;
 
-pub use auth::*;
-pub use jwt::*;
-pub use models::*;
+// Admin authentication service and middleware
+pub use auth::{middleware, AdminAuthService};
+
+// JWT token management for admin authentication
+pub use jwt::{AdminJwtManager, TokenGenerationConfig};
+
+// Admin system data models and permissions
+pub use models::{
+    AdminAction, AdminPermission, AdminPermissions, AdminToken, AdminTokenUsage,
+    ApiKeyProvisionRequest, CreateAdminTokenRequest, GeneratedAdminToken, ProvisionedApiKey,
+    RateLimitPeriod, ValidatedAdminToken,
+};

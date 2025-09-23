@@ -57,7 +57,7 @@ fn test_activity_intelligence_creation() {
         }),
         time_of_day: TimeOfDay::Morning,
         days_since_last_activity: Some(2),
-        weekly_load: Some(WeeklyLoad {
+        weekly_load: Some(ContextualWeeklyLoad {
             total_distance_km: 45.0,
             total_duration_hours: 4.5,
             activity_count: 6,
@@ -620,7 +620,7 @@ fn test_time_of_day_variants() {
 
 #[test]
 fn test_weekly_load() {
-    let load = WeeklyLoad {
+    let load = ContextualWeeklyLoad {
         total_distance_km: 50.0,
         total_duration_hours: 5.0,
         activity_count: 7,
@@ -729,7 +729,7 @@ fn test_complete_contextual_factors() {
         }),
         time_of_day: TimeOfDay::Afternoon,
         days_since_last_activity: Some(3),
-        weekly_load: Some(WeeklyLoad {
+        weekly_load: Some(ContextualWeeklyLoad {
             total_distance_km: 35.0,
             total_duration_hours: 3.5,
             activity_count: 4,

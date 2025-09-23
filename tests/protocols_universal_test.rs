@@ -11,8 +11,8 @@ use pierre_mcp_server::{
     database_plugins::DatabaseProvider,
     intelligence::insights::{Insight, InsightType},
     intelligence::{
-        ActivityIntelligence, ContextualFactors, PerformanceMetrics, TimeOfDay, TrendDirection,
-        TrendIndicators, WeeklyLoad,
+        ActivityIntelligence, ContextualFactors, ContextualWeeklyLoad, PerformanceMetrics, TimeOfDay, TrendDirection,
+        TrendIndicators,
     },
     protocols::universal::{UniversalRequest, UniversalToolExecutor},
 };
@@ -53,7 +53,7 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
             location: None,
             time_of_day: TimeOfDay::Morning,
             days_since_last_activity: Some(1),
-            weekly_load: Some(WeeklyLoad {
+            weekly_load: Some(ContextualWeeklyLoad {
                 total_distance_km: 50.0,
                 total_duration_hours: 5.0,
                 activity_count: 3,
@@ -362,7 +362,7 @@ async fn test_set_goal_tool() -> Result<()> {
             location: None,
             time_of_day: TimeOfDay::Morning,
             days_since_last_activity: Some(1),
-            weekly_load: Some(WeeklyLoad {
+            weekly_load: Some(ContextualWeeklyLoad {
                 total_distance_km: 50.0,
                 total_duration_hours: 5.0,
                 activity_count: 3,
@@ -952,7 +952,7 @@ async fn test_disconnect_provider_tool() -> Result<()> {
             location: None,
             time_of_day: TimeOfDay::Morning,
             days_since_last_activity: Some(1),
-            weekly_load: Some(WeeklyLoad {
+            weekly_load: Some(ContextualWeeklyLoad {
                 total_distance_km: 50.0,
                 total_duration_hours: 5.0,
                 activity_count: 3,
