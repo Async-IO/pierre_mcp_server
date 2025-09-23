@@ -57,7 +57,7 @@ impl ApiKeyTier {
     #[must_use]
     pub const fn default_trial_days(&self) -> Option<i64> {
         match self {
-            Self::Trial => Some(TRIAL_PERIOD_DAYS as i64), // Trial period
+            Self::Trial => Some(TRIAL_PERIOD_DAYS), // Trial period
             _ => None,
         }
     }

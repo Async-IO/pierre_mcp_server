@@ -196,8 +196,8 @@ impl TenantRateLimitConfig {
     /// Configure tenant based on their plan
     pub fn configure_tenant_by_plan(&mut self, tenant_id: Uuid, plan: &str) {
         let config = match plan.to_lowercase().as_str() {
-            tiers::PROFESSIONAL | tiers::PRO => TenantRateLimitTier::professional(),
-            tiers::ENTERPRISE | tiers::ENT => TenantRateLimitTier::enterprise(),
+            tiers::PROFESSIONAL => TenantRateLimitTier::professional(),
+            tiers::ENTERPRISE => TenantRateLimitTier::enterprise(),
             _ => TenantRateLimitTier::starter(),
         };
         self.set_tenant_config(tenant_id, config);
@@ -370,8 +370,8 @@ impl UnifiedRateLimitCalculator {
         } else {
             // Auto-configure based on plan
             match tenant.plan.to_lowercase().as_str() {
-                tiers::PROFESSIONAL | tiers::PRO => &TenantRateLimitTier::professional(),
-                tiers::ENTERPRISE | tiers::ENT => &TenantRateLimitTier::enterprise(),
+                tiers::PROFESSIONAL => &TenantRateLimitTier::professional(),
+                tiers::ENTERPRISE => &TenantRateLimitTier::enterprise(),
                 _ => &TenantRateLimitTier::starter(),
             }
         };

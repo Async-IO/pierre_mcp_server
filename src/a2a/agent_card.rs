@@ -169,12 +169,12 @@ impl AgentCard {
                     output: serde_json::json!({
                         "activities": [
                             {
-                                "id": crate::constants::a2a_examples::EXAMPLE_ACTIVITY_ID,
+                                "id": "12345678901234567890",
                                 "name": "Morning Run",
                                 "sport_type": "Run",
-                                "start_date": crate::constants::a2a_examples::EXAMPLE_ACTIVITY_DATE,
-                                "duration_seconds": crate::constants::a2a_examples::EXAMPLE_ACTIVITY_DURATION_SECONDS,
-                                "distance_meters": crate::constants::a2a_examples::EXAMPLE_ACTIVITY_DISTANCE_METERS,
+                                "start_date": "2024-01-15T10:00:00Z",
+                                "duration_seconds": 3600,
+                                "distance_meters": 10000.0,
                                 "elevation_gain": 50
                             }
                         ],
@@ -292,8 +292,8 @@ impl AgentCard {
         metadata.insert(
             "rate_limits".into(),
             serde_json::json!({
-                "trial": {"requests_per_month": crate::constants::a2a_examples::TRIAL_REQUESTS_PER_MONTH},
-                "starter": {"requests_per_month": crate::constants::a2a_examples::STARTER_REQUESTS_PER_MONTH},
+                "trial": {"requests_per_month": crate::constants::api_tier_limits::TRIAL_REQUESTS_PER_MONTH},
+                "starter": {"requests_per_month": crate::constants::api_tier_limits::STARTER_REQUESTS_PER_MONTH},
                 "professional": {"requests_per_month": 100_000},
                 "enterprise": {"requests_per_month": -1}
             }),
