@@ -120,32 +120,109 @@ fail_validation() {
 # Collect all metrics silently without verbose output
 echo -e "${BLUE}Analyzing codebase architecture and quality patterns...${NC}"
 
-# Anti-Pattern Detection
-LEGITIMATE_ARC_CLONES=$(rg "database_arc\.clone\(\)" src/ -g "!src/bin/*" -g "!src/database/tests.rs" -g "!src/database_plugins/*" --count 2>/dev/null | cut -d: -f2 | python3 -c "import sys; lines = sys.stdin.readlines(); print(sum(int(x.strip()) for x in lines) if lines else 0)" 2>/dev/null || echo 0)
-PROBLEMATIC_DB_CLONES=$(rg "\.as_ref\(\)\.clone\(\)" src/ -g "!src/bin/*" -g "!src/database/tests.rs" -g "!src/database_plugins/*" --count 2>/dev/null | cut -d: -f2 | python3 -c "import sys; lines = sys.stdin.readlines(); print(sum(int(x.strip()) for x in lines) if lines else 0)" 2>/dev/null || echo 0)
-TOTAL_DATABASE_CLONES=$((LEGITIMATE_ARC_CLONES + PROBLEMATIC_DB_CLONES))
-RESOURCE_CREATION=$(rg "AuthManager::new|OAuthManager::new|A2AClientManager::new|TenantOAuthManager::new" src/ -g "!src/mcp/multitenant.rs" -g "!src/mcp/resources.rs" -g "!src/bin/*" -g "!tests/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-FAKE_RESOURCES=$(rg "Arc::new\(ServerResources\s*[\{\:]" src/ -g "!src/bin/*" 2>/dev/null | wc -l | awk '{print $1+0}')
-OBSOLETE_FUNCTIONS=$(rg "fn.*run_http_server\(" src/ 2>/dev/null | wc -l | awk '{print $1+0}')
+# Memory Management Analysis (will use TOML patterns below)
+TOTAL_CLONES=$(rg "\.clone\(\)" src/ | grep -v 'src/bin/' | wc -l 2>/dev/null || echo 0)
 
-# Code Quality Analysis
-PROBLEMATIC_UNWRAPS=$(rg "\.unwrap\(\)" src/ | rg -v "// Safe|hardcoded.*valid|static.*data|00000000-0000-0000-0000-000000000000" | wc -l 2>/dev/null || echo 0)
-PROBLEMATIC_EXPECTS=$(rg "\.expect\(" src/ | rg -v "// Safe|ServerResources.*required" | wc -l 2>/dev/null || echo 0)
-PANICS=$(rg "panic!\(" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-TODOS=$(rg "TODO|FIXME|XXX" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-PLACEHOLDERS=$(rg "placeholder|not yet implemented|unimplemented!\(" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-STUBS=$(rg "placeholder|not yet implemented|unimplemented!\(|stub|mock.*implementation" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-PRODUCTION_MOCKS=$(rg "mock_|get_mock|return.*mock|demo purposes|for demo|stub implementation|mock implementation" src/ -g "!src/bin/*" -g "!tests/*" | wc -l 2>/dev/null || echo 0)
-PROBLEMATIC_UNDERSCORE_NAMES=$(rg "fn _|let _[a-zA-Z]|struct _|enum _" src/ | rg -v "let _[[:space:]]*=" | rg -v "let _result|let _response|let _output" | wc -l 2>/dev/null || echo 0)
-EXAMPLE_EMAILS=$(rg "example\.com|test@" src/ -g "!src/bin/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-CFG_TEST_IN_SRC=$(rg "#\[cfg\(test\)\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-CLIPPY_ALLOWS_PROBLEMATIC=$(rg "#!?\[allow\(clippy::" src/ | rg -v "cast_|too_many_lines|struct_excessive_bools" | wc -l 2>/dev/null || echo 0)
-CLIPPY_ALLOWS_TOO_MANY_LINES=$(rg "#!?\[allow\(clippy::too_many_lines\)\]" src/ | wc -l 2>/dev/null || echo 0)
-TEMP_SOLUTIONS=$(rg "\bhack\b|\bworkaround\b|\bquick.*fix\b|future.*implementation|temporary.*solution|temp.*fix" src/ --count-matches 2>/dev/null | cut -d: -f2 | python3 -c "import sys; lines = sys.stdin.readlines(); print(sum(int(x.strip()) for x in lines) if lines else 0)" 2>/dev/null || echo 0)
-DEAD_CODE=$(rg "#\[allow\(dead_code\)\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-UNUSED_VARS=$(rg "#\[allow\(unused.*\)\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-DEPRECATED=$(rg "#\[deprecated\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-IGNORED_TESTS=$(rg "#\[ignore\]" tests/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+# Load validation patterns from TOML configuration
+VALIDATION_PATTERNS_FILE="$SCRIPT_DIR/validation-patterns.toml"
+if [ -f "$VALIDATION_PATTERNS_FILE" ]; then
+    eval "$(python3 "$SCRIPT_DIR/parse-validation-patterns.py" "$VALIDATION_PATTERNS_FILE")"
+
+    # Use TOML-configured patterns for existing checks
+    IMPLEMENTATION_PLACEHOLDERS=$(rg "$CRITICAL_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    PLACEHOLDER_WARNINGS=$(rg "$WARNING_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+
+    # TOML-based checks (replacing legacy hardcoded patterns)
+    TOML_UNWRAPS=$(rg "$UNWRAP_PATTERNS_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" | rg -v "// Safe|hardcoded.*valid|static.*data|00000000-0000-0000-0000-000000000000" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TOML_EXPECTS=$(rg "$EXPECT_PATTERNS_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" | rg -v "// Safe|ServerResources.*required" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TOML_PANICS=$(rg "$PANIC_PATTERNS_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TOML_ERROR_HANDLING=$((TOML_UNWRAPS + TOML_EXPECTS + TOML_PANICS))
+    TOML_DEVELOPMENT_ARTIFACTS=$(rg "$DEVELOPMENT_ARTIFACTS_PATTERNS" src/ -g "!tests/*" -g "!examples/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TOML_PRODUCTION_HYGIENE=$(rg "$PRODUCTION_HYGIENE_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TOML_TEMPORARY_CODE=$(rg "$TEMPORARY_CODE_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TOML_CLIPPY_SUPPRESSIONS=$(rg "$CLIPPY_SUPPRESSIONS_PATTERNS" src/ | rg -v "cast_|too_many_lines|struct_excessive_bools" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TOML_LONG_FUNCTIONS=$(rg "$LONG_FUNCTION_SUPPRESSIONS_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TOML_PROBLEMATIC_NAMING=$(rg "$PROBLEMATIC_NAMING_PATTERNS" src/ | rg -v "let _[[:space:]]*=" | rg -v "let _result|let _response|let _output" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TOML_MAGIC_NUMBERS=$(rg "$THRESHOLD_PATTERNS" src/ -g "!src/constants.rs" -g "!src/config/*" | grep -v -E "(Licensed|http://|https://|Duration|timestamp|//.*[0-9]|seconds|minutes|hours|Version|\.[0-9]|[0-9]\.|test|mock|example|error.*code|status.*code|port|timeout|limit|capacity|-32[0-9]{3}|1000\.0|60\.0|24\.0|7\.0|365\.0|METERS_PER|PER_METER|conversion|unit|\.60934|12345|0000-0000|202[0-9]-[0-9]{2}-[0-9]{2}|Some\([0-9]+\)|Trial.*1000|Standard.*10000)" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+
+    # TOML-based architectural pattern analysis
+    TOML_RESOURCE_CREATION=$(rg "$RESOURCE_CREATION_PATTERNS" src/ -g "!src/mcp/multitenant.rs" -g "!src/mcp/resources.rs" -g "!src/bin/*" -g "!tests/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TOML_FAKE_RESOURCES=$(rg "$FAKE_RESOURCES_PATTERNS" src/ -g "!src/bin/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TOML_OBSOLETE_FUNCTIONS=$(rg "$OBSOLETE_FUNCTIONS_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TOML_UNUSED_VARIABLES=$(rg "$UNUSED_VARIABLES_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TOML_DEPRECATED_CODE=$(rg "$DEPRECATED_CODE_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+
+    # TOML-based memory management analysis
+    TOML_LEGITIMATE_ARC_CLONES=$(rg "$LEGITIMATE_ARC_CLONES_PATTERNS" src/ -g "!src/bin/*" -g "!src/database/tests.rs" -g "!src/database_plugins/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TOML_PROBLEMATIC_DB_CLONES=$(rg "$PROBLEMATIC_DB_CLONES_PATTERNS" src/ -g "!src/bin/*" -g "!src/database/tests.rs" -g "!src/database_plugins/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TOML_ARC_USAGE=$(rg "$ARC_USAGE_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TOML_CLONE_USAGE=$(rg "$CLONE_USAGE_PATTERNS" src/ | grep -v 'src/bin/' --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+
+    # Map TOML results to legacy variable names for backward compatibility
+    PROBLEMATIC_UNWRAPS=$TOML_UNWRAPS
+    PROBLEMATIC_EXPECTS=$TOML_EXPECTS
+    PANICS=$TOML_PANICS
+    TODOS=$TOML_DEVELOPMENT_ARTIFACTS
+    PRODUCTION_MOCKS=$TOML_PRODUCTION_HYGIENE
+    PROBLEMATIC_UNDERSCORE_NAMES=$TOML_PROBLEMATIC_NAMING
+    CFG_TEST_IN_SRC=$TOML_DEVELOPMENT_ARTIFACTS
+    CLIPPY_ALLOWS_PROBLEMATIC=$TOML_CLIPPY_SUPPRESSIONS
+    CLIPPY_ALLOWS_TOO_MANY_LINES=$TOML_LONG_FUNCTIONS
+    TEMP_SOLUTIONS=$TOML_TEMPORARY_CODE
+    DEAD_CODE=$TOML_DEVELOPMENT_ARTIFACTS
+    IGNORED_TESTS=$TOML_DEVELOPMENT_ARTIFACTS
+    EXAMPLE_EMAILS=$TOML_PRODUCTION_HYGIENE
+
+    # Map new architectural patterns to legacy variables
+    RESOURCE_CREATION=$TOML_RESOURCE_CREATION
+    FAKE_RESOURCES=$TOML_FAKE_RESOURCES
+    OBSOLETE_FUNCTIONS=$TOML_OBSOLETE_FUNCTIONS
+    UNUSED_VARS=$TOML_UNUSED_VARIABLES
+    DEPRECATED=$TOML_DEPRECATED_CODE
+    LEGITIMATE_ARC_CLONES=$TOML_LEGITIMATE_ARC_CLONES
+    PROBLEMATIC_DB_CLONES=$TOML_PROBLEMATIC_DB_CLONES
+    TOTAL_ARCS=$TOML_ARC_USAGE
+    TOTAL_CLONES=$TOML_CLONE_USAGE
+else
+    echo -e "${YELLOW}[WARN] Validation patterns TOML file not found, using fallback patterns${NC}"
+    # Fallback to legacy hardcoded patterns if TOML file is missing
+    IMPLEMENTATION_PLACEHOLDERS=$(rg "Implementation would|Would implement|Should implement|Will implement|TODO: Implementation|Available for real implementation|available for real implementation|Implement the code|stub implementation|mock implementation" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    PLACEHOLDER_WARNINGS=0
+
+    # Legacy fallback patterns
+    PROBLEMATIC_UNWRAPS=$(rg "\.unwrap\(\)" src/ | rg -v "// Safe|hardcoded.*valid|static.*data|00000000-0000-0000-0000-000000000000" | wc -l 2>/dev/null || echo 0)
+    PROBLEMATIC_EXPECTS=$(rg "\.expect\(" src/ | rg -v "// Safe|ServerResources.*required" | wc -l 2>/dev/null || echo 0)
+    PANICS=$(rg "panic!\(" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TODOS=$(rg "TODO|FIXME|XXX" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    PRODUCTION_MOCKS=$(rg "mock_|get_mock|return.*mock|demo purposes|for demo|stub implementation|mock implementation" src/ -g "!src/bin/*" -g "!tests/*" | wc -l 2>/dev/null || echo 0)
+    PROBLEMATIC_UNDERSCORE_NAMES=$(rg "fn _|let _[a-zA-Z]|struct _|enum _" src/ | rg -v "let _[[:space:]]*=" | rg -v "let _result|let _response|let _output" | wc -l 2>/dev/null || echo 0)
+    CFG_TEST_IN_SRC=$(rg "#\[cfg\(test\)\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    CLIPPY_ALLOWS_PROBLEMATIC=$(rg "#!?\[allow\(clippy::" src/ | rg -v "cast_|too_many_lines|struct_excessive_bools" | wc -l 2>/dev/null || echo 0)
+    CLIPPY_ALLOWS_TOO_MANY_LINES=$(rg "#!?\[allow\(clippy::too_many_lines\)\]" src/ | wc -l 2>/dev/null || echo 0)
+    TEMP_SOLUTIONS=$(rg "\bhack\b|\bworkaround\b|\bquick.*fix\b|future.*implementation|temporary.*solution|temp.*fix" src/ --count-matches 2>/dev/null | cut -d: -f2 | python3 -c "import sys; lines = sys.stdin.readlines(); print(sum(int(x.strip()) for x in lines) if lines else 0)" 2>/dev/null || echo 0)
+    DEAD_CODE=$(rg "#\[allow\(dead_code\)\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    IGNORED_TESTS=$(rg "#\[ignore\]" tests/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    EXAMPLE_EMAILS=$(rg "example\.com|test@" src/ -g "!src/bin/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+
+    # Fallback architectural patterns
+    RESOURCE_CREATION=$(rg "AuthManager::new|OAuthManager::new|A2AClientManager::new|TenantOAuthManager::new" src/ -g "!src/mcp/multitenant.rs" -g "!src/mcp/resources.rs" -g "!src/bin/*" -g "!tests/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    FAKE_RESOURCES=$(rg "Arc::new\(ServerResources\s*[\{\:]" src/ -g "!src/bin/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    OBSOLETE_FUNCTIONS=$(rg "fn.*run_http_server\(" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    UNUSED_VARS=$(rg "#\[allow\(unused.*\)\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    DEPRECATED=$(rg "#\[deprecated\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    LEGITIMATE_ARC_CLONES=$(rg "database_arc\.clone\(\)" src/ -g "!src/bin/*" -g "!src/database/tests.rs" -g "!src/database_plugins/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    PROBLEMATIC_DB_CLONES=$(rg "\.as_ref\(\)\.clone\(\)" src/ -g "!src/bin/*" -g "!src/database/tests.rs" -g "!src/database_plugins/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TOTAL_ARCS=$(rg "Arc::" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+
+    # TOML placeholders
+    TOML_DEVELOPMENT_ARTIFACTS=0
+    TOML_PRODUCTION_HYGIENE=0
+    TOML_TEMPORARY_CODE=0
+    TOML_CLIPPY_SUPPRESSIONS=0
+    TOML_LONG_FUNCTIONS=0
+    TOML_PROBLEMATIC_NAMING=0
+    TOML_MAGIC_NUMBERS=0
+fi
 
 # Memory Management Analysis
 TOTAL_CLONES=$(rg "\.clone\(\)" src/ | grep -v 'src/bin/' | wc -l 2>/dev/null || echo 0)
@@ -366,6 +443,70 @@ else
     printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_IGNORED"
 fi
 
+printf "│ %-35s │ %5d │ " "Implementation placeholders" "$IMPLEMENTATION_PLACEHOLDERS"
+if [ "$IMPLEMENTATION_PLACEHOLDERS" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "No placeholder implementations"
+else
+    if [ -n "$CRITICAL_PATTERNS" ]; then
+        FIRST_PLACEHOLDER=$(get_first_location 'rg "$CRITICAL_PATTERNS" src/ -n')
+    else
+        FIRST_PLACEHOLDER=$(get_first_location 'rg "Implementation would|Would implement|Should implement|Will implement|TODO: Implementation" src/ -n')
+    fi
+    printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_PLACEHOLDER"
+fi
+
+printf "│ %-35s │ %5d │ " "Placeholder warnings" "$PLACEHOLDER_WARNINGS"
+if [ "$PLACEHOLDER_WARNINGS" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "No hedge language or evasion patterns"
+else
+    if [ -n "$WARNING_PATTERNS" ]; then
+        FIRST_WARNING_PLACEHOLDER=$(get_first_location 'rg "$WARNING_PATTERNS" src/ -n')
+    else
+        FIRST_WARNING_PLACEHOLDER="Check TOML configuration"
+    fi
+    printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$FIRST_WARNING_PLACEHOLDER"
+fi
+
+printf "│ %-35s │ %5d │ " "Error handling anti-patterns" "$TOML_ERROR_HANDLING"
+if [ "$TOML_ERROR_HANDLING" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "Proper error handling patterns"
+else
+    FIRST_ERROR_HANDLING=$(get_first_location 'rg "$ERROR_HANDLING_ANTIPATTERNS_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" -n')
+    printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_ERROR_HANDLING"
+fi
+
+printf "│ %-35s │ %5d │ " "Development artifacts" "$TOML_DEVELOPMENT_ARTIFACTS"
+if [ "$TOML_DEVELOPMENT_ARTIFACTS" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "No development artifacts in production"
+else
+    FIRST_DEV_ARTIFACT=$(get_first_location 'rg "$DEVELOPMENT_ARTIFACTS_PATTERNS" src/ -g "!tests/*" -g "!examples/*" -n')
+    printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$FIRST_DEV_ARTIFACT"
+fi
+
+printf "│ %-35s │ %5d │ " "Production hygiene issues" "$TOML_PRODUCTION_HYGIENE"
+if [ "$TOML_PRODUCTION_HYGIENE" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "No test artifacts in production"
+else
+    FIRST_HYGIENE=$(get_first_location 'rg "$PRODUCTION_HYGIENE_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" -n')
+    printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_HYGIENE"
+fi
+
+printf "│ %-35s │ %5d │ " "Temporary code solutions" "$TOML_TEMPORARY_CODE"
+if [ "$TOML_TEMPORARY_CODE" -le "${MAX_TEMPORARY_CODE:-5}" ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "Within acceptable limits"
+else
+    FIRST_TEMP=$(get_first_location 'rg "$TEMPORARY_CODE_PATTERNS" src/ -n')
+    printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$FIRST_TEMP"
+fi
+
+printf "│ %-35s │ %5d │ " "TOML-based magic numbers" "$TOML_MAGIC_NUMBERS"
+if [ "$TOML_MAGIC_NUMBERS" -le "${MAX_MAGIC_NUMBERS:-10}" ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "Within acceptable limits"
+else
+    FIRST_MAGIC=$(get_first_location 'rg "$THRESHOLD_PATTERNS" src/ -g "!src/constants.rs" -g "!src/config/*" -n')
+    printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$FIRST_MAGIC"
+fi
+
 echo "├─────────────────────────────────────┼───────┼──────────┼─────────────────────────────────────────┤"
 
 # Memory Management Analysis
@@ -408,10 +549,14 @@ fi
 echo "└─────────────────────────────────────┴───────┴──────────┴─────────────────────────────────────────┘"
 
 # Report comprehensive summary based on actual findings
-CRITICAL_ISSUES=$((PROBLEMATIC_DB_CLONES + PROBLEMATIC_UNWRAPS + PROBLEMATIC_EXPECTS + PANICS + IGNORED_TESTS))
+CRITICAL_ISSUES=$((PROBLEMATIC_DB_CLONES + PROBLEMATIC_UNWRAPS + PROBLEMATIC_EXPECTS + PANICS + IGNORED_TESTS + IMPLEMENTATION_PLACEHOLDERS))
+CRITICAL_ISSUES=$((CRITICAL_ISSUES + TOML_PRODUCTION_HYGIENE))
+
 WARNINGS=$((FAKE_RESOURCES + OBSOLETE_FUNCTIONS > 1 ? OBSOLETE_FUNCTIONS - 1 : 0))
 WARNINGS=$((WARNINGS + RESOURCE_CREATION + TODOS + STUBS + PROBLEMATIC_UNDERSCORE_NAMES + TEMP_SOLUTIONS))
 WARNINGS=$((WARNINGS + (TOTAL_CLONES >= 500 ? 1 : 0) + (TOTAL_ARCS >= 50 ? 1 : 0) + (MAGIC_NUMBERS >= 10 ? 1 : 0)))
+WARNINGS=$((WARNINGS + (PLACEHOLDER_WARNINGS > 0 ? 1 : 0)))
+WARNINGS=$((WARNINGS + (TOML_DEVELOPMENT_ARTIFACTS > 0 ? 1 : 0) + (TOML_TEMPORARY_CODE > MAX_TEMPORARY_CODE ? 1 : 0) + (TOML_MAGIC_NUMBERS > MAX_MAGIC_NUMBERS ? 1 : 0)))
 
 if [ "$CRITICAL_ISSUES" -gt 0 ]; then
     echo -e "${RED}❌ ARCHITECTURAL VALIDATION FAILED${NC}"

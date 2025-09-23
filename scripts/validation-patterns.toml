@@ -1,0 +1,364 @@
+# Pierre MCP Server - Code Quality Validation Patterns
+# This file defines patterns that indicate poor code quality, placeholder implementations,
+# or other anti-patterns that should be caught by the validation suite.
+
+[placeholder_patterns]
+# Critical failures - code that pretends to work but doesn't
+# These patterns indicate Claude Code has left placeholder implementations
+critical = [
+    "Implementation would",
+    "Would implement",
+    "Should implement",
+    "Will implement",
+    "TODO: Implementation",
+    "Available for real implementation",
+    "available for real implementation",
+    "Implement the code",
+    "stub implementation",
+    "mock implementation",
+    "placeholder implementation",
+    "return mock data",
+    "using mock data",
+    "fake implementation",
+    "unimplemented!",
+    "todo!",
+    "return Ok\\(\\); // placeholder",
+    "return Err.*not implemented"
+]
+
+# Migration/compatibility patterns - should be rare and justified
+# These are acceptable in limited cases but often indicate lazy implementation
+migration = [
+    "Legacy field for backward compatibility",
+    "backward compatibility during migration",
+    "In future versions",
+    "will be implemented",
+    "can be extended",
+    "to be added"
+]
+
+# Hedge language - avoiding commitment
+# These patterns indicate uncertainty or incomplete implementation
+hedge_language = [
+    "might implement",
+    "could implement",
+    "should handle",
+    "potentially",
+    "possibly",
+    "This allows for",
+    "Provides support for",
+    "Based on configuration",
+    "According to settings",
+    "if needed",
+    "as needed",
+    "when required",
+    "depending on"
+]
+
+# Vague authoritative language - sounds implemented but may be generic
+# These are often legitimate but worth reviewing for specificity
+vague_authoritative = [
+    "This handles",
+    "Processes",
+    "Manages",
+    "Automatically handles",
+    "Seamlessly integrates",
+    "Handles all",
+    "Takes care of",
+    "Deals with"
+]
+
+# Future tense evasion - pushing work to imaginary future
+future_evasion = [
+    "once we",
+    "when we",
+    "after we",
+    "needs to be",
+    "must be",
+    "should be",
+    "will need",
+    "requires implementation"
+]
+
+# Improvement promises - vague commitments to do better later
+improvement_promises = [
+    "handle this properly",
+    "implement properly",
+    "add proper",
+    "extend this",
+    "improve this",
+    "enhance this",
+    "refactor this",
+    "optimize later",
+    "consider caching",
+    "performance improvement"
+]
+
+# Validation/security shortcuts - security theater
+security_shortcuts = [
+    "Add validation",
+    "Validate input",
+    "Check permissions",
+    "Sanitize input",
+    "Add security",
+    "Encrypt this",
+    "Authorize user",
+    "Authentication needed"
+]
+
+# Error handling evasion - not actually handling errors
+error_handling_evasion = [
+    "Handle error properly",
+    "Add error handling",
+    "Improve error",
+    "Catch exceptions",
+    "Error recovery",
+    "Graceful failure"
+]
+
+# Configuration punts - making everything "configurable" instead of implementing
+configuration_punts = [
+    "Make configurable",
+    "Add configuration",
+    "Configure properly",
+    "Environment dependent"
+]
+
+# Documentation shortcuts - promising docs instead of clear code
+documentation_shortcuts = [
+    "Document this",
+    "Add documentation",
+    "API docs needed",
+    "Usage examples",
+    "Add comments"
+]
+
+# Error handling anti-patterns - avoiding proper error handling
+unwrap_patterns = [
+    "\\.unwrap\\(\\)"
+]
+
+expect_patterns = [
+    "\\.expect\\("
+]
+
+panic_patterns = [
+    "panic!\\("
+]
+
+# Development artifacts that shouldn't be in production
+development_artifacts = [
+    "TODO",
+    "FIXME",
+    "XXX",
+    "#\\[allow\\(dead_code\\)\\]",
+    "#\\[cfg\\(test\\)\\]",
+    "#\\[ignore\\]"
+]
+
+# Production hygiene - test artifacts in production code
+production_hygiene = [
+    "example\\.com",
+    "test@.*\\.com",
+    "mock_",
+    "get_mock",
+    "return.*mock",
+    "demo purposes",
+    "for demo"
+]
+
+# Temporary solutions - code that should be permanent
+temporary_code = [
+    "\\bhack\\b",
+    "\\bworkaround\\b",
+    "quick.*fix",
+    "temporary.*solution",
+    "temp.*fix"
+]
+
+# Clippy suppressions - avoiding proper fixes
+clippy_suppressions = [
+    "#\\[allow\\(clippy::.*\\)\\]"
+]
+
+# Long function suppressions - functions that should be decomposed
+long_function_suppressions = [
+    "#\\[allow\\(clippy::too_many_lines\\)\\]"
+]
+
+# Problematic naming patterns
+problematic_naming = [
+    "fn _[a-zA-Z]",
+    "let _[a-zA-Z]",
+    "struct _[a-zA-Z]",
+    "enum _[a-zA-Z]"
+]
+
+# Magic numbers - large hardcoded values
+magic_numbers = [
+    "\\b[0-9]{4,}\\b"
+]
+
+# Architectural patterns - design anti-patterns and obsolete code
+resource_creation = [
+    "AuthManager::new",
+    "OAuthManager::new",
+    "A2AClientManager::new",
+    "TenantOAuthManager::new"
+]
+
+fake_resources = [
+    "Arc::new\\(ServerResources\\s*[\\{\\:]"
+]
+
+obsolete_functions = [
+    "fn.*run_http_server\\("
+]
+
+unused_variables = [
+    "#\\[allow\\(unused.*\\)\\]"
+]
+
+deprecated_code = [
+    "#\\[deprecated\\]"
+]
+
+# Memory management patterns - cloning and Arc usage analysis
+legitimate_arc_clones = [
+    "database_arc\\.clone\\(\\)"
+]
+
+problematic_db_clones = [
+    "\\.as_ref\\(\\)\\.clone\\(\\)"
+]
+
+arc_usage = [
+    "Arc::"
+]
+
+clone_usage = [
+    "\\.clone\\(\\)"
+]
+
+# Legitimate clone patterns - patterns that are acceptable for cloning
+legitimate_clone_patterns = [
+    "Arc::",
+    "resources\\.",
+    "database\\.",
+    "auth_manager\\.",
+    "sse_manager\\.",
+    "websocket_manager\\.",
+    "\\.to_string\\(\\)",
+    "format!",
+    "String::from",
+    "token",
+    "url",
+    "name",
+    "path",
+    "message",
+    "error",
+    "Error",
+    "client_id",
+    "client_secret",
+    "redirect_uri",
+    "access_token",
+    "refresh_token",
+    "user_id",
+    "tenant_id",
+    "request\\.",
+    "response\\.",
+    "context\\.",
+    "config\\.",
+    "profile\\."
+]
+
+[validation_config]
+# Which pattern groups cause critical failures (script exits with error)
+critical_groups = ["critical", "unwrap_patterns", "expect_patterns", "panic_patterns", "production_hygiene", "fake_resources"]
+
+# Which pattern groups are warnings only (logged but don't fail build)
+warning_groups = [
+    "migration",
+    "improvement_promises",
+    "security_shortcuts",
+    "error_handling_evasion",
+    "configuration_punts",
+    "development_artifacts",
+    "temporary_code",
+    "clippy_suppressions",
+    "long_function_suppressions",
+    "problematic_naming",
+    "resource_creation",
+    "obsolete_functions",
+    "unused_variables",
+    "deprecated_code"
+]
+
+# Pattern groups with thresholds (count-based validation)
+threshold_groups = ["magic_numbers", "arc_usage", "clone_usage"]
+
+# Pattern groups for architectural analysis (informational)
+architectural_groups = ["legitimate_arc_clones", "problematic_db_clones", "legitimate_clone_patterns"]
+
+# Validation thresholds for count-based checks
+[validation_thresholds]
+max_magic_numbers = 10
+max_clippy_allows = 5
+max_arc_usage = 50
+max_total_clones = 600
+max_development_artifacts = 20
+max_temporary_code = 5
+max_resource_creation = 0
+max_obsolete_functions = 0
+max_unused_variables = 5
+max_deprecated_code = 0
+max_fake_resources = 0
+max_problematic_db_clones = 0
+
+# File patterns to exclude from certain checks
+[exclusions]
+# Files where some patterns might be legitimate
+test_files = ["tests/**", "**/*_test.rs", "**/test_*.rs"]
+example_files = ["examples/**", "**/examples/**"]
+bin_files = ["src/bin/**"]
+
+# Error handling exclusions - files where unwrap/expect might be acceptable
+error_handling_exclusions = [
+    "src/bin/**",
+    "tests/**",
+    "**/*_test.rs"
+]
+
+# Development artifacts exclusions - files where TODO/FIXME are acceptable
+development_artifacts_exclusions = [
+    "tests/**",
+    "examples/**"
+]
+
+# Magic numbers exclusions - files where large numbers are expected
+magic_numbers_exclusions = [
+    "src/constants.rs",
+    "src/config/**",
+    "**/migrations/**"
+]
+
+# Patterns that are allowed in specific contexts
+[allowed_patterns]
+# These are legitimate uses that shouldn't trigger failures
+legitimate_backward_compatibility = [
+    "Type alias for backward compatibility - use .* directly in new code",
+    "Legacy method.*for backward compatibility",
+    "Deprecated.*use.*instead"
+]
+
+legitimate_fallback = [
+    "Fall back to.*configuration",
+    "Fall back to.*default",
+    "Fall back to.*credentials"
+]
+
+legitimate_handles = [
+    "This.*handles.*requests",
+    "Handles.*HTTP.*requests",
+    "handles.*database.*operations"
+]
