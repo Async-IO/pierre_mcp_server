@@ -64,6 +64,9 @@ pub mod models;
 /// Configuration management and persistence
 pub mod config;
 
+/// Focused dependency injection contexts
+pub mod context;
+
 /// Application constants and configuration values
 pub mod constants;
 

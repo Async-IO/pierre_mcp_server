@@ -266,7 +266,8 @@ async fn test_multitenant_auth_flow() -> Result<()> {
         config,
     ));
 
-    let auth_routes = AuthRoutes::new(server_resources);
+    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    let auth_routes = AuthRoutes::new(server_context.auth().clone(), server_context.data().clone());
 
     // Test user registration
     let register_request = RegisterRequest {
@@ -642,7 +643,8 @@ async fn test_input_validation() -> Result<()> {
         config,
     ));
 
-    let auth_routes = AuthRoutes::new(server_resources);
+    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    let auth_routes = AuthRoutes::new(server_context.auth().clone(), server_context.data().clone());
 
     // Test invalid email formats
     let invalid_emails = vec!["not-an-email", "@domain.com", "user@", "user", "a@b", ""];

@@ -124,7 +124,8 @@ async fn test_email_validation() {
         config,
     ));
 
-    let auth_routes = AuthRoutes::new(server_resources.clone());
+    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    let auth_routes = AuthRoutes::new(server_context.auth().clone(), server_context.data().clone());
 
     // Valid emails
     let valid_emails = vec![
@@ -280,7 +281,8 @@ async fn test_password_validation() {
         config,
     ));
 
-    let auth_routes = AuthRoutes::new(server_resources.clone());
+    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    let auth_routes = AuthRoutes::new(server_context.auth().clone(), server_context.data().clone());
 
     // Test short password
     let request = RegisterRequest {
@@ -408,7 +410,8 @@ async fn test_duplicate_user_registration() {
         config,
     ));
 
-    let auth_routes = AuthRoutes::new(server_resources.clone());
+    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    let auth_routes = AuthRoutes::new(server_context.auth().clone(), server_context.data().clone());
 
     let request = RegisterRequest {
         email: "duplicate@example.com".to_string(),
@@ -527,7 +530,8 @@ async fn test_login_with_correct_credentials() {
         config,
     ));
 
-    let auth_routes = AuthRoutes::new(server_resources.clone());
+    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    let auth_routes = AuthRoutes::new(server_context.auth().clone(), server_context.data().clone());
 
     // Register user
     let register_request = RegisterRequest {
@@ -690,7 +694,8 @@ async fn test_login_with_wrong_password() {
         config,
     ));
 
-    let auth_routes = AuthRoutes::new(server_resources.clone());
+    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    let auth_routes = AuthRoutes::new(server_context.auth().clone(), server_context.data().clone());
 
     // Register user
     let register_request = RegisterRequest {
@@ -816,7 +821,8 @@ async fn test_login_with_non_existent_user() {
         config,
     ));
 
-    let auth_routes = AuthRoutes::new(server_resources.clone());
+    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    let auth_routes = AuthRoutes::new(server_context.auth().clone(), server_context.data().clone());
 
     let login_request = LoginRequest {
         email: "nonexistent@example.com".to_string(),

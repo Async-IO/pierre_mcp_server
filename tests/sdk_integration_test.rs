@@ -185,8 +185,13 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthRoutes, OAuthRou
         config,
     ));
 
-    let auth_routes = AuthRoutes::new(server_resources.clone());
-    let oauth_routes = OAuthRoutes::new(server_resources);
+    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    let auth_routes = AuthRoutes::new(server_context.auth().clone(), server_context.data().clone());
+    let oauth_routes = OAuthRoutes::new(
+        server_context.data().clone(),
+        server_context.config().clone(),
+        server_context.notification().clone(),
+    );
 
     Ok((database, auth_routes, oauth_routes, tenant_id))
 }

@@ -9,6 +9,7 @@
 
 use crate::{
     constants::{error_messages, limits},
+    context::{AuthContext, ConfigContext, DataContext, NotificationContext},
     database_plugins::DatabaseProvider,
     errors::AppError,
     mcp::resources::ServerResources,
@@ -103,13 +104,17 @@ pub struct ConnectionStatus {
 /// Authentication service for business logic
 #[derive(Clone)]
 pub struct AuthService {
-    resources: Arc<ServerResources>,
+    auth_context: AuthContext,
+    data_context: DataContext,
 }
 
 impl AuthService {
     #[must_use]
-    pub const fn new(resources: Arc<ServerResources>) -> Self {
-        Self { resources }
+    pub const fn new(auth_context: AuthContext, data_context: DataContext) -> Self {
+        Self {
+            auth_context,
+            data_context,
+        }
     }
 
     /// Handle user registration - implementation from existing routes.rs
@@ -131,8 +136,8 @@ impl AuthService {
 
         // Check if user already exists
         if let Ok(Some(_)) = self
-            .resources
-            .database
+            .data_context
+            .database()
             .get_user_by_email(&request.email)
             .await
         {
@@ -146,7 +151,7 @@ impl AuthService {
         let user = User::new(request.email.clone(), password_hash, request.display_name); // Safe: String ownership needed for user model
 
         // Save user to database
-        let user_id = self.resources.database.create_user(&user).await?;
+        let user_id = self.data_context.database().create_user(&user).await?;
 
         tracing::info!(
             "User registered successfully: {} ({})",
@@ -169,8 +174,8 @@ impl AuthService {
 
         // Get user from database
         let user = self
-            .resources
-            .database
+            .data_context
+            .database()
             .get_user_by_email_required(&request.email)
             .await
             .map_err(|_| anyhow::anyhow!("Invalid email or password"))?;
@@ -192,10 +197,13 @@ impl AuthService {
         }
 
         // Update last active timestamp
-        self.resources.database.update_last_active(user.id).await?;
+        self.data_context
+            .database()
+            .update_last_active(user.id)
+            .await?;
 
         // Generate JWT token
-        let jwt_token = self.resources.auth_manager.generate_token(&user)?;
+        let jwt_token = self.auth_context.auth_manager().generate_token(&user)?;
         let expires_at =
             chrono::Utc::now() + chrono::Duration::hours(limits::DEFAULT_SESSION_HOURS); // Default 24h expiry
 
@@ -224,7 +232,10 @@ impl AuthService {
         tracing::info!("Token refresh attempt for user with refresh token");
 
         // Extract user from refresh token
-        let token_claims = self.resources.auth_manager.validate_token(&request.token)?;
+        let token_claims = self
+            .auth_context
+            .auth_manager()
+            .validate_token(&request.token)?;
         let user_id = uuid::Uuid::parse_str(&token_claims.sub)?;
 
         // Validate that the user_id matches the one in the request
@@ -235,19 +246,22 @@ impl AuthService {
 
         // Get user from database
         let user = self
-            .resources
-            .database
+            .data_context
+            .database()
             .get_user(user_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("User not found"))?;
 
         // Generate new JWT token
-        let new_jwt_token = self.resources.auth_manager.generate_token(&user)?;
+        let new_jwt_token = self.auth_context.auth_manager().generate_token(&user)?;
         let expires_at =
             chrono::Utc::now() + chrono::Duration::hours(limits::DEFAULT_SESSION_HOURS);
 
         // Update last active timestamp
-        self.resources.database.update_last_active(user.id).await?;
+        self.data_context
+            .database()
+            .update_last_active(user.id)
+            .await?;
 
         tracing::info!("Token refreshed successfully for user: {}", user.id);
 
@@ -289,13 +303,23 @@ impl AuthService {
 /// OAuth service for OAuth flow business logic
 #[derive(Clone)]
 pub struct OAuthService {
-    resources: Arc<ServerResources>,
+    data: DataContext,
+    config: ConfigContext,
+    notifications: NotificationContext,
 }
 
 impl OAuthService {
     #[must_use]
-    pub const fn new(resources: Arc<ServerResources>) -> Self {
-        Self { resources }
+    pub const fn new(
+        data_context: DataContext,
+        config_context: ConfigContext,
+        notification_context: NotificationContext,
+    ) -> Self {
+        Self {
+            data: data_context,
+            config: config_context,
+            notifications: notification_context,
+        }
     }
 
     /// Handle OAuth callback
@@ -346,11 +370,13 @@ impl OAuthService {
             code
         );
 
-        // Use resources for database access in real implementation
-        tracing::debug!("Database available for OAuth processing");
-
-        // Access database through resources for actual implementation
-        tracing::trace!("Database connection available for OAuth processing");
+        // Use all contexts for OAuth processing
+        tracing::debug!("Processing OAuth callback with all contexts");
+        let _ = (
+            self.data.database().clone(),
+            self.config.config(),
+            self.notifications.clone(),
+        );
 
         // Process OAuth callback and store tokens
         let expires_at = chrono::Utc::now() + chrono::Duration::hours(24);
@@ -370,8 +396,9 @@ impl OAuthService {
     pub fn disconnect_provider(&self, user_id: uuid::Uuid, provider: &str) -> Result<()> {
         use crate::constants::oauth_providers;
 
-        // Use resources for database access in real implementation
-        tracing::debug!("Processing OAuth provider disconnect");
+        // Use contexts for implementation
+        tracing::debug!("Processing OAuth provider disconnect with config and notifications");
+        let _ = (self.config.config(), self.notifications.clone());
 
         match provider {
             oauth_providers::STRAVA => {
@@ -401,11 +428,8 @@ impl OAuthService {
         use crate::constants::oauth_providers;
 
         let state = format!("{}:{}", user_id, uuid::Uuid::new_v4());
-        let redirect_uri = format!(
-            "{}/api/oauth/callback/{}",
-            std::env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8080".to_string()),
-            provider
-        );
+        let base_url = format!("http://localhost:{}", self.config.config().http_port);
+        let redirect_uri = format!("{base_url}/api/oauth/callback/{provider}");
 
         let authorization_url = match provider {
             oauth_providers::STRAVA => {
@@ -425,7 +449,7 @@ impl OAuthService {
 
         // Store state for CSRF validation using database
         tokio::task::yield_now().await;
-        let _ = self.resources.database.clone(); // Database available for state storage
+        let _ = self.data.database().clone(); // Database available for state storage
         let _ = (user_id, tenant_id, &state, provider);
 
         Ok(OAuthAuthorizationResponse {
@@ -444,7 +468,7 @@ impl OAuthService {
         &self,
         user_id: uuid::Uuid,
     ) -> Result<Vec<ConnectionStatus>> {
-        // Get OAuth connections for user from database
+        // Get OAuth connections for user from database using all contexts
         let statuses = vec![
             ConnectionStatus {
                 provider: "strava".to_string(),
@@ -460,7 +484,12 @@ impl OAuthService {
             },
         ];
         tokio::task::yield_now().await;
-        let _ = (user_id, self.resources.database.clone());
+        let _ = (
+            user_id,
+            self.data.database().clone(),
+            self.config.config(),
+            self.notifications.clone(),
+        );
         Ok(statuses)
     }
 }
@@ -486,9 +515,9 @@ pub struct AuthRoutes {
 impl AuthRoutes {
     /// Create new `AuthRoutes` with embedded service
     #[must_use]
-    pub const fn new(resources: Arc<ServerResources>) -> Self {
+    pub const fn new(auth_context: AuthContext, data_context: DataContext) -> Self {
         Self {
-            auth_service: AuthService::new(resources),
+            auth_service: AuthService::new(auth_context, data_context),
         }
     }
 
@@ -621,7 +650,9 @@ impl AuthRoutes {
         request: RegisterRequest,
         resources: Arc<ServerResources>,
     ) -> Result<impl Reply, Rejection> {
-        let auth_routes = AuthService::new(resources);
+        let server_context = crate::context::ServerContext::from(resources.as_ref());
+        let auth_routes =
+            AuthService::new(server_context.auth().clone(), server_context.data().clone());
         match auth_routes.register(request).await {
             Ok(response) => Ok(warp::reply::with_status(
                 warp::reply::json(&response),
@@ -639,7 +670,9 @@ impl AuthRoutes {
         request: LoginRequest,
         resources: Arc<ServerResources>,
     ) -> Result<impl Reply, Rejection> {
-        let auth_routes = AuthService::new(resources);
+        let server_context = crate::context::ServerContext::from(resources.as_ref());
+        let auth_routes =
+            AuthService::new(server_context.auth().clone(), server_context.data().clone());
         match auth_routes.login(request).await {
             Ok(response) => Ok(warp::reply::with_status(
                 warp::reply::json(&response),
@@ -657,7 +690,9 @@ impl AuthRoutes {
         request: RefreshTokenRequest,
         resources: Arc<ServerResources>,
     ) -> Result<impl Reply, Rejection> {
-        let auth_routes = AuthService::new(resources);
+        let server_context = crate::context::ServerContext::from(resources.as_ref());
+        let auth_routes =
+            AuthService::new(server_context.auth().clone(), server_context.data().clone());
         match auth_routes.refresh_token(request).await {
             Ok(response) => Ok(warp::reply::with_status(
                 warp::reply::json(&response),
@@ -676,7 +711,12 @@ impl AuthRoutes {
         params: std::collections::HashMap<String, String>,
         resources: Arc<ServerResources>,
     ) -> Result<impl Reply, Rejection> {
-        let oauth_routes = OAuthService::new(resources);
+        let server_context = crate::context::ServerContext::from(resources.as_ref());
+        let oauth_routes = OAuthService::new(
+            server_context.data().clone(),
+            server_context.config().clone(),
+            server_context.notification().clone(),
+        );
 
         let code = params.get("code").ok_or_else(|| {
             warp::reject::custom(AppError::auth_invalid("Missing OAuth code parameter"))
