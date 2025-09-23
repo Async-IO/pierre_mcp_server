@@ -55,8 +55,8 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
-      - name: Lint with Clippy
-        run: cargo clippy --all-targets -- -D warnings
+      - name: Lint with Clippy (Zero Tolerance)
+        run: cargo clippy --all-targets --all-features --quiet -- -W clippy::all -W clippy::pedantic -W clippy::nursery -D warnings
 
       - name: Code Quality Validation (TOML-based)
         run: |

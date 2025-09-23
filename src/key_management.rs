@@ -51,12 +51,7 @@ impl MasterEncryptionKey {
         info!("Loading Master Encryption Key from environment variable");
         let key_bytes = base64::engine::general_purpose::STANDARD
             .decode(encoded_key)
-            .map_err(|e| {
-                anyhow!(
-                    "Invalid base64 encoding in PIERRE_MASTER_ENCRYPTION_KEY: {}",
-                    e
-                )
-            })?;
+            .map_err(|e| anyhow!("Invalid base64 encoding in PIERRE_MASTER_ENCRYPTION_KEY: {e}"))?;
 
         if key_bytes.len() != 32 {
             return Err(anyhow!(
@@ -122,7 +117,7 @@ impl MasterEncryptionKey {
         // Encrypt the data
         let ciphertext = cipher
             .encrypt(nonce, plaintext)
-            .map_err(|e| anyhow!("Encryption failed: {}", e))?;
+            .map_err(|e| anyhow!("Encryption failed: {e}"))?;
 
         // Prepend nonce to ciphertext
         let mut result = Vec::with_capacity(12 + ciphertext.len());
@@ -156,7 +151,7 @@ impl MasterEncryptionKey {
         // Decrypt the data
         let plaintext = cipher
             .decrypt(nonce, ciphertext)
-            .map_err(|e| anyhow!("Decryption failed: {}", e))?;
+            .map_err(|e| anyhow!("Decryption failed: {e}"))?;
 
         Ok(plaintext)
     }
@@ -266,7 +261,7 @@ impl KeyManager {
             // Decode from base64
             let encrypted_dek = base64::engine::general_purpose::STANDARD
                 .decode(&encrypted_dek_base64)
-                .map_err(|e| anyhow!("Invalid base64 encoding for stored DEK: {}", e))?;
+                .map_err(|e| anyhow!("Invalid base64 encoding for stored DEK: {e}"))?;
 
             // Decrypt with MEK and replace temporary DEK
             self.dek = DatabaseEncryptionKey::decrypt_with_mek(&encrypted_dek, &self.mek)?;
@@ -315,7 +310,7 @@ impl KeyManager {
             // Decode from base64
             let encrypted_dek = base64::engine::general_purpose::STANDARD
                 .decode(&encrypted_dek_base64)
-                .map_err(|e| anyhow!("Invalid base64 encoding for stored DEK: {}", e))?;
+                .map_err(|e| anyhow!("Invalid base64 encoding for stored DEK: {e}"))?;
 
             // Decrypt with MEK
             DatabaseEncryptionKey::decrypt_with_mek(&encrypted_dek, &mek)?

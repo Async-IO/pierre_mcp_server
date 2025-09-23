@@ -11,8 +11,8 @@ use pierre_mcp_server::{
     database_plugins::DatabaseProvider,
     intelligence::insights::{Insight, InsightType},
     intelligence::{
-        ActivityIntelligence, ContextualFactors, ContextualWeeklyLoad, PerformanceMetrics, TimeOfDay, TrendDirection,
-        TrendIndicators,
+        ActivityIntelligence, ContextualFactors, ContextualWeeklyLoad, PerformanceMetrics,
+        TimeOfDay, TrendDirection, TrendIndicators,
     },
     protocols::universal::{UniversalRequest, UniversalToolExecutor},
 };

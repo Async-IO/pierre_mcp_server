@@ -267,7 +267,7 @@ impl DatabaseProvider for PostgresDatabase {
     async fn get_user_by_email_required(&self, email: &str) -> Result<User> {
         self.get_user_by_email(email)
             .await?
-            .ok_or_else(|| anyhow!("User with email {} not found", email))
+            .ok_or_else(|| anyhow!("User with email {email} not found"))
     }
 
     async fn update_last_active(&self, user_id: Uuid) -> Result<()> {
@@ -299,7 +299,7 @@ impl DatabaseProvider for PostgresDatabase {
             "active" => "active",
             "pending" => "pending",
             "suspended" => "suspended",
-            _ => return Err(anyhow!("Invalid user status: {}", status)),
+            _ => return Err(anyhow!("Invalid user status: {status}")),
         };
 
         let rows = sqlx::query(
@@ -875,11 +875,11 @@ impl DatabaseProvider for PostgresDatabase {
         if let Some(_limit) = limit {
             param_count += 1;
             write!(&mut query, " LIMIT ${param_count}")
-                .map_err(|e| anyhow::anyhow!("Failed to write LIMIT clause: {}", e))?;
+                .map_err(|e| anyhow::anyhow!("Failed to write LIMIT clause: {e}"))?;
             if let Some(_offset) = offset {
                 param_count += 1;
                 write!(&mut query, " OFFSET ${param_count}")
-                    .map_err(|e| anyhow::anyhow!("Failed to write OFFSET clause: {}", e))?;
+                    .map_err(|e| anyhow::anyhow!("Failed to write OFFSET clause: {e}"))?;
             }
         }
 
@@ -1417,7 +1417,7 @@ impl DatabaseProvider for PostgresDatabase {
             .await?;
 
         if result.rows_affected() == 0 {
-            return Err(anyhow::anyhow!("A2A client not found: {}", client_id));
+            return Err(anyhow::anyhow!("A2A client not found: {client_id}"));
         }
 
         Ok(())
@@ -2512,7 +2512,7 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(tenant.updated_at)
         .execute(&self.pool)
         .await
-        .map_err(|e| anyhow::anyhow!("Failed to create tenant: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to create tenant: {e}"))?;
 
         // Add the owner as an admin of the tenant
         sqlx::query(
@@ -2525,7 +2525,7 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(tenant.owner_user_id)
         .execute(&self.pool)
         .await
-        .map_err(|e| anyhow::anyhow!("Failed to add owner to tenant: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to add owner to tenant: {e}"))?;
 
         tracing::info!(
             "Created tenant: {} ({}) and added owner to tenant_users",

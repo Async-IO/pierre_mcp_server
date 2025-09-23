@@ -295,7 +295,7 @@ impl TenantOAuthClient {
             ),
             _ => {
                 warn!("Unknown provider {}, using generic OAuth URLs", provider);
-                return Err(anyhow!("Unsupported OAuth provider: {}", provider));
+                return Err(anyhow!("Unsupported OAuth provider: {provider}"));
             }
         };
 

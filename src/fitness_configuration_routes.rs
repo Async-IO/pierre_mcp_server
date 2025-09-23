@@ -127,13 +127,13 @@ impl FitnessConfigurationRoutes {
             .database
             .get_user(user_id)
             .await?
-            .ok_or_else(|| anyhow::anyhow!("User not found: {}", user_id))?;
+            .ok_or_else(|| anyhow::anyhow!("User not found: {user_id}"))?;
 
         let tenant_id = user
             .tenant_id
             .as_ref()
             .and_then(|id| Uuid::parse_str(id).ok())
-            .ok_or_else(|| anyhow::anyhow!("User has no valid tenant: {}", user_id))?;
+            .ok_or_else(|| anyhow::anyhow!("User has no valid tenant: {user_id}"))?;
 
         Ok(tenant_id)
     }
@@ -227,7 +227,7 @@ impl FitnessConfigurationRoutes {
                     .get_tenant_fitness_config(&tenant_id.to_string(), configuration_name)
                     .await?
                     .ok_or_else(|| {
-                        anyhow::anyhow!("Configuration not found: {}", configuration_name)
+                        anyhow::anyhow!("Configuration not found: {configuration_name}")
                     })?
             }
         };
@@ -363,8 +363,7 @@ impl FitnessConfigurationRoutes {
 
         if !deleted {
             return Err(anyhow::anyhow!(
-                "Configuration not found: {}",
-                configuration_name
+                "Configuration not found: {configuration_name}"
             ));
         }
 
@@ -412,8 +411,7 @@ impl FitnessConfigurationRoutes {
 
         if !deleted {
             return Err(anyhow::anyhow!(
-                "Configuration not found: {}",
-                configuration_name
+                "Configuration not found: {configuration_name}"
             ));
         }
 

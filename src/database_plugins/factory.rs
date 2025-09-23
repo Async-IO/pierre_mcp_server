@@ -136,9 +136,8 @@ pub fn detect_database_type(database_url: &str) -> Result<DatabaseType> {
         ));
     } else {
         Err(anyhow!(
-            "Unsupported database URL format: {}. \
-             Supported formats: sqlite:path/to/db.sqlite, postgresql://user:pass@host/db",
-            database_url
+            "Unsupported database URL format: {database_url}. \
+             Supported formats: sqlite:path/to/db.sqlite, postgresql://user:pass@host/db"
         ))
     }
 }

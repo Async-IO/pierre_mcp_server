@@ -386,8 +386,7 @@ impl PerformanceAnalyzerTrait for AdvancedPerformanceAnalyzer {
 
         if data_points.is_empty() {
             return Err(anyhow::anyhow!(
-                "No valid data points found for metric: {}",
-                metric
+                "No valid data points found for metric: {metric}"
             ));
         }
 

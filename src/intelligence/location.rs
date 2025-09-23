@@ -156,19 +156,17 @@ impl LocationService {
             .get(&url)
             .send()
             .await
-            .map_err(|e| anyhow!("Failed to send reverse geocoding request: {}", e))?;
+            .map_err(|e| anyhow!("Failed to send reverse geocoding request: {e}"))?;
 
         if !response.status().is_success() {
-            return Err(anyhow!(
-                "Reverse geocoding API returned status: {}",
-                response.status()
-            ));
+            let status = response.status();
+            return Err(anyhow!("Reverse geocoding API returned status: {status}"));
         }
 
         let nominatim_response: NominatimResponse = response
             .json()
             .await
-            .map_err(|e| anyhow!("Failed to parse reverse geocoding response: {}", e))?;
+            .map_err(|e| anyhow!("Failed to parse reverse geocoding response: {e}"))?;
 
         let location_data =
             Self::parse_nominatim_response(&nominatim_response, latitude, longitude);

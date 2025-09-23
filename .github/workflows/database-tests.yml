@@ -24,16 +24,24 @@ jobs:
   sqlite-tests:
     name: Database Tests (SQLite)
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
 
     - name: Install cargo-llvm-cov
       uses: taiki-e/install-action@cargo-llvm-cov
+
+    - name: Check formatting
+      run: cargo fmt --all -- --check
+
+    - name: Lint with Clippy (Zero Tolerance)
+      run: cargo clippy --all-targets --quiet -- -W clippy::all -W clippy::pedantic -W clippy::nursery -D warnings
 
     - name: Cache Cargo dependencies
       uses: actions/cache@v4
@@ -91,9 +99,17 @@ jobs:
 
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
 
     - name: Install cargo-llvm-cov
       uses: taiki-e/install-action@cargo-llvm-cov
+
+    - name: Check formatting
+      run: cargo fmt --all -- --check
+
+    - name: Lint with Clippy (Zero Tolerance)
+      run: cargo clippy --all-targets --features postgresql --quiet -- -W clippy::all -W clippy::pedantic -W clippy::nursery -D warnings
 
     - name: Cache Cargo dependencies
       uses: actions/cache@v4

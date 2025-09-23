@@ -464,7 +464,7 @@ impl ConfigurationRoutes {
                 config.apply_profile(profile.clone());
                 profile
             } else {
-                return Err(anyhow::anyhow!("Unknown profile: {}", profile_name));
+                return Err(anyhow::anyhow!("Unknown profile: {profile_name}"));
             }
         } else {
             ConfigProfile::Default

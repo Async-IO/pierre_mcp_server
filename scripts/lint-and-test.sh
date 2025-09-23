@@ -859,11 +859,23 @@ fi
 # Check for security vulnerabilities (if cargo-audit is installed)
 echo -e "${BLUE}==== Checking for security vulnerabilities... ====${NC}"
 if command_exists cargo-audit; then
-    if RUST_LOG=off cargo audit --ignore RUSTSEC-2023-0071 --quiet >/dev/null 2>&1; then
+    # Run cargo audit and capture the output
+    AUDIT_OUTPUT=$(RUST_LOG=off cargo audit --ignore RUSTSEC-2023-0071 --no-fetch --color always 2>&1)
+    AUDIT_EXIT_CODE=$?
+
+    if [ $AUDIT_EXIT_CODE -eq 0 ]; then
         echo -e "${GREEN}[OK] No security vulnerabilities found${NC}"
     else
-        echo -e "${YELLOW}[WARN]  Security vulnerabilities detected${NC}"
-        # Don't fail the build for vulnerabilities
+        echo -e "${YELLOW}[WARN] Security vulnerabilities detected:${NC}"
+        echo ""
+        echo "$AUDIT_OUTPUT"
+        echo ""
+        echo -e "${YELLOW}💡 To fix vulnerabilities:${NC}"
+        echo -e "${YELLOW}   1. Check if newer versions are available: cargo update${NC}"
+        echo -e "${YELLOW}   2. Review vulnerability details at: https://rustsec.org${NC}"
+        echo -e "${YELLOW}   3. Consider alternative dependencies if no fix available${NC}"
+        echo ""
+        # Don't fail the build for vulnerabilities, but show them clearly
     fi
 else
     echo -e "${YELLOW}[WARN]  cargo-audit not installed. Install with: cargo install cargo-audit${NC}"

@@ -119,7 +119,7 @@ impl A2AAuthenticator {
                 let rate_limit_status = client_manager
                     .get_client_rate_limit_status(&client.id)
                     .await
-                    .map_err(|e| anyhow::anyhow!("Failed to check A2A rate limits: {}", e))?;
+                    .map_err(|e| anyhow::anyhow!("Failed to check A2A rate limits: {e}"))?;
 
                 if rate_limit_status.is_rate_limited {
                     return Err(anyhow::anyhow!(
@@ -202,10 +202,10 @@ impl A2AAuthenticator {
         let client = self
             .get_client(&client_id)
             .await?
-            .ok_or_else(|| anyhow::anyhow!("A2A client not found: {}", client_id))?;
+            .ok_or_else(|| anyhow::anyhow!("A2A client not found: {client_id}"))?;
 
         if !client.is_active {
-            return Err(anyhow::anyhow!("A2A client is deactivated: {}", client_id));
+            return Err(anyhow::anyhow!("A2A client is deactivated: {client_id}"));
         }
 
         // Check token expiration (already handled by validate_token)

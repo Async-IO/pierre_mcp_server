@@ -154,9 +154,7 @@ impl StravaProvider {
                 text
             );
             return Err(anyhow::anyhow!(
-                "Strava API request failed with status {}: {}",
-                status,
-                text
+                "Strava API request failed with status {status}: {text}"
             ));
         }
 
@@ -316,6 +314,13 @@ impl FitnessProvider for StravaProvider {
     }
 
     async fn refresh_token_if_needed(&mut self) -> Result<()> {
+        #[derive(Deserialize)]
+        struct TokenResponse {
+            access_token: String,
+            refresh_token: String,
+            expires_at: i64,
+        }
+
         let needs_refresh = if let Some(creds) = &self.credentials {
             creds
                 .expires_at
@@ -356,17 +361,10 @@ impl FitnessProvider for StravaProvider {
             .context("Failed to send token refresh request")?;
 
         if !response.status().is_success() {
+            let status = response.status();
             return Err(anyhow::anyhow!(
-                "Token refresh failed with status: {}",
-                response.status()
+                "Token refresh failed with status: {status}"
             ));
-        }
-
-        #[derive(Deserialize)]
-        struct TokenResponse {
-            access_token: String,
-            refresh_token: String,
-            expires_at: i64,
         }
 
         let token_response: TokenResponse = response

@@ -14,8 +14,8 @@ use pierre_mcp_server::constants::oauth_providers;
 use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
 use pierre_mcp_server::intelligence::insights::{Insight, InsightType};
 use pierre_mcp_server::intelligence::{
-    ActivityIntelligence, ContextualFactors, ContextualWeeklyLoad, PerformanceMetrics, TimeOfDay, TrendDirection,
-    TrendIndicators,
+    ActivityIntelligence, ContextualFactors, ContextualWeeklyLoad, PerformanceMetrics, TimeOfDay,
+    TrendDirection, TrendIndicators,
 };
 use pierre_mcp_server::mcp::resources::ServerResources;
 use pierre_mcp_server::models::{Tenant, User, UserOAuthToken};

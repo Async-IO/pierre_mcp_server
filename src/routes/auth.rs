@@ -360,7 +360,7 @@ impl OAuthService {
             oauth_providers::STRAVA | oauth_providers::FITBIT => {
                 // Supported providers
             }
-            _ => return Err(anyhow::anyhow!("Unsupported provider: {}", provider)),
+            _ => return Err(anyhow::anyhow!("Unsupported provider: {provider}")),
         }
 
         tracing::info!(
@@ -411,7 +411,7 @@ impl OAuthService {
                 tracing::info!("Disconnecting Fitbit for user {}", user_id);
                 Ok(())
             }
-            _ => Err(anyhow::anyhow!("Unsupported provider: {}", provider)),
+            _ => Err(anyhow::anyhow!("Unsupported provider: {provider}")),
         }
     }
 
@@ -444,7 +444,7 @@ impl OAuthService {
                     "https://www.fitbit.com/oauth2/authorize?response_type=code&client_id={client_id}&redirect_uri={redirect_uri}&scope=activity%20profile&state={state}"
                 )
             }
-            _ => return Err(anyhow::anyhow!("Unsupported provider: {}", provider)),
+            _ => return Err(anyhow::anyhow!("Unsupported provider: {provider}")),
         };
 
         // Store state for CSRF validation using database

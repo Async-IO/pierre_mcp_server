@@ -127,7 +127,7 @@ impl AdminJwtManager {
 
         let header = Header::new(self.algorithm);
         encode(&header, &claims, &self.encoding_key)
-            .map_err(|e| anyhow!("Failed to generate JWT: {}", e))
+            .map_err(|e| anyhow!("Failed to generate JWT: {e}"))
     }
 
     /// Validate and decode JWT token
@@ -146,7 +146,7 @@ impl AdminJwtManager {
             .map_err(|e| {
                 tracing::error!("JWT validation failed: {}", e);
                 tracing::error!("Token being validated: {}", token);
-                anyhow!("Invalid JWT token: {}", e)
+                anyhow!("Invalid JWT token: {e}")
             })?;
 
         let claims = token_data.claims;
@@ -191,7 +191,7 @@ impl AdminJwtManager {
         validation.validate_nbf = false;
 
         let token_data = decode::<AdminTokenClaims>(token, &self.decoding_key, &validation)
-            .map_err(|e| anyhow!("Failed to extract token ID: {}", e))?;
+            .map_err(|e| anyhow!("Failed to extract token ID: {e}"))?;
 
         Ok(token_data.claims.sub)
     }
@@ -208,8 +208,7 @@ impl AdminJwtManager {
     /// # Errors
     /// Returns an error if bcrypt hashing fails
     pub fn hash_token_for_storage(token: &str) -> Result<String> {
-        bcrypt::hash(token, bcrypt::DEFAULT_COST)
-            .map_err(|e| anyhow!("Failed to hash token: {}", e))
+        bcrypt::hash(token, bcrypt::DEFAULT_COST).map_err(|e| anyhow!("Failed to hash token: {e}"))
     }
 
     /// Verify token hash
@@ -217,7 +216,7 @@ impl AdminJwtManager {
     /// # Errors
     /// Returns an error if bcrypt verification fails
     pub fn verify_token_hash(token: &str, hash: &str) -> Result<bool> {
-        bcrypt::verify(token, hash).map_err(|e| anyhow!("Failed to verify token hash: {}", e))
+        bcrypt::verify(token, hash).map_err(|e| anyhow!("Failed to verify token hash: {e}"))
     }
 }
 

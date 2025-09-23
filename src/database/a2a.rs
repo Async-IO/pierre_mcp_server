@@ -48,22 +48,22 @@ pub struct A2AUsageStats {
 
 /// Helper functions for safe type conversions
 fn safe_u32_to_i32(value: u32) -> Result<i32> {
-    i32::try_from(value).map_err(|_| anyhow!("Value {} too large to convert to i32", value))
+    i32::try_from(value).map_err(|_| anyhow!("Value {value} too large to convert to i32"))
 }
 
 /// Safely convert i32 to u32, returning an error if negative
 fn safe_i32_to_u32(value: i32) -> Result<u32> {
-    u32::try_from(value).map_err(|_| anyhow!("Cannot convert negative value {} to u32", value))
+    u32::try_from(value).map_err(|_| anyhow!("Cannot convert negative value {value} to u32"))
 }
 
 /// Safely convert i32 to u64, returning an error if negative
 fn safe_i32_to_u64(value: i32) -> Result<u64> {
-    u64::try_from(value).map_err(|_| anyhow!("Cannot convert negative value {} to u64", value))
+    u64::try_from(value).map_err(|_| anyhow!("Cannot convert negative value {value} to u64"))
 }
 
 /// Safely convert i64 to u64, returning an error if negative
 fn safe_i64_to_u64(value: i64) -> Result<u64> {
-    u64::try_from(value).map_err(|_| anyhow!("Cannot convert negative value {} to u64", value))
+    u64::try_from(value).map_err(|_| anyhow!("Cannot convert negative value {value} to u64"))
 }
 
 /// Safely convert f64 to u32, clamping to u32 range
@@ -467,7 +467,7 @@ impl Database {
             .await?;
 
         if result.rows_affected() == 0 {
-            return Err(anyhow::anyhow!("A2A client not found: {}", client_id));
+            return Err(anyhow::anyhow!("A2A client not found: {client_id}"));
         }
 
         Ok(())
@@ -860,7 +860,7 @@ impl Database {
                 "completed" => TaskStatus::Completed,
                 "failed" => TaskStatus::Failed,
                 "cancelled" => TaskStatus::Cancelled,
-                _ => return Err(anyhow!("Invalid task status: {}", status_str)),
+                _ => return Err(anyhow!("Invalid task status: {status_str}")),
             };
 
             tasks.push(A2ATask {
@@ -917,7 +917,7 @@ impl Database {
                 "completed" => TaskStatus::Completed,
                 "failed" => TaskStatus::Failed,
                 "cancelled" => TaskStatus::Cancelled,
-                _ => return Err(anyhow!("Invalid task status: {}", status_str)),
+                _ => return Err(anyhow!("Invalid task status: {status_str}")),
             };
 
             Ok(Some(A2ATask {
@@ -1019,7 +1019,7 @@ impl Database {
         let client = self
             .get_a2a_client(client_id)
             .await?
-            .ok_or_else(|| anyhow!("A2A client not found: {}", client_id))?;
+            .ok_or_else(|| anyhow!("A2A client not found: {client_id}"))?;
 
         let window_start =
             Utc::now() - chrono::Duration::seconds(i64::from(client.rate_limit_window_seconds));
@@ -1127,7 +1127,7 @@ impl Database {
             // Parse date string (YYYY-MM-DD format from SQLite date())
             let date = chrono::NaiveDate::parse_from_str(&date_str, "%Y-%m-%d")?
                 .and_hms_opt(0, 0, 0)
-                .ok_or_else(|| anyhow!("Failed to create datetime from date {}", date_str))?
+                .ok_or_else(|| anyhow!("Failed to create datetime from date {date_str}"))?
                 .and_utc();
 
             history.push((

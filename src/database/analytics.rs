@@ -273,9 +273,8 @@ impl Database {
             obj.insert(
                 "current_value".into(),
                 serde_json::Value::Number(
-                    serde_json::Number::from_f64(current_value).ok_or_else(|| {
-                        anyhow::anyhow!("Invalid current_value: {}", current_value)
-                    })?,
+                    serde_json::Number::from_f64(current_value)
+                        .ok_or_else(|| anyhow::anyhow!("Invalid current_value: {current_value}"))?,
                 ),
             );
 
@@ -294,8 +293,7 @@ impl Database {
                         serde_json::Value::Number(
                             serde_json::Number::from_f64(progress_percentage).ok_or_else(|| {
                                 anyhow::anyhow!(
-                                    "Invalid progress_percentage: {}",
-                                    progress_percentage
+                                    "Invalid progress_percentage: {progress_percentage}"
                                 )
                             })?,
                         ),

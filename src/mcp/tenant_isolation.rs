@@ -55,7 +55,7 @@ impl TenantIsolation {
             .database
             .get_user(user_id)
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to get user: {}", e))?
+            .map_err(|e| anyhow::anyhow!("Failed to get user: {e}"))?
             .ok_or_else(|| anyhow::anyhow!("User not found"))
     }
 
@@ -99,9 +99,7 @@ impl TenantIsolation {
 
         if user.tenant_id != Some(tenant_id.to_string()) {
             return Err(anyhow::anyhow!(
-                "User {} does not belong to tenant {}",
-                user_id,
-                tenant_id
+                "User {user_id} does not belong to tenant {tenant_id}"
             ));
         }
 
@@ -234,10 +232,7 @@ impl TenantIsolation {
                     Ok(())
                 } else {
                     Err(anyhow::anyhow!(
-                        "User {} does not have permission to {} for tenant {}",
-                        user_id,
-                        action,
-                        tenant_id
+                        "User {user_id} does not have permission to {action} for tenant {tenant_id}"
                     ))
                 }
             }
@@ -246,15 +241,13 @@ impl TenantIsolation {
                     Ok(())
                 } else {
                     Err(anyhow::anyhow!(
-                        "User {} does not have owner permission for tenant {}",
-                        user_id,
-                        tenant_id
+                        "User {user_id} does not have owner permission for tenant {tenant_id}"
                     ))
                 }
             }
             _ => {
                 warn!("Unknown action for validation: {}", action);
-                Err(anyhow::anyhow!("Unknown action: {}", action))
+                Err(anyhow::anyhow!("Unknown action: {action}"))
             }
         }
     }
@@ -415,7 +408,7 @@ pub async fn extract_tenant_context_internal(
         let user = database
             .get_user(user_id)
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to get user: {}", e))?
+            .map_err(|e| anyhow::anyhow!("Failed to get user: {e}"))?
             .ok_or_else(|| anyhow::anyhow!("User not found"))?;
 
         if let Some(tenant_id_str) = user.tenant_id {
@@ -424,7 +417,7 @@ pub async fn extract_tenant_context_internal(
                 let tenant = database
                     .get_tenant_by_id(tenant_uuid)
                     .await
-                    .map_err(|e| anyhow::anyhow!("Failed to get tenant by UUID: {}", e))?;
+                    .map_err(|e| anyhow::anyhow!("Failed to get tenant by UUID: {e}"))?;
                 return Ok(Some(TenantContext {
                     tenant_id: tenant_uuid,
                     tenant_name: tenant.name,
@@ -436,7 +429,7 @@ pub async fn extract_tenant_context_internal(
             let tenant = database
                 .get_tenant_by_slug(&tenant_id_str)
                 .await
-                .map_err(|e| anyhow::anyhow!("Failed to get tenant by slug: {}", e))?;
+                .map_err(|e| anyhow::anyhow!("Failed to get tenant by slug: {e}"))?;
             return Ok(Some(TenantContext {
                 tenant_id: tenant.id,
                 tenant_name: tenant.name,

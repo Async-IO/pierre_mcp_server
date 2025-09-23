@@ -81,7 +81,7 @@ impl PerformanceAnalyzerV2 {
 
         // 5. Perform proper statistical analysis
         let regression = StatisticalAnalyzer::linear_regression(&data_points)
-            .map_err(|e| anyhow::anyhow!("Statistical analysis failed: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Statistical analysis failed: {e}"))?;
 
         // 6. Determine trend direction using statistical significance
         let trend_direction = StatisticalAnalyzer::determine_trend_direction(
@@ -297,9 +297,7 @@ impl PerformanceAnalyzerV2 {
 
         if filtered.is_empty() {
             return Err(anyhow::anyhow!(
-                "No activities found in timeframe from {} to {}",
-                start_date,
-                end_date
+                "No activities found in timeframe from {start_date} to {end_date}"
             ));
         }
 
@@ -520,7 +518,7 @@ impl PerformanceAnalyzerV2 {
             "heart_rate" | "hr" => Ok(MetricType::HeartRate),
             "elevation" => Ok(MetricType::Elevation),
             "power" => Ok(MetricType::Power),
-            _ => Err(anyhow::anyhow!("Unknown metric type: {}", metric)),
+            _ => Err(anyhow::anyhow!("Unknown metric type: {metric}")),
         }
     }
 

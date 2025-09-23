@@ -212,7 +212,7 @@ impl McpAuthMiddleware {
                     rate_limit,
                 })
             }
-            Err(jwt_error) => Err(anyhow::anyhow!("{}", jwt_error)),
+            Err(jwt_error) => Err(anyhow::anyhow!("{jwt_error}")),
         }
     }
 

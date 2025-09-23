@@ -19,15 +19,15 @@ pub use connections::{handle_disconnect_provider, handle_get_connection_status};
 
 // Goal setting and tracking handlers
 pub use goals::{
-    handle_analyze_goal_feasibility, handle_set_goal, handle_suggest_goals,
-    handle_track_progress,
+    handle_analyze_goal_feasibility, handle_set_goal, handle_suggest_goals, handle_track_progress,
 };
 
 // Activity intelligence and analysis handlers
 pub use intelligence::{
-    handle_analyze_performance_trends, handle_analyze_training_load, handle_calculate_fitness_score,
-    handle_calculate_metrics, handle_compare_activities, handle_detect_patterns,
-    handle_generate_recommendations, handle_get_activity_intelligence, handle_predict_performance,
+    handle_analyze_performance_trends, handle_analyze_training_load,
+    handle_calculate_fitness_score, handle_calculate_metrics, handle_compare_activities,
+    handle_detect_patterns, handle_generate_recommendations, handle_get_activity_intelligence,
+    handle_predict_performance,
 };
 
 // Strava API integration handlers

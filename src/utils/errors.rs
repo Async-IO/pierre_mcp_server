@@ -6,25 +6,25 @@ use anyhow::{anyhow, Result};
 /// Create a validation error with context
 #[must_use]
 pub fn validation_error(message: &str) -> anyhow::Error {
-    anyhow!("Validation failed: {}", message)
+    anyhow!("Validation failed: {message}")
 }
 
 /// Create an authentication error with context
 #[must_use]
 pub fn auth_error(message: &str) -> anyhow::Error {
-    anyhow!("Authentication failed: {}", message)
+    anyhow!("Authentication failed: {message}")
 }
 
 /// Create a user state error with context
 #[must_use]
 pub fn user_state_error(message: &str) -> anyhow::Error {
-    anyhow!("User state error: {}", message)
+    anyhow!("User state error: {message}")
 }
 
 /// Create a generic operation error with context
 #[must_use]
 pub fn operation_error(operation: &str, message: &str) -> anyhow::Error {
-    anyhow!("{} failed: {}", operation, message)
+    anyhow!("{operation} failed: {message}")
 }
 
 /// Helper to ensure we use consistent error patterns

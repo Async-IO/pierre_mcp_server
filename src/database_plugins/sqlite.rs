@@ -2276,7 +2276,7 @@ impl DatabaseProvider for SqliteDatabase {
                 tracing::info!("Generated new JWT secret for admin authentication");
                 new_secret
             }
-            _ => return Err(anyhow::anyhow!("Unknown secret type: {}", secret_type)),
+            _ => return Err(anyhow::anyhow!("Unknown secret type: {secret_type}")),
         };
 
         // Store in database

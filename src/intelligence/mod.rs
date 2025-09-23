@@ -51,7 +51,7 @@ pub use analyzer::ActivityAnalyzer;
 
 // Goal engine for training targets and progress tracking
 pub use goal_engine::{
-    AdvancedGoalEngine, AdjustmentType, GoalAdjustment, GoalDifficulty, GoalEngineTrait,
+    AdjustmentType, AdvancedGoalEngine, GoalAdjustment, GoalDifficulty, GoalEngineTrait,
     GoalSuggestion,
 };
 

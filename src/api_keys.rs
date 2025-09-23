@@ -89,7 +89,7 @@ impl std::str::FromStr for ApiKeyTier {
             tiers::STARTER => Ok(Self::Starter),
             tiers::PROFESSIONAL => Ok(Self::Professional),
             tiers::ENTERPRISE => Ok(Self::Enterprise),
-            _ => Err(anyhow::anyhow!("Invalid API key tier: {}", s)),
+            _ => Err(anyhow::anyhow!("Invalid API key tier: {s}")),
         }
     }
 }
