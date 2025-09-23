@@ -14,8 +14,8 @@ use pierre_mcp_server::constants::oauth_providers;
 use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
 use pierre_mcp_server::intelligence::insights::{Insight, InsightType};
 use pierre_mcp_server::intelligence::{
-    ActivityIntelligence, ContextualFactors, PerformanceMetrics, TimeOfDay, TrendDirection,
-    TrendIndicators, WeeklyLoad,
+    ActivityIntelligence, ContextualFactors, ContextualWeeklyLoad, PerformanceMetrics, TimeOfDay, TrendDirection,
+    TrendIndicators,
 };
 use pierre_mcp_server::mcp::resources::ServerResources;
 use pierre_mcp_server::models::{Tenant, User, UserOAuthToken};
@@ -93,7 +93,7 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
             location: None,
             time_of_day: TimeOfDay::Morning,
             days_since_last_activity: Some(1),
-            weekly_load: Some(WeeklyLoad {
+            weekly_load: Some(ContextualWeeklyLoad {
                 total_distance_km: 50.0,
                 total_duration_hours: 5.0,
                 activity_count: 3,
