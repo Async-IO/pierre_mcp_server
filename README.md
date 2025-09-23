@@ -5,8 +5,6 @@
 
 **Development Status**: This project is under active development. APIs and features may change.
 
-**Code Quality Validation**: *This project uses a comprehensive TOML-based validation system (`scripts/validation-patterns.toml`) to maintain code quality standards and prevent AI assistants (including Claude Code) from introducing placeholder implementations or anti-patterns. The validation script (`scripts/lint-and-test.sh`) automatically checks for common AI-generated issues like "Implementation would...", mock implementations, error handling shortcuts, and architectural violations using patterns defined in the TOML configuration. Before committing changes, developers should run `./scripts/lint-and-test.sh` to ensure all validation checks pass. The TOML approach allows easy maintenance and extension of validation rules without modifying the underlying bash scripts.*
-
 A Model Context Protocol (MCP) server that connects AI assistants to fitness data from providers like Strava. Built in Rust, it provides secure access to activity data, athlete profiles, and basic fitness analytics through the MCP protocol.
 
 ## Key Features
@@ -27,6 +25,10 @@ A Model Context Protocol (MCP) server that connects AI assistants to fitness dat
 - **Multi-tenant SaaS Applications**: Support multiple organizations with isolated data and billing
 - **OAuth 2.0 Provider**: Act as authorization server for fitness applications using mcp-remote
 - **Real-time Dashboards**: Stream live notifications for OAuth flows and system events
+
+## AI Generated Code
+
+- *This project uses a comprehensive TOML-based validation system ([`scripts/validation-patterns.toml`](scripts/validation-patterns.toml)) to maintain code quality standards and prevent AI assistants (including Claude Code) from introducing placeholder implementations or anti-patterns. The validation script ([`scripts/lint-and-test.sh`](scripts/lint-and-test.sh)) automatically checks for common AI-generated issues like "Implementation would...", mock implementations, error handling shortcuts, and architectural violations using patterns defined in the TOML configuration. Before committing changes, developers should run `./scripts/lint-and-test.sh` to ensure all validation checks pass. The TOML approach allows easy maintenance and extension of validation rules without modifying the underlying bash scripts.*
 
 ## Quick Start
 
