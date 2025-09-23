@@ -2061,7 +2061,8 @@ impl MultiTenantMcpServer {
         id: Value,
     ) -> McpResponse {
         // Use existing ServerResources (no fake auth managers or cloning!)
-        let oauth_routes = OAuthRoutes::new(resources.clone());
+        let server_context = crate::context::ServerContext::from(resources.as_ref());
+        let oauth_routes = OAuthRoutes::new(server_context.data().clone(), server_context.config().clone(), server_context.notification().clone());
 
         match oauth_routes.disconnect_provider(user_id, provider) {
             Ok(()) => {
