@@ -153,7 +153,7 @@ impl MultiTenantMcpServer {
         let cors = HttpSetup::setup_cors();
 
         // Create all route groups using helper functions
-        let auth_route_filter = Self::create_auth_routes(&auth_routes);
+        let auth_route_filter = Self::create_auth_routes(auth_routes);
         let oauth_route_filter = Self::create_oauth_routes(&oauth_routes, &resources);
 
         // Create OAuth 2.0 server routes for mcp-remote compatibility
@@ -246,7 +246,7 @@ impl MultiTenantMcpServer {
 
     /// Create authentication endpoint routes
     fn create_auth_routes(
-        auth_routes: &AuthRoutes,
+        auth_routes: AuthRoutes,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
 
@@ -304,7 +304,6 @@ impl MultiTenantMcpServer {
             .and(warp::post())
             .and(warp::body::json())
             .and_then({
-                let auth_routes = auth_routes.clone(); // Safe: Arc clone for HTTP handler closure
                 move |request: RefreshTokenRequest| {
                     let auth_routes = auth_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
