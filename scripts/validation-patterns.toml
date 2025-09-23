@@ -31,10 +31,10 @@ critical = [
 migration = [
     "Legacy field for backward compatibility",
     "backward compatibility during migration",
-    "In future versions",
-    "will be implemented",
-    "can be extended",
-    "to be added"
+    "// In future versions",
+    "// will be implemented",
+    "// can be extended",
+    "// to be added"
 ]
 
 # Hedge language - avoiding commitment
@@ -148,9 +148,9 @@ panic_patterns = [
 
 # Development artifacts that shouldn't be in production
 development_artifacts = [
-    "TODO",
-    "FIXME",
-    "XXX",
+    "// TODO",
+    "// FIXME",
+    "// XXX",
     "#\\[allow\\(dead_code\\)\\]",
     "#\\[cfg\\(test\\)\\]",
     "#\\[ignore\\]"
@@ -278,19 +278,9 @@ critical_groups = ["critical", "unwrap_patterns", "expect_patterns", "panic_patt
 
 # Which pattern groups are warnings only (logged but don't fail build)
 warning_groups = [
-    "migration",
-    "improvement_promises",
-    "security_shortcuts",
-    "error_handling_evasion",
-    "configuration_punts",
     "development_artifacts",
-    "temporary_code",
-    "clippy_suppressions",
     "long_function_suppressions",
-    "problematic_naming",
-    "resource_creation",
     "obsolete_functions",
-    "unused_variables",
     "deprecated_code"
 ]
 

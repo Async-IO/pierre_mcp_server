@@ -130,7 +130,11 @@ if [ -f "$VALIDATION_PATTERNS_FILE" ]; then
 
     # Use TOML-configured patterns for existing checks
     IMPLEMENTATION_PLACEHOLDERS=$(rg "$CRITICAL_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-    PLACEHOLDER_WARNINGS=$(rg "$WARNING_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    if [ -n "$WARNING_PATTERNS" ]; then
+        PLACEHOLDER_WARNINGS=$(rg "$WARNING_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    else
+        PLACEHOLDER_WARNINGS=0
+    fi
 
     # TOML-based checks (replacing legacy hardcoded patterns)
     TOML_UNWRAPS=$(rg "$UNWRAP_PATTERNS_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" | rg -v "// Safe|hardcoded.*valid|static.*data|00000000-0000-0000-0000-000000000000" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
