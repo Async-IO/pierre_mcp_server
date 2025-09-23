@@ -498,7 +498,12 @@ async fn test_oauth_callback_error_handling() {
         config,
     ));
 
-    let oauth_routes = OAuthRoutes::new(server_resources);
+    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    let oauth_routes = OAuthRoutes::new(
+        server_context.data().clone(),
+        server_context.config().clone(),
+        server_context.notification().clone(),
+    );
 
     // Test invalid state parameter
     let result = oauth_routes
@@ -679,7 +684,12 @@ async fn test_oauth_state_csrf_protection() {
         config,
     ));
 
-    let oauth_routes = OAuthRoutes::new(server_resources);
+    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    let oauth_routes = OAuthRoutes::new(
+        server_context.data().clone(),
+        server_context.config().clone(),
+        server_context.notification().clone(),
+    );
 
     let user_id = uuid::Uuid::new_v4();
 
@@ -808,7 +818,8 @@ async fn test_connection_status_tracking() {
         config,
     ));
 
-    let auth_routes = AuthRoutes::new(server_resources.clone());
+    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    let auth_routes = AuthRoutes::new(server_context.auth().clone(), server_context.data().clone());
     let register_request = pierre_mcp_server::routes::RegisterRequest {
         email: "status_test@example.com".to_string(),
         password: "password123".to_string(),
@@ -819,7 +830,11 @@ async fn test_connection_status_tracking() {
     let user_id = uuid::Uuid::parse_str(&register_response.user_id).unwrap();
 
     // Check initial connection status
-    let oauth_routes = OAuthRoutes::new(server_resources.clone());
+    let oauth_routes = OAuthRoutes::new(
+        server_context.data().clone(),
+        server_context.config().clone(),
+        server_context.notification().clone(),
+    );
     let statuses = oauth_routes.get_connection_status(user_id).await.unwrap();
 
     // Verify initial state

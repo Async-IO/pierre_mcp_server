@@ -150,7 +150,8 @@ async fn test_register_user() {
         config,
     ));
 
-    let routes = AuthRoutes::new(server_resources);
+    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    let routes = AuthRoutes::new(server_context.auth().clone(), server_context.data().clone());
 
     let request = RegisterRequest {
         email: "test@example.com".into(),
@@ -269,7 +270,8 @@ async fn test_register_duplicate_user() {
         config,
     ));
 
-    let routes = AuthRoutes::new(server_resources);
+    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    let routes = AuthRoutes::new(server_context.auth().clone(), server_context.data().clone());
 
     let request = RegisterRequest {
         email: "test@example.com".into(),

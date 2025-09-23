@@ -130,8 +130,13 @@ async fn test_oauth_authorization_url_generation() {
         config,
     ));
 
-    let auth_routes = AuthRoutes::new(server_resources.clone());
-    let oauth_routes = OAuthRoutes::new(server_resources.clone());
+    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    let auth_routes = AuthRoutes::new(server_context.auth().clone(), server_context.data().clone());
+    let oauth_routes = OAuthRoutes::new(
+        server_context.data().clone(),
+        server_context.config().clone(),
+        server_context.notification().clone(),
+    );
 
     // Create admin user first
     let admin_user = User {
@@ -342,7 +347,12 @@ async fn test_oauth_state_validation() {
         config,
     ));
 
-    let _oauth_routes = OAuthRoutes::new(server_resources);
+    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    let _oauth_routes = OAuthRoutes::new(
+        server_context.data().clone(),
+        server_context.config().clone(),
+        server_context.notification().clone(),
+    );
 
     // Test valid state format
     let user_id = Uuid::new_v4();
@@ -481,7 +491,12 @@ async fn test_connection_status_no_providers() {
         config,
     ));
 
-    let oauth_routes = OAuthRoutes::new(server_resources);
+    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    let oauth_routes = OAuthRoutes::new(
+        server_context.data().clone(),
+        server_context.config().clone(),
+        server_context.notification().clone(),
+    );
 
     let statuses = oauth_routes.get_connection_status(user_id).await.unwrap();
 
@@ -597,7 +612,12 @@ async fn test_invalid_provider_error() {
         "test_jwt_secret",
         config,
     ));
-    let oauth_routes = OAuthRoutes::new(server_resources);
+    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    let oauth_routes = OAuthRoutes::new(
+        server_context.data().clone(),
+        server_context.config().clone(),
+        server_context.notification().clone(),
+    );
 
     let user_id = Uuid::new_v4();
     let tenant_id = Uuid::new_v4();
@@ -710,7 +730,12 @@ async fn test_disconnect_provider() {
         "test_jwt_secret",
         config,
     ));
-    let oauth_routes = OAuthRoutes::new(server_resources);
+    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    let oauth_routes = OAuthRoutes::new(
+        server_context.data().clone(),
+        server_context.config().clone(),
+        server_context.notification().clone(),
+    );
 
     let user_id = Uuid::new_v4();
 
@@ -890,7 +915,12 @@ async fn test_oauth_urls_contain_required_parameters() {
         "test_jwt_secret",
         config,
     ));
-    let oauth_routes = OAuthRoutes::new(server_resources);
+    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    let oauth_routes = OAuthRoutes::new(
+        server_context.data().clone(),
+        server_context.config().clone(),
+        server_context.notification().clone(),
+    );
 
     let user_id = Uuid::new_v4();
 

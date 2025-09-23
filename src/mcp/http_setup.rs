@@ -52,8 +52,13 @@ impl HttpSetup {
         Arc<FitnessConfigurationRoutes>,
     ) {
         let server_context = crate::context::ServerContext::from(resources.as_ref());
-        let auth_routes = AuthRoutes::new(server_context.auth().clone(), server_context.data().clone());
-        let oauth_routes = OAuthRoutes::new(server_context.data().clone(), server_context.config().clone(), server_context.notification().clone());
+        let auth_routes =
+            AuthRoutes::new(server_context.auth().clone(), server_context.data().clone());
+        let oauth_routes = OAuthRoutes::new(
+            server_context.data().clone(),
+            server_context.config().clone(),
+            server_context.notification().clone(),
+        );
         let api_key_routes = ApiKeyRoutes::new(resources.clone()); // Safe: Arc clone for route handler
         let dashboard_routes = DashboardRoutes::new(resources.clone()); // Safe: Arc clone for route handler
         let a2a_routes = A2ARoutes::new(resources.clone()); // Safe: Arc clone for route handler

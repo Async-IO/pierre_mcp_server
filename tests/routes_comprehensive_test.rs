@@ -117,7 +117,11 @@ async fn create_test_auth_routes() -> Result<AuthRoutes> {
         config,
     ));
 
-    Ok(AuthRoutes::new(server_resources))
+    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    Ok(AuthRoutes::new(
+        server_context.auth().clone(),
+        server_context.data().clone(),
+    ))
 }
 
 #[allow(clippy::too_many_lines)] // Long function: Complex test setup with full configuration
@@ -278,7 +282,16 @@ async fn create_test_oauth_routes() -> Result<(OAuthRoutes, Uuid, Arc<Database>)
         config,
     ));
 
-    Ok((OAuthRoutes::new(server_resources), tenant_id, database))
+    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    Ok((
+        OAuthRoutes::new(
+            server_context.data().clone(),
+            server_context.config().clone(),
+            server_context.notification().clone(),
+        ),
+        tenant_id,
+        database,
+    ))
 }
 
 // === AuthRoutes Registration Tests ===
@@ -488,7 +501,11 @@ async fn test_user_login_success() -> Result<()> {
         config,
     ));
 
-    let auth_routes = pierre_mcp_server::routes::AuthRoutes::new(server_resources);
+    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    let auth_routes = pierre_mcp_server::routes::AuthRoutes::new(
+        server_context.auth().clone(),
+        server_context.data().clone(),
+    );
 
     // First register a user
     let register_request = RegisterRequest {
@@ -701,7 +718,11 @@ async fn test_token_refresh_success() -> Result<()> {
         config,
     ));
 
-    let auth_routes = pierre_mcp_server::routes::AuthRoutes::new(server_resources);
+    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    let auth_routes = pierre_mcp_server::routes::AuthRoutes::new(
+        server_context.auth().clone(),
+        server_context.data().clone(),
+    );
 
     // Register and login to get initial token
     let register_request = RegisterRequest {
@@ -859,7 +880,11 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
         config,
     ));
 
-    let auth_routes = pierre_mcp_server::routes::AuthRoutes::new(server_resources);
+    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    let auth_routes = pierre_mcp_server::routes::AuthRoutes::new(
+        server_context.auth().clone(),
+        server_context.data().clone(),
+    );
 
     // Register and login to get a valid token
     let register_request = RegisterRequest {
@@ -1217,8 +1242,16 @@ async fn test_complete_auth_flow() -> Result<()> {
         config,
     ));
 
-    let auth_routes = pierre_mcp_server::routes::AuthRoutes::new(server_resources.clone());
-    let oauth_routes = pierre_mcp_server::routes::OAuthRoutes::new(server_resources);
+    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    let auth_routes = pierre_mcp_server::routes::AuthRoutes::new(
+        server_context.auth().clone(),
+        server_context.data().clone(),
+    );
+    let oauth_routes = pierre_mcp_server::routes::OAuthRoutes::new(
+        server_context.data().clone(),
+        server_context.config().clone(),
+        server_context.notification().clone(),
+    );
 
     // 1. Register user
     let register_request = RegisterRequest {
@@ -1445,7 +1478,11 @@ async fn test_concurrent_logins() -> Result<()> {
         config,
     ));
 
-    let auth_routes = pierre_mcp_server::routes::AuthRoutes::new(server_resources);
+    let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
+    let auth_routes = pierre_mcp_server::routes::AuthRoutes::new(
+        server_context.auth().clone(),
+        server_context.data().clone(),
+    );
 
     // First register and approve users
     for i in 0..3 {
