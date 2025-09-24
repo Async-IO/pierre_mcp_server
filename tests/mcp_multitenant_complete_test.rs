@@ -128,7 +128,11 @@ async fn wait_for_server_ready(port: u16, timeout_secs: u64) -> Result<()> {
             }
             Ok(resp) => {
                 let body = resp.text().await.unwrap_or_else(|_| "unknown".to_string());
-                println!("MCP endpoint returned {}, body: {}, retrying...", resp.status(), body);
+                println!(
+                    "MCP endpoint returned {}, body: {}, retrying...",
+                    resp.status(),
+                    body
+                );
             }
             Err(e) => {
                 println!("MCP endpoint connection error: {e}, retrying...");
