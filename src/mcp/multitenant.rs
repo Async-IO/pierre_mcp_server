@@ -64,6 +64,7 @@ use warp::Reply;
 // Constants are now imported from the constants module
 
 /// Default ID for notifications and error responses that don't have a request ID
+#[allow(dead_code)]
 fn default_request_id() -> Value {
     serde_json::Value::Number(serde_json::Number::from(0))
 }
@@ -1839,6 +1840,7 @@ impl MultiTenantMcpServer {
     }
 
     // Long function: Complex HTTP request handling with comprehensive logging and validation
+    #[allow(clippy::too_many_lines)]
     async fn handle_mcp_http_request(
         method: warp::http::Method,
         origin: Option<String>,
@@ -1946,7 +1948,7 @@ impl MultiTenantMcpServer {
                         let error_response = McpResponse::error(
                             body.get("id").cloned().unwrap_or(serde_json::Value::Null),
                             -32600,
-                            format!("Invalid MCP request: {}", parse_error),
+                            format!("Invalid MCP request: {parse_error}"),
                         );
 
                         tracing::debug!(
