@@ -68,7 +68,7 @@ async fn wait_for_server_ready(port: u16, timeout_secs: u64) -> Result<()> {
 
         // Try a simple GET to the health endpoint first
         let health_response = client
-            .get(&format!("http://127.0.0.1:{port}/health"))
+            .get(format!("http://127.0.0.1:{port}/health"))
             .timeout(Duration::from_secs(2))
             .send()
             .await;
@@ -129,10 +129,7 @@ async fn wait_for_server_ready(port: u16, timeout_secs: u64) -> Result<()> {
             Ok(resp) => {
                 let status = resp.status();
                 let body = resp.text().await.unwrap_or_else(|_| "unknown".to_string());
-                println!(
-                    "MCP endpoint returned {}, body: {}, retrying...",
-                    status, body
-                );
+                println!("MCP endpoint returned {status}, body: {body}, retrying...");
             }
             Err(e) => {
                 println!("MCP endpoint connection error: {e}, retrying...");
