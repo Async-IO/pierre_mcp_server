@@ -111,7 +111,7 @@ async fn wait_for_server_ready(port: u16, timeout_secs: u64) -> Result<()> {
                 println!("{} - Status: {}", test_name, response.status());
 
                 if response.status().is_success() {
-                        println!("✓ {test_name} request succeeded");
+                    println!("✓ {test_name} request succeeded");
                     println!("MCP server is ready on port {port}");
                     return Ok(());
                 } else if response.status() == 500 {
