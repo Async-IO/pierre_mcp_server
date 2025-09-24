@@ -26,6 +26,26 @@ fn is_port_available(port: u16) -> bool {
     TcpListener::bind(format!("127.0.0.1:{port}")).is_ok()
 }
 
+/// Check if basic HTTP connectivity works
+async fn test_basic_connectivity(port: u16) -> Result<()> {
+    let client = Client::new();
+    let health_url = format!("http://127.0.0.1:{port}/health");
+
+    println!("Testing basic HTTP connectivity on port {port}...");
+
+    match client.get(&health_url).send().await {
+        Ok(response) => {
+            println!("Health check - Status: {}, Body: {:?}",
+                     response.status(),
+                     response.text().await.unwrap_or_else(|_| "Unable to read body".to_string()));
+            Ok(())
+        }
+        Err(e) => {
+            anyhow::bail!("Basic HTTP connectivity failed: {}", e);
+        }
+    }
+}
+
 /// Wait for server to be ready by checking actual MCP endpoint response
 async fn wait_for_server_ready(port: u16, timeout_secs: u64) -> Result<()> {
     let client = Client::new();
@@ -33,46 +53,74 @@ async fn wait_for_server_ready(port: u16, timeout_secs: u64) -> Result<()> {
     let start = std::time::Instant::now();
     let timeout_duration = Duration::from_secs(timeout_secs);
 
-    // Simple MCP initialization request to test server readiness
-    let init_request = json!({
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "initialize",
-        "params": {
-            "protocolVersion": "2024-11-05",
-            "capabilities": {},
-            "clientInfo": {
-                "name": "test-client",
-                "version": "1.0.0"
+    // Test different request types to isolate the issue
+    let requests_to_test = vec![
+        // 1. Simple GET request (should work without auth)
+        ("GET", None),
+        // 2. POST with empty body (should be handled)
+        ("POST_EMPTY", Some(json!({}))),
+        // 3. POST with initialize method (our target)
+        ("POST_INIT", Some(json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {
+                    "name": "test-client",
+                    "version": "1.0.0"
+                }
             }
-        }
-    });
+        }))),
+    ];
 
-    while start.elapsed() < timeout_duration {
-        match client
-            .post(&mcp_url)
-            .header("Content-Type", "application/json")
-            .header("Origin", "http://localhost")
-            .json(&init_request)
-            .send()
-            .await
-        {
-            Ok(response) if response.status().is_success() || response.status() == 200 => {
-                println!("MCP server is ready on port {port}");
-                return Ok(());
+    for (test_name, request_body) in requests_to_test {
+        println!("Testing {} request...", test_name);
+
+        let response = match test_name {
+            "GET" => {
+                client
+                    .get(&mcp_url)
+                    .header("Origin", "http://localhost")
+                    .send()
+                    .await
             }
+            _ => {
+                let mut request_builder = client
+                    .post(&mcp_url)
+                    .header("Content-Type", "application/json")
+                    .header("Origin", "http://localhost");
+
+                if let Some(body) = request_body {
+                    request_builder = request_builder.json(&body);
+                }
+
+                request_builder.send().await
+            }
+        };
+
+        match response {
             Ok(response) => {
-                println!("MCP server responded with status: {}", response.status());
-                // Continue waiting for success status
+                println!("{} - Status: {}", test_name, response.status());
+
+                if response.status().is_success() {
+                    println!("✓ {} request succeeded", test_name);
+                    println!("MCP server is ready on port {port}");
+                    return Ok(());
+                } else if response.status() == 500 {
+                    if let Ok(body) = response.text().await {
+                        println!("{} - 500 Error body: {}", test_name, body);
+                    }
+                }
             }
-            Err(_) => {
-                // Server not responding yet, continue waiting
+            Err(e) => {
+                println!("{} - Connection error: {}", test_name, e);
             }
         }
-        sleep(Duration::from_millis(200)).await;
     }
 
-    anyhow::bail!("MCP server did not become ready within {timeout_secs} seconds on port {port}")
+    anyhow::bail!("All MCP endpoint tests failed on port {port}")
 }
 
 /// Find an available port using simple random approach

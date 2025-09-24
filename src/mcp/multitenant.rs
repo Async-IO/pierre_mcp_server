@@ -1874,25 +1874,58 @@ impl MultiTenantMcpServer {
                             )
                     }
                     Err(parse_error) => {
-                        let body_str = serde_json::to_string(&body)
+                        let body_str = serde_json::to_string_pretty(&body)
                             .unwrap_or_else(|_| "invalid json".to_string());
-                        tracing::warn!(
-                            "Failed to parse MCP request: {} | Body: {}",
+
+                        // Log detailed error information for debugging
+                        tracing::error!(
+                            "MCP request deserialization failed on {} - Error: {} | Body: {} | Body type: {:?}",
+                            std::env::consts::OS,
                             parse_error,
-                            body_str
+                            body_str,
+                            body
                         );
 
-                        // Create and log the error response we're about to send
+                        // Try to understand what's in the body
+                        if let serde_json::Value::Object(ref map) = body {
+                            tracing::error!("Body contains {} keys: {:?}", map.len(), map.keys().collect::<Vec<_>>());
+                            for (key, value) in map {
+                                tracing::error!("  {}: {} (type: {})", key, value,
+                                    match value {
+                                        serde_json::Value::String(_) => "string",
+                                        serde_json::Value::Number(_) => "number",
+                                        serde_json::Value::Object(_) => "object",
+                                        serde_json::Value::Array(_) => "array",
+                                        serde_json::Value::Bool(_) => "bool",
+                                        serde_json::Value::Null => "null",
+                                    }
+                                );
+                            }
+                        }
+
+                        // Test what happens if we manually deserialize each field
+                        tracing::error!("Manual field check:");
+                        tracing::error!("  jsonrpc: {:?}", body.get("jsonrpc"));
+                        tracing::error!("  method: {:?}", body.get("method"));
+                        tracing::error!("  params: {:?}", body.get("params"));
+                        tracing::error!("  id: {:?}", body.get("id"));
+
+                        // Return proper 400 Bad Request instead of letting it become 500
                         let error_response = McpResponse::error(
-                            default_request_id(),
+                            body.get("id").cloned().unwrap_or(serde_json::Value::Null),
                             -32600,
-                            "Invalid request".to_string(),
+                            format!("Invalid MCP request: {}", parse_error),
                         );
-                        let error_response_str = serde_json::to_string(&error_response)
-                            .unwrap_or_else(|_| "failed to serialize error response".to_string());
-                        tracing::warn!("Sending MCP error response: {}", error_response_str);
 
-                        Err(warp::reject::custom(McpHttpError::InvalidRequest))
+                        tracing::debug!("Sending MCP error response: {}",
+                            serde_json::to_string(&error_response)
+                                .unwrap_or_else(|_| "failed to serialize error response".to_string())
+                        );
+
+                        Ok(Box::new(warp::reply::with_status(
+                            warp::reply::json(&error_response),
+                            warp::http::StatusCode::BAD_REQUEST,
+                        )) as Box<dyn warp::Reply>)
                     }
                 }
             }
@@ -2742,11 +2775,13 @@ impl MultiTenantMcpServer {
 pub struct McpRequest {
     pub jsonrpc: String,
     pub method: String,
+    #[serde(default)]
     pub params: Option<Value>,
     /// Optional ID - notifications don't have IDs, only regular requests do
+    #[serde(default)]
     pub id: Option<Value>,
     /// Authorization header value (Bearer token)
-    #[serde(rename = "auth")]
+    #[serde(rename = "auth", default)]
     pub auth_token: Option<String>,
     /// Optional HTTP headers for tenant context and other metadata
     #[serde(default)]
@@ -2892,7 +2927,17 @@ async fn handle_rejection(
                 }));
                 let reply = warp::reply::with_status(json, warp::http::StatusCode::NOT_FOUND);
                 Ok(Box::new(with_cors_headers(reply, None)) as Box<dyn warp::Reply>)
+            } else if err.find::<McpHttpError>().is_some() {
+                // Handle MCP-specific errors with appropriate status codes
+                tracing::debug!("Handling MCP HTTP error: {:?}", err);
+                let json = warp::reply::json(&serde_json::json!({
+                    "error": "Bad Request",
+                    "message": "Invalid MCP request format or content"
+                }));
+                let reply = warp::reply::with_status(json, warp::http::StatusCode::BAD_REQUEST);
+                Ok(Box::new(with_cors_headers(reply, None)) as Box<dyn warp::Reply>)
             } else {
+                tracing::error!("Unhandled rejection: {:?}", err);
                 let json = warp::reply::json(&serde_json::json!({
                     "error": "Internal Server Error",
                     "message": "Something went wrong"
