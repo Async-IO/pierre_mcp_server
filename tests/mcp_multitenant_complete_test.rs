@@ -16,7 +16,7 @@ use reqwest::Client;
 use serde_json::{json, Value};
 use std::{net::TcpListener, sync::Arc, time::Duration};
 use tempfile::TempDir;
-use tokio::time::{sleep, timeout};
+use tokio::time::timeout;
 use uuid::Uuid;
 
 const TEST_JWT_SECRET: &str = "test_jwt_secret_for_complete_multitenant_tests";
@@ -27,6 +27,7 @@ fn is_port_available(port: u16) -> bool {
 }
 
 /// Check if basic HTTP connectivity works
+#[allow(dead_code)]
 async fn test_basic_connectivity(port: u16) -> Result<()> {
     let client = Client::new();
     let health_url = format!("http://127.0.0.1:{port}/health");
@@ -55,8 +56,8 @@ async fn test_basic_connectivity(port: u16) -> Result<()> {
 async fn wait_for_server_ready(port: u16, timeout_secs: u64) -> Result<()> {
     let client = Client::new();
     let mcp_url = format!("http://127.0.0.1:{port}/mcp");
-    let start = std::time::Instant::now();
-    let timeout_duration = Duration::from_secs(timeout_secs);
+    let _start = std::time::Instant::now();
+    let _timeout_duration = Duration::from_secs(timeout_secs);
 
     // Test different request types to isolate the issue
     let requests_to_test = vec![
@@ -84,28 +85,25 @@ async fn wait_for_server_ready(port: u16, timeout_secs: u64) -> Result<()> {
     ];
 
     for (test_name, request_body) in requests_to_test {
-        println!("Testing {} request...", test_name);
+        println!("Testing {test_name} request...");
 
-        let response = match test_name {
-            "GET" => {
-                client
-                    .get(&mcp_url)
-                    .header("Origin", "http://localhost")
-                    .send()
-                    .await
+        let response = if test_name == "GET" {
+            client
+                .get(&mcp_url)
+                .header("Origin", "http://localhost")
+                .send()
+                .await
+        } else {
+            let mut request_builder = client
+                .post(&mcp_url)
+                .header("Content-Type", "application/json")
+                .header("Origin", "http://localhost");
+
+            if let Some(body) = request_body {
+                request_builder = request_builder.json(&body);
             }
-            _ => {
-                let mut request_builder = client
-                    .post(&mcp_url)
-                    .header("Content-Type", "application/json")
-                    .header("Origin", "http://localhost");
 
-                if let Some(body) = request_body {
-                    request_builder = request_builder.json(&body);
-                }
-
-                request_builder.send().await
-            }
+            request_builder.send().await
         };
 
         match response {
@@ -113,17 +111,17 @@ async fn wait_for_server_ready(port: u16, timeout_secs: u64) -> Result<()> {
                 println!("{} - Status: {}", test_name, response.status());
 
                 if response.status().is_success() {
-                    println!("✓ {} request succeeded", test_name);
+                        println!("✓ {test_name} request succeeded");
                     println!("MCP server is ready on port {port}");
                     return Ok(());
                 } else if response.status() == 500 {
                     if let Ok(body) = response.text().await {
-                        println!("{} - 500 Error body: {}", test_name, body);
+                        println!("{test_name} - 500 Error body: {body}");
                     }
                 }
             }
             Err(e) => {
-                println!("{} - Connection error: {}", test_name, e);
+                println!("{test_name} - Connection error: {e}");
             }
         }
     }
