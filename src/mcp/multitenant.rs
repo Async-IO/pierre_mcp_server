@@ -157,11 +157,8 @@ impl MultiTenantMcpServer {
         let oauth_route_filter = Self::create_oauth_routes(&oauth_routes, &resources);
 
         // Create OAuth 2.0 server routes for mcp-remote compatibility
-        let oauth2_server_routes = oauth2_routes(
-            resources.database.clone(),
-            resources.auth_manager.clone(),
-            port,
-        );
+        let oauth2_server_routes =
+            oauth2_routes(resources.database.clone(), &resources.auth_manager, port);
         let api_key_route_filter = Self::create_api_key_routes(&api_key_routes);
         let api_key_usage_filter = Self::create_api_key_usage_route(api_key_routes.clone()); // Safe: Arc clone for HTTP route sharing
         let dashboard_route_filter = Self::create_dashboard_routes(&dashboard_routes);

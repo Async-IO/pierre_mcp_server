@@ -25,7 +25,8 @@ export CARGO_TERM_COLOR="always"
 export RUST_BACKTRACE="1"
 
 # Security (server-side only)
-export JWT_SECRET="dev-secret-key-change-in-production"
+# Note: JWT secrets are managed automatically via database-stored admin_jwt_secret
+# export JWT_SECRET="dev-secret-key-change-in-production"  # No longer required
 
 # Optional: External service API keys (server-side only)  
 # export WEATHER_API_KEY="your-openweathermap-key"

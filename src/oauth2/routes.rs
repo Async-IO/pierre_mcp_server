@@ -21,12 +21,12 @@ use warp::{Filter, Rejection, Reply};
 /// OAuth 2.0 route filters
 pub fn oauth2_routes(
     database: Arc<Database>,
-    auth_manager: Arc<AuthManager>,
+    auth_manager: &Arc<AuthManager>,
     http_port: u16,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     let client_registration_routes = client_registration_routes(database.clone());
-    let authorization_routes = authorization_routes(database.clone(), &auth_manager);
-    let token_routes = token_routes(database, &auth_manager);
+    let authorization_routes = authorization_routes(database.clone(), auth_manager);
+    let token_routes = token_routes(database, auth_manager);
     let jwks_route = jwks_route();
 
     // OAuth routes under /oauth2 prefix

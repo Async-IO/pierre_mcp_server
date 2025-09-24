@@ -380,10 +380,16 @@ inventory::submit! {
 ## Security Considerations
 
 ### Authentication Methods
-- **JWT Tokens**: Stateless authentication for MCP clients
+- **JWT Tokens**: Stateless authentication for MCP clients (managed via database-stored secrets)
 - **API Keys**: Long-lived authentication for B2B integrations
-- **OAuth 2.0**: Standard web application authentication
+- **OAuth 2.0**: Standard web application authentication (uses AuthManager for consistent JWT handling)
 - **A2A Keys**: Agent-to-agent cryptographic authentication
+
+#### JWT Architecture
+- **Centralized Secret Management**: All JWT secrets stored in database as `admin_jwt_secret`
+- **Consistent Token Generation**: OAuth 2.0 and admin routes use same `AuthManager.generate_token()` method
+- **No Environment Variables**: JWT_SECRET environment variable no longer required
+- **Single Source of Truth**: Database-stored secrets ensure consistency across all components
 
 ### Data Protection
 - **Encryption at Rest**: AES-256-GCM encryption for sensitive data

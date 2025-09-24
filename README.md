@@ -423,8 +423,9 @@ STRAVA_CLIENT_ID=your_strava_client_id
 STRAVA_CLIENT_SECRET=your_strava_client_secret
 STRAVA_REDIRECT_URI=http://localhost:8080/api/oauth/callback/strava
 
-# JWT Configuration (Required for OAuth 2.0)
-JWT_SECRET=your_jwt_secret_key  # Required for OAuth 2.0 authorization server
+# JWT Configuration (Managed by Database)
+# Note: JWT secrets are automatically managed via database-stored admin_jwt_secret
+# No manual JWT_SECRET environment variable required
 JWT_EXPIRY_HOURS=24
 
 # OpenWeather API (for activity intelligence)
