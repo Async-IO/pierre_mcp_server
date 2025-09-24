@@ -514,8 +514,10 @@ impl HealthChecker {
             }
         }
 
-        let total_megabytes = total_kilobytes / crate::constants::system_monitoring::KB_TO_MB_DIVISOR;
-        let available_megabytes = available_kilobytes / crate::constants::system_monitoring::KB_TO_MB_DIVISOR;
+        let total_megabytes =
+            total_kilobytes / crate::constants::system_monitoring::KB_TO_MB_DIVISOR;
+        let available_megabytes =
+            available_kilobytes / crate::constants::system_monitoring::KB_TO_MB_DIVISOR;
         let used_megabytes = total_megabytes - available_megabytes;
         let used_percent = if total_megabytes > 0 {
             // Use integer arithmetic to avoid precision loss warnings
