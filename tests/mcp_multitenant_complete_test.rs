@@ -127,10 +127,11 @@ async fn wait_for_server_ready(port: u16, timeout_secs: u64) -> Result<()> {
                 return Ok(());
             }
             Ok(resp) => {
+                let status = resp.status();
                 let body = resp.text().await.unwrap_or_else(|_| "unknown".to_string());
                 println!(
                     "MCP endpoint returned {}, body: {}, retrying...",
-                    resp.status(),
+                    status,
                     body
                 );
             }
