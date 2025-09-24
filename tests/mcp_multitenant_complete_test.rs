@@ -26,6 +26,55 @@ fn is_port_available(port: u16) -> bool {
     TcpListener::bind(format!("127.0.0.1:{port}")).is_ok()
 }
 
+/// Wait for server to be ready by checking actual MCP endpoint response
+async fn wait_for_server_ready(port: u16, timeout_secs: u64) -> Result<()> {
+    let client = Client::new();
+    let mcp_url = format!("http://127.0.0.1:{port}/mcp");
+    let start = std::time::Instant::now();
+    let timeout_duration = Duration::from_secs(timeout_secs);
+
+    // Simple MCP initialization request to test server readiness
+    let init_request = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {},
+            "clientInfo": {
+                "name": "test-client",
+                "version": "1.0.0"
+            }
+        }
+    });
+
+    while start.elapsed() < timeout_duration {
+        match client
+            .post(&mcp_url)
+            .header("Content-Type", "application/json")
+            .header("Origin", "http://localhost")
+            .json(&init_request)
+            .send()
+            .await
+        {
+            Ok(response) if response.status().is_success() || response.status() == 200 => {
+                println!("MCP server is ready on port {port}");
+                return Ok(());
+            }
+            Ok(response) => {
+                println!("MCP server responded with status: {}", response.status());
+                // Continue waiting for success status
+            }
+            Err(_) => {
+                // Server not responding yet, continue waiting
+            }
+        }
+        sleep(Duration::from_millis(200)).await;
+    }
+
+    anyhow::bail!("MCP server did not become ready within {timeout_secs} seconds on port {port}")
+}
+
 /// Find an available port using simple random approach
 fn find_available_port() -> u16 {
     let mut rng = rand::thread_rng();
@@ -452,16 +501,8 @@ async fn test_complete_multitenant_workflow() -> Result<()> {
         }
     });
 
-    // Give server time to start
-    sleep(Duration::from_millis(1000)).await;
-
-    // Wait for server to be ready (single-port architecture)
-    for _attempt in 0..10 {
-        if !is_port_available(server_port) {
-            break; // Port is in use, server is likely ready
-        }
-        sleep(Duration::from_millis(200)).await;
-    }
+    // Wait for server to be fully ready with proper health check
+    wait_for_server_ready(server_port, 30).await?;
 
     let mut client = MultiTenantMcpClient::new(server_port);
 
@@ -617,16 +658,8 @@ async fn test_mcp_authentication_required() -> Result<()> {
         }
     });
 
-    // Give server time to start
-    sleep(Duration::from_millis(1000)).await;
-
-    // Wait for server to be ready (using single-port architecture)
-    for _attempt in 0..10 {
-        if !is_port_available(server_port) {
-            break; // Port is in use, server is likely ready
-        }
-        sleep(Duration::from_millis(200)).await;
-    }
+    // Wait for server to be fully ready with proper health check
+    wait_for_server_ready(server_port, 30).await?;
 
     let client = MultiTenantMcpClient::new(server_port);
     // Note: No login, so no JWT token
@@ -688,16 +721,8 @@ async fn test_mcp_initialization_no_auth() -> Result<()> {
         }
     });
 
-    // Give server time to start
-    sleep(Duration::from_millis(1000)).await;
-
-    // Wait for server to be ready (using single-port architecture)
-    for _attempt in 0..10 {
-        if !is_port_available(server_port) {
-            break; // Port is in use, server is likely ready
-        }
-        sleep(Duration::from_millis(200)).await;
-    }
+    // Wait for server to be fully ready with proper health check
+    wait_for_server_ready(server_port, 30).await?;
 
     let client = MultiTenantMcpClient::new(server_port);
 
@@ -749,16 +774,8 @@ async fn test_mcp_concurrent_requests() -> Result<()> {
         }
     });
 
-    // Give server time to start
-    sleep(Duration::from_millis(1000)).await;
-
-    // Wait for server to be ready (single-port architecture)
-    for _attempt in 0..10 {
-        if !is_port_available(server_port) {
-            break; // Port is in use, server is likely ready
-        }
-        sleep(Duration::from_millis(200)).await;
-    }
+    // Wait for server to be fully ready with proper health check
+    wait_for_server_ready(server_port, 30).await?;
 
     let mut client = MultiTenantMcpClient::new(server_port);
 
