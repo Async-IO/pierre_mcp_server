@@ -35,9 +35,14 @@ async fn test_basic_connectivity(port: u16) -> Result<()> {
 
     match client.get(&health_url).send().await {
         Ok(response) => {
-            println!("Health check - Status: {}, Body: {:?}",
-                     response.status(),
-                     response.text().await.unwrap_or_else(|_| "Unable to read body".to_string()));
+            println!(
+                "Health check - Status: {}, Body: {:?}",
+                response.status(),
+                response
+                    .text()
+                    .await
+                    .unwrap_or_else(|_| "Unable to read body".to_string())
+            );
             Ok(())
         }
         Err(e) => {
@@ -60,19 +65,22 @@ async fn wait_for_server_ready(port: u16, timeout_secs: u64) -> Result<()> {
         // 2. POST with empty body (should be handled)
         ("POST_EMPTY", Some(json!({}))),
         // 3. POST with initialize method (our target)
-        ("POST_INIT", Some(json!({
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "initialize",
-            "params": {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {},
-                "clientInfo": {
-                    "name": "test-client",
-                    "version": "1.0.0"
+        (
+            "POST_INIT",
+            Some(json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {},
+                    "clientInfo": {
+                        "name": "test-client",
+                        "version": "1.0.0"
+                    }
                 }
-            }
-        }))),
+            })),
+        ),
     ];
 
     for (test_name, request_body) in requests_to_test {
