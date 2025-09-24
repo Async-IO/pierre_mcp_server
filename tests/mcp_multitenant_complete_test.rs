@@ -56,77 +56,87 @@ async fn test_basic_connectivity(port: u16) -> Result<()> {
 async fn wait_for_server_ready(port: u16, timeout_secs: u64) -> Result<()> {
     let client = Client::new();
     let mcp_url = format!("http://127.0.0.1:{port}/mcp");
-    let _start = std::time::Instant::now();
-    let _timeout_duration = Duration::from_secs(timeout_secs);
+    let start = std::time::Instant::now();
+    let timeout_duration = Duration::from_secs(timeout_secs);
 
-    // Test different request types to isolate the issue
-    let requests_to_test = vec![
-        // 1. Simple GET request (should work without auth)
-        ("GET", None),
-        // 2. POST with empty body (should be handled)
-        ("POST_EMPTY", Some(json!({}))),
-        // 3. POST with initialize method (our target)
-        (
-            "POST_INIT",
-            Some(json!({
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "initialize",
-                "params": {
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": {},
-                    "clientInfo": {
-                        "name": "test-client",
-                        "version": "1.0.0"
-                    }
-                }
-            })),
-        ),
-    ];
+    // First, wait for basic port availability with simple retry
+    println!("Waiting for port {port} to be available...");
+    loop {
+        if start.elapsed() > timeout_duration {
+            anyhow::bail!("Server startup timeout after {timeout_secs}s on port {port}");
+        }
 
-    for (test_name, request_body) in requests_to_test {
-        println!("Testing {test_name} request...");
+        // Try a simple GET to the health endpoint first
+        let health_response = client
+            .get(&format!("http://127.0.0.1:{port}/health"))
+            .timeout(Duration::from_secs(2))
+            .send()
+            .await;
 
-        let response = if test_name == "GET" {
-            client
-                .get(&mcp_url)
-                .header("Origin", "http://localhost")
-                .send()
-                .await
-        } else {
-            let mut request_builder = client
-                .post(&mcp_url)
-                .header("Content-Type", "application/json")
-                .header("Origin", "http://localhost");
-
-            if let Some(body) = request_body {
-                request_builder = request_builder.json(&body);
+        match health_response {
+            Ok(resp) if resp.status().is_success() => {
+                println!("✓ Health endpoint responding on port {port}");
+                break;
             }
-
-            request_builder.send().await
-        };
-
-        match response {
-            Ok(response) => {
-                println!("{} - Status: {}", test_name, response.status());
-
-                if response.status().is_success() {
-                    println!("✓ {test_name} request succeeded");
-                    println!("MCP server is ready on port {port}");
-                    return Ok(());
-                } else if response.status() == 500 {
-                    if let Ok(body) = response.text().await {
-                        println!("{test_name} - 500 Error body: {body}");
-                    }
-                }
+            Ok(resp) => {
+                println!("Health endpoint returned {}, waiting...", resp.status());
             }
-            Err(e) => {
-                println!("{test_name} - Connection error: {e}");
+            Err(_) => {
+                println!("Health endpoint not ready, waiting...");
             }
         }
+
+        tokio::time::sleep(Duration::from_millis(500)).await;
     }
 
-    anyhow::bail!("All MCP endpoint tests failed on port {port}")
+    // Now test MCP endpoint specifically
+    println!("Testing MCP endpoint readiness...");
+
+    // Test MCP initialize request (this should work without authentication)
+    let init_request = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {},
+            "clientInfo": {
+                "name": "test-client",
+                "version": "1.0.0"
+            }
+        }
+    });
+
+    loop {
+        if start.elapsed() > timeout_duration {
+            anyhow::bail!("MCP endpoint timeout after {timeout_secs}s on port {port}");
+        }
+
+        let response = client
+            .post(&mcp_url)
+            .header("Content-Type", "application/json")
+            .header("Origin", "http://localhost")
+            .json(&init_request)
+            .timeout(Duration::from_secs(5))
+            .send()
+            .await;
+
+        match response {
+            Ok(resp) if resp.status().is_success() => {
+                println!("✓ MCP initialize succeeded on port {port}");
+                return Ok(());
+            }
+            Ok(resp) => {
+                let body = resp.text().await.unwrap_or_else(|_| "unknown".to_string());
+                println!("MCP endpoint returned {}, body: {}, retrying...", resp.status(), body);
+            }
+            Err(e) => {
+                println!("MCP endpoint connection error: {e}, retrying...");
+            }
+        }
+
+        tokio::time::sleep(Duration::from_millis(1000)).await;
+    }
 }
 
 /// Find an available port using simple random approach
