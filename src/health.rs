@@ -195,7 +195,7 @@ impl HealthChecker {
         checks.push(self.check_database().await);
 
         // Memory usage check
-        checks.push(self.check_memory());
+        checks.push(Self::check_memory());
 
         // Disk space check
         checks.push(self.check_disk_space());
@@ -258,10 +258,10 @@ impl HealthChecker {
     }
 
     /// Check memory usage
-    fn check_memory(&self) -> ComponentHealth {
+    fn check_memory() -> ComponentHealth {
         let start = Instant::now();
 
-        let (status, message, metadata) = self.get_memory_info().map_or_else(
+        let (status, message, metadata) = Self::get_memory_info().map_or_else(
             |_| {
                 (
                     HealthStatus::Unhealthy,
@@ -454,7 +454,7 @@ impl HealthChecker {
     }
 
     /// Get system memory information
-    fn get_memory_info(&self) -> Result<MemoryInfo, Box<dyn std::error::Error>> {
+    fn get_memory_info() -> Result<MemoryInfo, Box<dyn std::error::Error>> {
         // Cross-platform memory information retrieval
         #[cfg(target_os = "linux")]
         {
@@ -462,11 +462,11 @@ impl HealthChecker {
         }
         #[cfg(target_os = "macos")]
         {
-            Self::get_memory_info_macos(self)
+            Self::get_memory_info_macos()
         }
         #[cfg(target_os = "windows")]
         {
-            Self::get_memory_info_windows(self)
+            Self::get_memory_info_windows()
         }
         #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
         {
@@ -520,8 +520,10 @@ impl HealthChecker {
             available_kilobytes / crate::constants::system_monitoring::KB_TO_MB_DIVISOR;
         let used_megabytes = total_megabytes - available_megabytes;
         let used_percent = if total_megabytes > 0 {
-            // Use integer arithmetic to avoid precision loss warnings
-            (used_megabytes * 100) as f64 / total_megabytes as f64
+            // Use integer division for percentage calculation
+            // Since result is always 0-100%, safe to convert to u32
+            let percentage_int = (used_megabytes * 100) / total_megabytes;
+            u32::try_from(percentage_int).map_or(100.0, f64::from)
         } else {
             0.0
         };
@@ -535,7 +537,7 @@ impl HealthChecker {
     }
 
     #[cfg(target_os = "macos")]
-    fn get_memory_info_macos(_: &Self) -> Result<MemoryInfo, Box<dyn std::error::Error>> {
+    fn get_memory_info_macos() -> Result<MemoryInfo, Box<dyn std::error::Error>> {
         // Use sysctl for macOS memory information
         use std::process::Command;
 
@@ -599,7 +601,7 @@ impl HealthChecker {
     }
 
     #[cfg(target_os = "windows")]
-    fn get_memory_info_windows(_: &Self) -> Result<MemoryInfo, Box<dyn std::error::Error>> {
+    fn get_memory_info_windows() -> Result<MemoryInfo, Box<dyn std::error::Error>> {
         // Use Windows API GlobalMemoryStatusEx for accurate memory information
         use std::mem;
 
