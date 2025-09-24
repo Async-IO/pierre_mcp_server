@@ -14,22 +14,9 @@ use crate::oauth2::{
     models::{AuthorizeRequest, ClientRegistrationRequest, OAuth2Error, TokenRequest},
 };
 use anyhow::Result;
-use chrono::{Duration, Utc};
-use jsonwebtoken::{encode, EncodingKey, Header};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use warp::{Filter, Rejection, Reply};
-
-/// JWT Claims structure for OAuth tokens
-#[derive(Debug, Serialize, Deserialize)]
-struct Claims {
-    sub: String,
-    email: String,
-    exp: i64,
-    iat: i64,
-    providers: Vec<String>,
-}
 
 /// OAuth 2.0 route filters
 pub fn oauth2_routes(
@@ -38,8 +25,8 @@ pub fn oauth2_routes(
     http_port: u16,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     let client_registration_routes = client_registration_routes(database.clone());
-    let authorization_routes = authorization_routes(database.clone(), auth_manager.clone());
-    let token_routes = token_routes(database, auth_manager);
+    let authorization_routes = authorization_routes(database.clone(), &auth_manager);
+    let token_routes = token_routes(database, &auth_manager);
     let jwks_route = jwks_route();
 
     // OAuth routes under /oauth2 prefix
@@ -96,7 +83,7 @@ fn client_registration_routes(
 /// Authorization endpoint routes
 fn authorization_routes(
     database: Arc<Database>,
-    auth_manager: Arc<AuthManager>,
+    auth_manager: &Arc<AuthManager>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     // OAuth authorization endpoint with cookie support
     let authorize_route = warp::path("authorize")
@@ -121,6 +108,7 @@ fn authorization_routes(
         .and(warp::post())
         .and(warp::body::form::<HashMap<String, String>>())
         .and(with_database(database))
+        .and(with_auth_manager(auth_manager))
         .and_then(handle_oauth_login_submit);
 
     authorize_route.or(login_route).or(login_submit_route)
@@ -129,7 +117,7 @@ fn authorization_routes(
 /// Token endpoint routes
 fn token_routes(
     database: Arc<Database>,
-    auth_manager: Arc<AuthManager>,
+    auth_manager: &Arc<AuthManager>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     warp::path("token")
         .and(warp::path::end())
@@ -149,8 +137,9 @@ fn with_database(
 
 /// Helper to inject auth manager
 fn with_auth_manager(
-    auth_manager: Arc<AuthManager>,
+    auth_manager: &Arc<AuthManager>,
 ) -> impl Filter<Extract = (Arc<AuthManager>,), Error = std::convert::Infallible> + Clone {
+    let auth_manager = auth_manager.clone();
     warp::any().map(move || auth_manager.clone())
 }
 
@@ -408,41 +397,12 @@ fn parse_token_request(form: &HashMap<String, String>) -> Result<TokenRequest, O
     })
 }
 
-/// Load list of connected OAuth providers for a user
-async fn load_user_connected_providers(
-    database: &Database,
-    user_id: &uuid::Uuid,
-) -> Result<Vec<String>> {
-    let mut connected_providers = Vec::new();
-
-    // Get all user tokens to check which providers are connected
-    let user_tokens = database.get_user_oauth_tokens(*user_id).await?;
-
-    // Extract unique providers from the user's tokens
-    let providers: std::collections::HashSet<String> = user_tokens
-        .into_iter()
-        .map(|token| token.provider)
-        .collect();
-
-    // Convert to sorted vec for consistent ordering
-    connected_providers.extend(providers.iter().cloned());
-    connected_providers.sort();
-
-    tracing::debug!(
-        "Loaded {} connected providers for user {}: {:?}",
-        connected_providers.len(),
-        user_id,
-        connected_providers
-    );
-
-    Ok(connected_providers)
-}
-
-/// Authenticate user credentials against database
-async fn authenticate_user_credentials(
+/// Authenticate user credentials using `AuthManager` (proper architecture)
+async fn authenticate_user_with_auth_manager(
     database: Arc<Database>,
     email: &str,
     password: &str,
+    auth_manager: &AuthManager,
 ) -> Result<String> {
     // Look up user by email
     let user = database
@@ -455,26 +415,9 @@ async fn authenticate_user_credentials(
         return Err(anyhow::anyhow!("Invalid password"));
     }
 
-    // Generate JWT token for the authenticated user
-    // For now, create a basic JWT with 24 hour expiry
-
-    let now = Utc::now();
-    let claims = Claims {
-        sub: user.id.to_string(),
-        email: user.email.clone(),
-        exp: (now + Duration::hours(24)).timestamp(),
-        iat: now.timestamp(),
-        providers: load_user_connected_providers(&database, &user.id).await?,
-    };
-
-    // JWT secret must be provided via environment for security
-    let secret = std::env::var("JWT_SECRET")
-        .map_err(|_| anyhow::anyhow!("JWT_SECRET environment variable not configured"))?;
-    let token = encode(
-        &Header::default(),
-        &claims,
-        &EncodingKey::from_secret(secret.as_ref()),
-    )?;
+    // Use AuthManager to generate JWT token (proper architecture)
+    // This ensures consistent JWT handling across the entire system
+    let token = auth_manager.generate_token(&user)?;
 
     Ok(token)
 }
@@ -564,6 +507,7 @@ async fn handle_oauth_login_page(params: HashMap<String, String>) -> Result<impl
 async fn handle_oauth_login_submit(
     form: HashMap<String, String>,
     database: Arc<Database>,
+    auth_manager: Arc<AuthManager>,
 ) -> Result<Box<dyn warp::Reply>, Rejection> {
     // Extract credentials from form
     let Some(email) = form.get("email") else {
@@ -581,7 +525,9 @@ async fn handle_oauth_login_submit(
     };
 
     // Authenticate user using database lookup and password verification
-    match authenticate_user_credentials(database.clone(), email, password).await {
+    match authenticate_user_with_auth_manager(database.clone(), email, password, &auth_manager)
+        .await
+    {
         Ok(token) => {
             // Extract OAuth parameters from form to continue authorization flow
             let client_id = form.get("client_id").map_or("", |v| v);
@@ -678,14 +624,8 @@ fn jwks_route() -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone 
         .and(warp::path::end())
         .and(warp::get())
         .and_then(|| async move {
-            // Get JWT secret from environment for JWKS generation
-            let _secret = std::env::var("JWT_SECRET").map_err(|_| {
-                warp::reject::custom(crate::errors::AppError::auth_invalid(
-                    "JWT_SECRET not configured for JWKS",
-                ))
-            })?;
-
-            // Generate JWKS from the secret (simplified for HMAC)
+            // Generate JWKS placeholder (simplified for HMAC)
+            // AuthManager handles JWT internally with proper secret management
             // In a full OAuth implementation, this would use RSA/ECDSA keys
             let jwks = serde_json::json!({
                 "keys": [{
