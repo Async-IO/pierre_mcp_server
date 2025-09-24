@@ -582,11 +582,24 @@ impl MultiTenantMcpServer {
             .and(warp::header::optional::<String>("authorization"))
             .and(warp::header::optional::<String>("origin"))
             .and(warp::header::optional::<String>("accept"))
-            .and(warp::body::bytes().map(|bytes: bytes::Bytes| {
+            .and(warp::body::bytes().and_then(|bytes: bytes::Bytes| async move {
                 if bytes.is_empty() {
-                    serde_json::Value::Null
+                    Ok(serde_json::Value::Null)
                 } else {
-                    serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null)
+                    tracing::debug!("MCP request bytes: {} bytes on {}", bytes.len(), std::env::consts::OS);
+                    match serde_json::from_slice::<serde_json::Value>(&bytes) {
+                        Ok(value) => {
+                            tracing::debug!("Initial JSON parse successful: {}",
+                                serde_json::to_string(&value).unwrap_or_else(|_| "serialization error".to_string())
+                            );
+                            Ok(value)
+                        }
+                        Err(e) => {
+                            tracing::error!("Initial JSON parse failed on {}: {} | Raw bytes: {:?}",
+                                std::env::consts::OS, e, String::from_utf8_lossy(&bytes));
+                            Err(warp::reject::custom(McpHttpError::InvalidRequest))
+                        }
+                    }
                 }
             }))
             .and_then({
