@@ -458,7 +458,7 @@ impl HealthChecker {
         // Cross-platform memory information retrieval
         #[cfg(target_os = "linux")]
         {
-            self.get_memory_info_linux()
+            Self::get_memory_info_linux()
         }
         #[cfg(target_os = "macos")]
         {
@@ -493,20 +493,20 @@ impl HealthChecker {
     }
 
     #[cfg(target_os = "linux")]
-    fn get_memory_info_linux(&self) -> Result<MemoryInfo, Box<dyn std::error::Error>> {
+    fn get_memory_info_linux() -> Result<MemoryInfo, Box<dyn std::error::Error>> {
         let meminfo = std::fs::read_to_string("/proc/meminfo")?;
-        let mut total_kb = 0;
-        let mut available_kb = 0;
+        let mut total_kilobytes = 0;
+        let mut available_kilobytes = 0;
 
         for line in meminfo.lines() {
             if line.starts_with("MemTotal:") {
-                total_kb = line
+                total_kilobytes = line
                     .split_whitespace()
                     .nth(1)
                     .unwrap_or("0")
                     .parse::<u64>()?;
             } else if line.starts_with("MemAvailable:") {
-                available_kb = line
+                available_kilobytes = line
                     .split_whitespace()
                     .nth(1)
                     .unwrap_or("0")
@@ -514,19 +514,20 @@ impl HealthChecker {
             }
         }
 
-        let total_mb = total_kb / crate::constants::system_monitoring::KB_TO_MB_DIVISOR;
-        let available_mb = available_kb / crate::constants::system_monitoring::KB_TO_MB_DIVISOR;
-        let used_mb = total_mb - available_mb;
-        let used_percent = if total_mb > 0 {
-            (used_mb as f64 / total_mb as f64) * 100.0
+        let total_megabytes = total_kilobytes / crate::constants::system_monitoring::KB_TO_MB_DIVISOR;
+        let available_megabytes = available_kilobytes / crate::constants::system_monitoring::KB_TO_MB_DIVISOR;
+        let used_megabytes = total_megabytes - available_megabytes;
+        let used_percent = if total_megabytes > 0 {
+            // Use integer arithmetic to avoid precision loss warnings
+            (used_megabytes * 100) as f64 / total_megabytes as f64
         } else {
             0.0
         };
 
         Ok(MemoryInfo {
-            total_mb,
-            used_mb,
-            available_mb,
+            total_mb: total_megabytes,
+            used_mb: used_megabytes,
+            available_mb: available_megabytes,
             used_percent,
         })
     }

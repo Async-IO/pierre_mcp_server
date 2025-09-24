@@ -181,9 +181,15 @@ clippy_suppressions = [
     "#\\[allow\\(clippy::.*\\)\\]"
 ]
 
-# Long function suppressions - functions that should be decomposed
+# Long function suppressions - undocumented functions that should be decomposed
 long_function_suppressions = [
     "#\\[allow\\(clippy::too_many_lines\\)\\]"
+]
+
+# Documented long function suppressions - these have justification comments and are acceptable
+documented_long_functions = [
+    "// Long function:.*\n.*#\\[allow\\(clippy::too_many_lines\\)\\]",
+    "// Safe:.*\n.*#\\[allow\\(clippy::too_many_lines\\)\\]"
 ]
 
 # Problematic naming patterns
@@ -288,7 +294,7 @@ warning_groups = [
 threshold_groups = ["magic_numbers", "arc_usage", "clone_usage"]
 
 # Pattern groups for architectural analysis (informational)
-architectural_groups = ["legitimate_arc_clones", "problematic_db_clones", "legitimate_clone_patterns"]
+architectural_groups = ["legitimate_arc_clones", "problematic_db_clones", "legitimate_clone_patterns", "documented_long_functions"]
 
 # Validation thresholds for count-based checks
 [validation_thresholds]

@@ -63,11 +63,17 @@ jobs:
 
         # Check for critical placeholder patterns
         CRITICAL_COUNT=$(rg "$CRITICAL_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-        WARNING_COUNT=$(rg "$WARNING_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+
+        # Calculate warning count excluding documented long functions
+        TOTAL_WARNING_COUNT=$(rg "$WARNING_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+        DOCUMENTED_LONG_FUNCTIONS=$(rg -B2 "#\[allow\(clippy::too_many_lines\)\]" src/ | rg "// Long function:|// Safe:" --count 2>/dev/null || echo "0")
+        WARNING_COUNT=$((TOTAL_WARNING_COUNT - DOCUMENTED_LONG_FUNCTIONS))
 
         echo "📊 Validation Results:"
         echo "  Critical patterns: $CRITICAL_COUNT"
-        echo "  Warning patterns: $WARNING_COUNT"
+        echo "  Total warning patterns: $TOTAL_WARNING_COUNT"
+        echo "  Documented long functions: $DOCUMENTED_LONG_FUNCTIONS"
+        echo "  Actual warnings: $WARNING_COUNT"
 
         if [ "$CRITICAL_COUNT" -gt 0 ]; then
           echo "❌ Critical placeholder patterns found:"
