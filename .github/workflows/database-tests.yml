@@ -2,7 +2,7 @@ name: Database Tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main", "debug/*", "feature/*" ]
     paths:
       - 'src/database**'
       - 'tests/**'

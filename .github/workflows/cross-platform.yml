@@ -2,7 +2,7 @@ name: Cross-Platform Tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main", "debug/*", "feature/*" ]
     paths:
       - 'src/**'
       - 'Cargo.toml'
