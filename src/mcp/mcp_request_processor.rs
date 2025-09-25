@@ -44,17 +44,22 @@ impl McpRequestProcessor {
         }
 
         // Process request and generate response
-        let response = match self.process_request(request).await {
+        let response = match self.process_request(request.clone()).await {
             Ok(response) => response,
             Err(e) => {
-                error!("Failed to process MCP request: {}", e);
+                error!(
+                    "Failed to process MCP request: {} | Request: method={}, jsonrpc={}, id={:?}",
+                    e, request.method, request.jsonrpc, request.id
+                );
+                error!("Request params: {:?}", request.params);
+                error!("Full error details: {:#}", e);
                 McpResponse {
                     jsonrpc: JSONRPC_VERSION.to_string(),
-                    id: serde_json::Value::Null,
+                    id: request.id.clone().unwrap_or(serde_json::Value::Null),
                     result: None,
                     error: Some(McpError {
                         code: ERROR_INTERNAL_ERROR,
-                        message: "Internal server error".to_string(),
+                        message: format!("Internal server error: {e}"),
                         data: None,
                     }),
                 }
@@ -86,7 +91,11 @@ impl McpRequestProcessor {
     /// Validate MCP request format and required fields
     fn validate_request(request: &McpRequest) -> Result<()> {
         if request.jsonrpc != JSONRPC_VERSION {
-            return Err(anyhow::anyhow!("Invalid JSON-RPC version"));
+            return Err(anyhow::anyhow!(
+                "Invalid JSON-RPC version: got '{}', expected '{}'",
+                request.jsonrpc,
+                JSONRPC_VERSION
+            ));
         }
 
         if request.method.is_empty() {

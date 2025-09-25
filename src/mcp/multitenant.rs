@@ -1932,7 +1932,7 @@ impl MultiTenantMcpServer {
         // Allow localhost origins for development
         crate::constants::network_config::LOCALHOST_PATTERNS
             .iter()
-            .any(|pattern| origin.starts_with(pattern)) ||
+            .any(|pattern| origin.contains(&format!("//{pattern}")) || origin.contains(&format!("://{pattern}"))) ||
         // Allow null origin for direct connections
         origin == "null"
     }
