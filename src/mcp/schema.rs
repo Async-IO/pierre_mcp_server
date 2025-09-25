@@ -15,9 +15,9 @@
 use crate::constants::{
     json_fields::{ACTIVITY_ID, LIMIT, OFFSET, PROVIDER},
     tools::{
-        ANALYZE_ACTIVITY, ANNOUNCE_OAUTH_SUCCESS, CHECK_OAUTH_NOTIFICATIONS, DELETE_FITNESS_CONFIG,
-        DISCONNECT_PROVIDER, GET_ACTIVITIES, GET_ACTIVITY_INTELLIGENCE, GET_ATHLETE,
-        GET_CONNECTION_STATUS, GET_FITNESS_CONFIG, GET_NOTIFICATIONS, GET_STATS,
+        ANALYZE_ACTIVITY, ANNOUNCE_OAUTH_SUCCESS, CHECK_OAUTH_NOTIFICATIONS, CONNECT_TO_PIERRE,
+        DELETE_FITNESS_CONFIG, DISCONNECT_PROVIDER, GET_ACTIVITIES, GET_ACTIVITY_INTELLIGENCE,
+        GET_ATHLETE, GET_CONNECTION_STATUS, GET_FITNESS_CONFIG, GET_NOTIFICATIONS, GET_STATS,
         LIST_FITNESS_CONFIGS, MARK_NOTIFICATIONS_READ, SET_FITNESS_CONFIG,
     },
 };
@@ -406,13 +406,15 @@ pub fn get_tools() -> Vec<ToolSchema> {
 /// Create all fitness provider tool schemas
 fn create_fitness_tools() -> Vec<ToolSchema> {
     vec![
+        // Connection tools
+        create_connect_to_pierre_tool(),
+        create_get_connection_status_tool(),
+        create_disconnect_provider_tool(),
         // Original tools
         create_get_activities_tool(),
         create_get_athlete_tool(),
         create_get_stats_tool(),
         create_get_activity_intelligence_tool(),
-        create_get_connection_status_tool(),
-        create_disconnect_provider_tool(),
         create_get_notifications_tool(),
         create_mark_notifications_read_tool(),
         create_announce_oauth_success_tool(),
@@ -575,6 +577,21 @@ fn create_get_activity_intelligence_tool() -> ToolSchema {
             schema_type: "object".into(),
             properties: Some(properties),
             required: Some(vec![PROVIDER.to_string(), ACTIVITY_ID.to_string()]),
+        },
+    }
+}
+
+/// Create the `connect_to_pierre` tool schema
+fn create_connect_to_pierre_tool() -> ToolSchema {
+    let properties = HashMap::new(); // No parameters needed for this tool
+
+    ToolSchema {
+        name: CONNECT_TO_PIERRE.to_string(),
+        description: "Connect to Pierre - Authenticate with Pierre Fitness Server to access your fitness data. This will open a browser window for secure login. Use this when you're not connected or need to reconnect.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec![]), // No required fields
         },
     }
 }

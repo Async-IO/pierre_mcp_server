@@ -12,7 +12,7 @@ use crate::constants::{
     json_fields::PROVIDER,
     protocol::JSONRPC_VERSION,
     tools::{
-        ANNOUNCE_OAUTH_SUCCESS, CHECK_OAUTH_NOTIFICATIONS, DELETE_FITNESS_CONFIG,
+        ANNOUNCE_OAUTH_SUCCESS, CHECK_OAUTH_NOTIFICATIONS, CONNECT_TO_PIERRE, DELETE_FITNESS_CONFIG,
         DISCONNECT_PROVIDER, GET_CONNECTION_STATUS, GET_FITNESS_CONFIG, GET_NOTIFICATIONS,
         LIST_FITNESS_CONFIGS, MARK_NOTIFICATIONS_READ, SET_FITNESS_CONFIG, SET_GOAL,
         TRACK_PROGRESS,
@@ -281,6 +281,25 @@ impl ToolHandlers {
     ) -> McpResponse {
         match tool_name {
             // Note: CONNECT_STRAVA and CONNECT_FITBIT tools removed - use tenant-level OAuth configuration
+            CONNECT_TO_PIERRE => {
+                // Return a response that triggers the OAuth flow
+                // The actual authentication is handled by the OAuth 2.0 flow configured in the server
+                McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    id: request_id,
+                    result: Some(json!({
+                        "content": [{
+                            "type": "text",
+                            "text": "Opening browser for Pierre authentication. Please log in to connect your fitness data. Once authenticated, you'll be able to access all your Strava and Fitbit activities."
+                        }],
+                        "isError": false,
+                        "requiresAuth": true,
+                        "authUrl": "oauth2/authorize",
+                        "message": "Please complete authentication in your browser to connect to Pierre."
+                    })),
+                    error: None,
+                }
+            }
             GET_CONNECTION_STATUS => {
                 if let Some(ref tenant_ctx) = ctx.tenant_context {
                     // Extract optional OAuth credentials from args
