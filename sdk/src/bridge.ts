@@ -825,9 +825,13 @@ export class PierreClaudeBridge {
     this.claudeServer.setRequestHandler(CallToolRequestSchema, async (request) => {
       this.log('🔧 Bridging tool call:', request.params.name);
 
-      // Handle connect_to_pierre tool specially - trigger OAuth flow
+      // Handle special authentication tools
       if (request.params.name === 'connect_to_pierre') {
         return await this.handleConnectToPierre(request);
+      }
+
+      if (request.params.name === 'connect_provider') {
+        return await this.handleConnectProvider(request);
       }
 
       // Ensure we have a connection before forwarding other tools
@@ -965,6 +969,100 @@ export class PierreClaudeBridge {
         content: [{
           type: 'text',
           text: `Failed to connect to Pierre: ${error.message}. Please check that the Pierre server is running and try again.`
+        }],
+        isError: true
+      };
+    }
+  }
+
+  private async handleConnectProvider(request: any): Promise<any> {
+    try {
+      this.log('🔄 Handling unified connect_provider tool call');
+
+      if (!this.oauthProvider) {
+        return {
+          content: [{
+            type: 'text',
+            text: 'OAuth provider not initialized. Please restart the bridge.'
+          }],
+          isError: true
+        };
+      }
+
+      // Extract provider from request parameters
+      const provider = request.params.arguments?.provider || 'strava';
+      this.log(`🔄 Unified flow for provider: ${provider}`);
+
+      // Step 1: Ensure Pierre authentication is complete
+      if (!this.pierreClient) {
+        this.log('🔐 Pierre not connected - initiating Pierre authentication first');
+        try {
+          await this.initiateConnection();
+          this.log('✅ Pierre authentication completed');
+        } catch (error: any) {
+          this.log(`❌ Pierre authentication failed: ${error.message}`);
+          return {
+            content: [{
+              type: 'text',
+              text: `Failed to authenticate with Pierre: ${error.message}. Please try again.`
+            }],
+            isError: true
+          };
+        }
+      } else {
+        this.log('✅ Pierre already authenticated');
+      }
+
+      // Step 2: Initiate provider OAuth flow
+      this.log(`🔄 Initiating ${provider} OAuth flow...`);
+
+      try {
+        // Get the Pierre server base URL for provider OAuth
+        const providerOAuthUrl = `${this.config.pierreServerUrl}/oauth/authorize/${provider}`;
+
+        // Open provider OAuth in browser
+        const { spawn } = await import('child_process');
+        const platform = process.platform;
+
+        let openCommand: string;
+        if (platform === 'darwin') {
+          openCommand = 'open';
+        } else if (platform === 'win32') {
+          openCommand = 'start';
+        } else {
+          openCommand = 'xdg-open';
+        }
+
+        spawn(openCommand, [providerOAuthUrl], { detached: true, stdio: 'ignore' });
+
+        this.log(`🌐 Opened ${provider} OAuth in browser: ${providerOAuthUrl}`);
+
+        return {
+          content: [{
+            type: 'text',
+            text: `🎉 Unified authentication flow completed!\n\n✅ Pierre: Connected\n🔄 ${provider.toUpperCase()}: Opening in browser...\n\nPlease complete the ${provider.toUpperCase()} authentication in your browser. Once done, you'll have full access to your fitness data!`
+          }],
+          isError: false
+        };
+
+      } catch (error: any) {
+        this.log(`❌ Failed to open ${provider} OAuth: ${error.message}`);
+        return {
+          content: [{
+            type: 'text',
+            text: `Pierre authentication successful, but failed to open ${provider.toUpperCase()} OAuth: ${error.message}. You can manually visit the OAuth page in Pierre's web interface.`
+          }],
+          isError: false // Not a complete failure since Pierre auth worked
+        };
+      }
+
+    } catch (error: any) {
+      this.log('❌ Unified connect_provider failed:', error.message);
+
+      return {
+        content: [{
+          type: 'text',
+          text: `Unified authentication failed: ${error.message}. Please check that Pierre server is running and try again.`
         }],
         isError: true
       };

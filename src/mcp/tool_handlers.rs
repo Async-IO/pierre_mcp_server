@@ -12,7 +12,7 @@ use crate::constants::{
     json_fields::PROVIDER,
     protocol::JSONRPC_VERSION,
     tools::{
-        ANNOUNCE_OAUTH_SUCCESS, CHECK_OAUTH_NOTIFICATIONS, CONNECT_TO_PIERRE,
+        ANNOUNCE_OAUTH_SUCCESS, CHECK_OAUTH_NOTIFICATIONS, CONNECT_TO_PIERRE, CONNECT_PROVIDER,
         DELETE_FITNESS_CONFIG, DISCONNECT_PROVIDER, GET_CONNECTION_STATUS, GET_FITNESS_CONFIG,
         GET_NOTIFICATIONS, LIST_FITNESS_CONFIGS, MARK_NOTIFICATIONS_READ, SET_FITNESS_CONFIG,
         SET_GOAL, TRACK_PROGRESS,
@@ -296,6 +296,53 @@ impl ToolHandlers {
                         "requiresAuth": true,
                         "authUrl": "oauth2/authorize",
                         "message": "Please complete authentication in your browser to connect to Pierre."
+                    })),
+                    error: None,
+                }
+            }
+            CONNECT_PROVIDER => {
+                // Handle unified OAuth flow: Pierre + Provider authentication in one session
+                let provider_name = args
+                    .get("provider")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_lowercase();
+
+                // Validate provider
+                if provider_name.is_empty() || !["strava", "fitbit"].contains(&provider_name.as_str()) {
+                    return McpResponse {
+                        jsonrpc: JSONRPC_VERSION.to_string(),
+                        id: request_id,
+                        result: Some(json!({
+                            "content": [{
+                                "type": "text",
+                                "text": format!("Invalid provider '{}'. Supported providers are: strava, fitbit", provider_name)
+                            }],
+                            "isError": true
+                        })),
+                        error: None,
+                    };
+                }
+
+                // Return unified auth flow response
+                McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    id: request_id,
+                    result: Some(json!({
+                        "content": [{
+                            "type": "text",
+                            "text": format!(
+                                "Starting unified authentication for {}. This will:\n\n1. First authenticate you with Pierre Fitness Server\n2. Then connect you to {} for your fitness data\n\nOpening browser for secure authentication...",
+                                provider_name.to_uppercase(),
+                                provider_name.to_uppercase()
+                            )
+                        }],
+                        "isError": false,
+                        "requiresAuth": true,
+                        "authUrl": "oauth2/authorize",
+                        "unifiedFlow": true,
+                        "provider": provider_name,
+                        "message": format!("Please complete unified authentication with Pierre and {} in your browser.", provider_name.to_uppercase())
                     })),
                     error: None,
                 }

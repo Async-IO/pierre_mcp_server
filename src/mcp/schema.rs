@@ -16,9 +16,10 @@ use crate::constants::{
     json_fields::{ACTIVITY_ID, LIMIT, OFFSET, PROVIDER},
     tools::{
         ANALYZE_ACTIVITY, ANNOUNCE_OAUTH_SUCCESS, CHECK_OAUTH_NOTIFICATIONS, CONNECT_TO_PIERRE,
-        DELETE_FITNESS_CONFIG, DISCONNECT_PROVIDER, GET_ACTIVITIES, GET_ACTIVITY_INTELLIGENCE,
-        GET_ATHLETE, GET_CONNECTION_STATUS, GET_FITNESS_CONFIG, GET_NOTIFICATIONS, GET_STATS,
-        LIST_FITNESS_CONFIGS, MARK_NOTIFICATIONS_READ, SET_FITNESS_CONFIG,
+        CONNECT_PROVIDER, DELETE_FITNESS_CONFIG, DISCONNECT_PROVIDER, GET_ACTIVITIES,
+        GET_ACTIVITY_INTELLIGENCE, GET_ATHLETE, GET_CONNECTION_STATUS, GET_FITNESS_CONFIG,
+        GET_NOTIFICATIONS, GET_STATS, LIST_FITNESS_CONFIGS, MARK_NOTIFICATIONS_READ,
+        SET_FITNESS_CONFIG,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -408,6 +409,7 @@ fn create_fitness_tools() -> Vec<ToolSchema> {
     vec![
         // Connection tools
         create_connect_to_pierre_tool(),
+        create_connect_provider_tool(),
         create_get_connection_status_tool(),
         create_disconnect_provider_tool(),
         // Original tools
@@ -592,6 +594,30 @@ fn create_connect_to_pierre_tool() -> ToolSchema {
             schema_type: "object".into(),
             properties: Some(properties),
             required: Some(vec![]), // No required fields
+        },
+    }
+}
+
+/// Create the `connect_provider` tool schema
+fn create_connect_provider_tool() -> ToolSchema {
+    let mut properties = HashMap::new();
+
+    // Provider parameter (required)
+    properties.insert(
+        "provider".to_string(),
+        PropertySchema {
+            property_type: "string".into(),
+            description: Some("Fitness provider to connect to. Supported providers: 'strava', 'fitbit'".into()),
+        },
+    );
+
+    ToolSchema {
+        name: CONNECT_PROVIDER.to_string(),
+        description: "Connect to Fitness Provider - Unified authentication flow that connects you to both Pierre and a fitness provider (like Strava or Fitbit) in a single seamless process. This will open a browser window for secure authentication with both systems.".into(),
+        input_schema: JsonSchema {
+            schema_type: "object".into(),
+            properties: Some(properties),
+            required: Some(vec!["provider".to_string()]),
         },
     }
 }
