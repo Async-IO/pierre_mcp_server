@@ -717,7 +717,7 @@ async fn test_login_with_wrong_password() {
     assert!(result
         .unwrap_err()
         .to_string()
-        .contains("Invalid email or password"));
+        .contains("Invalid credentials provided"));
 }
 
 #[tokio::test]
