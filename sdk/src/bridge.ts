@@ -70,6 +70,7 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
   constructor(serverUrl: string, config: BridgeConfig) {
     this.serverUrl = serverUrl;
     this.config = config;
+    console.error(`[Pierre OAuth] OAuth client provider created for server: ${serverUrl}`);
   }
 
   get redirectUrl(): string {
@@ -171,13 +172,18 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
     }
   }
 
-  async tokens(): Promise<OAuthTokens | undefined> {
-    return this.savedTokens;
-  }
-
   async saveTokens(tokens: OAuthTokens): Promise<void> {
     this.savedTokens = tokens;
     console.error(`[Pierre OAuth] Saved tokens: expires_in=${tokens.expires_in}`);
+  }
+
+  async tokens(): Promise<OAuthTokens | undefined> {
+    console.error(`[Pierre OAuth] tokens() called, returning tokens: ${this.savedTokens ? 'available' : 'none'}`);
+    if (this.savedTokens) {
+      console.error(`[Pierre OAuth] Returning access_token: ${this.savedTokens.access_token.substring(0, 20)}...`);
+      console.error(`[Pierre OAuth] Token type: ${this.savedTokens.token_type}`);
+    }
+    return this.savedTokens;
   }
 
   async redirectToAuthorization(authorizationUrl: URL): Promise<void> {
@@ -376,13 +382,7 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
               authResolve({ code: query.code, state: query.state });
             }
 
-            // Also handle the authorization result directly for the sync callback
-            try {
-              console.error(`[Pierre OAuth] Authorization callback completed, exchanging code for tokens`);
-              await this.exchangeCodeForTokens(query.code, query.state);
-            } catch (error) {
-              console.error(`[Pierre OAuth] Token exchange failed: ${error}`);
-            }
+            // Authorization result is handled via promise resolution in redirectToAuthorization()
           } else {
             console.error(`[Pierre OAuth] Invalid callback parameters`);
             res.writeHead(400, { 'Content-Type': 'text/html' });
@@ -522,46 +522,69 @@ export class PierreClaudeBridge {
   private async connectToPierre(): Promise<void> {
     this.log('🔌 Connecting to Pierre MCP Server...');
 
-    // Create MCP client with Streamable HTTP transport
-    this.pierreClient = new Client(
-      {
-        name: 'pierre-claude-bridge',
-        version: '1.0.0'
-      },
-      {
-        capabilities: {
-          tools: {},
-          resources: {},
-          prompts: {},
-          logging: {}
-        }
-      }
-    );
-
     const mcpUrl = `${this.config.pierreServerUrl}/mcp`;
     this.log(`📡 Connecting to: ${mcpUrl}`);
 
-    // Create OAuth client provider for Pierre MCP Server
+    // Create OAuth client provider for Pierre MCP Server (shared across attempts)
     const oauthProvider = new PierreOAuthClientProvider(this.config.pierreServerUrl, this.config);
-
-    // Create Streamable HTTP transport with OAuth 2.0 authentication
-    const baseUrl = new URL(mcpUrl);
-    const transport = new StreamableHTTPClientTransport(baseUrl, {
-      authProvider: oauthProvider,
-      requestInit: {
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'Pierre-Claude-Bridge/1.0.0'
-        }
-      }
-    });
 
     this.log('🔐 Using OAuth 2.0 authentication with Pierre MCP Server');
 
-    // Connect to Pierre MCP Server with OAuth 2.0 flow
-    await this.pierreClient.connect(transport);
+    let connected = false;
+    let retryCount = 0;
+    const maxRetries = 5;
 
-    this.log('✅ Connected to Pierre MCP Server with OAuth 2.0');
+    while (!connected && retryCount < maxRetries) {
+      try {
+        // Create fresh MCP client for each attempt
+        this.pierreClient = new Client(
+          {
+            name: 'pierre-claude-bridge',
+            version: '1.0.0'
+          },
+          {
+            capabilities: {
+              tools: {},
+              resources: {},
+              prompts: {},
+              logging: {}
+            }
+          }
+        );
+
+        // Create fresh transport for each attempt
+        const baseUrl = new URL(mcpUrl);
+        const transport = new StreamableHTTPClientTransport(baseUrl, {
+          authProvider: oauthProvider,
+          requestInit: {
+            headers: {
+              'Content-Type': 'application/json',
+              'User-Agent': 'Pierre-Claude-Bridge/1.0.0'
+            }
+          }
+        });
+
+        // Connect to Pierre MCP Server with OAuth 2.0 flow
+        await this.pierreClient.connect(transport);
+        connected = true;
+        this.log('✅ Connected to Pierre MCP Server with OAuth 2.0');
+      } catch (error: any) {
+        if (error.message === 'Unauthorized' && retryCount < maxRetries - 1) {
+          retryCount++;
+          this.log(`🔄 OAuth flow in progress, waiting for completion... (attempt ${retryCount}/${maxRetries})`);
+
+          // Wait for OAuth flow to complete (check every 2 seconds)
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        } else {
+          this.log(`❌ Failed to connect after ${retryCount + 1} attempts: ${error.message}`);
+          throw error;
+        }
+      }
+    }
+
+    if (!connected) {
+      throw new Error(`Failed to connect to Pierre MCP Server after ${maxRetries} attempts`);
+    }
   }
 
   private async createClaudeServer(): Promise<void> {
