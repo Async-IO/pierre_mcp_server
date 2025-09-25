@@ -27,7 +27,7 @@ async fn create_test_user(db: &Database) -> User {
 
 #[tokio::test]
 async fn test_create_and_retrieve_api_key() {
-    let db = pierre_mcp_server::database::tests::create_test_db()
+    let db = pierre_mcp_server::database::test_utils::create_test_db()
         .await
         .expect("Failed to create test database");
 
@@ -66,7 +66,7 @@ async fn test_create_and_retrieve_api_key() {
 
 #[tokio::test]
 async fn test_api_key_usage_tracking() {
-    let db = pierre_mcp_server::database::tests::create_test_db()
+    let db = pierre_mcp_server::database::test_utils::create_test_db()
         .await
         .expect("Failed to create test database");
 
@@ -133,7 +133,7 @@ async fn test_api_key_usage_tracking() {
 
 #[tokio::test]
 async fn test_api_key_expiration() {
-    let db = pierre_mcp_server::database::tests::create_test_db()
+    let db = pierre_mcp_server::database::test_utils::create_test_db()
         .await
         .expect("Failed to create test database");
 

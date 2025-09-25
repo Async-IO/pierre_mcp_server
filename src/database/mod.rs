@@ -9,7 +9,7 @@ pub mod oauth_notifications;
 pub mod user_oauth_tokens;
 pub mod users;
 
-pub mod tests;
+pub mod test_utils;
 
 pub use a2a::{A2AUsage, A2AUsageStats};
 
