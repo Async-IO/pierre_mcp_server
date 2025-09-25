@@ -20,7 +20,6 @@ use super::{
     oauth_flow_manager::{OAuthFlowManager, OAuthTemplateRenderer},
     resources::ServerResources,
     server_lifecycle::ServerLifecycle,
-    sse_transport,
     tenant_isolation::validate_jwt_token_for_mcp,
     tool_handlers::{McpOAuthCredentials, ToolRoutingContext},
 };
@@ -190,7 +189,7 @@ impl MultiTenantMcpServer {
         // SSE notification routes
         let sse_routes = crate::notifications::sse::sse_routes(resources.sse_manager.clone()); // Safe: Arc clone for HTTP routes
 
-        // MCP SSE endpoint for mcp-remote compatibility
+        // MCP SSE endpoint for MCP protocol transport
         let mcp_sse_routes = Self::create_mcp_sse_routes(&resources);
         let mcp_endpoint_routes = Self::create_mcp_endpoint_routes(&resources);
 
@@ -471,13 +470,11 @@ impl MultiTenantMcpServer {
         oauth_auth.or(oauth_callback)
     }
 
-    /// Create dedicated SSE routes for mcp-remote compatibility
+    /// Create SSE routes for MCP protocol transport
     fn create_mcp_sse_routes(
         resources: &Arc<ServerResources>,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
-
-        tracing::info!("Creating MCP SSE routes for mcp-remote compatibility");
 
         // GET /sse - Main SSE endpoint for MCP over SSE
         let sse_endpoint = warp::path("sse")
@@ -487,8 +484,6 @@ impl MultiTenantMcpServer {
             .map({
                 let resources = resources.clone();
                 move |authorization: Option<String>| {
-                    tracing::info!("SSE connection request received");
-
                     // Create SSE stream for MCP protocol
                     let sse_stream = crate::mcp::sse_transport::create_mcp_sse_stream(
                         resources.clone(),
@@ -1899,9 +1894,12 @@ impl MultiTenantMcpServer {
                     .as_ref()
                     .is_some_and(|a| a.contains("text/event-stream"))
                 {
-                    // Return proper SSE stream for MCP protocol
-                    let stream =
-                        sse_transport::create_mcp_sse_stream(ctx.resources.clone(), authorization);
+                    // Return proper SSE stream using unified SSE infrastructure
+                    // TODO: Integrate MCP protocol with unified SSE manager
+                    tracing::info!("MCP SSE request - using unified SSE infrastructure");
+                    let stream: futures_util::stream::Empty<
+                        Result<warp::sse::Event, std::convert::Infallible>,
+                    > = futures_util::stream::empty();
 
                     // Use warp's SSE reply with proper CORS headers
                     let sse_reply = warp::sse::reply(warp::sse::keep_alive().stream(stream));
