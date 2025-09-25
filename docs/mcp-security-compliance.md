@@ -15,22 +15,33 @@ Pierre MCP Server implements security controls across multiple layers to ensure 
 
 ## Authentication & Authorization
 
-### JWT-Based Authentication
+### OAuth 2.0 Authorization Server
 
-The server uses JWT tokens for secure authentication:
+Pierre MCP Server implements RFC-compliant OAuth 2.0 authentication for MCP clients:
 
 ```bash
-# Authentication flow example
-curl -X POST http://localhost:8081/admin/setup \
+# OAuth 2.0 flow example
+# 1. Dynamic client registration (RFC 7591)
+curl -X POST http://localhost:8081/oauth2/register \
   -H "Content-Type: application/json" \
-  -d '{"admin_name": "admin", "admin_email": "admin@example.com"}'
+  -d '{
+    "redirect_uris": ["http://localhost:35535/oauth/callback"],
+    "client_name": "Pierre MCP Client",
+    "grant_types": ["authorization_code"]
+  }'
+
+# 2. Authorization and token exchange handled by MCP bridge
+# Browser-based user authentication with PKCE
 ```
 
 Security Features:
-- Configurable token expiration (default: 24 hours)
-- Secure token storage with HttpOnly cookies
-- Rate limiting on authentication attempts
+- Standards-compliant OAuth 2.0 Authorization Server (RFC 6749)
+- Dynamic client registration (RFC 7591)
+- PKCE (Proof Key for Code Exchange) for public clients
+- JWT access tokens with configurable expiration (default: 1 hour)
+- Secure browser-based authentication flow
 - Automatic token refresh mechanism
+- Rate limiting on authorization attempts
 
 ### Multi-Tenant Isolation
 
@@ -74,6 +85,30 @@ pub async fn get_user_activities(&self, user_id: Uuid, consent_token: &str) -> R
 ```
 
 ## MCP-Specific Security
+
+### MCP Client Integration Security
+
+Pierre provides a secure SDK bridge for direct MCP client integration:
+
+Security Controls:
+- OAuth 2.0 client certificate validation
+- Secure token storage in bridge memory (not persistent)
+- Connection retry logic with exponential backoff
+- Automatic browser authentication with user consent
+- Bearer token injection for all authenticated requests
+
+```typescript
+// Example: Secure MCP bridge authentication
+const transport = new StreamableHTTPClientTransport(baseUrl, {
+  authProvider: oauthProvider,  // OAuth 2.0 provider with PKCE
+  requestInit: {
+    headers: {
+      'Authorization': 'Bearer {jwt_token}',  // Injected automatically
+      'Content-Type': 'application/json'
+    }
+  }
+});
+```
 
 ### Protocol Compliance
 
@@ -405,6 +440,51 @@ Regular compliance validation includes:
 - GDPR compliance auditing
 - Security control effectiveness reviews
 - Third-party security assessments
+
+### OAuth 2.0 Standards Compliance
+
+Pierre MCP Server implements OAuth 2.0 according to RFC standards:
+
+**RFC 6749 - The OAuth 2.0 Authorization Framework:**
+- Authorization endpoint implementation
+- Token endpoint with secure token issuance
+- Proper error handling and error codes
+- Client authentication methods
+
+**RFC 7591 - OAuth 2.0 Dynamic Client Registration Protocol:**
+- Dynamic client registration endpoint
+- Client metadata validation
+- Secure client secret generation
+- Client information management
+
+**RFC 7636 - Proof Key for Code Exchange (PKCE):**
+- Code challenge and verifier support
+- SHA256 challenge method implementation
+- Protection against authorization code interception
+- Public client security enhancement
+
+**Security Best Practices:**
+- Secure redirect URI validation
+- State parameter validation for CSRF protection
+- Short authorization code lifetime (10 minutes)
+- JWT access tokens with standard claims
+- Proper scope validation and enforcement
+
+```bash
+# OAuth 2.0 compliance verification
+GET /.well-known/oauth-authorization-server
+# Returns RFC 8414 compliant metadata
+
+{
+  "issuer": "http://localhost:8081",
+  "authorization_endpoint": "http://localhost:8081/oauth2/authorize",
+  "token_endpoint": "http://localhost:8081/oauth2/token",
+  "registration_endpoint": "http://localhost:8081/oauth2/register",
+  "response_types_supported": ["code"],
+  "grant_types_supported": ["authorization_code"],
+  "code_challenge_methods_supported": ["S256"]
+}
+```
 
 ## Contact and Support
 

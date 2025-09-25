@@ -94,70 +94,73 @@ docker build -t pierre-mcp-server .
 docker run -p 8080:8080 pierre-mcp-server
 ```
 
-## MCP Client Configuration
+## MCP Client Integration
 
-### MCP Client Support
+### Direct Integration
 
-Pierre MCP Server supports any MCP-compliant client. However, `mcp-remote` is the recommended client for OAuth 2.0 authentication.
-
-#### Using mcp-remote
-
-Pierre MCP Server is designed to work with `mcp-remote`, which handles the OAuth 2.0 flow automatically.
+Pierre MCP Server includes a custom SDK bridge that enables direct integration with MCP clients using OAuth 2.0 authentication.
 
 #### Installation
 
-mcp-remote can be used directly via npx (recommended) or installed globally:
+The SDK is included with Pierre MCP Server in the `sdk/` directory:
 
 ```bash
-# Option 1: Use via npx (recommended - no installation required)
-npx mcp-remote http://localhost:8081/mcp --allow-http --debug --transport http-first --auth-timeout 120 --timeout 120
+cd sdk
+npm install
+npm run build
+```
 
-# Option 2: Install globally first, then use
+#### MCP Client Configuration
+
+For Claude Desktop, add this to your configuration file:
+
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux**: `~/.config/claude/claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "pierre-fitness": {
+      "command": "node",
+      "args": [
+        "/path/to/pierre_mcp_server/sdk/dist/cli.js",
+        "--server",
+        "http://localhost:8081",
+        "--verbose"
+      ],
+      "env": {}
+    }
+  }
+}
+```
+
+Replace `/path/to/pierre_mcp_server/sdk/dist/cli.js` with the absolute path to your Pierre MCP Server SDK.
+
+#### Authentication Flow
+
+When the MCP client starts, the SDK will automatically:
+
+1. Register a new OAuth 2.0 client with Pierre MCP Server
+2. Open your browser for authentication
+3. Handle the OAuth callback and token exchange
+4. Use JWT tokens for all subsequent MCP requests
+5. Provide access to all Pierre fitness tools
+
+No manual token management is required.
+
+### Alternative: mcp-remote
+
+For users who prefer the standard MCP remote client:
+
+```bash
+# Using npx (no installation required)
+npx mcp-remote http://localhost:8081/mcp --allow-http --debug --transport http-first --timeout 120
+
+# Or install globally
 npm install -g mcp-remote
-mcp-remote http://localhost:8081/mcp --allow-http --debug --transport http-first --auth-timeout 120 --timeout 120
+mcp-remote http://localhost:8081/mcp --allow-http --debug --transport http-first --timeout 120
 ```
-
-#### Claude Desktop Configuration
-
-Add this to your Claude Desktop configuration file (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
-
-**Option 1: Using npx (recommended)**
-```json
-{
-  "mcpServers": {
-    "pierre-fitness": {
-      "command": "npx",
-      "args": ["mcp-remote", "http://localhost:8081/mcp", "--allow-http", "--debug", "--transport", "http-first", "--auth-timeout", "120", "--timeout", "120"],
-      "env": {}
-    }
-  }
-}
-```
-
-**Option 2: Using globally installed mcp-remote**
-```json
-{
-  "mcpServers": {
-    "pierre-fitness": {
-      "command": "mcp-remote",
-      "args": ["http://localhost:8081/mcp", "--allow-http", "--debug", "--transport", "http-first", "--auth-timeout", "120", "--timeout", "120"],
-      "env": {}
-    }
-  }
-}
-```
-
-This will:
-1. Register a new OAuth client automatically
-2. Open browser for user login and authorization
-3. Exchange authorization code for JWT token
-4. Use JWT for subsequent MCP requests
-
-### Claude Desktop Integration
-
-**Note:** Direct Claude Desktop integration has not been reliably tested. The recommended approach is to use `mcp-remote` as your MCP client, which provides a stable interface to Pierre MCP Server's OAuth 2.0 authentication system.
-
-For Claude Desktop users, use `mcp-remote` as an intermediary client to access Pierre's fitness tools through the command line.
 
 ## Available Tools
 
@@ -295,11 +298,11 @@ eventSource.onmessage = function(event) {
 
 ## Authentication & Security
 
-Pierre MCP Server implements dual authentication modes for maximum compatibility:
+Pierre MCP Server implements standards-compliant OAuth 2.0 authentication for secure AI assistant integration.
 
 ### OAuth 2.0 Authorization Server (RFC-Compliant)
 
-Pierre acts as a standards-compliant OAuth 2.0 Authorization Server for mcp-remote compatibility:
+Pierre acts as a standards-compliant OAuth 2.0 Authorization Server supporting dynamic client registration (RFC 7591):
 
 **Available OAuth 2.0 Endpoints:**
 - `GET /.well-known/oauth-authorization-server` - Server metadata discovery (RFC 8414)
@@ -308,19 +311,29 @@ Pierre acts as a standards-compliant OAuth 2.0 Authorization Server for mcp-remo
 - `POST /oauth2/token` - Token endpoint (issues JWT access tokens)
 - `GET /oauth2/jwks` - JSON Web Key Set
 
-**OAuth 2.0 Flow Example:**
+**OAuth 2.0 Flow for MCP Clients:**
+
+The OAuth flow is handled automatically by the Pierre SDK bridge:
+
+1. **Client Registration**: SDK registers with Pierre MCP Server
+2. **Browser Authorization**: User authenticates in browser
+3. **Token Exchange**: Authorization code exchanged for JWT tokens
+4. **Authenticated Requests**: All MCP requests use Bearer tokens
+
+**Manual OAuth 2.0 Flow Example:**
 ```bash
-# 1. Client registration (automatic via mcp-remote)
-curl -X POST http://localhost:8080/oauth2/register \
+# 1. Client registration
+curl -X POST http://localhost:8081/oauth2/register \
   -H "Content-Type: application/json" \
   -d '{
     "redirect_uris": ["http://localhost:35535/oauth/callback"],
-    "client_name": "mcp-remote",
+    "client_name": "Pierre MCP Client",
     "grant_types": ["authorization_code"]
   }'
 
-# 2. Use mcp-remote for full OAuth 2.0 flow
-mcp-remote http://localhost:8080/mcp --allow-http
+# 2. Browser authorization (automatic with SDK)
+# 3. Token usage in MCP requests
+curl -H "Authorization: Bearer JWT_TOKEN" http://localhost:8081/mcp
 ```
 
 ### JWT Token Authentication
@@ -346,10 +359,11 @@ JWT_TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
   -d '{"email": "user@example.com", "password": "pass123"}' | jq -r '.jwt_token')
 ```
 
-3. **Alternative: OAuth 2.0 flow** (recommended):
+3. **Recommended: OAuth 2.0 flow with Pierre SDK**:
 ```bash
-# Use mcp-remote for automatic OAuth 2.0 authentication
-mcp-remote http://localhost:8080/mcp --allow-http
+# For MCP clients - automatic OAuth 2.0 authentication
+# Configure MCP client with Pierre SDK bridge
+# Authentication happens automatically in browser
 ```
 
 ## Configuration
@@ -435,15 +449,33 @@ OPENWEATHER_API_KEY=your_openweather_api_key
 
 ## Architecture
 
-Pierre MCP Server implements a multi-protocol architecture:
+Pierre MCP Server implements a multi-protocol architecture with direct MCP client integration:
 
 - **HTTP Server**: Single port (default 8081) for all protocols
-- **MCP Protocol**: JSON-RPC over HTTP with JWT authentication for tool execution
+- **MCP Protocol**: JSON-RPC over HTTP with OAuth 2.0 authentication for tool execution
 - **OAuth 2.0 Authorization Server**: RFC-compliant server supporting dynamic client registration (RFC 7591)
+- **MCP Client SDK**: TypeScript bridge providing seamless OAuth integration (`/sdk/` directory)
 - **REST API**: User management and fitness provider OAuth endpoints
 - **Plugin System**: Compile-time plugin architecture for extensible fitness analysis
 - **Multi-tenant Support**: Isolated user data and configuration
-- **JWT Authentication**: Standard token-based authentication with configurable secrets
+- **JWT Authentication**: Database-managed JWT secrets for secure token-based authentication
+
+### SDK Architecture
+
+The Pierre SDK bridge enables direct MCP client integration:
+
+```
+┌─────────────────┐    stdio     ┌─────────────────┐    HTTP+OAuth   ┌─────────────────┐
+│   MCP Client    │ ◄─────────► │ Pierre SDK      │ ◄─────────────► │ Pierre MCP      │
+│                 │              │ Bridge          │                 │ Server          │
+└─────────────────┘              └─────────────────┘                 └─────────────────┘
+```
+
+**SDK Components:**
+- **OAuth 2.0 Client**: Handles dynamic client registration and browser-based authorization
+- **Token Management**: Secure JWT token storage and refresh handling
+- **Protocol Bridge**: Translates stdio MCP to HTTP MCP with authentication headers
+- **Error Handling**: Comprehensive retry logic and connection management
 
 ## Testing
 
