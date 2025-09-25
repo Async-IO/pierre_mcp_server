@@ -10,7 +10,7 @@ pub const GET_STATS: &str = "get_stats";
 pub const GET_ACTIVITY_INTELLIGENCE: &str = "get_activity_intelligence";
 
 /// Connection management tools
-pub const CONNECT_TO_PIERRE: &str = "connect_to_pierre";  // Tool ID remains snake_case for internal use
+pub const CONNECT_TO_PIERRE: &str = "connect_to_pierre"; // Tool ID remains snake_case for internal use
 pub const GET_CONNECTION_STATUS: &str = "get_connection_status";
 pub const DISCONNECT_PROVIDER: &str = "disconnect_provider";
 

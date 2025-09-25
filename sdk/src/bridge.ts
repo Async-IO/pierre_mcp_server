@@ -519,20 +519,38 @@ export class PierreClaudeBridge {
     }
   }
 
-  private async connectToPierre(): Promise<void> {
-    this.log('🔌 Connecting to Pierre MCP Server...');
+  private oauthProvider: PierreOAuthClientProvider | null = null;
+  private mcpUrl: string = '';
 
-    const mcpUrl = `${this.config.pierreServerUrl}/mcp`;
-    this.log(`📡 Connecting to: ${mcpUrl}`);
+  private async connectToPierre(): Promise<void> {
+    this.log('🔌 Setting up Pierre MCP Server connection...');
+
+    this.mcpUrl = `${this.config.pierreServerUrl}/mcp`;
+    this.log(`📡 Target URL: ${this.mcpUrl}`);
 
     // Create OAuth client provider for Pierre MCP Server (shared across attempts)
-    const oauthProvider = new PierreOAuthClientProvider(this.config.pierreServerUrl, this.config);
+    this.oauthProvider = new PierreOAuthClientProvider(this.config.pierreServerUrl, this.config);
 
-    this.log('🔐 Using OAuth 2.0 authentication with Pierre MCP Server');
+    this.log('🔐 OAuth provider initialized - connection deferred until authentication');
+
+    // Check if we have existing valid tokens
+    const existingTokens = await this.oauthProvider.tokens();
+    if (existingTokens) {
+      this.log('🎫 Found existing tokens - attempting connection');
+      await this.attemptConnection();
+    } else {
+      this.log('⏳ No valid tokens found - connection will be established when connect_to_pierre is called');
+    }
+  }
+
+  private async attemptConnection(): Promise<void> {
+    if (!this.oauthProvider) {
+      throw new Error('OAuth provider not initialized');
+    }
 
     let connected = false;
     let retryCount = 0;
-    const maxRetries = 5;
+    const maxRetries = 3;
 
     while (!connected && retryCount < maxRetries) {
       try {
@@ -553,9 +571,9 @@ export class PierreClaudeBridge {
         );
 
         // Create fresh transport for each attempt
-        const baseUrl = new URL(mcpUrl);
+        const baseUrl = new URL(this.mcpUrl);
         const transport = new StreamableHTTPClientTransport(baseUrl, {
-          authProvider: oauthProvider,
+          authProvider: this.oauthProvider,
           requestInit: {
             headers: {
               'Content-Type': 'application/json',
@@ -571,10 +589,12 @@ export class PierreClaudeBridge {
       } catch (error: any) {
         if (error.message === 'Unauthorized' && retryCount < maxRetries - 1) {
           retryCount++;
-          this.log(`🔄 OAuth flow in progress, waiting for completion... (attempt ${retryCount}/${maxRetries})`);
+          this.log(`🔄 Token expired or invalid, retrying... (attempt ${retryCount}/${maxRetries})`);
 
-          // Wait for OAuth flow to complete (check every 2 seconds)
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          // Clear invalid tokens
+          await this.oauthProvider.invalidateCredentials('tokens');
+
+          await new Promise(resolve => setTimeout(resolve, 1000));
         } else {
           this.log(`❌ Failed to connect after ${retryCount + 1} attempts: ${error.message}`);
           throw error;
@@ -583,8 +603,19 @@ export class PierreClaudeBridge {
     }
 
     if (!connected) {
-      throw new Error(`Failed to connect to Pierre MCP Server after ${maxRetries} attempts`);
+      throw new Error(`Failed to connect to Pierre MCP Server after ${maxRetries} attempts - authentication may be required`);
     }
+  }
+
+  async initiateConnection(): Promise<void> {
+    if (!this.oauthProvider) {
+      throw new Error('OAuth provider not initialized');
+    }
+
+    this.log('🚀 Initiating OAuth connection to Pierre MCP Server');
+
+    // This will trigger the OAuth flow if no valid tokens exist
+    await this.attemptConnection();
   }
 
   private async createClaudeServer(): Promise<void> {
@@ -616,53 +647,197 @@ export class PierreClaudeBridge {
   }
 
   private setupRequestHandlers(): void {
-    if (!this.claudeServer || !this.pierreClient) {
-      throw new Error('Server or client not initialized');
+    if (!this.claudeServer) {
+      throw new Error('Claude server not initialized');
     }
 
     // Bridge tools/list requests
     this.claudeServer.setRequestHandler(ListToolsRequestSchema, async (request) => {
       this.log('📋 Bridging tools/list request');
-      return await this.pierreClient!.request(request, ListToolsRequestSchema);
+
+      try {
+        if (this.pierreClient) {
+          // If connected, get full tool list from Pierre
+          return await this.pierreClient.request(request, ListToolsRequestSchema);
+        } else {
+          // If not connected, provide minimal tool list with connect_to_pierre
+          return {
+            tools: [{
+              name: 'connect_to_pierre',
+              description: 'Connect to Pierre - Authenticate with Pierre Fitness Server to access your fitness data. This will open a browser window for secure login. Use this when you\'re not connected or need to reconnect.',
+              inputSchema: {
+                type: 'object',
+                properties: {},
+                required: []
+              }
+            }]
+          };
+        }
+      } catch (error: any) {
+        this.log('❌ Error getting tools list, providing connect tool only');
+
+        return {
+          tools: [{
+            name: 'connect_to_pierre',
+            description: 'Connect to Pierre - Authenticate with Pierre Fitness Server to access your fitness data. This will open a browser window for secure login. Use this when you\'re not connected or need to reconnect.',
+            inputSchema: {
+              type: 'object',
+              properties: {},
+              required: []
+            }
+          }]
+        };
+      }
     });
 
     // Bridge tools/call requests
     this.claudeServer.setRequestHandler(CallToolRequestSchema, async (request) => {
       this.log('🔧 Bridging tool call:', request.params.name);
-      return await this.pierreClient!.request(request, CallToolRequestSchema);
+
+      // Handle connect_to_pierre tool specially - trigger OAuth flow
+      if (request.params.name === 'connect_to_pierre') {
+        return await this.handleConnectToPierre(request);
+      }
+
+      // Ensure we have a connection before forwarding other tools
+      if (!this.pierreClient) {
+        return {
+          content: [{
+            type: 'text',
+            text: 'Not connected to Pierre. Please use the "Connect to Pierre" tool first to authenticate.'
+          }],
+          isError: true
+        };
+      }
+
+      return await this.pierreClient.request(request, CallToolRequestSchema);
     });
 
     // Bridge resources/list requests
     this.claudeServer.setRequestHandler(ListResourcesRequestSchema, async (request) => {
       this.log('📚 Bridging resources/list request');
-      return await this.pierreClient!.request(request, ListResourcesRequestSchema);
+
+      if (!this.pierreClient) {
+        return { resources: [] };
+      }
+
+      return await this.pierreClient.request(request, ListResourcesRequestSchema);
     });
 
     // Bridge resources/read requests
     this.claudeServer.setRequestHandler(ReadResourceRequestSchema, async (request) => {
       this.log('📖 Bridging resource read:', request.params.uri);
-      return await this.pierreClient!.request(request, ReadResourceRequestSchema);
+
+      if (!this.pierreClient) {
+        return {
+          contents: [{
+            type: 'text',
+            text: 'Not connected to Pierre. Please use the "Connect to Pierre" tool first to authenticate.'
+          }]
+        };
+      }
+
+      return await this.pierreClient.request(request, ReadResourceRequestSchema);
     });
 
     // Bridge prompts/list requests
     this.claudeServer.setRequestHandler(ListPromptsRequestSchema, async (request) => {
       this.log('💭 Bridging prompts/list request');
-      return await this.pierreClient!.request(request, ListPromptsRequestSchema);
+
+      if (!this.pierreClient) {
+        return { prompts: [] };
+      }
+
+      return await this.pierreClient.request(request, ListPromptsRequestSchema);
     });
 
     // Bridge prompts/get requests
     this.claudeServer.setRequestHandler(GetPromptRequestSchema, async (request) => {
       this.log('💬 Bridging prompt get:', request.params.name);
-      return await this.pierreClient!.request(request, GetPromptRequestSchema);
+
+      if (!this.pierreClient) {
+        return {
+          description: 'Not connected to Pierre',
+          messages: [{
+            role: 'user',
+            content: {
+              type: 'text',
+              text: 'Not connected to Pierre. Please use the "Connect to Pierre" tool first to authenticate.'
+            }
+          }]
+        };
+      }
+
+      return await this.pierreClient.request(request, GetPromptRequestSchema);
     });
 
     // Bridge completion requests
     this.claudeServer.setRequestHandler(CompleteRequestSchema, async (request) => {
       this.log('✨ Bridging completion request');
-      return await this.pierreClient!.request(request, CompleteRequestSchema);
+
+      if (!this.pierreClient) {
+        return {
+          completion: {
+            values: [],
+            total: 0,
+            hasMore: false
+          }
+        };
+      }
+
+      return await this.pierreClient.request(request, CompleteRequestSchema);
     });
 
     this.log('🌉 Request handlers configured');
+  }
+
+  private async handleConnectToPierre(request: any): Promise<any> {
+    try {
+      this.log('🔐 Handling connect_to_pierre tool call - initiating OAuth flow');
+
+      if (!this.oauthProvider) {
+        return {
+          content: [{
+            type: 'text',
+            text: 'OAuth provider not initialized. Please restart the bridge.'
+          }],
+          isError: true
+        };
+      }
+
+      // Check if already connected
+      if (this.pierreClient) {
+        return {
+          content: [{
+            type: 'text',
+            text: 'Already connected to Pierre! You can now use all fitness tools to access your Strava and Fitbit data.'
+          }],
+          isError: false
+        };
+      }
+
+      // Initiate the OAuth connection
+      await this.initiateConnection();
+
+      return {
+        content: [{
+          type: 'text',
+          text: 'Successfully connected to Pierre! You can now access all your fitness data including Strava activities, athlete profile, and performance statistics.'
+        }],
+        isError: false
+      };
+
+    } catch (error: any) {
+      this.log('❌ Failed to connect to Pierre:', error.message);
+
+      return {
+        content: [{
+          type: 'text',
+          text: `Failed to connect to Pierre: ${error.message}. Please check that the Pierre server is running and try again.`
+        }],
+        isError: true
+      };
+    }
   }
 
   private async startBridge(): Promise<void> {
