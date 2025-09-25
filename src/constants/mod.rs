@@ -409,7 +409,7 @@ pub mod service_names {
     /// Admin API service
     pub const ADMIN_API: &str = "admin_api";
     /// Pierre MCP Admin API
-    pub const PIERRE_MCP_ADMIN_API: &str = "pierre_mcp_admin_api";
+    pub const PIERRE_MCP_ADMIN_API: &str = "pierre-mcp-admin-api";
 }
 
 /// Time constants
