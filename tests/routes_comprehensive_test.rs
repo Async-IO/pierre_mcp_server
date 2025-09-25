@@ -587,7 +587,7 @@ async fn test_user_login_invalid_password() -> Result<()> {
     assert!(result
         .unwrap_err()
         .to_string()
-        .contains("Invalid email or password"));
+        .contains("Invalid credentials provided"));
 
     Ok(())
 }
