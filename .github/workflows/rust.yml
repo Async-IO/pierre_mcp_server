@@ -39,6 +39,9 @@ jobs:
       with:
         components: rustfmt, clippy
 
+    - name: Install rustfmt
+      run: rustup component add rustfmt
+
     - name: Install cargo-llvm-cov
       uses: taiki-e/install-action@cargo-llvm-cov
 

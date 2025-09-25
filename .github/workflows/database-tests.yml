@@ -34,6 +34,9 @@ jobs:
       with:
         components: rustfmt, clippy
 
+    - name: Install rustfmt
+      run: rustup component add rustfmt
+
     - name: Install cargo-llvm-cov
       uses: taiki-e/install-action@cargo-llvm-cov
 
@@ -77,7 +80,7 @@ jobs:
   postgresql-tests:
     name: Database Tests (PostgreSQL)
     runs-on: ubuntu-latest
-    
+
     services:
       postgres:
         image: postgres:16-alpine
@@ -101,6 +104,9 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
       with:
         components: rustfmt, clippy
+
+    - name: Install rustfmt
+      run: rustup component add rustfmt
 
     - name: Install cargo-llvm-cov
       uses: taiki-e/install-action@cargo-llvm-cov
