@@ -367,7 +367,7 @@ async fn test_multitenant_auth_flow() -> Result<()> {
     assert!(wrong_password_result
         .unwrap_err()
         .to_string()
-        .contains("Invalid email or password"));
+        .contains("Invalid credentials provided"));
 
     Ok(())
 }
