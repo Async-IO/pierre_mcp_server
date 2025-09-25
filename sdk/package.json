@@ -1,0 +1,43 @@
+{
+  "name": "pierre-claude-bridge",
+  "version": "1.0.0",
+  "description": "MCP-compliant bridge connecting Claude Desktop to Pierre Fitness MCP Server",
+  "main": "dist/index.js",
+  "bin": {
+    "pierre-claude-bridge": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.ts",
+    "start": "node dist/cli.js",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "pierre",
+    "claude",
+    "fitness",
+    "oauth",
+    "streamable-http"
+  ],
+  "author": "Pierre Fitness Team",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@types/node-fetch": "^2.6.13",
+    "commander": "^11.0.0",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "files": [
+    "dist/",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
