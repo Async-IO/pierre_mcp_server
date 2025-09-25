@@ -392,6 +392,19 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
               'Missing required authorization parameters. Please try connecting again.'
             ));
           }
+        } else if (parsedUrl.pathname === '/oauth/focus-recovery' && req.method === 'POST') {
+          // Handle focus recovery request from OAuth success page
+          console.error(`[Pierre OAuth] Focus recovery requested - attempting to focus Claude Desktop`);
+
+          try {
+            await this.focusClaudeDesktop();
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, message: 'Focus recovery attempted' }));
+          } catch (error) {
+            console.error(`[Pierre OAuth] Focus recovery failed: ${error}`);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: false, message: 'Focus recovery failed' }));
+          }
         } else {
           res.writeHead(404, { 'Content-Type': 'text/plain' });
           res.end('Not Found');
@@ -446,11 +459,104 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
         <div class="info"><strong>Status:</strong> Connected successfully</div>
         <div class="info"><strong>Status:</strong> <span class="code">Connected</span></div>
         <p>You can now close this window and return to Claude Desktop.</p>
-        <script>setTimeout(() => window.close(), 3000);</script>
+        <p><small>Attempting to return focus to Claude Desktop automatically...</small></p>
+        <script>
+            // Attempt to focus Claude Desktop before closing
+            async function focusClaudeDesktop() {
+                try {
+                    // Try to trigger focus recovery via bridge communication
+                    await fetch('/oauth/focus-recovery', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'focus_claude_desktop' })
+                    }).catch(() => {
+                        // Ignore fetch errors - focus recovery is best-effort
+                    });
+                } catch (error) {
+                    // Silently ignore errors
+                }
+
+                // Close the window after a short delay
+                setTimeout(() => {
+                    window.close();
+                }, 1500);
+            }
+
+            // Start focus recovery immediately
+            focusClaudeDesktop();
+        </script>
     </div>
 </body>
 </html>
     `;
+  }
+
+  private async focusClaudeDesktop(): Promise<void> {
+    console.error(`[Pierre OAuth] Attempting to focus Claude Desktop application`);
+
+    const { spawn } = await import('child_process');
+    const platform = process.platform;
+
+    try {
+      let focusCommand: string[];
+
+      if (platform === 'darwin') {
+        // macOS - Use AppleScript to activate Claude Desktop
+        focusCommand = [
+          'osascript',
+          '-e',
+          'tell application "Claude" to activate'
+        ];
+      } else if (platform === 'win32') {
+        // Windows - Use PowerShell to bring Claude Desktop to foreground
+        focusCommand = [
+          'powershell',
+          '-Command',
+          'Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Interaction]::AppActivate("Claude")'
+        ];
+      } else {
+        // Linux - Use wmctrl if available, otherwise xdotool
+        focusCommand = [
+          'bash',
+          '-c',
+          'if command -v wmctrl >/dev/null 2>&1; then wmctrl -a "Claude"; elif command -v xdotool >/dev/null 2>&1; then xdotool search --name "Claude" windowactivate; fi'
+        ];
+      }
+
+      console.error(`[Pierre OAuth] Executing focus command for ${platform}`);
+
+      // Execute the focus command
+      const focusProcess = spawn(focusCommand[0], focusCommand.slice(1), {
+        detached: false,
+        stdio: 'ignore',
+        timeout: 5000 // 5 second timeout
+      });
+
+      // Wait for the process to complete (with timeout)
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(() => {
+          focusProcess.kill('SIGTERM');
+          resolve();
+        }, 5000);
+
+        focusProcess.on('close', () => {
+          clearTimeout(timer);
+          resolve();
+        });
+
+        focusProcess.on('error', (error) => {
+          clearTimeout(timer);
+          console.error(`[Pierre OAuth] Focus command error (ignored): ${error.message}`);
+          resolve(); // Don't fail - focus recovery is best-effort
+        });
+      });
+
+      console.error(`[Pierre OAuth] Focus recovery command completed`);
+
+    } catch (error: any) {
+      console.error(`[Pierre OAuth] Focus recovery failed (ignored): ${error.message}`);
+      // Don't throw - focus recovery is best-effort and shouldn't break the OAuth flow
+    }
   }
 
   private renderErrorTemplate(provider: string, error: string, description: string): string {
@@ -476,7 +582,32 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
         <div class="info"><strong>Error:</strong> <span class="code">${error}</span></div>
         <div class="info"><strong>Description:</strong> ${description}</div>
         <p>You can close this window and try connecting again from Claude Desktop.</p>
-        <script>setTimeout(() => window.close(), 5000);</script>
+        <p><small>Returning focus to Claude Desktop...</small></p>
+        <script>
+            // Attempt to focus Claude Desktop before closing (even on error)
+            async function focusClaudeDesktop() {
+                try {
+                    // Try to trigger focus recovery via bridge communication
+                    await fetch('/oauth/focus-recovery', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'focus_claude_desktop' })
+                    }).catch(() => {
+                        // Ignore fetch errors - focus recovery is best-effort
+                    });
+                } catch (error) {
+                    // Silently ignore errors
+                }
+
+                // Close the window after a longer delay for error cases
+                setTimeout(() => {
+                    window.close();
+                }, 3000);
+            }
+
+            // Start focus recovery immediately
+            focusClaudeDesktop();
+        </script>
     </div>
 </body>
 </html>
