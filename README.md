@@ -423,7 +423,7 @@ DATABASE_URL=postgresql://user:pass@localhost:5432/pierre
 # OAuth Provider Configuration (for fitness data integration)
 STRAVA_CLIENT_ID=your_strava_client_id
 STRAVA_CLIENT_SECRET=your_strava_client_secret
-STRAVA_REDIRECT_URI=http://localhost:8080/api/oauth/callback/strava
+STRAVA_REDIRECT_URI=http://localhost:8081/oauth/callback/strava
 
 # JWT Configuration (Managed by Database)
 # Note: JWT secrets are automatically managed via database-stored admin_jwt_secret

@@ -76,7 +76,7 @@ Configuration values are resolved in the following order (highest priority first
 # === Server Configuration ===
 PIERRE_ENVIRONMENT=production          # development, production, testing
 PIERRE_LOG_LEVEL=info                 # error, warn, info, debug, trace
-PIERRE_HTTP_PORT=8081                 # Single port for all protocols (HTTP API + MCP at /mcp)
+HTTP_PORT=8081                         # Single unified port for all protocols (MCP, OAuth 2.0, REST API)
 PIERRE_BASE_URL=https://pierre-api.example.com
 
 # === Database Configuration ===
@@ -89,10 +89,12 @@ DATABASE_MAX_LIFETIME=1800
 DATABASE_ENCRYPTION_KEY_PATH=/secrets/encryption.key
 
 # === Authentication Configuration ===
-JWT_SECRET_PATH=/secrets/jwt.secret
+# Note: JWT secrets are automatically managed via database-stored admin_jwt_secret
+# No manual JWT_SECRET environment variable required
 JWT_EXPIRY_HOURS=24
 REFRESH_TOKEN_EXPIRY_DAYS=30
 BCRYPT_COST=12
+PIERRE_MASTER_ENCRYPTION_KEY=your_32_byte_base64_key  # Generate with: openssl rand -base64 32
 
 # === OAuth Configuration ===
 STRAVA_CLIENT_ID=your_strava_client_id
@@ -105,8 +107,6 @@ FITBIT_REDIRECT_URI=https://pierre-api.example.com/oauth/fitbit/callback
 
 # === Rate Limiting Configuration ===
 RATE_LIMITING_ENABLED=true
-RATE_LIMITING_STORAGE=redis
-REDIS_URL=redis://localhost:6379
 DEFAULT_USER_TIER=basic
 DEFAULT_TENANT_TIER=starter
 
@@ -129,14 +129,16 @@ AUDIT_LOGGING=true
 
 ### Server Configuration Structure
 
+**Note**: The actual implementation uses a single `http_port` for all protocols (MCP, OAuth 2.0, REST API). See `src/config/environment.rs` for the complete implementation.
+
 ```rust
-// src/config/environment.rs
+// Example configuration structure (simplified for documentation)
+// Actual implementation in src/config/environment.rs
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerConfig {
     pub environment: Environment,
     pub log_level: LogLevel,
-    pub mcp_port: u16,
-    pub http_port: u16,
+    pub http_port: u16,           // Single unified port for all protocols
     pub base_url: String,
     pub database: DatabaseConfig,
     pub auth: AuthConfig,
@@ -155,13 +157,8 @@ impl ServerConfig {
             log_level: LogLevel::from_str_or_default(
                 &env::var("PIERRE_LOG_LEVEL").unwrap_or_default()
             ),
-            // Note: MCP protocol is now served on the same port as HTTP API
-            // Legacy config kept for backwards compatibility
-            mcp_port: env::var("PIERRE_MCP_PORT")
-                .unwrap_or_else(|_| "8081".to_string())
-                .parse()
-                .context("Invalid MCP port")?,
-            http_port: env::var("PIERRE_HTTP_PORT")
+            // Single unified port for all protocols (MCP, OAuth 2.0, REST API)
+            http_port: env::var("HTTP_PORT")
                 .unwrap_or_else(|_| "8081".to_string())
                 .parse()
                 .context("Invalid HTTP port")?,
@@ -174,43 +171,37 @@ impl ServerConfig {
             security: SecurityConfig::from_env()?,
             monitoring: MonitoringConfig::from_env()?,
         };
-        
+
         // Validate configuration
         config.validate()?;
-        
+
         Ok(config)
     }
-    
+
     pub fn validate(&self) -> Result<()> {
-        // Port validation
-        if self.mcp_port == self.http_port {
-            return Err(anyhow!("MCP port and HTTP port cannot be the same"));
-        }
-        
         // URL validation
         if !self.base_url.starts_with("http://") && !self.base_url.starts_with("https://") {
             return Err(anyhow!("Base URL must start with http:// or https://"));
         }
-        
+
         // Production environment validation
         if self.environment.is_production() {
             if !self.base_url.starts_with("https://") {
                 return Err(anyhow!("Production environment requires HTTPS"));
             }
-            
+
             if self.auth.jwt_expiry_hours > 168 {
                 return Err(anyhow!("JWT expiry cannot exceed 7 days in production"));
             }
         }
-        
+
         Ok(())
     }
-    
+
     pub fn summary(&self) -> String {
         format!(
-            "Environment: {}\nMCP Port: {}\nHTTP Port: {}\nDatabase: {}\nLog Level: {}",
+            "Environment: {}\nHTTP Port: {} (unified for all protocols)\nDatabase: {}\nLog Level: {}",
             self.environment,
-            self.mcp_port,
             self.http_port,
             self.database.backend_type(),
             self.log_level
