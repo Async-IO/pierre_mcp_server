@@ -59,7 +59,20 @@ git clone https://github.com/Async-IO/pierre_mcp_server.git
 cd pierre_mcp_server
 ```
 
-### 2. Environment Configuration
+### 2. Install Git Hooks (Recommended)
+
+Install the project's git hooks to prevent committing unwanted files:
+
+```bash
+./scripts/install-hooks.sh
+```
+
+This installs hooks that will:
+- Block commits of backup files (`.bak`, `.orig`, `.tmp`, `.swp`)
+- Prevent commits of files with `_old.`, `old_`, or `.old.` patterns
+- Reject files containing `rs:` in the filename
+
+### 3. Environment Configuration
 
 Create your environment file:
 

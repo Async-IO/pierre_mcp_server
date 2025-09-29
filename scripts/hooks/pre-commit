@@ -1,0 +1,17 @@
+#!/bin/bash
+# ABOUTME: Git pre-commit hook that prevents committing files with suspicious patterns
+# ABOUTME: Blocks .bak files, *_old.* files, and files containing 'rs:' pattern
+
+# Check for files with suspicious patterns in the staged changes
+SUSPICIOUS_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(bak|orig|tmp|swp)$|_old\.|old_|\.old\.|rs:')
+
+if [ -n "$SUSPICIOUS_FILES" ]; then
+    echo "❌ ERROR: Commit blocked - Found suspicious files:"
+    echo "$SUSPICIOUS_FILES" | sed 's/^/  - /'
+    echo ""
+    echo "These files appear to be backups, old versions, or contain invalid patterns."
+    echo "Please remove them or rename them before committing."
+    exit 1
+fi
+
+exit 0

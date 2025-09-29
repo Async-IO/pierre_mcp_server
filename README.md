@@ -42,6 +42,10 @@ A Model Context Protocol (MCP) server that connects AI assistants to fitness dat
 ```bash
 git clone https://github.com/Async-IO/pierre_mcp_server.git
 cd pierre_mcp_server
+
+# Install git hooks (recommended)
+./scripts/install-hooks.sh
+
 cargo build --release
 ```
 

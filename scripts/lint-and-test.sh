@@ -690,6 +690,16 @@ LEGACY_TOOLS=$(rg "Legacy tool.*deprecated" src/ --count 2>/dev/null | awk -F: '
 PLACEHOLDER_IMPLEMENTATIONS=$(rg "fn handle_.*-> Value" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 PLACEHOLDER_JSON_RETURNS=$(rg "serde_json::json!\(\{" src/mcp/multitenant.rs -A 3 | rg "response.*=" | wc -l | awk '{print $1+0}')
 
+# CRITICAL: Check for stub implementations that discard EXPENSIVE operations
+# Pattern: let _ = ( followed by lines containing .clone() within next 5 lines
+# This catches multiline tuple discards like:
+#   let _ = (
+#       database().clone(),
+#       config.clone(),
+#   );
+DISCARDED_EXPENSIVE_OPS=$(rg -B 2 -A 5 'let _ = \(' src/ | grep -v 'src/bin/' | rg '\.clone\(\)' | wc -l 2>/dev/null || echo 0)
+FAKE_ASYNC=$(rg 'tokio::task::yield_now\(\)\.await' src/ | grep -v 'tests/' --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+
 LEGACY_ISSUES_FOUND=false
 
 if [ "$LEGACY_OAUTH" -gt 0 ]; then 
@@ -716,7 +726,7 @@ if [ "$LEGACY_TOOLS" -gt 0 ]; then
     ALL_PASSED=false
 fi
 
-if [ "$PLACEHOLDER_IMPLEMENTATIONS" -gt 0 ]; then 
+if [ "$PLACEHOLDER_IMPLEMENTATIONS" -gt 0 ]; then
     echo -e "${RED}[CRITICAL] Found $PLACEHOLDER_IMPLEMENTATIONS placeholder tool handlers that return mock data${NC}"
     echo -e "${RED}           Tools that return 'Value' instead of 'McpResponse' are placeholders${NC}"
     echo -e "${RED}           These tools appear to work but return fake data to users${NC}"
@@ -727,8 +737,34 @@ if [ "$PLACEHOLDER_IMPLEMENTATIONS" -gt 0 ]; then
     ALL_PASSED=false
 fi
 
+if [ "$DISCARDED_EXPENSIVE_OPS" -gt 0 ]; then
+    echo -e "${RED}[CRITICAL] Found $DISCARDED_EXPENSIVE_OPS lines with EXPENSIVE operations that are discarded${NC}"
+    echo -e "${RED}           Pattern: let _ = (database().clone(), config.clone(), ...);${NC}"
+    echo -e "${RED}           This indicates stub code that does expensive work then throws it away${NC}"
+    echo ""
+    echo -e "${YELLOW}   Locations of discarded expensive operations:${NC}"
+    # Show the let _ = ( line and following clone() calls
+    rg -B 1 -A 5 'let _ = \(' src/ -n | grep -v 'src/bin/' | rg 'let _ = \(|\.clone\(\)' | head -15
+    echo ""
+    echo -e "${YELLOW}   Note: 'let _ = (&context)' without clones is OK - that's unused param suppression${NC}"
+    echo -e "${YELLOW}   Fix: Either use the cloned variables or remove the handler entirely${NC}"
+    LEGACY_ISSUES_FOUND=true
+    ALL_PASSED=false
+fi
+
+if [ "$FAKE_ASYNC" -gt 0 ]; then
+    echo -e "${RED}[CRITICAL] Found $FAKE_ASYNC fake async patterns (tokio::task::yield_now)${NC}"
+    echo -e "${RED}           This is used to make functions compile but does NOTHING${NC}"
+    echo -e "${RED}           Sign of stub/placeholder implementations${NC}"
+    echo -e "${YELLOW}   Locations of fake async:${NC}"
+    rg "tokio::task::yield_now\(\)\.await" src/ -g "!tests/*" -n | head -10
+    echo -e "${YELLOW}   Fix: Implement real async logic or make function sync${NC}"
+    LEGACY_ISSUES_FOUND=true
+    ALL_PASSED=false
+fi
+
 if [ "$LEGACY_ISSUES_FOUND" = true ]; then
-    echo -e "${RED}FAST FAIL: Remove legacy functions that confuse users${NC}"
+    echo -e "${RED}FAST FAIL: Remove legacy/stub functions that confuse users${NC}"
     echo -e "${RED}   Functions that advertise but don't work create poor UX${NC}"
     exit 1
 fi
