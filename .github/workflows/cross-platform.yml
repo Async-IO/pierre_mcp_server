@@ -77,7 +77,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Platform-specific clippy check
-        run: cargo clippy --all-targets --quiet -- -W clippy::all -W clippy::pedantic -W clippy::nursery -D warnings
+        run: cargo clippy --all-targets --all-features --quiet -- -W clippy::all -W clippy::pedantic -W clippy::nursery -D warnings
         env:
           # Test environment variables
           DATABASE_URL: "sqlite::memory:"
@@ -85,7 +85,7 @@ jobs:
           PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
 
       - name: Run platform-specific tests
-        run: cargo test --all-targets --quiet
+        run: cargo test --all-targets --all-features --quiet
         env:
           DATABASE_URL: "sqlite::memory:"
           ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
@@ -95,7 +95,7 @@ jobs:
           STRAVA_REDIRECT_URI: "http://localhost:8080/auth/strava/callback"
 
       - name: Test health monitoring functions
-        run: cargo test health --quiet
+        run: cargo test health --all-features --quiet
         env:
           DATABASE_URL: "sqlite::memory:"
           ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
