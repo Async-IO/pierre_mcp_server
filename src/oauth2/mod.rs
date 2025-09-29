@@ -1,5 +1,5 @@
 // ABOUTME: OAuth 2.0 server implementation with JWT tokens underneath
-// ABOUTME: Provides RFC 7591 client registration and OAuth 2.0 endpoints for mcp-remote compatibility
+// ABOUTME: Provides RFC 7591 client registration and OAuth 2.0 endpoints for MCP client compatibility
 
 pub mod client_registration;
 pub mod endpoints;

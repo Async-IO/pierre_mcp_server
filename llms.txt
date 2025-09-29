@@ -85,7 +85,7 @@ src/
 
 ### 3. OAuth 2.0 Server
 - **RFC 7591 Compliance**: Dynamic client registration
-- **mcp-remote Compatibility**: Works with Anthropic's mcp-remote tool
+- **MCP Client Compatibility**: Works with standard MCP clients
 - **JWT Token Backend**: Secure token-based authentication
 - **Scope Management**: Fine-grained permission control
 
@@ -346,10 +346,13 @@ cargo test
 DATABASE_URL=postgresql://user:pass@localhost/pierre cargo run
 ```
 
-### Testing with mcp-remote
+### MCP Client Integration Testing
 ```bash
-# Connect using Anthropic's mcp-remote tool
-mcp-remote http://localhost:8080/mcp --allow-http
+# Test MCP protocol compliance
+cargo test --test mcp_protocol_comprehensive_test
+
+# Test multi-tenant integration
+cargo test --test mcp_multitenant_complete_test
 ```
 
 ### Plugin Development

@@ -1,5 +1,5 @@
-// ABOUTME: End-to-end tests for complete MCP protocol flow with mcp-remote
-// ABOUTME: Tests full server startup, mcp-remote connectivity, and SSE streaming
+// ABOUTME: End-to-end tests for complete MCP protocol flow with MCP clients
+// ABOUTME: Tests full server startup, MCP client connectivity, and SSE streaming
 
 use futures_util::future;
 use serde_json::{json, Value};

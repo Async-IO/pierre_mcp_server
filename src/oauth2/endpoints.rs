@@ -1,5 +1,5 @@
 // ABOUTME: OAuth 2.0 authorization and token endpoints implementation
-// ABOUTME: Handles OAuth 2.0 flow with JWT tokens as access tokens for mcp-remote compatibility
+// ABOUTME: Handles OAuth 2.0 flow with JWT tokens as access tokens for MCP client compatibility
 
 // NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
 // - String ownership transfers to struct constructors (OAuth2AuthCode, TokenResponse)

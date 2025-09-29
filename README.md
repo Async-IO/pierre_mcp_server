@@ -23,7 +23,7 @@ A Model Context Protocol (MCP) server that connects AI assistants to fitness dat
 - **AI Assistant Integration**: Enable Claude, ChatGPT, and other AI assistants to work with fitness data
 - **Autonomous Agent Systems**: Build fitness-focused AI agents with A2A communication capabilities
 - **Multi-tenant SaaS Applications**: Support multiple organizations with isolated data and billing
-- **OAuth 2.0 Provider**: Act as authorization server for fitness applications using mcp-remote
+- **OAuth 2.0 Provider**: Act as authorization server for fitness applications and MCP clients
 - **Real-time Dashboards**: Stream live notifications for OAuth flows and system events
 
 ## AI Generated Code

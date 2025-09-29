@@ -1,5 +1,5 @@
 // ABOUTME: Server-Sent Events implementation for MCP protocol message streaming
-// ABOUTME: Handles bidirectional MCP communication over SSE for mcp-remote compatibility
+// ABOUTME: Handles bidirectional MCP communication over SSE for MCP client compatibility
 
 use super::{protocol::McpRequest, resources::ServerResources, tool_handlers::ToolHandlers};
 use crate::mcp::protocol::McpResponse;

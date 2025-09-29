@@ -23,7 +23,7 @@ async fn test_sse_message_format_basic() {
 
 #[tokio::test]
 async fn test_mcp_request_structure() {
-    // Test MCP request structure for mcp-remote compatibility
+    // Test MCP request structure for MCP client compatibility
     let initialize_request = json!({
         "jsonrpc": "2.0",
         "method": "initialize",
@@ -31,7 +31,7 @@ async fn test_mcp_request_structure() {
             "protocolVersion": "2025-06-18",
             "capabilities": {},
             "clientInfo": {
-                "name": "mcp-remote",
+                "name": "mcp-client",
                 "version": "1.0.0"
             }
         },
