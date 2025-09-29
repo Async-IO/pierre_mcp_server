@@ -28,6 +28,17 @@ import {
   OAuthClientInformationFull
 } from '@modelcontextprotocol/sdk/shared/auth.js';
 
+interface StoredTokens {
+  pierre?: OAuthTokens;
+  providers?: Record<string, {
+    access_token: string;
+    refresh_token?: string;
+    expires_at?: number;
+    token_type?: string;
+    scope?: string;
+  }>;
+}
+
 export interface BridgeConfig {
   pierreServerUrl: string;
   jwtToken?: string;
@@ -67,10 +78,96 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
   private authorizationPending: Promise<any> | undefined = undefined;
   private callbackPort: number = 0;
 
+  // Client-side token storage
+  private tokenStoragePath: string;
+  private allStoredTokens: StoredTokens = {};
+
   constructor(serverUrl: string, config: BridgeConfig) {
     this.serverUrl = serverUrl;
     this.config = config;
+
+    // Initialize client-side token storage
+    const os = require('os');
+    const path = require('path');
+    this.tokenStoragePath = path.join(os.homedir(), '.pierre-claude-tokens.json');
+
+    // Load existing tokens from storage
+    this.loadStoredTokens();
+
     console.error(`[Pierre OAuth] OAuth client provider created for server: ${serverUrl}`);
+    console.error(`[Pierre OAuth] Token storage path: ${this.tokenStoragePath}`);
+  }
+
+  // Client-side token storage methods
+  private loadStoredTokens(): void {
+    try {
+      const fs = require('fs');
+      if (fs.existsSync(this.tokenStoragePath)) {
+        const data = fs.readFileSync(this.tokenStoragePath, 'utf8');
+        this.allStoredTokens = JSON.parse(data);
+
+        // Load Pierre tokens into memory for MCP SDK compatibility
+        if (this.allStoredTokens.pierre) {
+          this.savedTokens = this.allStoredTokens.pierre;
+          console.error(`[Pierre OAuth] Loaded Pierre tokens from storage`);
+        }
+
+        if (this.allStoredTokens.providers) {
+          const providerCount = Object.keys(this.allStoredTokens.providers).length;
+          console.error(`[Pierre OAuth] Loaded ${providerCount} provider token(s) from storage`);
+        }
+      } else {
+        console.error(`[Pierre OAuth] No stored tokens found, starting fresh`);
+      }
+    } catch (error) {
+      console.error(`[Pierre OAuth] Failed to load stored tokens: ${error}`);
+      this.allStoredTokens = {};
+    }
+  }
+
+  private async saveStoredTokens(): Promise<void> {
+    try {
+      const fs = require('fs');
+      const data = JSON.stringify(this.allStoredTokens, null, 2);
+      fs.writeFileSync(this.tokenStoragePath, data, 'utf8');
+      console.error(`[Pierre OAuth] Saved tokens to storage`);
+    } catch (error) {
+      console.error(`[Pierre OAuth] Failed to save tokens to storage: ${error}`);
+    }
+  }
+
+  async saveProviderToken(provider: string, tokenData: any): Promise<void> {
+    if (!this.allStoredTokens.providers) {
+      this.allStoredTokens.providers = {};
+    }
+
+    this.allStoredTokens.providers[provider] = {
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token,
+      expires_at: tokenData.expires_in ? Date.now() + (tokenData.expires_in * 1000) : undefined,
+      token_type: tokenData.token_type || 'Bearer',
+      scope: tokenData.scope
+    };
+
+    await this.saveStoredTokens();
+    console.error(`[Pierre OAuth] Saved ${provider} provider token to client storage`);
+  }
+
+  getProviderToken(provider: string): any | undefined {
+    const token = this.allStoredTokens.providers?.[provider];
+    if (!token) {
+      return undefined;
+    }
+
+    // Check if token is expired
+    if (token.expires_at && Date.now() > token.expires_at) {
+      console.error(`[Pierre OAuth] ${provider} token expired, removing from storage`);
+      delete this.allStoredTokens.providers![provider];
+      this.saveStoredTokens();
+      return undefined;
+    }
+
+    return token;
   }
 
   get redirectUrl(): string {
@@ -174,7 +271,12 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
 
   async saveTokens(tokens: OAuthTokens): Promise<void> {
     this.savedTokens = tokens;
-    console.error(`[Pierre OAuth] Saved tokens: expires_in=${tokens.expires_in}`);
+
+    // Also save to persistent client-side storage
+    this.allStoredTokens.pierre = tokens;
+    await this.saveStoredTokens();
+
+    console.error(`[Pierre OAuth] Saved Pierre tokens: expires_in=${tokens.expires_in}`);
   }
 
   async tokens(): Promise<OAuthTokens | undefined> {
@@ -302,18 +404,51 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
         this.savedTokens = undefined;
         this.codeVerifierValue = undefined;
         this.stateValue = undefined;
+        // Clear all stored tokens
+        this.allStoredTokens = {};
+        await this.saveStoredTokens();
         break;
       case 'client':
         this.clientInfo = undefined;
         break;
       case 'tokens':
         this.savedTokens = undefined;
+        // Clear Pierre tokens from persistent storage
+        delete this.allStoredTokens.pierre;
+        await this.saveStoredTokens();
         break;
       case 'verifier':
         this.codeVerifierValue = undefined;
         break;
     }
     console.error(`[Pierre OAuth] Invalidated credentials: ${scope}`);
+  }
+
+  async clearProviderTokens(): Promise<void> {
+    this.allStoredTokens.providers = {};
+    await this.saveStoredTokens();
+    console.error(`[Pierre OAuth] Cleared all provider tokens from client storage`);
+  }
+
+  getTokenStatus(): { pierre: boolean; providers: Record<string, boolean> } {
+    const status = {
+      pierre: false,
+      providers: {} as Record<string, boolean>
+    };
+
+    // Check Pierre token
+    status.pierre = !!this.savedTokens;
+
+    // Check provider tokens from client-side storage
+    if (this.allStoredTokens.providers) {
+      for (const [provider, tokenData] of Object.entries(this.allStoredTokens.providers)) {
+        // Check if token exists and is not expired
+        const isValid = tokenData && (!tokenData.expires_at || Date.now() < tokenData.expires_at);
+        status.providers[provider] = !!isValid;
+      }
+    }
+
+    return status;
   }
 
   private generateRandomString(length: number): string {
@@ -405,6 +540,39 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ success: false, message: 'Focus recovery failed' }));
           }
+        } else if (parsedUrl.pathname?.startsWith('/oauth/provider-callback/') && req.method === 'POST') {
+          // Handle provider token callback for client-side storage
+          const pathParts = parsedUrl.pathname.split('/');
+          const provider = pathParts[3]; // /oauth/provider-callback/{provider}
+
+          console.error(`[Pierre OAuth] Provider token callback for ${provider}`);
+
+          let body = '';
+          req.on('data', (chunk: any) => {
+            body += chunk.toString();
+          });
+
+          req.on('end', async () => {
+            try {
+              const tokenData = JSON.parse(body);
+              await this.saveProviderToken(provider, tokenData);
+
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                success: true,
+                message: `${provider} token stored client-side`
+              }));
+            } catch (error) {
+              console.error(`[Pierre OAuth] Failed to save ${provider} token: ${error}`);
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                success: false,
+                message: 'Failed to save provider token'
+              }));
+            }
+          });
+
+          return; // Don't write response yet, wait for request body
         } else {
           res.writeHead(404, { 'Content-Type': 'text/plain' });
           res.end('Not Found');
@@ -747,6 +915,14 @@ export class PierreClaudeBridge {
 
     // This will trigger the OAuth flow if no valid tokens exist
     await this.attemptConnection();
+  }
+
+  getClientSideTokenStatus(): { pierre: boolean; providers: Record<string, boolean> } {
+    if (!this.oauthProvider) {
+      return { pierre: false, providers: {} };
+    }
+
+    return this.oauthProvider.getTokenStatus();
   }
 
   private async createClaudeServer(): Promise<void> {
