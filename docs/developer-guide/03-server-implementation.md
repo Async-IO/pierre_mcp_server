@@ -205,55 +205,127 @@ impl MultiTenantMcpServer {
 ### HTTP Server Implementation
 
 ```rust
-async fn run_http_server(&self, port: u16) -> Result<()> {
-    let app = Router::new()
-        // Authentication routes
-        .route("/api/auth/register", post(register_handler))
-        .route("/api/auth/login", post(login_handler))
-        .route("/api/auth/refresh", post(refresh_handler))
-        .route("/api/auth/logout", post(logout_handler))
-        
-        // OAuth routes
-        .route("/api/oauth/providers", get(list_providers))
-        .route("/api/oauth/:provider/auth", get(oauth_auth))
-        .route("/api/oauth/:provider/callback", get(oauth_callback))
-        
-        // Dashboard routes
-        .route("/api/dashboard", get(dashboard_handler))
-        .route("/api/dashboard/stats", get(stats_handler))
-        
-        // A2A routes
-        .route("/a2a/register", post(a2a_register))
-        .route("/a2a/agent-card", get(agent_card_handler))
-        .route("/a2a/tools", post(tools_handler))
-        
-        // Admin routes
-        .route("/admin/tokens", get(list_tokens))
-        .route("/admin/users", get(list_users))
-        
-        // Health check
-        .route("/health", get(health_check))
-        
-        // Add middleware
-        .layer(AuthMiddleware::new(self.auth_manager.clone()))
-        .layer(RateLimitMiddleware::new())
-        .layer(CorsLayer::permissive())
-        .layer(TraceLayer::new_for_http())
-        
-        // Add state
-        .with_state(AppState {
-            database: self.database.clone(),
-            auth_manager: self.auth_manager.clone(),
-            provider_factory: self.tenant_provider_factory.clone(),
-        });
-    
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await?;
-    
-    Ok(())
-}
+// src/mcp/multitenant.rs
+    pub async fn run_http_server_with_resources(
+        port: u16,
+        resources: Arc<ServerResources>,
+    ) -> Result<()> {
+        use warp::Filter;
+
+        info!("HTTP authentication server starting on port {}", port);
+
+        // Initialize security configuration
+        let security_config = Self::setup_security_config(&resources.config);
+
+        // Initialize all route handlers using shared resources
+        let (
+            auth_routes,
+            oauth_routes,
+            api_key_routes,
+            dashboard_routes,
+            a2a_routes,
+            configuration_routes,
+            fitness_configuration_routes,
+        ) = HttpSetup::setup_route_handlers_with_resources(&resources);
+
+        // Use JWT secret from resources
+        let jwt_secret_str = resources.admin_jwt_secret.as_ref();
+        info!("Using admin JWT secret from server startup");
+
+        // Setup admin routes - API requires owned values
+        let admin_context = crate::admin_routes::AdminApiContext::new(
+            resources.database.clone(),
+            jwt_secret_str,
+            resources.auth_manager.clone(),
+        );
+        let admin_routes_filter = crate::admin_routes::admin_routes_with_rejection(admin_context);
+
+        // Setup tenant management routes - API requires owned values
+        let tenant_routes_filter = Self::create_tenant_routes_filter(
+            resources.database.clone(),
+            resources.auth_manager.clone(),
+        );
+
+        // Configure CORS
+        let cors = HttpSetup::setup_cors();
+
+        // Create all route groups using helper functions
+        let auth_route_filter = Self::create_auth_routes(auth_routes);
+        let oauth_route_filter = Self::create_oauth_routes(&oauth_routes, &resources);
+
+        // Create OAuth 2.0 server routes for MCP client compatibility
+        let oauth2_server_routes =
+            oauth2_routes(resources.database.clone(), &resources.auth_manager, port);
+        let api_key_route_filter = Self::create_api_key_routes(&api_key_routes);
+        let api_key_usage_filter = Self::create_api_key_usage_route(api_key_routes.clone()); // Safe: Arc clone for HTTP route sharing
+        let dashboard_route_filter = Self::create_dashboard_routes(&dashboard_routes);
+        let dashboard_detailed_filter = Self::create_dashboard_detailed_routes(&dashboard_routes);
+
+        // Create A2A routes
+        let a2a_basic_filter = Self::create_a2a_basic_routes(&a2a_routes);
+        let a2a_client_filter = Self::create_a2a_client_routes(&a2a_routes);
+        let a2a_monitoring_filter = Self::create_a2a_monitoring_routes(&a2a_routes);
+        let a2a_execution_filter = Self::create_a2a_execution_routes(&a2a_routes);
+
+        // Create configuration routes
+        let configuration_filter = Self::create_configuration_routes(&configuration_routes);
+        let user_configuration_filter =
+            Self::create_user_configuration_routes(&configuration_routes);
+        let specialized_configuration_filter =
+            Self::create_specialized_configuration_routes(&configuration_routes);
+
+        // Create fitness configuration routes
+        let fitness_configuration_filter =
+            Self::create_fitness_configuration_routes(&fitness_configuration_routes);
+
+        // Security headers middleware
+        let security_headers = Self::create_security_headers_filter(&security_config);
+
+        // Health check route
+        let health_route = Self::create_health_route();
+
+        // SSE notification routes
+        let sse_routes = crate::notifications::sse::sse_routes(resources.sse_manager.clone()); // Safe: Arc clone for HTTP routes
+
+        // MCP SSE endpoint for MCP protocol transport
+        let mcp_sse_routes = Self::create_mcp_sse_routes(&resources);
+        let mcp_endpoint_routes = Self::create_mcp_endpoint_routes(&resources);
+
+        // Create websocket route (method needs to exist)
+        // let websocket_route = Self::create_websocket_route(resources.websocket_manager.clone());
+
+        // Combine all routes
+        let routes = auth_route_filter
+            .or(oauth_route_filter)
+            .or(oauth2_server_routes)
+            .or(api_key_route_filter)
+            .or(api_key_usage_filter)
+            .or(dashboard_route_filter)
+            .or(dashboard_detailed_filter)
+            .or(a2a_basic_filter)
+            .or(a2a_client_filter)
+            .or(a2a_monitoring_filter)
+            .or(a2a_execution_filter)
+            .or(configuration_filter)
+            .or(user_configuration_filter)
+            .or(specialized_configuration_filter)
+            .or(fitness_configuration_filter)
+            .or(admin_routes_filter)
+            .or(tenant_routes_filter)
+            .or(sse_routes)
+            .or(mcp_sse_routes)
+            .or(mcp_endpoint_routes)
+            .or(health_route)
+            .with(cors)
+            .with(security_headers)
+            .recover(handle_rejection);
+
+        // Start the server
+        info!("HTTP server listening on http://127.0.0.1:{}", port);
+        Box::pin(warp::serve(routes).run(([127, 0, 0, 1], port))).await;
+
+        Ok(())
+    }
 ```
 
 ### MCP Server Implementation
