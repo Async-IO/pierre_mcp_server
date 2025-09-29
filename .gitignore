@@ -77,6 +77,7 @@ frontend/dist/
 # Documentation directory
 claude_docs/
 CLAUDE.md
+GEMINI.md
 .workflow*
 
 # Node.js dependencies
