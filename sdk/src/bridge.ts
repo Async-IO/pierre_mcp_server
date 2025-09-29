@@ -28,6 +28,17 @@ import {
   OAuthClientInformationFull
 } from '@modelcontextprotocol/sdk/shared/auth.js';
 
+interface StoredTokens {
+  pierre?: OAuthTokens & { saved_at?: number };
+  providers?: Record<string, {
+    access_token: string;
+    refresh_token?: string;
+    expires_at?: number;
+    token_type?: string;
+    scope?: string;
+  }>;
+}
+
 export interface BridgeConfig {
   pierreServerUrl: string;
   jwtToken?: string;
@@ -67,10 +78,98 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
   private authorizationPending: Promise<any> | undefined = undefined;
   private callbackPort: number = 0;
 
+  // Client-side token storage
+  private tokenStoragePath: string;
+  private allStoredTokens: StoredTokens = {};
+
   constructor(serverUrl: string, config: BridgeConfig) {
     this.serverUrl = serverUrl;
     this.config = config;
+
+    // Initialize client-side token storage
+    const os = require('os');
+    const path = require('path');
+    this.tokenStoragePath = path.join(os.homedir(), '.pierre-claude-tokens.json');
+
+    // Load existing tokens from storage
+    this.loadStoredTokens();
+
     console.error(`[Pierre OAuth] OAuth client provider created for server: ${serverUrl}`);
+    console.error(`[Pierre OAuth] Token storage path: ${this.tokenStoragePath}`);
+  }
+
+  // Client-side token storage methods
+  private loadStoredTokens(): void {
+    try {
+      const fs = require('fs');
+      console.error(`[Pierre OAuth] Checking for tokens at path: ${this.tokenStoragePath}`);
+      console.error(`[Pierre OAuth] File exists: ${fs.existsSync(this.tokenStoragePath)}`);
+      if (fs.existsSync(this.tokenStoragePath)) {
+        const data = fs.readFileSync(this.tokenStoragePath, 'utf8');
+        this.allStoredTokens = JSON.parse(data);
+
+        // Load Pierre tokens into memory for MCP SDK compatibility
+        if (this.allStoredTokens.pierre) {
+          this.savedTokens = this.allStoredTokens.pierre;
+          console.error(`[Pierre OAuth] Loaded Pierre tokens from storage`);
+        }
+
+        if (this.allStoredTokens.providers) {
+          const providerCount = Object.keys(this.allStoredTokens.providers).length;
+          console.error(`[Pierre OAuth] Loaded ${providerCount} provider token(s) from storage`);
+        }
+      } else {
+        console.error(`[Pierre OAuth] No stored tokens found, starting fresh`);
+      }
+    } catch (error) {
+      console.error(`[Pierre OAuth] Failed to load stored tokens: ${error}`);
+      this.allStoredTokens = {};
+    }
+  }
+
+  private async saveStoredTokens(): Promise<void> {
+    try {
+      const fs = require('fs');
+      const data = JSON.stringify(this.allStoredTokens, null, 2);
+      fs.writeFileSync(this.tokenStoragePath, data, 'utf8');
+      console.error(`[Pierre OAuth] Saved tokens to storage`);
+    } catch (error) {
+      console.error(`[Pierre OAuth] Failed to save tokens to storage: ${error}`);
+    }
+  }
+
+  async saveProviderToken(provider: string, tokenData: any): Promise<void> {
+    if (!this.allStoredTokens.providers) {
+      this.allStoredTokens.providers = {};
+    }
+
+    this.allStoredTokens.providers[provider] = {
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token,
+      expires_at: tokenData.expires_in ? Date.now() + (tokenData.expires_in * 1000) : undefined,
+      token_type: tokenData.token_type || 'Bearer',
+      scope: tokenData.scope
+    };
+
+    await this.saveStoredTokens();
+    console.error(`[Pierre OAuth] Saved ${provider} provider token to client storage`);
+  }
+
+  getProviderToken(provider: string): any | undefined {
+    const token = this.allStoredTokens.providers?.[provider];
+    if (!token) {
+      return undefined;
+    }
+
+    // Check if token is expired
+    if (token.expires_at && Date.now() > token.expires_at) {
+      console.error(`[Pierre OAuth] ${provider} token expired, removing from storage`);
+      delete this.allStoredTokens.providers![provider];
+      this.saveStoredTokens();
+      return undefined;
+    }
+
+    return token;
   }
 
   get redirectUrl(): string {
@@ -174,10 +273,39 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
 
   async saveTokens(tokens: OAuthTokens): Promise<void> {
     this.savedTokens = tokens;
-    console.error(`[Pierre OAuth] Saved tokens: expires_in=${tokens.expires_in}`);
+
+    // Also save to persistent client-side storage
+    this.allStoredTokens.pierre = { ...tokens, saved_at: Math.floor(Date.now() / 1000) };
+    await this.saveStoredTokens();
+
+    console.error(`[Pierre OAuth] Saved Pierre tokens: expires_in=${tokens.expires_in}`);
   }
 
   async tokens(): Promise<OAuthTokens | undefined> {
+    // If no in-memory tokens, try to load from persistent storage
+    if (!this.savedTokens && this.allStoredTokens.pierre) {
+      console.error(`[Pierre OAuth] No in-memory tokens, attempting to reload from persistent storage`);
+
+      // Check if stored tokens are still valid
+      const storedTokens = this.allStoredTokens.pierre;
+      const now = Math.floor(Date.now() / 1000);
+      const expiresAt = (storedTokens.saved_at || 0) + (storedTokens.expires_in || 0);
+      if (storedTokens.expires_in && storedTokens.saved_at && now < expiresAt) {
+        this.savedTokens = {
+          access_token: storedTokens.access_token,
+          refresh_token: storedTokens.refresh_token,
+          expires_in: storedTokens.expires_in,
+          token_type: storedTokens.token_type || 'Bearer',
+          scope: storedTokens.scope
+        };
+        console.error(`[Pierre OAuth] Reloaded valid tokens from storage`);
+      } else {
+        console.error(`[Pierre OAuth] Stored tokens are expired, clearing storage`);
+        delete this.allStoredTokens.pierre;
+        await this.saveStoredTokens();
+      }
+    }
+
     console.error(`[Pierre OAuth] tokens() called, returning tokens: ${this.savedTokens ? 'available' : 'none'}`);
     if (this.savedTokens) {
       console.error(`[Pierre OAuth] Returning access_token: ${this.savedTokens.access_token.substring(0, 20)}...`);
@@ -302,18 +430,51 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
         this.savedTokens = undefined;
         this.codeVerifierValue = undefined;
         this.stateValue = undefined;
+        // Clear all stored tokens
+        this.allStoredTokens = {};
+        await this.saveStoredTokens();
         break;
       case 'client':
         this.clientInfo = undefined;
         break;
       case 'tokens':
         this.savedTokens = undefined;
+        // Note: We intentionally do NOT clear persistent storage here
+        // This allows token reload from storage if the tokens are still valid
+        // Only clear persistent storage if tokens are truly expired
         break;
       case 'verifier':
         this.codeVerifierValue = undefined;
         break;
     }
     console.error(`[Pierre OAuth] Invalidated credentials: ${scope}`);
+  }
+
+  async clearProviderTokens(): Promise<void> {
+    this.allStoredTokens.providers = {};
+    await this.saveStoredTokens();
+    console.error(`[Pierre OAuth] Cleared all provider tokens from client storage`);
+  }
+
+  getTokenStatus(): { pierre: boolean; providers: Record<string, boolean> } {
+    const status = {
+      pierre: false,
+      providers: {} as Record<string, boolean>
+    };
+
+    // Check Pierre token
+    status.pierre = !!this.savedTokens;
+
+    // Check provider tokens from client-side storage
+    if (this.allStoredTokens.providers) {
+      for (const [provider, tokenData] of Object.entries(this.allStoredTokens.providers)) {
+        // Check if token exists and is not expired
+        const isValid = tokenData && (!tokenData.expires_at || Date.now() < tokenData.expires_at);
+        status.providers[provider] = !!isValid;
+      }
+    }
+
+    return status;
   }
 
   private generateRandomString(length: number): string {
@@ -392,6 +553,52 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
               'Missing required authorization parameters. Please try connecting again.'
             ));
           }
+        } else if (parsedUrl.pathname === '/oauth/focus-recovery' && req.method === 'POST') {
+          // Handle focus recovery request from OAuth success page
+          console.error(`[Pierre OAuth] Focus recovery requested - attempting to focus Claude Desktop`);
+
+          try {
+            await this.focusClaudeDesktop();
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, message: 'Focus recovery attempted' }));
+          } catch (error) {
+            console.error(`[Pierre OAuth] Focus recovery failed: ${error}`);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: false, message: 'Focus recovery failed' }));
+          }
+        } else if (parsedUrl.pathname?.startsWith('/oauth/provider-callback/') && req.method === 'POST') {
+          // Handle provider token callback for client-side storage
+          const pathParts = parsedUrl.pathname.split('/');
+          const provider = pathParts[3]; // /oauth/provider-callback/{provider}
+
+          console.error(`[Pierre OAuth] Provider token callback for ${provider}`);
+
+          let body = '';
+          req.on('data', (chunk: any) => {
+            body += chunk.toString();
+          });
+
+          req.on('end', async () => {
+            try {
+              const tokenData = JSON.parse(body);
+              await this.saveProviderToken(provider, tokenData);
+
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                success: true,
+                message: `${provider} token stored client-side`
+              }));
+            } catch (error) {
+              console.error(`[Pierre OAuth] Failed to save ${provider} token: ${error}`);
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                success: false,
+                message: 'Failed to save provider token'
+              }));
+            }
+          });
+
+          return; // Don't write response yet, wait for request body
         } else {
           res.writeHead(404, { 'Content-Type': 'text/plain' });
           res.end('Not Found');
@@ -446,11 +653,104 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
         <div class="info"><strong>Status:</strong> Connected successfully</div>
         <div class="info"><strong>Status:</strong> <span class="code">Connected</span></div>
         <p>You can now close this window and return to Claude Desktop.</p>
-        <script>setTimeout(() => window.close(), 3000);</script>
+        <p><small>Attempting to return focus to Claude Desktop automatically...</small></p>
+        <script>
+            // Attempt to focus Claude Desktop before closing
+            async function focusClaudeDesktop() {
+                try {
+                    // Try to trigger focus recovery via bridge communication
+                    await fetch('/oauth/focus-recovery', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'focus_claude_desktop' })
+                    }).catch(() => {
+                        // Ignore fetch errors - focus recovery is best-effort
+                    });
+                } catch (error) {
+                    // Silently ignore errors
+                }
+
+                // Close the window after a short delay
+                setTimeout(() => {
+                    window.close();
+                }, 1500);
+            }
+
+            // Start focus recovery immediately
+            focusClaudeDesktop();
+        </script>
     </div>
 </body>
 </html>
     `;
+  }
+
+  private async focusClaudeDesktop(): Promise<void> {
+    console.error(`[Pierre OAuth] Attempting to focus Claude Desktop application`);
+
+    const { spawn } = await import('child_process');
+    const platform = process.platform;
+
+    try {
+      let focusCommand: string[];
+
+      if (platform === 'darwin') {
+        // macOS - Use AppleScript to activate Claude Desktop
+        focusCommand = [
+          'osascript',
+          '-e',
+          'tell application "Claude" to activate'
+        ];
+      } else if (platform === 'win32') {
+        // Windows - Use PowerShell to bring Claude Desktop to foreground
+        focusCommand = [
+          'powershell',
+          '-Command',
+          'Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Interaction]::AppActivate("Claude")'
+        ];
+      } else {
+        // Linux - Use wmctrl if available, otherwise xdotool
+        focusCommand = [
+          'bash',
+          '-c',
+          'if command -v wmctrl >/dev/null 2>&1; then wmctrl -a "Claude"; elif command -v xdotool >/dev/null 2>&1; then xdotool search --name "Claude" windowactivate; fi'
+        ];
+      }
+
+      console.error(`[Pierre OAuth] Executing focus command for ${platform}`);
+
+      // Execute the focus command
+      const focusProcess = spawn(focusCommand[0], focusCommand.slice(1), {
+        detached: false,
+        stdio: 'ignore',
+        timeout: 5000 // 5 second timeout
+      });
+
+      // Wait for the process to complete (with timeout)
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(() => {
+          focusProcess.kill('SIGTERM');
+          resolve();
+        }, 5000);
+
+        focusProcess.on('close', () => {
+          clearTimeout(timer);
+          resolve();
+        });
+
+        focusProcess.on('error', (error) => {
+          clearTimeout(timer);
+          console.error(`[Pierre OAuth] Focus command error (ignored): ${error.message}`);
+          resolve(); // Don't fail - focus recovery is best-effort
+        });
+      });
+
+      console.error(`[Pierre OAuth] Focus recovery command completed`);
+
+    } catch (error: any) {
+      console.error(`[Pierre OAuth] Focus recovery failed (ignored): ${error.message}`);
+      // Don't throw - focus recovery is best-effort and shouldn't break the OAuth flow
+    }
   }
 
   private renderErrorTemplate(provider: string, error: string, description: string): string {
@@ -476,7 +776,32 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
         <div class="info"><strong>Error:</strong> <span class="code">${error}</span></div>
         <div class="info"><strong>Description:</strong> ${description}</div>
         <p>You can close this window and try connecting again from Claude Desktop.</p>
-        <script>setTimeout(() => window.close(), 5000);</script>
+        <p><small>Returning focus to Claude Desktop...</small></p>
+        <script>
+            // Attempt to focus Claude Desktop before closing (even on error)
+            async function focusClaudeDesktop() {
+                try {
+                    // Try to trigger focus recovery via bridge communication
+                    await fetch('/oauth/focus-recovery', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'focus_claude_desktop' })
+                    }).catch(() => {
+                        // Ignore fetch errors - focus recovery is best-effort
+                    });
+                } catch (error) {
+                    // Silently ignore errors
+                }
+
+                // Close the window after a longer delay for error cases
+                setTimeout(() => {
+                    window.close();
+                }, 3000);
+            }
+
+            // Start focus recovery immediately
+            focusClaudeDesktop();
+        </script>
     </div>
 </body>
 </html>
@@ -519,20 +844,38 @@ export class PierreClaudeBridge {
     }
   }
 
-  private async connectToPierre(): Promise<void> {
-    this.log('🔌 Connecting to Pierre MCP Server...');
+  private oauthProvider: PierreOAuthClientProvider | null = null;
+  private mcpUrl: string = '';
 
-    const mcpUrl = `${this.config.pierreServerUrl}/mcp`;
-    this.log(`📡 Connecting to: ${mcpUrl}`);
+  private async connectToPierre(): Promise<void> {
+    this.log('🔌 Setting up Pierre MCP Server connection...');
+
+    this.mcpUrl = `${this.config.pierreServerUrl}/mcp`;
+    this.log(`📡 Target URL: ${this.mcpUrl}`);
 
     // Create OAuth client provider for Pierre MCP Server (shared across attempts)
-    const oauthProvider = new PierreOAuthClientProvider(this.config.pierreServerUrl, this.config);
+    this.oauthProvider = new PierreOAuthClientProvider(this.config.pierreServerUrl, this.config);
 
-    this.log('🔐 Using OAuth 2.0 authentication with Pierre MCP Server');
+    this.log('🔐 OAuth provider initialized - connection deferred until authentication');
+
+    // Check if we have existing valid tokens
+    const existingTokens = await this.oauthProvider.tokens();
+    if (existingTokens) {
+      this.log('🎫 Found existing tokens - attempting connection');
+      await this.attemptConnection();
+    } else {
+      this.log('⏳ No valid tokens found - connection will be established when connect_to_pierre is called');
+    }
+  }
+
+  private async attemptConnection(): Promise<void> {
+    if (!this.oauthProvider) {
+      throw new Error('OAuth provider not initialized');
+    }
 
     let connected = false;
     let retryCount = 0;
-    const maxRetries = 5;
+    const maxRetries = 3;
 
     while (!connected && retryCount < maxRetries) {
       try {
@@ -553,9 +896,9 @@ export class PierreClaudeBridge {
         );
 
         // Create fresh transport for each attempt
-        const baseUrl = new URL(mcpUrl);
+        const baseUrl = new URL(this.mcpUrl);
         const transport = new StreamableHTTPClientTransport(baseUrl, {
-          authProvider: oauthProvider,
+          authProvider: this.oauthProvider,
           requestInit: {
             headers: {
               'Content-Type': 'application/json',
@@ -571,10 +914,12 @@ export class PierreClaudeBridge {
       } catch (error: any) {
         if (error.message === 'Unauthorized' && retryCount < maxRetries - 1) {
           retryCount++;
-          this.log(`🔄 OAuth flow in progress, waiting for completion... (attempt ${retryCount}/${maxRetries})`);
+          this.log(`🔄 Token expired or invalid, retrying... (attempt ${retryCount}/${maxRetries})`);
 
-          // Wait for OAuth flow to complete (check every 2 seconds)
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          // Clear invalid tokens
+          await this.oauthProvider.invalidateCredentials('tokens');
+
+          await new Promise(resolve => setTimeout(resolve, 1000));
         } else {
           this.log(`❌ Failed to connect after ${retryCount + 1} attempts: ${error.message}`);
           throw error;
@@ -583,8 +928,27 @@ export class PierreClaudeBridge {
     }
 
     if (!connected) {
-      throw new Error(`Failed to connect to Pierre MCP Server after ${maxRetries} attempts`);
+      throw new Error(`Failed to connect to Pierre MCP Server after ${maxRetries} attempts - authentication may be required`);
     }
+  }
+
+  async initiateConnection(): Promise<void> {
+    if (!this.oauthProvider) {
+      throw new Error('OAuth provider not initialized');
+    }
+
+    this.log('🚀 Initiating OAuth connection to Pierre MCP Server');
+
+    // This will trigger the OAuth flow if no valid tokens exist
+    await this.attemptConnection();
+  }
+
+  getClientSideTokenStatus(): { pierre: boolean; providers: Record<string, boolean> } {
+    if (!this.oauthProvider) {
+      return { pierre: false, providers: {} };
+    }
+
+    return this.oauthProvider.getTokenStatus();
   }
 
   private async createClaudeServer(): Promise<void> {
@@ -616,53 +980,319 @@ export class PierreClaudeBridge {
   }
 
   private setupRequestHandlers(): void {
-    if (!this.claudeServer || !this.pierreClient) {
-      throw new Error('Server or client not initialized');
+    if (!this.claudeServer) {
+      throw new Error('Claude server not initialized');
     }
 
     // Bridge tools/list requests
     this.claudeServer.setRequestHandler(ListToolsRequestSchema, async (request) => {
       this.log('📋 Bridging tools/list request');
-      return await this.pierreClient!.request(request, ListToolsRequestSchema);
+
+      try {
+        if (this.pierreClient) {
+          // If connected, get full tool list from Pierre via direct HTTP
+          const tokens = await this.oauthProvider?.tokens();
+          if (!tokens) {
+            throw new Error('No tokens available for Pierre request');
+          }
+
+          const fetch = (await import('node-fetch')).default;
+          const response = await fetch(`${this.config.pierreServerUrl}/mcp`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `${tokens.token_type} ${tokens.access_token}`
+            },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 1,
+              method: 'tools/list',
+              params: {}
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error(`Pierre server request failed: ${response.status} ${response.statusText}`);
+          }
+
+          const result = await response.json() as any;
+          if (result.error) {
+            throw new Error(`Pierre server error: ${JSON.stringify(result.error)}`);
+          }
+
+          return result.result as any;
+        } else {
+          // If not connected, provide minimal tool list with connect_to_pierre
+          return {
+            tools: [{
+              name: 'connect_to_pierre',
+              description: 'Connect to Pierre - Authenticate with Pierre Fitness Server to access your fitness data. This will open a browser window for secure login. Use this when you\'re not connected or need to reconnect.',
+              inputSchema: {
+                type: 'object',
+                properties: {},
+                required: []
+              }
+            }]
+          };
+        }
+      } catch (error: any) {
+        this.log(`❌ Error getting tools list: ${error.message || error}`);
+        this.log('❌ Providing connect tool only');
+
+        return {
+          tools: [{
+            name: 'connect_to_pierre',
+            description: 'Connect to Pierre - Authenticate with Pierre Fitness Server to access your fitness data. This will open a browser window for secure login. Use this when you\'re not connected or need to reconnect.',
+            inputSchema: {
+              type: 'object',
+              properties: {},
+              required: []
+            }
+          }]
+        };
+      }
     });
 
     // Bridge tools/call requests
     this.claudeServer.setRequestHandler(CallToolRequestSchema, async (request) => {
       this.log('🔧 Bridging tool call:', request.params.name);
-      return await this.pierreClient!.request(request, CallToolRequestSchema);
+
+      // Handle special authentication tools
+      if (request.params.name === 'connect_to_pierre') {
+        return await this.handleConnectToPierre(request);
+      }
+
+      if (request.params.name === 'connect_provider') {
+        return await this.handleConnectProvider(request);
+      }
+
+      // Ensure we have a connection before forwarding other tools
+      if (!this.pierreClient) {
+        return {
+          content: [{
+            type: 'text',
+            text: 'Not connected to Pierre. Please use the "Connect to Pierre" tool first to authenticate.'
+          }],
+          isError: true
+        };
+      }
+
+      return await this.pierreClient.request(request, CallToolRequestSchema);
     });
 
     // Bridge resources/list requests
     this.claudeServer.setRequestHandler(ListResourcesRequestSchema, async (request) => {
       this.log('📚 Bridging resources/list request');
-      return await this.pierreClient!.request(request, ListResourcesRequestSchema);
+
+      // Pierre server doesn't provide resources, so always return empty list
+      return { resources: [] };
     });
 
     // Bridge resources/read requests
     this.claudeServer.setRequestHandler(ReadResourceRequestSchema, async (request) => {
       this.log('📖 Bridging resource read:', request.params.uri);
-      return await this.pierreClient!.request(request, ReadResourceRequestSchema);
+
+      if (!this.pierreClient) {
+        return {
+          contents: [{
+            type: 'text',
+            text: 'Not connected to Pierre. Please use the "Connect to Pierre" tool first to authenticate.'
+          }]
+        };
+      }
+
+      return await this.pierreClient.request(request, ReadResourceRequestSchema);
     });
 
     // Bridge prompts/list requests
     this.claudeServer.setRequestHandler(ListPromptsRequestSchema, async (request) => {
       this.log('💭 Bridging prompts/list request');
-      return await this.pierreClient!.request(request, ListPromptsRequestSchema);
+
+      // Pierre server doesn't provide prompts, so always return empty list
+      return { prompts: [] };
     });
 
     // Bridge prompts/get requests
     this.claudeServer.setRequestHandler(GetPromptRequestSchema, async (request) => {
       this.log('💬 Bridging prompt get:', request.params.name);
-      return await this.pierreClient!.request(request, GetPromptRequestSchema);
+
+      if (!this.pierreClient) {
+        return {
+          description: 'Not connected to Pierre',
+          messages: [{
+            role: 'user',
+            content: {
+              type: 'text',
+              text: 'Not connected to Pierre. Please use the "Connect to Pierre" tool first to authenticate.'
+            }
+          }]
+        };
+      }
+
+      return await this.pierreClient.request(request, GetPromptRequestSchema);
     });
 
     // Bridge completion requests
     this.claudeServer.setRequestHandler(CompleteRequestSchema, async (request) => {
       this.log('✨ Bridging completion request');
-      return await this.pierreClient!.request(request, CompleteRequestSchema);
+
+      if (!this.pierreClient) {
+        return {
+          completion: {
+            values: [],
+            total: 0,
+            hasMore: false
+          }
+        };
+      }
+
+      return await this.pierreClient.request(request, CompleteRequestSchema);
     });
 
     this.log('🌉 Request handlers configured');
+  }
+
+  private async handleConnectToPierre(request: any): Promise<any> {
+    try {
+      this.log('🔐 Handling connect_to_pierre tool call - initiating OAuth flow');
+
+      if (!this.oauthProvider) {
+        return {
+          content: [{
+            type: 'text',
+            text: 'OAuth provider not initialized. Please restart the bridge.'
+          }],
+          isError: true
+        };
+      }
+
+      // Check if already connected
+      if (this.pierreClient) {
+        return {
+          content: [{
+            type: 'text',
+            text: 'Already connected to Pierre! You can now use all fitness tools to access your Strava and Fitbit data.'
+          }],
+          isError: false
+        };
+      }
+
+      // Initiate the OAuth connection
+      await this.initiateConnection();
+
+      return {
+        content: [{
+          type: 'text',
+          text: 'Successfully connected to Pierre! You can now access all your fitness data including Strava activities, athlete profile, and performance statistics.'
+        }],
+        isError: false
+      };
+
+    } catch (error: any) {
+      this.log('❌ Failed to connect to Pierre:', error.message);
+
+      return {
+        content: [{
+          type: 'text',
+          text: `Failed to connect to Pierre: ${error.message}. Please check that the Pierre server is running and try again.`
+        }],
+        isError: true
+      };
+    }
+  }
+
+  private async handleConnectProvider(request: any): Promise<any> {
+    try {
+      this.log('🔄 Handling unified connect_provider tool call');
+
+      if (!this.oauthProvider) {
+        return {
+          content: [{
+            type: 'text',
+            text: 'OAuth provider not initialized. Please restart the bridge.'
+          }],
+          isError: true
+        };
+      }
+
+      // Extract provider from request parameters
+      const provider = request.params.arguments?.provider || 'strava';
+      this.log(`🔄 Unified flow for provider: ${provider}`);
+
+      // Step 1: Ensure Pierre authentication is complete
+      if (!this.pierreClient) {
+        this.log('🔐 Pierre not connected - initiating Pierre authentication first');
+        try {
+          await this.initiateConnection();
+          this.log('✅ Pierre authentication completed');
+        } catch (error: any) {
+          this.log(`❌ Pierre authentication failed: ${error.message}`);
+          return {
+            content: [{
+              type: 'text',
+              text: `Failed to authenticate with Pierre: ${error.message}. Please try again.`
+            }],
+            isError: true
+          };
+        }
+      } else {
+        this.log('✅ Pierre already authenticated');
+      }
+
+      // Step 2: Initiate provider OAuth flow
+      this.log(`🔄 Initiating ${provider} OAuth flow...`);
+
+      try {
+        // Get the Pierre server base URL for provider OAuth
+        const providerOAuthUrl = `${this.config.pierreServerUrl}/oauth/authorize/${provider}`;
+
+        // Open provider OAuth in browser
+        const { spawn } = await import('child_process');
+        const platform = process.platform;
+
+        let openCommand: string;
+        if (platform === 'darwin') {
+          openCommand = 'open';
+        } else if (platform === 'win32') {
+          openCommand = 'start';
+        } else {
+          openCommand = 'xdg-open';
+        }
+
+        spawn(openCommand, [providerOAuthUrl], { detached: true, stdio: 'ignore' });
+
+        this.log(`🌐 Opened ${provider} OAuth in browser: ${providerOAuthUrl}`);
+
+        return {
+          content: [{
+            type: 'text',
+            text: `🎉 Unified authentication flow completed!\n\n✅ Pierre: Connected\n🔄 ${provider.toUpperCase()}: Opening in browser...\n\nPlease complete the ${provider.toUpperCase()} authentication in your browser. Once done, you'll have full access to your fitness data!`
+          }],
+          isError: false
+        };
+
+      } catch (error: any) {
+        this.log(`❌ Failed to open ${provider} OAuth: ${error.message}`);
+        return {
+          content: [{
+            type: 'text',
+            text: `Pierre authentication successful, but failed to open ${provider.toUpperCase()} OAuth: ${error.message}. You can manually visit the OAuth page in Pierre's web interface.`
+          }],
+          isError: false // Not a complete failure since Pierre auth worked
+        };
+      }
+
+    } catch (error: any) {
+      this.log('❌ Unified connect_provider failed:', error.message);
+
+      return {
+        content: [{
+          type: 'text',
+          text: `Unified authentication failed: ${error.message}. Please check that Pierre server is running and try again.`
+        }],
+        isError: true
+      };
+    }
   }
 
   private async startBridge(): Promise<void> {

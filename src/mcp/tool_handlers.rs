@@ -12,10 +12,10 @@ use crate::constants::{
     json_fields::PROVIDER,
     protocol::JSONRPC_VERSION,
     tools::{
-        ANNOUNCE_OAUTH_SUCCESS, CHECK_OAUTH_NOTIFICATIONS, DELETE_FITNESS_CONFIG,
-        DISCONNECT_PROVIDER, GET_CONNECTION_STATUS, GET_FITNESS_CONFIG, GET_NOTIFICATIONS,
-        LIST_FITNESS_CONFIGS, MARK_NOTIFICATIONS_READ, SET_FITNESS_CONFIG, SET_GOAL,
-        TRACK_PROGRESS,
+        ANNOUNCE_OAUTH_SUCCESS, CHECK_OAUTH_NOTIFICATIONS, CONNECT_PROVIDER, CONNECT_TO_PIERRE,
+        DELETE_FITNESS_CONFIG, DISCONNECT_PROVIDER, GET_CONNECTION_STATUS, GET_FITNESS_CONFIG,
+        GET_NOTIFICATIONS, LIST_FITNESS_CONFIGS, MARK_NOTIFICATIONS_READ, SET_FITNESS_CONFIG,
+        SET_GOAL, TRACK_PROGRESS,
     },
 };
 use crate::database_plugins::DatabaseProvider;
@@ -281,6 +281,74 @@ impl ToolHandlers {
     ) -> McpResponse {
         match tool_name {
             // Note: CONNECT_STRAVA and CONNECT_FITBIT tools removed - use tenant-level OAuth configuration
+            CONNECT_TO_PIERRE => {
+                // Return a response that triggers the OAuth flow
+                // The actual authentication is handled by the OAuth 2.0 flow configured in the server
+                McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    id: request_id,
+                    result: Some(json!({
+                        "content": [{
+                            "type": "text",
+                            "text": "Opening browser for Pierre authentication. Please log in to connect your fitness data. Once authenticated, you'll be able to access all your Strava and Fitbit activities."
+                        }],
+                        "isError": false,
+                        "requiresAuth": true,
+                        "authUrl": "oauth2/authorize",
+                        "message": "Please complete authentication in your browser to connect to Pierre."
+                    })),
+                    error: None,
+                }
+            }
+            CONNECT_PROVIDER => {
+                // Handle unified OAuth flow: Pierre + Provider authentication in one session
+                let provider_name = args
+                    .get("provider")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_lowercase();
+
+                // Validate provider
+                if provider_name.is_empty()
+                    || !["strava", "fitbit"].contains(&provider_name.as_str())
+                {
+                    return McpResponse {
+                        jsonrpc: JSONRPC_VERSION.to_string(),
+                        id: request_id,
+                        result: Some(json!({
+                            "content": [{
+                                "type": "text",
+                                "text": format!("Invalid provider '{}'. Supported providers are: strava, fitbit", provider_name)
+                            }],
+                            "isError": true
+                        })),
+                        error: None,
+                    };
+                }
+
+                // Return unified auth flow response
+                McpResponse {
+                    jsonrpc: JSONRPC_VERSION.to_string(),
+                    id: request_id,
+                    result: Some(json!({
+                        "content": [{
+                            "type": "text",
+                            "text": format!(
+                                "Starting unified authentication for {}. This will:\n\n1. First authenticate you with Pierre Fitness Server\n2. Then connect you to {} for your fitness data\n\nOpening browser for secure authentication...",
+                                provider_name.to_uppercase(),
+                                provider_name.to_uppercase()
+                            )
+                        }],
+                        "isError": false,
+                        "requiresAuth": true,
+                        "authUrl": "oauth2/authorize",
+                        "unifiedFlow": true,
+                        "provider": provider_name,
+                        "message": format!("Please complete unified authentication with Pierre and {} in your browser.", provider_name.to_uppercase())
+                    })),
+                    error: None,
+                }
+            }
             GET_CONNECTION_STATUS => {
                 if let Some(ref tenant_ctx) = ctx.tenant_context {
                     // Extract optional OAuth credentials from args
