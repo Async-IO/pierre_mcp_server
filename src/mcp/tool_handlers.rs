@@ -12,7 +12,7 @@ use crate::constants::{
     json_fields::PROVIDER,
     protocol::JSONRPC_VERSION,
     tools::{
-        ANNOUNCE_OAUTH_SUCCESS, CHECK_OAUTH_NOTIFICATIONS, CONNECT_TO_PIERRE, CONNECT_PROVIDER,
+        ANNOUNCE_OAUTH_SUCCESS, CHECK_OAUTH_NOTIFICATIONS, CONNECT_PROVIDER, CONNECT_TO_PIERRE,
         DELETE_FITNESS_CONFIG, DISCONNECT_PROVIDER, GET_CONNECTION_STATUS, GET_FITNESS_CONFIG,
         GET_NOTIFICATIONS, LIST_FITNESS_CONFIGS, MARK_NOTIFICATIONS_READ, SET_FITNESS_CONFIG,
         SET_GOAL, TRACK_PROGRESS,
@@ -309,7 +309,9 @@ impl ToolHandlers {
                     .to_lowercase();
 
                 // Validate provider
-                if provider_name.is_empty() || !["strava", "fitbit"].contains(&provider_name.as_str()) {
+                if provider_name.is_empty()
+                    || !["strava", "fitbit"].contains(&provider_name.as_str())
+                {
                     return McpResponse {
                         jsonrpc: JSONRPC_VERSION.to_string(),
                         id: request_id,

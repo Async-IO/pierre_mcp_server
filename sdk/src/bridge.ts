@@ -29,7 +29,7 @@ import {
 } from '@modelcontextprotocol/sdk/shared/auth.js';
 
 interface StoredTokens {
-  pierre?: OAuthTokens;
+  pierre?: OAuthTokens & { saved_at?: number };
   providers?: Record<string, {
     access_token: string;
     refresh_token?: string;
@@ -102,6 +102,8 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
   private loadStoredTokens(): void {
     try {
       const fs = require('fs');
+      console.error(`[Pierre OAuth] Checking for tokens at path: ${this.tokenStoragePath}`);
+      console.error(`[Pierre OAuth] File exists: ${fs.existsSync(this.tokenStoragePath)}`);
       if (fs.existsSync(this.tokenStoragePath)) {
         const data = fs.readFileSync(this.tokenStoragePath, 'utf8');
         this.allStoredTokens = JSON.parse(data);
@@ -273,13 +275,37 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
     this.savedTokens = tokens;
 
     // Also save to persistent client-side storage
-    this.allStoredTokens.pierre = tokens;
+    this.allStoredTokens.pierre = { ...tokens, saved_at: Math.floor(Date.now() / 1000) };
     await this.saveStoredTokens();
 
     console.error(`[Pierre OAuth] Saved Pierre tokens: expires_in=${tokens.expires_in}`);
   }
 
   async tokens(): Promise<OAuthTokens | undefined> {
+    // If no in-memory tokens, try to load from persistent storage
+    if (!this.savedTokens && this.allStoredTokens.pierre) {
+      console.error(`[Pierre OAuth] No in-memory tokens, attempting to reload from persistent storage`);
+
+      // Check if stored tokens are still valid
+      const storedTokens = this.allStoredTokens.pierre;
+      const now = Math.floor(Date.now() / 1000);
+      const expiresAt = (storedTokens.saved_at || 0) + (storedTokens.expires_in || 0);
+      if (storedTokens.expires_in && storedTokens.saved_at && now < expiresAt) {
+        this.savedTokens = {
+          access_token: storedTokens.access_token,
+          refresh_token: storedTokens.refresh_token,
+          expires_in: storedTokens.expires_in,
+          token_type: storedTokens.token_type || 'Bearer',
+          scope: storedTokens.scope
+        };
+        console.error(`[Pierre OAuth] Reloaded valid tokens from storage`);
+      } else {
+        console.error(`[Pierre OAuth] Stored tokens are expired, clearing storage`);
+        delete this.allStoredTokens.pierre;
+        await this.saveStoredTokens();
+      }
+    }
+
     console.error(`[Pierre OAuth] tokens() called, returning tokens: ${this.savedTokens ? 'available' : 'none'}`);
     if (this.savedTokens) {
       console.error(`[Pierre OAuth] Returning access_token: ${this.savedTokens.access_token.substring(0, 20)}...`);
@@ -413,9 +439,9 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
         break;
       case 'tokens':
         this.savedTokens = undefined;
-        // Clear Pierre tokens from persistent storage
-        delete this.allStoredTokens.pierre;
-        await this.saveStoredTokens();
+        // Note: We intentionally do NOT clear persistent storage here
+        // This allows token reload from storage if the tokens are still valid
+        // Only clear persistent storage if tokens are truly expired
         break;
       case 'verifier':
         this.codeVerifierValue = undefined;
@@ -964,8 +990,37 @@ export class PierreClaudeBridge {
 
       try {
         if (this.pierreClient) {
-          // If connected, get full tool list from Pierre
-          return await this.pierreClient.request(request, ListToolsRequestSchema);
+          // If connected, get full tool list from Pierre via direct HTTP
+          const tokens = await this.oauthProvider?.tokens();
+          if (!tokens) {
+            throw new Error('No tokens available for Pierre request');
+          }
+
+          const fetch = (await import('node-fetch')).default;
+          const response = await fetch(`${this.config.pierreServerUrl}/mcp`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `${tokens.token_type} ${tokens.access_token}`
+            },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 1,
+              method: 'tools/list',
+              params: {}
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error(`Pierre server request failed: ${response.status} ${response.statusText}`);
+          }
+
+          const result = await response.json() as any;
+          if (result.error) {
+            throw new Error(`Pierre server error: ${JSON.stringify(result.error)}`);
+          }
+
+          return result.result as any;
         } else {
           // If not connected, provide minimal tool list with connect_to_pierre
           return {
@@ -981,7 +1036,8 @@ export class PierreClaudeBridge {
           };
         }
       } catch (error: any) {
-        this.log('❌ Error getting tools list, providing connect tool only');
+        this.log(`❌ Error getting tools list: ${error.message || error}`);
+        this.log('❌ Providing connect tool only');
 
         return {
           tools: [{
@@ -1028,11 +1084,8 @@ export class PierreClaudeBridge {
     this.claudeServer.setRequestHandler(ListResourcesRequestSchema, async (request) => {
       this.log('📚 Bridging resources/list request');
 
-      if (!this.pierreClient) {
-        return { resources: [] };
-      }
-
-      return await this.pierreClient.request(request, ListResourcesRequestSchema);
+      // Pierre server doesn't provide resources, so always return empty list
+      return { resources: [] };
     });
 
     // Bridge resources/read requests
@@ -1055,11 +1108,8 @@ export class PierreClaudeBridge {
     this.claudeServer.setRequestHandler(ListPromptsRequestSchema, async (request) => {
       this.log('💭 Bridging prompts/list request');
 
-      if (!this.pierreClient) {
-        return { prompts: [] };
-      }
-
-      return await this.pierreClient.request(request, ListPromptsRequestSchema);
+      // Pierre server doesn't provide prompts, so always return empty list
+      return { prompts: [] };
     });
 
     // Bridge prompts/get requests
