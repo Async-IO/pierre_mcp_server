@@ -118,7 +118,7 @@ let routes = auth_route_filter                    // Legacy authentication route
 
 ### 3. OAuth 2.0 Authorization Server
 
-Pierre implements a standards-compliant OAuth 2.0 Authorization Server for mcp-remote compatibility:
+Pierre implements a standards-compliant OAuth 2.0 Authorization Server for MCP client compatibility:
 
 ```rust
 // OAuth 2.0 endpoints

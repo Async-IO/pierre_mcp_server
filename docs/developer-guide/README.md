@@ -31,7 +31,7 @@ Pierre MCP Server is a high-performance multi-protocol fitness data API platform
 
 - **MCP (Model Context Protocol)**: Primary interface for AI assistants like Claude
 - **A2A (Agent-to-Agent)**: Inter-agent communication with cryptographic authentication
-- **OAuth 2.0 Authorization Server**: RFC-compliant server supporting mcp-remote integration
+- **OAuth 2.0 Authorization Server**: RFC-compliant server supporting MCP client integration
 - **REST API**: Traditional HTTP endpoints for web applications and admin operations
 - **Server-Sent Events**: Real-time notifications for OAuth flows and system events
 - **WebSocket**: Real-time bidirectional communication support

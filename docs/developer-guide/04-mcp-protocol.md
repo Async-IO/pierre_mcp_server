@@ -7,7 +7,7 @@ Pierre MCP Server implements the Model Context Protocol (MCP) version 2025-06-18
 ## Key Features
 
 - **Conditional Authentication**: Discovery methods (initialize, tools/list) work without authentication, execution methods require JWT tokens
-- **OAuth 2.0 Integration**: Standards-compliant OAuth 2.0 Authorization Server for mcp-remote compatibility
+- **OAuth 2.0 Integration**: Standards-compliant OAuth 2.0 Authorization Server for MCP client compatibility
 - **Single Port Architecture**: All protocols consolidated on port 8081
 - **JWT Access Tokens**: OAuth 2.0 flow issues JWT tokens for MCP authentication
 
@@ -109,12 +109,12 @@ Pierre implements a dual authentication model:
 ### Option 1: OAuth 2.0 Authorization Server (Recommended)
 
 ```bash
-# Use mcp-remote for automatic OAuth 2.0 flow
-mcp-remote http://localhost:8081/mcp --allow-http
+# MCP clients can use automatic OAuth 2.0 flow
+# Configure MCP client to connect to http://localhost:8081/mcp
 ```
 
 **OAuth 2.0 to JWT Flow:**
-1. mcp-remote registers as OAuth 2.0 client (`POST /oauth/register`)
+1. MCP client registers as OAuth 2.0 client (`POST /oauth/register`)
 2. Authorization flow (`GET /oauth/authorize`)
 3. Token exchange (`POST /oauth/token`) - **Returns JWT access token**
 4. MCP requests authenticated with JWT via `Authorization: Bearer <jwt>`

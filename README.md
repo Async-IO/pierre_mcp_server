@@ -149,18 +149,6 @@ When the MCP client starts, the SDK will automatically:
 
 No manual token management is required.
 
-### Alternative: mcp-remote
-
-For users who prefer the standard MCP remote client:
-
-```bash
-# Using npx (no installation required)
-npx mcp-remote http://localhost:8081/mcp --allow-http --debug --transport http-first --timeout 120
-
-# Or install globally
-npm install -g mcp-remote
-mcp-remote http://localhost:8081/mcp --allow-http --debug --transport http-first --timeout 120
-```
 
 ## Available Tools
 

@@ -4,7 +4,7 @@
 
 Pierre MCP Server implements a comprehensive authentication system with **dual OAuth 2.0 capabilities**:
 
-1. **OAuth 2.0 Authorization Server**: Standards-compliant server for mcp-remote integration (RFC 6749, RFC 7591, RFC 8414)
+1. **OAuth 2.0 Authorization Server**: Standards-compliant server for MCP client integration (RFC 6749, RFC 7591, RFC 8414)
 2. **OAuth 2.0 Client**: For fitness provider integration (Strava, Fitbit)
 3. **JWT Authentication**: Token-based authentication for all protocols
 4. **API Keys**: For A2A communication and system access
@@ -30,17 +30,17 @@ graph TB
     end
 
     subgraph "External Systems"
-        McpRemote[mcp-remote]
+        MCP[MCP Clients]
         Claude[Claude Desktop]
         Strava[Strava API]
         Fitbit[Fitbit API]
     end
 
-    McpRemote --> Discovery
-    McpRemote --> Register
-    McpRemote --> Authorize
-    McpRemote --> Token
-    Claude --> McpRemote
+    MCP --> Discovery
+    MCP --> Register
+    MCP --> Authorize
+    MCP --> Token
+    Claude --> MCP
 
     Pierre --> StravaAuth
     Pierre --> FitbitAuth
@@ -401,15 +401,15 @@ Pierre's OAuth 2.0 Authorization Server integrates with MCP for seamless authent
 #### Step 4.1: OAuth 2.0 Discovery and Registration
 
 ```bash
-# mcp-remote automatically discovers OAuth 2.0 capabilities
+# MCP client automatically discovers OAuth 2.0 capabilities
 curl -X GET http://localhost:8081/.well-known/oauth-authorization-server
 
-# mcp-remote registers as OAuth 2.0 client
+# MCP client registers as OAuth 2.0 client
 curl -X POST http://localhost:8081/oauth/register \
   -H "Content-Type: application/json" \
   -d '{
     "redirect_uris": ["http://localhost:35535/oauth/callback"],
-    "client_name": "mcp-remote",
+    "client_name": "MCP Client",
     "grant_types": ["authorization_code"],
     "response_types": ["code"]
   }'
@@ -420,23 +420,23 @@ curl -X POST http://localhost:8081/oauth/register \
 ```mermaid
 sequenceDiagram
     participant User as User
-    participant McpRemote as mcp-remote
+    participant MCP as MCP Client
     participant Pierre as Pierre Server
     participant Browser as Browser
     participant Claude as Claude
 
-    User->>McpRemote: mcp-remote http://localhost:8081/mcp
-    McpRemote->>Pierre: GET /.well-known/oauth-authorization-server
-    Pierre-->>McpRemote: OAuth 2.0 metadata
+    User->>MCP: Start MCP connection
+    MCP->>Pierre: GET /.well-known/oauth-authorization-server
+    Pierre-->>MCP: OAuth 2.0 metadata
 
-    McpRemote->>Pierre: POST /oauth/register
-    Pierre-->>McpRemote: client_id, client_secret
+    MCP->>Pierre: POST /oauth/register
+    Pierre-->>MCP: client_id, client_secret
 
-    McpRemote->>Pierre: GET /oauth/authorize?response_type=code&client_id=...
-    Pierre-->>McpRemote: authorization_code
+    MCP->>Pierre: GET /oauth/authorize?response_type=code&client_id=...
+    Pierre-->>MCP: authorization_code
 
-    McpRemote->>Pierre: POST /oauth/token (code for JWT)
-    Pierre-->>McpRemote: JWT access token
+    MCP->>Pierre: POST /oauth/token (code for JWT)
+    Pierre-->>MCP: JWT access token
 
     McpRemote->>Claude: MCP connection ready
     Claude->>McpRemote: MCP initialize
