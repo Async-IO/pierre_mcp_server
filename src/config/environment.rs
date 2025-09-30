@@ -393,7 +393,7 @@ impl ServerConfig {
         Self::initialize_environment();
 
         let config = Self {
-            http_port: env_config::http_port(),
+            http_port: env_config::server_port(),
             log_level: LogLevel::from_str_or_default(&env_config::log_level()),
             database: Self::load_database_config()?,
             auth: Self::load_auth_config()?,

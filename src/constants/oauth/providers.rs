@@ -21,8 +21,8 @@ pub fn is_supported(provider: &str) -> bool {
     all().contains(&provider)
 }
 
-/// Strava default scopes
-pub const STRAVA_DEFAULT_SCOPES: &str = "read";
+/// Strava default scopes (comma-separated as per Strava API requirements)
+pub const STRAVA_DEFAULT_SCOPES: &str = "activity:read_all";
 
 /// Fitbit default scopes
 pub const FITBIT_DEFAULT_SCOPES: &str = "activity profile";
