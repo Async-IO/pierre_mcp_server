@@ -1,6 +1,6 @@
 # Deployment and Operations Guide
 
-Production deployment guide for Pierre MCP Server covering infrastructure setup, monitoring, backup strategies, and operational procedures.
+Pierre MCP Server production deployment reference.
 
 ## Table of Contents
 
