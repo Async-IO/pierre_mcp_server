@@ -113,6 +113,7 @@ impl AgentCard {
     }
 
     /// Create tool definitions for the agent card
+    // Long function: Comprehensive tool definitions with detailed schemas for all 17 fitness analysis tools
     #[allow(clippy::too_many_lines)]
     fn create_tool_definitions() -> Vec<ToolDefinition> {
         vec![

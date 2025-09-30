@@ -736,6 +736,7 @@ impl CatalogBuilder {
     }
 
     /// Build performance calculation category
+    // Long function: Builds complete performance calculation configuration with multiple modules and parameters
     #[allow(clippy::too_many_lines)]
     fn build_performance_calculation_category() -> ConfigCategory {
         ConfigCategory {

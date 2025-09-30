@@ -137,6 +137,7 @@ impl Database {
     /// Returns an error if:
     /// - The email is already in use by another user
     /// - Database operation fails
+    // Long function: Comprehensive user creation with validation, duplicate checking, and database-specific implementations
     #[allow(clippy::too_many_lines)]
     pub async fn create_user(&self, user: &User) -> Result<Uuid> {
         // Check if user exists by email
