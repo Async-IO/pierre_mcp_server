@@ -622,8 +622,11 @@ impl HealthChecker {
             fn GlobalMemoryStatusEx(lpBuffer: *mut MemoryStatusEx) -> i32;
         }
 
+        let struct_size = u32::try_from(mem::size_of::<MemoryStatusEx>())
+            .map_err(|e| format!("MemoryStatusEx size exceeds u32::MAX: {e}"))?;
+
         let mut mem_status = MemoryStatusEx {
-            dw_length: mem::size_of::<MemoryStatusEx>() as u32,
+            dw_length: struct_size,
             dw_memory_load: 0,
             ull_total_phys: 0,
             ull_avail_phys: 0,
@@ -746,10 +749,23 @@ impl HealthChecker {
             .into());
         }
 
-        let total_gb =
-            total_bytes as f64 / crate::constants::system_monitoring::BYTES_TO_GB_DIVISOR as f64;
-        let available_gb = free_bytes_available as f64
-            / crate::constants::system_monitoring::BYTES_TO_GB_DIVISOR as f64;
+        // Convert bytes to GB avoiding precision loss warnings
+        // Split into whole GB and fractional parts for safe conversion
+        const DIVISOR: u64 = crate::constants::system_monitoring::BYTES_TO_GB_DIVISOR;
+
+        let total_whole_gb = total_bytes / DIVISOR;
+        let total_remainder = total_bytes % DIVISOR;
+        let avail_whole_gb = free_bytes_available / DIVISOR;
+        let avail_remainder = free_bytes_available % DIVISOR;
+
+        // Saturate to u32::MAX for extreme values (4+ exabytes)
+        let total_gb_u32 = u32::try_from(total_whole_gb).unwrap_or(u32::MAX);
+        let total_rem_u32 = u32::try_from(total_remainder).unwrap_or(0);
+        let avail_gb_u32 = u32::try_from(avail_whole_gb).unwrap_or(u32::MAX);
+        let avail_rem_u32 = u32::try_from(avail_remainder).unwrap_or(0);
+
+        let total_gb = f64::from(total_gb_u32) + (f64::from(total_rem_u32) / f64::from(1_073_741_824_u32));
+        let available_gb = f64::from(avail_gb_u32) + (f64::from(avail_rem_u32) / f64::from(1_073_741_824_u32));
         let used_gb = total_gb - available_gb;
         let used_percent = if total_gb > 0.0 {
             (used_gb / total_gb) * 100.0
