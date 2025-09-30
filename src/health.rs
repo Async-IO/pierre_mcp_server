@@ -764,8 +764,10 @@ impl HealthChecker {
         let avail_gb_u32 = u32::try_from(avail_whole_gb).unwrap_or(u32::MAX);
         let avail_rem_u32 = u32::try_from(avail_remainder).unwrap_or(0);
 
-        let total_gb = f64::from(total_gb_u32) + (f64::from(total_rem_u32) / f64::from(1_073_741_824_u32));
-        let available_gb = f64::from(avail_gb_u32) + (f64::from(avail_rem_u32) / f64::from(1_073_741_824_u32));
+        let total_gb =
+            f64::from(total_gb_u32) + (f64::from(total_rem_u32) / f64::from(1_073_741_824_u32));
+        let available_gb =
+            f64::from(avail_gb_u32) + (f64::from(avail_rem_u32) / f64::from(1_073_741_824_u32));
         let used_gb = total_gb - available_gb;
         let used_percent = if total_gb > 0.0 {
             (used_gb / total_gb) * 100.0
