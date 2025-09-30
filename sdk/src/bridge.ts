@@ -1265,27 +1265,33 @@ export class PierreClaudeBridge {
         if (this.pierreClient) {
           const connectionStatus = await this.pierreClient.callTool({
             name: 'get_connection_status',
-            arguments: {}
+            arguments: { provider: provider }
           });
 
           // Check if the provider is already connected
+          // The server returns JSON: {"provider": "strava", "status": "connected", "connected": true/false}
           if (connectionStatus && connectionStatus.content && Array.isArray(connectionStatus.content)) {
             const statusContent = connectionStatus.content[0];
             if (statusContent && statusContent.type === 'text' && 'text' in statusContent) {
               const statusText = statusContent.text;
-              // Look for provider connection status in the response
-              const providerConnected = statusText.toLowerCase().includes(`${provider}:`) &&
-                                       statusText.toLowerCase().includes('connected: true');
+              this.log(`📊 Connection status response: ${statusText}`);
 
-              if (providerConnected) {
-                this.log(`✅ ${provider} is already connected - no OAuth needed`);
-                return {
-                  content: [{
-                    type: 'text',
-                    text: `Already connected to ${provider.toUpperCase()}! You can now access your ${provider} fitness data.`
-                  }],
-                  isError: false
-                };
+              // Parse the JSON response
+              try {
+                const statusJson = JSON.parse(statusText);
+                if (statusJson.connected === true) {
+                  this.log(`✅ ${provider} is already connected - no OAuth needed`);
+                  return {
+                    content: [{
+                      type: 'text',
+                      text: `Already connected to ${provider.toUpperCase()}! You can now access your ${provider} fitness data.`
+                    }],
+                    isError: false
+                  };
+                }
+              } catch (parseError: any) {
+                this.log(`⚠️ Failed to parse connection status JSON: ${parseError.message}`);
+                // Fall through to proceed with OAuth if parse fails
               }
             }
           }
