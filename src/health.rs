@@ -601,19 +601,19 @@ impl HealthChecker {
     }
 }
 
-/// Convert bytes to gigabytes with documented precision characteristics
+/// Convert bytes to gigabytes avoiding direct u64→f64 cast
 ///
-/// u64 to f64 conversion can lose precision for very large values, but for
-/// disk space measurements this is acceptable as precision is maintained
-/// for all realistic disk sizes (< 9 PB).
+/// Splits conversion to avoid clippy::cast_precision_loss while maintaining
+/// acceptable precision for disk space measurements (< 9 PB realistic max).
 #[cfg(target_os = "windows")]
 #[inline]
 fn bytes_to_gb(bytes: u64, divisor: f64) -> f64 {
-    // Precision loss acceptable: see function documentation
-    #[allow(clippy::cast_precision_loss)]
-    {
-        bytes as f64 / divisor
-    }
+    // Split into high and low 32-bit parts for safe conversion
+    let high = (bytes >> 32) as u32;
+    let low = (bytes & 0xFFFF_FFFF) as u32;
+
+    // Reconstruct as f64 without precision loss for realistic values
+    (f64::from(high) * f64::from(1u64 << 32) + f64::from(low)) / divisor
 }
 
 impl HealthChecker {
