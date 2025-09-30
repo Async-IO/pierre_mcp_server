@@ -65,6 +65,19 @@ ALL_PASSED=true
 echo ""
 echo -e "${BLUE}==== Rust Backend Checks ====${NC}"
 
+# CRITICAL: Check for null UUID pattern (fast-fail before any other checks)
+echo -e "${BLUE}==== Checking for null UUID pattern (FAST FAIL)... ====${NC}"
+NULL_UUIDS=$(rg "00000000-0000-0000-0000-000000000000" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+if [ "$NULL_UUIDS" -gt 0 ]; then
+    echo -e "${RED}[CRITICAL] Found $NULL_UUIDS occurrences of null UUID (00000000-0000-0000-0000-000000000000)${NC}"
+    echo -e "${RED}           Null UUIDs indicate placeholder or test code that should not be in production${NC}"
+    echo -e "${YELLOW}   Locations of null UUIDs:${NC}"
+    rg "00000000-0000-0000-0000-000000000000" src/ -n
+    echo -e "${RED}FAST FAIL: Replace null UUIDs with proper UUID generation or remove test code${NC}"
+    exit 1
+fi
+echo -e "${GREEN}[OK] No null UUID patterns found${NC}"
+
 # Auto-format Rust code
 echo -e "${BLUE}==== Auto-formatting Rust code... ====${NC}"
 cargo fmt --all
@@ -139,7 +152,7 @@ if [ -f "$VALIDATION_PATTERNS_FILE" ]; then
     fi
 
     # TOML-based checks (replacing legacy hardcoded patterns)
-    TOML_UNWRAPS=$(rg "$UNWRAP_PATTERNS_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" | rg -v "// Safe|hardcoded.*valid|static.*data|00000000-0000-0000-0000-000000000000" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TOML_UNWRAPS=$(rg "$UNWRAP_PATTERNS_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" | rg -v "// Safe|hardcoded.*valid|static.*data" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
     TOML_EXPECTS=$(rg "$EXPECT_PATTERNS_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" | rg -v "// Safe|ServerResources.*required" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
     TOML_PANICS=$(rg "$PANIC_PATTERNS_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
     TOML_ERROR_HANDLING=$((TOML_UNWRAPS + TOML_EXPECTS + TOML_PANICS))
@@ -199,7 +212,7 @@ else
     PLACEHOLDER_WARNINGS=0
 
     # Legacy fallback patterns
-    PROBLEMATIC_UNWRAPS=$(rg "\.unwrap\(\)" src/ | rg -v "// Safe|hardcoded.*valid|static.*data|00000000-0000-0000-0000-000000000000" | wc -l 2>/dev/null || echo 0)
+    PROBLEMATIC_UNWRAPS=$(rg "\.unwrap\(\)" src/ | rg -v "// Safe|hardcoded.*valid|static.*data" | wc -l 2>/dev/null || echo 0)
     PROBLEMATIC_EXPECTS=$(rg "\.expect\(" src/ | rg -v "// Safe|ServerResources.*required" | wc -l 2>/dev/null || echo 0)
     PANICS=$(rg "panic!\(" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
     TODOS=$(rg "TODO|FIXME|XXX" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
@@ -352,7 +365,7 @@ printf "│ %-35s │ %5d │ " "Problematic unwraps" "$PROBLEMATIC_UNWRAPS"
 if [ "$PROBLEMATIC_UNWRAPS" -eq 0 ]; then
     printf "$(format_status "✅ PASS")│ %-39s │\n" "Proper error handling"
 else
-    FIRST_UNWRAP=$(get_first_location 'rg "\.unwrap\(\)" src/ | rg -v "// Safe|hardcoded.*valid|static.*data|00000000-0000-0000-0000-000000000000" -n')
+    FIRST_UNWRAP=$(get_first_location 'rg "\.unwrap\(\)" src/ | rg -v "// Safe|hardcoded.*valid|static.*data" -n')
     printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_UNWRAP"
 fi
 
