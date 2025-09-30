@@ -27,6 +27,18 @@ import {
   AuthorizationServerMetadata,
   OAuthClientInformationFull
 } from '@modelcontextprotocol/sdk/shared/auth.js';
+import { z } from 'zod';
+
+// Define custom notification schema for Pierre's OAuth completion notifications
+const OAuthCompletedNotificationSchema = z.object({
+  method: z.literal('notifications/oauth_completed'),
+  params: z.object({
+    provider: z.string(),
+    success: z.boolean(),
+    message: z.string(),
+    user_id: z.string().optional()
+  }).optional()
+});
 
 interface StoredTokens {
   pierre?: OAuthTokens & { saved_at?: number };
@@ -1373,15 +1385,43 @@ export class PierreClaudeBridge {
       return;
     }
 
-    // Note: The official MCP SDK handles notifications and progress automatically
-    // through the client/server connection. Manual forwarding may not be needed
-    // for basic bridging scenarios, but we set up error handlers for visibility.
-
+    // Set up error handler for visibility
     this.pierreClient.onerror = (error) => {
       this.log('📢 Pierre client error:', error);
     };
 
-    this.log('📡 Notification forwarding configured (automatic via MCP protocol)');
+    // Set up OAuth completion notification handler
+    // Listen for OAuth completion notifications from Pierre server
+    // and forward them to Claude Desktop so users see the success message
+    try {
+      this.pierreClient.setNotificationHandler(
+        OAuthCompletedNotificationSchema,
+        async (notification) => {
+          this.log('🔔 Received OAuth completion notification from Pierre:', JSON.stringify(notification));
+
+          if (this.claudeServer) {
+            try {
+              // Forward the notification to Claude Desktop
+              await this.claudeServer.notification({
+                method: 'notifications/message',
+                params: {
+                  level: 'info',
+                  message: notification.params?.message || 'OAuth authentication completed successfully!'
+                }
+              });
+              this.log('✅ Forwarded OAuth notification to Claude Desktop');
+            } catch (error: any) {
+              this.log('❌ Failed to forward OAuth notification to Claude:', error.message);
+            }
+          }
+        }
+      );
+      this.log('📡 OAuth notification handler registered');
+    } catch (error: any) {
+      this.log('⚠️ Failed to set up OAuth notification handler:', error.message);
+    }
+
+    this.log('📡 Notification forwarding configured');
   }
 
   async stop(): Promise<void> {
