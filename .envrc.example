@@ -70,3 +70,8 @@ export FITNESS_PR_PACE_IMPROVEMENT_THRESHOLD="5.0"      # Minimum pace improveme
 # export TENANT_ID="your-tenant-id"
 # export TENANT_JWT_TOKEN="your-jwt-token"
 # export PIERRE_SERVER_URL="http://localhost:8080"
+
+# OAuth Login Form Defaults (for dev/test only - leave empty in production)
+# These pre-fill the OAuth login form for easier testing
+export OAUTH_DEFAULT_EMAIL="user@example.com"
+export OAUTH_DEFAULT_PASSWORD="userpass123"

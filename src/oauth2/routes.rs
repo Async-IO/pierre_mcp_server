@@ -437,6 +437,10 @@ async fn handle_oauth_login_page(params: HashMap<String, String>) -> Result<impl
     let state = params.get("state").map_or("", |v| v);
     let scope = params.get("scope").map_or("", |v| v);
 
+    // Get default form values from environment variables (for dev/test only)
+    let default_email = std::env::var("OAUTH_DEFAULT_EMAIL").unwrap_or_default();
+    let default_password = std::env::var("OAUTH_DEFAULT_PASSWORD").unwrap_or_default();
+
     // Simple HTML login form that preserves OAuth parameters
     let html = format!(
         r#"
@@ -471,12 +475,12 @@ async fn handle_oauth_login_page(params: HashMap<String, String>) -> Result<impl
 
             <div class="form-group">
                 <label for="email">Email:</label>
-                <input type="email" id="email" name="email" value="user@example.com" required>
+                <input type="email" id="email" name="email" value="{default_email}" required>
             </div>
 
             <div class="form-group">
                 <label for="password">Password:</label>
-                <input type="password" id="password" name="password" value="userpass123" required>
+                <input type="password" id="password" name="password" value="{default_password}" required>
             </div>
 
             <button type="submit">Login and Authorize</button>
@@ -493,7 +497,9 @@ async fn handle_oauth_login_page(params: HashMap<String, String>) -> Result<impl
             "fitness:read activities:read profile:read"
         } else {
             scope
-        }
+        },
+        default_email = default_email,
+        default_password = default_password
     );
 
     Ok(warp::reply::with_header(
