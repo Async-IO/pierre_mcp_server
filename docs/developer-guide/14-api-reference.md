@@ -204,15 +204,13 @@ Refresh an expired JWT token.
 
 ## OAuth Routes
 
-### GET /api/oauth/{provider}/authorize
+### GET /api/oauth/auth/{provider}/{user_id}
 
-Get OAuth authorization URL for fitness provider.
+Get OAuth authorization URL for fitness provider (src/routes/auth.rs:812-824).
 
 **Parameters**:
 - `provider`: `strava` | `fitbit`
-
-**Query Parameters**:
-- `tenant_id`: UUID (optional, for multi-tenant setups)
+- `user_id`: User UUID
 
 **Headers**:
 ```http
@@ -224,14 +222,14 @@ Authorization: Bearer jwt_token
 {
   "authorization_url": "https://www.strava.com/oauth/authorize?client_id=...",
   "state": "550e8400-e29b-41d4-a716-446655440000:abc123",
-  "instructions": "Visit the URL above to authorize access to your Strava account.",
+  "instructions": "Click the link to authorize strava access",
   "expires_in_minutes": 10
 }
 ```
 
-### GET /api/oauth/{provider}/callback
+### GET /api/oauth/callback/{provider}
 
-Handle OAuth callback after user authorization.
+Handle OAuth callback after user authorization (src/routes/auth.rs:783-795).
 
 **Parameters**:
 - `provider`: `strava` | `fitbit`
@@ -252,7 +250,7 @@ Handle OAuth callback after user authorization.
 
 ### GET /api/oauth/status
 
-Get connection status for all OAuth providers.
+Get connection status for all OAuth providers (src/routes/auth.rs:798-809).
 
 **Headers**:
 ```http
@@ -275,25 +273,6 @@ Authorization: Bearer jwt_token
     "scopes": null
   }
 ]
-```
-
-### DELETE /api/oauth/{provider}/disconnect
-
-Disconnect from an OAuth provider.
-
-**Parameters**:
-- `provider`: `strava` | `fitbit`
-
-**Headers**:
-```http
-Authorization: Bearer jwt_token
-```
-
-**Response** (200):
-```json
-{
-  "message": "Successfully disconnected from strava"
-}
 ```
 
 ## API Key Management Routes
