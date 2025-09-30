@@ -370,23 +370,158 @@ impl OAuthService {
             code
         );
 
-        // Use all contexts for OAuth processing
-        tracing::debug!("Processing OAuth callback with all contexts");
-        let _ = (
-            self.data.database().clone(),
-            self.config.config(),
-            self.notifications.clone(),
+        // Get database and user
+        let database = self.data.database();
+        let user = database
+            .get_user(user_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+
+        let tenant_id = user
+            .tenant_id
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("User has no tenant"))?
+            .clone();
+
+        // Create OAuth2 client and exchange code for token
+        let oauth_config = Self::create_oauth_config(provider)?;
+        let oauth_client = crate::oauth2_client::OAuth2Client::new(oauth_config);
+        let token = oauth_client.exchange_code(code).await?;
+
+        tracing::info!(
+            "Successfully exchanged OAuth code for user {} provider {}",
+            user_id,
+            provider
         );
 
-        // Process OAuth callback and store tokens
-        let expires_at = chrono::Utc::now() + chrono::Duration::hours(24);
+        // Store token in database
+        let expires_at = self
+            .store_oauth_token(user_id, tenant_id, provider, &token)
+            .await?;
+
+        tracing::info!(
+            "Successfully stored OAuth token for user {} provider {}",
+            user_id,
+            provider
+        );
+
+        // Send notifications
+        self.send_oauth_notifications(user_id, provider, &expires_at)
+            .await?;
 
         Ok(OAuthCallbackResponse {
             user_id: user_id.to_string(),
             provider: provider.to_string(),
             expires_at: expires_at.to_rfc3339(),
-            scopes: "read,activity:read_all".to_string(),
+            scopes: token.scope.unwrap_or_else(|| "read".to_string()),
         })
+    }
+
+    /// Create `OAuth2` config for provider
+    fn create_oauth_config(provider: &str) -> Result<crate::oauth2_client::OAuth2Config> {
+        match provider {
+            "strava" => Ok(crate::oauth2_client::OAuth2Config {
+                client_id: std::env::var("STRAVA_CLIENT_ID")
+                    .unwrap_or_else(|_| "163846".to_string()),
+                client_secret: std::env::var("STRAVA_CLIENT_SECRET")
+                    .unwrap_or_else(|_| String::new()),
+                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
+                token_url: "https://www.strava.com/oauth/token".to_string(),
+                redirect_uri: crate::constants::env_config::strava_redirect_uri(),
+                scopes: vec![crate::constants::oauth::STRAVA_DEFAULT_SCOPES.to_string()],
+                use_pkce: true,
+            }),
+            _ => Err(anyhow::anyhow!("Unsupported provider: {provider}")),
+        }
+    }
+
+    /// Store OAuth token in database
+    async fn store_oauth_token(
+        &self,
+        user_id: uuid::Uuid,
+        tenant_id: String,
+        provider: &str,
+        token: &crate::oauth2_client::OAuth2Token,
+    ) -> Result<chrono::DateTime<chrono::Utc>> {
+        let expires_at = token
+            .expires_at
+            .unwrap_or_else(|| chrono::Utc::now() + chrono::Duration::hours(1));
+
+        let user_oauth_token = crate::models::UserOAuthToken {
+            id: uuid::Uuid::new_v4().to_string(),
+            user_id,
+            tenant_id,
+            provider: provider.to_string(),
+            access_token: token.access_token.clone(),
+            refresh_token: token.refresh_token.clone(),
+            token_type: token.token_type.clone(),
+            expires_at: Some(expires_at),
+            scope: token.scope.clone(),
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+
+        self.data
+            .database()
+            .upsert_user_oauth_token(&user_oauth_token)
+            .await?;
+        Ok(expires_at)
+    }
+
+    /// Send OAuth completion notifications
+    async fn send_oauth_notifications(
+        &self,
+        user_id: uuid::Uuid,
+        provider: &str,
+        expires_at: &chrono::DateTime<chrono::Utc>,
+    ) -> Result<()> {
+        // Store notification in database
+        let notification_id = self
+            .data
+            .database()
+            .store_oauth_notification(
+                user_id,
+                provider,
+                true,
+                "OAuth authorization completed successfully",
+                Some(&expires_at.to_rfc3339()),
+            )
+            .await?;
+
+        tracing::info!(
+            "Created OAuth completion notification {} for user {} provider {}",
+            notification_id,
+            user_id,
+            provider
+        );
+
+        // Send immediate push notification if channel is available
+        if let Some(notification_sender) = self.notifications.oauth_notification_sender() {
+            let push_notification = crate::mcp::schema::OAuthCompletedNotification::new(
+                provider.to_string(),
+                true,
+                format!(
+                    "{provider} account connected successfully! You can now use fitness tools."
+                ),
+                Some(user_id.to_string()),
+            );
+
+            if let Err(e) = notification_sender.send(push_notification) {
+                tracing::warn!(
+                    "Failed to send OAuth push notification for user {} provider {}: {}",
+                    user_id,
+                    provider,
+                    e
+                );
+            } else {
+                tracing::info!(
+                    "Sent OAuth push notification for user {} provider {}",
+                    user_id,
+                    provider
+                );
+            }
+        }
+        Ok(())
     }
 
     /// Disconnect OAuth provider for user
@@ -565,13 +700,15 @@ impl AuthRoutes {
         let login = Self::login_route(resources.clone());
         let refresh = Self::refresh_route(resources.clone());
         let oauth_callback = Self::oauth_callback_route(resources.clone());
-        let oauth_status = Self::oauth_status_route(resources);
+        let oauth_status = Self::oauth_status_route(resources.clone());
+        let oauth_auth = Self::oauth_auth_route(resources);
 
         register
             .or(login)
             .or(refresh)
             .or(oauth_callback)
             .or(oauth_status)
+            .or(oauth_auth)
     }
 
     /// User registration endpoint
@@ -643,6 +780,21 @@ impl AuthRoutes {
             .and(warp::header::optional::<String>("authorization"))
             .and(with_resources(resources))
             .and_then(Self::handle_oauth_status)
+    }
+
+    /// OAuth authorization initiation endpoint
+    fn oauth_auth_route(
+        resources: Arc<ServerResources>,
+    ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+        warp::path("api")
+            .and(warp::path("oauth"))
+            .and(warp::path("auth"))
+            .and(warp::path::param::<String>()) // provider
+            .and(warp::path::param::<String>()) // user_id
+            .and(warp::path::end())
+            .and(warp::get())
+            .and(with_resources(resources))
+            .and_then(Self::handle_oauth_auth_initiate)
     }
 
     /// Handle user registration
@@ -816,6 +968,177 @@ impl AuthRoutes {
             warp::reply::json(&provider_statuses),
             warp::http::StatusCode::OK,
         ))
+    }
+
+    /// Generate OAuth error HTML page
+    fn generate_oauth_error_html(
+        provider: &str,
+        error_message: &str,
+        user_id: uuid::Uuid,
+    ) -> String {
+        format!(
+            r#"<!DOCTYPE html>
+<html>
+<head>
+    <title>OAuth Error - Pierre Fitness</title>
+    <meta charset="UTF-8">
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }}
+        .error-container {{
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }}
+        h1 {{
+            color: #d32f2f;
+            margin-top: 0;
+        }}
+        .error-message {{
+            color: #666;
+            line-height: 1.6;
+            margin: 20px 0;
+        }}
+        .details {{
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 14px;
+            word-break: break-all;
+        }}
+        .actions {{
+            margin-top: 30px;
+        }}
+        button {{
+            background: #1976d2;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }}
+        button:hover {{
+            background: #1565c0;
+        }}
+    </style>
+</head>
+<body>
+    <div class="error-container">
+        <h1>⚠️ OAuth Authorization Failed</h1>
+        <div class="error-message">
+            <p>We couldn't start the OAuth authorization process for <strong>{}</strong>.</p>
+            <p><strong>Error:</strong> {}</p>
+        </div>
+        <div class="details">
+            <strong>Provider:</strong> {}<br>
+            <strong>User ID:</strong> {}<br>
+            <strong>Timestamp:</strong> {}
+        </div>
+        <div class="actions">
+            <button onclick="window.close()">Close Window</button>
+        </div>
+    </div>
+</body>
+</html>"#,
+            provider,
+            error_message,
+            provider,
+            user_id,
+            chrono::Utc::now().to_rfc3339()
+        )
+    }
+
+    /// Handle OAuth authorization initiation - redirects to provider OAuth page
+    async fn handle_oauth_auth_initiate(
+        provider: String,
+        user_id_str: String,
+        resources: Arc<ServerResources>,
+    ) -> Result<Box<dyn warp::Reply>, Rejection> {
+        tracing::info!(
+            "OAuth authorization initiation for provider: {} user: {}",
+            provider,
+            user_id_str
+        );
+
+        // Parse user_id
+        let user_id = uuid::Uuid::parse_str(&user_id_str).map_err(|e| {
+            tracing::error!("Invalid user_id format: {} - {}", user_id_str, e);
+            warp::reject::custom(AppError::auth_invalid(format!(
+                "Invalid user ID format: {e}"
+            )))
+        })?;
+
+        // Get user to validate they exist and get tenant_id
+        let user = resources
+            .database
+            .get_user(user_id)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to get user {} for OAuth: {}", user_id, e);
+                warp::reject::custom(AppError::auth_invalid(format!("User not found: {e}")))
+            })?
+            .ok_or_else(|| {
+                tracing::error!("User {} not found in database", user_id);
+                warp::reject::custom(AppError::auth_invalid("User not found".to_string()))
+            })?;
+
+        // Get tenant_id from user or use user_id as default
+        let tenant_id = user
+            .tenant_id
+            .and_then(|tid| uuid::Uuid::parse_str(tid.as_str()).ok())
+            .unwrap_or(user_id);
+
+        // Get OAuth authorization URL
+        let server_context = crate::context::ServerContext::from(resources.as_ref());
+        let oauth_service = OAuthService::new(
+            server_context.data().clone(),
+            server_context.config().clone(),
+            server_context.notification().clone(),
+        );
+
+        match oauth_service
+            .get_auth_url(user_id, tenant_id, &provider)
+            .await
+        {
+            Ok(auth_response) => {
+                tracing::info!(
+                    "Generated OAuth URL for {} user {}: {}",
+                    provider,
+                    user_id,
+                    auth_response.authorization_url
+                );
+                // Redirect to the provider's OAuth authorization page
+                let redirect_response = warp::reply::with_header(
+                    warp::reply::with_status(warp::reply::html(""), warp::http::StatusCode::FOUND),
+                    "Location",
+                    auth_response.authorization_url,
+                );
+                Ok(Box::new(redirect_response) as Box<dyn warp::Reply>)
+            }
+            Err(e) => {
+                tracing::error!(
+                    "Failed to generate OAuth URL for {} user {}: {}",
+                    provider,
+                    user_id,
+                    e
+                );
+                let error_html =
+                    Self::generate_oauth_error_html(&provider, &e.to_string(), user_id);
+                let error_response = warp::reply::with_status(
+                    warp::reply::html(error_html),
+                    warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+                );
+                Ok(Box::new(error_response) as Box<dyn warp::Reply>)
+            }
+        }
     }
 }
 

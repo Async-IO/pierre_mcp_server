@@ -119,8 +119,16 @@ impl ProviderManager {
         user_id: Uuid,
         provider_type: ProviderType,
     ) -> Result<ProviderInfo, AppError> {
-        // For now, use global tenant until we have tenant context
-        let tenant_id = "00000000-0000-0000-0000-000000000000";
+        // Get user's tenant_id from database
+        let user = self
+            .database
+            .get_user(user_id)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("User {user_id}")))?;
+        let tenant_id = user
+            .tenant_id
+            .as_deref()
+            .ok_or_else(|| AppError::invalid_input("User has no tenant_id"))?;
 
         let token = match provider_type {
             ProviderType::Strava => {
@@ -195,8 +203,16 @@ impl ProviderManager {
         user_id: Uuid,
         provider_type: ProviderType,
     ) -> Result<(), AppError> {
-        // For now, use global tenant until we have tenant context
-        let tenant_id = "00000000-0000-0000-0000-000000000000";
+        // Get user's tenant_id from database
+        let user = self
+            .database
+            .get_user(user_id)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("User {user_id}")))?;
+        let tenant_id = user
+            .tenant_id
+            .as_deref()
+            .ok_or_else(|| AppError::invalid_input("User has no tenant_id"))?;
 
         // Remove from database
         match provider_type {

@@ -27,6 +27,18 @@ import {
   AuthorizationServerMetadata,
   OAuthClientInformationFull
 } from '@modelcontextprotocol/sdk/shared/auth.js';
+import { z } from 'zod';
+
+// Define custom notification schema for Pierre's OAuth completion notifications
+const OAuthCompletedNotificationSchema = z.object({
+  method: z.literal('notifications/oauth_completed'),
+  params: z.object({
+    provider: z.string(),
+    success: z.boolean(),
+    message: z.string(),
+    user_id: z.string().optional()
+  }).optional()
+});
 
 interface StoredTokens {
   pierre?: OAuthTokens & { saved_at?: number };
@@ -987,40 +999,16 @@ export class PierreClaudeBridge {
     // Bridge tools/list requests
     this.claudeServer.setRequestHandler(ListToolsRequestSchema, async (request) => {
       this.log('📋 Bridging tools/list request');
+      this.log(`📋 pierreClient exists: ${!!this.pierreClient}`);
 
       try {
         if (this.pierreClient) {
-          // If connected, get full tool list from Pierre via direct HTTP
-          const tokens = await this.oauthProvider?.tokens();
-          if (!tokens) {
-            throw new Error('No tokens available for Pierre request');
-          }
-
-          const fetch = (await import('node-fetch')).default;
-          const response = await fetch(`${this.config.pierreServerUrl}/mcp`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `${tokens.token_type} ${tokens.access_token}`
-            },
-            body: JSON.stringify({
-              jsonrpc: '2.0',
-              id: 1,
-              method: 'tools/list',
-              params: {}
-            })
-          });
-
-          if (!response.ok) {
-            throw new Error(`Pierre server request failed: ${response.status} ${response.statusText}`);
-          }
-
-          const result = await response.json() as any;
-          if (result.error) {
-            throw new Error(`Pierre server error: ${JSON.stringify(result.error)}`);
-          }
-
-          return result.result as any;
+          // If connected, forward the request through the pierreClient
+          // The client already has OAuth authentication built into its transport
+          this.log('📋 Forwarding tools/list to Pierre via authenticated client');
+          const result = await this.pierreClient.listTools();
+          this.log(`📋 Received ${result.tools.length} tools from Pierre`);
+          return result;
         } else {
           // If not connected, provide minimal tool list with connect_to_pierre
           return {
@@ -1077,7 +1065,26 @@ export class PierreClaudeBridge {
         };
       }
 
-      return await this.pierreClient.request(request, CallToolRequestSchema);
+      try {
+        this.log(`🔄 Forwarding tool call ${request.params.name} to Pierre server...`);
+        // Use callTool() instead of request() - Client.request() is for raw JSON-RPC,
+        // but we want the higher-level callTool() method which handles the protocol correctly
+        const result = await this.pierreClient.callTool({
+          name: request.params.name,
+          arguments: request.params.arguments || {}
+        });
+        this.log(`✅ Tool call ${request.params.name} result:`, JSON.stringify(result).substring(0, 200));
+        return result;
+      } catch (error) {
+        this.log(`❌ Tool call ${request.params.name} failed:`, error);
+        return {
+          content: [{
+            type: 'text',
+            text: `Tool execution failed: ${error instanceof Error ? error.message : String(error)}`
+          }],
+          isError: true
+        };
+      }
     });
 
     // Bridge resources/list requests
@@ -1180,6 +1187,19 @@ export class PierreClaudeBridge {
       // Initiate the OAuth connection
       await this.initiateConnection();
 
+      // Notify Claude Desktop that tools have changed (now authenticated)
+      if (this.claudeServer) {
+        try {
+          await this.claudeServer.notification({
+            method: 'notifications/tools/list_changed',
+            params: {}
+          });
+          this.log('📢 Sent tools/list_changed notification to Claude Desktop');
+        } catch (error: any) {
+          this.log('⚠️ Failed to send tools/list_changed notification:', error.message);
+        }
+      }
+
       return {
         content: [{
           type: 'text',
@@ -1239,12 +1259,68 @@ export class PierreClaudeBridge {
         this.log('✅ Pierre already authenticated');
       }
 
-      // Step 2: Initiate provider OAuth flow
-      this.log(`🔄 Initiating ${provider} OAuth flow...`);
+      // Step 2: Check if provider is already connected
+      this.log(`🔍 Checking if ${provider} is already connected`);
+      try {
+        if (this.pierreClient) {
+          const connectionStatus = await this.pierreClient.callTool({
+            name: 'get_connection_status',
+            arguments: { provider: provider }
+          });
+
+          // Check if the provider is already connected
+          // The server returns structuredContent with providers array containing connection status
+          if (connectionStatus) {
+            this.log(`📊 Full connection status response: ${JSON.stringify(connectionStatus).substring(0, 500)}...`);
+
+            // Access the structured content with provider connection status
+            const structured = (connectionStatus as any).structuredContent;
+            if (structured && structured.providers && Array.isArray(structured.providers)) {
+              const providerInfo = structured.providers.find((p: any) =>
+                p.provider && p.provider.toLowerCase() === provider.toLowerCase()
+              );
+
+              if (providerInfo && providerInfo.connected === true) {
+                this.log(`✅ ${provider} is already connected - no OAuth needed`);
+                return {
+                  content: [{
+                    type: 'text',
+                    text: `Already connected to ${provider.toUpperCase()}! You can now access your ${provider} fitness data.`
+                  }],
+                  isError: false
+                };
+              } else {
+                this.log(`🔄 ${provider} connected status: ${providerInfo ? providerInfo.connected : 'not found'}`);
+              }
+            }
+          }
+        }
+
+        this.log(`🔄 ${provider} not connected - proceeding with OAuth flow`);
+      } catch (error: any) {
+        this.log(`⚠️ Could not check connection status: ${error.message} - proceeding with OAuth anyway`);
+      }
+
+      // Step 3: Extract user_id from JWT token
+      const tokens = await this.oauthProvider.tokens();
+      if (!tokens?.access_token) {
+        throw new Error('No access token available');
+      }
+
+      // Decode JWT to get user_id (JWT format: header.payload.signature)
+      const payload = tokens.access_token.split('.')[1];
+      const decoded = JSON.parse(Buffer.from(payload, 'base64').toString());
+      const userId = decoded.sub;
+
+      if (!userId) {
+        throw new Error('Could not extract user_id from JWT token');
+      }
+
+      this.log(`🔄 Initiating ${provider} OAuth flow for user: ${userId}`);
 
       try {
-        // Get the Pierre server base URL for provider OAuth
-        const providerOAuthUrl = `${this.config.pierreServerUrl}/oauth/authorize/${provider}`;
+        // Correct OAuth URL format: /api/oauth/auth/{provider}/{user_id}
+        const providerOAuthUrl = `${this.config.pierreServerUrl}/api/oauth/auth/${provider}/${userId}`;
 
         // Open provider OAuth in browser
         const { spawn } = await import('child_process');
@@ -1314,15 +1390,43 @@ export class PierreClaudeBridge {
       return;
     }
 
-    // Note: The official MCP SDK handles notifications and progress automatically
-    // through the client/server connection. Manual forwarding may not be needed
-    // for basic bridging scenarios, but we set up error handlers for visibility.
-
+    // Set up error handler for visibility
     this.pierreClient.onerror = (error) => {
       this.log('📢 Pierre client error:', error);
     };
 
-    this.log('📡 Notification forwarding configured (automatic via MCP protocol)');
+    // Set up OAuth completion notification handler
+    // Listen for OAuth completion notifications from Pierre server
+    // and forward them to Claude Desktop so users see the success message
+    try {
+      this.pierreClient.setNotificationHandler(
+        OAuthCompletedNotificationSchema,
+        async (notification) => {
+          this.log('🔔 Received OAuth completion notification from Pierre:', JSON.stringify(notification));
+
+          if (this.claudeServer) {
+            try {
+              // Forward the notification to Claude Desktop
+              await this.claudeServer.notification({
+                method: 'notifications/message',
+                params: {
+                  level: 'info',
+                  message: notification.params?.message || 'OAuth authentication completed successfully!'
+                }
+              });
+              this.log('✅ Forwarded OAuth notification to Claude Desktop');
+            } catch (error: any) {
+              this.log('❌ Failed to forward OAuth notification to Claude:', error.message);
+            }
+          }
+        }
+      );
+      this.log('📡 OAuth notification handler registered');
+    } catch (error: any) {
+      this.log('⚠️ Failed to set up OAuth notification handler:', error.message);
+    }
+
+    this.log('📡 Notification forwarding configured');
   }
 
   async stop(): Promise<void> {

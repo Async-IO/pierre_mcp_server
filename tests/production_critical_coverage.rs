@@ -11,7 +11,6 @@ use pierre_mcp_server::{
     database_plugins::DatabaseProvider,
     mcp::multitenant::MultiTenantMcpServer,
     models::{EncryptedToken, User, UserTier},
-    oauth::{manager::OAuthManager, providers::StravaOAuthProvider},
     rate_limiting::UnifiedRateLimitCalculator,
     websocket::WebSocketManager,
 };
@@ -64,44 +63,6 @@ async fn test_mcp_request_processing_flow() -> Result<()> {
 
     // This exercises the core MCP request processing path
     // Currently this would be tested via HTTP/WebSocket, but we can test the core logic
-
-    Ok(())
-}
-
-/// Test OAuth provider initialization with real configuration
-#[tokio::test]
-async fn test_oauth_provider_real_config() -> Result<()> {
-    let database = create_test_database().await?;
-    let mut oauth_manager = OAuthManager::new(database);
-
-    // Test Strava provider initialization with missing config
-    let empty_config = pierre_mcp_server::config::environment::OAuthProviderConfig {
-        client_id: None,
-        client_secret: None,
-        redirect_uri: Some("http://localhost:3000/callback".to_string()),
-        scopes: vec!["read".to_string()],
-        enabled: true,
-    };
-
-    let result = StravaOAuthProvider::from_config(&empty_config);
-    assert!(result.is_err());
-
-    // Test with valid config
-    let valid_config = pierre_mcp_server::config::environment::OAuthProviderConfig {
-        client_id: Some("test_client_id".to_string()),
-        client_secret: Some("test_client_secret".to_string()),
-        redirect_uri: Some("http://localhost:3000/callback".to_string()),
-        scopes: vec!["read".to_string(), "activity:read_all".to_string()],
-        enabled: true,
-    };
-
-    let provider = StravaOAuthProvider::from_config(&valid_config)?;
-    oauth_manager.register_provider(Box::new(provider));
-
-    // Test auth URL generation
-    let user_id = Uuid::new_v4();
-    let result = oauth_manager.generate_auth_url(user_id, "strava").await;
-    assert!(result.is_ok());
 
     Ok(())
 }

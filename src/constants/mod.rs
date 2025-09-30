@@ -32,28 +32,41 @@ pub mod oauth_providers {
 pub mod env_config {
     use super::env;
 
-    /// Get HTTP server port from environment or default
+    /// Get unified server port from environment or default
+    /// Checks `HTTP_PORT` first (preferred), then `MCP_PORT` for backwards compatibility
     #[must_use]
-    pub fn http_port() -> u16 {
+    pub fn server_port() -> u16 {
         env::var("HTTP_PORT")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(8080)
-    }
-
-    /// Get MCP port from environment or default
-    #[must_use]
-    pub fn mcp_port() -> u16 {
-        env::var("MCP_PORT")
+            .or_else(|_| env::var("MCP_PORT"))
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or(8081)
     }
 
+    /// Get HTTP server port (alias for `server_port` for backwards compatibility)
+    #[must_use]
+    #[deprecated(
+        since = "0.1.0",
+        note = "Use server_port() instead - server is unified"
+    )]
+    pub fn http_port() -> u16 {
+        server_port()
+    }
+
+    /// Get MCP port (alias for `server_port` for backwards compatibility)
+    #[must_use]
+    #[deprecated(
+        since = "0.1.0",
+        note = "Use server_port() instead - server is unified"
+    )]
+    pub fn mcp_port() -> u16 {
+        server_port()
+    }
+
     /// Get base URL from environment or default
     #[must_use]
     pub fn base_url() -> String {
-        env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8080".to_string())
+        env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8081".to_string())
     }
 
     /// Get Strava redirect URI from environment or default

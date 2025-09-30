@@ -393,7 +393,7 @@ impl ServerConfig {
         Self::initialize_environment();
 
         let config = Self {
-            http_port: env_config::http_port(),
+            http_port: env_config::server_port(),
             log_level: LogLevel::from_str_or_default(&env_config::log_level()),
             database: Self::load_database_config()?,
             auth: Self::load_auth_config()?,
@@ -474,6 +474,7 @@ impl ServerConfig {
              - Log Level: {}\n\
              - Database: {}\n\
              - Strava OAuth: {}\n\
+             - Strava Redirect URI: {}\n\
              - Fitbit OAuth: {}\n\
              - Weather Service: {}\n\
              - TLS: {}\n\
@@ -488,6 +489,7 @@ impl ServerConfig {
                 "PostgreSQL"
             },
             "API-Configured",
+            crate::constants::env_config::strava_redirect_uri(),
             "API-Configured",
             if self.external_services.weather.enabled
                 && self.external_services.weather.api_key.is_some()

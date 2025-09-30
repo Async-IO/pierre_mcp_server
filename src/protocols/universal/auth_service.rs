@@ -57,43 +57,12 @@ impl AuthService {
                         .get_oauth_client(&tenant_context, provider, &self.resources.database)
                         .await
                     {
-                        Ok(oauth_client) => {
-                            // Create OAuth manager and register provider with tenant credentials
-                            let mut oauth_manager = self.resources.oauth_manager.write().await;
-
-                            // Extract credentials from OAuth2Client config
-                            let config = oauth_client.config();
-
-                            match provider {
-                                crate::constants::oauth_providers::STRAVA => {
-                                    if let Ok(tenant_provider) =
-                                        crate::oauth::providers::StravaOAuthProvider::from_config(
-                                            &crate::config::environment::OAuthProviderConfig {
-                                                client_id: Some(config.client_id.clone()), // Safe: String ownership needed for OAuth config
-                                                client_secret: Some(config.client_secret.clone()), // Safe: String ownership needed for OAuth config
-                                                redirect_uri: Some(config.redirect_uri.clone()), // Safe: String ownership needed for OAuth config
-                                                scopes: config.scopes.clone(), // Safe: Vec ownership needed for OAuth config
-                                                enabled: true,
-                                            },
-                                        )
-                                    {
-                                        oauth_manager.register_provider(Box::new(tenant_provider));
-                                        let result = oauth_manager
-                                            .ensure_valid_token(user_id, provider)
-                                            .await;
-                                        drop(oauth_manager);
-                                        return result;
-                                    }
-                                }
-                                _ => {
-                                    return Err(OAuthError::UnsupportedProvider(
-                                        provider.to_string(),
-                                    ));
-                                }
-                            }
+                        Ok(_oauth_client) => {
+                            // Tenant-specific OAuth client found
+                            // Continue to database lookup below which will find the token
                         }
                         Err(_e) => {
-                            // Continue to global config
+                            // No tenant-specific client, will use global config
                         }
                     }
                 }
@@ -101,8 +70,32 @@ impl AuthService {
         }
 
         // Use pre-registered global config
-        let oauth_manager = self.resources.oauth_manager.read().await;
-        oauth_manager.ensure_valid_token(user_id, provider).await
+        // If tenant_id was provided, look up token directly from database with tenant context
+        if let Some(tenant_id_str) = tenant_id {
+            // Direct database lookup with tenant_id
+            match (*self.resources.database)
+                .get_user_oauth_token(user_id, tenant_id_str, provider)
+                .await
+            {
+                Ok(Some(oauth_token)) => {
+                    let token_data = TokenData {
+                        provider: provider.to_string(),
+                        access_token: oauth_token.access_token,
+                        refresh_token: oauth_token.refresh_token.unwrap_or_default(),
+                        expires_at: oauth_token.expires_at.unwrap_or_else(chrono::Utc::now),
+                        scopes: oauth_token.scope.unwrap_or_default(),
+                    };
+                    return Ok(Some(token_data));
+                }
+                Ok(None) => return Ok(None),
+                Err(_) => {
+                    // Continue to global manager as fallback
+                }
+            }
+        }
+
+        // If no token found in database, return None
+        Ok(None)
     }
 
     /// Create authenticated provider with proper tenant-aware credentials

@@ -166,6 +166,9 @@ pub mod key_management;
 /// Real-time notification system with SSE support
 pub mod notifications;
 
+/// Unified Server-Sent Events system for OAuth notifications and MCP protocol streaming
+pub mod sse;
+
 /// OAuth 2.0 server implementation with JWT tokens
 pub mod oauth2;
 

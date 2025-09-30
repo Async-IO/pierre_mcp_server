@@ -86,7 +86,7 @@ impl OAuthFlowManager {
             let request = crate::tenant::oauth_client::StoreCredentialsRequest {
                 client_id,
                 client_secret,
-                redirect_uri: redirect_uri.to_string(),
+                redirect_uri,
                 scopes,
                 configured_by: user_id,
             };
@@ -198,11 +198,14 @@ impl OAuthFlowManager {
     }
 
     /// Get provider redirect URI
-    fn get_provider_redirect_uri(provider: &str) -> &'static str {
+    fn get_provider_redirect_uri(provider: &str) -> String {
         match provider {
-            "strava" => "http://localhost:8080/api/oauth/callback/strava",
-            "fitbit" => "http://localhost:8080/api/oauth/callback/fitbit",
-            _ => "http://localhost:8080/api/oauth/callback/unknown",
+            "strava" => crate::constants::env_config::strava_redirect_uri(),
+            "fitbit" => crate::constants::env_config::fitbit_redirect_uri(),
+            _ => format!(
+                "{}/api/oauth/callback/unknown",
+                crate::constants::env_config::base_url()
+            ),
         }
     }
 

@@ -104,11 +104,6 @@ impl TenantFitnessProvider for TenantStravaProvider {
     async fn get_athlete(&self) -> Result<Athlete> {
         let token = self.get_access_token()?;
 
-        // Validate token format
-        if token.starts_with("at_") {
-            return Err(anyhow!("Invalid token format. Please ensure you have a valid Strava OAuth access token."));
-        }
-
         let response: StravaAthlete = self
             .client
             .get(format!("{}/athlete", crate::constants::api::strava_api_base()))
@@ -146,11 +141,6 @@ impl TenantFitnessProvider for TenantStravaProvider {
         offset: Option<usize>,
     ) -> Result<Vec<Activity>> {
         let token = self.get_access_token()?;
-
-        // Validate token format
-        if token.starts_with("at_") {
-            return Err(anyhow!("Invalid token format. Please ensure you have a valid Strava OAuth access token."));
-        }
 
         let mut url = url::Url::parse(&format!("{}/athlete/activities", crate::constants::api::strava_api_base()))?;
 
@@ -245,11 +235,6 @@ impl TenantFitnessProvider for TenantStravaProvider {
     async fn get_activity(&self, id: &str) -> Result<Activity> {
         let token = self.get_access_token()?;
 
-        // Validate token format
-        if token.starts_with("at_") {
-            return Err(anyhow!("Invalid token format. Please ensure you have a valid Strava OAuth access token."));
-        }
-
         let response: StravaActivity = self
             .client
             .get(format!("{}/activities/{id}", crate::constants::api::strava_api_base()))
@@ -326,11 +311,6 @@ impl TenantFitnessProvider for TenantStravaProvider {
 
     async fn get_stats(&self) -> Result<Stats> {
         let token = self.get_access_token()?;
-
-        // Validate token format
-        if token.starts_with("at_") {
-            return Err(anyhow!("Invalid token format. Please ensure you have a valid Strava OAuth access token."));
-        }
 
         // Strava doesn't have a single stats endpoint, so we'll return empty stats
         // In a real implementation, you'd aggregate data from multiple endpoints

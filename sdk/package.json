@@ -10,7 +10,14 @@
     "build": "tsc",
     "dev": "tsx src/cli.ts",
     "start": "node dist/cli.js",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "test": "node test/test_sse_claude_desktop.js",
+    "test:sse": "node test/test_sse_claude_desktop.js",
+    "test:e2e": "node test/test_e2e_claude_desktop.js",
+    "test:stdio": "node test/test_claude_desktop.js",
+    "test:oauth": "node test/test_oauth_flow.js",
+    "test:tools": "node test/test_tools_list.js",
+    "test:all": "node test/test_complete_flow.js"
   },
   "keywords": [
     "mcp",

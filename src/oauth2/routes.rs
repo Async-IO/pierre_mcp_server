@@ -471,12 +471,12 @@ async fn handle_oauth_login_page(params: HashMap<String, String>) -> Result<impl
 
             <div class="form-group">
                 <label for="email">Email:</label>
-                <input type="email" id="email" name="email" required>
+                <input type="email" id="email" name="email" value="user@example.com" required>
             </div>
 
             <div class="form-group">
                 <label for="password">Password:</label>
-                <input type="password" id="password" name="password" required>
+                <input type="password" id="password" name="password" value="userpass123" required>
             </div>
 
             <button type="submit">Login and Authorize</button>

@@ -42,7 +42,7 @@ async fn create_configured_strava_provider(
 /// Create standard no-token response
 fn create_no_token_response() -> UniversalResponse {
     UniversalResponse {
-        success: true,
+        success: false,
         result: Some(serde_json::json!({
             "structuredContent": {
                 "activities": [{
@@ -53,7 +53,7 @@ fn create_no_token_response() -> UniversalResponse {
                 "error": "No valid Strava token found"
             }
         })),
-        error: None,
+        error: Some("No valid Strava token found. Please connect your Strava account using the connect_strava tool.".to_string()),
         metadata: Some({
             let mut map = std::collections::HashMap::new();
             map.insert(
