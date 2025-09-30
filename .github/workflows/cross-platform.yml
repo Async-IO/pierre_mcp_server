@@ -99,6 +99,7 @@ jobs:
           echo "PostgreSQL is ready!"
 
       - name: Platform-specific clippy check
+        shell: bash
         run: |
           if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
             cargo clippy --all-targets --all-features --quiet -- -W clippy::all -W clippy::pedantic -W clippy::nursery -D warnings
@@ -111,6 +112,7 @@ jobs:
           PIERRE_MASTER_ENCRYPTION_KEY: "rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo="
 
       - name: Run platform-specific tests
+        shell: bash
         run: |
           if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
             cargo test --all-targets --all-features --quiet -- --test-threads=1
@@ -129,6 +131,7 @@ jobs:
           PG_ACQUIRE_TIMEOUT_SECS: "120"
 
       - name: Test health monitoring functions
+        shell: bash
         run: |
           if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
             cargo test health --all-features --quiet
