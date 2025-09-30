@@ -120,7 +120,8 @@ If you prefer a direct WebSocket connection (requires server to be running):
 
 1. **Start OAuth flow:**
 ```bash
-curl "http://localhost:8081/api/oauth/strava/auth" \
+# Get Strava authorization URL (src/routes/auth.rs:565-608)
+curl "http://localhost:8081/oauth/strava/connect" \
   -H "Authorization: Bearer $JWT_TOKEN"
 ```
 
@@ -128,7 +129,8 @@ curl "http://localhost:8081/api/oauth/strava/auth" \
 
 3. **Verify connection:**
 ```bash
-curl "http://localhost:8081/api/oauth/providers/status" \
+# Check connection status (src/routes/auth.rs:598-643)
+curl "http://localhost:8081/oauth/status" \
   -H "Authorization: Bearer $JWT_TOKEN"
 ```
 
@@ -223,7 +225,8 @@ curl "http://localhost:8081/api/oauth/config" \
 
 3. **Reset OAuth tokens:**
 ```bash
-curl -X POST "http://localhost:8081/api/oauth/strava/disconnect" \
+# Disconnect provider (src/routes/auth.rs:527-563)
+curl -X POST "http://localhost:8081/oauth/disconnect/strava" \
   -H "Authorization: Bearer $JWT_TOKEN"
 ```
 

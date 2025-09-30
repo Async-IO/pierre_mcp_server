@@ -99,11 +99,13 @@ graph TB
 
 ### Cloud Deployment Setup
 
+Pierre runs as a unified HTTP server on a single port (default 8081). All protocols (MCP, OAuth 2.0, REST API) share the same port.
+
 For these examples, assume Pierre is deployed at:
-- **Production HTTP API**: `https://pierre-api.example.com` (port 8081 behind load balancer)
-- **Production MCP**: `https://pierre-api.example.com/mcp` (MCP protocol endpoint)
-- **Development HTTP API**: `http://localhost:8081` (authentication and admin)
-- **Development MCP**: `http://localhost:8081/mcp` (MCP protocol endpoint)
+- **Production**: `https://pierre-api.example.com` (port 8081, all endpoints)
+- **Development**: `http://localhost:8081` (unified server, all endpoints)
+- **MCP Endpoint**: `/mcp` (on the same port)
+- **OAuth 2.0 Endpoints**: `/oauth2/*` (on the same port)
 
 ### 1. Admin Setup Flow
 
@@ -112,8 +114,8 @@ First, an administrator sets up the system and creates the first admin user.
 #### Step 1: Initial Admin Setup (Server-side)
 
 ```bash
-# Create the first admin user via server API
-curl -X POST https://pierre.example.com/admin/setup \
+# Create the first admin user via REST API (src/bin/pierre-mcp-server.rs:118-120)
+curl -X POST http://localhost:8081/admin/setup \
   -H "Content-Type: application/json" \
   -d '{
     "email": "admin@example.com",
@@ -165,7 +167,7 @@ You can now:
 
 ```bash
 # Admin logs in via API to get JWT token
-curl -X POST https://pierre-api.example.com/api/auth/login \
+curl -X POST http://localhost:8081/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "admin@example.com",
@@ -401,11 +403,12 @@ Pierre's OAuth 2.0 Authorization Server integrates with MCP for seamless authent
 #### Step 4.1: OAuth 2.0 Discovery and Registration
 
 ```bash
-# MCP client automatically discovers OAuth 2.0 capabilities
+# MCP client automatically discovers OAuth 2.0 capabilities (RFC 8414)
 curl -X GET http://localhost:8081/.well-known/oauth-authorization-server
 
-# MCP client registers as OAuth 2.0 client
-curl -X POST http://localhost:8081/oauth/register \
+# MCP client registers as OAuth 2.0 client (RFC 7591)
+# Implementation in src/oauth2/routes.rs:71-81
+curl -X POST http://localhost:8081/oauth2/register \
   -H "Content-Type: application/json" \
   -d '{
     "redirect_uris": ["http://localhost:35535/oauth/callback"],
@@ -429,13 +432,13 @@ sequenceDiagram
     MCP->>Pierre: GET /.well-known/oauth-authorization-server
     Pierre-->>MCP: OAuth 2.0 metadata
 
-    MCP->>Pierre: POST /oauth/register
+    MCP->>Pierre: POST /oauth2/register
     Pierre-->>MCP: client_id, client_secret
 
-    MCP->>Pierre: GET /oauth/authorize?response_type=code&client_id=...
+    MCP->>Pierre: GET /oauth2/authorize?response_type=code&client_id=...
     Pierre-->>MCP: authorization_code
 
-    MCP->>Pierre: POST /oauth/token (code for JWT)
+    MCP->>Pierre: POST /oauth2/token (code for JWT)
     Pierre-->>MCP: JWT access token
 
     McpRemote->>Claude: MCP connection ready
@@ -841,17 +844,17 @@ This change provides:
 
 ### JWT Token Structure
 
+Actual JWT Claims implementation from `src/auth.rs:110-123`:
+
 ```rust
-// src/auth.rs
+// src/auth.rs:110-123
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
-    pub sub: String,        // User ID
-    pub tenant_id: String,  // Tenant ID for isolation
-    pub role: String,       // User role (admin, owner, member)
-    pub iat: i64,          // Issued at
-    pub exp: i64,          // Expiry
-    pub aud: String,       // Audience (pierre-mcp-server)
-    pub iss: String,       // Issuer (pierre-api)
+    pub sub: String,         // User ID
+    pub email: String,       // User email
+    pub iat: i64,           // Issued at timestamp
+    pub exp: i64,           // Expiration timestamp
+    pub providers: Vec<String>, // Available fitness providers
 }
 
 impl AuthManager {

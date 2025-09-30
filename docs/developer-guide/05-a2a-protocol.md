@@ -84,7 +84,10 @@ Before using A2A protocol, systems must register as A2A clients:
 
 ```bash
 # Register new A2A client
-curl -X POST http://localhost:8081/api/a2a/register \
+# Note: Full A2A registration endpoint is under development
+# Current implementation: src/routes/a2a.rs provides status endpoint
+# Agent Card implementation: src/a2a/agent_card.rs
+curl -X POST http://localhost:8081/a2a/register \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <admin_token>" \
   -d '{
@@ -118,10 +121,14 @@ OAuth credentials for A2A clients are managed through environment variables at t
 
 ### Agent Card Discovery
 
-External systems can discover Pierre's capabilities through the Agent Card:
+External systems can discover Pierre's capabilities through the Agent Card.
+
+Agent Card implementation is in `src/a2a/agent_card.rs:76-150`:
 
 ```bash
-curl -X GET http://localhost:8081/api/a2a/agent-card \
+# Note: Full agent-card endpoint is under development
+# Agent Card data structure is implemented in src/a2a/agent_card.rs
+curl -X GET http://localhost:8081/a2a/agent-card \
   -H "X-API-Key: A2A_abc123def456ghi789jkl012mno345pqr678stu901vwx234yz"
 ```
 

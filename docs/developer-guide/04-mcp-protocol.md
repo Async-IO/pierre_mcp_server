@@ -113,10 +113,10 @@ Pierre implements a dual authentication model:
 # Configure MCP client to connect to http://localhost:8081/mcp
 ```
 
-**OAuth 2.0 to JWT Flow:**
-1. MCP client registers as OAuth 2.0 client (`POST /oauth/register`)
-2. Authorization flow (`GET /oauth/authorize`)
-3. Token exchange (`POST /oauth/token`) - **Returns JWT access token**
+**OAuth 2.0 to JWT Flow** (src/oauth2/routes.rs):
+1. MCP client registers as OAuth 2.0 client (`POST /oauth2/register` - line 75-81)
+2. Authorization flow (`GET /oauth2/authorize` - line 89-96)
+3. Token exchange (`POST /oauth2/token` - line 122-129) - **Returns JWT access token**
 4. MCP requests authenticated with JWT via `Authorization: Bearer <jwt>`
 
 ### Option 2: Direct JWT Authentication
@@ -136,15 +136,19 @@ Pierre implements a dual authentication model:
 
 ### Conditional Authentication Logic
 
+Implementation in src/mcp/multitenant.rs handles authentication based on method type:
+
 ```rust
-// src/mcp/multitenant.rs
+// src/mcp/multitenant.rs - Authentication routing
 match request.method.as_str() {
     "initialize" | "tools/list" => {
         // No authentication required - discovery methods
+        // Allows MCP clients to discover capabilities before auth
         handle_unauthenticated_request(request).await
     },
     "tools/call" => {
         // JWT authentication required - execution methods
+        // Validates JWT token from OAuth 2.0 flow or direct login
         match authenticate_request(&headers).await {
             Ok(user_context) => handle_authenticated_request(request, user_context).await,
             Err(_) => return_auth_error(),
