@@ -10,10 +10,7 @@ use pierre_mcp_server::{
     database_plugins::DatabaseProvider,
     mcp::multitenant::MultiTenantMcpServer,
     models::{Activity, Athlete, EncryptedToken, SportType, Stats, User, UserTier},
-    oauth::{
-        manager::OAuthManager,
-        providers::{FitbitOAuthProvider, StravaOAuthProvider},
-    },
+    oauth::providers::{FitbitOAuthProvider, StravaOAuthProvider},
 };
 use serde_json::json;
 use std::sync::Arc;
@@ -259,86 +256,6 @@ async fn test_oauth_providers_comprehensive() -> Result<()> {
 
         let fitbit_result = FitbitOAuthProvider::from_config(&config);
         assert!(fitbit_result.is_err());
-    }
-
-    Ok(())
-}
-
-/// Test OAuth manager operations
-#[tokio::test]
-async fn test_oauth_manager_operations() -> Result<()> {
-    let database = create_test_database().await?;
-    let mut oauth_manager = OAuthManager::new(database.clone());
-
-    // Register providers
-    let strava_config = OAuthProviderConfig {
-        client_id: Some("manager_strava_client".to_string()),
-        client_secret: Some("manager_strava_secret".to_string()),
-        redirect_uri: Some("http://localhost:3000/oauth/strava/callback".to_string()),
-        scopes: vec!["read".to_string()],
-        enabled: true,
-    };
-
-    let strava_provider = StravaOAuthProvider::from_config(&strava_config)?;
-    oauth_manager.register_provider(Box::new(strava_provider));
-
-    // Create test users
-    let users = vec![
-        User::new(
-            "oauth1@example.com".to_string(),
-            "hash1".to_string(),
-            Some("OAuth User 1".to_string()),
-        ),
-        User::new(
-            "oauth2@example.com".to_string(),
-            "hash2".to_string(),
-            Some("OAuth User 2".to_string()),
-        ),
-    ];
-
-    for user in &users {
-        database.create_user(user).await?;
-
-        // Test auth URL generation
-        let url_result = oauth_manager.generate_auth_url(user.id, "strava").await;
-        match url_result {
-            Ok(auth_response) => {
-                assert!(auth_response.authorization_url.starts_with("https://"));
-                assert!(!auth_response.state.is_empty());
-                assert_eq!(auth_response.provider, "strava");
-            }
-            Err(e) => {
-                println!("Auth URL generation failed: {e}");
-            }
-        }
-
-        // Test connection status
-        let status_result = oauth_manager.get_connection_status(user.id).await;
-        match status_result {
-            Ok(status_map) => {
-                for (provider, connected) in status_map {
-                    println!("Provider {provider} connected: {connected}");
-                }
-            }
-            Err(e) => {
-                println!("Connection status check failed: {e}");
-            }
-        }
-
-        // Test ensure valid token
-        let token_result = oauth_manager.ensure_valid_token(user.id, "strava").await;
-        match token_result {
-            Ok(token_data) => {
-                if let Some(token) = token_data {
-                    assert!(!token.access_token.is_empty());
-                } else {
-                    println!("No token available for user {}", user.email);
-                }
-            }
-            Err(e) => {
-                println!("Token operation failed: {e}");
-            }
-        }
     }
 
     Ok(())

@@ -81,7 +81,6 @@ impl From<&ServerResources> for ServerContext {
 
         let config = ConfigContext::new(
             resources.config.clone(),
-            resources.oauth_manager.clone(),
             resources.tenant_oauth_client.clone(),
             resources.a2a_client_manager.clone(),
             resources.a2a_system_user_service.clone(),

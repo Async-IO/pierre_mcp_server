@@ -798,20 +798,27 @@ async fn test_oauth_provider_init_failure() {
     // Execute - should handle provider initialization failure gracefully
     let response = executor.execute_tool(request).await.unwrap();
 
-    // Should succeed but return mock data with error messages about missing OAuth credentials
-    assert!(response.success, "Tool execution should succeed");
+    // Should fail with proper error message about missing OAuth credentials
+    println!("Response: {:?}", response);
+    println!("Success: {}", response.success);
+    if let Some(ref err) = response.error {
+        println!("Error: {}", err);
+    }
     assert!(
-        response.result.is_some(),
-        "Should have result with mock data"
+        !response.success,
+        "Tool execution should fail when no OAuth token"
+    );
+    assert!(
+        response.error.is_some(),
+        "Should have error message about missing OAuth token"
     );
 
-    // Check that the result contains information about missing OAuth token
-    let result = response.result.unwrap();
-    let result_str = serde_json::to_string(&result).unwrap();
+    // Check that the error contains information about missing OAuth token
+    let error_msg = response.error.unwrap();
     assert!(
-        result_str.contains("No Strava token found")
-            || result_str.contains("Connect your Strava account"),
-        "Result should contain OAuth connection message: {}",
-        result_str
+        error_msg.contains("No") && error_msg.contains("Strava token")
+            || error_msg.contains("Connect your Strava account"),
+        "Error should contain OAuth connection message: {}",
+        error_msg
     );
 }

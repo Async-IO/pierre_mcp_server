@@ -89,11 +89,9 @@ impl TransportManager {
 
             // Clone shared resources for each iteration since run_http_server_with_resources takes ownership
             let server = super::multitenant::MultiTenantMcpServer::new(shared_resources.clone());
-            match server.run_http_server_with_resources(
-                port,
-                shared_resources.clone(),
-            )
-            .await
+            match server
+                .run_http_server_with_resources(port, shared_resources.clone())
+                .await
             {
                 Ok(()) => {
                     error!("HTTP server unexpectedly completed - this should never happen");

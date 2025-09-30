@@ -631,25 +631,30 @@ async fn test_mcp_authentication_required() -> Result<()> {
     let client = MultiTenantMcpClient::new(server_port);
     // Note: No login, so no JWT token
 
-    // Try to list tools without authentication (this should work)
+    // Try to list tools without authentication (this should fail - tools/list requires auth)
     let tools_response = client.list_tools().await?;
 
-    // Tools list should work without authentication
+    // Tools list should return authentication error
+    println!(
+        "Tools response: {}",
+        serde_json::to_string_pretty(&tools_response)?
+    );
     assert_eq!(tools_response["jsonrpc"], "2.0");
     assert_eq!(tools_response["id"], 2);
-    assert!(tools_response["result"]["tools"].is_array());
-    assert!(!tools_response["result"]["tools"]
-        .as_array()
-        .unwrap()
-        .is_empty());
+    assert!(!tools_response["error"].is_null());
+    assert_eq!(tools_response["error"]["code"], -32603);
+    assert_eq!(
+        tools_response["error"]["message"],
+        "Authentication required"
+    );
 
-    // Try to call a tool without authentication (this should fail)
+    // Try to call a tool without authentication (this should also fail)
     let tool_call_response = client.call_tool("get_connection_status", json!({})).await?;
 
     // Should return an authentication error for tool call
     assert_eq!(tool_call_response["jsonrpc"], "2.0");
     assert!(!tool_call_response["error"].is_null());
-    assert_eq!(tool_call_response["error"]["code"], -32603); // Authentication error (Internal error)
+    assert_eq!(tool_call_response["error"]["code"], -32603);
 
     println!("Authentication requirement test passed!");
 
@@ -701,15 +706,21 @@ async fn test_mcp_initialization_no_auth() -> Result<()> {
 
     let client = MultiTenantMcpClient::new(server_port);
 
-    // Initialize should work without authentication
+    // Initialize requires authentication (per server security policy)
     let init_response = client.initialize_mcp().await?;
 
+    println!(
+        "Init response: {}",
+        serde_json::to_string_pretty(&init_response)?
+    );
     assert_eq!(init_response["jsonrpc"], "2.0");
     assert_eq!(init_response["id"], 1);
-    assert!(!init_response["result"]["serverInfo"]["name"].is_null());
-    assert_eq!(init_response["result"]["protocolVersion"], "2025-06-18");
+    // Should return authentication error
+    assert!(!init_response["error"].is_null());
+    assert_eq!(init_response["error"]["code"], -32603);
+    assert_eq!(init_response["error"]["message"], "Authentication required");
 
-    println!("MCP initialization without auth test passed!");
+    println!("MCP initialization authentication requirement test passed!");
 
     // Clean up server
     server_handle.abort();

@@ -291,13 +291,13 @@ async fn test_connect_strava_tool() -> Result<()> {
     };
 
     let response = executor.execute_tool(request).await?;
-    assert!(response.success);
-    assert!(response.result.is_some());
+    // Should fail without OAuth token
+    assert!(!response.success);
+    assert!(response.error.is_some());
 
-    // get_activities returns activities array with mock data when no token
-    let result = response.result.unwrap();
-    assert!(result["structuredContent"]["activities"].is_array());
-    assert!(result["structuredContent"]["provider"].is_string());
+    // Error should mention missing token
+    let error = response.error.unwrap();
+    assert!(error.contains("No") && error.contains("token") || error.contains("Connect"));
 
     Ok(())
 }
@@ -1114,20 +1114,13 @@ async fn test_get_activities_async_no_token() -> Result<()> {
     };
 
     let response = executor.execute_tool(request).await?;
-    assert!(response.success);
-    assert!(response.result.is_some());
+    // Should fail without OAuth token
+    assert!(!response.success);
+    assert!(response.error.is_some());
 
-    // Should return an object with activities array when no token available
-    let result = response.result.unwrap();
-    assert!(result.is_object());
-    assert!(result["structuredContent"]["activities"].is_array());
-
-    // Should have at least one error entry
-    let activities = result["structuredContent"]["activities"]
-        .as_array()
-        .unwrap();
-    assert!(!activities.is_empty());
-    assert!(activities[0]["error"].is_string());
+    // Error should mention missing token
+    let error = response.error.unwrap();
+    assert!(error.contains("No") && error.contains("token") || error.contains("Connect"));
 
     Ok(())
 }

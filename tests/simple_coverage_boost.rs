@@ -15,7 +15,7 @@ use pierre_mcp_server::{
     config::environment::OAuthProviderConfig,
     database_plugins::DatabaseProvider,
     models::{EncryptedToken, User, UserTier},
-    oauth::{manager::OAuthManager, providers::StravaOAuthProvider},
+    oauth::providers::StravaOAuthProvider,
 };
 use uuid::Uuid;
 
@@ -202,34 +202,6 @@ async fn test_oauth_provider_error_cases() -> Result<()> {
 
     let result2 = StravaOAuthProvider::from_config(&missing_secret);
     assert!(result2.is_err());
-
-    Ok(())
-}
-
-/// Test OAuth manager basic operations
-#[tokio::test]
-async fn test_oauth_manager_operations() -> Result<()> {
-    let database = create_test_database().await?;
-    let oauth_manager = OAuthManager::new(database.clone());
-
-    let user_id = Uuid::new_v4();
-
-    // Test with invalid provider
-    let invalid_result = oauth_manager
-        .generate_auth_url(user_id, "nonexistent")
-        .await;
-    assert!(invalid_result.is_err());
-
-    // Test connection status
-    let status_result = oauth_manager.get_connection_status(user_id).await;
-    match status_result {
-        Ok(_) => {
-            // Connection status check succeeded
-        }
-        Err(_) => {
-            // Connection status check failed - this is also valid for testing
-        }
-    }
 
     Ok(())
 }

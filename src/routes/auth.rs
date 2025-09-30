@@ -970,61 +970,14 @@ impl AuthRoutes {
         ))
     }
 
-    /// Handle OAuth authorization initiation - redirects to provider OAuth page
-    async fn handle_oauth_auth_initiate(
-        provider: String,
-        user_id_str: String,
-        resources: Arc<ServerResources>,
-    ) -> Result<Box<dyn warp::Reply>, Rejection> {
-        tracing::info!("OAuth authorization initiation for provider: {} user: {}", provider, user_id_str);
-
-        // Parse user_id
-        let user_id = uuid::Uuid::parse_str(&user_id_str).map_err(|e| {
-            tracing::error!("Invalid user_id format: {} - {}", user_id_str, e);
-            warp::reject::custom(AppError::auth_invalid(format!("Invalid user ID format: {}", e)))
-        })?;
-
-        // Get user to validate they exist and get tenant_id
-        let user = resources.database.get_user(user_id).await.map_err(|e| {
-            tracing::error!("Failed to get user {} for OAuth: {}", user_id, e);
-            warp::reject::custom(AppError::auth_invalid(format!("User not found: {}", e)))
-        })?.ok_or_else(|| {
-            tracing::error!("User {} not found in database", user_id);
-            warp::reject::custom(AppError::auth_invalid("User not found".to_string()))
-        })?;
-
-        // Get tenant_id from user or use user_id as default
-        let tenant_id = user.tenant_id
-            .and_then(|tid| uuid::Uuid::parse_str(tid.as_str()).ok())
-            .unwrap_or(user_id);
-
-        // Get OAuth authorization URL
-        let server_context = crate::context::ServerContext::from(resources.as_ref());
-        let oauth_service = OAuthService::new(
-            server_context.data().clone(),
-            server_context.config().clone(),
-            server_context.notification().clone(),
-        );
-
-        match oauth_service.get_auth_url(user_id, tenant_id, &provider).await {
-            Ok(auth_response) => {
-                tracing::info!("Generated OAuth URL for {} user {}: {}", provider, user_id, auth_response.authorization_url);
-                // Redirect to the provider's OAuth authorization page
-                let redirect_response = warp::reply::with_header(
-                    warp::reply::with_status(
-                        warp::reply::html(""),
-                        warp::http::StatusCode::FOUND,
-                    ),
-                    "Location",
-                    auth_response.authorization_url,
-                );
-                Ok(Box::new(redirect_response) as Box<dyn warp::Reply>)
-            }
-            Err(e) => {
-                tracing::error!("Failed to generate OAuth URL for {} user {}: {}", provider, user_id, e);
-                // Return HTML error page
-                let error_html = format!(
-                    r#"<!DOCTYPE html>
+    /// Generate OAuth error HTML page
+    fn generate_oauth_error_html(
+        provider: &str,
+        error_message: &str,
+        user_id: uuid::Uuid,
+    ) -> String {
+        format!(
+            r#"<!DOCTYPE html>
 <html>
 <head>
     <title>OAuth Error - Pierre Fitness</title>
@@ -1095,13 +1048,90 @@ impl AuthRoutes {
     </div>
 </body>
 </html>"#,
-                    provider,
-                    e,
+            provider,
+            error_message,
+            provider,
+            user_id,
+            chrono::Utc::now().to_rfc3339()
+        )
+    }
+
+    /// Handle OAuth authorization initiation - redirects to provider OAuth page
+    async fn handle_oauth_auth_initiate(
+        provider: String,
+        user_id_str: String,
+        resources: Arc<ServerResources>,
+    ) -> Result<Box<dyn warp::Reply>, Rejection> {
+        tracing::info!(
+            "OAuth authorization initiation for provider: {} user: {}",
+            provider,
+            user_id_str
+        );
+
+        // Parse user_id
+        let user_id = uuid::Uuid::parse_str(&user_id_str).map_err(|e| {
+            tracing::error!("Invalid user_id format: {} - {}", user_id_str, e);
+            warp::reject::custom(AppError::auth_invalid(format!(
+                "Invalid user ID format: {e}"
+            )))
+        })?;
+
+        // Get user to validate they exist and get tenant_id
+        let user = resources
+            .database
+            .get_user(user_id)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to get user {} for OAuth: {}", user_id, e);
+                warp::reject::custom(AppError::auth_invalid(format!("User not found: {e}")))
+            })?
+            .ok_or_else(|| {
+                tracing::error!("User {} not found in database", user_id);
+                warp::reject::custom(AppError::auth_invalid("User not found".to_string()))
+            })?;
+
+        // Get tenant_id from user or use user_id as default
+        let tenant_id = user
+            .tenant_id
+            .and_then(|tid| uuid::Uuid::parse_str(tid.as_str()).ok())
+            .unwrap_or(user_id);
+
+        // Get OAuth authorization URL
+        let server_context = crate::context::ServerContext::from(resources.as_ref());
+        let oauth_service = OAuthService::new(
+            server_context.data().clone(),
+            server_context.config().clone(),
+            server_context.notification().clone(),
+        );
+
+        match oauth_service
+            .get_auth_url(user_id, tenant_id, &provider)
+            .await
+        {
+            Ok(auth_response) => {
+                tracing::info!(
+                    "Generated OAuth URL for {} user {}: {}",
                     provider,
                     user_id,
-                    chrono::Utc::now().to_rfc3339()
+                    auth_response.authorization_url
                 );
-
+                // Redirect to the provider's OAuth authorization page
+                let redirect_response = warp::reply::with_header(
+                    warp::reply::with_status(warp::reply::html(""), warp::http::StatusCode::FOUND),
+                    "Location",
+                    auth_response.authorization_url,
+                );
+                Ok(Box::new(redirect_response) as Box<dyn warp::Reply>)
+            }
+            Err(e) => {
+                tracing::error!(
+                    "Failed to generate OAuth URL for {} user {}: {}",
+                    provider,
+                    user_id,
+                    e
+                );
+                let error_html =
+                    Self::generate_oauth_error_html(&provider, &e.to_string(), user_id);
                 let error_response = warp::reply::with_status(
                     warp::reply::html(error_html),
                     warp::http::StatusCode::INTERNAL_SERVER_ERROR,

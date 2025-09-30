@@ -11,7 +11,6 @@
 //! Unified OAuth handling for all fitness providers across both MCP servers.
 //! Provides a consistent interface for OAuth flows regardless of provider.
 
-pub mod manager;
 pub mod providers;
 
 use anyhow::Result;

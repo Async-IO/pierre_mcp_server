@@ -22,7 +22,6 @@ use crate::database_plugins::factory::Database;
 use crate::intelligence::ActivityIntelligence;
 use crate::mcp::schema::OAuthCompletedNotification;
 use crate::middleware::McpAuthMiddleware;
-use crate::oauth::manager::OAuthManager;
 use crate::providers::ProviderRegistry;
 use crate::tenant::{oauth_manager::TenantOAuthManager, TenantOAuthClient};
 use crate::websocket::WebSocketManager;
@@ -44,7 +43,6 @@ pub struct ServerResources {
     pub admin_jwt_secret: Arc<str>,
     pub config: Arc<crate::config::environment::ServerConfig>,
     pub activity_intelligence: Arc<ActivityIntelligence>,
-    pub oauth_manager: Arc<tokio::sync::RwLock<OAuthManager>>,
     pub a2a_client_manager: Arc<A2AClientManager>,
     pub a2a_system_user_service: Arc<A2ASystemUserService>,
     pub oauth_notification_sender: Option<broadcast::Sender<OAuthCompletedNotification>>,
@@ -52,29 +50,6 @@ pub struct ServerResources {
 }
 
 impl ServerResources {
-    /// Create OAuth manager with pre-registered providers to avoid lock contention
-    fn create_initialized_oauth_manager(
-        database: Arc<Database>,
-        config: &Arc<crate::config::environment::ServerConfig>,
-    ) -> OAuthManager {
-        let mut oauth_manager = OAuthManager::new(database);
-
-        // Pre-register providers at startup to avoid write lock contention on each request
-        if let Ok(strava_provider) =
-            crate::oauth::providers::StravaOAuthProvider::from_config(&config.oauth.strava)
-        {
-            oauth_manager.register_provider(Box::new(strava_provider));
-        }
-
-        if let Ok(fitbit_provider) =
-            crate::oauth::providers::FitbitOAuthProvider::from_config(&config.oauth.fitbit)
-        {
-            oauth_manager.register_provider(Box::new(fitbit_provider));
-        }
-
-        oauth_manager
-    }
-
     /// Create new server resources with proper Arc sharing
     pub fn new(
         database: Database,
@@ -127,11 +102,6 @@ impl ServerResources {
                 },
             ));
 
-        // Create OAuth manager once for shared use with RwLock for concurrent access
-        let oauth_manager = Arc::new(tokio::sync::RwLock::new(
-            Self::create_initialized_oauth_manager(database_arc.clone(), &config),
-        ));
-
         // Create A2A system user service once for shared use
         let a2a_system_user_service = Arc::new(A2ASystemUserService::new(database_arc.clone()));
 
@@ -154,7 +124,6 @@ impl ServerResources {
             admin_jwt_secret: admin_jwt_secret.into(),
             config,
             activity_intelligence,
-            oauth_manager,
             a2a_client_manager,
             a2a_system_user_service,
             oauth_notification_sender: None,

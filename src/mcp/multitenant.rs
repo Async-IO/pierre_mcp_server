@@ -83,9 +83,15 @@ struct ProviderConnectionStatus {
 struct SessionData {
     jwt_token: String,
     user_id: uuid::Uuid,
-    email: String,
-    tenant_id: Option<uuid::Uuid>,
-    created_at: std::time::Instant,
+}
+
+/// HTTP request headers for MCP requests
+#[derive(Clone, Debug)]
+struct McpRequestHeaders {
+    auth_header: Option<String>,
+    origin: Option<String>,
+    accept: Option<String>,
+    session_id: Option<String>,
 }
 
 /// MCP server supporting user authentication and isolated data access
@@ -204,7 +210,8 @@ impl MultiTenantMcpServer {
         // Unified SSE routes for both notifications and MCP protocol
         let sse_routes =
             crate::sse::routes::sse_routes(resources.sse_manager.clone(), resources.clone());
-        let mcp_endpoint_routes = Self::create_mcp_endpoint_routes(&resources, self.sessions.clone());
+        let mcp_endpoint_routes =
+            Self::create_mcp_endpoint_routes(&resources, self.sessions.clone());
 
         // Create websocket route (method needs to exist)
         // let websocket_route = Self::create_websocket_route(resources.websocket_manager.clone());
@@ -515,7 +522,7 @@ impl MultiTenantMcpServer {
                       body: serde_json::Value| {
                     // Debug: Log all headers
                     tracing::debug!("=== ALL HEADERS RECEIVED ===");
-                    for (name, value) in all_headers.iter() {
+                    for (name, value) in &all_headers {
                         tracing::debug!("  {}: {:?}", name, value);
                     }
                     tracing::debug!("=== END HEADERS ===");
@@ -526,10 +533,12 @@ impl MultiTenantMcpServer {
                         let ctx = HttpRequestContext { resources };
                         Self::handle_mcp_http_request_with_session(
                             method,
-                            auth_header,
-                            origin,
-                            accept,
-                            session_id,
+                            McpRequestHeaders {
+                                auth_header,
+                                origin,
+                                accept,
+                                session_id,
+                            },
                             body,
                             &ctx,
                             sessions,
@@ -1745,10 +1754,7 @@ impl MultiTenantMcpServer {
     /// Handle MCP HTTP request with session management support
     async fn handle_mcp_http_request_with_session(
         method: warp::http::Method,
-        auth_header: Option<String>,
-        origin: Option<String>,
-        accept: Option<String>,
-        session_id: Option<String>,
+        headers: McpRequestHeaders,
         body: serde_json::Value,
         ctx: &HttpRequestContext,
         sessions: Arc<tokio::sync::Mutex<std::collections::HashMap<String, SessionData>>>,
@@ -1757,41 +1763,46 @@ impl MultiTenantMcpServer {
         tracing::debug!(
             "Method: {}, Has Auth Header: {}, Session ID: {:?}",
             method,
-            auth_header.is_some(),
-            session_id
+            headers.auth_header.is_some(),
+            headers.session_id
         );
 
         // Determine session ID and auth header priority:
         // 1. Always prefer auth header from current request if provided
         // 2. Fall back to stored session auth only if no header in current request
         // 3. Generate new session ID if needed
-        let actual_session_id = session_id.clone().unwrap_or_else(|| {
+        let actual_session_id = headers.session_id.clone().unwrap_or_else(|| {
             let new_session_id = format!("session_{}", uuid::Uuid::new_v4());
             tracing::info!("Generated new MCP session: {}", new_session_id);
             new_session_id
         });
 
-        let effective_auth_header = if auth_header.is_some() {
+        let effective_auth_header = if headers.auth_header.is_some() {
             // Current request has auth header - use it
             tracing::debug!("Using auth header from current request");
-            auth_header.clone()
-        } else if let Some(sid) = session_id.as_ref() {
+            headers.auth_header.clone()
+        } else if let Some(sid) = headers.session_id.as_ref() {
             // No auth in current request, check session
             let sessions_guard = sessions.lock().await;
-            if let Some(session_data) = sessions_guard.get(sid) {
-                tracing::info!("Using stored session auth for user {}", session_data.user_id);
-                Some(format!("Bearer {}", session_data.jwt_token))
-            } else {
-                None
-            }
+            sessions_guard.get(sid).map(|session_data| {
+                tracing::info!(
+                    "Using stored session auth for user {}",
+                    session_data.user_id
+                );
+                format!("Bearer {}", session_data.jwt_token)
+            })
         } else {
             None
         };
 
         // If we have auth header but no session data yet, validate and store it
-        if let Some(ref auth) = auth_header {
-            let mut sessions_guard = sessions.lock().await;
-            if !sessions_guard.contains_key(&actual_session_id) {
+        if let Some(ref auth) = headers.auth_header {
+            let needs_validation = {
+                let sessions_guard = sessions.lock().await;
+                !sessions_guard.contains_key(&actual_session_id)
+            };
+
+            if needs_validation {
                 // Extract JWT token and validate it
                 if let Some(token) = auth.strip_prefix("Bearer ") {
                     // Validate the JWT to get user info
@@ -1803,18 +1814,19 @@ impl MultiTenantMcpServer {
                     .await
                     {
                         // Get user details
-                        if let Ok(Some(user)) = ctx.resources.database.get_user(jwt_result.user_id).await {
+                        if let Ok(Some(user)) =
+                            ctx.resources.database.get_user(jwt_result.user_id).await
+                        {
                             // Store session
+                            let mut sessions_guard = sessions.lock().await;
                             sessions_guard.insert(
                                 actual_session_id.clone(),
                                 SessionData {
                                     jwt_token: token.to_string(),
                                     user_id: jwt_result.user_id,
-                                    email: user.email.clone(),
-                                    tenant_id: user.tenant_id.and_then(|tid| uuid::Uuid::parse_str(&tid).ok()),
-                                    created_at: std::time::Instant::now(),
                                 },
                             );
+                            drop(sessions_guard);
                             tracing::info!(
                                 "Stored session {} for user {} ({})",
                                 actual_session_id,
@@ -1833,8 +1845,8 @@ impl MultiTenantMcpServer {
         let mut response = Self::handle_mcp_http_request_with_conditional_auth(
             method,
             effective_auth_header,
-            origin,
-            accept,
+            headers.origin,
+            headers.accept,
             body,
             ctx,
         )

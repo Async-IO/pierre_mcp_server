@@ -3,10 +3,8 @@
 
 use crate::a2a::client::A2AClientManager;
 use crate::a2a::system_user::A2ASystemUserService;
-use crate::oauth::manager::OAuthManager;
 use crate::tenant::TenantOAuthClient;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 
 /// Configuration context containing config and OAuth dependencies
 ///
@@ -15,14 +13,12 @@ use tokio::sync::RwLock;
 ///
 /// # Dependencies
 /// - `config`: Server configuration settings
-/// - `oauth_manager`: OAuth provider management and flows
 /// - `tenant_oauth_client`: Multi-tenant OAuth client management
 /// - `a2a_client_manager`: Application-to-application client management
 /// - `a2a_system_user_service`: System user service for A2A operations
 #[derive(Clone)]
 pub struct ConfigContext {
     config: Arc<crate::config::environment::ServerConfig>,
-    oauth_manager: Arc<RwLock<OAuthManager>>,
     tenant_oauth_client: Arc<TenantOAuthClient>,
     a2a_client_manager: Arc<A2AClientManager>,
     a2a_system_user_service: Arc<A2ASystemUserService>,
@@ -33,14 +29,12 @@ impl ConfigContext {
     #[must_use]
     pub const fn new(
         config: Arc<crate::config::environment::ServerConfig>,
-        oauth_manager: Arc<RwLock<OAuthManager>>,
         tenant_oauth_client: Arc<TenantOAuthClient>,
         a2a_client_manager: Arc<A2AClientManager>,
         a2a_system_user_service: Arc<A2ASystemUserService>,
     ) -> Self {
         Self {
             config,
-            oauth_manager,
             tenant_oauth_client,
             a2a_client_manager,
             a2a_system_user_service,
@@ -51,12 +45,6 @@ impl ConfigContext {
     #[must_use]
     pub const fn config(&self) -> &Arc<crate::config::environment::ServerConfig> {
         &self.config
-    }
-
-    /// Get OAuth manager for provider operations
-    #[must_use]
-    pub const fn oauth_manager(&self) -> &Arc<RwLock<OAuthManager>> {
-        &self.oauth_manager
     }
 
     /// Get tenant OAuth client for multi-tenant operations
