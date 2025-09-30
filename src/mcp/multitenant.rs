@@ -1949,19 +1949,65 @@ impl MultiTenantMcpServer {
                     .as_ref()
                     .is_some_and(|a| a.contains("text/event-stream"))
                 {
-                    // Return proper SSE stream using unified SSE infrastructure
-                    // TODO: Integrate MCP protocol with unified SSE manager
-                    tracing::info!("MCP SSE request - using unified SSE infrastructure");
-                    let stream: futures_util::stream::Empty<
-                        Result<warp::sse::Event, std::convert::Infallible>,
-                    > = futures_util::stream::empty();
+                    // Integrate with unified SSE infrastructure for MCP protocol streaming
+                    tracing::info!("MCP SSE request - registering protocol stream with unified SSE manager");
 
-                    // Use warp's SSE reply with proper CORS headers
+                    // Generate or extract session ID from authorization
+                    let session_id = authorization
+                        .as_ref()
+                        .and_then(|auth| auth.strip_prefix("Bearer "))
+                        .map(|token| format!("session_{}", &token[..std::cmp::min(8, token.len())]))
+                        .unwrap_or_else(|| format!("session_{}", uuid::Uuid::new_v4()));
+
+                    // Register SSE stream with the manager
+                    let mut receiver = ctx
+                        .resources
+                        .sse_manager
+                        .register_protocol_stream(session_id.clone(), authorization, ctx.resources.clone())
+                        .await;
+
+                    let manager = ctx.resources.sse_manager.clone();
+                    let session_id_clone = session_id.clone();
+
+                    // Create SSE stream that forwards messages from the manager
+                    let stream = async_stream::stream! {
+                        // Send initial connection established event
+                        yield Ok::<_, warp::Error>(warp::sse::Event::default()
+                            .data("MCP protocol stream ready")
+                            .event("connected"));
+
+                        // Listen for MCP messages
+                        loop {
+                            match receiver.recv().await {
+                                Ok(message) => {
+                                    yield Ok(warp::sse::Event::default()
+                                        .data(message)
+                                        .event("mcp"));
+                                }
+                                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                                    tracing::warn!("SSE protocol stream lagged for session: {}", session_id_clone);
+                                }
+                                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                                    tracing::info!("SSE protocol channel closed for session: {}", session_id_clone);
+                                    break;
+                                }
+                            }
+                        }
+
+                        // Clean up connection
+                        manager.unregister_protocol_stream(&session_id_clone).await;
+                    };
+
+                    // Use warp's SSE reply with proper CORS headers and session ID
                     let sse_reply = warp::sse::reply(warp::sse::keep_alive().stream(stream));
                     let response = warp::reply::with_header(
-                        warp::reply::with_header(sse_reply, "access-control-allow-origin", "*"),
-                        "access-control-allow-headers",
-                        "cache-control",
+                        warp::reply::with_header(
+                            warp::reply::with_header(sse_reply, "access-control-allow-origin", "*"),
+                            "access-control-allow-headers",
+                            "cache-control",
+                        ),
+                        "Mcp-Session-Id",
+                        session_id,
                     );
 
                     Ok(Box::new(response))
