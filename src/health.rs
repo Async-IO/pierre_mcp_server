@@ -613,7 +613,8 @@ fn bytes_to_gb(bytes: u64, divisor: f64) -> f64 {
     let low = (bytes & 0xFFFF_FFFF) as u32;
 
     // Reconstruct as f64 without precision loss for realistic values
-    (f64::from(high) * f64::from(1u64 << 32) + f64::from(low)) / divisor
+    // 2^32 = 4294967296.0 (exactly representable in f64)
+    (f64::from(high) * 4_294_967_296.0 + f64::from(low)) / divisor
 }
 
 impl HealthChecker {
