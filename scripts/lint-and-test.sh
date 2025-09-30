@@ -145,8 +145,9 @@ if [ -f "$VALIDATION_PATTERNS_FILE" ]; then
     IMPLEMENTATION_PLACEHOLDERS=$(rg "$CRITICAL_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
     if [ -n "$WARNING_PATTERNS" ]; then
         TOTAL_WARNING_COUNT=$(rg "$WARNING_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-        DOCUMENTED_LONG_FUNCTIONS=$(rg -B2 "#\[allow\(clippy::too_many_lines\)\]" src/ | rg "// Long function:|// Safe:" --count 2>/dev/null || echo "0")
-        PLACEHOLDER_WARNINGS=$((TOTAL_WARNING_COUNT - DOCUMENTED_LONG_FUNCTIONS))
+        # Count long functions with proper documentation (either inline or on preceding line)
+        DOCUMENTED_LONG_FUNCTIONS=$(rg "#\[allow\(clippy::too_many_lines\)\]" src/ -B1 | rg -c "// Long function:|// Safe:" 2>/dev/null || echo "0")
+        PLACEHOLDER_WARNINGS=$((TOTAL_WARNING_COUNT > DOCUMENTED_LONG_FUNCTIONS ? TOTAL_WARNING_COUNT - DOCUMENTED_LONG_FUNCTIONS : 0))
     else
         PLACEHOLDER_WARNINGS=0
     fi
