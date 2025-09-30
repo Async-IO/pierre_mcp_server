@@ -599,7 +599,24 @@ impl HealthChecker {
             used_percent,
         })
     }
+}
 
+/// Convert bytes to gigabytes with documented precision characteristics
+///
+/// u64 to f64 conversion can lose precision for very large values, but for
+/// disk space measurements this is acceptable as precision is maintained
+/// for all realistic disk sizes (< 9 PB).
+#[cfg(target_os = "windows")]
+#[inline]
+fn bytes_to_gb(bytes: u64, divisor: f64) -> f64 {
+    // Precision loss acceptable: see function documentation
+    #[allow(clippy::cast_precision_loss)]
+    {
+        bytes as f64 / divisor
+    }
+}
+
+impl HealthChecker {
     #[cfg(target_os = "windows")]
     fn get_memory_info_windows() -> Result<MemoryInfo, Box<dyn std::error::Error>> {
         // Use Windows API GlobalMemoryStatusEx for accurate memory information
@@ -749,25 +766,14 @@ impl HealthChecker {
             .into());
         }
 
-        // Convert bytes to GB avoiding precision loss warnings
-        // Split into whole GB and fractional parts for safe conversion
-        const DIVISOR: u64 = crate::constants::system_monitoring::BYTES_TO_GB_DIVISOR;
-
-        let total_whole_gb = total_bytes / DIVISOR;
-        let total_remainder = total_bytes % DIVISOR;
-        let avail_whole_gb = free_bytes_available / DIVISOR;
-        let avail_remainder = free_bytes_available % DIVISOR;
-
-        // Saturate to u32::MAX for extreme values (4+ exabytes)
-        let total_gb_u32 = u32::try_from(total_whole_gb).unwrap_or(u32::MAX);
-        let total_rem_u32 = u32::try_from(total_remainder).unwrap_or(0);
-        let avail_gb_u32 = u32::try_from(avail_whole_gb).unwrap_or(u32::MAX);
-        let avail_rem_u32 = u32::try_from(avail_remainder).unwrap_or(0);
-
-        let total_gb =
-            f64::from(total_gb_u32) + (f64::from(total_rem_u32) / f64::from(1_073_741_824_u32));
-        let available_gb =
-            f64::from(avail_gb_u32) + (f64::from(avail_rem_u32) / f64::from(1_073_741_824_u32));
+        // Convert bytes to GB using floating-point division
+        // Precision loss is acceptable for disk space measurements:
+        // - Typical disk sizes are < 100 TB
+        // - f64 maintains full precision for values < 9 PB (2^53 bytes)
+        // - Loss of sub-byte precision at large scales is operationally irrelevant
+        let divisor_f64 = f64::from(crate::constants::system_monitoring::BYTES_TO_GB_DIVISOR);
+        let total_gb = bytes_to_gb(total_bytes, divisor_f64);
+        let available_gb = bytes_to_gb(free_bytes_available, divisor_f64);
         let used_gb = total_gb - available_gb;
         let used_percent = if total_gb > 0.0 {
             (used_gb / total_gb) * 100.0
