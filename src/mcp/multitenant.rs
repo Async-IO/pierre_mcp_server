@@ -1961,7 +1961,7 @@ impl MultiTenantMcpServer {
                         .and_then(|auth| auth.strip_prefix("Bearer "))
                         .map_or_else(
                             || format!("session_{}", uuid::Uuid::new_v4()),
-                            |token| format!("session_{}", &token[..std::cmp::min(8, token.len())])
+                            |token| format!("session_{}", &token[..std::cmp::min(8, token.len())]),
                         );
 
                     // Register SSE stream with the manager
