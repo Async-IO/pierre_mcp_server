@@ -22,7 +22,7 @@ pub fn is_supported(provider: &str) -> bool {
 }
 
 /// Strava default scopes
-pub const STRAVA_DEFAULT_SCOPES: &str = "read,activity:read_all";
+pub const STRAVA_DEFAULT_SCOPES: &str = "read";
 
 /// Fitbit default scopes
 pub const FITBIT_DEFAULT_SCOPES: &str = "activity profile";

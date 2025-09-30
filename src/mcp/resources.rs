@@ -48,7 +48,7 @@ pub struct ServerResources {
     pub a2a_client_manager: Arc<A2AClientManager>,
     pub a2a_system_user_service: Arc<A2ASystemUserService>,
     pub oauth_notification_sender: Option<broadcast::Sender<OAuthCompletedNotification>>,
-    pub sse_manager: Arc<crate::notifications::sse::SseConnectionManager>,
+    pub sse_manager: Arc<crate::sse::SseManager>,
 }
 
 impl ServerResources {
@@ -141,8 +141,8 @@ impl ServerResources {
             a2a_system_user_service.clone(),
         ));
 
-        // Create SSE connection manager for real-time notifications
-        let sse_manager = Arc::new(crate::notifications::sse::SseConnectionManager::new());
+        // Create unified SSE manager for both notifications and MCP protocol
+        let sse_manager = Arc::new(crate::sse::SseManager::new());
 
         Self {
             database: database_arc,

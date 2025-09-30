@@ -88,7 +88,8 @@ impl TransportManager {
             info!("Starting unified HTTP server on port {}", port);
 
             // Clone shared resources for each iteration since run_http_server_with_resources takes ownership
-            match super::multitenant::MultiTenantMcpServer::run_http_server_with_resources(
+            let server = super::multitenant::MultiTenantMcpServer::new(shared_resources.clone());
+            match server.run_http_server_with_resources(
                 port,
                 shared_resources.clone(),
             )

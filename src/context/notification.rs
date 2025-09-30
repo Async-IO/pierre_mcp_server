@@ -18,7 +18,7 @@ use tokio::sync::broadcast;
 #[derive(Clone)]
 pub struct NotificationContext {
     websocket_manager: Arc<WebSocketManager>,
-    sse_manager: Arc<crate::notifications::sse::SseConnectionManager>,
+    sse_manager: Arc<crate::sse::SseManager>,
     oauth_notification_sender: Option<broadcast::Sender<OAuthCompletedNotification>>,
 }
 
@@ -27,7 +27,7 @@ impl NotificationContext {
     #[must_use]
     pub const fn new(
         websocket_manager: Arc<WebSocketManager>,
-        sse_manager: Arc<crate::notifications::sse::SseConnectionManager>,
+        sse_manager: Arc<crate::sse::SseManager>,
         oauth_notification_sender: Option<broadcast::Sender<OAuthCompletedNotification>>,
     ) -> Self {
         Self {
@@ -45,7 +45,7 @@ impl NotificationContext {
 
     /// Get SSE manager for server-sent events
     #[must_use]
-    pub const fn sse_manager(&self) -> &Arc<crate::notifications::sse::SseConnectionManager> {
+    pub const fn sse_manager(&self) -> &Arc<crate::sse::SseManager> {
         &self.sse_manager
     }
 

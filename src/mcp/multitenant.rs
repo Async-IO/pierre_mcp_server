@@ -78,17 +78,31 @@ struct ProviderConnectionStatus {
     fitbit_connected: bool,
 }
 
+/// Session data for authenticated MCP connections
+#[derive(Clone, Debug)]
+struct SessionData {
+    jwt_token: String,
+    user_id: uuid::Uuid,
+    email: String,
+    tenant_id: Option<uuid::Uuid>,
+    created_at: std::time::Instant,
+}
+
 /// MCP server supporting user authentication and isolated data access
 #[derive(Clone)]
 pub struct MultiTenantMcpServer {
     resources: Arc<ServerResources>,
+    sessions: Arc<tokio::sync::Mutex<std::collections::HashMap<String, SessionData>>>,
 }
 
 impl MultiTenantMcpServer {
     /// Create a new MCP server with pre-built resources (dependency injection)
     #[must_use]
-    pub const fn new(resources: Arc<ServerResources>) -> Self {
-        Self { resources }
+    pub fn new(resources: Arc<ServerResources>) -> Self {
+        Self {
+            resources,
+            sessions: Arc::new(tokio::sync::Mutex::new(std::collections::HashMap::new())),
+        }
     }
 
     /// Run the unified server with both HTTP and MCP endpoints
@@ -109,6 +123,7 @@ impl MultiTenantMcpServer {
     /// # Errors
     /// Returns an error if server setup or routing configuration fails
     pub async fn run_http_server_with_resources(
+        &self,
         port: u16,
         resources: Arc<ServerResources>,
     ) -> Result<()> {
@@ -186,12 +201,10 @@ impl MultiTenantMcpServer {
         // Health check route
         let health_route = Self::create_health_route();
 
-        // SSE notification routes
-        let sse_routes = crate::notifications::sse::sse_routes(resources.sse_manager.clone()); // Safe: Arc clone for HTTP routes
-
-        // MCP SSE endpoint for MCP protocol transport
-        let mcp_sse_routes = Self::create_mcp_sse_routes(&resources);
-        let mcp_endpoint_routes = Self::create_mcp_endpoint_routes(&resources);
+        // Unified SSE routes for both notifications and MCP protocol
+        let sse_routes =
+            crate::sse::routes::sse_routes(resources.sse_manager.clone(), resources.clone());
+        let mcp_endpoint_routes = Self::create_mcp_endpoint_routes(&resources, self.sessions.clone());
 
         // Create websocket route (method needs to exist)
         // let websocket_route = Self::create_websocket_route(resources.websocket_manager.clone());
@@ -215,7 +228,6 @@ impl MultiTenantMcpServer {
             .or(admin_routes_filter)
             .or(tenant_routes_filter)
             .or(sse_routes)
-            .or(mcp_sse_routes)
             .or(mcp_endpoint_routes)
             .or(health_route)
             .with(cors)
@@ -470,100 +482,10 @@ impl MultiTenantMcpServer {
         oauth_auth.or(oauth_callback)
     }
 
-    /// Create SSE routes for MCP protocol transport
-    fn create_mcp_sse_routes(
-        resources: &Arc<ServerResources>,
-    ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-        use warp::Filter;
-
-        // GET /sse - Main SSE endpoint for MCP over SSE
-        let sse_endpoint = warp::path("sse")
-            .and(warp::path::end())
-            .and(warp::get())
-            .and(warp::header::optional::<String>("authorization"))
-            .map({
-                let resources = resources.clone();
-                move |authorization: Option<String>| {
-                    // Create SSE stream for MCP protocol
-                    let sse_stream = crate::mcp::sse_transport::create_mcp_sse_stream(
-                        resources.clone(),
-                        authorization,
-                    );
-
-                    // Set proper CORS headers for SSE
-                    warp::reply::with_header(
-                        warp::sse::reply(warp::sse::keep_alive().stream(sse_stream)),
-                        "access-control-allow-origin",
-                        "*",
-                    )
-                }
-            });
-
-        // POST /sse - Handle MCP requests via POST for SSE
-        let sse_post = warp::path("sse")
-            .and(warp::path::end())
-            .and(warp::post())
-            .and(warp::body::content_length_limit(1024 * 1024)) // 1MB limit
-            .and(warp::body::bytes())
-            .and(warp::header::optional::<String>("authorization"))
-            .and_then({
-                let resources = resources.clone(); // Safe: Arc clone for HTTP handler closure
-                move |body: bytes::Bytes, authorization: Option<String>| {
-                    let resources = resources.clone(); // Safe: Arc clone needed for Fn trait in Warp
-                    async move {
-                        let request_data = String::from_utf8(body.to_vec()).map_err(|_| {
-                            warp::reject::custom(ApiError(
-                                serde_json::json!({"error": "Invalid UTF-8 in request body"}),
-                            ))
-                        })?;
-
-                        tracing::debug!("MCP SSE POST request: {}", request_data);
-
-                        match crate::mcp::sse_transport::handle_mcp_sse_request(
-                            resources,
-                            Some(request_data),
-                            authorization,
-                        )
-                        .await
-                        {
-                            Ok(response) => Ok(warp::reply::with_header(
-                                warp::reply::json(&response),
-                                "access-control-allow-origin",
-                                "*",
-                            )),
-                            Err(e) => {
-                                tracing::error!("MCP SSE request failed: {}", e);
-                                Err(warp::reject::custom(ApiError(
-                                    serde_json::json!({"error": e.to_string()}),
-                                )))
-                            }
-                        }
-                    }
-                }
-            });
-
-        // OPTIONS /sse - CORS preflight
-        let sse_options = warp::path("sse")
-            .and(warp::path::end())
-            .and(warp::options())
-            .map(|| {
-                warp::reply::with_header(
-                    warp::reply::with_header(
-                        warp::reply::with_header(warp::reply(), "access-control-allow-origin", "*"),
-                        "access-control-allow-methods",
-                        "GET, POST, OPTIONS",
-                    ),
-                    "access-control-allow-headers",
-                    "authorization, content-type",
-                )
-            });
-
-        sse_endpoint.or(sse_post).or(sse_options)
-    }
-
     /// Create MCP endpoint routes for HTTP server
     fn create_mcp_endpoint_routes(
         resources: &Arc<ServerResources>,
+        sessions: Arc<tokio::sync::Mutex<std::collections::HashMap<String, SessionData>>>,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
 
@@ -574,6 +496,8 @@ impl MultiTenantMcpServer {
             .and(warp::header::optional::<String>("authorization"))
             .and(warp::header::optional::<String>("origin"))
             .and(warp::header::optional::<String>("accept"))
+            .and(warp::header::optional::<String>("mcp-session-id"))
+            .and(warp::header::headers_cloned())
             .and(warp::body::bytes().map(|bytes: bytes::Bytes| {
                 if bytes.is_empty() {
                     serde_json::Value::Null
@@ -586,18 +510,29 @@ impl MultiTenantMcpServer {
                       auth_header: Option<String>,
                       origin: Option<String>,
                       accept: Option<String>,
+                      session_id: Option<String>,
+                      all_headers: warp::http::HeaderMap,
                       body: serde_json::Value| {
+                    // Debug: Log all headers
+                    tracing::debug!("=== ALL HEADERS RECEIVED ===");
+                    for (name, value) in all_headers.iter() {
+                        tracing::debug!("  {}: {:?}", name, value);
+                    }
+                    tracing::debug!("=== END HEADERS ===");
                     let resources = resources.clone();
+                    let sessions = sessions.clone();
 
                     async move {
                         let ctx = HttpRequestContext { resources };
-                        Self::handle_mcp_http_request_with_conditional_auth(
+                        Self::handle_mcp_http_request_with_session(
                             method,
                             auth_header,
                             origin,
                             accept,
+                            session_id,
                             body,
                             &ctx,
+                            sessions,
                         )
                         .await
                     }
@@ -1700,8 +1635,10 @@ impl MultiTenantMcpServer {
     fn mcp_method_requires_auth(mcp_method: &str) -> bool {
         match mcp_method {
             // Standard MCP discovery methods - following MCP specification compliance
-            "initialize" | "ping" | "tools/list" => false,
-            // All other methods (including tools/call) require authentication
+            // SECURITY: initialize now requires authentication to prevent unauthenticated connections
+            "ping" | "notifications/initialized" => false,
+            // tools/list requires authentication to prevent tool enumeration by unauthenticated clients
+            // All other methods (including tools/call and initialize) require authentication
             _ => true,
         }
     }
@@ -1803,6 +1740,112 @@ impl MultiTenantMcpServer {
             // No authentication required for this method
             Self::handle_mcp_http_request(method, origin, accept, auth_header, body, ctx).await
         }
+    }
+
+    /// Handle MCP HTTP request with session management support
+    async fn handle_mcp_http_request_with_session(
+        method: warp::http::Method,
+        auth_header: Option<String>,
+        origin: Option<String>,
+        accept: Option<String>,
+        session_id: Option<String>,
+        body: serde_json::Value,
+        ctx: &HttpRequestContext,
+        sessions: Arc<tokio::sync::Mutex<std::collections::HashMap<String, SessionData>>>,
+    ) -> Result<Box<dyn warp::Reply>, warp::Rejection> {
+        tracing::debug!("=== MCP HTTP Request with Session START ===");
+        tracing::debug!(
+            "Method: {}, Has Auth Header: {}, Session ID: {:?}",
+            method,
+            auth_header.is_some(),
+            session_id
+        );
+
+        // Determine session ID and auth header priority:
+        // 1. Always prefer auth header from current request if provided
+        // 2. Fall back to stored session auth only if no header in current request
+        // 3. Generate new session ID if needed
+        let actual_session_id = session_id.clone().unwrap_or_else(|| {
+            let new_session_id = format!("session_{}", uuid::Uuid::new_v4());
+            tracing::info!("Generated new MCP session: {}", new_session_id);
+            new_session_id
+        });
+
+        let effective_auth_header = if auth_header.is_some() {
+            // Current request has auth header - use it
+            tracing::debug!("Using auth header from current request");
+            auth_header.clone()
+        } else if let Some(sid) = session_id.as_ref() {
+            // No auth in current request, check session
+            let sessions_guard = sessions.lock().await;
+            if let Some(session_data) = sessions_guard.get(sid) {
+                tracing::info!("Using stored session auth for user {}", session_data.user_id);
+                Some(format!("Bearer {}", session_data.jwt_token))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // If we have auth header but no session data yet, validate and store it
+        if let Some(ref auth) = auth_header {
+            let mut sessions_guard = sessions.lock().await;
+            if !sessions_guard.contains_key(&actual_session_id) {
+                // Extract JWT token and validate it
+                if let Some(token) = auth.strip_prefix("Bearer ") {
+                    // Validate the JWT to get user info
+                    if let Ok(jwt_result) = validate_jwt_token_for_mcp(
+                        token,
+                        &ctx.resources.auth_manager,
+                        &ctx.resources.database,
+                    )
+                    .await
+                    {
+                        // Get user details
+                        if let Ok(Some(user)) = ctx.resources.database.get_user(jwt_result.user_id).await {
+                            // Store session
+                            sessions_guard.insert(
+                                actual_session_id.clone(),
+                                SessionData {
+                                    jwt_token: token.to_string(),
+                                    user_id: jwt_result.user_id,
+                                    email: user.email.clone(),
+                                    tenant_id: user.tenant_id.and_then(|tid| uuid::Uuid::parse_str(&tid).ok()),
+                                    created_at: std::time::Instant::now(),
+                                },
+                            );
+                            tracing::info!(
+                                "Stored session {} for user {} ({})",
+                                actual_session_id,
+                                jwt_result.user_id,
+                                user.email
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        let response_headers = vec![("Mcp-Session-Id", actual_session_id)];
+
+        // Call the existing conditional auth handler
+        let mut response = Self::handle_mcp_http_request_with_conditional_auth(
+            method,
+            effective_auth_header,
+            origin,
+            accept,
+            body,
+            ctx,
+        )
+        .await?;
+
+        // Add session headers to response
+        for (key, value) in response_headers {
+            response = Box::new(warp::reply::with_header(response, key, value));
+        }
+
+        Ok(response)
     }
 
     // Long function: Complex HTTP request handling with comprehensive logging and validation
@@ -2622,6 +2665,33 @@ impl MultiTenantMcpServer {
         }
     }
 
+    /// Create error response for tool execution failure
+    fn create_tool_error_response(
+        tool_name: &str,
+        provider_name: &str,
+        response_error: Option<String>,
+        request_id: Value,
+    ) -> McpResponse {
+        let error_msg = response_error
+            .unwrap_or_else(|| "Tool execution failed with no error message".to_string());
+        tracing::error!(
+            "Tool execution failed for {} with provider {}: {} (success=false)",
+            tool_name,
+            provider_name,
+            error_msg
+        );
+        McpResponse {
+            jsonrpc: JSONRPC_VERSION.to_string(),
+            result: None,
+            error: Some(McpError {
+                code: ERROR_INTERNAL_ERROR,
+                message: error_msg,
+                data: None,
+            }),
+            id: request_id,
+        }
+    }
+
     /// Handle tenant-aware tools that require providers
     async fn handle_tenant_tool_with_provider(
         tool_name: &str,
@@ -2704,30 +2774,20 @@ impl MultiTenantMcpServer {
                         id: request_id,
                     }
                 } else {
-                    McpResponse {
-                        jsonrpc: JSONRPC_VERSION.to_string(),
-                        result: None,
-                        error: Some(McpError {
-                            code: ERROR_INTERNAL_ERROR,
-                            message: response
-                                .error
-                                .unwrap_or_else(|| "Tool execution failed".to_string()),
-                            data: None,
-                        }),
-                        id: request_id,
-                    }
+                    Self::create_tool_error_response(
+                        tool_name,
+                        provider_name,
+                        response.error,
+                        request_id,
+                    )
                 }
             }
-            Err(e) => McpResponse {
-                jsonrpc: JSONRPC_VERSION.to_string(),
-                result: None,
-                error: Some(McpError {
-                    code: ERROR_INTERNAL_ERROR,
-                    message: format!("Tool execution error: {e}"),
-                    data: None,
-                }),
-                id: request_id,
-            },
+            Err(e) => Self::create_tool_error_response(
+                tool_name,
+                provider_name,
+                Some(format!("Tool execution error: {e}")),
+                request_id,
+            ),
         }
     }
 }
