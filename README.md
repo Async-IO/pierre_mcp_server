@@ -42,6 +42,10 @@ A Model Context Protocol (MCP) server that connects AI assistants to fitness dat
 ```bash
 git clone https://github.com/Async-IO/pierre_mcp_server.git
 cd pierre_mcp_server
+
+# Install git hooks (recommended)
+./scripts/install-hooks.sh
+
 cargo build --release
 ```
 
@@ -423,7 +427,7 @@ DATABASE_URL=postgresql://user:pass@localhost:5432/pierre
 # OAuth Provider Configuration (for fitness data integration)
 STRAVA_CLIENT_ID=your_strava_client_id
 STRAVA_CLIENT_SECRET=your_strava_client_secret
-STRAVA_REDIRECT_URI=http://localhost:8080/api/oauth/callback/strava
+STRAVA_REDIRECT_URI=http://localhost:8081/oauth/callback/strava
 
 # JWT Configuration (Managed by Database)
 # Note: JWT secrets are automatically managed via database-stored admin_jwt_secret

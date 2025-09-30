@@ -33,14 +33,7 @@ This guide covers setup, configuration, and development workflows for Pierre MCP
    sudo apt-get install postgresql postgresql-contrib  # Ubuntu
    ```
 
-3. Redis (optional, for production caching)
-   ```bash
-   # Optional: only needed for production deployments
-   brew install redis  # macOS
-   sudo apt-get install redis-server  # Ubuntu
-   ```
-
-4. Git
+3. Git
    ```bash
    git --version  # Should be 2.0+
    ```
@@ -66,7 +59,20 @@ git clone https://github.com/Async-IO/pierre_mcp_server.git
 cd pierre_mcp_server
 ```
 
-### 2. Environment Configuration
+### 2. Install Git Hooks (Recommended)
+
+Install the project's git hooks to prevent committing unwanted files:
+
+```bash
+./scripts/install-hooks.sh
+```
+
+This installs hooks that will:
+- Block commits of backup files (`.bak`, `.orig`, `.tmp`, `.swp`)
+- Prevent commits of files with `_old.`, `old_`, or `.old.` patterns
+- Reject files containing `rs:` in the filename
+
+### 3. Environment Configuration
 
 Create your environment file:
 
@@ -81,8 +87,8 @@ Edit `.env` with your settings:
 DATABASE_URL="sqlite:./data/pierre.db"  # For development
 PIERRE_MASTER_ENCRYPTION_KEY="your_32_byte_base64_key"  # Generate with: openssl rand -base64 32
 
-# Optional Configuration
-HTTP_PORT=8081  # Single port for all protocols
+# Server Configuration
+HTTP_PORT=8081  # Single unified port for all protocols (MCP, OAuth 2.0, REST API)
 HOST="127.0.0.1"
 RUST_LOG=info
 LOG_FORMAT=json
@@ -90,14 +96,15 @@ LOG_FORMAT=json
 # Production Database
 # DATABASE_URL="postgresql://user:pass@localhost/pierre"
 
-# OAuth Credentials (get these from provider developer consoles)
+# OAuth Provider Configuration (for fitness data integration)
 STRAVA_CLIENT_ID="your_strava_client_id"
 STRAVA_CLIENT_SECRET="your_strava_client_secret"
-STRAVA_REDIRECT_URI="http://localhost:8081/api/oauth/callback/strava"
+STRAVA_REDIRECT_URI="http://localhost:8081/oauth/callback/strava"
 
-# JWT Configuration
+# JWT Configuration (Managed by Database)
+# Note: JWT secrets are automatically managed via database-stored admin_jwt_secret
+# No manual JWT_SECRET environment variable required
 JWT_EXPIRY_HOURS=24
-JWT_SECRET_PATH=./data/jwt.secret
 
 # OpenWeather API (for activity intelligence)
 OPENWEATHER_API_KEY="your_openweather_api_key"

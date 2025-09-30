@@ -16,9 +16,9 @@ graph TB
     end
     
     subgraph "HTTP Layer"
-        Router[Axum Router]
-        Middleware[Middleware Stack]
-        CORS[CORS Handler]
+        Router[Warp Router]
+        Middleware[Middleware Filters]
+        CORS[CORS Filter]
         Logging[Request Logging]
     end
     
@@ -91,47 +91,10 @@ Content-Type: application/json
 
 **Implementation:**
 ```rust
-// src/routes.rs
+// src/routes/auth.rs
 impl AuthRoutes {
     pub async fn register(&self, request: RegisterRequest) -> Result<RegisterResponse> {
-        // Validate email format
-        if !self.is_valid_email(&request.email) {
-            return Err(anyhow!("Invalid email format"));
-        }
-        
-        // Validate password strength
-        if !self.is_strong_password(&request.password) {
-            return Err(anyhow!("Password does not meet security requirements"));
-        }
-        
-        // Check if user already exists
-        if self.database.get_user_by_email(&request.email).await?.is_some() {
-            return Err(anyhow!("User with this email already exists"));
-        }
-        
-        // Hash password
-        let password_hash = bcrypt::hash(&request.password, bcrypt::DEFAULT_COST)?;
-        
-        // Create user with pending status
-        let user = User {
-            id: Uuid::new_v4(),
-            email: request.email.clone(),
-            password_hash,
-            firstname: request.firstname,
-            lastname: request.lastname,
-            status: UserStatus::Pending,
-            tier: UserTier::Free,
-            is_admin: false,
-            created_at: Utc::now(),
-            // ... other fields
-        };
-        
-        let user_id = self.database.create_user(&user).await?;
-        
-        Ok(RegisterResponse {
-            user_id: user_id.to_string(),
-            message: "Registration successful. Please wait for admin approval.".to_string(),
-        })
+        self.auth_service.register(request).await
     }
 }
 ```
@@ -158,39 +121,10 @@ Content-Type: application/json
 
 **Implementation:**
 ```rust
+// src/routes/auth.rs
 impl AuthRoutes {
     pub async fn login(&self, request: LoginRequest) -> Result<LoginResponse> {
-        // Get user by email
-        let user = self.database
-            .get_user_by_email(&request.email)
-            .await?
-            .ok_or_else(|| anyhow!("Invalid credentials"))?;
-        
-        // Verify password
-        if !bcrypt::verify(&request.password, &user.password_hash)? {
-            return Err(anyhow!("Invalid credentials"));
-        }
-        
-        // Check user status
-        if user.status != UserStatus::Active {
-            return Err(anyhow!("Account not active. Status: {:?}", user.status));
-        }
-        
-        // Generate JWT token
-        let token = self.auth_manager.generate_token(&user)?;
-        
-        // Update last active
-        self.database.update_last_active(user.id).await?;
-        
-        Ok(LoginResponse {
-            jwt_token: token.token,
-            expires_at: token.expires_at.to_rfc3339(),
-            user: UserInfo {
-                user_id: user.id.to_string(),
-                email: user.email,
-                display_name: user.display_name(),
-            },
-        })
+        self.auth_service.login(request).await
     }
 }
 ```
@@ -269,27 +203,45 @@ Authorization: Bearer <jwt_token>
 
 **Implementation:**
 ```rust
-// src/routes.rs
-impl OAuthRoutes {
-    pub async fn initiate_strava_auth(&self, user_id: Uuid) -> Result<OAuthAuthorizationResponse> {
-        let state = generate_oauth_state();
-        let redirect_uri = format!("{}/api/oauth/strava/callback", self.base_url);
-        
-        // Store state in database with expiry
-        self.database.store_oauth_state(&state, user_id, "strava", Utc::now() + Duration::minutes(10)).await?;
-        
-        let auth_url = format!(
-            "https://www.strava.com/oauth/authorize?client_id={}&redirect_uri={}&response_type=code&scope={}&state={}",
-            self.strava_client_id,
-            urlencoding::encode(&redirect_uri),
-            urlencoding::encode("read,activity:read_all,profile:read_all"),
-            state
-        );
-        
+// src/routes/auth.rs
+impl OAuthService {
+    pub async fn get_auth_url(
+        &self,
+        user_id: uuid::Uuid,
+        tenant_id: uuid::Uuid,
+        provider: &str,
+    ) -> Result<OAuthAuthorizationResponse> {
+        use crate::constants::oauth_providers;
+
+        let state = format!("{}:{}", user_id, uuid::Uuid::new_v4());
+        let base_url = format!("http://localhost:{}", self.config.config().http_port);
+        let redirect_uri = format!("{base_url}/api/oauth/callback/{provider}");
+
+        let authorization_url = match provider {
+            oauth_providers::STRAVA => {
+                let client_id = "test_client_id";
+                format!(
+                    "https://www.strava.com/oauth/authorize?client_id={client_id}&response_type=code&redirect_uri={redirect_uri}&approval_prompt=force&scope=read%2Cactivity%3Aread_all&state={state}"
+                )
+            }
+            oauth_providers::FITBIT => {
+                let client_id = "test_client_id";
+                format!(
+                    "https://www.fitbit.com/oauth2/authorize?response_type=code&client_id={client_id}&redirect_uri={redirect_uri}&scope=activity%20profile&state={state}"
+                )
+            }
+            _ => return Err(anyhow::anyhow!("Unsupported provider: {provider}")),
+        };
+
+        // Store state for CSRF validation using database
+        tokio::task::yield_now().await;
+        let _ = self.data.database().clone(); // Database available for state storage
+        let _ = (user_id, tenant_id, &state, provider);
+
         Ok(OAuthAuthorizationResponse {
-            authorization_url: auth_url,
+            authorization_url,
             state,
-            instructions: "Visit the URL to authorize Pierre to access your Strava data".to_string(),
+            instructions: format!("Click the link to authorize {provider} access"),
             expires_in_minutes: 10,
         })
     }
@@ -314,42 +266,68 @@ GET /api/oauth/strava/callback?code=AUTH_CODE&state=abc123def456ghi789
 
 **Implementation:**
 ```rust
-impl OAuthRoutes {
-    pub async fn handle_strava_callback(
+// src/routes/auth.rs
+impl OAuthService {
+    pub async fn handle_callback(
         &self,
-        code: String,
-        state: String,
+        code: &str,
+        state: &str,
+        provider: &str,
     ) -> Result<OAuthCallbackResponse> {
-        // Validate state and get user
-        let oauth_state = self.database
-            .get_oauth_state(&state)
-            .await?
-            .ok_or_else(|| anyhow!("Invalid or expired OAuth state"))?;
-        
-        if oauth_state.expires_at < Utc::now() {
-            return Err(anyhow!("OAuth state expired"));
+        use crate::constants::oauth_providers;
+
+        // Use async block to satisfy clippy
+        tokio::task::yield_now().await;
+        // Parse user ID from state (format: "user_id:uuid")
+        let mut parts = state.splitn(2, ':');
+        let user_id_str = parts
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("Invalid state parameter format"))?;
+        let random_part = parts
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("Invalid state parameter format"))?;
+        let user_id = crate::utils::uuid::parse_user_id(user_id_str)?;
+
+        // Validate state for CSRF protection
+        if random_part.len() < 16
+            || !random_part
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-')
+        {
+            return Err(anyhow::anyhow!("Invalid OAuth state parameter"));
         }
-        
-        // Exchange code for tokens
-        let token_response = self.exchange_strava_code(&code).await?;
-        
-        // Store encrypted tokens
-        self.database.update_strava_token(
-            oauth_state.user_id,
-            &token_response.access_token,
-            &token_response.refresh_token,
-            Utc::now() + Duration::seconds(token_response.expires_in),
-            token_response.scope.unwrap_or_default(),
-        ).await?;
-        
-        // Clean up OAuth state
-        self.database.delete_oauth_state(&state).await?;
-        
+
+        // Validate provider is supported
+        match provider {
+            oauth_providers::STRAVA | oauth_providers::FITBIT => {
+                // Supported providers
+            }
+            _ => return Err(anyhow::anyhow!("Unsupported provider: {provider}")),
+        }
+
+        tracing::info!(
+            "Processing OAuth callback for user {} provider {} with code {}",
+            user_id,
+            provider,
+            code
+        );
+
+        // Use all contexts for OAuth processing
+        tracing::debug!("Processing OAuth callback with all contexts");
+        let _ = (
+            self.data.database().clone(),
+            self.config.config(),
+            self.notifications.clone(),
+        );
+
+        // Process OAuth callback and store tokens
+        let expires_at = chrono::Utc::now() + chrono::Duration::hours(24);
+
         Ok(OAuthCallbackResponse {
-            user_id: oauth_state.user_id.to_string(),
-            provider: "strava".to_string(),
-            expires_at: (Utc::now() + Duration::seconds(token_response.expires_in)).to_rfc3339(),
-            scopes: token_response.scope.unwrap_or_default(),
+            user_id: user_id.to_string(),
+            provider: provider.to_string(),
+            expires_at: expires_at.to_rfc3339(),
+            scopes: "read,activity:read_all".to_string(),
         })
     }
 }
@@ -397,24 +375,8 @@ Authorization: Bearer <jwt_token>
 ```rust
 // src/api_key_routes.rs
 impl ApiKeyRoutes {
-    pub async fn list_api_keys(&self, user_id: Uuid) -> Result<ApiKeyListResponse> {
-        let api_keys = self.database.get_api_keys_for_user(user_id).await?;
-        
-        let api_key_infos = api_keys.into_iter().map(|key| ApiKeyInfo {
-            id: key.id.to_string(),
-            name: key.name,
-            description: key.description,
-            tier: key.tier,
-            key_prefix: key.key_prefix,
-            is_active: key.is_active,
-            last_used_at: key.last_used_at,
-            expires_at: key.expires_at,
-            created_at: key.created_at,
-        }).collect();
-        
-        Ok(ApiKeyListResponse {
-            api_keys: api_key_infos,
-        })
+    pub async fn list_api_keys(&self, auth_header: Option<&str>) -> Result<ApiKeyListResponse> {
+        // ...
     }
 }
 ```
@@ -455,42 +417,14 @@ Content-Type: application/json
 
 **Implementation:**
 ```rust
+// src/api_key_routes.rs
 impl ApiKeyRoutes {
-    pub async fn create_api_key(
+    pub async fn create_api_key_simple(
         &self,
-        user_id: Uuid,
-        request: CreateApiKeyRequest,
+        auth_header: Option<&str>,
+        request: CreateApiKeyRequestSimple,
     ) -> Result<ApiKeyCreateResponse> {
-        // Validate tier and user permissions
-        if !self.can_user_create_tier(&user_id, &request.tier).await? {
-            return Err(anyhow!("Insufficient permissions for requested tier"));
-        }
-        
-        // Generate API key
-        let api_key = self.api_key_manager.generate_api_key(&request.tier)?;
-        
-        // Create database record
-        let key_record = ApiKey {
-            id: Uuid::new_v4(),
-            user_id,
-            name: request.name.clone(),
-            description: request.description.clone(),
-            key_hash: hash_api_key(&api_key),
-            key_prefix: api_key[..16].to_string(),
-            tier: request.tier.clone(),
-            scopes: request.scopes.clone(),
-            is_active: true,
-            created_at: Utc::now(),
-            // ... other fields
-        };
-        
-        let key_id = self.database.create_api_key(&key_record).await?;
-        
-        Ok(ApiKeyCreateResponse {
-            api_key,
-            key_info: ApiKeyInfo::from(key_record),
-            warning: "Store this API key securely. It will not be shown again.".to_string(),
-        })
+        // ...
     }
 }
 ```
@@ -529,33 +463,8 @@ Authorization: Bearer <jwt_token>
 ```rust
 // src/dashboard_routes.rs
 impl DashboardRoutes {
-    pub async fn get_overview(&self, user_id: Uuid) -> Result<DashboardOverview> {
-        let today = Utc::now().date_naive();
-        let month_start = today.with_day(1).unwrap();
-        
-        // Get API key statistics
-        let api_keys = self.database.get_api_keys_for_user(user_id).await?;
-        let total_api_keys = api_keys.len() as u32;
-        let active_api_keys = api_keys.iter().filter(|k| k.is_active).count() as u32;
-        
-        // Get usage statistics
-        let today_usage = self.database.get_usage_for_date(user_id, today).await?;
-        let month_usage = self.database.get_usage_for_period(user_id, month_start, today).await?;
-        
-        // Get usage by tier
-        let tier_usage = self.calculate_tier_usage(&api_keys, &month_usage).await?;
-        
-        // Get recent activity
-        let recent_activity = self.database.get_recent_activity(user_id, 10).await?;
-        
-        Ok(DashboardOverview {
-            total_api_keys,
-            active_api_keys,
-            total_requests_today: today_usage.total_requests,
-            total_requests_this_month: month_usage.total_requests,
-            current_month_usage_by_tier: tier_usage,
-            recent_activity,
-        })
+    pub async fn get_dashboard_overview(&self, auth_header: Option<&str>) -> Result<DashboardOverview> {
+        // ...
     }
 }
 ```
@@ -641,33 +550,12 @@ Authorization: Bearer <admin_jwt_token>
 impl AdminRoutes {
     pub async fn list_users(
         &self,
-        admin_user_id: Uuid,
+        auth_header: Option<String>,
         status_filter: Option<String>,
         page: Option<u32>,
         limit: Option<u32>,
     ) -> Result<UserListResponse> {
-        // Verify admin permissions
-        self.verify_admin_permissions(admin_user_id).await?;
-        
-        let page = page.unwrap_or(1);
-        let limit = limit.unwrap_or(20).min(100); // Max 100 per page
-        let offset = (page - 1) * limit;
-        
-        let users = if let Some(status) = status_filter {
-            self.database.get_users_by_status(&status).await?
-        } else {
-            self.database.get_all_users_paginated(offset, limit).await?
-        };
-        
-        let total_count = self.database.get_user_count().await?;
-        
-        Ok(UserListResponse {
-            users: users.into_iter().map(UserInfo::from).collect(),
-            total_count: total_count as u32,
-            page,
-            limit,
-            total_pages: ((total_count as f64) / (limit as f64)).ceil() as u32,
-        })
+        // ...
     }
 }
 ```
@@ -744,42 +632,12 @@ Content-Type: application/json
 ```rust
 // src/a2a_routes.rs
 impl A2ARoutes {
-    pub async fn register_system(
+    pub async fn register_client(
         &self,
-        admin_user_id: Uuid,
-        request: A2ARegistrationRequest,
+        auth_header: Option<&str>,
+        request: A2AClientRequest,
     ) -> Result<A2ARegistrationResponse> {
-        // Verify admin permissions
-        self.verify_admin_permissions(admin_user_id).await?;
-        
-        // Generate API key for A2A system
-        let api_key = format!("A2A_{}", generate_secure_token(32));
-        let api_key_hash = hash_api_key(&api_key);
-        
-        // Create A2A client record
-        let a2a_client = A2AClient {
-            id: Uuid::new_v4(),
-            name: request.name.clone(),
-            description: request.description,
-            api_key_hash,
-            capabilities: request.capabilities,
-            webhook_url: request.webhook_url,
-            rate_limit: request.rate_limit.unwrap_or_default(),
-            is_active: true,
-            created_at: Utc::now(),
-            // ... other fields
-        };
-        
-        let client_id = self.database.create_a2a_client(&a2a_client).await?;
-        
-        Ok(A2ARegistrationResponse {
-            system_id: client_id,
-            name: request.name,
-            api_key,
-            status: "active".to_string(),
-            created_at: Utc::now(),
-            rate_limit: a2a_client.rate_limit,
-        })
+        // ...
     }
 }
 ```
@@ -844,155 +702,60 @@ X-API-Key: A2A_abc123def456ghi789jkl012mno345pqr678stu901vwx234yz
 }
 ```
 
-## Middleware Stack
+## Middleware
+
+In `warp`, middleware is implemented as filters that can be applied to routes. These filters can inspect and modify requests and responses, and they can also short-circuit the request handling process.
 
 ### Authentication Middleware
 
-```rust
-// src/middleware/auth.rs
-pub struct AuthMiddleware {
-    auth_manager: Arc<AuthManager>,
-    database: Arc<Database>,
-}
+Authentication is handled by a `warp` filter that extracts the JWT token from the `Authorization` header and validates it. If the token is valid, the user's ID is extracted and passed to the next filter. If the token is invalid, the request is rejected.
 
-impl AuthMiddleware {
-    pub async fn authenticate_request(
-        &self,
-        req: &Request,
-    ) -> Result<AuthContext, AuthError> {
-        // Extract authorization header
-        let auth_header = req.headers()
-            .get("Authorization")
-            .and_then(|h| h.to_str().ok())
-            .ok_or(AuthError::MissingToken)?;
-        
-        if auth_header.starts_with("Bearer ") {
-            // JWT authentication
-            let token = &auth_header[7..];
-            let claims = self.auth_manager.verify_token(token)?;
-            
-            let user = self.database
-                .get_user(&Uuid::parse_str(&claims.sub)?)
-                .await?
-                .ok_or(AuthError::UserNotFound)?;
-            
-            Ok(AuthContext::User {
-                user_id: user.id,
-                tenant_id: user.tenant_id,
-                role: user.role,
-                tier: user.tier,
-            })
-        } else if let Some(api_key) = req.headers().get("X-API-Key") {
-            // API key authentication
-            let key_str = api_key.to_str().map_err(|_| AuthError::InvalidApiKey)?;
-            
-            if key_str.starts_with("A2A_") {
-                // A2A system authentication
-                let system = self.database
-                    .get_system_user_by_api_key(&hash_api_key(key_str))
-                    .await?
-                    .ok_or(AuthError::InvalidApiKey)?;
-                
-                Ok(AuthContext::A2ASystem {
-                    system_id: system.id,
-                    capabilities: system.capabilities,
-                    rate_limit: system.rate_limit,
-                })
-            } else {
-                // Regular API key authentication
-                let api_key = self.database
-                    .get_api_key_by_hash(&hash_api_key(key_str))
-                    .await?
-                    .ok_or(AuthError::InvalidApiKey)?;
-                
-                Ok(AuthContext::ApiKey {
-                    key_id: api_key.id,
-                    user_id: api_key.user_id,
-                    tier: api_key.tier,
-                    scopes: api_key.scopes,
-                })
-            }
-        } else {
-            Err(AuthError::InvalidAuthMethod)
-        }
-    }
+```rust
+// src/mcp/multitenant.rs
+fn create_auth_filter(
+    auth_manager: Arc<AuthManager>,
+) -> impl warp::Filter<Extract = (crate::auth::AuthResult,), Error = warp::Rejection> + Clone
+{
+    use warp::Filter;
+    warp::header::optional::<String>("authorization")
+        .and(warp::any().map(move || auth_manager.clone()))
+        .and_then(
+            |auth_header: Option<String>, auth_mgr: Arc<AuthManager>| async move {
+                // ...
+            },
+        )
 }
 ```
 
 ### Rate Limiting Middleware
 
-```rust
-// src/middleware/rate_limit.rs
-pub struct RateLimitMiddleware {
-    rate_limiter: Arc<RateLimiter>,
-}
-
-impl RateLimitMiddleware {
-    pub async fn check_rate_limit(
-        &self,
-        auth_context: &AuthContext,
-        request_path: &str,
-    ) -> Result<RateLimitInfo, RateLimitError> {
-        match auth_context {
-            AuthContext::User { user_id, tier, .. } => {
-                self.rate_limiter.check_user_limit(*user_id, tier, request_path).await
-            }
-            AuthContext::ApiKey { key_id, tier, .. } => {
-                self.rate_limiter.check_api_key_limit(*key_id, tier, request_path).await
-            }
-            AuthContext::A2ASystem { system_id, rate_limit, .. } => {
-                self.rate_limiter.check_system_limit(*system_id, rate_limit, request_path).await
-            }
-        }
-    }
-}
-```
-
-### Request Logging Middleware
+Rate limiting is also implemented as a `warp` filter. This filter uses the client's IP address or API key to track the number of requests they have made in a given time period. If the client exceeds the rate limit, their requests are rejected.
 
 ```rust
-// src/middleware/logging.rs
-pub struct RequestLoggingMiddleware;
+// src/rate_limiting.rs
+// (Example - not a direct implementation from the project)
 
-impl RequestLoggingMiddleware {
-    pub async fn log_request(
-        &self,
-        req: &Request,
-        response: &Response,
-        duration: Duration,
-        auth_context: &AuthContext,
-    ) -> Result<()> {
-        let log_entry = RequestLog {
-            timestamp: Utc::now(),
-            method: req.method().to_string(),
-            path: req.uri().path().to_string(),
-            status_code: response.status().as_u16(),
-            duration_ms: duration.as_millis() as u32,
-            user_agent: req.headers()
-                .get("user-agent")
-                .and_then(|h| h.to_str().ok())
-                .map(String::from),
-            ip_address: extract_client_ip(req),
-            auth_method: auth_context.auth_method(),
-            user_id: auth_context.user_id(),
-        };
-        
-        // Log to structured logging
-        info!(
-            method = log_entry.method,
-            path = log_entry.path,
-            status = log_entry.status_code,
-            duration_ms = log_entry.duration_ms,
-            user_id = ?log_entry.user_id,
-            "HTTP request processed"
-        );
-        
-        // Store in database for analytics
-        self.database.store_request_log(&log_entry).await?;
-        
-        Ok(())
-    }
-}
+// pub fn rate_limit_filter(
+//     rate_limiter: Arc<RateLimiter>,
+// ) -> impl Filter<Extract = (), Error = Rejection> + Clone {
+//     warp::any()
+//         .and(warp::addr::remote())
+//         .and_then(move |addr: Option<SocketAddr>| {
+//             let rate_limiter = rate_limiter.clone();
+//             async move {
+//                 if let Some(addr) = addr {
+//                     if rate_limiter.check(addr.ip()).await {
+//                         Ok(())
+//                     } else {
+//                         Err(warp::reject::custom(RateLimitExceeded))
+//                     }
+//                 } else {
+//                     Err(warp::reject::custom(MissingIp))
+//                 }
+//             }
+//         })
+//         .untuple_one()
+// }
 ```
 
 ## Error Handling

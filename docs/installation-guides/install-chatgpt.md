@@ -197,13 +197,13 @@ curl "http://localhost:8081/api/activities" \
 
 ## Advanced Configuration
 
-### Custom Ports Configuration
+### Custom Port Configuration
 
-If using non-standard ports:
+If using non-standard port:
 
 ```bash
-# Start with custom ports
-MCP_PORT=9080 HTTP_PORT=9081 cargo run --bin pierre-mcp-server
+# Start with custom unified port (for all protocols: MCP, OAuth 2.0, REST API)
+HTTP_PORT=9081 cargo run --bin pierre-mcp-server
 ```
 
 Update ChatGPT Desktop config:
@@ -211,7 +211,7 @@ Update ChatGPT Desktop config:
 {
   "mcpServers": {
     "pierre-fitness": {
-      "url": "http://127.0.0.1:9080/mcp",
+      "url": "http://127.0.0.1:9081/mcp",
       "headers": {
         "Authorization": "Bearer YOUR_JWT_TOKEN"
       }
@@ -227,17 +227,20 @@ Create `.env` file for configuration:
 ```bash
 # Database
 DATABASE_URL=sqlite:./data/pierre.db
-PIERRE_MASTER_ENCRYPTION_KEY=your_32_byte_key
+PIERRE_MASTER_ENCRYPTION_KEY=your_32_byte_base64_key  # Generate with: openssl rand -base64 32
 
 # Server Configuration
-HTTP_PORT=8081
+HTTP_PORT=8081  # Single unified port for all protocols (MCP, OAuth 2.0, REST API)
 
-# Authentication
-JWT_SECRET_PATH=./data/jwt.secret
+# Authentication (Managed by Database)
+# Note: JWT secrets are automatically managed via database-stored admin_jwt_secret
+# No manual JWT_SECRET environment variable required
+JWT_EXPIRY_HOURS=24
 
-# OAuth
+# OAuth Providers (for fitness data integration)
 STRAVA_CLIENT_ID=your_client_id
 STRAVA_CLIENT_SECRET=your_client_secret
+STRAVA_REDIRECT_URI=http://localhost:8081/oauth/callback/strava
 
 # Logging
 RUST_LOG=info

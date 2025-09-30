@@ -229,13 +229,13 @@ curl -X POST "http://localhost:8081/api/oauth/strava/disconnect" \
 
 ## Advanced Configuration
 
-### Custom Server Ports
+### Custom Server Port
 
-If you need to use different ports:
+If you need to use a different port:
 
 ```bash
-# Start server with custom ports
-MCP_PORT=9080 HTTP_PORT=9081 cargo run --bin pierre-mcp-server
+# Start server with custom unified port (for all protocols: MCP, OAuth 2.0, REST API)
+HTTP_PORT=9081 cargo run --bin pierre-mcp-server
 ```
 
 Update your Claude Desktop configuration accordingly:
@@ -243,7 +243,7 @@ Update your Claude Desktop configuration accordingly:
 {
   "mcpServers": {
     "pierre-fitness": {
-      "url": "http://127.0.0.1:9080/mcp",
+      "url": "http://127.0.0.1:9081/mcp",
       "headers": {
         "Authorization": "Bearer YOUR_JWT_TOKEN"
       }
@@ -259,17 +259,20 @@ Create a `.env` file for persistent configuration:
 ```bash
 # Core Configuration
 DATABASE_URL=sqlite:./data/pierre.db
-PIERRE_MASTER_ENCRYPTION_KEY=your_32_byte_base64_key
+PIERRE_MASTER_ENCRYPTION_KEY=your_32_byte_base64_key  # Generate with: openssl rand -base64 32
 
 # Server Configuration
-HTTP_PORT=8081
+HTTP_PORT=8081  # Single unified port for all protocols (MCP, OAuth 2.0, REST API)
 
-# Authentication
-JWT_SECRET_PATH=./data/jwt.secret
+# Authentication (Managed by Database)
+# Note: JWT secrets are automatically managed via database-stored admin_jwt_secret
+# No manual JWT_SECRET environment variable required
+JWT_EXPIRY_HOURS=24
 
-# OAuth Providers
+# OAuth Providers (for fitness data integration)
 STRAVA_CLIENT_ID=your_strava_client_id
 STRAVA_CLIENT_SECRET=your_strava_client_secret
+STRAVA_REDIRECT_URI=http://localhost:8081/oauth/callback/strava
 
 # Logging
 RUST_LOG=info

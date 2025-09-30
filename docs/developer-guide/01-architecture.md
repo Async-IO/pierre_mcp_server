@@ -103,33 +103,70 @@ pub struct TenantContext {
 
 ### 2. Consolidated Server Architecture
 
-All protocols run on a single port (8081) for simplified deployment:
+All protocols run on a single port (8081) for simplified deployment. The server uses `warp`'s filter system to compose the routes:
 
 ```rust
 // src/mcp/multitenant.rs
-let routes = auth_route_filter                    // Legacy authentication routes
-    .or(oauth_route_filter)                      // Legacy OAuth routes
-    .or(oauth2_server_routes)                    // NEW: RFC-compliant OAuth 2.0 routes
-    .or(api_key_route_filter)                    // API key management
-    .or(mcp_endpoint_routes)                     // NEW: MCP JSON-RPC endpoint
-    .or(sse_routes)                              // Server-sent events
-    .or(health_route);                           // Health checks
+let routes = auth_route_filter
+    .or(oauth_route_filter)
+    .or(oauth2_server_routes)
+    .or(api_key_route_filter)
+    .or(api_key_usage_filter)
+    .or(dashboard_route_filter)
+    .or(dashboard_detailed_filter)
+    .or(a2a_basic_filter)
+    .or(a2a_client_filter)
+    .or(a2a_monitoring_filter)
+    .or(a2a_execution_filter)
+    .or(configuration_filter)
+    .or(user_configuration_filter)
+    .or(specialized_configuration_filter)
+    .or(fitness_configuration_filter)
+    .or(admin_routes_filter)
+    .or(tenant_routes_filter)
+    .or(sse_routes)
+    .or(mcp_sse_routes)
+    .or(mcp_endpoint_routes)
+    .or(health_route)
+    .with(cors)
+    .with(security_headers)
+    .recover(handle_rejection);
 ```
 
-### 3. OAuth 2.0 Authorization Server
+### 3. Routing Design (Warp)
+
+The project uses the `warp` web framework, which employs a filter-based system for routing. Each route is a combination of filters that match on different aspects of the incoming request, such as the path, method, headers, and body.
+
+**Pros:**
+
+*   **Type-safe:** `warp`'s filter system is type-safe, which means that the compiler can catch errors at compile time.
+*   **Composable:** Filters can be combined and reused to create complex routing logic.
+*   **Flexible:** The filter system is very flexible and can be used to match on almost any aspect of the request.
+
+**Cons:**
+
+*   **Verbose:** The filter chains can be verbose and difficult to read, especially for complex routes.
+*   **Imperative Style:** The routing is defined in an imperative style, which can make it difficult to see the overall routing structure at a glance.
+*   **Clones and Closures:** The use of closures and `Arc` for sharing state can lead to a lot of `clone()` calls, which can add visual noise to the code.
+
+While `warp` is a powerful and flexible framework, the routing implementation in this project could be simplified by using a more declarative approach or by extracting common logic into middleware.
+
+### 4. OAuth 2.0 Authorization Server
 
 Pierre implements a standards-compliant OAuth 2.0 Authorization Server for MCP client compatibility:
 
 ```rust
-// OAuth 2.0 endpoints
-pub fn oauth2_routes() -> impl Filter<Extract = impl Reply> {
-    warp::path("oauth").and(
-        discovery_route                          // /.well-known/oauth-authorization-server
-            .or(client_registration_routes)     // POST /oauth/register
-            .or(authorization_routes)           // GET /oauth/authorize
-            .or(token_routes)                   // POST /oauth/token
-            .or(jwks_route)                     // GET /oauth/jwks
-    )
+// src/oauth2/routes.rs
+pub fn oauth2_routes(
+    db: Arc<Database>,
+    auth_manager: &AuthManager,
+    http_port: u16,
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    let registration = register_client(db.clone());
+    let authorization = authorize_client(db.clone(), auth_manager, http_port);
+    let token = exchange_token(db, auth_manager.clone());
+
+    warp::path("oauth2").and(registration.or(authorization).or(token))
 }
 ```
 
