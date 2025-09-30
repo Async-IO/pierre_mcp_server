@@ -1247,7 +1247,44 @@ export class PierreClaudeBridge {
         this.log('✅ Pierre already authenticated');
       }
 
-      // Step 2: Extract user_id from JWT token
+      // Step 2: Check if provider is already connected
+      this.log(`🔍 Checking if ${provider} is already connected`);
+      try {
+        if (this.pierreClient) {
+          const connectionStatus = await this.pierreClient.callTool({
+            name: 'get_connection_status',
+            arguments: {}
+          });
+
+          // Check if the provider is already connected
+          if (connectionStatus && connectionStatus.content && Array.isArray(connectionStatus.content)) {
+            const statusContent = connectionStatus.content[0];
+            if (statusContent && statusContent.type === 'text' && 'text' in statusContent) {
+              const statusText = statusContent.text;
+              // Look for provider connection status in the response
+              const providerConnected = statusText.toLowerCase().includes(`${provider}:`) &&
+                                       statusText.toLowerCase().includes('connected: true');
+
+              if (providerConnected) {
+                this.log(`✅ ${provider} is already connected - no OAuth needed`);
+                return {
+                  content: [{
+                    type: 'text',
+                    text: `Already connected to ${provider.toUpperCase()}! You can now access your ${provider} fitness data.`
+                  }],
+                  isError: false
+                };
+              }
+            }
+          }
+        }
+
+        this.log(`🔄 ${provider} not connected - proceeding with OAuth flow`);
+      } catch (error: any) {
+        this.log(`⚠️ Could not check connection status: ${error.message} - proceeding with OAuth anyway`);
+      }
+
+      // Step 3: Extract user_id from JWT token
       const tokens = await this.oauthProvider.tokens();
       if (!tokens?.access_token) {
         throw new Error('No access token available');
