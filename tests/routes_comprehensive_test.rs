@@ -932,9 +932,7 @@ async fn test_oauth_get_auth_url_strava() -> Result<()> {
     let (oauth_routes, tenant_id, _database) = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
-    let response = oauth_routes
-        .get_auth_url(user_id, tenant_id, "strava")
-        .await?;
+    let response = oauth_routes.get_auth_url(user_id, tenant_id, "strava")?;
 
     assert!(response.authorization_url.contains("strava.com"));
     assert!(response.authorization_url.contains("authorize"));
@@ -950,9 +948,7 @@ async fn test_oauth_get_auth_url_fitbit() -> Result<()> {
     let (oauth_routes, tenant_id, _database) = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
-    let response = oauth_routes
-        .get_auth_url(user_id, tenant_id, "fitbit")
-        .await?;
+    let response = oauth_routes.get_auth_url(user_id, tenant_id, "fitbit")?;
 
     assert!(response.authorization_url.contains("fitbit.com"));
     assert!(response.authorization_url.contains("authorize"));
@@ -968,9 +964,7 @@ async fn test_oauth_get_auth_url_unsupported_provider() -> Result<()> {
     let (oauth_routes, tenant_id, _database) = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
-    let result = oauth_routes
-        .get_auth_url(user_id, tenant_id, "unsupported_provider")
-        .await;
+    let result = oauth_routes.get_auth_url(user_id, tenant_id, "unsupported_provider");
 
     assert!(result.is_err());
     assert!(result
@@ -1022,11 +1016,31 @@ async fn test_oauth_connection_status_no_connections() -> Result<()> {
 
 #[tokio::test]
 async fn test_oauth_disconnect_provider_success() -> Result<()> {
-    let (oauth_routes, _tenant_id, _database) = create_test_oauth_routes().await?;
+    let (oauth_routes, _tenant_id, database) = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
+    // Create a test user in the database
+    let user = User {
+        id: user_id,
+        email: format!("test_{user_id}@example.com"),
+        display_name: None,
+        password_hash: "test_hash".to_string(),
+        tier: pierre_mcp_server::models::UserTier::Starter,
+        strava_token: None,
+        fitbit_token: None,
+        tenant_id: Some("00000000-0000-0000-0000-000000000000".to_string()),
+        is_active: true,
+        user_status: UserStatus::Active,
+        is_admin: false,
+        approved_by: None,
+        approved_at: Some(chrono::Utc::now()),
+        created_at: chrono::Utc::now(),
+        last_active: chrono::Utc::now(),
+    };
+    database.create_user(&user).await?;
+
     // Disconnecting a provider that wasn't connected should succeed (idempotent)
-    let result = oauth_routes.disconnect_provider(user_id, "strava");
+    let result = oauth_routes.disconnect_provider(user_id, "strava").await;
 
     assert!(result.is_ok());
 
@@ -1035,10 +1049,32 @@ async fn test_oauth_disconnect_provider_success() -> Result<()> {
 
 #[tokio::test]
 async fn test_oauth_disconnect_invalid_provider() -> Result<()> {
-    let (oauth_routes, _tenant_id, _database) = create_test_oauth_routes().await?;
+    let (oauth_routes, _tenant_id, database) = create_test_oauth_routes().await?;
     let user_id = Uuid::new_v4();
 
-    let result = oauth_routes.disconnect_provider(user_id, "invalid_provider");
+    // Create a test user in the database
+    let user = User {
+        id: user_id,
+        email: format!("test_{user_id}@example.com"),
+        display_name: None,
+        password_hash: "test_hash".to_string(),
+        tier: pierre_mcp_server::models::UserTier::Starter,
+        strava_token: None,
+        fitbit_token: None,
+        tenant_id: Some("00000000-0000-0000-0000-000000000000".to_string()),
+        is_active: true,
+        user_status: UserStatus::Active,
+        is_admin: false,
+        approved_by: None,
+        approved_at: Some(chrono::Utc::now()),
+        created_at: chrono::Utc::now(),
+        last_active: chrono::Utc::now(),
+    };
+    database.create_user(&user).await?;
+
+    let result = oauth_routes
+        .disconnect_provider(user_id, "invalid_provider")
+        .await;
 
     assert!(result.is_err());
     assert!(result
@@ -1338,9 +1374,7 @@ async fn test_complete_auth_flow() -> Result<()> {
         .store_tenant_oauth_credentials(&strava_credentials)
         .await?;
 
-    let auth_url = oauth_routes
-        .get_auth_url(user_id, tenant_id, "strava")
-        .await?;
+    let auth_url = oauth_routes.get_auth_url(user_id, tenant_id, "strava")?;
 
     // Verify everything worked
     assert!(!register_response.user_id.is_empty());

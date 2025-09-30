@@ -389,6 +389,7 @@ impl ToolHandlers {
             DISCONNECT_PROVIDER => {
                 let provider_name = args[PROVIDER].as_str().unwrap_or("");
                 MultiTenantMcpServer::route_disconnect_tool(provider_name, user_id, request_id, ctx)
+                    .await
             }
             MARK_NOTIFICATIONS_READ => {
                 let notification_id = args.get("notification_id").and_then(|v| v.as_str());

@@ -288,9 +288,7 @@ async fn test_sdk_oauth_credentials_storage() -> Result<()> {
     // This tests the OAuth flow with tenant-based credentials
 
     // Test 2: Get OAuth authorization URL
-    let auth_url_response = oauth_routes
-        .get_auth_url(user_id, tenant_id, "strava")
-        .await?;
+    let auth_url_response = oauth_routes.get_auth_url(user_id, tenant_id, "strava")?;
     assert!(auth_url_response.authorization_url.contains("strava.com"));
     assert!(auth_url_response
         .authorization_url
@@ -399,9 +397,7 @@ async fn test_sdk_error_handling() -> Result<()> {
             .await?;
     let user_id = uuid::Uuid::parse_str(&user_id_str)?;
 
-    let result = oauth_routes
-        .get_auth_url(user_id, tenant_id, "unsupported_provider")
-        .await;
+    let result = oauth_routes.get_auth_url(user_id, tenant_id, "unsupported_provider");
     assert!(result.is_err());
     assert!(result
         .unwrap_err()
@@ -472,9 +468,7 @@ async fn test_sdk_complete_onboarding_simulation() -> Result<()> {
     assert_eq!(stored_api_key.user_id, user_id);
 
     // Step 7: Test OAuth URL generation
-    let auth_url = oauth_routes
-        .get_auth_url(user_id, tenant_id, "strava")
-        .await?;
+    let auth_url = oauth_routes.get_auth_url(user_id, tenant_id, "strava")?;
     assert!(auth_url.authorization_url.contains("test_client_id")); // Uses tenant credentials
 
     // Step 8: Test connection status

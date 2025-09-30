@@ -696,7 +696,6 @@ async fn test_oauth_state_csrf_protection() {
     // Generate OAuth URL and get state
     let auth_response = oauth_routes
         .get_auth_url(user_id, tenant_id, "strava")
-        .await
         .unwrap();
 
     // Verify state contains user ID
@@ -711,7 +710,6 @@ async fn test_oauth_state_csrf_protection() {
     // Verify each request generates unique state
     let auth_response2 = oauth_routes
         .get_auth_url(user_id, tenant_id, "strava")
-        .await
         .unwrap();
     assert_ne!(auth_response.state, auth_response2.state);
 }

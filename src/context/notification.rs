@@ -6,13 +6,13 @@ use crate::websocket::WebSocketManager;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
-/// Notification context containing WebSocket and SSE dependencies
+/// Notification context containing `WebSocket` and SSE dependencies
 ///
 /// This context provides all notification-related dependencies needed for
-/// real-time communication, WebSocket management, and SSE connections.
+/// real-time communication, `WebSocket` management, and SSE connections.
 ///
 /// # Dependencies
-/// - `websocket_manager`: WebSocket connection management
+/// - `websocket_manager`: `WebSocket` connection management
 /// - `sse_manager`: Server-sent events connection management
 /// - `oauth_notification_sender`: Broadcast channel for OAuth completion notifications
 #[derive(Clone)]
@@ -37,7 +37,7 @@ impl NotificationContext {
         }
     }
 
-    /// Get WebSocket manager for connection management
+    /// Get `WebSocket` manager for connection management
     #[must_use]
     pub const fn websocket_manager(&self) -> &Arc<WebSocketManager> {
         &self.websocket_manager

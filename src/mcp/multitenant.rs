@@ -2017,8 +2017,7 @@ impl MultiTenantMcpServer {
     ///
     /// # Errors
     /// Returns an error if the provider is not supported or the operation fails
-    #[must_use]
-    pub fn route_disconnect_tool(
+    pub async fn route_disconnect_tool(
         provider_name: &str,
         user_id: Uuid,
         request_id: Value,
@@ -2034,6 +2033,7 @@ impl MultiTenantMcpServer {
             )
         } else {
             Self::handle_disconnect_provider(user_id, provider_name, ctx.resources, request_id)
+                .await
         }
     }
 
@@ -2104,7 +2104,7 @@ impl MultiTenantMcpServer {
     }
 
     /// Handle `disconnect_provider` tool call
-    fn handle_disconnect_provider(
+    async fn handle_disconnect_provider(
         user_id: Uuid,
         provider: &str,
         resources: &Arc<ServerResources>,
@@ -2118,7 +2118,7 @@ impl MultiTenantMcpServer {
             server_context.notification().clone(),
         );
 
-        match oauth_routes.disconnect_provider(user_id, provider) {
+        match oauth_routes.disconnect_provider(user_id, provider).await {
             Ok(()) => {
                 let response = serde_json::json!({
                     "success": true,

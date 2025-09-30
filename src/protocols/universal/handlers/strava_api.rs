@@ -53,7 +53,7 @@ fn create_no_token_response() -> UniversalResponse {
                 "error": "No valid Strava token found"
             }
         })),
-        error: Some("No valid Strava token found. Please connect your Strava account using the connect_strava tool.".to_string()),
+        error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_string()),
         metadata: Some({
             let mut map = std::collections::HashMap::new();
             map.insert(

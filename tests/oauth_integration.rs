@@ -215,7 +215,6 @@ async fn test_oauth_authorization_url_generation() {
     // Test Strava OAuth URL generation
     let strava_auth = oauth_routes
         .get_auth_url(user_id, tenant_id, "strava")
-        .await
         .unwrap();
 
     assert!(strava_auth
@@ -232,7 +231,6 @@ async fn test_oauth_authorization_url_generation() {
     // Test Fitbit OAuth URL generation
     let fitbit_auth = oauth_routes
         .get_auth_url(user_id, tenant_id, "fitbit")
-        .await
         .unwrap();
 
     assert!(fitbit_auth
@@ -621,9 +619,7 @@ async fn test_invalid_provider_error() {
 
     let user_id = Uuid::new_v4();
     let tenant_id = Uuid::new_v4();
-    let result = oauth_routes
-        .get_auth_url(user_id, tenant_id, "invalid_provider")
-        .await;
+    let result = oauth_routes.get_auth_url(user_id, tenant_id, "invalid_provider");
 
     assert!(result.is_err());
     assert!(result
@@ -739,12 +735,37 @@ async fn test_disconnect_provider() {
 
     let user_id = Uuid::new_v4();
 
+    // Create a test user in the database
+    let user = pierre_mcp_server::models::User {
+        id: user_id,
+        email: format!("test_{user_id}@example.com"),
+        display_name: None,
+        password_hash: "test_hash".to_string(),
+        tier: pierre_mcp_server::models::UserTier::Starter,
+        strava_token: None,
+        fitbit_token: None,
+        tenant_id: Some("00000000-0000-0000-0000-000000000000".to_string()),
+        is_active: true,
+        user_status: pierre_mcp_server::models::UserStatus::Active,
+        is_admin: false,
+        approved_by: None,
+        approved_at: Some(chrono::Utc::now()),
+        created_at: chrono::Utc::now(),
+        last_active: chrono::Utc::now(),
+    };
+    server_context
+        .data()
+        .database()
+        .create_user(&user)
+        .await
+        .unwrap();
+
     // Test disconnecting Strava (should succeed even if not connected)
-    let result = oauth_routes.disconnect_provider(user_id, "strava");
+    let result = oauth_routes.disconnect_provider(user_id, "strava").await;
     assert!(result.is_ok());
 
     // Test disconnecting invalid provider
-    let result = oauth_routes.disconnect_provider(user_id, "invalid");
+    let result = oauth_routes.disconnect_provider(user_id, "invalid").await;
     assert!(result.is_err());
     assert!(result
         .unwrap_err()
@@ -927,7 +948,6 @@ async fn test_oauth_urls_contain_required_parameters() {
     // Test Strava URL parameters
     let strava_auth = oauth_routes
         .get_auth_url(user_id, tenant_id, "strava")
-        .await
         .unwrap();
     let strava_url = url::Url::parse(&strava_auth.authorization_url).unwrap();
     let strava_params: std::collections::HashMap<_, _> = strava_url.query_pairs().collect();
@@ -942,7 +962,6 @@ async fn test_oauth_urls_contain_required_parameters() {
     // Test Fitbit URL parameters
     let fitbit_auth = oauth_routes
         .get_auth_url(user_id, tenant_id, "fitbit")
-        .await
         .unwrap();
     let fitbit_url = url::Url::parse(&fitbit_auth.authorization_url).unwrap();
     let fitbit_params: std::collections::HashMap<_, _> = fitbit_url.query_pairs().collect();

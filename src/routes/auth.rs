@@ -528,22 +528,34 @@ impl OAuthService {
     ///
     /// # Errors
     /// Returns error if provider is unsupported or disconnection fails
-    pub fn disconnect_provider(&self, user_id: uuid::Uuid, provider: &str) -> Result<()> {
+    pub async fn disconnect_provider(&self, user_id: uuid::Uuid, provider: &str) -> Result<()> {
         use crate::constants::oauth_providers;
 
-        // Use contexts for implementation
-        tracing::debug!("Processing OAuth provider disconnect with config and notifications");
-        let _ = (self.config.config(), self.notifications.clone());
+        tracing::debug!(
+            "Processing OAuth provider disconnect for user {} provider {}",
+            user_id,
+            provider
+        );
 
         match provider {
-            oauth_providers::STRAVA => {
-                // Token revocation would clear stored tokens from database
-                // Clear provider tokens requires token revocation API calls
-                tracing::info!("Disconnecting Strava for user {}", user_id);
-                Ok(())
-            }
-            oauth_providers::FITBIT => {
-                tracing::info!("Disconnecting Fitbit for user {}", user_id);
+            oauth_providers::STRAVA | oauth_providers::FITBIT => {
+                // Get user to find tenant_id
+                let user = self
+                    .data
+                    .database()
+                    .get_user(user_id)
+                    .await?
+                    .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+                let tenant_id = user.tenant_id.as_deref().unwrap_or("default");
+
+                // Delete OAuth tokens from database
+                self.data
+                    .database()
+                    .delete_user_oauth_token(user_id, tenant_id, provider)
+                    .await?;
+
+                tracing::info!("Disconnected {} for user {}", provider, user_id);
+
                 Ok(())
             }
             _ => Err(anyhow::anyhow!("Unsupported provider: {provider}")),
@@ -554,7 +566,7 @@ impl OAuthService {
     ///
     /// # Errors
     /// Returns error if provider is unsupported or URL generation fails
-    pub async fn get_auth_url(
+    pub fn get_auth_url(
         &self,
         user_id: uuid::Uuid,
         tenant_id: uuid::Uuid,
@@ -582,10 +594,12 @@ impl OAuthService {
             _ => return Err(anyhow::anyhow!("Unsupported provider: {provider}")),
         };
 
-        // Store state for CSRF validation using database
-        tokio::task::yield_now().await;
-        let _ = self.data.database().clone(); // Database available for state storage
-        let _ = (user_id, tenant_id, &state, provider);
+        tracing::debug!(
+            "Generated OAuth authorization URL for user {} tenant {} provider {}",
+            user_id,
+            tenant_id,
+            provider
+        );
 
         Ok(OAuthAuthorizationResponse {
             authorization_url,
@@ -603,28 +617,41 @@ impl OAuthService {
         &self,
         user_id: uuid::Uuid,
     ) -> Result<Vec<ConnectionStatus>> {
-        // Get OAuth connections for user from database using all contexts
-        let statuses = vec![
-            ConnectionStatus {
-                provider: "strava".to_string(),
-                connected: false,
-                expires_at: None,
-                scopes: None,
-            },
-            ConnectionStatus {
-                provider: "fitbit".to_string(),
-                connected: false,
-                expires_at: None,
-                scopes: None,
-            },
-        ];
-        tokio::task::yield_now().await;
-        let _ = (
-            user_id,
-            self.data.database().clone(),
-            self.config.config(),
-            self.notifications.clone(),
-        );
+        use crate::constants::oauth_providers;
+
+        tracing::debug!("Getting OAuth connection status for user {}", user_id);
+
+        // Get all OAuth tokens for the user from database
+        let tokens = self.data.database().get_user_oauth_tokens(user_id).await?;
+
+        // Create a set of connected providers
+        let mut providers_seen = std::collections::HashSet::new();
+        let mut statuses = Vec::new();
+
+        // Add status for each connected provider
+        for token in tokens {
+            if providers_seen.insert(token.provider.clone()) {
+                statuses.push(ConnectionStatus {
+                    provider: token.provider.clone(),
+                    connected: true,
+                    expires_at: token.expires_at.map(|dt| dt.to_rfc3339()),
+                    scopes: token.scope.clone(),
+                });
+            }
+        }
+
+        // Add default status for providers that are not connected
+        for provider in [oauth_providers::STRAVA, oauth_providers::FITBIT] {
+            if !providers_seen.contains(provider) {
+                statuses.push(ConnectionStatus {
+                    provider: provider.to_string(),
+                    connected: false,
+                    expires_at: None,
+                    scopes: None,
+                });
+            }
+        }
+
         Ok(statuses)
     }
 }
@@ -1104,10 +1131,7 @@ impl AuthRoutes {
             server_context.notification().clone(),
         );
 
-        match oauth_service
-            .get_auth_url(user_id, tenant_id, &provider)
-            .await
-        {
+        match oauth_service.get_auth_url(user_id, tenant_id, &provider) {
             Ok(auth_response) => {
                 tracing::info!(
                     "Generated OAuth URL for {} user {}: {}",

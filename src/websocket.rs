@@ -10,10 +10,10 @@
 // - Arc resource clones for multi-tenant concurrent access
 // - String ownership transfers for WebSocket message construction
 
-//! WebSocket support for real-time updates
+//! `WebSocket` support for real-time updates
 //!
 //! Provides real-time updates for API key usage, rate limit status,
-//! and system metrics via WebSocket connections.
+//! and system metrics via `WebSocket` connections.
 
 use crate::auth::{AuthManager, AuthResult};
 use crate::database_plugins::{factory::Database, DatabaseProvider};
@@ -85,7 +85,7 @@ impl WebSocketManager {
         }
     }
 
-    /// Get WebSocket filter for warp
+    /// Get `WebSocket` filter for warp
     pub fn websocket_filter(
         &self,
     ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
@@ -97,7 +97,7 @@ impl WebSocketManager {
         })
     }
 
-    /// Handle new WebSocket connection
+    /// Handle new `WebSocket` connection
     async fn handle_connection(&self, ws: WebSocket) {
         let (mut ws_tx, mut ws_rx) = ws.split();
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
@@ -106,7 +106,7 @@ impl WebSocketManager {
         let mut authenticated_user: Option<Uuid> = None;
         let mut subscriptions: Vec<String> = Vec::new();
 
-        // Spawn task to forward messages to WebSocket
+        // Spawn task to forward messages to `WebSocket`
         let ws_send_task = tokio::spawn(async move {
             while let Some(message) = rx.recv().await {
                 if ws_tx.send(message).await.is_err() {
@@ -195,7 +195,7 @@ impl WebSocketManager {
         self.clients.write().await.remove(&connection_id);
     }
 
-    /// Authenticate WebSocket user with JWT
+    /// Authenticate `WebSocket` user with JWT
     async fn authenticate_user(&self, token: &str) -> Result<AuthResult> {
         let auth_header = if token.starts_with("Bearer ") {
             token.to_string()
