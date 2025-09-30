@@ -82,7 +82,8 @@ Replace `YOUR_JWT_TOKEN_FROM_SETUP` with the JWT token from the automated setup.
 
 1. **Initiate OAuth flow:**
 ```bash
-curl "http://localhost:8081/api/oauth/strava/auth" \
+# Get authorization URL (src/routes/auth.rs:565-608)
+curl "http://localhost:8081/oauth/strava/connect" \
   -H "Authorization: Bearer $JWT_TOKEN"
 ```
 
@@ -90,7 +91,8 @@ curl "http://localhost:8081/api/oauth/strava/auth" \
 
 3. **Verify connection:**
 ```bash
-curl "http://localhost:8081/api/oauth/providers/status" \
+# Check connection status (src/routes/auth.rs:598-643)
+curl "http://localhost:8081/oauth/status" \
   -H "Authorization: Bearer $JWT_TOKEN"
 ```
 
@@ -175,17 +177,19 @@ RUST_LOG=debug cargo run --bin pierre-mcp-server
 
 1. **Verify OAuth connection:**
 ```bash
-curl "http://localhost:8081/api/oauth/providers/status" \
+# Check connection status
+curl "http://localhost:8081/oauth/status" \
   -H "Authorization: Bearer $JWT_TOKEN"
 ```
 
 2. **Re-authenticate with Strava:**
 ```bash
-# Disconnect and reconnect
-curl -X POST "http://localhost:8081/api/oauth/strava/disconnect" \
+# Disconnect and reconnect (src/routes/auth.rs:527-563)
+curl -X POST "http://localhost:8081/oauth/disconnect/strava" \
   -H "Authorization: Bearer $JWT_TOKEN"
 
-curl "http://localhost:8081/api/oauth/strava/auth" \
+# Get new authorization URL
+curl "http://localhost:8081/oauth/strava/connect" \
   -H "Authorization: Bearer $JWT_TOKEN"
 ```
 

@@ -74,57 +74,41 @@ Configuration values are resolved in the following order (highest priority first
 
 ```bash
 # === Server Configuration ===
-PIERRE_ENVIRONMENT=production          # development, production, testing
-PIERRE_LOG_LEVEL=info                 # error, warn, info, debug, trace
-HTTP_PORT=8081                         # Single unified port for all protocols (MCP, OAuth 2.0, REST API)
-PIERRE_BASE_URL=https://pierre-api.example.com
+# From src/constants/mod.rs:32-173
+HTTP_PORT=8081                         # Single unified port (src/constants/mod.rs:38-44)
+LOG_LEVEL=info                         # error, warn, info, debug, trace (line 129-132)
+BASE_URL=http://localhost:8081         # Server base URL (line 67-70)
 
 # === Database Configuration ===
-DATABASE_URL="postgresql://user:pass@localhost:5432/pierre"
-DATABASE_MAX_CONNECTIONS=50
-DATABASE_MIN_CONNECTIONS=10
-DATABASE_ACQUIRE_TIMEOUT=30
-DATABASE_IDLE_TIMEOUT=600
-DATABASE_MAX_LIFETIME=1800
-DATABASE_ENCRYPTION_KEY_PATH=/secrets/encryption.key
+DATABASE_URL="sqlite:./data/users.db"  # SQLite (default) or PostgreSQL (line 134-138)
 
 # === Authentication Configuration ===
-# Note: JWT secrets are automatically managed via database-stored admin_jwt_secret
-# No manual JWT_SECRET environment variable required
-JWT_EXPIRY_HOURS=24
-REFRESH_TOKEN_EXPIRY_DAYS=30
-BCRYPT_COST=12
-PIERRE_MASTER_ENCRYPTION_KEY=your_32_byte_base64_key  # Generate with: openssl rand -base64 32
+# Two-tier key management system (src/crypto/)
+PIERRE_MASTER_ENCRYPTION_KEY=$(openssl rand -base64 32)  # Required for production
+JWT_EXPIRY_HOURS=24                    # JWT token expiry (line 153-159, default: 24)
 
-# === OAuth Configuration ===
+# === OAuth Provider Configuration ===
+# For fitness provider integration (Strava, Fitbit)
 STRAVA_CLIENT_ID=your_strava_client_id
 STRAVA_CLIENT_SECRET=your_strava_client_secret
-STRAVA_REDIRECT_URI=https://pierre-api.example.com/oauth/strava/callback
+STRAVA_REDIRECT_URI=http://localhost:8081/oauth/callback/strava  # (line 73-76)
 
 FITBIT_CLIENT_ID=your_fitbit_client_id
 FITBIT_CLIENT_SECRET=your_fitbit_client_secret
-FITBIT_REDIRECT_URI=https://pierre-api.example.com/oauth/fitbit/callback
+FITBIT_REDIRECT_URI=http://localhost:8081/oauth/callback/fitbit  # (line 79-83)
 
-# === Rate Limiting Configuration ===
-RATE_LIMITING_ENABLED=true
-DEFAULT_USER_TIER=basic
-DEFAULT_TENANT_TIER=starter
+# === OAuth URLs (customizable) ===
+STRAVA_AUTH_URL=https://www.strava.com/oauth/authorize     # (line 87-91)
+STRAVA_TOKEN_URL=https://www.strava.com/oauth/token        # (line 94-98)
+FITBIT_AUTH_URL=https://www.fitbit.com/oauth2/authorize    # (line 108-112)
+FITBIT_TOKEN_URL=https://api.fitbit.com/oauth2/token       # (line 115-119)
 
-# === External Services ===
-WEATHER_API_KEY=your_weather_api_key
-WEATHER_API_PROVIDER=openweathermap
-WEATHER_CACHE_HOURS=6
+# === External Services (Optional) ===
+OPENWEATHER_API_KEY=your_api_key       # Weather data integration (optional)
+OPENWEATHER_API_BASE=https://api.openweathermap.org/data/2.5  # (line 161-166)
 
-# === Security Configuration ===
-CORS_ORIGINS=https://pierre.example.com,https://app.pierre.example.com
-ALLOWED_HOSTS=pierre-api.example.com
-SESSION_SECURE=true
-SESSION_SAME_SITE=strict
-
-# === Monitoring Configuration ===
-METRICS_ENABLED=true
-HEALTH_CHECK_ENABLED=true
-AUDIT_LOGGING=true
+# === Strava API Configuration ===
+STRAVA_API_BASE=https://www.strava.com/api/v3  # (line 169-172)
 ```
 
 ### Server Configuration Structure
