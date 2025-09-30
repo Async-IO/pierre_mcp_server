@@ -602,6 +602,8 @@ pub mod http_status {
 pub mod system_monitoring {
     /// Bytes to MB divisor
     pub const BYTES_TO_MB_DIVISOR: u64 = 1_048_576;
+    /// Bytes to GB divisor
+    pub const BYTES_TO_GB_DIVISOR: u64 = 1_073_741_824;
     /// KB to MB divisor
     pub const KB_TO_MB_DIVISOR: u64 = 1024;
     /// Memory warning threshold percentage
