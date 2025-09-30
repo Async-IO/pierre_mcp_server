@@ -1861,6 +1861,7 @@ impl MultiTenantMcpServer {
     }
 
     // Long function: Complex HTTP request handling with comprehensive logging and validation
+    #[allow(clippy::too_many_lines)]
     async fn handle_mcp_http_request(
         method: warp::http::Method,
         origin: Option<String>,
@@ -1950,20 +1951,28 @@ impl MultiTenantMcpServer {
                     .is_some_and(|a| a.contains("text/event-stream"))
                 {
                     // Integrate with unified SSE infrastructure for MCP protocol streaming
-                    tracing::info!("MCP SSE request - registering protocol stream with unified SSE manager");
+                    tracing::info!(
+                        "MCP SSE request - registering protocol stream with unified SSE manager"
+                    );
 
                     // Generate or extract session ID from authorization
                     let session_id = authorization
                         .as_ref()
                         .and_then(|auth| auth.strip_prefix("Bearer "))
-                        .map(|token| format!("session_{}", &token[..std::cmp::min(8, token.len())]))
-                        .unwrap_or_else(|| format!("session_{}", uuid::Uuid::new_v4()));
+                        .map_or_else(
+                            || format!("session_{}", uuid::Uuid::new_v4()),
+                            |token| format!("session_{}", &token[..std::cmp::min(8, token.len())])
+                        );
 
                     // Register SSE stream with the manager
                     let mut receiver = ctx
                         .resources
                         .sse_manager
-                        .register_protocol_stream(session_id.clone(), authorization, ctx.resources.clone())
+                        .register_protocol_stream(
+                            session_id.clone(),
+                            authorization,
+                            ctx.resources.clone(),
+                        )
                         .await;
 
                     let manager = ctx.resources.sse_manager.clone();
