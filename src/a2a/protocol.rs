@@ -351,8 +351,20 @@ impl A2AServer {
 
     /// Handle A2A initialize request with `ServerResources` for OAuth credential storage
     async fn handle_initialize_with_oauth(&self, request: A2ARequest) -> A2AResponse {
-        // Extract user authentication from request
-        let resources = self.resources.as_ref().unwrap(); // Safe unwrap - checked in caller
+        // Extract resources with defensive error handling
+        let Some(resources) = self.resources.as_ref() else {
+            return A2AResponse {
+                jsonrpc: "2.0".into(),
+                result: None,
+                error: Some(A2AErrorResponse {
+                    code: -32603,
+                    message: "Internal error: Server resources not initialized".to_string(),
+                    data: None,
+                }),
+                id: request.id.clone(),
+            };
+        };
+
         let user_id = match Self::authenticate_request(&request, resources) {
             Ok(user_id) => user_id,
             Err(error_response) => return *error_response,
