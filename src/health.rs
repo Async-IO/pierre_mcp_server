@@ -599,7 +599,23 @@ impl HealthChecker {
             used_percent,
         })
     }
+}
 
+/// Convert bytes to gigabytes with documented precision characteristics
+///
+/// u64 to f64 conversion can lose precision for very large values, but for
+/// disk space measurements this is acceptable as precision is maintained
+/// for all realistic disk sizes (< 9 PB).
+#[cfg(target_os = "windows")]
+#[inline]
+#[allow(clippy::cast_precision_loss)]
+const fn bytes_to_gb_safe(value: u64) -> f64 {
+    // u64 to f64 conversion can lose precision for very large values
+    // but for disk space measurements, this is acceptable
+    value as f64
+}
+
+impl HealthChecker {
     #[cfg(target_os = "windows")]
     fn get_memory_info_windows() -> Result<MemoryInfo, Box<dyn std::error::Error>> {
         // Use Windows API GlobalMemoryStatusEx for accurate memory information
@@ -622,8 +638,11 @@ impl HealthChecker {
             fn GlobalMemoryStatusEx(lpBuffer: *mut MemoryStatusEx) -> i32;
         }
 
+        let struct_size = u32::try_from(mem::size_of::<MemoryStatusEx>())
+            .map_err(|e| format!("MemoryStatusEx size exceeds u32::MAX: {e}"))?;
+
         let mut mem_status = MemoryStatusEx {
-            dw_length: mem::size_of::<MemoryStatusEx>() as u32,
+            dw_length: struct_size,
             dw_memory_load: 0,
             ull_total_phys: 0,
             ull_avail_phys: 0,
@@ -719,6 +738,8 @@ impl HealthChecker {
             ) -> i32;
         }
 
+        const BYTES_TO_GB: f64 = 1_073_741_824.0;
+
         // Convert path to wide string for Windows API
         let wide_path: Vec<u16> = OsStr::new(path)
             .encode_wide()
@@ -746,10 +767,9 @@ impl HealthChecker {
             .into());
         }
 
-        let total_gb =
-            total_bytes as f64 / crate::constants::system_monitoring::BYTES_TO_GB_DIVISOR as f64;
-        let available_gb = free_bytes_available as f64
-            / crate::constants::system_monitoring::BYTES_TO_GB_DIVISOR as f64;
+        // Convert bytes to GB using helper function with documented precision behavior
+        let total_gb = bytes_to_gb_safe(total_bytes) / BYTES_TO_GB;
+        let available_gb = bytes_to_gb_safe(free_bytes_available) / BYTES_TO_GB;
         let used_gb = total_gb - available_gb;
         let used_percent = if total_gb > 0.0 {
             (used_gb / total_gb) * 100.0
