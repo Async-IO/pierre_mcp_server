@@ -11,7 +11,9 @@ async fn create_test_database() -> Database {
     let encryption_key = (0..32).collect::<Vec<u8>>();
     // Use a unique database file path for each test to ensure isolation
     let unique_id = uuid::Uuid::new_v4();
-    let database_url = format!("sqlite:/tmp/test_{unique_id}.db");
+    let temp_dir = std::env::temp_dir();
+    let db_path = temp_dir.join(format!("test_{unique_id}.db"));
+    let database_url = format!("sqlite:{}", db_path.display());
     Database::new(&database_url, encryption_key)
         .await
         .expect("Failed to create test database")
