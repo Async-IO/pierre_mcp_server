@@ -303,14 +303,22 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
       const now = Math.floor(Date.now() / 1000);
       const expiresAt = (storedTokens.saved_at || 0) + (storedTokens.expires_in || 0);
       if (storedTokens.expires_in && storedTokens.saved_at && now < expiresAt) {
-        this.savedTokens = {
-          access_token: storedTokens.access_token,
-          refresh_token: storedTokens.refresh_token,
-          expires_in: storedTokens.expires_in,
-          token_type: storedTokens.token_type || 'Bearer',
-          scope: storedTokens.scope
-        };
-        console.error(`[Pierre OAuth] Reloaded valid tokens from storage`);
+        // Token hasn't expired, but validate it with the server
+        const isValid = await this.validateToken(storedTokens.access_token);
+        if (isValid) {
+          this.savedTokens = {
+            access_token: storedTokens.access_token,
+            refresh_token: storedTokens.refresh_token,
+            expires_in: storedTokens.expires_in,
+            token_type: storedTokens.token_type || 'Bearer',
+            scope: storedTokens.scope
+          };
+          console.error(`[Pierre OAuth] Reloaded valid tokens from storage`);
+        } else {
+          console.error(`[Pierre OAuth] Stored token failed server validation (user may no longer exist), clearing storage`);
+          delete this.allStoredTokens.pierre;
+          await this.saveStoredTokens();
+        }
       } else {
         console.error(`[Pierre OAuth] Stored tokens are expired, clearing storage`);
         delete this.allStoredTokens.pierre;
@@ -324,6 +332,30 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
       console.error(`[Pierre OAuth] Token type: ${this.savedTokens.token_type}`);
     }
     return this.savedTokens;
+  }
+
+  private async validateToken(accessToken: string): Promise<boolean> {
+    try {
+      // Make a lightweight request to validate the token
+      const response = await fetch(`${this.serverUrl}/oauth/status`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        console.error(`[Pierre OAuth] Token validation successful`);
+        return true;
+      }
+
+      console.error(`[Pierre OAuth] Token validation failed: ${response.status} ${response.statusText}`);
+      return false;
+    } catch (error) {
+      console.error(`[Pierre OAuth] Token validation request failed: ${error}`);
+      return false;
+    }
   }
 
   async redirectToAuthorization(authorizationUrl: URL): Promise<void> {
@@ -868,16 +900,19 @@ export class PierreClaudeBridge {
     // Create OAuth client provider for Pierre MCP Server (shared across attempts)
     this.oauthProvider = new PierreOAuthClientProvider(this.config.pierreServerUrl, this.config);
 
-    this.log('🔐 OAuth provider initialized - connection deferred until authentication');
+    this.log('🔐 OAuth provider initialized - attempting connection to discover tools');
 
-    // Check if we have existing valid tokens
+    // Always attempt connection to discover tools (initialize and tools/list don't require auth)
+    // If tokens exist, the connection will be fully authenticated
+    // If no tokens, we can still discover tools but tool calls will require authentication via connect_to_pierre
     const existingTokens = await this.oauthProvider.tokens();
     if (existingTokens) {
-      this.log('🎫 Found existing tokens - attempting connection');
-      await this.attemptConnection();
+      this.log('🎫 Found existing tokens - connecting with authentication');
     } else {
-      this.log('⏳ No valid tokens found - connection will be established when connect_to_pierre is called');
+      this.log('📋 No tokens found - connecting without authentication to discover tools');
     }
+
+    await this.attemptConnection();
   }
 
   private async attemptConnection(): Promise<void> {
@@ -910,19 +945,14 @@ export class PierreClaudeBridge {
         // Create fresh transport for each attempt
         const baseUrl = new URL(this.mcpUrl);
         const transport = new StreamableHTTPClientTransport(baseUrl, {
-          authProvider: this.oauthProvider,
-          requestInit: {
-            headers: {
-              'Content-Type': 'application/json',
-              'User-Agent': 'Pierre-Claude-Bridge/1.0.0'
-            }
-          }
+          authProvider: this.oauthProvider
         });
 
         // Connect to Pierre MCP Server with OAuth 2.0 flow
         await this.pierreClient.connect(transport);
         connected = true;
         this.log('✅ Connected to Pierre MCP Server with OAuth 2.0');
+        this.log(`✅ pierreClient is now set: ${!!this.pierreClient}`);
       } catch (error: any) {
         if (error.message === 'Unauthorized' && retryCount < maxRetries - 1) {
           retryCount++;
@@ -953,6 +983,8 @@ export class PierreClaudeBridge {
 
     // This will trigger the OAuth flow if no valid tokens exist
     await this.attemptConnection();
+
+    this.log(`✅ After attemptConnection, pierreClient is: ${!!this.pierreClient}`);
   }
 
   getClientSideTokenStatus(): { pierre: boolean; providers: Record<string, boolean> } {

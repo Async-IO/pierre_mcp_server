@@ -43,16 +43,7 @@ async fn create_configured_strava_provider(
 fn create_no_token_response() -> UniversalResponse {
     UniversalResponse {
         success: false,
-        result: Some(serde_json::json!({
-            "structuredContent": {
-                "activities": [{
-                    "error": "No valid Strava token found"
-                }],
-                "provider": "strava",
-                "message": "No Strava token found. Please connect your Strava account.",
-                "error": "No valid Strava token found"
-            }
-        })),
+        result: None,
         error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_string()),
         metadata: Some({
             let mut map = std::collections::HashMap::new();
@@ -181,10 +172,9 @@ pub fn handle_get_activities(
                             Ok(activities) => Ok(UniversalResponse {
                                 success: true,
                                 result: Some(serde_json::json!({
-                                    "structuredContent": {
-                                        "activities": activities,
-                                        "provider": "strava"
-                                    }
+                                    "activities": activities,
+                                    "provider": "strava",
+                                    "count": activities.len()
                                 })),
                                 error: None,
                                 metadata: Some({

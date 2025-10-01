@@ -121,9 +121,8 @@ impl ProtocolConverter {
     #[must_use]
     pub fn universal_to_mcp(response: UniversalResponse) -> ToolResponse {
         if response.success {
-            let result_text =
-                serde_json::to_string_pretty(&response.result.as_ref().unwrap_or(&Value::Null))
-                    .unwrap_or_else(|_| "{}".into());
+            // Generate human-readable content based on the response data
+            let result_text = Self::format_response_content(response.result.as_ref());
 
             ToolResponse {
                 content: vec![crate::mcp::schema::Content::Text { text: result_text }],
@@ -142,6 +141,96 @@ impl ProtocolConverter {
                 structured_content: None,
             }
         }
+    }
+
+    /// Format response content into human-readable text
+    fn format_response_content(result: Option<&Value>) -> String {
+        use std::fmt::Write;
+
+        let Some(data) = result else {
+            return "No data available".to_string();
+        };
+
+        // Handle activities response
+        if let Some(activities) = data.get("activities").and_then(Value::as_array) {
+            let count = activities.len();
+            let mut text = format!("Retrieved {count} activities:\n\n");
+
+            for (i, activity) in activities.iter().enumerate().take(10) {
+                let name = activity
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or("Unnamed Activity");
+                let activity_type = activity
+                    .get("type")
+                    .and_then(Value::as_str)
+                    .unwrap_or("Unknown");
+                let distance = activity
+                    .get("distance")
+                    .and_then(Value::as_f64)
+                    .map_or_else(|| "N/A".to_string(), |d| format!("{:.2} km", d / 1000.0));
+                let moving_time = activity
+                    .get("moving_time")
+                    .and_then(Value::as_u64)
+                    .map_or_else(
+                        || "N/A".to_string(),
+                        |t| {
+                            let hours = t / 3600;
+                            let minutes = (t % 3600) / 60;
+                            if hours > 0 {
+                                format!("{hours}h {minutes}m")
+                            } else {
+                                format!("{minutes}m")
+                            }
+                        },
+                    );
+
+                writeln!(
+                    &mut text,
+                    "{}. {} - {} | {} | {}",
+                    i + 1,
+                    name,
+                    activity_type,
+                    distance,
+                    moving_time
+                )
+                .unwrap_or_else(|_| tracing::warn!("Failed to write activity line"));
+            }
+
+            if count > 10 {
+                writeln!(&mut text, "\n... and {} more activities", count - 10)
+                    .unwrap_or_else(|_| tracing::warn!("Failed to write activity count"));
+            }
+
+            return text;
+        }
+
+        // Handle athlete response
+        if let Some(athlete) = data.get("id").map(|_| data) {
+            let name = format!(
+                "{} {}",
+                athlete
+                    .get("firstname")
+                    .and_then(Value::as_str)
+                    .unwrap_or(""),
+                athlete
+                    .get("lastname")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+            )
+            .trim()
+            .to_string();
+            let username = athlete
+                .get("username")
+                .and_then(Value::as_str)
+                .unwrap_or("N/A");
+            let id = athlete.get("id").and_then(Value::as_u64).unwrap_or(0);
+
+            return format!("Athlete Profile:\nName: {name}\nUsername: @{username}\nID: {id}");
+        }
+
+        // Default: pretty-print JSON
+        serde_json::to_string_pretty(data).unwrap_or_else(|_| "{}".into())
     }
 
     /// Detect protocol type from request format

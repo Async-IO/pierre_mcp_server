@@ -1644,10 +1644,14 @@ impl MultiTenantMcpServer {
     fn mcp_method_requires_auth(mcp_method: &str) -> bool {
         match mcp_method {
             // Standard MCP discovery methods - following MCP specification compliance
-            // SECURITY: initialize now requires authentication to prevent unauthenticated connections
-            "ping" | "notifications/initialized" => false,
-            // tools/list requires authentication to prevent tool enumeration by unauthenticated clients
-            // All other methods (including tools/call and initialize) require authentication
+            // These methods allow clients to discover capabilities before authentication
+            "ping"
+            | "notifications/initialized"
+            | "initialize"
+            | "tools/list"
+            | "prompts/list"
+            | "resources/list" => false,
+            // All other methods (tools/call, etc.) require authentication
             _ => true,
         }
     }
@@ -2833,20 +2837,24 @@ impl MultiTenantMcpServer {
         // Execute the tool through Universal protocol
         match executor.execute_tool(universal_request).await {
             Ok(response) => {
-                if response.success {
-                    McpResponse {
+                // Convert UniversalResponse to proper MCP ToolResponse format with content field
+                let tool_response =
+                    crate::protocols::converter::ProtocolConverter::universal_to_mcp(response);
+
+                // Serialize ToolResponse to JSON for MCP result field
+                match serde_json::to_value(&tool_response) {
+                    Ok(result_value) => McpResponse {
                         jsonrpc: JSONRPC_VERSION.to_string(),
-                        result: response.result,
+                        result: Some(result_value),
                         error: None,
                         id: request_id,
-                    }
-                } else {
-                    Self::create_tool_error_response(
+                    },
+                    Err(e) => Self::create_tool_error_response(
                         tool_name,
                         provider_name,
-                        response.error,
+                        Some(format!("Failed to serialize tool response: {e}")),
                         request_id,
-                    )
+                    ),
                 }
             }
             Err(e) => Self::create_tool_error_response(

@@ -631,32 +631,30 @@ async fn test_mcp_authentication_required() -> Result<()> {
     let client = MultiTenantMcpClient::new(server_port);
     // Note: No login, so no JWT token
 
-    // Try to list tools without authentication (this should fail - tools/list requires auth)
+    // Try to list tools without authentication (should succeed - MCP discovery pattern)
     let tools_response = client.list_tools().await?;
 
-    // Tools list should return authentication error
+    // Tools list should succeed and return all 35 tools
     println!(
         "Tools response: {}",
         serde_json::to_string_pretty(&tools_response)?
     );
     assert_eq!(tools_response["jsonrpc"], "2.0");
     assert_eq!(tools_response["id"], 2);
-    assert!(!tools_response["error"].is_null());
-    assert_eq!(tools_response["error"]["code"], -32603);
-    assert_eq!(
-        tools_response["error"]["message"],
-        "Authentication required"
-    );
+    assert!(tools_response["error"].is_null());
+    assert!(!tools_response["result"]["tools"].is_null());
+    let tools = tools_response["result"]["tools"].as_array().unwrap();
+    assert_eq!(tools.len(), 35, "Should expose all 35 tools for discovery");
 
-    // Try to call a tool without authentication (this should also fail)
-    let tool_call_response = client.call_tool("get_connection_status", json!({})).await?;
+    // Try to call a tool without authentication (this should fail)
+    let tool_call_response = client.call_tool("get_activities", json!({"provider": "strava", "limit": 10})).await?;
 
     // Should return an authentication error for tool call
     assert_eq!(tool_call_response["jsonrpc"], "2.0");
     assert!(!tool_call_response["error"].is_null());
     assert_eq!(tool_call_response["error"]["code"], -32603);
 
-    println!("Authentication requirement test passed!");
+    println!("Authentication requirement test passed - tools/list works without auth, but tool calls require auth!");
 
     // Clean up server
     server_handle.abort();
@@ -715,12 +713,13 @@ async fn test_mcp_initialization_no_auth() -> Result<()> {
     );
     assert_eq!(init_response["jsonrpc"], "2.0");
     assert_eq!(init_response["id"], 1);
-    // Should return authentication error
-    assert!(!init_response["error"].is_null());
-    assert_eq!(init_response["error"]["code"], -32603);
-    assert_eq!(init_response["error"]["message"], "Authentication required");
+    // Initialize should succeed without authentication (MCP discovery pattern)
+    assert!(init_response["error"].is_null());
+    assert!(!init_response["result"].is_null());
+    assert_eq!(init_response["result"]["protocolVersion"], "2025-06-18");
+    assert_eq!(init_response["result"]["serverInfo"]["name"], "pierre-mcp-server");
 
-    println!("MCP initialization authentication requirement test passed!");
+    println!("MCP initialization without authentication test passed!");
 
     // Clean up server
     server_handle.abort();

@@ -198,9 +198,16 @@ async fn test_configuration_catalog_has_expected_structure() -> Result<()> {
     assert!(response.error.is_none());
 
     let result = response.result.unwrap();
-    assert!(result.get("catalog").is_some());
 
-    let catalog = &result["catalog"];
+    // Response is now wrapped in MCP ToolResponse format with content and structuredContent
+    let structured = result
+        .get("structuredContent")
+        .or_else(|| result.get("structured_content"))
+        .unwrap_or(&result);
+
+    assert!(structured.get("catalog").is_some());
+
+    let catalog = &structured["catalog"];
     assert!(catalog["categories"].is_array());
     assert!(catalog["total_parameters"].is_number());
     assert!(catalog["version"].is_string());
