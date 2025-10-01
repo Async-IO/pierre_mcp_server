@@ -601,20 +601,20 @@ impl HealthChecker {
     }
 }
 
-/// Convert bytes to gigabytes avoiding direct u64→f64 cast
+/// Convert bytes to gigabytes with documented precision characteristics
 ///
-/// Splits conversion to avoid clippy::cast_precision_loss while maintaining
-/// acceptable precision for disk space measurements (< 9 PB realistic max).
+/// u64 to f64 conversion can lose precision for very large values, but for
+/// disk space measurements this is acceptable as precision is maintained
+/// for all realistic disk sizes (< 9 PB).
 #[cfg(target_os = "windows")]
 #[inline]
-fn bytes_to_gb(bytes: u64, divisor: f64) -> f64 {
-    // Split into high and low 32-bit parts for safe conversion
-    let high = (bytes >> 32) as u32;
-    let low = (bytes & 0xFFFF_FFFF) as u32;
-
-    // Reconstruct as f64 without precision loss for realistic values
-    // 2^32 = 4294967296.0 (exactly representable in f64)
-    (f64::from(high) * 4_294_967_296.0 + f64::from(low)) / divisor
+const fn bytes_to_gb_safe(value: u64) -> f64 {
+    // u64 to f64 conversion can lose precision for very large values
+    // but for disk space measurements, this is acceptable
+    #[allow(clippy::cast_precision_loss)]
+    {
+        value as f64
+    }
 }
 
 impl HealthChecker {
@@ -767,14 +767,10 @@ impl HealthChecker {
             .into());
         }
 
-        // Convert bytes to GB using floating-point division
-        // Precision loss is acceptable for disk space measurements:
-        // - Typical disk sizes are < 100 TB
-        // - f64 maintains full precision for values < 9 PB (2^53 bytes)
-        // - Loss of sub-byte precision at large scales is operationally irrelevant
+        // Convert bytes to GB using helper function with documented precision behavior
         let divisor_f64 = f64::from(crate::constants::system_monitoring::BYTES_TO_GB_DIVISOR);
-        let total_gb = bytes_to_gb(total_bytes, divisor_f64);
-        let available_gb = bytes_to_gb(free_bytes_available, divisor_f64);
+        let total_gb = bytes_to_gb_safe(total_bytes) / divisor_f64;
+        let available_gb = bytes_to_gb_safe(free_bytes_available) / divisor_f64;
         let used_gb = total_gb - available_gb;
         let used_percent = if total_gb > 0.0 {
             (used_gb / total_gb) * 100.0
