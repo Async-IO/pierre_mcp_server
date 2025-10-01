@@ -2,6 +2,17 @@
 
 This document describes how to validate the Pierre-Claude Bridge against the MCP (Model Context Protocol) specification.
 
+## ⚠️ REQUIRED: Python MCP Validator
+
+Per the **NO EXCEPTIONS POLICY** for testing, the Python MCP validator is **REQUIRED** for all bridge development and CI/CD.
+
+**Installation (REQUIRED):**
+```bash
+pip install git+https://github.com/Janix-ai/mcp-validator.git
+```
+
+Without this, `../scripts/lint-and-test.sh` will FAST FAIL.
+
 ## Quick Start
 
 ```bash
@@ -24,13 +35,18 @@ Interactive visual testing tool installed as dev dependency.
 
 **Tests:** Real-time tool execution, resources, prompts, OAuth flows
 
-### 2. MCP Validator (Python-based)
+### 2. MCP Validator (Python-based) - **REQUIRED**
 
-Automated compliance testing suite.
+Automated compliance testing suite - MANDATORY for all development.
 
-**Installation:**
+**Installation (REQUIRED):**
 ```bash
 pip install git+https://github.com/Janix-ai/mcp-validator.git
+```
+
+**Verification:**
+```bash
+python3 -c "import mcp_testing; print('OK')"
 ```
 
 **Usage:**
@@ -43,13 +59,20 @@ python3 -m mcp_testing.scripts.compliance_report \
 
 **Tests:** Protocol negotiation, OAuth 2.1, error handling, security features
 
-## Automated Testing
+## Automated Testing (REQUIRED)
 
-The validation runs automatically in `../scripts/lint-and-test.sh`:
+The validation runs automatically in `../scripts/lint-and-test.sh` and is **REQUIRED** to pass:
 
 ```bash
 cd .. && ./scripts/lint-and-test.sh
 ```
+
+**This will FAST FAIL if:**
+- Python MCP validator is not installed
+- Bridge build fails
+- MCP compliance tests fail
+
+Per the NO EXCEPTIONS POLICY, all tests must pass.
 
 ## Protocol Support
 

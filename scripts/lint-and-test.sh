@@ -694,8 +694,8 @@ echo -e "${BLUE}==== MCP Spec Compliance Validation ====${NC}"
 if [ -d "sdk" ]; then
     cd sdk
 
-    # Check if Python MCP validator is available
-    echo -e "${BLUE}==== Checking for MCP compliance validator... ====${NC}"
+    # Check if Python MCP validator is available (REQUIRED)
+    echo -e "${BLUE}==== Checking for MCP compliance validator (REQUIRED)... ====${NC}"
     if command_exists python3 && python3 -c "import mcp_testing" 2>/dev/null; then
         echo -e "${GREEN}[OK] Python MCP validator found${NC}"
 
@@ -704,26 +704,28 @@ if [ -d "sdk" ]; then
         if npm run build; then
             echo -e "${GREEN}[OK] Bridge built successfully${NC}"
 
-            # Run MCP compliance tests
-            echo -e "${BLUE}==== Running MCP protocol compliance tests... ====${NC}"
+            # Run MCP compliance tests (REQUIRED - NO EXCEPTIONS POLICY)
+            echo -e "${BLUE}==== Running MCP protocol compliance tests (REQUIRED)... ====${NC}"
             if python3 -m mcp_testing.scripts.compliance_report \
                 --server-command "node dist/cli.js" \
                 --protocol-version 2025-06-18 \
                 --timeout 30; then
                 echo -e "${GREEN}[OK] MCP spec compliance tests passed${NC}"
             else
-                echo -e "${YELLOW}[WARN] MCP spec compliance tests failed or timed out${NC}"
-                echo -e "${YELLOW}       This is informational - continuing with other tests${NC}"
+                echo -e "${RED}[FAIL] MCP spec compliance tests failed${NC}"
+                echo -e "${RED}       Bridge implementation does not meet MCP protocol requirements${NC}"
+                ALL_PASSED=false
             fi
         else
-            echo -e "${YELLOW}[WARN] Bridge build failed - skipping MCP compliance tests${NC}"
+            echo -e "${RED}[FAIL] Bridge build failed${NC}"
+            ALL_PASSED=false
         fi
     else
-        echo -e "${YELLOW}[INFO] Python MCP validator not installed${NC}"
-        echo -e "${YELLOW}       To enable MCP spec compliance testing:${NC}"
-        echo -e "${YELLOW}       1. pip install git+https://github.com/Janix-ai/mcp-validator.git${NC}"
-        echo -e "${YELLOW}       2. Re-run this script${NC}"
-        echo -e "${YELLOW}       Skipping MCP compliance tests for now${NC}"
+        echo -e "${RED}[CRITICAL] Python MCP validator not installed - REQUIRED for MCP compliance${NC}"
+        echo -e "${RED}           Per NO EXCEPTIONS POLICY: MCP spec compliance validation is mandatory${NC}"
+        echo -e "${RED}           Install with: pip install git+https://github.com/Janix-ai/mcp-validator.git${NC}"
+        echo -e "${RED}FAST FAIL: MCP compliance validation is REQUIRED for bridge implementation${NC}"
+        exit 1
     fi
 
     # Test with MCP Inspector (CLI mode) for quick validation
