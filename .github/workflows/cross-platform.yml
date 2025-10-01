@@ -116,6 +116,8 @@ jobs:
         run: |
           if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
             cargo test --all-targets --all-features --quiet -- --test-threads=1
+          elif [ "${{ matrix.os }}" == "windows-latest" ]; then
+            cargo test --all-targets --release --quiet
           else
             cargo test --all-targets --quiet
           fi
@@ -135,6 +137,8 @@ jobs:
         run: |
           if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
             cargo test health --all-features --quiet
+          elif [ "${{ matrix.os }}" == "windows-latest" ]; then
+            cargo test health --release --quiet
           else
             cargo test health --quiet
           fi
