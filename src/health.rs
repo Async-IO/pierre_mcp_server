@@ -608,13 +608,11 @@ impl HealthChecker {
 /// for all realistic disk sizes (< 9 PB).
 #[cfg(target_os = "windows")]
 #[inline]
-const fn bytes_to_gb_safe(value: u64) -> f64 {
+#[allow(clippy::cast_precision_loss)]
+fn bytes_to_gb_safe(value: u64) -> f64 {
     // u64 to f64 conversion can lose precision for very large values
     // but for disk space measurements, this is acceptable
-    #[allow(clippy::cast_precision_loss)]
-    {
-        value as f64
-    }
+    value as f64
 }
 
 impl HealthChecker {
@@ -768,9 +766,9 @@ impl HealthChecker {
         }
 
         // Convert bytes to GB using helper function with documented precision behavior
-        let divisor_f64 = f64::from(crate::constants::system_monitoring::BYTES_TO_GB_DIVISOR);
-        let total_gb = bytes_to_gb_safe(total_bytes) / divisor_f64;
-        let available_gb = bytes_to_gb_safe(free_bytes_available) / divisor_f64;
+        const BYTES_TO_GB: f64 = 1_073_741_824.0;
+        let total_gb = bytes_to_gb_safe(total_bytes) / BYTES_TO_GB;
+        let available_gb = bytes_to_gb_safe(free_bytes_available) / BYTES_TO_GB;
         let used_gb = total_gb - available_gb;
         let used_percent = if total_gb > 0.0 {
             (used_gb / total_gb) * 100.0
