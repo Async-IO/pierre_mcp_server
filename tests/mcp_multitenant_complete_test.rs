@@ -647,7 +647,9 @@ async fn test_mcp_authentication_required() -> Result<()> {
     assert_eq!(tools.len(), 35, "Should expose all 35 tools for discovery");
 
     // Try to call a tool without authentication (this should fail)
-    let tool_call_response = client.call_tool("get_activities", json!({"provider": "strava", "limit": 10})).await?;
+    let tool_call_response = client
+        .call_tool("get_activities", json!({"provider": "strava", "limit": 10}))
+        .await?;
 
     // Should return an authentication error for tool call
     assert_eq!(tool_call_response["jsonrpc"], "2.0");
@@ -717,7 +719,10 @@ async fn test_mcp_initialization_no_auth() -> Result<()> {
     assert!(init_response["error"].is_null());
     assert!(!init_response["result"].is_null());
     assert_eq!(init_response["result"]["protocolVersion"], "2025-06-18");
-    assert_eq!(init_response["result"]["serverInfo"]["name"], "pierre-mcp-server");
+    assert_eq!(
+        init_response["result"]["serverInfo"]["name"],
+        "pierre-mcp-server"
+    );
 
     println!("MCP initialization without authentication test passed!");
 

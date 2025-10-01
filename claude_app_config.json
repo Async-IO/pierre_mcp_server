@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "pierre-fitness": {
-      "command": "mcp-remote",
-      "args": ["http://localhost:8080/mcp", "--allow-http"],
-      "env": {}
-    }
-  }
-}
