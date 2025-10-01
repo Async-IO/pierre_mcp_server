@@ -17,7 +17,9 @@
     "test:stdio": "node test/test_claude_desktop.js",
     "test:oauth": "node test/test_oauth_flow.js",
     "test:tools": "node test/test_tools_list.js",
-    "test:all": "node test/test_complete_flow.js"
+    "test:all": "node test/test_complete_flow.js",
+    "inspect": "npx @modelcontextprotocol/inspector node dist/cli.js",
+    "inspect:cli": "npx @modelcontextprotocol/inspector --cli node dist/cli.js"
   },
   "keywords": [
     "mcp",
@@ -36,6 +38,7 @@
     "node-fetch": "^3.3.2"
   },
   "devDependencies": {
+    "@modelcontextprotocol/inspector": "^0.1.0",
     "@types/node": "^20.0.0",
     "tsx": "^4.0.0",
     "typescript": "^5.9.2"

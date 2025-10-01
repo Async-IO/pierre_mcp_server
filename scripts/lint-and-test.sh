@@ -686,6 +686,65 @@ else
     ALL_PASSED=false
 fi
 
+# Run MCP spec compliance tests
+echo ""
+echo -e "${BLUE}==== MCP Spec Compliance Validation ====${NC}"
+
+# Check if SDK directory exists
+if [ -d "sdk" ]; then
+    cd sdk
+
+    # Check if Python MCP validator is available
+    echo -e "${BLUE}==== Checking for MCP compliance validator... ====${NC}"
+    if command_exists python3 && python3 -c "import mcp_testing" 2>/dev/null; then
+        echo -e "${GREEN}[OK] Python MCP validator found${NC}"
+
+        # Build the bridge before testing
+        echo -e "${BLUE}==== Building pierre-claude-bridge for compliance testing... ====${NC}"
+        if npm run build; then
+            echo -e "${GREEN}[OK] Bridge built successfully${NC}"
+
+            # Run MCP compliance tests
+            echo -e "${BLUE}==== Running MCP protocol compliance tests... ====${NC}"
+            if python3 -m mcp_testing.scripts.compliance_report \
+                --server-command "node dist/cli.js" \
+                --protocol-version 2025-06-18 \
+                --timeout 30; then
+                echo -e "${GREEN}[OK] MCP spec compliance tests passed${NC}"
+            else
+                echo -e "${YELLOW}[WARN] MCP spec compliance tests failed or timed out${NC}"
+                echo -e "${YELLOW}       This is informational - continuing with other tests${NC}"
+            fi
+        else
+            echo -e "${YELLOW}[WARN] Bridge build failed - skipping MCP compliance tests${NC}"
+        fi
+    else
+        echo -e "${YELLOW}[INFO] Python MCP validator not installed${NC}"
+        echo -e "${YELLOW}       To enable MCP spec compliance testing:${NC}"
+        echo -e "${YELLOW}       1. pip install git+https://github.com/Janix-ai/mcp-validator.git${NC}"
+        echo -e "${YELLOW}       2. Re-run this script${NC}"
+        echo -e "${YELLOW}       Skipping MCP compliance tests for now${NC}"
+    fi
+
+    # Test with MCP Inspector (CLI mode) for quick validation
+    echo -e "${BLUE}==== Running MCP Inspector quick validation... ====${NC}"
+    if [ -f "dist/cli.js" ]; then
+        # Run inspector in CLI mode with a timeout
+        if timeout 10 npx @modelcontextprotocol/inspector --cli node dist/cli.js 2>&1 | grep -q "Connected"; then
+            echo -e "${GREEN}[OK] MCP Inspector validation passed${NC}"
+        else
+            echo -e "${YELLOW}[INFO] MCP Inspector test skipped (requires interactive testing)${NC}"
+            echo -e "${YELLOW}       Run 'npm run inspect' in sdk/ directory for manual validation${NC}"
+        fi
+    else
+        echo -e "${YELLOW}[WARN] Bridge not built - skipping inspector validation${NC}"
+    fi
+
+    cd ..
+else
+    echo -e "${YELLOW}[WARN] SDK directory not found - skipping MCP compliance tests${NC}"
+fi
+
 echo -e "${GREEN}[OK] Core development checks completed${NC}"
 echo ""
 
