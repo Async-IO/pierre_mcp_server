@@ -7,12 +7,14 @@ on:
       - 'src/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - '.github/workflows/cross-platform.yml'
   pull_request:
     branches: [ main ]
     paths:
       - 'src/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - '.github/workflows/cross-platform.yml'
 
 env:
   CARGO_TERM_COLOR: always
