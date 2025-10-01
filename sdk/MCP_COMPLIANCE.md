@@ -8,7 +8,21 @@ Per the **NO EXCEPTIONS POLICY** for testing, the Python MCP validator is **REQU
 
 **Installation (REQUIRED):**
 ```bash
-pip install git+https://github.com/Janix-ai/mcp-validator.git
+# Clone the validator repository
+git clone https://github.com/Janix-ai/mcp-validator.git ~/mcp-validator
+
+# Install dependencies
+cd ~/mcp-validator
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+**Add to PATH (REQUIRED):**
+```bash
+# Add to your shell profile (~/.bashrc, ~/.zshrc, etc.)
+export MCP_VALIDATOR_PATH="$HOME/mcp-validator"
+export PATH="$MCP_VALIDATOR_PATH:$PATH"
 ```
 
 Without this, `../scripts/lint-and-test.sh` will FAST FAIL.
@@ -41,18 +55,27 @@ Automated compliance testing suite - MANDATORY for all development.
 
 **Installation (REQUIRED):**
 ```bash
-pip install git+https://github.com/Janix-ai/mcp-validator.git
+# Clone and setup
+git clone https://github.com/Janix-ai/mcp-validator.git ~/mcp-validator
+cd ~/mcp-validator
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 ```
 
 **Verification:**
 ```bash
-python3 -c "import mcp_testing; print('OK')"
+cd ~/mcp-validator
+source venv/bin/activate
+python3 -c "import sys; sys.path.insert(0, '.'); import mcp_testing; print('OK')"
 ```
 
 **Usage:**
 ```bash
+cd ~/mcp-validator
+source venv/bin/activate
 python3 -m mcp_testing.scripts.compliance_report \
-  --server-command "node dist/cli.js" \
+  --server-command "node /path/to/pierre/sdk/dist/cli.js" \
   --protocol-version 2025-06-18 \
   --timeout 30
 ```

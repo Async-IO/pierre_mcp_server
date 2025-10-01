@@ -696,8 +696,19 @@ if [ -d "sdk" ]; then
 
     # Check if Python MCP validator is available (REQUIRED)
     echo -e "${BLUE}==== Checking for MCP compliance validator (REQUIRED)... ====${NC}"
-    if command_exists python3 && python3 -c "import mcp_testing" 2>/dev/null; then
-        echo -e "${GREEN}[OK] Python MCP validator found${NC}"
+
+    # Look for validator in common locations
+    MCP_VALIDATOR_DIR=""
+    if [ -d "$HOME/mcp-validator" ]; then
+        MCP_VALIDATOR_DIR="$HOME/mcp-validator"
+    elif [ -d "./mcp-validator" ]; then
+        MCP_VALIDATOR_DIR="./mcp-validator"
+    elif [ -d "../mcp-validator" ]; then
+        MCP_VALIDATOR_DIR="../mcp-validator"
+    fi
+
+    if [ -n "$MCP_VALIDATOR_DIR" ] && [ -f "$MCP_VALIDATOR_DIR/mcp_testing/__init__.py" ]; then
+        echo -e "${GREEN}[OK] Python MCP validator found at: $MCP_VALIDATOR_DIR${NC}"
 
         # Build the bridge before testing
         echo -e "${BLUE}==== Building pierre-claude-bridge for compliance testing... ====${NC}"
@@ -706,14 +717,19 @@ if [ -d "sdk" ]; then
 
             # Run MCP compliance tests (REQUIRED - NO EXCEPTIONS POLICY)
             echo -e "${BLUE}==== Running MCP protocol compliance tests (REQUIRED)... ====${NC}"
+            BRIDGE_PATH="$(pwd)/dist/cli.js"
+            cd "$MCP_VALIDATOR_DIR"
+
             if python3 -m mcp_testing.scripts.compliance_report \
-                --server-command "node dist/cli.js" \
+                --server-command "node $BRIDGE_PATH" \
                 --protocol-version 2025-06-18 \
                 --timeout 30; then
                 echo -e "${GREEN}[OK] MCP spec compliance tests passed${NC}"
+                cd - >/dev/null
             else
                 echo -e "${RED}[FAIL] MCP spec compliance tests failed${NC}"
                 echo -e "${RED}       Bridge implementation does not meet MCP protocol requirements${NC}"
+                cd - >/dev/null
                 ALL_PASSED=false
             fi
         else
@@ -723,7 +739,14 @@ if [ -d "sdk" ]; then
     else
         echo -e "${RED}[CRITICAL] Python MCP validator not installed - REQUIRED for MCP compliance${NC}"
         echo -e "${RED}           Per NO EXCEPTIONS POLICY: MCP spec compliance validation is mandatory${NC}"
-        echo -e "${RED}           Install with: pip install git+https://github.com/Janix-ai/mcp-validator.git${NC}"
+        echo -e "${RED}           ${NC}"
+        echo -e "${RED}           Install with:${NC}"
+        echo -e "${RED}             git clone https://github.com/Janix-ai/mcp-validator.git ~/mcp-validator${NC}"
+        echo -e "${RED}             cd ~/mcp-validator${NC}"
+        echo -e "${RED}             python3 -m venv venv${NC}"
+        echo -e "${RED}             source venv/bin/activate${NC}"
+        echo -e "${RED}             pip install -r requirements.txt${NC}"
+        echo -e "${RED}           ${NC}"
         echo -e "${RED}FAST FAIL: MCP compliance validation is REQUIRED for bridge implementation${NC}"
         exit 1
     fi
