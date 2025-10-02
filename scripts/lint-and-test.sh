@@ -595,6 +595,94 @@ else
     echo -e "${GREEN}✅ All architectural validations passed - excellent code quality${NC}"
 fi
 
+# MCP Spec Compliance Validation (REQUIRED - FAST FAIL)
+# Run this early to fail fast if bridge implementation is broken
+echo ""
+echo -e "${BLUE}==== MCP Spec Compliance Validation ====${NC}"
+
+# Check if SDK directory exists
+if [ -d "sdk" ]; then
+    cd sdk
+
+    # Check if Python MCP validator is available (REQUIRED)
+    echo -e "${BLUE}==== Checking for MCP compliance validator (REQUIRED)... ====${NC}"
+
+    # Look for validator in common locations
+    MCP_VALIDATOR_DIR=""
+    if [ -d "../validator" ]; then
+        # Installed locally in worktree (for testing)
+        MCP_VALIDATOR_DIR="../validator"
+    elif [ -d "$HOME/mcp-validator" ]; then
+        MCP_VALIDATOR_DIR="$HOME/mcp-validator"
+    elif [ -d "./mcp-validator" ]; then
+        MCP_VALIDATOR_DIR="./mcp-validator"
+    elif [ -d "../mcp-validator" ]; then
+        MCP_VALIDATOR_DIR="../mcp-validator"
+    fi
+
+    if [ -n "$MCP_VALIDATOR_DIR" ] && [ -f "$MCP_VALIDATOR_DIR/mcp_testing/__init__.py" ]; then
+        echo -e "${GREEN}[OK] Python MCP validator found at: $MCP_VALIDATOR_DIR${NC}"
+
+        # Build the bridge before testing
+        echo -e "${BLUE}==== Building pierre-claude-bridge for compliance testing... ====${NC}"
+        if npm run build; then
+            echo -e "${GREEN}[OK] Bridge built successfully${NC}"
+
+            # Run MCP compliance tests (REQUIRED - NO EXCEPTIONS POLICY)
+            echo -e "${BLUE}==== Running MCP protocol compliance tests (REQUIRED)... ====${NC}"
+            BRIDGE_PATH="$(pwd)/dist/cli.js"
+            cd "$MCP_VALIDATOR_DIR"
+
+            if python3 -m mcp_testing.scripts.compliance_report \
+                --server-command "node $BRIDGE_PATH" \
+                --protocol-version 2025-06-18 \
+                --timeout 30; then
+                echo -e "${GREEN}[OK] MCP spec compliance tests passed${NC}"
+                cd - >/dev/null
+            else
+                echo -e "${RED}[FAIL] MCP spec compliance tests failed${NC}"
+                echo -e "${RED}       Bridge implementation does not meet MCP protocol requirements${NC}"
+                cd - >/dev/null
+                ALL_PASSED=false
+            fi
+        else
+            echo -e "${RED}[FAIL] Bridge build failed${NC}"
+            ALL_PASSED=false
+        fi
+    else
+        echo -e "${RED}[CRITICAL] Python MCP validator not installed - REQUIRED for MCP compliance${NC}"
+        echo -e "${RED}           Per NO EXCEPTIONS POLICY: MCP spec compliance validation is mandatory${NC}"
+        echo -e "${RED}           ${NC}"
+        echo -e "${RED}           Install with:${NC}"
+        echo -e "${RED}             git clone https://github.com/Janix-ai/mcp-validator.git ~/mcp-validator${NC}"
+        echo -e "${RED}             cd ~/mcp-validator${NC}"
+        echo -e "${RED}             python3 -m venv venv${NC}"
+        echo -e "${RED}             source venv/bin/activate${NC}"
+        echo -e "${RED}             pip install -r requirements.txt${NC}"
+        echo -e "${RED}           ${NC}"
+        echo -e "${RED}FAST FAIL: MCP compliance validation is REQUIRED for bridge implementation${NC}"
+        exit 1
+    fi
+
+    # Test with MCP Inspector (CLI mode) for quick validation
+    echo -e "${BLUE}==== Running MCP Inspector quick validation... ====${NC}"
+    if [ -f "dist/cli.js" ]; then
+        # Run inspector in CLI mode with a timeout
+        if timeout 10 npx @modelcontextprotocol/inspector --cli node dist/cli.js 2>&1 | grep -q "Connected"; then
+            echo -e "${GREEN}[OK] MCP Inspector validation passed${NC}"
+        else
+            echo -e "${YELLOW}[INFO] MCP Inspector test skipped (requires interactive testing)${NC}"
+            echo -e "${YELLOW}       Run 'npm run inspect' in sdk/ directory for manual validation${NC}"
+        fi
+    else
+        echo -e "${YELLOW}[WARN] Bridge not built - skipping inspector validation${NC}"
+    fi
+
+    cd ..
+else
+    echo -e "${YELLOW}[WARN] SDK directory not found - skipping MCP compliance tests${NC}"
+fi
+
 # Core development checks (format, clippy, compilation, tests)
 echo ""
 echo -e "${BLUE}==== Core Development Checks ====${NC}"
@@ -684,93 +772,6 @@ if cargo test --test a2a_compliance_test --quiet; then
 else
     echo -e "${RED}[FAIL] A2A compliance tests failed${NC}"
     ALL_PASSED=false
-fi
-
-# Run MCP spec compliance tests
-echo ""
-echo -e "${BLUE}==== MCP Spec Compliance Validation ====${NC}"
-
-# Check if SDK directory exists
-if [ -d "sdk" ]; then
-    cd sdk
-
-    # Check if Python MCP validator is available (REQUIRED)
-    echo -e "${BLUE}==== Checking for MCP compliance validator (REQUIRED)... ====${NC}"
-
-    # Look for validator in common locations
-    MCP_VALIDATOR_DIR=""
-    if [ -d "../validator" ]; then
-        # Installed locally in worktree (for testing)
-        MCP_VALIDATOR_DIR="../validator"
-    elif [ -d "$HOME/mcp-validator" ]; then
-        MCP_VALIDATOR_DIR="$HOME/mcp-validator"
-    elif [ -d "./mcp-validator" ]; then
-        MCP_VALIDATOR_DIR="./mcp-validator"
-    elif [ -d "../mcp-validator" ]; then
-        MCP_VALIDATOR_DIR="../mcp-validator"
-    fi
-
-    if [ -n "$MCP_VALIDATOR_DIR" ] && [ -f "$MCP_VALIDATOR_DIR/mcp_testing/__init__.py" ]; then
-        echo -e "${GREEN}[OK] Python MCP validator found at: $MCP_VALIDATOR_DIR${NC}"
-
-        # Build the bridge before testing
-        echo -e "${BLUE}==== Building pierre-claude-bridge for compliance testing... ====${NC}"
-        if npm run build; then
-            echo -e "${GREEN}[OK] Bridge built successfully${NC}"
-
-            # Run MCP compliance tests (REQUIRED - NO EXCEPTIONS POLICY)
-            echo -e "${BLUE}==== Running MCP protocol compliance tests (REQUIRED)... ====${NC}"
-            BRIDGE_PATH="$(pwd)/dist/cli.js"
-            cd "$MCP_VALIDATOR_DIR"
-
-            if python3 -m mcp_testing.scripts.compliance_report \
-                --server-command "node $BRIDGE_PATH" \
-                --protocol-version 2025-06-18 \
-                --timeout 30; then
-                echo -e "${GREEN}[OK] MCP spec compliance tests passed${NC}"
-                cd - >/dev/null
-            else
-                echo -e "${RED}[FAIL] MCP spec compliance tests failed${NC}"
-                echo -e "${RED}       Bridge implementation does not meet MCP protocol requirements${NC}"
-                cd - >/dev/null
-                ALL_PASSED=false
-            fi
-        else
-            echo -e "${RED}[FAIL] Bridge build failed${NC}"
-            ALL_PASSED=false
-        fi
-    else
-        echo -e "${RED}[CRITICAL] Python MCP validator not installed - REQUIRED for MCP compliance${NC}"
-        echo -e "${RED}           Per NO EXCEPTIONS POLICY: MCP spec compliance validation is mandatory${NC}"
-        echo -e "${RED}           ${NC}"
-        echo -e "${RED}           Install with:${NC}"
-        echo -e "${RED}             git clone https://github.com/Janix-ai/mcp-validator.git ~/mcp-validator${NC}"
-        echo -e "${RED}             cd ~/mcp-validator${NC}"
-        echo -e "${RED}             python3 -m venv venv${NC}"
-        echo -e "${RED}             source venv/bin/activate${NC}"
-        echo -e "${RED}             pip install -r requirements.txt${NC}"
-        echo -e "${RED}           ${NC}"
-        echo -e "${RED}FAST FAIL: MCP compliance validation is REQUIRED for bridge implementation${NC}"
-        exit 1
-    fi
-
-    # Test with MCP Inspector (CLI mode) for quick validation
-    echo -e "${BLUE}==== Running MCP Inspector quick validation... ====${NC}"
-    if [ -f "dist/cli.js" ]; then
-        # Run inspector in CLI mode with a timeout
-        if timeout 10 npx @modelcontextprotocol/inspector --cli node dist/cli.js 2>&1 | grep -q "Connected"; then
-            echo -e "${GREEN}[OK] MCP Inspector validation passed${NC}"
-        else
-            echo -e "${YELLOW}[INFO] MCP Inspector test skipped (requires interactive testing)${NC}"
-            echo -e "${YELLOW}       Run 'npm run inspect' in sdk/ directory for manual validation${NC}"
-        fi
-    else
-        echo -e "${YELLOW}[WARN] Bridge not built - skipping inspector validation${NC}"
-    fi
-
-    cd ..
-else
-    echo -e "${YELLOW}[WARN] SDK directory not found - skipping MCP compliance tests${NC}"
 fi
 
 echo -e "${GREEN}[OK] Core development checks completed${NC}"
