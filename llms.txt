@@ -6,6 +6,8 @@ This is an llms.txt file that provides comprehensive context about the Pierre MC
 
 Pierre MCP Server is a high-performance Rust implementation of the Model Context Protocol (MCP) for fitness data aggregation and analysis. It provides a unified interface to access fitness data from various providers like Strava through the MCP protocol, with additional support for Agent-to-Agent (A2A) communication and OAuth 2.0 server capabilities.
 
+**Current MCP Protocol Compliance**: 69.8% (30/43 tests passing) - validated via automated compliance testing in CI/CD pipeline.
+
 ## Core Architecture
 
 ### Multi-Protocol Support
@@ -32,8 +34,21 @@ src/
 ├── mcp/                            # MCP protocol implementation
 │   ├── multitenant.rs              # Multi-tenant MCP server
 │   ├── tool_handlers.rs            # MCP tool implementations
-│   ├── sse_transport.rs            # Server-Sent Events transport
+│   ├── oauth_flow_manager.rs       # OAuth flow coordination
 │   └── protocol.rs                 # Core MCP protocol logic
+├── sse/                            # Server-Sent Events infrastructure
+│   ├── manager.rs                  # SSE connection management
+│   ├── routes.rs                   # SSE HTTP endpoints
+│   ├── protocol.rs                 # MCP protocol streaming
+│   └── notifications.rs            # OAuth notification streams
+├── sdk/                            # Pierre-Claude Bridge (TypeScript)
+│   ├── src/
+│   │   ├── bridge.ts               # MCP bridge implementation
+│   │   ├── cli.ts                  # Command-line interface
+│   │   └── oauth.ts                # OAuth client provider
+│   ├── dist/                       # Compiled JavaScript
+│   ├── package.json                # NPM dependencies
+│   └── MCP_COMPLIANCE.md           # Compliance test results
 ├── a2a/                            # Agent-to-Agent protocol
 │   ├── protocol.rs                 # A2A protocol implementation
 │   ├── agent_card.rs               # Agent identity and capabilities
@@ -106,6 +121,20 @@ src/
 - **Connection Management**: Efficient SSE connection pooling
 - **Message Broadcasting**: Scalable notification delivery
 - **Event Types**: OAuth completion, errors, and system notifications
+
+### 7. Pierre-Claude Bridge (MCP SDK)
+- **stdio to HTTP Bridge**: Connects Claude Desktop (stdio) to Pierre Server (HTTP+OAuth)
+- **OAuth 2.0 Integration**: Automatic OAuth flow handling with desktop browser
+- **Lazy Connection**: Bridge starts stdio server immediately, connects to Pierre on first tool call
+- **TypeScript Implementation**: Built with @modelcontextprotocol/sdk for MCP 1.0 compatibility
+- **MCP Compliance**: 69.8% protocol compliance (30/43 tests passing)
+
+### 8. MCP Protocol Compliance Testing
+- **Automated Validation**: Python-based MCP validator runs in CI/CD pipeline
+- **Dynamic Port Allocation**: Test server finds available ports (8080-8180 range)
+- **Signal Handling**: Responsive Ctrl-C handling with proper process cleanup
+- **Compliance Reporting**: Detailed test results in `sdk/MCP_COMPLIANCE.md`
+- **Standalone Script**: `scripts/ensure_mcp_compliance.sh` can run independently
 
 ## Database Architecture
 
@@ -239,12 +268,21 @@ pub struct FeatureFlags {
 - **End-to-End Tests**: Full workflow testing with live services
 - **Property-Based Tests**: Automated edge case discovery
 - **Performance Benchmarks**: Continuous performance regression detection
+- **MCP Compliance Tests**: Automated protocol validation against MCP specification
+- **Frontend Tests**: Vitest-based React component and integration testing
 
 ### Test Performance
 - **Parallel Execution**: Safe concurrent test runs
 - **Fast Startup**: No framework initialization overhead
 - **Memory Efficiency**: 16x better memory usage than Java tests
 - **Deterministic**: No flaky tests due to timing issues
+
+### CI/CD Pipeline
+- **Backend CI**: Rust formatting, linting (clippy), compilation, and tests
+- **Frontend Tests**: ESLint, TypeScript type checking, Vitest tests
+- **MCP Compliance**: Automated protocol compliance validation
+- **Security Scanning**: Dependency vulnerability checks with cargo-audit
+- **Architecture Validation**: Automated code quality and anti-pattern detection
 
 ## Deployment and Operations
 
@@ -278,13 +316,40 @@ info!(
 
 ## Integration Examples
 
+### Claude Desktop Integration (via Pierre-Claude Bridge)
+```bash
+# Install and configure Pierre-Claude Bridge
+cd sdk
+npm install
+npm run build
+
+# Add to Claude Desktop configuration (~/.config/claude-desktop/config.json):
+{
+  "mcpServers": {
+    "pierre-fitness": {
+      "command": "node",
+      "args": [
+        "/path/to/pierre_mcp_server/sdk/dist/cli.js",
+        "--server", "http://localhost:8081"
+      ]
+    }
+  }
+}
+
+# Bridge automatically:
+# 1. Starts stdio server for Claude Desktop
+# 2. Opens browser for OAuth when tools are called
+# 3. Manages JWT tokens and sessions
+# 4. Forwards all MCP protocol messages
+```
+
 ### MCP Client Integration
 ```python
 # Python MCP client example
 import mcp
 
 async def analyze_fitness_data():
-    async with mcp.ClientSession("ws://localhost:8080/mcp") as session:
+    async with mcp.ClientSession("http://localhost:8081/mcp") as session:
         # Get available tools
         tools = await session.list_tools()
 
@@ -405,5 +470,35 @@ inventory::submit! {
 - **Per-Tenant Limits**: Isolated rate limits by tenant
 - **Circuit Breakers**: Automatic failure protection
 - **Request Size Limits**: Prevents memory exhaustion attacks
+
+### Dependency Security
+- **Automated Scanning**: cargo-audit checks for known vulnerabilities
+- **Recent Updates** (October 2025):
+  - MCP Inspector: 0.1.7 → 0.16.6 (fixed CRITICAL auth bypass, HIGH XSS)
+  - axios: 1.9.0 → 1.12.2 (fixed HIGH DoS vulnerability)
+  - form-data: 4.0.3 → 4.0.4 (fixed CRITICAL unsafe random boundary)
+  - vite: 6.3.5 → 6.3.6 (fixed LOW file serving issues)
+- **Zero npm Vulnerabilities**: All frontend dependencies patched
+- **Continuous Monitoring**: Security alerts via Dependabot
+
+## Recent Improvements (October 2025)
+
+### MCP Protocol Compliance
+- **Validation Framework**: Automated compliance testing with Python MCP validator
+- **CI/CD Integration**: Compliance tests run on every push
+- **Current Status**: 69.8% compliance (30/43 tests passing)
+- **Reporting**: Detailed test results in SDK documentation
+
+### Claude Desktop Integration
+- **Bridge Implementation**: TypeScript bridge connecting stdio to HTTP+OAuth
+- **Lazy Connection**: Optimized startup with on-demand Pierre connection
+- **OAuth Flow**: Automatic browser-based OAuth with desktop app focus recovery
+- **Session Management**: Persistent JWT tokens with automatic renewal
+
+### Developer Experience
+- **Dynamic Port Allocation**: Test scripts find available ports automatically
+- **Signal Handling**: Responsive Ctrl-C with proper process cleanup
+- **Unified Testing**: Single `./scripts/lint-and-test.sh` runs all validations
+- **Badge Visibility**: Separate badges for Backend CI, Frontend Tests, and MCP Compliance
 
 This documentation provides LLMs with comprehensive context about Pierre MCP Server's architecture, capabilities, and usage patterns. The server represents a modern, high-performance alternative to traditional Java/Spring Boot applications, leveraging Rust's safety and performance characteristics for enterprise fitness data processing.

@@ -88,6 +88,9 @@ pub mod configuration_routes;
 /// `HTTP` routes for fitness configuration management
 pub mod fitness_configuration_routes;
 
+/// Unified JSON-RPC 2.0 foundation for all protocols
+pub mod jsonrpc;
+
 /// A2A (Agent-to-Agent) protocol implementation
 pub mod a2a;
 

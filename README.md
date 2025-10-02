@@ -1,8 +1,8 @@
 # Pierre MCP Server
 
-[![CI](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml)
+[![Backend CI](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml)
 [![Frontend Tests](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/frontend-tests.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/frontend-tests.yml)
-[![MCP Compliance](https://img.shields.io/badge/MCP_Compliance-69.8%25-yellow)](sdk/MCP_COMPLIANCE.md)
+[![MCP Compliance](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/mcp-compliance.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/mcp-compliance.yml)
 
 **Development Status**: This project is under active development. APIs and features may change.
 
@@ -23,7 +23,7 @@ Pierre runs as a single HTTP server on port 8081 (configurable). All protocols (
 
 ```
 ┌─────────────────┐    stdio     ┌─────────────────┐    HTTP+OAuth   ┌─────────────────┐
-│   MCP Client    │ ◄─────────► │ Pierre SDK      │ ◄─────────────► │ Pierre MCP      │
+│   MCP Client    │ ◄─────────►  │ Pierre SDK      │ ◄─────────────► │ Pierre MCP      │
 │                 │              │ Bridge          │                 │ Server          │
 └─────────────────┘              └─────────────────┘                 └─────────────────┘
 ```
