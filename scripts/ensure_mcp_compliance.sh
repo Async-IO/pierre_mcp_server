@@ -252,10 +252,19 @@ $TIMEOUT_CMD $PYTHON_CMD -m mcp_testing.scripts.compliance_report \
     --verbose &
 VALIDATOR_PID=$!
 
-# Wait for validator to complete
+# Wait for validator to complete with responsive Ctrl-C handling
 set +e  # Temporarily disable exit-on-error to capture exit code
-wait $VALIDATOR_PID
+EXIT_CODE=0
+
+# Poll the process instead of blocking on wait - this makes Ctrl-C responsive
+while kill -0 $VALIDATOR_PID 2>/dev/null; do
+    sleep 0.5
+done
+
+# Get the actual exit code after process completes
+wait $VALIDATOR_PID 2>/dev/null
 EXIT_CODE=$?
+
 set -e  # Re-enable exit-on-error
 
 VALIDATOR_PID=""  # Clear PID since process is done
