@@ -62,6 +62,24 @@ command_exists() {
 # Track overall success
 ALL_PASSED=true
 
+# Track Pierre MCP server PID if we start it
+MCP_SERVER_PID=""
+
+# Cleanup function - shut down server if we started it
+cleanup_mcp_server() {
+    if [ -n "$MCP_SERVER_PID" ]; then
+        echo ""
+        echo -e "${BLUE}==== Shutting down Pierre MCP server (PID: $MCP_SERVER_PID)... ====${NC}"
+        kill "$MCP_SERVER_PID" 2>/dev/null || true
+        wait "$MCP_SERVER_PID" 2>/dev/null || true
+        echo -e "${GREEN}[OK] Pierre MCP server stopped${NC}"
+        MCP_SERVER_PID=""
+    fi
+}
+
+# Register cleanup function to run on exit
+trap cleanup_mcp_server EXIT INT TERM
+
 echo ""
 echo -e "${BLUE}==== Rust Backend Checks ====${NC}"
 
@@ -914,6 +932,21 @@ find . -name "a2a_enterprise_report_*.json" -delete 2>/dev/null || true
 find . -name "mcp_investor_demo_*.json" -delete 2>/dev/null || true
 echo -e "${GREEN}[OK] Final cleanup completed${NC}"
 
+# MCP Spec Compliance Validation (runs at the end)
+# Delegated to standalone script for reusability
+echo ""
+echo -e "${BLUE}==== MCP Spec Compliance Validation ====${NC}"
+if [ -f "$SCRIPT_DIR/ensure_mcp_compliance.sh" ]; then
+    if "$SCRIPT_DIR/ensure_mcp_compliance.sh"; then
+        echo -e "${GREEN}[OK] MCP compliance validation passed${NC}"
+    else
+        echo -e "${RED}[FAIL] MCP compliance validation failed${NC}"
+        ALL_PASSED=false
+    fi
+else
+    echo -e "${YELLOW}[WARN] MCP compliance script not found - skipping${NC}"
+fi
+
 # Summary
 echo ""
 echo -e "${BLUE}==== Dev Standards Compliance Summary ====${NC}"
@@ -945,6 +978,9 @@ if [ "$ALL_PASSED" = true ]; then
     fi
     if [ -d "examples/python" ]; then
         echo "[OK] Python examples validation"
+    fi
+    if [ -d "sdk" ]; then
+        echo "[OK] MCP spec compliance validation"
     fi
     echo ""
     echo -e "${GREEN}Code meets ALL dev standards and is ready for production!${NC}"
