@@ -699,7 +699,10 @@ if [ -d "sdk" ]; then
 
     # Look for validator in common locations
     MCP_VALIDATOR_DIR=""
-    if [ -d "$HOME/mcp-validator" ]; then
+    if [ -d "../validator" ]; then
+        # Installed locally in worktree (for testing)
+        MCP_VALIDATOR_DIR="../validator"
+    elif [ -d "$HOME/mcp-validator" ]; then
         MCP_VALIDATOR_DIR="$HOME/mcp-validator"
     elif [ -d "./mcp-validator" ]; then
         MCP_VALIDATOR_DIR="./mcp-validator"
