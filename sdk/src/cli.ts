@@ -15,7 +15,7 @@ program
   .name('pierre-claude-bridge')
   .description('MCP bridge connecting Claude Desktop to Pierre Fitness MCP Server')
   .version('1.0.0')
-  .requiredOption('-s, --server <url>', 'Pierre MCP server URL', 'http://localhost:8081')
+  .option('-s, --server <url>', 'Pierre MCP server URL', 'http://localhost:8080')
   .option('-t, --token <jwt>', 'JWT authentication token')
   .option('--oauth-client-id <id>', 'OAuth 2.0 client ID')
   .option('--oauth-client-secret <secret>', 'OAuth 2.0 client secret')
