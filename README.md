@@ -1,7 +1,6 @@
 # Pierre MCP Server
 
-[![Build](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml/badge.svg?event=push&job=backend-tests)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml)
-[![Backend Tests](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml/badge.svg?event=push)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml)
+[![Backend CI](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/ci.yml)
 [![Frontend Tests](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/frontend-tests.yml/badge.svg)](https://github.com/Async-IO/pierre_mcp_server/actions/workflows/frontend-tests.yml)
 [![MCP Compliance](https://img.shields.io/badge/MCP_Compliance-69.8%25-yellow)](sdk/MCP_COMPLIANCE.md)
 
