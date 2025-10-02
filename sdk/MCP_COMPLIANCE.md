@@ -90,9 +90,19 @@ The validation runs automatically in `../scripts/lint-and-test.sh` and is **REQU
 cd .. && ./scripts/lint-and-test.sh
 ```
 
+**The script automatically:**
+- ✅ Builds the Pierre MCP server (if not already built)
+- ✅ Starts the server with test configuration
+- ✅ Waits for server health check to pass
+- ✅ Runs MCP compliance validation tests
+- ✅ Shuts down the server on completion/interruption
+
+**No manual server management required!** Just run the script and it handles everything.
+
 **This will FAST FAIL if:**
 - Python MCP validator is not installed
 - Bridge build fails
+- Server fails to start or become healthy
 - MCP compliance tests fail
 
 Per the NO EXCEPTIONS POLICY, all tests must pass.
