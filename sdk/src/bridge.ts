@@ -872,14 +872,17 @@ export class PierreClaudeBridge {
 
   async start(): Promise<void> {
     try {
-      // Step 1: Create MCP client connection to Pierre using Streamable HTTP
-      await this.connectToPierre();
-
-      // Step 2: Create MCP server for Claude Desktop using stdio
+      // Step 1: Create MCP server for Claude Desktop using stdio
+      // This must happen FIRST so the bridge can respond to MCP validator
       await this.createClaudeServer();
 
-      // Step 3: Start the bridge
+      // Step 2: Start the bridge (stdio transport)
       await this.startBridge();
+
+      // Step 3: Create MCP client connection to Pierre using Streamable HTTP
+      // This is done lazily - connection will be established when first tool is called
+      this.log('🔌 Pierre MCP connection will be established on first tool call');
+      this.initializePierreConnection();
 
       this.log('✅ Bridge started successfully');
     } catch (error) {
@@ -888,19 +891,33 @@ export class PierreClaudeBridge {
     }
   }
 
+  private initializePierreConnection(): void {
+    // Set up Pierre connection parameters without blocking startup
+    this.mcpUrl = `${this.config.pierreServerUrl}/mcp`;
+    this.oauthProvider = new PierreOAuthClientProvider(this.config.pierreServerUrl, this.config);
+    this.log(`📡 Pierre MCP URL configured: ${this.mcpUrl}`);
+  }
+
+  private async ensurePierreConnected(): Promise<void> {
+    if (this.pierreClient) {
+      return; // Already connected
+    }
+
+    this.log('🔌 Connecting to Pierre MCP Server...');
+    await this.connectToPierre();
+  }
+
   private oauthProvider: PierreOAuthClientProvider | null = null;
   private mcpUrl: string = '';
 
   private async connectToPierre(): Promise<void> {
-    this.log('🔌 Setting up Pierre MCP Server connection...');
+    this.log('🔌 Connecting to Pierre MCP Server...');
 
-    this.mcpUrl = `${this.config.pierreServerUrl}/mcp`;
+    if (!this.oauthProvider) {
+      throw new Error('OAuth provider not initialized - call initializePierreConnection() first');
+    }
+
     this.log(`📡 Target URL: ${this.mcpUrl}`);
-
-    // Create OAuth client provider for Pierre MCP Server (shared across attempts)
-    this.oauthProvider = new PierreOAuthClientProvider(this.config.pierreServerUrl, this.config);
-
-    this.log('🔐 OAuth provider initialized - attempting connection to discover tools');
 
     // Always attempt connection to discover tools (initialize and tools/list don't require auth)
     // If tokens exist, the connection will be fully authenticated
@@ -1087,11 +1104,13 @@ export class PierreClaudeBridge {
       }
 
       // Ensure we have a connection before forwarding other tools
-      if (!this.pierreClient) {
+      try {
+        await this.ensurePierreConnected();
+      } catch (error) {
         return {
           content: [{
             type: 'text',
-            text: 'Not connected to Pierre. Please use the "Connect to Pierre" tool first to authenticate.'
+            text: `Failed to connect to Pierre: ${error instanceof Error ? error.message : String(error)}. Please use the "Connect to Pierre" tool to authenticate.`
           }],
           isError: true
         };
@@ -1101,7 +1120,7 @@ export class PierreClaudeBridge {
         this.log(`🔄 Forwarding tool call ${request.params.name} to Pierre server...`);
         // Use callTool() instead of request() - Client.request() is for raw JSON-RPC,
         // but we want the higher-level callTool() method which handles the protocol correctly
-        const result = await this.pierreClient.callTool({
+        const result = await this.pierreClient!.callTool({
           name: request.params.name,
           arguments: request.params.arguments || {}
         });
