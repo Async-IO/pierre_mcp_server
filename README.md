@@ -23,7 +23,7 @@ Pierre runs as a single HTTP server on port 8081 (configurable). All protocols (
 
 ```
 ┌─────────────────┐    stdio     ┌─────────────────┐    HTTP+OAuth   ┌─────────────────┐
-│   MCP Client    │ ◄─────────► │ Pierre SDK      │ ◄─────────────► │ Pierre MCP      │
+│   MCP Client    │ ◄─────────►  │ Pierre SDK      │ ◄─────────────► │ Pierre MCP      │
 │                 │              │ Bridge          │                 │ Server          │
 └─────────────────┘              └─────────────────┘                 └─────────────────┘
 ```
