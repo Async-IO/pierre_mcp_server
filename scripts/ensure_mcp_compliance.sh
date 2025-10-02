@@ -216,17 +216,20 @@ else
 fi
 
 # Test with MCP Inspector (CLI mode) for quick validation
-echo -e "${BLUE}==== Running MCP Inspector quick validation... ====${NC}"
-if [ -f "dist/cli.js" ]; then
-    # Run inspector in CLI mode with a timeout
-    if timeout 10 npx @modelcontextprotocol/inspector --cli node dist/cli.js 2>&1 | grep -q "Connected"; then
-        echo -e "${GREEN}[OK] MCP Inspector validation passed${NC}"
+# Only run if compliance tests passed
+if [ "$COMPLIANCE_PASSED" = true ]; then
+    echo -e "${BLUE}==== Running MCP Inspector quick validation... ====${NC}"
+    if [ -f "dist/cli.js" ]; then
+        # Run inspector in CLI mode with a timeout
+        if timeout 10 npx @modelcontextprotocol/inspector --cli node dist/cli.js 2>&1 | grep -q "Connected"; then
+            echo -e "${GREEN}[OK] MCP Inspector validation passed${NC}"
+        else
+            echo -e "${YELLOW}[INFO] MCP Inspector test skipped (requires interactive testing)${NC}"
+            echo -e "${YELLOW}       Run 'npm run inspect' in sdk/ directory for manual validation${NC}"
+        fi
     else
-        echo -e "${YELLOW}[INFO] MCP Inspector test skipped (requires interactive testing)${NC}"
-        echo -e "${YELLOW}       Run 'npm run inspect' in sdk/ directory for manual validation${NC}"
+        echo -e "${YELLOW}[WARN] Bridge not built - skipping inspector validation${NC}"
     fi
-else
-    echo -e "${YELLOW}[WARN] Bridge not built - skipping inspector validation${NC}"
 fi
 
 echo ""
@@ -235,5 +238,6 @@ if [ "$COMPLIANCE_PASSED" = true ]; then
     exit 0
 else
     echo -e "${RED}❌ MCP Compliance Validation FAILED${NC}"
+    echo -e "${RED}    View detailed report: validator/reports/${NC}"
     exit 1
 fi
