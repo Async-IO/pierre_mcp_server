@@ -260,25 +260,32 @@ impl OAuthTemplateRenderer {
         .success {{ color: #27ae60; font-size: 24px; margin-bottom: 20px; }}
         .info {{ color: #2c3e50; margin: 10px 0; }}
         .code {{ background: #ecf0f1; padding: 10px; border-radius: 4px; font-family: monospace; }}
-        .countdown {{ color: #7f8c8d; font-size: 14px; margin-top: 20px; }}
     </style>
     <script>
-        let countdown = 3;
-        function updateCountdown() {{
-            const element = document.getElementById('countdown');
-            if (element) {{
-                element.textContent = countdown;
+        // Attempt to focus Claude Desktop before closing
+        async function focusClaudeDesktop() {{
+            try {{
+                // Try to trigger focus recovery via bridge communication
+                await fetch('http://localhost:35535/oauth/focus-recovery', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{ action: 'focus_claude_desktop' }})
+                }}).catch(() => {{
+                    // Ignore fetch errors - focus recovery is best-effort
+                }});
+            }} catch (error) {{
+                // Silently ignore errors
             }}
-            if (countdown > 0) {{
-                countdown--;
-                setTimeout(updateCountdown, 1000);
-            }} else {{
+
+            // Close the window after a short delay
+            setTimeout(() => {{
                 window.close();
-            }}
+            }}, 1500);
         }}
 
         window.onload = function() {{
-            updateCountdown();
+            // Start focus recovery immediately
+            focusClaudeDesktop();
         }};
     </script>
 </head>
@@ -289,8 +296,8 @@ impl OAuthTemplateRenderer {
         <div class="info"><strong>Status:</strong> Connected successfully</div>
         <div class="info"><strong>User ID:</strong> {}</div>
         <div class="info"><strong>Status:</strong> <span class="code">Connected</span></div>
-        <p>You can now close this window and return to your application.</p>
-        <p class="countdown">This window will close automatically in <span id="countdown">3</span> seconds...</p>
+        <p>You can now close this window and return to your MCP client.</p>
+        <p><small>Attempting to return focus to your MCP client automatically...</small></p>
     </div>
 </body>
 </html>
