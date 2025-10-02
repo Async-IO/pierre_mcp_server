@@ -28,9 +28,22 @@ COMPLIANCE_PASSED=true
 # Track Pierre MCP server PID if we start it
 MCP_SERVER_PID=""
 SERVER_LOG=""
+VALIDATOR_PID=""
 
-# Cleanup function - shut down server if we started it
+# Cleanup function - shut down server and validator processes
 cleanup_mcp_server() {
+    # Kill validator and all its children (including Node bridge)
+    if [ -n "$VALIDATOR_PID" ]; then
+        echo ""
+        echo -e "${BLUE}==== Stopping MCP validator and child processes... ====${NC}"
+        # Kill the entire process group to terminate validator and Node bridge
+        kill -TERM -"$VALIDATOR_PID" 2>/dev/null || true
+        sleep 1
+        kill -KILL -"$VALIDATOR_PID" 2>/dev/null || true
+        wait "$VALIDATOR_PID" 2>/dev/null || true
+        VALIDATOR_PID=""
+    fi
+
     if [ -n "$MCP_SERVER_PID" ]; then
         echo ""
         echo -e "${BLUE}==== Shutting down Pierre MCP server (PID: $MCP_SERVER_PID)... ====${NC}"
@@ -208,15 +221,27 @@ fi
 
 echo -e "${BLUE}     Timeout: ${TIMEOUT_CMD:-none}${NC}"
 
-if $TIMEOUT_CMD $PYTHON_CMD -m mcp_testing.scripts.compliance_report \
+# Run validator in a new process group so we can kill all children on Ctrl-C
+set -m  # Enable job control
+$TIMEOUT_CMD $PYTHON_CMD -m mcp_testing.scripts.compliance_report \
     --server-command "node $BRIDGE_PATH" \
     --protocol-version 2025-06-18 \
     --test-timeout 30 \
-    --verbose; then
+    --verbose &
+VALIDATOR_PID=$!
+
+# Wait for validator to complete
+set +e  # Temporarily disable exit-on-error to capture exit code
+wait $VALIDATOR_PID
+EXIT_CODE=$?
+set -e  # Re-enable exit-on-error
+
+VALIDATOR_PID=""  # Clear PID since process is done
+
+if [ $EXIT_CODE -eq 0 ]; then
     echo -e "${GREEN}[OK] MCP spec compliance tests passed${NC}"
     cd - >/dev/null
 else
-    EXIT_CODE=$?
     if [ $EXIT_CODE -eq 124 ]; then
         echo -e "${RED}[FAIL] MCP compliance tests timed out after 5 minutes${NC}"
     else
