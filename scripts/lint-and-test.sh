@@ -658,18 +658,19 @@ if [ -d "sdk" ]; then
                 # Start Pierre MCP server in background
                 echo -e "${BLUE}==== Starting Pierre MCP server for testing... ====${NC}"
 
-                # Check if we have a debug or release binary already
+                # Check if we have a debug or release binary already (use absolute paths since we're in sdk/)
                 SERVER_BINARY=""
-                if [ -f "target/release/pierre-mcp-server" ]; then
-                    SERVER_BINARY="target/release/pierre-mcp-server"
+                if [ -f "$PROJECT_ROOT/target/release/pierre-mcp-server" ]; then
+                    SERVER_BINARY="$PROJECT_ROOT/target/release/pierre-mcp-server"
                     echo -e "${GREEN}[OK] Using existing release binary${NC}"
-                elif [ -f "target/debug/pierre-mcp-server" ]; then
-                    SERVER_BINARY="target/debug/pierre-mcp-server"
+                elif [ -f "$PROJECT_ROOT/target/debug/pierre-mcp-server" ]; then
+                    SERVER_BINARY="$PROJECT_ROOT/target/debug/pierre-mcp-server"
                     echo -e "${GREEN}[OK] Using existing debug binary${NC}"
                 else
                     echo -e "${BLUE}Building pierre-mcp-server (this may take a moment)...${NC}"
-                    if cargo build --bin pierre-mcp-server --quiet 2>&1; then
-                        SERVER_BINARY="target/debug/pierre-mcp-server"
+                    # Build from project root, not from sdk/
+                    if (cd "$PROJECT_ROOT" && cargo build --bin pierre-mcp-server --quiet 2>&1); then
+                        SERVER_BINARY="$PROJECT_ROOT/target/debug/pierre-mcp-server"
                         echo -e "${GREEN}[OK] Binary built successfully${NC}"
                     else
                         echo -e "${RED}[FAIL] Failed to build pierre-mcp-server${NC}"
