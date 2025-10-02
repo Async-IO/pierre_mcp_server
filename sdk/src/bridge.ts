@@ -18,6 +18,8 @@ import {
   GetPromptRequestSchema,
   CompleteRequestSchema,
   InitializeRequestSchema,
+  PingRequestSchema,
+  SetLevelRequestSchema,
   McpError
 } from '@modelcontextprotocol/sdk/types.js';
 import {
@@ -1190,6 +1192,18 @@ export class PierreClaudeBridge {
       return await this.pierreClient.request(request, GetPromptRequestSchema);
     });
 
+    // Handle ping requests
+    this.claudeServer.setRequestHandler(PingRequestSchema, async () => {
+      this.log('🏓 Handling ping request');
+      return {};
+    });
+
+    // Handle logging/setLevel requests
+    this.claudeServer.setRequestHandler(SetLevelRequestSchema, async (request) => {
+      this.log(`📊 Setting log level to: ${request.params.level}`);
+      return {};
+    });
+
     // Bridge completion requests
     this.claudeServer.setRequestHandler(CompleteRequestSchema, async (request) => {
       this.log('✨ Bridging completion request');
@@ -1427,8 +1441,152 @@ export class PierreClaudeBridge {
       throw new Error('Server or transport not initialized');
     }
 
+    // CRITICAL: Intercept batch requests at the ReadBuffer level BEFORE schema validation
+    // The MCP SDK's JSONRPCMessageSchema does not support arrays, so batch requests
+    // are rejected during deserialization. We need to intercept the raw buffer processing.
+    const transport = this.serverTransport as any;  // Bypass TypeScript access control
+    const originalProcessReadBuffer = transport.processReadBuffer.bind(this.serverTransport);
+    transport.processReadBuffer = function (this: any) {
+      const readBuffer = this._readBuffer;
+      if (!readBuffer || !readBuffer._buffer) {
+        return;
+      }
+
+      // Check for newline
+      const index = readBuffer._buffer.indexOf('\n');
+      if (index === -1) {
+        return;
+      }
+
+      // Extract the line
+      const line = readBuffer._buffer.toString('utf8', 0, index).replace(/\r$/, '');
+      readBuffer._buffer = readBuffer._buffer.subarray(index + 1);
+
+      try {
+        const parsed = JSON.parse(line);
+
+        // Handle batch requests specially (arrays)
+        if (Array.isArray(parsed)) {
+          // Trigger our onmessage handler directly with the array
+          if (this.onmessage) {
+            this.onmessage(parsed);
+          }
+          return;
+        }
+
+        // For non-batch messages, use the original processing
+        // Put the line back in the buffer for normal processing
+        readBuffer._buffer = Buffer.concat([
+          Buffer.from(line + '\n'),
+          readBuffer._buffer
+        ]);
+        originalProcessReadBuffer();
+      } catch (error) {
+        // JSON parse error - let original handler deal with it
+        readBuffer._buffer = Buffer.concat([
+          Buffer.from(line + '\n'),
+          readBuffer._buffer
+        ]);
+        originalProcessReadBuffer();
+      }
+    };
+
     // Start the stdio server for Claude Desktop
     await this.claudeServer.connect(this.serverTransport);
+
+    // IMPORTANT: Intercept messages AFTER connect() to ensure our handler isn't overwritten
+    // The Server.connect() sets up its own onmessage handler, so we need to wrap it
+    const mcpServerOnMessage = this.serverTransport.onmessage;
+    this.serverTransport.onmessage = (message: any) => {
+      // Debug log to understand message format
+      if (this.config.verbose) {
+        this.log(`📨 Received message type: ${typeof message}, isArray: ${Array.isArray(message)}`);
+      }
+
+      // Handle server/info requests
+      if (message.method === 'server/info' && message.id !== undefined) {
+        this.log(`📊 Handling server/info request with ID: ${message.id}`);
+        const response = {
+          jsonrpc: '2.0' as const,
+          id: message.id,
+          result: {
+            name: 'pierre-claude-bridge',
+            version: '1.0.0',
+            protocolVersion: '2025-06-18',
+            supportedVersions: ['2024-11-05', '2025-03-26', '2025-06-18'],
+            capabilities: {
+              tools: {},
+              resources: {},
+              prompts: {},
+              logging: {}
+            }
+          }
+        };
+        this.serverTransport!.send(response).catch((err: any) => {
+          this.log(`❌ Failed to send server/info response: ${err.message}`);
+        });
+        return;
+      }
+
+      // Handle JSON-RPC batch requests (should be rejected in 2025-06-18)
+      // Batch requests come as arrays at the JSON level, not after parsing
+      if (Array.isArray(message)) {
+        this.log(`🚫 Rejecting JSON-RPC batch request (${message.length} requests, not supported in 2025-06-18)`);
+        this.log(`📦 Batch request IDs: ${message.map((r: any) => r.id).join(', ')}`);
+
+        // For batch requests, the validator expects a JSON array response on a SINGLE line
+        // Each request in the batch gets an individual error response
+        const responses = message.map((req: any) => ({
+          jsonrpc: '2.0' as const,
+          id: req.id,
+          error: {
+            code: -32600,
+            message: 'Batch requests are not supported in protocol version 2025-06-18'
+          }
+        }));
+
+        this.log(`📤 Sending batch response array with ${responses.length} responses`);
+        this.log(`📤 Response structure: ${JSON.stringify(responses).substring(0, 200)}...`);
+
+        // The MCP SDK's send() method serializes objects/arrays and adds newline
+        // For batch responses, we need to send the array itself, not individual items
+        // Cast to any to bypass TypeScript type checking for the array
+        this.serverTransport!.send(responses as any).then(() => {
+          this.log(`✅ Batch response sent successfully`);
+        }).catch((err: any) => {
+          this.log(`❌ Failed to send batch rejection response: ${err.message}`);
+        });
+        return;
+      }
+
+      // Handle client/log notifications gracefully
+      if (message.method === 'client/log' && message.id === undefined) {
+        this.log(`📝 Client log [${message.params?.level}]: ${message.params?.message}`);
+        return;
+      }
+
+      // Protect against malformed messages that crash the server
+      try {
+        // Forward other messages to the MCP Server handler
+        if (mcpServerOnMessage) {
+          mcpServerOnMessage(message);
+        }
+      } catch (error: any) {
+        this.log(`⚠️ Error handling message: ${error.message}`);
+        // Send error response if message had an ID
+        if (message.id !== undefined) {
+          const errorResponse = {
+            jsonrpc: '2.0' as const,
+            id: message.id,
+            error: {
+              code: -32603,
+              message: `Internal error: ${error.message}`
+            }
+          };
+          this.serverTransport!.send(errorResponse);
+        }
+      }
+    };
 
     // Set up notification forwarding from Pierre to Claude
     this.setupNotificationForwarding();
