@@ -260,7 +260,27 @@ impl OAuthTemplateRenderer {
         .success {{ color: #27ae60; font-size: 24px; margin-bottom: 20px; }}
         .info {{ color: #2c3e50; margin: 10px 0; }}
         .code {{ background: #ecf0f1; padding: 10px; border-radius: 4px; font-family: monospace; }}
+        .countdown {{ color: #7f8c8d; font-size: 14px; margin-top: 20px; }}
     </style>
+    <script>
+        let countdown = 3;
+        function updateCountdown() {{
+            const element = document.getElementById('countdown');
+            if (element) {{
+                element.textContent = countdown;
+            }}
+            if (countdown > 0) {{
+                countdown--;
+                setTimeout(updateCountdown, 1000);
+            }} else {{
+                window.close();
+            }}
+        }}
+
+        window.onload = function() {{
+            updateCountdown();
+        }};
+    </script>
 </head>
 <body>
     <div class="container">
@@ -270,6 +290,7 @@ impl OAuthTemplateRenderer {
         <div class="info"><strong>User ID:</strong> {}</div>
         <div class="info"><strong>Status:</strong> <span class="code">Connected</span></div>
         <p>You can now close this window and return to your application.</p>
+        <p class="countdown">This window will close automatically in <span id="countdown">3</span> seconds...</p>
     </div>
 </body>
 </html>

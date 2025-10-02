@@ -94,6 +94,16 @@ struct McpRequestHeaders {
     session_id: Option<String>,
 }
 
+/// MCP request parameters for auth validation
+struct McpRequestParams {
+    method: warp::http::Method,
+    auth_header: Option<String>,
+    origin: Option<String>,
+    accept: Option<String>,
+    session_id: Option<String>,
+    body: serde_json::Value,
+}
+
 /// MCP server supporting user authentication and isolated data access
 #[derive(Clone)]
 pub struct MultiTenantMcpServer {
@@ -1657,101 +1667,156 @@ impl MultiTenantMcpServer {
     }
 
     /// Handle MCP HTTP request with conditional authentication
+    fn log_http_request_debug(
+        method: &warp::http::Method,
+        auth_header: Option<&String>,
+        origin: Option<&String>,
+        accept: Option<&String>,
+        body: &serde_json::Value,
+    ) {
+        tracing::debug!(
+            "=== MCP HTTP Request: {} | Auth: {} | Origin: {:?} | Accept: {:?} | Body: {:?} | Thread: {:?} | Time: {:?} ===",
+            method,
+            auth_header.is_some(),
+            origin,
+            accept,
+            body,
+            std::thread::current().id(),
+            std::time::SystemTime::now()
+        );
+    }
+
+    async fn validate_auth_and_handle(
+        params: McpRequestParams,
+        mcp_method: &str,
+        ctx: &HttpRequestContext,
+    ) -> Result<Box<dyn warp::Reply>, warp::Rejection> {
+        tracing::debug!("Authentication is required for method '{}'", mcp_method);
+        if let Some(header) = params.auth_header.as_ref() {
+            tracing::debug!(
+                "Auth header present: {} (first 20 chars)",
+                &header[..std::cmp::min(20, header.len())]
+            );
+
+            // Extract token from "Bearer <token>" format
+            let Some(token) = header.strip_prefix("Bearer ") else {
+                tracing::warn!("Invalid authorization header format - missing 'Bearer ' prefix");
+                return Err(warp::reject::custom(crate::errors::AppError::new(
+                    crate::errors::ErrorCode::AuthInvalid,
+                    "Invalid authorization header format. Use 'Bearer <token>'",
+                )));
+            };
+
+            // Use helper function to validate JWT token
+            let _user_id = validate_jwt_token_for_mcp(
+                token,
+                &ctx.resources.auth_manager,
+                &ctx.resources.database,
+            )
+            .await
+            .map_err(|e| {
+                warp::reject::custom(ApiError(api_error(&format!("JWT validation failed: {e}"))))
+            })?;
+            tracing::debug!("Proceeding to handle_mcp_http_request with user context");
+
+            // Pass the original auth header, not the user_id
+            Self::handle_mcp_http_request(
+                params.method,
+                params.origin,
+                params.accept,
+                params.auth_header,
+                params.session_id,
+                params.body,
+                ctx,
+            )
+            .await
+        } else {
+            // Return HTTP 401 Unauthorized status code as required by MCP authorization spec
+            tracing::debug!(
+                "Authentication required for method '{}', returning HTTP 401",
+                mcp_method
+            );
+            Ok(Box::new(warp::reply::with_status(
+                warp::reply::json(&serde_json::json!({
+                    "error": "Unauthorized access",
+                    "message": format!("Authentication required for MCP method '{}'", mcp_method),
+                    "method": mcp_method
+                })),
+                warp::http::StatusCode::UNAUTHORIZED,
+            )))
+        }
+    }
+
     async fn handle_mcp_http_request_with_conditional_auth(
         method: warp::http::Method,
         auth_header: Option<String>,
         origin: Option<String>,
         accept: Option<String>,
+        session_id: Option<String>,
         body: serde_json::Value,
         ctx: &HttpRequestContext,
     ) -> Result<Box<dyn warp::Reply>, warp::Rejection> {
-        tracing::debug!("=== MCP HTTP Request START ===");
-        tracing::debug!(
-            "Method: {}, Has Auth Header: {}",
-            method,
-            auth_header.is_some()
+        Self::log_http_request_debug(
+            &method,
+            auth_header.as_ref(),
+            origin.as_ref(),
+            accept.as_ref(),
+            &body,
         );
-        tracing::debug!("Origin: {:?}", origin);
-        tracing::debug!("Accept: {:?}", accept);
-        tracing::debug!(
-            "Body: {}",
-            serde_json::to_string_pretty(&body)
-                .unwrap_or_else(|_| "Unable to serialize body".to_string())
-        );
-        tracing::debug!("Thread ID: {:?}", std::thread::current().id());
-        tracing::debug!("Request timestamp: {:?}", std::time::SystemTime::now());
 
         // For GET requests (typically for metadata), no auth is needed
         if method == warp::http::Method::GET {
             tracing::debug!("GET request - skipping authentication");
-            return Self::handle_mcp_http_request(method, origin, accept, auth_header, body, ctx)
-                .await;
+            return Self::handle_mcp_http_request(
+                method,
+                origin,
+                accept,
+                auth_header,
+                session_id,
+                body,
+                ctx,
+            )
+            .await;
         }
 
         // For POST requests, check the MCP method in the body to decide if auth is needed
-        let mcp_method = body.get("method").and_then(|m| m.as_str()).unwrap_or("");
+        let mcp_method_str = body.get("method").and_then(|m| m.as_str()).unwrap_or("");
+        let mcp_method = mcp_method_str.to_string();
         tracing::debug!("POST request - MCP method: '{}'", mcp_method);
 
-        let requires_auth = Self::mcp_method_requires_auth(mcp_method);
+        let requires_auth = Self::mcp_method_requires_auth(&mcp_method);
         tracing::debug!(
             "MCP method '{}' requires auth: {}",
             mcp_method,
             requires_auth
         );
+
         if requires_auth {
-            // Authentication is required - validate the auth header
-            tracing::debug!("Authentication is required for method '{}'", mcp_method);
-            if let Some(header) = auth_header.as_ref() {
-                tracing::debug!(
-                    "Auth header present: {} (first 20 chars)",
-                    &header[..std::cmp::min(20, header.len())]
-                );
-
-                // Extract token from "Bearer <token>" format
-                let Some(token) = header.strip_prefix("Bearer ") else {
-                    tracing::warn!(
-                        "Invalid authorization header format - missing 'Bearer ' prefix"
-                    );
-                    return Err(warp::reject::custom(crate::errors::AppError::new(
-                        crate::errors::ErrorCode::AuthInvalid,
-                        "Invalid authorization header format. Use 'Bearer <token>'",
-                    )));
-                };
-
-                // Use helper function to validate JWT token
-                let _user_id = validate_jwt_token_for_mcp(
-                    token,
-                    &ctx.resources.auth_manager,
-                    &ctx.resources.database,
-                )
-                .await
-                .map_err(|e| {
-                    warp::reject::custom(ApiError(api_error(&format!(
-                        "JWT validation failed: {e}"
-                    ))))
-                })?;
-                tracing::debug!("Proceeding to handle_mcp_http_request with user context");
-
-                // Pass the original auth header, not the user_id
-                Self::handle_mcp_http_request(method, origin, accept, auth_header, body, ctx).await
-            } else {
-                // Return HTTP 401 Unauthorized status code as required by MCP authorization spec
-                tracing::debug!(
-                    "Authentication required for method '{}', returning HTTP 401",
-                    mcp_method
-                );
-                Ok(Box::new(warp::reply::with_status(
-                    warp::reply::json(&serde_json::json!({
-                        "error": "Unauthorized access",
-                        "message": format!("Authentication required for MCP method '{}'", mcp_method),
-                        "method": mcp_method
-                    })),
-                    warp::http::StatusCode::UNAUTHORIZED,
-                )))
-            }
+            Self::validate_auth_and_handle(
+                McpRequestParams {
+                    method,
+                    auth_header,
+                    origin,
+                    accept,
+                    session_id,
+                    body,
+                },
+                &mcp_method,
+                ctx,
+            )
+            .await
         } else {
             // No authentication required for this method
-            Self::handle_mcp_http_request(method, origin, accept, auth_header, body, ctx).await
+            Self::handle_mcp_http_request(
+                method,
+                origin,
+                accept,
+                auth_header,
+                session_id,
+                body,
+                ctx,
+            )
+            .await
         }
     }
 
@@ -1851,6 +1916,7 @@ impl MultiTenantMcpServer {
             effective_auth_header,
             headers.origin,
             headers.accept,
+            headers.session_id,
             body,
             ctx,
         )
@@ -1871,6 +1937,7 @@ impl MultiTenantMcpServer {
         origin: Option<String>,
         accept: Option<String>,
         authorization: Option<String>,
+        session_id: Option<String>,
         body: serde_json::Value,
         ctx: &HttpRequestContext,
     ) -> Result<Box<dyn warp::Reply>, warp::Rejection> {
@@ -1904,15 +1971,22 @@ impl MultiTenantMcpServer {
                             "Received MCP request via HTTP transport"
                         );
 
+                        // Store method name before moving request
+                        let method_name = request.method.clone();
+
                         Self::handle_request(request, &ctx.resources)
                             .await
                             .map_or_else(
                                 || {
-                                    // Notification - return 204 No Content with empty body (JSON-RPC notifications expect no response)
-                                    Ok(Box::new(warp::reply::with_status(
-                                        warp::reply(),
-                                        warp::http::StatusCode::NO_CONTENT,
-                                    ))
+                                    // For "notifications/initialized", return 202 Accepted to trigger SSE stream in SDK
+                                    // For other notifications, return 204 No Content per JSON-RPC spec
+                                    let status = if method_name == "notifications/initialized" {
+                                        warp::http::StatusCode::ACCEPTED
+                                    } else {
+                                        warp::http::StatusCode::NO_CONTENT
+                                    };
+
+                                    Ok(Box::new(warp::reply::with_status(warp::reply(), status))
                                         as Box<dyn warp::Reply>)
                                 },
                                 |response| {
@@ -1959,46 +2033,40 @@ impl MultiTenantMcpServer {
                         "MCP SSE request - registering protocol stream with unified SSE manager"
                     );
 
-                    // Generate or extract session ID from authorization
-                    let session_id = authorization
-                        .as_ref()
-                        .and_then(|auth| auth.strip_prefix("Bearer "))
-                        .map_or_else(
-                            || format!("session_{}", uuid::Uuid::new_v4()),
-                            |token| format!("session_{}", &token[..std::cmp::min(8, token.len())]),
-                        );
+                    // Use mcp-session-id header if provided, otherwise generate new session ID
+                    let session_id_value = session_id
+                        .clone()
+                        .unwrap_or_else(|| format!("session_{}", uuid::Uuid::new_v4()));
 
                     // Register SSE stream with the manager
                     let mut receiver = ctx
                         .resources
                         .sse_manager
                         .register_protocol_stream(
-                            session_id.clone(),
+                            session_id_value.clone(),
                             authorization,
                             ctx.resources.clone(),
                         )
                         .await;
 
                     let manager = ctx.resources.sse_manager.clone();
-                    let session_id_clone = session_id.clone();
+                    let session_id_clone = session_id_value.clone();
 
-                    // Create SSE stream that forwards messages from the manager
+                    // Create SSE stream that forwards MCP protocol messages
                     let stream = async_stream::stream! {
-                        // Send initial connection established event
-                        yield Ok::<_, warp::Error>(warp::sse::Event::default()
-                            .data("MCP protocol stream ready")
-                            .event("connected"));
-
                         // Listen for MCP messages
+                        tracing::debug!("SSE stream listening for messages on session: {}", session_id_clone);
                         loop {
                             match receiver.recv().await {
                                 Ok(message) => {
-                                    yield Ok(warp::sse::Event::default()
-                                        .data(message)
-                                        .event("mcp"));
+                                    tracing::debug!("SSE stream received message on session {}: {}", session_id_clone, message);
+                                    yield Ok::<_, warp::Error>(warp::sse::Event::default()
+                                        .data(message.clone())
+                                        .event("message"));
+                                    tracing::debug!("SSE stream yielded message to client on session: {}", session_id_clone);
                                 }
-                                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
-                                    tracing::warn!("SSE protocol stream lagged for session: {}", session_id_clone);
+                                Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                                    tracing::warn!("SSE protocol stream lagged for session {}, skipped {} messages", session_id_clone, skipped);
                                 }
                                 Err(tokio::sync::broadcast::error::RecvError::Closed) => {
                                     tracing::info!("SSE protocol channel closed for session: {}", session_id_clone);
@@ -2008,6 +2076,7 @@ impl MultiTenantMcpServer {
                         }
 
                         // Clean up connection
+                        tracing::debug!("Cleaning up SSE stream for session: {}", session_id_clone);
                         manager.unregister_protocol_stream(&session_id_clone).await;
                     };
 
@@ -2020,7 +2089,7 @@ impl MultiTenantMcpServer {
                             "cache-control",
                         ),
                         "Mcp-Session-Id",
-                        session_id,
+                        session_id_value,
                     );
 
                     Ok(Box::new(response))
@@ -2575,12 +2644,16 @@ impl MultiTenantMcpServer {
         if unread_notifications.is_empty() {
             String::new()
         } else {
-            let mut notifications_msg = String::from("\n\n🎉 Recent OAuth Updates:\n");
+            let mut notifications_msg = String::from("\n\nRecent OAuth Updates:\n");
             for notification in &unread_notifications {
-                let status_emoji = if notification.success { "✅" } else { "❌" };
+                let status_indicator = if notification.success {
+                    "[SUCCESS]"
+                } else {
+                    "[FAILED]"
+                };
                 writeln!(
                     notifications_msg,
-                    "{status_emoji} {}: {}",
+                    "{status_indicator} {}: {}",
                     notification.provider.to_uppercase(),
                     notification.message
                 )
@@ -2656,18 +2729,18 @@ impl MultiTenantMcpServer {
         notifications_text: &str,
     ) -> String {
         let strava_status = if connection_status.strava_connected {
-            "Connected ✅"
+            "Connected"
         } else {
             "Not Connected"
         };
         let fitbit_status = if connection_status.fitbit_connected {
-            "Connected ✅"
+            "Connected"
         } else {
             "Not Connected"
         };
 
         let strava_action = if connection_status.strava_connected {
-            "✅ Ready to use fitness tools!".to_string()
+            "Ready to use fitness tools!".to_string()
         } else {
             format!(
                 "Click to connect: {base_url}/auth/strava/{}",
@@ -2676,7 +2749,7 @@ impl MultiTenantMcpServer {
         };
 
         let fitbit_action = if connection_status.fitbit_connected {
-            "✅ Ready to use fitness tools!".to_string()
+            "Ready to use fitness tools!".to_string()
         } else {
             format!(
                 "Click to connect: {base_url}/auth/fitbit/{}",

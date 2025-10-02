@@ -103,6 +103,12 @@ impl OAuth2Client {
         &self.config
     }
 
+    /// Get the HTTP client for making OAuth requests
+    #[must_use]
+    pub const fn http_client(&self) -> &reqwest::Client {
+        &self.client
+    }
+
     /// Get authorization URL
     ///
     /// # Errors

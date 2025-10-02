@@ -1182,13 +1182,17 @@ impl ToolHandlers {
                 );
 
                 // Build notification alert text
-                let mut notification_text = String::from("\n\n🎉 OAuth Connection Updates:\n");
+                let mut notification_text = String::from("\n\nOAuth Connection Updates:\n");
                 for notification in &unread_notifications {
-                    let status_emoji = if notification.success { "✅" } else { "❌" };
+                    let status_indicator = if notification.success {
+                        "[SUCCESS]"
+                    } else {
+                        "[FAILED]"
+                    };
                     writeln!(
                         &mut notification_text,
                         "{} {}: {}",
-                        status_emoji,
+                        status_indicator,
                         notification.provider.to_uppercase(),
                         notification.message
                     )
@@ -1227,6 +1231,19 @@ impl ToolHandlers {
                     user_id,
                     tool_name
                 );
+
+                // Mark all delivered notifications as read
+                for notification in &unread_notifications {
+                    if let Err(e) = database
+                        .mark_oauth_notification_read(&notification.id, user_id)
+                        .await
+                    {
+                        warn!(
+                            "Failed to mark notification {} as read after delivery: {}",
+                            notification.id, e
+                        );
+                    }
+                }
             }
             Ok(_) => {
                 // No unread notifications, continue normally

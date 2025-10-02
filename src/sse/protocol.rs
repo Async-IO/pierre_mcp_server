@@ -39,14 +39,6 @@ impl McpProtocolStream {
             let (tx, _) =
                 broadcast::channel(crate::constants::network_config::SSE_BROADCAST_CHANNEL_SIZE);
 
-            // Send connection established event
-            if let Err(e) = tx.send(Self::format_sse_event(
-                "connected",
-                "MCP protocol stream ready",
-            )) {
-                tracing::warn!("Failed to send connection established event: {}", e);
-            }
-
             *sender_guard = Some(tx.clone());
             tx
         };
@@ -76,16 +68,11 @@ impl McpProtocolStream {
         let sender_guard = self.sender.read().await;
 
         if let Some(sender) = sender_guard.as_ref() {
-            let event_type = match response.id {
-                Value::Null => "notification",
-                _ => "response",
-            };
-
-            let sse_message =
-                Self::format_sse_event(event_type, &serde_json::to_string(&response)?);
+            // Send only the JSON data - Warp will handle SSE formatting
+            let json_data = serde_json::to_string(&response)?;
 
             sender
-                .send(sse_message)
+                .send(json_data)
                 .map_err(|e| anyhow::anyhow!("Failed to send MCP response: {}", e))?;
 
             Ok(())
@@ -108,22 +95,17 @@ impl McpProtocolStream {
         let sender_guard = self.sender.read().await;
 
         if let Some(sender) = sender_guard.as_ref() {
-            let sse_message =
-                Self::format_sse_event("error", &serde_json::to_string(&error_response)?);
+            // Send only the JSON data - Warp will handle SSE formatting
+            let json_data = serde_json::to_string(&error_response)?;
 
             sender
-                .send(sse_message)
+                .send(json_data)
                 .map_err(|e| anyhow::anyhow!("Failed to send error event: {}", e))?;
 
             Ok(())
         } else {
             Err(anyhow::anyhow!("No active sender for protocol stream"))
         }
-    }
-
-    /// Format message as SSE protocol string
-    fn format_sse_event(event_type: &str, data: &str) -> String {
-        format!("event: {event_type}\\ndata: {data}\\n\\n")
     }
 
     /// Check if stream has active subscribers
@@ -143,5 +125,64 @@ impl McpProtocolStream {
     #[must_use]
     pub const fn get_session_id(&self) -> Option<&String> {
         self.session_id.as_ref()
+    }
+
+    /// Send OAuth notification through MCP protocol stream
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - No active sender is available for this stream
+    /// - JSON serialization fails
+    /// - Sending the notification fails
+    pub async fn send_oauth_notification(
+        &self,
+        notification: &crate::database::oauth_notifications::OAuthNotification,
+    ) -> Result<()> {
+        tracing::debug!(
+            "send_oauth_notification called for provider: {}",
+            notification.provider
+        );
+
+        let sender_guard = self.sender.read().await;
+
+        if let Some(sender) = sender_guard.as_ref() {
+            let receiver_count = sender.receiver_count();
+            tracing::debug!("Active SSE receivers for this stream: {}", receiver_count);
+
+            // Format as proper JSON-RPC notification (no id field)
+            let mcp_notification = serde_json::json!({
+                "jsonrpc": "2.0",
+                "method": "notifications/oauth_completed",
+                "params": {
+                    "provider": notification.provider,
+                    "success": notification.success,
+                    "message": notification.message,
+                    "user_id": notification.user_id,
+                }
+            });
+
+            // Send only the JSON data - Warp will handle SSE formatting
+            let json_data = serde_json::to_string(&mcp_notification)?;
+
+            tracing::debug!("JSON data to send: {}", json_data);
+
+            let result = sender.send(json_data);
+
+            match result {
+                Ok(receiver_count) => {
+                    tracing::info!("OAuth notification broadcast succeeded! Reached {} receiver(s) for provider {}", receiver_count, notification.provider);
+                }
+                Err(e) => {
+                    tracing::error!("OAuth notification broadcast FAILED: {}", e);
+                    return Err(anyhow::anyhow!("Failed to send OAuth notification: {}", e));
+                }
+            }
+
+            Ok(())
+        } else {
+            tracing::error!("No active sender for protocol stream");
+            Err(anyhow::anyhow!("No active sender for protocol stream"))
+        }
     }
 }

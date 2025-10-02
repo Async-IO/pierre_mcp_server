@@ -385,8 +385,22 @@ impl OAuthService {
 
         // Create OAuth2 client and exchange code for token
         let oauth_config = Self::create_oauth_config(provider)?;
-        let oauth_client = crate::oauth2_client::OAuth2Client::new(oauth_config);
-        let token = oauth_client.exchange_code(code).await?;
+        let oauth_client = crate::oauth2_client::OAuth2Client::new(oauth_config.clone());
+
+        // Use provider-specific exchange function if available
+        let token = match provider {
+            oauth_providers::STRAVA => {
+                let (token, _athlete) = crate::oauth2_client::strava::exchange_strava_code(
+                    oauth_client.http_client(),
+                    &oauth_config.client_id,
+                    &oauth_config.client_secret,
+                    code,
+                )
+                .await?;
+                token
+            }
+            _ => oauth_client.exchange_code(code).await?,
+        };
 
         tracing::info!(
             "Successfully exchanged OAuth code for user {} provider {}",
@@ -495,32 +509,40 @@ impl OAuthService {
             provider
         );
 
-        // Send immediate push notification if channel is available
-        if let Some(notification_sender) = self.notifications.oauth_notification_sender() {
-            let push_notification = crate::mcp::schema::OAuthCompletedNotification::new(
-                provider.to_string(),
-                true,
-                format!(
-                    "{provider} account connected successfully! You can now use fitness tools."
-                ),
-                Some(user_id.to_string()),
-            );
+        // Send OAuth notification to all active MCP protocol streams for this user
+        let oauth_notification = crate::database::oauth_notifications::OAuthNotification {
+            id: notification_id,
+            user_id: user_id.to_string(),
+            provider: provider.to_string(),
+            success: true,
+            message: format!(
+                "{provider} account connected successfully! You can now use fitness tools."
+            ),
+            expires_at: Some(expires_at.to_rfc3339()),
+            created_at: chrono::Utc::now(),
+            read_at: None,
+        };
 
-            if let Err(e) = notification_sender.send(push_notification) {
-                tracing::warn!(
-                    "Failed to send OAuth push notification for user {} provider {}: {}",
-                    user_id,
-                    provider,
-                    e
-                );
-            } else {
-                tracing::info!(
-                    "Sent OAuth push notification for user {} provider {}",
-                    user_id,
-                    provider
-                );
-            }
+        if let Err(e) = self
+            .notifications
+            .sse_manager()
+            .send_oauth_notification_to_protocol_streams(user_id, &oauth_notification)
+            .await
+        {
+            tracing::warn!(
+                "Failed to send OAuth notification to MCP streams for user {} provider {}: {}",
+                user_id,
+                provider,
+                e
+            );
+        } else {
+            tracing::info!(
+                "Successfully sent OAuth notification to MCP protocol streams for user {} provider {}",
+                user_id,
+                provider
+            );
         }
+
         Ok(())
     }
 
@@ -906,10 +928,21 @@ impl AuthRoutes {
         })?;
 
         match oauth_routes.handle_callback(code, state, &provider).await {
-            Ok(response) => Ok(warp::reply::with_status(
-                warp::reply::json(&response),
-                warp::http::StatusCode::OK,
-            )),
+            Ok(response) => {
+                let html =
+                    crate::mcp::oauth_flow_manager::OAuthTemplateRenderer::render_success_template(
+                        &provider, &response,
+                    )
+                    .map_err(|e| {
+                        tracing::error!("Failed to render OAuth success template: {}", e);
+                        warp::reject::custom(AppError::internal("Template rendering failed"))
+                    })?;
+
+                Ok(warp::reply::with_status(
+                    warp::reply::html(html),
+                    warp::http::StatusCode::OK,
+                ))
+            }
             Err(e) => {
                 tracing::error!("OAuth callback failed: {}", e);
                 Err(warp::reject::custom(AppError::from(e)))
@@ -1059,7 +1092,7 @@ impl AuthRoutes {
 </head>
 <body>
     <div class="error-container">
-        <h1>⚠️ OAuth Authorization Failed</h1>
+        <h1>OAuth Authorization Failed</h1>
         <div class="error-message">
             <p>We couldn't start the OAuth authorization process for <strong>{}</strong>.</p>
             <p><strong>Error:</strong> {}</p>

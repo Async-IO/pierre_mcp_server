@@ -234,13 +234,69 @@ impl SseNotificationForwarder {
                         notification
                     );
 
-                    // Use resources for SSE notification forwarding
-                    let resource_id = format!("{:p}", self.resources.as_ref());
-                    info!(
-                        "SSE notification forwarding with resource id: {}",
-                        resource_id
-                    );
-                    tracing::debug!("Processing notification: {:?}", notification);
+                    // Extract user_id from notification
+                    if let Some(user_id_str) = &notification.params.user_id {
+                        match uuid::Uuid::parse_str(user_id_str) {
+                            Ok(user_id) => {
+                                // Create OAuthNotification from the received notification
+                                let oauth_notification =
+                                    crate::database::oauth_notifications::OAuthNotification {
+                                        id: uuid::Uuid::new_v4().to_string(),
+                                        user_id: user_id.to_string(),
+                                        provider: notification.params.provider.clone(),
+                                        success: notification.params.success,
+                                        message: notification.params.message.clone(),
+                                        expires_at: None,
+                                        created_at: chrono::Utc::now(),
+                                        read_at: None,
+                                    };
+
+                                // Send notification to SSE notification streams (for direct clients)
+                                match self
+                                    .resources
+                                    .sse_manager
+                                    .send_notification(user_id, &oauth_notification)
+                                    .await
+                                {
+                                    Ok(()) => {
+                                        info!("Successfully forwarded OAuth notification to notification stream for user {}", user_id);
+                                    }
+                                    Err(e) => {
+                                        warn!("Failed to forward OAuth notification to notification stream for user {}: {}", user_id, e);
+                                    }
+                                }
+
+                                // Also send to MCP protocol streams (for bridges like Claude Desktop)
+                                match self
+                                    .resources
+                                    .sse_manager
+                                    .send_oauth_notification_to_protocol_streams(
+                                        user_id,
+                                        &oauth_notification,
+                                    )
+                                    .await
+                                {
+                                    Ok(()) => {
+                                        info!("Successfully forwarded OAuth notification to protocol streams for user {}", user_id);
+                                    }
+                                    Err(e) => {
+                                        warn!("No active protocol streams to forward OAuth notification for user {}: {}", user_id, e);
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                warn!(
+                                    "Invalid user_id in OAuth notification: {} - error: {}",
+                                    user_id_str, e
+                                );
+                            }
+                        }
+                    } else {
+                        warn!(
+                            "OAuth notification missing user_id field: {:?}",
+                            notification
+                        );
+                    }
                 }
                 Err(broadcast::error::RecvError::Closed) => {
                     info!("OAuth notification channel closed, shutting down SSE forwarder");

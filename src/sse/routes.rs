@@ -93,7 +93,7 @@ pub async fn handle_protocol_sse(
                 Ok(message) => {
                     yield Ok(warp::sse::Event::default()
                         .data(message)
-                        .event("mcp"));
+                        .event("message"));
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
                     tracing::warn!("SSE protocol stream lagged for session: {}", session_id_clone);

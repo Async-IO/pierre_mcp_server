@@ -34,6 +34,8 @@ pub struct SseManager {
     notification_streams: Arc<RwLock<HashMap<Uuid, NotificationStream>>>,
     protocol_streams: Arc<RwLock<HashMap<String, McpProtocolStream>>>,
     connection_metadata: Arc<RwLock<HashMap<String, ConnectionMetadata>>>,
+    /// Maps `user_id` to their active `session_ids` for protocol streams
+    user_sessions: Arc<RwLock<HashMap<Uuid, Vec<String>>>>,
 }
 
 impl SseManager {
@@ -43,6 +45,7 @@ impl SseManager {
             notification_streams: Arc::new(RwLock::new(HashMap::new())),
             protocol_streams: Arc::new(RwLock::new(HashMap::new())),
             connection_metadata: Arc::new(RwLock::new(HashMap::new())),
+            user_sessions: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 }
@@ -84,15 +87,53 @@ impl SseManager {
     pub async fn register_protocol_stream(
         &self,
         session_id: String,
-        _authorization: Option<String>,
+        authorization: Option<String>,
         resources: Arc<ServerResources>,
     ) -> broadcast::Receiver<String> {
-        let stream = McpProtocolStream::new(resources);
+        let stream = McpProtocolStream::new(resources.clone());
         let receiver = stream.subscribe().await;
 
         {
             let mut streams = self.protocol_streams.write().await;
             streams.insert(session_id.clone(), stream);
+        }
+
+        // Extract user_id from JWT token if provided
+        let user_id = if let Some(auth) = authorization {
+            if let Some(token) = auth.strip_prefix("Bearer ") {
+                if let Ok(jwt_result) = crate::mcp::tenant_isolation::validate_jwt_token_for_mcp(
+                    token,
+                    &resources.auth_manager,
+                    &resources.database,
+                )
+                .await
+                {
+                    Some(jwt_result.user_id)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Track session for this user
+        if let Some(user_id) = user_id {
+            self.user_sessions
+                .write()
+                .await
+                .entry(user_id)
+                .or_default()
+                .push(session_id.clone());
+            tracing::info!(
+                "Registered protocol stream for session {} belonging to user {}",
+                session_id,
+                user_id
+            );
+        } else {
+            tracing::info!("Registered protocol stream for session: {}", session_id);
         }
 
         let connection_id = format!("protocol_{session_id}");
@@ -109,7 +150,6 @@ impl SseManager {
             metadata_map.insert(connection_id, metadata);
         }
 
-        tracing::info!("Registered protocol stream for session: {}", session_id);
         receiver
     }
 
@@ -143,6 +183,59 @@ impl SseManager {
         } else {
             Err(anyhow::anyhow!(
                 "No notification stream found for user: {}",
+                user_id
+            ))
+        }
+    }
+
+    /// Send OAuth notification to all MCP protocol streams for a user
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if sending to any stream fails
+    pub async fn send_oauth_notification_to_protocol_streams(
+        &self,
+        user_id: Uuid,
+        notification: &OAuthNotification,
+    ) -> Result<()> {
+        let user_sessions = self.user_sessions.read().await;
+        let session_ids = user_sessions.get(&user_id).cloned();
+        drop(user_sessions);
+
+        if let Some(sessions) = session_ids {
+            let streams = self.protocol_streams.read().await;
+            let mut sent_count = 0;
+
+            for session_id in &sessions {
+                if let Some(stream) = streams.get(session_id) {
+                    if let Err(e) = stream.send_oauth_notification(notification).await {
+                        tracing::warn!(
+                            "Failed to send OAuth notification to session {}: {}",
+                            session_id,
+                            e
+                        );
+                    } else {
+                        sent_count += 1;
+                    }
+                }
+            }
+
+            if sent_count > 0 {
+                tracing::info!(
+                    "Sent OAuth notification to {} protocol stream(s) for user {}",
+                    sent_count,
+                    user_id
+                );
+                Ok(())
+            } else {
+                Err(anyhow::anyhow!(
+                    "No active protocol streams found for user: {}",
+                    user_id
+                ))
+            }
+        } else {
+            Err(anyhow::anyhow!(
+                "No protocol streams registered for user: {}",
                 user_id
             ))
         }
