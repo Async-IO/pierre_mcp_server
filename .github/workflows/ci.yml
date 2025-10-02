@@ -331,8 +331,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: sdk/package-lock.json
 
       - name: Setup Python
         uses: actions/setup-python@v5
