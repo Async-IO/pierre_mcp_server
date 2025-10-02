@@ -194,9 +194,21 @@ export PYTHONPATH="$MCP_VALIDATOR_DIR"
 # Run validator with 5-minute timeout and verbose output
 echo -e "${BLUE}     Testing bridge: node $BRIDGE_PATH${NC}"
 echo -e "${BLUE}     Protocol version: 2025-06-18${NC}"
-echo -e "${BLUE}     Timeout: 300 seconds${NC}"
 
-if timeout 300 $PYTHON_CMD -m mcp_testing.scripts.compliance_report \
+# Detect available timeout command (Linux: timeout, macOS: gtimeout)
+TIMEOUT_CMD=""
+if command -v timeout >/dev/null 2>&1; then
+    TIMEOUT_CMD="timeout 300"
+elif command -v gtimeout >/dev/null 2>&1; then
+    TIMEOUT_CMD="gtimeout 300"
+else
+    echo -e "${YELLOW}[WARN] timeout command not available - running without timeout${NC}"
+    echo -e "${YELLOW}       Install coreutils for timeout support: brew install coreutils${NC}"
+fi
+
+echo -e "${BLUE}     Timeout: ${TIMEOUT_CMD:-none}${NC}"
+
+if $TIMEOUT_CMD $PYTHON_CMD -m mcp_testing.scripts.compliance_report \
     --server-command "node $BRIDGE_PATH" \
     --protocol-version 2025-06-18 \
     --test-timeout 30 \
