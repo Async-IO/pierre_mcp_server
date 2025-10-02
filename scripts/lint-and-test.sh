@@ -679,19 +679,31 @@ if [ -d "sdk" ]; then
 
                 if [ "$ALL_PASSED" = true ] && [ -n "$SERVER_BINARY" ]; then
                     # Start server with minimal environment (using CI test key)
+                    # Redirect to temp log file for debugging startup issues
+                    SERVER_LOG="/tmp/pierre-mcp-server-$$.log"
                     HTTP_PORT=8080 \
                     DATABASE_URL=sqlite::memory: \
                     PIERRE_MASTER_ENCRYPTION_KEY=rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo= \
-                    "$SERVER_BINARY" >/dev/null 2>&1 &
+                    "$SERVER_BINARY" >"$SERVER_LOG" 2>&1 &
                     MCP_SERVER_PID=$!
 
                     echo -e "${GREEN}[OK] Pierre MCP server started (PID: $MCP_SERVER_PID)${NC}"
+                    echo -e "${BLUE}     Server logs: $SERVER_LOG${NC}"
 
                     # Wait for server to be ready (health check)
                     echo -e "${BLUE}==== Waiting for Pierre MCP server to be ready... ====${NC}"
                     MAX_WAIT=30
                     WAIT_COUNT=0
                     while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
+                        # Check if server process is still alive
+                        if ! kill -0 "$MCP_SERVER_PID" 2>/dev/null; then
+                            echo -e "${RED}[FAIL] Server process died unexpectedly${NC}"
+                            echo -e "${RED}       Last 20 lines of server log:${NC}"
+                            tail -20 "$SERVER_LOG" 2>/dev/null || echo "No log output"
+                            ALL_PASSED=false
+                            break
+                        fi
+
                         if curl -s -f -m 2 http://localhost:8080/health >/dev/null 2>&1; then
                             echo -e "${GREEN}[OK] Pierre MCP server is ready (took ${WAIT_COUNT}s)${NC}"
                             break
@@ -702,6 +714,9 @@ if [ -d "sdk" ]; then
 
                     if [ $WAIT_COUNT -ge $MAX_WAIT ]; then
                         echo -e "${RED}[FAIL] Pierre MCP server failed to become ready after ${MAX_WAIT}s${NC}"
+                        echo -e "${RED}       Server process status: $(kill -0 "$MCP_SERVER_PID" 2>/dev/null && echo 'running' || echo 'dead')${NC}"
+                        echo -e "${RED}       Last 30 lines of server log:${NC}"
+                        tail -30 "$SERVER_LOG" 2>/dev/null || echo "No log output"
                         ALL_PASSED=false
                     fi
                 fi
