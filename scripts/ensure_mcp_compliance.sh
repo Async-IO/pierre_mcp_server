@@ -22,6 +22,28 @@ PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 echo -e "${BLUE}==== Pierre MCP Compliance Validation ====${NC}"
 echo "Project root: $PROJECT_ROOT"
 
+# Function to find an available port
+find_available_port() {
+    local port
+    # Try ports in range 8080-8180
+    for port in $(seq 8080 8180); do
+        if ! lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1; then
+            echo "$port"
+            return 0
+        fi
+    done
+    # Fallback to random port if all are taken
+    echo "0"
+}
+
+# Find an available port for Pierre server
+HTTP_PORT=$(find_available_port)
+if [ "$HTTP_PORT" -eq 0 ]; then
+    echo -e "${RED}[FAIL] Could not find available port in range 8080-8180${NC}"
+    exit 1
+fi
+echo -e "${BLUE}Using port: $HTTP_PORT${NC}"
+
 # Track success
 COMPLIANCE_PASSED=true
 
@@ -117,7 +139,7 @@ fi
 # Check if Pierre MCP server is running (required for bridge testing)
 echo -e "${BLUE}==== Checking if Pierre MCP server is accessible... ====${NC}"
 SERVER_ALREADY_RUNNING=false
-if curl -s -f -m 2 http://localhost:8080/health >/dev/null 2>&1; then
+if curl -s -f -m 2 "http://localhost:$HTTP_PORT/health" >/dev/null 2>&1; then
     echo -e "${GREEN}[OK] Pierre MCP server is already running${NC}"
     SERVER_ALREADY_RUNNING=true
 else
@@ -150,7 +172,7 @@ else
         # Start server with minimal environment (using CI test key)
         # Redirect to temp log file for debugging startup issues
         SERVER_LOG="/tmp/pierre-mcp-server-$$.log"
-        HTTP_PORT=8080 \
+        HTTP_PORT=$HTTP_PORT \
         DATABASE_URL=sqlite::memory: \
         PIERRE_MASTER_ENCRYPTION_KEY=rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo= \
         "$SERVER_BINARY" >"$SERVER_LOG" 2>&1 &
@@ -172,7 +194,7 @@ else
                 exit 1
             fi
 
-            if curl -s -f -m 2 http://localhost:8080/health >/dev/null 2>&1; then
+            if curl -s -f -m 2 "http://localhost:$HTTP_PORT/health" >/dev/null 2>&1; then
                 echo -e "${GREEN}[OK] Pierre MCP server is ready (took ${WAIT_COUNT}s)${NC}"
                 break
             fi
@@ -224,7 +246,7 @@ echo -e "${BLUE}     Timeout: ${TIMEOUT_CMD:-none}${NC}"
 # Run validator in a new process group so we can kill all children on Ctrl-C
 set -m  # Enable job control
 $TIMEOUT_CMD $PYTHON_CMD -m mcp_testing.scripts.compliance_report \
-    --server-command "node $BRIDGE_PATH" \
+    --server-command "node $BRIDGE_PATH --server http://localhost:$HTTP_PORT" \
     --protocol-version 2025-06-18 \
     --test-timeout 30 \
     --verbose &
