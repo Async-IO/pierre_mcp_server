@@ -450,7 +450,8 @@ impl MultiTenantMcpServer {
 
                         match oauth_routes.handle_callback(&code, &state, &provider).await {
                             Ok(callback_response) => {
-                                let html_content = match OAuthTemplateRenderer::render_success_template(&provider, &callback_response) {
+                                let oauth_callback_port = oauth_routes.config().config().oauth_callback_port;
+                                let html_content = match OAuthTemplateRenderer::render_success_template(&provider, &callback_response, oauth_callback_port) {
                                     Ok(html) => html,
                                     Err(e) => {
                                         tracing::error!("Failed to render success template: {}", e);

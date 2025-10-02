@@ -177,6 +177,7 @@ async fn test_multitenant_auth_flow() -> Result<()> {
     // Create minimal config for ServerResources
     let config = std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
         http_port: 8081,
+        oauth_callback_port: 35535,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
@@ -554,6 +555,7 @@ async fn test_input_validation() -> Result<()> {
     // Create minimal config for ServerResources
     let config = std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
         http_port: 8081,
+        oauth_callback_port: 35535,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,

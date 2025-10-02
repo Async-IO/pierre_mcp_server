@@ -53,6 +53,7 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, String) {
 
             pierre_mcp_server::config::environment::ServerConfig {
                 http_port: 8081,
+                oauth_callback_port: 35535,
                 log_level: pierre_mcp_server::config::environment::LogLevel::Info,
                 database: pierre_mcp_server::config::environment::DatabaseConfig {
                     url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,

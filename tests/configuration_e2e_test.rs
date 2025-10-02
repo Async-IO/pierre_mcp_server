@@ -68,6 +68,7 @@ async fn create_test_tool_executor() -> Arc<UniversalToolExecutor> {
 fn create_test_config() -> pierre_mcp_server::config::environment::ServerConfig {
     pierre_mcp_server::config::environment::ServerConfig {
         http_port: 4000,
+        oauth_callback_port: 35535,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::default(),

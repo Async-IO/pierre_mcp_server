@@ -176,6 +176,7 @@ fn display_available_endpoints(config: &ServerConfig) {
     display_mcp_endpoints(&host, config.http_port);
     display_auth_endpoints(&host, config.http_port);
     display_oauth2_endpoints(&host, config.http_port);
+    display_oauth_callback_urls(&host, config);
     display_admin_endpoints(&host, config.http_port);
     display_api_key_endpoints(&host, config.http_port);
     display_tenant_endpoints(&host, config.http_port);
@@ -238,6 +239,27 @@ fn display_oauth2_endpoints(host: &str, port: u16) {
         ],
     };
     display_endpoint_category(&category, host, port);
+}
+
+fn display_oauth_callback_urls(_host: &str, config: &ServerConfig) {
+    let endpoints = [
+        "OAuth Callback URLs (MCP Bridge):",
+        &format!(
+            "   Bridge Callback:   http://localhost:{}/oauth/callback",
+            config.oauth_callback_port
+        ),
+        &format!(
+            "   Focus Recovery:    http://localhost:{}/oauth/focus-recovery",
+            config.oauth_callback_port
+        ),
+        &format!(
+            "   Provider Callback: http://localhost:{}/oauth/provider-callback/{{provider}}",
+            config.oauth_callback_port
+        ),
+    ];
+    for line in &endpoints {
+        info!("{}", line);
+    }
 }
 
 fn display_admin_endpoints(host: &str, port: u16) {

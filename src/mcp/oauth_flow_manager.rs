@@ -245,6 +245,7 @@ impl OAuthTemplateRenderer {
     pub fn render_success_template(
         provider: &str,
         callback_response: &crate::routes::OAuthCallbackResponse,
+        oauth_callback_port: u16,
     ) -> Result<String, Box<dyn std::error::Error>> {
         let template = format!(
             r#"
@@ -266,7 +267,7 @@ impl OAuthTemplateRenderer {
         async function focusClaudeDesktop() {{
             try {{
                 // Try to trigger focus recovery via bridge communication
-                await fetch('http://localhost:35535/oauth/focus-recovery', {{
+                await fetch('http://localhost:{}/oauth/focus-recovery', {{
                     method: 'POST',
                     headers: {{ 'Content-Type': 'application/json' }},
                     body: JSON.stringify({{ action: 'focus_claude_desktop' }})
@@ -302,7 +303,7 @@ impl OAuthTemplateRenderer {
 </body>
 </html>
 "#,
-            provider, provider, callback_response.user_id
+            provider, oauth_callback_port, provider, callback_response.user_id
         );
 
         Ok(template)

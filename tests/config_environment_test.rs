@@ -77,6 +77,7 @@ fn test_config_validation() {
     // Test valid configuration with single-port architecture
     let config = ServerConfig {
         http_port: 3000, // Single unified port for all protocols
+        oauth_callback_port: 35535,
         log_level: LogLevel::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::SQLite {

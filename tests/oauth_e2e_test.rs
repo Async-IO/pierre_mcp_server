@@ -189,6 +189,7 @@ async fn test_oauth_flow_through_mcp() {
     // Create test config
     let config = std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
         http_port: 4000,
+        oauth_callback_port: 35535,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
@@ -409,6 +410,7 @@ async fn test_oauth_callback_error_handling() {
     let temp_dir = tempfile::tempdir().unwrap();
     let config = std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
         http_port: 8081,
+        oauth_callback_port: 35535,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
@@ -595,6 +597,7 @@ async fn test_oauth_state_csrf_protection() {
     let temp_dir = tempfile::tempdir().unwrap();
     let config = std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
         http_port: 8081,
+        oauth_callback_port: 35535,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
@@ -727,6 +730,7 @@ async fn test_connection_status_tracking() {
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(ServerConfig {
         http_port: 8081,
+        oauth_callback_port: 35535,
         log_level: LogLevel::Info,
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,

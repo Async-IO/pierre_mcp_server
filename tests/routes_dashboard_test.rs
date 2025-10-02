@@ -195,6 +195,7 @@ impl DashboardTestSetup {
         let temp_dir = tempfile::tempdir()?;
         let config = Arc::new(pierre_mcp_server::config::environment::ServerConfig {
             http_port: 8081,
+            oauth_callback_port: 35535,
             log_level: pierre_mcp_server::config::environment::LogLevel::Info,
             database: pierre_mcp_server::config::environment::DatabaseConfig {
                 url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
@@ -481,6 +482,7 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
     let temp_dir = tempfile::tempdir().unwrap();
     let config = Arc::new(pierre_mcp_server::config::environment::ServerConfig {
         http_port: 8081,
+        oauth_callback_port: 35535,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,

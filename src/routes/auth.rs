@@ -322,6 +322,12 @@ impl OAuthService {
         }
     }
 
+    /// Get configuration context
+    #[must_use]
+    pub const fn config(&self) -> &ConfigContext {
+        &self.config
+    }
+
     /// Handle OAuth callback
     ///
     /// # Errors
@@ -929,9 +935,12 @@ impl AuthRoutes {
 
         match oauth_routes.handle_callback(code, state, &provider).await {
             Ok(response) => {
+                let oauth_callback_port = server_context.config().config().oauth_callback_port;
                 let html =
                     crate::mcp::oauth_flow_manager::OAuthTemplateRenderer::render_success_template(
-                        &provider, &response,
+                        &provider,
+                        &response,
+                        oauth_callback_port,
                     )
                     .map_err(|e| {
                         tracing::error!("Failed to render OAuth success template: {}", e);
