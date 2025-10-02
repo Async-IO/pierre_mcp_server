@@ -191,14 +191,25 @@ fi
 # Set PYTHONPATH to include validator directory for module imports
 export PYTHONPATH="$MCP_VALIDATOR_DIR"
 
-if $PYTHON_CMD -m mcp_testing.scripts.compliance_report \
+# Run validator with 5-minute timeout and verbose output
+echo -e "${BLUE}     Testing bridge: node $BRIDGE_PATH${NC}"
+echo -e "${BLUE}     Protocol version: 2025-06-18${NC}"
+echo -e "${BLUE}     Timeout: 300 seconds${NC}"
+
+if timeout 300 $PYTHON_CMD -m mcp_testing.scripts.compliance_report \
     --server-command "node $BRIDGE_PATH" \
     --protocol-version 2025-06-18 \
-    --test-timeout 30; then
+    --test-timeout 30 \
+    --verbose; then
     echo -e "${GREEN}[OK] MCP spec compliance tests passed${NC}"
     cd - >/dev/null
 else
-    echo -e "${RED}[FAIL] MCP spec compliance tests failed${NC}"
+    EXIT_CODE=$?
+    if [ $EXIT_CODE -eq 124 ]; then
+        echo -e "${RED}[FAIL] MCP compliance tests timed out after 5 minutes${NC}"
+    else
+        echo -e "${RED}[FAIL] MCP spec compliance tests failed (exit code: $EXIT_CODE)${NC}"
+    fi
     echo -e "${RED}       Bridge implementation does not meet MCP protocol requirements${NC}"
     cd - >/dev/null
     COMPLIANCE_PASSED=false
