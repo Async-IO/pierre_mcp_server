@@ -62,6 +62,24 @@ command_exists() {
 # Track overall success
 ALL_PASSED=true
 
+# Track Pierre MCP server PID if we start it
+MCP_SERVER_PID=""
+
+# Cleanup function - shut down server if we started it
+cleanup_mcp_server() {
+    if [ -n "$MCP_SERVER_PID" ]; then
+        echo ""
+        echo -e "${BLUE}==== Shutting down Pierre MCP server (PID: $MCP_SERVER_PID)... ====${NC}"
+        kill "$MCP_SERVER_PID" 2>/dev/null || true
+        wait "$MCP_SERVER_PID" 2>/dev/null || true
+        echo -e "${GREEN}[OK] Pierre MCP server stopped${NC}"
+        MCP_SERVER_PID=""
+    fi
+}
+
+# Register cleanup function to run on exit
+trap cleanup_mcp_server EXIT INT TERM
+
 echo ""
 echo -e "${BLUE}==== Rust Backend Checks ====${NC}"
 
@@ -630,9 +648,67 @@ if [ -d "sdk" ]; then
 
             # Check if Pierre MCP server is running (required for bridge testing)
             echo -e "${BLUE}==== Checking if Pierre MCP server is accessible... ====${NC}"
+            SERVER_ALREADY_RUNNING=false
             if curl -s -f -m 2 http://localhost:8080/health >/dev/null 2>&1; then
-                echo -e "${GREEN}[OK] Pierre MCP server is running${NC}"
+                echo -e "${GREEN}[OK] Pierre MCP server is already running${NC}"
+                SERVER_ALREADY_RUNNING=true
+            else
+                echo -e "${YELLOW}[INFO] Pierre MCP server not running - starting it automatically...${NC}"
 
+                # Start Pierre MCP server in background
+                echo -e "${BLUE}==== Starting Pierre MCP server for testing... ====${NC}"
+
+                # Check if we have a debug or release binary already
+                SERVER_BINARY=""
+                if [ -f "target/release/pierre-mcp-server" ]; then
+                    SERVER_BINARY="target/release/pierre-mcp-server"
+                    echo -e "${GREEN}[OK] Using existing release binary${NC}"
+                elif [ -f "target/debug/pierre-mcp-server" ]; then
+                    SERVER_BINARY="target/debug/pierre-mcp-server"
+                    echo -e "${GREEN}[OK] Using existing debug binary${NC}"
+                else
+                    echo -e "${BLUE}Building pierre-mcp-server (this may take a moment)...${NC}"
+                    if cargo build --bin pierre-mcp-server --quiet 2>&1; then
+                        SERVER_BINARY="target/debug/pierre-mcp-server"
+                        echo -e "${GREEN}[OK] Binary built successfully${NC}"
+                    else
+                        echo -e "${RED}[FAIL] Failed to build pierre-mcp-server${NC}"
+                        ALL_PASSED=false
+                    fi
+                fi
+
+                if [ "$ALL_PASSED" = true ] && [ -n "$SERVER_BINARY" ]; then
+                    # Start server with minimal environment (using CI test key)
+                    HTTP_PORT=8080 \
+                    DATABASE_URL=sqlite::memory: \
+                    PIERRE_MASTER_ENCRYPTION_KEY=rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo= \
+                    "$SERVER_BINARY" >/dev/null 2>&1 &
+                    MCP_SERVER_PID=$!
+
+                    echo -e "${GREEN}[OK] Pierre MCP server started (PID: $MCP_SERVER_PID)${NC}"
+
+                    # Wait for server to be ready (health check)
+                    echo -e "${BLUE}==== Waiting for Pierre MCP server to be ready... ====${NC}"
+                    MAX_WAIT=30
+                    WAIT_COUNT=0
+                    while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
+                        if curl -s -f -m 2 http://localhost:8080/health >/dev/null 2>&1; then
+                            echo -e "${GREEN}[OK] Pierre MCP server is ready (took ${WAIT_COUNT}s)${NC}"
+                            break
+                        fi
+                        sleep 1
+                        WAIT_COUNT=$((WAIT_COUNT + 1))
+                    done
+
+                    if [ $WAIT_COUNT -ge $MAX_WAIT ]; then
+                        echo -e "${RED}[FAIL] Pierre MCP server failed to become ready after ${MAX_WAIT}s${NC}"
+                        ALL_PASSED=false
+                    fi
+                fi
+            fi
+
+            # Run MCP compliance tests if server is ready
+            if [ "$ALL_PASSED" = true ]; then
                 # Run MCP compliance tests (REQUIRED - NO EXCEPTIONS POLICY)
                 echo -e "${BLUE}==== Running MCP protocol compliance tests (REQUIRED)... ====${NC}"
                 BRIDGE_PATH="$(pwd)/dist/cli.js"
@@ -659,10 +735,6 @@ if [ -d "sdk" ]; then
                     cd - >/dev/null
                     ALL_PASSED=false
                 fi
-            else
-                echo -e "${YELLOW}[SKIP] Pierre MCP server not running - cannot test bridge${NC}"
-                echo -e "${YELLOW}       Start server with: cargo run --bin pierre-mcp-server${NC}"
-                echo -e "${YELLOW}       Then re-run tests to validate MCP protocol compliance${NC}"
             fi
         else
             echo -e "${RED}[FAIL] Bridge build failed${NC}"
