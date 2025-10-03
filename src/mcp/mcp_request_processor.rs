@@ -14,6 +14,7 @@ use super::{
 use crate::constants::errors::{ERROR_INTERNAL_ERROR, ERROR_METHOD_NOT_FOUND};
 use crate::constants::protocol::JSONRPC_VERSION;
 use anyhow::Result;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, error, warn};
 
@@ -55,7 +56,7 @@ impl McpRequestProcessor {
                 error!("Full error details: {:#}", e);
                 McpResponse {
                     jsonrpc: JSONRPC_VERSION.to_string(),
-                    id: request.id.clone().unwrap_or(serde_json::Value::Null),
+                    id: request.id.clone(),
                     result: None,
                     error: Some(McpError {
                         code: ERROR_INTERNAL_ERROR,
@@ -131,7 +132,7 @@ impl McpRequestProcessor {
 
         McpResponse {
             jsonrpc: JSONRPC_VERSION.to_string(),
-            id: request.id.clone().unwrap_or(serde_json::Value::Null),
+            id: request.id.clone(),
             result: Some(server_info),
             error: None,
         }
@@ -143,7 +144,7 @@ impl McpRequestProcessor {
 
         McpResponse {
             jsonrpc: JSONRPC_VERSION.to_string(),
-            id: request.id.clone().unwrap_or(serde_json::Value::Null),
+            id: request.id.clone(),
             result: Some(serde_json::json!({})),
             error: None,
         }
@@ -156,7 +157,7 @@ impl McpRequestProcessor {
         // Always return authentication parameter error for authenticate method
         McpResponse {
             jsonrpc: JSONRPC_VERSION.to_string(),
-            id: request.id.clone().unwrap_or(serde_json::Value::Null),
+            id: request.id.clone(),
             result: None,
             error: Some(McpError {
                 code: -32602, // Invalid params
@@ -175,7 +176,7 @@ impl McpRequestProcessor {
 
         McpResponse {
             jsonrpc: JSONRPC_VERSION.to_string(),
-            id: request.id.clone().unwrap_or(serde_json::Value::Null),
+            id: request.id.clone(),
             result: Some(serde_json::json!({ "tools": tools })),
             error: None,
         }
@@ -198,6 +199,7 @@ impl McpRequestProcessor {
             id: request.id.clone(),
             auth_token: request.auth_token.clone(),
             headers: request.headers.clone(),
+            metadata: HashMap::new(),
         };
         let response =
             ToolHandlers::handle_tools_call_with_resources(handler_request, &self.resources).await;
@@ -211,7 +213,7 @@ impl McpRequestProcessor {
         // Return empty resources list for now
         McpResponse {
             jsonrpc: JSONRPC_VERSION.to_string(),
-            id: request.id.clone().unwrap_or(serde_json::Value::Null),
+            id: request.id.clone(),
             result: Some(serde_json::json!({ "resources": [] })),
             error: None,
         }
@@ -224,7 +226,7 @@ impl McpRequestProcessor {
         // Return empty prompts list for now
         McpResponse {
             jsonrpc: JSONRPC_VERSION.to_string(),
-            id: request.id.clone().unwrap_or(serde_json::Value::Null),
+            id: request.id.clone(),
             result: Some(serde_json::json!({ "prompts": [] })),
             error: None,
         }
@@ -236,7 +238,7 @@ impl McpRequestProcessor {
 
         McpResponse {
             jsonrpc: JSONRPC_VERSION.to_string(),
-            id: request.id.clone().unwrap_or(serde_json::Value::Null),
+            id: request.id.clone(),
             result: None,
             error: Some(McpError {
                 code: ERROR_METHOD_NOT_FOUND,

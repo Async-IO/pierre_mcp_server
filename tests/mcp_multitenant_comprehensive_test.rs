@@ -75,6 +75,7 @@ async fn test_mcp_initialize_request() -> Result<()> {
         id: Some(json!(1)),
         auth_token: None,
         headers: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let _response = MultiTenantMcpServer::handle_request(request, &resources).await;
@@ -95,6 +96,7 @@ async fn test_mcp_ping_request() -> Result<()> {
         id: Some(json!(2)),
         auth_token: None,
         headers: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let _response = MultiTenantMcpServer::handle_request(request, &resources).await;
@@ -115,6 +117,7 @@ async fn test_mcp_tools_list_request() -> Result<()> {
         id: Some(json!(3)),
         auth_token: None,
         headers: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let _response = MultiTenantMcpServer::handle_request(request, &resources).await;
@@ -146,6 +149,7 @@ async fn test_mcp_authenticate_request() -> Result<()> {
         id: Some(json!(4)),
         auth_token: None,
         headers: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let _response = MultiTenantMcpServer::handle_request(request, &resources).await;
@@ -166,6 +170,7 @@ async fn test_unknown_method_handling() -> Result<()> {
         id: Some(json!(5)),
         auth_token: None,
         headers: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let response = MultiTenantMcpServer::handle_request(request, &resources).await;
@@ -194,6 +199,7 @@ async fn test_authenticate_method_with_invalid_params() -> Result<()> {
         id: Some(json!(6)),
         auth_token: None,
         headers: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let response = MultiTenantMcpServer::handle_request(request, &resources).await;
@@ -227,6 +233,7 @@ async fn test_tools_call_without_authentication() -> Result<()> {
         id: Some(json!(7)),
         auth_token: None,
         headers: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let response = MultiTenantMcpServer::handle_request(request, &resources).await;
@@ -255,6 +262,7 @@ async fn test_tools_call_with_invalid_token() -> Result<()> {
         id: Some(json!(8)),
         auth_token: Some("Bearer invalid_token_123".to_string()),
         headers: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let response = MultiTenantMcpServer::handle_request(request, &resources).await;
@@ -283,6 +291,7 @@ async fn test_tools_call_with_valid_authentication() -> Result<()> {
         id: Some(json!(9)),
         auth_token: Some(format!("Bearer {token}")),
         headers: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let _response = MultiTenantMcpServer::handle_request(request, &resources).await;
@@ -307,6 +316,7 @@ async fn test_tools_call_with_missing_params() -> Result<()> {
         id: Some(json!(10)),
         auth_token: Some(format!("Bearer {token}")),
         headers: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let response = MultiTenantMcpServer::handle_request(request, &resources).await;
@@ -336,6 +346,7 @@ async fn test_connect_strava_tool() -> Result<()> {
         id: Some(json!(11)),
         auth_token: Some(format!("Bearer {token}")),
         headers: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let _response = MultiTenantMcpServer::handle_request(request, &resources).await;
@@ -362,6 +373,7 @@ async fn test_connect_fitbit_tool() -> Result<()> {
         id: Some(json!(12)),
         auth_token: Some(format!("Bearer {token}")),
         headers: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let _response = MultiTenantMcpServer::handle_request(request, &resources).await;
@@ -388,6 +400,7 @@ async fn test_get_connection_status_tool() -> Result<()> {
         id: Some(json!(13)),
         auth_token: Some(format!("Bearer {token}")),
         headers: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let _response = MultiTenantMcpServer::handle_request(request, &resources).await;
@@ -416,6 +429,7 @@ async fn test_disconnect_provider_tool() -> Result<()> {
         id: Some(json!(14)),
         auth_token: Some(format!("Bearer {token}")),
         headers: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let _response = MultiTenantMcpServer::handle_request(request, &resources).await;
@@ -454,6 +468,7 @@ async fn test_provider_tools_without_connection() -> Result<()> {
             id: Some(json!(15 + i)),
             auth_token: Some(format!("Bearer {token}")),
             headers: None,
+            metadata: std::collections::HashMap::new(),
         };
 
         let _provider_registry = create_mock_provider_registry();
@@ -496,6 +511,7 @@ async fn test_intelligence_tools() -> Result<()> {
             id: Some(json!(20)),
             auth_token: Some(format!("Bearer {token}")),
             headers: None,
+            metadata: std::collections::HashMap::new(),
         };
 
         let _provider_registry = create_mock_provider_registry();
@@ -523,6 +539,7 @@ async fn test_tools_call_with_whitespace_token() -> Result<()> {
         id: Some(json!(21)),
         auth_token: Some("   \t\n  ".to_string()), // Whitespace only
         headers: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let response = MultiTenantMcpServer::handle_request(request, &resources).await;
@@ -548,6 +565,7 @@ async fn test_tools_call_malformed_token() -> Result<()> {
         id: Some(json!(22)),
         auth_token: Some("Bearer malformed.token.here".to_string()),
         headers: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let response = MultiTenantMcpServer::handle_request(request, &resources).await;
@@ -577,6 +595,7 @@ async fn test_handle_authenticated_tool_call_edge_cases() -> Result<()> {
         id: Some(json!(23)),
         auth_token: Some(format!("Bearer {token}")),
         headers: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let response = MultiTenantMcpServer::handle_request(request, &resources).await;
@@ -648,6 +667,7 @@ async fn test_concurrent_requests() -> Result<()> {
                 id: Some(json!(100 + i)),
                 auth_token: Some(format!("Bearer {token}")),
                 headers: None,
+                metadata: std::collections::HashMap::new(),
             };
 
             let _provider_registry = create_mock_provider_registry();

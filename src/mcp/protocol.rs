@@ -115,7 +115,7 @@ impl ProtocolHandler {
             .and_then(|params| serde_json::from_value::<InitializeRequest>(params.clone()).ok())
         else {
             return McpResponse::error(
-                request_id,
+                Some(request_id),
                 ERROR_INVALID_PARAMS,
                 "Invalid initialize request parameters".to_string(),
             );
@@ -130,7 +130,7 @@ impl ProtocolHandler {
             // Return error for unsupported versions
             let supported_versions = Self::SUPPORTED_VERSIONS.join(", ");
             return McpResponse::error(
-                request_id,
+                Some(request_id),
                 ERROR_VERSION_MISMATCH,
                 format!("{MSG_VERSION_MISMATCH}. Client version: {client_version}, Supported versions: {supported_versions}")
             );
@@ -162,11 +162,11 @@ impl ProtocolHandler {
         };
 
         match serde_json::to_value(&init_response) {
-            Ok(result) => McpResponse::success(request_id, result),
+            Ok(result) => McpResponse::success(Some(request_id), result),
             Err(e) => {
                 error!("Failed to serialize initialize response: {}", e);
                 McpResponse::error(
-                    request_id,
+                    Some(request_id),
                     ERROR_SERIALIZATION,
                     format!("{MSG_SERIALIZATION}: {e}"),
                 )
@@ -177,7 +177,7 @@ impl ProtocolHandler {
     /// Handle ping request
     pub fn handle_ping(request: McpRequest) -> McpResponse {
         let request_id = request.id.unwrap_or_else(default_request_id);
-        McpResponse::success(request_id, serde_json::json!({}))
+        McpResponse::success(Some(request_id), serde_json::json!({}))
     }
 
     /// Handle tools list request
@@ -185,13 +185,13 @@ impl ProtocolHandler {
         let tools = get_tools();
 
         let request_id = request.id.unwrap_or_else(default_request_id);
-        McpResponse::success(request_id, serde_json::json!({ "tools": tools }))
+        McpResponse::success(Some(request_id), serde_json::json!({ "tools": tools }))
     }
 
     /// Handle prompts list request
     pub fn handle_prompts_list(request: McpRequest) -> McpResponse {
         let request_id = request.id.unwrap_or_else(default_request_id);
-        McpResponse::success(request_id, serde_json::json!({ "prompts": [] }))
+        McpResponse::success(Some(request_id), serde_json::json!({ "prompts": [] }))
     }
 
     /// Handle resources list request
@@ -229,7 +229,7 @@ impl ProtocolHandler {
         }
 
         McpResponse::success(
-            request_id,
+            Some(request_id),
             serde_json::json!({ "resources": resource_list }),
         )
     }
@@ -250,7 +250,7 @@ impl ProtocolHandler {
                     } else {
                         error!("Invalid user ID in token: {}", claims.sub);
                         return McpResponse::error(
-                            request_id,
+                            Some(request_id),
                             ERROR_INVALID_PARAMS,
                             "Invalid user ID in token".to_string(),
                         );
@@ -259,7 +259,7 @@ impl ProtocolHandler {
                 Err(e) => {
                     error!("Authentication failed: {}", e);
                     return McpResponse::error(
-                        request_id,
+                        Some(request_id),
                         ERROR_INVALID_PARAMS,
                         "Authentication required".to_string(),
                     );
@@ -267,7 +267,7 @@ impl ProtocolHandler {
             }
         } else {
             return McpResponse::error(
-                request_id,
+                Some(request_id),
                 ERROR_INVALID_PARAMS,
                 "Authentication token required".to_string(),
             );
@@ -279,14 +279,14 @@ impl ProtocolHandler {
                 uri_value.as_str().unwrap_or_default()
             } else {
                 return McpResponse::error(
-                    request_id,
+                    Some(request_id),
                     ERROR_INVALID_PARAMS,
                     "Missing uri parameter".to_string(),
                 );
             }
         } else {
             return McpResponse::error(
-                request_id,
+                Some(request_id),
                 ERROR_INVALID_PARAMS,
                 "Missing parameters".to_string(),
             );
@@ -308,12 +308,12 @@ impl ProtocolHandler {
                                 "text": serde_json::to_string_pretty(&notifications).unwrap_or_else(|_| "[]".to_string())
                             }]
                         });
-                        McpResponse::success(request_id, response_data)
+                        McpResponse::success(Some(request_id), response_data)
                     }
                     Err(e) => {
                         error!("Failed to fetch OAuth notifications: {}", e);
                         McpResponse::error(
-                            request_id,
+                            Some(request_id),
                             ERROR_AUTHENTICATION,
                             format!("{MSG_AUTHENTICATION}: Failed to fetch notifications - {e}"),
                         )
@@ -321,7 +321,7 @@ impl ProtocolHandler {
                 }
             }
             _ => McpResponse::error(
-                request_id,
+                Some(request_id),
                 ERROR_METHOD_NOT_FOUND,
                 format!("Unknown resource URI: {uri}"),
             ),
@@ -332,7 +332,7 @@ impl ProtocolHandler {
     pub fn handle_unknown_method(request: McpRequest) -> McpResponse {
         let request_id = request.id.unwrap_or_else(default_request_id);
         McpResponse::error(
-            request_id,
+            Some(request_id),
             ERROR_METHOD_NOT_FOUND,
             format!("Unknown method: {}", request.method),
         )
@@ -350,7 +350,7 @@ impl ProtocolHandler {
                 Some(req) => req,
                 None => {
                     return McpResponse::error(
-                        request_id,
+                        Some(request_id),
                         ERROR_INVALID_PARAMS,
                         "Invalid authentication parameters".to_string(),
                     );
@@ -360,7 +360,10 @@ impl ProtocolHandler {
         let auth_response = auth_manager.authenticate(&auth_request);
         if auth_response.authenticated {
             info!("MCP authentication successful");
-            McpResponse::success(request_id, serde_json::json!({ "authenticated": true }))
+            McpResponse::success(
+                Some(request_id),
+                serde_json::json!({ "authenticated": true }),
+            )
         } else {
             let error_msg = auth_response
                 .error
@@ -368,7 +371,7 @@ impl ProtocolHandler {
                 .unwrap_or("Authentication failed");
             info!("MCP authentication failed: {}", error_msg);
             McpResponse::error(
-                request_id,
+                Some(request_id),
                 ERROR_INVALID_PARAMS,
                 format!("Authentication failed: {error_msg}"),
             )
@@ -385,7 +388,7 @@ impl ProtocolHandler {
         // Extract auth token from request
         let auth_token = request.auth_token.as_deref().ok_or_else(|| {
             Box::new(McpResponse::error(
-                request_id.clone(),
+                Some(request_id.clone()),
                 ERROR_AUTHENTICATION,
                 "Authentication token required for OAuth credential storage".to_string(),
             ))
@@ -396,7 +399,7 @@ impl ProtocolHandler {
             Ok(claims) => uuid::Uuid::parse_str(&claims.sub).map_or_else(
                 |_| {
                     Err(Box::new(McpResponse::error(
-                        request_id.clone(),
+                        Some(request_id.clone()),
                         ERROR_AUTHENTICATION,
                         "Invalid user ID in authentication token".to_string(),
                     )))
@@ -404,7 +407,7 @@ impl ProtocolHandler {
                 Ok,
             ),
             Err(_) => Err(Box::new(McpResponse::error(
-                request_id,
+                Some(request_id),
                 ERROR_AUTHENTICATION,
                 "Invalid authentication token".to_string(),
             ))),

@@ -90,7 +90,8 @@ impl McpProtocolStream {
     /// - JSON serialization fails
     /// - Sending the error event fails
     pub async fn send_error(&self, error_message: &str) -> Result<()> {
-        let error_response = McpResponse::error(Value::Null, -32603, error_message.to_string());
+        let error_response =
+            McpResponse::error(Some(Value::Null), -32603, error_message.to_string());
 
         let sender_guard = self.sender.read().await;
 

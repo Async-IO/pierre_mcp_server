@@ -118,6 +118,7 @@ impl MockMcpHandler {
             id: Some(json!(1)),
             auth_token: Some(format!("Bearer {}", self.test_jwt_token)),
             headers: Some(std::collections::HashMap::new()),
+            metadata: std::collections::HashMap::new(),
         };
 
         // Use the actual ToolHandlers implementation

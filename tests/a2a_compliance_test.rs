@@ -25,6 +25,8 @@ async fn test_jsonrpc_2_0_compliance() {
         params: None,
         id: Some(json!(1)),
         auth_token: None,
+        headers: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let _response = server.handle_request(request).await;
@@ -54,6 +56,8 @@ async fn test_required_methods_implemented() {
             params: None,
             id: Some(json!(1)),
             auth_token: None,
+            headers: None,
+            metadata: std::collections::HashMap::new(),
         };
 
         let response = server.handle_request(request).await;
@@ -76,6 +80,8 @@ async fn test_error_code_compliance() {
         params: None,
         id: Some(json!(1)),
         auth_token: None,
+        headers: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let response = server.handle_request(request).await;
@@ -145,6 +151,8 @@ async fn test_task_management_compliance() {
         params: Some(json!({"task_type": "example"})),
         id: Some(json!(1)),
         auth_token: None,
+        headers: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let response = server.handle_request(request).await;
@@ -169,6 +177,8 @@ async fn test_tools_schema_compliance() {
         params: None,
         id: Some(json!(1)),
         auth_token: None,
+        headers: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let response = server.handle_request(request).await;
@@ -196,6 +206,8 @@ async fn test_streaming_requirements() {
         params: Some(json!({"stream_id": "test"})),
         id: Some(json!(1)),
         auth_token: None,
+        headers: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let response = server.handle_request(request).await;
@@ -247,6 +259,8 @@ async fn test_id_preservation() {
             params: None,
             id: Some(test_id.clone()),
             auth_token: None,
+            headers: None,
+            metadata: std::collections::HashMap::new(),
         };
 
         let response = server.handle_request(request).await;
@@ -270,6 +284,8 @@ async fn test_parameter_validation() {
         })),
         id: Some(json!(1)),
         auth_token: None,
+        headers: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let response = server.handle_request(request).await;
@@ -292,6 +308,8 @@ async fn test_task_cancellation() {
         params: Some(json!({"task_id": "test-task-123"})),
         id: Some(json!(1)),
         auth_token: None,
+        headers: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let response = server.handle_request(request).await;
@@ -320,6 +338,8 @@ async fn test_push_notification_config() {
         params: Some(json!({"config": config})),
         id: Some(json!(1)),
         auth_token: None,
+        headers: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let response = server.handle_request(request).await;

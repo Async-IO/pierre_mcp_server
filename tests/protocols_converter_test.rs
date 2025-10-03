@@ -20,6 +20,8 @@ fn test_a2a_to_universal_conversion() {
         })),
         id: Some(Value::Number(1.into())),
         auth_token: None,
+        headers: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let universal = ProtocolConverter::a2a_to_universal(&a2a_request, "test_user").unwrap();

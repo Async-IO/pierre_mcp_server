@@ -51,7 +51,7 @@ use crate::utils::json_responses::{api_error, invalid_format_error, oauth_error}
 
 use anyhow::Result;
 use chrono::Utc;
-use serde::{Deserialize, Serialize};
+
 use serde_json::Value;
 use std::fmt::Write;
 use std::str::FromStr;
@@ -2010,7 +2010,7 @@ impl MultiTenantMcpServer {
 
                         // Create and log the error response we're about to send
                         let error_response = McpResponse::error(
-                            default_request_id(),
+                            Some(default_request_id()),
                             -32600,
                             "Invalid request".to_string(),
                         );
@@ -2192,7 +2192,7 @@ impl MultiTenantMcpServer {
                     message: format!("Tool '{tool_name}' requires tenant context - use tenant-aware MCP endpoints"),
                     data: None,
                 }),
-                id: request_id,
+                id: Some(request_id),
             }
         }
     }
@@ -2258,7 +2258,7 @@ impl MultiTenantMcpServer {
                     jsonrpc: JSONRPC_VERSION.to_string(),
                     result: Some(response),
                     error: None,
-                    id,
+                    id: Some(id),
                 }
             }
             Err(e) => McpResponse {
@@ -2269,7 +2269,7 @@ impl MultiTenantMcpServer {
                     message: format!("Failed to disconnect provider: {e}"),
                     data: None,
                 }),
-                id,
+                id: Some(id),
             },
         }
     }
@@ -2294,7 +2294,7 @@ impl MultiTenantMcpServer {
                         message: "Provider required".into(),
                         data: None,
                     }),
-                    id,
+                    id: Some(id),
                 };
             }
             _ => {
@@ -2306,7 +2306,7 @@ impl MultiTenantMcpServer {
                         message: format!("Unknown tool: {tool_name}"),
                         data: None,
                     }),
-                    id,
+                    id: Some(id),
                 };
             }
         };
@@ -2316,7 +2316,7 @@ impl MultiTenantMcpServer {
                 jsonrpc: JSONRPC_VERSION.to_string(),
                 result: Some(response),
                 error: None,
-                id,
+                id: Some(id),
             },
             Err(error_response) => error_response,
         }
@@ -2350,7 +2350,7 @@ impl MultiTenantMcpServer {
                     message: format!("Failed to create goal: {e}"),
                     data: None,
                 }),
-                id: id.clone(),
+                id: Some(id.clone()),
             }),
         }
     }
@@ -2375,7 +2375,7 @@ impl MultiTenantMcpServer {
                             message: format!("Goal with ID '{goal_id}' not found"),
                             data: None,
                         }),
-                        id: id.clone(),
+                        id: Some(id.clone()),
                     })
                 },
                 |goal| {
@@ -2402,7 +2402,7 @@ impl MultiTenantMcpServer {
                     message: format!("Failed to get goals: {e}"),
                     data: None,
                 }),
-                id: id.clone(),
+                id: Some(id.clone()),
             }),
         }
     }
@@ -2580,7 +2580,7 @@ impl MultiTenantMcpServer {
                 "isError": false
             })),
             error: None,
-            id: request_id,
+            id: Some(request_id),
         }
     }
 
@@ -2805,7 +2805,7 @@ impl MultiTenantMcpServer {
                 "success": true
             })),
             error: None,
-            id: request_id,
+            id: Some(request_id),
         }
     }
 
@@ -2832,7 +2832,7 @@ impl MultiTenantMcpServer {
                 message: error_msg,
                 data: None,
             }),
-            id: request_id,
+            id: Some(request_id),
         }
     }
 
@@ -2881,7 +2881,7 @@ impl MultiTenantMcpServer {
                     message: format!("Unknown tool: {tool_name}"),
                     data: None,
                 }),
-                id: request_id,
+                id: Some(request_id),
             };
         }
 
@@ -2920,7 +2920,7 @@ impl MultiTenantMcpServer {
                         jsonrpc: JSONRPC_VERSION.to_string(),
                         result: Some(result_value),
                         error: None,
-                        id: request_id,
+                        id: Some(request_id),
                     },
                     Err(e) => Self::create_tool_error_response(
                         tool_name,
@@ -2940,97 +2940,10 @@ impl MultiTenantMcpServer {
     }
 }
 
-/// MCP request with optional authentication token and headers
-#[derive(Debug, Clone, Deserialize)]
-pub struct McpRequest {
-    pub jsonrpc: String,
-    pub method: String,
-    pub params: Option<Value>,
-    /// Optional ID - notifications don't have IDs, only regular requests do
-    pub id: Option<Value>,
-    /// Authorization header value (Bearer token)
-    #[serde(rename = "auth")]
-    pub auth_token: Option<String>,
-    /// Optional HTTP headers for tenant context and other metadata
-    #[serde(default)]
-    pub headers: Option<std::collections::HashMap<String, Value>>,
-}
-
-/// MCP response
-#[derive(Debug, Serialize)]
-pub struct McpResponse {
-    pub jsonrpc: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub result: Option<Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<McpError>,
-    pub id: Value,
-}
-
-/// MCP error
-#[derive(Debug, Serialize)]
-pub struct McpError {
-    pub code: i32,
-    pub message: String,
-    pub data: Option<Value>,
-}
-
-impl McpError {
-    /// Create a new MCP error
-    #[must_use]
-    pub const fn new(code: i32, message: String) -> Self {
-        Self {
-            code,
-            message,
-            data: None,
-        }
-    }
-
-    /// Create a new MCP error with data
-    #[must_use]
-    pub const fn new_with_data(code: i32, message: String, data: Value) -> Self {
-        Self {
-            code,
-            message,
-            data: Some(data),
-        }
-    }
-}
-
-impl McpResponse {
-    /// Create a successful MCP response
-    #[must_use]
-    pub fn success(id: Value, result: Value) -> Self {
-        Self {
-            jsonrpc: JSONRPC_VERSION.to_string(),
-            result: Some(result),
-            error: None,
-            id,
-        }
-    }
-
-    /// Create an error MCP response
-    #[must_use]
-    pub fn error(id: Value, code: i32, message: String) -> Self {
-        Self {
-            jsonrpc: JSONRPC_VERSION.to_string(),
-            result: None,
-            error: Some(McpError::new(code, message)),
-            id,
-        }
-    }
-
-    /// Create an error MCP response with data
-    #[must_use]
-    pub fn error_with_data(id: Value, code: i32, message: String, data: Value) -> Self {
-        Self {
-            jsonrpc: JSONRPC_VERSION.to_string(),
-            result: None,
-            error: Some(McpError::new_with_data(code, message, data)),
-            id,
-        }
-    }
-}
+// Phase 2: Type aliases pointing to unified JSON-RPC foundation
+pub type McpRequest = crate::jsonrpc::JsonRpcRequest;
+pub type McpResponse = crate::jsonrpc::JsonRpcResponse;
+pub type McpError = crate::jsonrpc::JsonRpcError;
 
 /// HTTP API error wrapper
 #[derive(Debug)]
