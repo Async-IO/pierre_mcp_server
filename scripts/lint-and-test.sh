@@ -947,6 +947,20 @@ else
     echo -e "${YELLOW}[WARN] MCP compliance script not found - skipping${NC}"
 fi
 
+# Bridge Test Suite Validation
+echo ""
+echo -e "${BLUE}==== Bridge Test Suite Validation ====${NC}"
+if [ -f "$SCRIPT_DIR/run_bridge_tests.sh" ]; then
+    if "$SCRIPT_DIR/run_bridge_tests.sh"; then
+        echo -e "${GREEN}[OK] Bridge test suite passed${NC}"
+    else
+        echo -e "${RED}[FAIL] Bridge test suite failed${NC}"
+        ALL_PASSED=false
+    fi
+else
+    echo -e "${YELLOW}[WARN] Bridge test script not found - skipping${NC}"
+fi
+
 # Summary
 echo ""
 echo -e "${BLUE}==== Dev Standards Compliance Summary ====${NC}"
