@@ -83,19 +83,6 @@ trap cleanup_mcp_server EXIT INT TERM
 echo ""
 echo -e "${BLUE}==== Rust Backend Checks ====${NC}"
 
-# CRITICAL: Check for null UUID pattern (fast-fail before any other checks)
-echo -e "${BLUE}==== Checking for null UUID pattern (FAST FAIL)... ====${NC}"
-NULL_UUIDS=$(rg "00000000-0000-0000-0000-000000000000" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-if [ "$NULL_UUIDS" -gt 0 ]; then
-    echo -e "${RED}[CRITICAL] Found $NULL_UUIDS occurrences of null UUID (00000000-0000-0000-0000-000000000000)${NC}"
-    echo -e "${RED}           Null UUIDs indicate placeholder or test code that should not be in production${NC}"
-    echo -e "${YELLOW}   Locations of null UUIDs:${NC}"
-    rg "00000000-0000-0000-0000-000000000000" src/ -n
-    echo -e "${RED}FAST FAIL: Replace null UUIDs with proper UUID generation or remove test code${NC}"
-    exit 1
-fi
-echo -e "${GREEN}[OK] No null UUID patterns found${NC}"
-
 # Auto-format Rust code
 echo -e "${BLUE}==== Auto-formatting Rust code... ====${NC}"
 cargo fmt --all
@@ -150,6 +137,9 @@ fail_validation() {
 
 # Collect all metrics silently without verbose output
 echo -e "${BLUE}Analyzing codebase architecture and quality patterns...${NC}"
+
+# Critical Pattern: Null UUID detection (fast-fail)
+NULL_UUIDS=$(rg "00000000-0000-0000-0000-000000000000" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 
 # Memory Management Analysis (will use TOML patterns below)
 TOTAL_CLONES=$(rg "\.clone\(\)" src/ | grep -v 'src/bin/' | wc -l 2>/dev/null || echo 0)
@@ -342,6 +332,17 @@ format_status() {
 # Create clean ASCII table with proper formatting
 echo "┌─────────────────────────────────────┬───────┬──────────┬─────────────────────────────────────────┐"
 echo "│ Validation Category                 │ Count │ Status   │ Details / First Location                │"
+echo "├─────────────────────────────────────┼───────┼──────────┼─────────────────────────────────────────┤"
+
+# Critical Fast-Fail Checks
+printf "│ %-35s │ %5d │ " "Null UUIDs (00000000-...)" "$NULL_UUIDS"
+if [ "$NULL_UUIDS" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "No placeholder UUIDs"
+else
+    FIRST_NULL_UUID=$(get_first_location 'rg "00000000-0000-0000-0000-000000000000" src/ -n')
+    printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_NULL_UUID"
+fi
+
 echo "├─────────────────────────────────────┼───────┼──────────┼─────────────────────────────────────────┤"
 
 # Anti-Pattern Detection
@@ -590,9 +591,23 @@ fi
 
 echo "└─────────────────────────────────────┴───────┴──────────┴─────────────────────────────────────────┘"
 
+# Critical Fast-Fail: Null UUIDs (must exit immediately)
+if [ "$NULL_UUIDS" -gt 0 ]; then
+    echo ""
+    echo -e "${RED}❌ CRITICAL ARCHITECTURAL FAILURE: NULL UUIDs DETECTED${NC}"
+    echo -e "${RED}Found $NULL_UUIDS occurrences of null UUID (00000000-0000-0000-0000-000000000000)${NC}"
+    echo -e "${RED}Null UUIDs indicate placeholder or test code that must not be in production${NC}"
+    echo ""
+    echo -e "${YELLOW}Locations of null UUIDs:${NC}"
+    rg "00000000-0000-0000-0000-000000000000" src/ -n
+    echo ""
+    echo -e "${RED}FAST FAIL: Replace null UUIDs with proper UUID generation or remove test code${NC}"
+    exit 1
+fi
+
 # Report comprehensive summary based on actual findings
 # Note: PROBLEMATIC_CLONES not included as they're acceptable in multitenant architecture per CLAUDE.md
-CRITICAL_ISSUES=$((PROBLEMATIC_DB_CLONES + PROBLEMATIC_UNWRAPS + PROBLEMATIC_EXPECTS + PANICS + IGNORED_TESTS + IMPLEMENTATION_PLACEHOLDERS))
+CRITICAL_ISSUES=$((NULL_UUIDS + PROBLEMATIC_DB_CLONES + PROBLEMATIC_UNWRAPS + PROBLEMATIC_EXPECTS + PANICS + IGNORED_TESTS + IMPLEMENTATION_PLACEHOLDERS))
 CRITICAL_ISSUES=$((CRITICAL_ISSUES + TOML_PRODUCTION_HYGIENE + CFG_TEST_IN_SRC + DEAD_CODE))
 
 WARNINGS=$((FAKE_RESOURCES + (OBSOLETE_FUNCTIONS > 1 ? OBSOLETE_FUNCTIONS - 1 : 0)))
