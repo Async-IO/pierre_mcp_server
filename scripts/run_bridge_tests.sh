@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ABOUTME: Run complete bridge test suite (unit, integration, E2E)
-# ABOUTME: Validates bridge functionality from CLI parsing to full Claude Desktop simulation
+# ABOUTME: Validates bridge functionality from CLI parsing to full MCP Client simulation
 
 set -e
 
@@ -53,7 +53,7 @@ else
 fi
 
 echo ""
-echo -e "${BLUE}==== Running E2E Tests (Full Claude Desktop Simulation) ====${NC}"
+echo -e "${BLUE}==== Running E2E Tests (Full MCP Client Simulation) ====${NC}"
 if npm run test:e2e -- --forceExit; then
     echo -e "${GREEN}[OK] E2E tests passed${NC}"
 else

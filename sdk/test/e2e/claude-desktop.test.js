@@ -1,4 +1,4 @@
-// ABOUTME: End-to-end tests simulating Claude Desktop integration
+// ABOUTME: End-to-end tests simulating MCP Client integration
 // ABOUTME: Tests complete workflow: initialize, list tools, handle batch requests
 
 const { ensureServerRunning } = require('../helpers/server');
@@ -6,7 +6,7 @@ const { MockMCPClient } = require('../helpers/mock-client');
 const { MCPMessages, TestConfig } = require('../helpers/fixtures');
 const path = require('path');
 
-describe('E2E: Claude Desktop Bridge Integration', () => {
+describe('E2E: MCP Client Bridge Integration', () => {
   let serverHandle;
   let bridgeClient;
   const bridgePath = path.join(__dirname, '../../dist/cli.js');

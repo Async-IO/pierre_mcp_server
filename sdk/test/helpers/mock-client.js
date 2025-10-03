@@ -1,12 +1,12 @@
 // ABOUTME: Mock MCP client for testing stdio communication
-// ABOUTME: Simulates Claude Desktop client behavior over stdio
+// ABOUTME: Simulates MCP Client behavior over stdio
 
 const { spawn } = require('child_process');
 const { EventEmitter } = require('events');
 
 /**
  * Mock MCP client that communicates via stdio
- * Simulates Claude Desktop client behavior
+ * Simulates MCP Client behavior
  */
 class MockMCPClient extends EventEmitter {
   constructor(command, args = []) {
