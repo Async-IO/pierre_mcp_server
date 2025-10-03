@@ -1,5 +1,5 @@
-// ABOUTME: Integration tests for the JavaScript SDK client library
-// ABOUTME: Tests SDK functionality through HTTP endpoints and validates client behavior
+// ABOUTME: Integration tests for HTTP API endpoints (user management, OAuth, API keys)
+// ABOUTME: Tests complete user workflows through REST API routes
 
 use anyhow::Result;
 use pierre_mcp_server::{

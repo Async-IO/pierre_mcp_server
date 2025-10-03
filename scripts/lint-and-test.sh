@@ -686,12 +686,12 @@ if [ "$ENABLE_COVERAGE" = true ]; then
     fi
 fi
 
-# Run SDK integration tests specifically
-echo -e "${BLUE}==== Running SDK integration tests... ====${NC}"
-if cargo test --test sdk_integration_test --quiet; then
-    echo -e "${GREEN}[OK] SDK integration tests passed${NC}"
+# Run HTTP API integration tests specifically
+echo -e "${BLUE}==== Running HTTP API integration tests... ====${NC}"
+if cargo test --test http_api_integration_test --quiet; then
+    echo -e "${GREEN}[OK] HTTP API integration tests passed${NC}"
 else
-    echo -e "${RED}[FAIL] SDK integration tests failed${NC}"
+    echo -e "${RED}[FAIL] HTTP API integration tests failed${NC}"
     ALL_PASSED=false
 fi
 
