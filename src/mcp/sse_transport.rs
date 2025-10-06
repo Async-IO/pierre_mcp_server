@@ -51,7 +51,7 @@ impl McpSseConnection {
 
         // Convert response to SSE message
         let event_type = match response.id {
-            Value::Null => "notification",
+            Some(Value::Null) | None => "notification",
             _ => "response",
         };
 
@@ -90,7 +90,8 @@ impl McpSseConnection {
     /// # Errors
     /// Returns error if JSON serialization fails or SSE channel is disconnected
     pub fn send_error(&self, error_message: &str) -> Result<()> {
-        let error_response = McpResponse::error(Value::Null, -32603, error_message.to_string());
+        let error_response =
+            McpResponse::error(Some(Value::Null), -32603, error_message.to_string());
 
         let message = SseMessage {
             event_type: "error".to_string(),

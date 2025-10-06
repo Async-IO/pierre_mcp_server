@@ -156,7 +156,7 @@ impl ToolHandlers {
             error!("Missing request parameters in tools/call");
             return McpResponse {
                 jsonrpc: "2.0".to_string(),
-                id: request.id.unwrap_or_else(default_request_id),
+                id: request.id,
                 result: None,
                 error: Some(McpError {
                     code: ERROR_INVALID_PARAMS,
@@ -260,7 +260,7 @@ impl ToolHandlers {
         };
 
         McpResponse::error_with_data(
-            request.id.unwrap_or_else(default_request_id),
+            request.id,
             error_code,
             error_msg.to_string(),
             serde_json::json!({
@@ -286,7 +286,7 @@ impl ToolHandlers {
                 // The actual authentication is handled by the OAuth 2.0 flow configured in the server
                 McpResponse {
                     jsonrpc: JSONRPC_VERSION.to_string(),
-                    id: request_id,
+                    id: Some(request_id),
                     result: Some(json!({
                         "content": [{
                             "type": "text",
@@ -314,7 +314,7 @@ impl ToolHandlers {
                 {
                     return McpResponse {
                         jsonrpc: JSONRPC_VERSION.to_string(),
-                        id: request_id,
+                        id: Some(request_id),
                         result: Some(json!({
                             "content": [{
                                 "type": "text",
@@ -329,7 +329,7 @@ impl ToolHandlers {
                 // Return unified auth flow response
                 McpResponse {
                     jsonrpc: JSONRPC_VERSION.to_string(),
-                    id: request_id,
+                    id: Some(request_id),
                     result: Some(json!({
                         "content": [{
                             "type": "text",
@@ -383,7 +383,7 @@ impl ToolHandlers {
                             .to_string(),
                         data: None,
                     }),
-                    id: request_id,
+                    id: Some(request_id),
                 }
             }
             DISCONNECT_PROVIDER => {
@@ -490,7 +490,7 @@ impl ToolHandlers {
                                     "notification_id": id
                                 })),
                                 error: None,
-                                id: request_id,
+                                id: Some(request_id),
                             }
                         } else {
                             McpResponse {
@@ -501,7 +501,7 @@ impl ToolHandlers {
                                     message: "Notification not found or already read".to_string(),
                                     data: None,
                                 }),
-                                id: request_id,
+                                id: Some(request_id),
                             }
                         }
                     }
@@ -515,7 +515,7 @@ impl ToolHandlers {
                                 message: format!("{MSG_TOOL_EXECUTION}: Failed to mark notification as read - {e}"),
                                 data: None,
                             }),
-                            id: request_id,
+                            id: Some(request_id),
                         }
                     }
                 }
@@ -536,7 +536,7 @@ impl ToolHandlers {
                             "marked_count": count
                         })),
                         error: None,
-                        id: request_id,
+                        id: Some(request_id),
                     },
                     Err(e) => {
                         error!("Failed to mark all notifications as read: {}", e);
@@ -548,7 +548,7 @@ impl ToolHandlers {
                                 message: format!("{MSG_TOOL_EXECUTION}: Failed to mark notifications as read - {e}"),
                                 data: None,
                             }),
-                            id: request_id,
+                            id: Some(request_id),
                         }
                     }
                 }
@@ -622,7 +622,7 @@ impl ToolHandlers {
                     jsonrpc: JSONRPC_VERSION.to_string(),
                     result: Some(response_data),
                     error: None,
-                    id: request_id,
+                    id: Some(request_id),
                 };
                 tracing::debug!(
                     "Full MCP Response: {}",
@@ -643,7 +643,7 @@ impl ToolHandlers {
                         ),
                         data: None,
                     }),
-                    id: request_id,
+                    id: Some(request_id),
                 }
             }
         }
@@ -694,7 +694,7 @@ impl ToolHandlers {
                 "visible_to_user": true
             })),
             error: None,
-            id: request_id,
+            id: Some(request_id),
         }
     }
 
@@ -723,7 +723,7 @@ impl ToolHandlers {
                             "notifications_count": 0
                         })),
                         error: None,
-                        id: request_id,
+                        id: Some(request_id),
                     }
                 } else {
                     // Announce all new notifications
@@ -762,7 +762,7 @@ impl ToolHandlers {
                             "visible_to_user": true
                         })),
                         error: None,
-                        id: request_id,
+                        id: Some(request_id),
                     }
                 }
             }
@@ -778,7 +778,7 @@ impl ToolHandlers {
                         ),
                         data: None,
                     }),
-                    id: request_id,
+                    id: Some(request_id),
                 }
             }
         }
@@ -806,7 +806,7 @@ impl ToolHandlers {
                             message: "User has no tenant assigned".to_string(),
                             data: None,
                         }),
-                        id: request_id,
+                        id: Some(request_id),
                     };
                 }
             },
@@ -819,7 +819,7 @@ impl ToolHandlers {
                         message: "User not found".to_string(),
                         data: None,
                     }),
-                    id: request_id,
+                    id: Some(request_id),
                 };
             }
             Err(e) => {
@@ -832,7 +832,7 @@ impl ToolHandlers {
                         message: "Database error".to_string(),
                         data: None,
                     }),
-                    id: request_id,
+                    id: Some(request_id),
                 };
             }
         };
@@ -885,7 +885,7 @@ impl ToolHandlers {
                     message: "Unknown fitness config tool".to_string(),
                     data: None,
                 }),
-                id: request_id,
+                id: Some(request_id),
             },
         }
     }
@@ -913,7 +913,7 @@ impl ToolHandlers {
                     "configuration": config
                 })),
                 error: None,
-                id: request_id,
+                id: Some(request_id),
             },
             Ok(None) => {
                 // Try tenant-level config
@@ -929,7 +929,7 @@ impl ToolHandlers {
                             "source": "tenant"
                         })),
                         error: None,
-                        id: request_id,
+                        id: Some(request_id),
                     },
                     Ok(None) => McpResponse {
                         jsonrpc: JSONRPC_VERSION.to_string(),
@@ -939,7 +939,7 @@ impl ToolHandlers {
                             message: format!("Configuration '{config_name}' not found"),
                             data: None,
                         }),
-                        id: request_id,
+                        id: Some(request_id),
                     },
                     Err(e) => {
                         error!("Error getting tenant fitness config: {}", e);
@@ -951,7 +951,7 @@ impl ToolHandlers {
                                 message: "Database error".to_string(),
                                 data: None,
                             }),
-                            id: request_id,
+                            id: Some(request_id),
                         }
                     }
                 }
@@ -966,7 +966,7 @@ impl ToolHandlers {
                         message: "Database error".to_string(),
                         data: None,
                     }),
-                    id: request_id,
+                    id: Some(request_id),
                 }
             }
         }
@@ -999,7 +999,7 @@ impl ToolHandlers {
                                 message: format!("Invalid configuration format: {e}"),
                                 data: None,
                             }),
-                            id: request_id,
+                            id: Some(request_id),
                         };
                     }
                 }
@@ -1013,7 +1013,7 @@ impl ToolHandlers {
                         message: "Missing configuration parameter".to_string(),
                         data: None,
                     }),
-                    id: request_id,
+                    id: Some(request_id),
                 };
             }
         };
@@ -1030,7 +1030,7 @@ impl ToolHandlers {
                     "message": "Fitness configuration saved successfully"
                 })),
                 error: None,
-                id: request_id,
+                id: Some(request_id),
             },
             Err(e) => {
                 error!("Error saving fitness config: {}", e);
@@ -1042,7 +1042,7 @@ impl ToolHandlers {
                         message: "Failed to save configuration".to_string(),
                         data: None,
                     }),
-                    id: request_id,
+                    id: Some(request_id),
                 }
             }
         }
@@ -1075,7 +1075,7 @@ impl ToolHandlers {
                 "total_count": all_configs.len()
             })),
             error: None,
-            id: request_id,
+            id: Some(request_id),
         }
     }
 
@@ -1095,7 +1095,7 @@ impl ToolHandlers {
                     message: "Missing configuration_name parameter".to_string(),
                     data: None,
                 }),
-                id: request_id,
+                id: Some(request_id),
             };
         };
 
@@ -1110,7 +1110,7 @@ impl ToolHandlers {
                     "message": "Fitness configuration deleted successfully"
                 })),
                 error: None,
-                id: request_id,
+                id: Some(request_id),
             },
             Ok(false) => McpResponse {
                 jsonrpc: JSONRPC_VERSION.to_string(),
@@ -1120,7 +1120,7 @@ impl ToolHandlers {
                     message: format!("Configuration '{config_name}' not found"),
                     data: None,
                 }),
-                id: request_id,
+                id: Some(request_id),
             },
             Err(e) => {
                 error!("Error deleting fitness config: {}", e);
@@ -1132,7 +1132,7 @@ impl ToolHandlers {
                         message: "Failed to delete configuration".to_string(),
                         data: None,
                     }),
-                    id: request_id,
+                    id: Some(request_id),
                 }
             }
         }

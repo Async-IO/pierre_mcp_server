@@ -39,7 +39,7 @@ pub const JSONRPC_VERSION: &str = "2.0";
 /// JSON-RPC 2.0 Request
 ///
 /// This is the unified request structure used by all protocols.
-/// Protocol-specific extensions (like A2A's `auth_token`) go in metadata.
+/// Protocol-specific extensions (like MCP/A2A's `auth_token`) are included as optional fields.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonRpcRequest {
     /// JSON-RPC version (always "2.0")
@@ -56,8 +56,16 @@ pub struct JsonRpcRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Value>,
 
-    /// Protocol-specific metadata (auth tokens, headers, etc.)
-    /// Not part of JSON-RPC spec, but useful for extensions
+    /// Authorization header value (Bearer token) - MCP/A2A extension
+    #[serde(rename = "auth", skip_serializing_if = "Option::is_none", default)]
+    pub auth_token: Option<String>,
+
+    /// Optional HTTP headers for tenant context and other metadata - MCP extension
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub headers: Option<HashMap<String, Value>>,
+
+    /// Protocol-specific metadata (additional extensions)
+    /// Not part of JSON-RPC spec, but useful for future extensions
     #[serde(skip_serializing_if = "HashMap::is_empty", default)]
     pub metadata: HashMap<String, String>,
 }
@@ -108,6 +116,8 @@ impl JsonRpcRequest {
             method: method.into(),
             params,
             id: Some(Value::Number(1.into())),
+            auth_token: None,
+            headers: None,
             metadata: HashMap::new(),
         }
     }
@@ -120,6 +130,8 @@ impl JsonRpcRequest {
             method: method.into(),
             params,
             id: Some(id),
+            auth_token: None,
+            headers: None,
             metadata: HashMap::new(),
         }
     }
@@ -132,6 +144,8 @@ impl JsonRpcRequest {
             method: method.into(),
             params,
             id: None,
+            auth_token: None,
+            headers: None,
             metadata: HashMap::new(),
         }
     }

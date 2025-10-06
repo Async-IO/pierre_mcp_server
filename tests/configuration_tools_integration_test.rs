@@ -120,6 +120,7 @@ async fn make_tool_request(
         id: Some(json!(1)),
         auth_token: Some(format!("Bearer {token}")),
         headers: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     Ok(MultiTenantMcpServer::handle_request(request, resources)
@@ -235,6 +236,7 @@ async fn test_configuration_tools_require_authentication() -> Result<()> {
         id: Some(json!(1)),
         auth_token: None, // No authentication
         headers: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let response = MultiTenantMcpServer::handle_request(request, &resources).await;
@@ -266,6 +268,7 @@ async fn test_configuration_tools_with_invalid_parameters() -> Result<()> {
         id: Some(json!(1)),
         auth_token: Some(format!("Bearer {token}")),
         headers: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let response = MultiTenantMcpServer::handle_request(request, &resources).await;

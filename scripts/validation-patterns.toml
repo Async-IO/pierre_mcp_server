@@ -278,6 +278,46 @@ legitimate_clone_patterns = [
     "profile\\."
 ]
 
+# Claude Code Anti-Patterns - Patterns that AI code generators commonly create
+# These catch non-idiomatic Rust that looks correct but isn't optimal
+
+# String allocation anti-patterns - unnecessary String where &str would work
+string_allocation_antipatterns = [
+    "String\\) ->",           # Functions taking owned String instead of &str
+    "fn.*\\(.*: String,",     # String parameters (should usually be &str)
+    "\\.to_string\\(\\)\\.as_str\\(\\)",  # Unnecessary round-trip
+    "String::from.*\\.as_str\\(\\)",      # Another round-trip
+    "&.*\\.to_string\\(\\)"   # Taking reference of owned string
+]
+
+# Iterator anti-patterns - manual loops where iterators would be cleaner
+iterator_antipatterns = [
+    "let mut.*vec.*=.*Vec::new\\(\\);\\s*for",  # Mutable vec + manual loop (use collect)
+    "let mut.*count.*=.*0;\\s*for.*\\{\\s*count",  # Manual counting (use .count())
+    "for.*in.*\\{\\s*if.*\\{\\s*return.*\\}\\s*\\}",  # Manual find (use .find())
+]
+
+# Error context anti-patterns - errors without proper context
+error_context_antipatterns = [
+    "Err\\(anyhow::anyhow!\\(\"[^\"]*\"\\)\\)",  # Plain error messages without context
+    "\\.map_err\\(\\|e\\| anyhow!\\(\"\\{\\}\"",  # Generic error wrapping
+    "return Err\\(.*::new\\(\"",                  # Error without cause chain
+]
+
+# Async anti-patterns - blocking operations in async contexts
+async_antipatterns = [
+    "async fn.*std::fs::",          # Blocking file I/O in async
+    "async fn.*std::thread::sleep", # Blocking sleep in async
+    "async fn.*\\.lock\\(\\)\\.unwrap", # Blocking mutex lock in async (use tokio::sync)
+]
+
+# Lifetime complexity anti-patterns - over-specified lifetimes
+# Note: Patterns with single quotes disabled due to shell escaping complexity
+lifetime_antipatterns = [
+    "DISABLED_static_lifetime_pattern",  # Triple static lifetimes (pattern disabled)
+    "DISABLED_multiple_lifetime_pattern", # Four or more lifetime parameters (pattern disabled)
+]
+
 [validation_config]
 # Which pattern groups cause critical failures (script exits with error)
 critical_groups = ["critical", "unwrap_patterns", "expect_patterns", "panic_patterns", "production_hygiene", "fake_resources"]
@@ -287,7 +327,12 @@ warning_groups = [
     "development_artifacts",
     "long_function_suppressions",
     "obsolete_functions",
-    "deprecated_code"
+    "deprecated_code",
+    "string_allocation_antipatterns",
+    "iterator_antipatterns",
+    "error_context_antipatterns",
+    "async_antipatterns",
+    "lifetime_antipatterns"
 ]
 
 # Pattern groups with thresholds (count-based validation)
@@ -310,6 +355,13 @@ max_unused_variables = 5
 max_deprecated_code = 0
 max_fake_resources = 0
 max_problematic_db_clones = 0
+
+# Claude Code anti-pattern thresholds
+max_string_allocation_antipatterns = 20
+max_iterator_antipatterns = 15
+max_error_context_antipatterns = 10
+max_async_antipatterns = 5
+max_lifetime_antipatterns = 3
 
 # File patterns to exclude from certain checks
 [exclusions]
@@ -338,7 +390,6 @@ magic_numbers_exclusions = [
     "**/migrations/**"
 ]
 
-# Patterns that are allowed in specific contexts
 [allowed_patterns]
 # These are legitimate uses that shouldn't trigger failures
 legitimate_backward_compatibility = [

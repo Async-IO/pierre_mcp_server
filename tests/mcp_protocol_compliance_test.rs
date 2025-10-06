@@ -170,7 +170,7 @@ async fn test_jsonrpc_message_format_compliance() {
     // Test response format
     let response = McpResponse {
         jsonrpc: JSONRPC_VERSION.to_string(),
-        id: Value::Number(serde_json::Number::from(123)),
+        id: Some(Value::Number(serde_json::Number::from(123))),
         result: Some(json!({"tools": []})),
         error: None,
     };
@@ -366,7 +366,10 @@ async fn test_ping_method_compliance() {
 
     // Response should have correct format
     assert_eq!(response.jsonrpc, JSONRPC_VERSION);
-    assert_eq!(response.id, Value::Number(serde_json::Number::from(789)));
+    assert_eq!(
+        response.id,
+        Some(Value::Number(serde_json::Number::from(789)))
+    );
     assert!(response.error.is_none());
 }
 
@@ -384,7 +387,7 @@ async fn test_error_response_format_compliance() {
 
     let response = McpResponse {
         jsonrpc: JSONRPC_VERSION.to_string(),
-        id: Value::Number(serde_json::Number::from(101)),
+        id: Some(Value::Number(serde_json::Number::from(101))),
         result: None,
         error: Some(error),
     };

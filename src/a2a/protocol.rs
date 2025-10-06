@@ -22,28 +22,9 @@ use std::collections::HashMap;
 use tracing::{info, warn};
 use uuid::Uuid;
 
-/// A2A JSON-RPC 2.0 Request
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct A2ARequest {
-    pub jsonrpc: String,
-    pub method: String,
-    pub params: Option<Value>,
-    pub id: Option<Value>,
-    /// Optional authentication token for authenticated A2A sessions
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub auth_token: Option<String>,
-}
-
-/// A2A JSON-RPC 2.0 Response
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct A2AResponse {
-    pub jsonrpc: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub result: Option<Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<A2AErrorResponse>,
-    pub id: Option<Value>,
-}
+// Phase 2: Type aliases pointing to unified JSON-RPC foundation
+pub type A2ARequest = crate::jsonrpc::JsonRpcRequest;
+pub type A2AResponse = crate::jsonrpc::JsonRpcResponse;
 
 /// A2A Protocol Error types
 #[derive(Debug, Clone, Serialize, Deserialize, thiserror::Error)]
@@ -86,14 +67,8 @@ pub enum A2AError {
     ServiceUnavailable(String),
 }
 
-/// A2A Protocol Error Response for JSON-RPC
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct A2AErrorResponse {
-    pub code: i32,
-    pub message: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub data: Option<Value>,
-}
+// Phase 2: Type alias for error response
+pub type A2AErrorResponse = crate::jsonrpc::JsonRpcError;
 
 impl From<A2AError> for A2AErrorResponse {
     fn from(error: A2AError) -> Self {

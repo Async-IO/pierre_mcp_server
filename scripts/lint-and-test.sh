@@ -77,24 +77,25 @@ cleanup_mcp_server() {
     fi
 }
 
-# Register cleanup function to run on exit
-trap cleanup_mcp_server EXIT INT TERM
+# Signal handler for Ctrl-C - kill process group and exit immediately
+handle_interrupt() {
+    echo ""
+    echo -e "${YELLOW}[INTERRUPTED] Received Ctrl-C, terminating all processes...${NC}"
+
+    # Kill the entire process group to stop cargo and all spawned test processes
+    # This is necessary because cargo test spawns multiple child processes
+    kill -- -$$ 2>/dev/null || true
+
+    cleanup_mcp_server
+    exit 130  # Standard exit code for SIGINT
+}
+
+# Register signal handlers
+trap cleanup_mcp_server EXIT
+trap handle_interrupt INT TERM
 
 echo ""
 echo -e "${BLUE}==== Rust Backend Checks ====${NC}"
-
-# CRITICAL: Check for null UUID pattern (fast-fail before any other checks)
-echo -e "${BLUE}==== Checking for null UUID pattern (FAST FAIL)... ====${NC}"
-NULL_UUIDS=$(rg "00000000-0000-0000-0000-000000000000" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-if [ "$NULL_UUIDS" -gt 0 ]; then
-    echo -e "${RED}[CRITICAL] Found $NULL_UUIDS occurrences of null UUID (00000000-0000-0000-0000-000000000000)${NC}"
-    echo -e "${RED}           Null UUIDs indicate placeholder or test code that should not be in production${NC}"
-    echo -e "${YELLOW}   Locations of null UUIDs:${NC}"
-    rg "00000000-0000-0000-0000-000000000000" src/ -n
-    echo -e "${RED}FAST FAIL: Replace null UUIDs with proper UUID generation or remove test code${NC}"
-    exit 1
-fi
-echo -e "${GREEN}[OK] No null UUID patterns found${NC}"
 
 # Auto-format Rust code
 echo -e "${BLUE}==== Auto-formatting Rust code... ====${NC}"
@@ -151,6 +152,9 @@ fail_validation() {
 # Collect all metrics silently without verbose output
 echo -e "${BLUE}Analyzing codebase architecture and quality patterns...${NC}"
 
+# Critical Pattern: Null UUID detection (fast-fail)
+NULL_UUIDS=$(rg "00000000-0000-0000-0000-000000000000" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+
 # Memory Management Analysis (will use TOML patterns below)
 TOTAL_CLONES=$(rg "\.clone\(\)" src/ | grep -v 'src/bin/' | wc -l 2>/dev/null || echo 0)
 
@@ -195,6 +199,13 @@ if [ -f "$VALIDATION_PATTERNS_FILE" ]; then
     TOML_PROBLEMATIC_DB_CLONES=$(rg "$PROBLEMATIC_DB_CLONES_PATTERNS" src/ -g "!src/bin/*" -g "!src/database/tests.rs" -g "!src/database_plugins/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
     TOML_ARC_USAGE=$(rg "$ARC_USAGE_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
     TOML_CLONE_USAGE=$(rg "$CLONE_USAGE_PATTERNS" src/ | grep -v 'src/bin/' --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+
+    # Claude Code anti-pattern analysis
+    TOML_STRING_ALLOCATIONS=$(rg "$STRING_ALLOCATION_ANTIPATTERNS_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TOML_ITERATOR_ANTIPATTERNS=$(rg "$ITERATOR_ANTIPATTERNS_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TOML_ERROR_CONTEXT=$(rg "$ERROR_CONTEXT_ANTIPATTERNS_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TOML_ASYNC_ANTIPATTERNS=$(rg "$ASYNC_ANTIPATTERNS_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TOML_LIFETIME_COMPLEXITY=$(rg "$LIFETIME_ANTIPATTERNS_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 
     # Map TOML results to legacy variable names for backward compatibility
     PROBLEMATIC_UNWRAPS=$TOML_UNWRAPS
@@ -342,6 +353,17 @@ format_status() {
 # Create clean ASCII table with proper formatting
 echo "┌─────────────────────────────────────┬───────┬──────────┬─────────────────────────────────────────┐"
 echo "│ Validation Category                 │ Count │ Status   │ Details / First Location                │"
+echo "├─────────────────────────────────────┼───────┼──────────┼─────────────────────────────────────────┤"
+
+# Critical Fast-Fail Checks
+printf "│ %-35s │ %5d │ " "Null UUIDs (00000000-...)" "$NULL_UUIDS"
+if [ "$NULL_UUIDS" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "No placeholder UUIDs"
+else
+    FIRST_NULL_UUID=$(get_first_location 'rg "00000000-0000-0000-0000-000000000000" src/ -n')
+    printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_NULL_UUID"
+fi
+
 echo "├─────────────────────────────────────┼───────┼──────────┼─────────────────────────────────────────┤"
 
 # Anti-Pattern Detection
@@ -588,11 +610,68 @@ else
     printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$FIRST_MAGIC"
 fi
 
+echo "├─────────────────────────────────────┼───────┼──────────┼─────────────────────────────────────────┤"
+
+# Claude Code Anti-Patterns (AI-generated code quality)
+printf "│ %-35s │ %5d │ " "String allocations (String vs &str)" "$TOML_STRING_ALLOCATIONS"
+if [ "$TOML_STRING_ALLOCATIONS" -le 20 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "Good string handling"
+else
+    FIRST_STRING=$(get_first_location 'rg "String\\) ->|fn.*\\(.*: String," src/ -g "!src/bin/*" -g "!tests/*" -n')
+    printf "$(format_status "⚠️ INFO")│ %-39s │\n" "$FIRST_STRING"
+fi
+
+printf "│ %-35s │ %5d │ " "Iterator anti-patterns" "$TOML_ITERATOR_ANTIPATTERNS"
+if [ "$TOML_ITERATOR_ANTIPATTERNS" -le 15 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "Idiomatic iterator usage"
+else
+    FIRST_ITERATOR=$(get_first_location 'rg "let mut.*vec.*=.*Vec::new\\(\\);\\s*for" src/ -g "!src/bin/*" -g "!tests/*" -n')
+    printf "$(format_status "⚠️ INFO")│ %-39s │\n" "$FIRST_ITERATOR"
+fi
+
+printf "│ %-35s │ %5d │ " "Error context missing" "$TOML_ERROR_CONTEXT"
+if [ "$TOML_ERROR_CONTEXT" -le 10 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "Good error context"
+else
+    FIRST_ERROR=$(get_first_location 'rg "Err\\(anyhow::anyhow!\\(" src/ -g "!src/bin/*" -g "!tests/*" -n')
+    printf "$(format_status "⚠️ INFO")│ %-39s │\n" "$FIRST_ERROR"
+fi
+
+printf "│ %-35s │ %5d │ " "Async anti-patterns (blocking)" "$TOML_ASYNC_ANTIPATTERNS"
+if [ "$TOML_ASYNC_ANTIPATTERNS" -le 5 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "Proper async patterns"
+else
+    FIRST_ASYNC=$(get_first_location 'rg "async fn.*std::fs::|async fn.*std::thread::sleep" src/ -n')
+    printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$FIRST_ASYNC"
+fi
+
+printf "│ %-35s │ %5d │ " "Lifetime complexity" "$TOML_LIFETIME_COMPLEXITY"
+if [ "$TOML_LIFETIME_COMPLEXITY" -le 3 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "Reasonable lifetime usage"
+else
+    # Pattern contains single quotes, skip location for simplicity
+    printf "$(format_status "⚠️ WARN")│ %-39s │\n" "Multiple complex lifetime patterns found"
+fi
+
 echo "└─────────────────────────────────────┴───────┴──────────┴─────────────────────────────────────────┘"
+
+# Critical Fast-Fail: Null UUIDs (must exit immediately)
+if [ "$NULL_UUIDS" -gt 0 ]; then
+    echo ""
+    echo -e "${RED}❌ CRITICAL ARCHITECTURAL FAILURE: NULL UUIDs DETECTED${NC}"
+    echo -e "${RED}Found $NULL_UUIDS occurrences of null UUID (00000000-0000-0000-0000-000000000000)${NC}"
+    echo -e "${RED}Null UUIDs indicate placeholder or test code that must not be in production${NC}"
+    echo ""
+    echo -e "${YELLOW}Locations of null UUIDs:${NC}"
+    rg "00000000-0000-0000-0000-000000000000" src/ -n
+    echo ""
+    echo -e "${RED}FAST FAIL: Replace null UUIDs with proper UUID generation or remove test code${NC}"
+    exit 1
+fi
 
 # Report comprehensive summary based on actual findings
 # Note: PROBLEMATIC_CLONES not included as they're acceptable in multitenant architecture per CLAUDE.md
-CRITICAL_ISSUES=$((PROBLEMATIC_DB_CLONES + PROBLEMATIC_UNWRAPS + PROBLEMATIC_EXPECTS + PANICS + IGNORED_TESTS + IMPLEMENTATION_PLACEHOLDERS))
+CRITICAL_ISSUES=$((NULL_UUIDS + PROBLEMATIC_DB_CLONES + PROBLEMATIC_UNWRAPS + PROBLEMATIC_EXPECTS + PANICS + IGNORED_TESTS + IMPLEMENTATION_PLACEHOLDERS))
 CRITICAL_ISSUES=$((CRITICAL_ISSUES + TOML_PRODUCTION_HYGIENE + CFG_TEST_IN_SRC + DEAD_CODE))
 
 WARNINGS=$((FAKE_RESOURCES + (OBSOLETE_FUNCTIONS > 1 ? OBSOLETE_FUNCTIONS - 1 : 0)))
@@ -600,6 +679,13 @@ WARNINGS=$((WARNINGS + RESOURCE_CREATION + TODOS + PROBLEMATIC_UNDERSCORE_NAMES 
 WARNINGS=$((WARNINGS + (PROBLEMATIC_CLONES > 300 ? 1 : 0) + (TOTAL_ARCS >= 50 ? 1 : 0) + (MAGIC_NUMBERS >= 10 ? 1 : 0)))
 WARNINGS=$((WARNINGS + (PLACEHOLDER_WARNINGS > 0 ? 1 : 0)))
 WARNINGS=$((WARNINGS + (TOML_DEVELOPMENT_ARTIFACTS > 0 ? 1 : 0) + (TOML_TEMPORARY_CODE > MAX_TEMPORARY_CODE ? 1 : 0) + (TOML_MAGIC_NUMBERS > MAX_MAGIC_NUMBERS ? 1 : 0)))
+
+# Claude Code anti-pattern warnings (informational - encourage better Rust idioms)
+WARNINGS=$((WARNINGS + (TOML_STRING_ALLOCATIONS > 20 ? 1 : 0)))
+WARNINGS=$((WARNINGS + (TOML_ITERATOR_ANTIPATTERNS > 15 ? 1 : 0)))
+WARNINGS=$((WARNINGS + (TOML_ERROR_CONTEXT > 10 ? 1 : 0)))
+WARNINGS=$((WARNINGS + (TOML_ASYNC_ANTIPATTERNS > 5 ? 1 : 0)))
+WARNINGS=$((WARNINGS + (TOML_LIFETIME_COMPLEXITY > 3 ? 1 : 0)))
 
 if [ "$CRITICAL_ISSUES" -gt 0 ]; then
     echo -e "${RED}❌ ARCHITECTURAL VALIDATION FAILED${NC}"
@@ -686,12 +772,12 @@ if [ "$ENABLE_COVERAGE" = true ]; then
     fi
 fi
 
-# Run SDK integration tests specifically
-echo -e "${BLUE}==== Running SDK integration tests... ====${NC}"
-if cargo test --test sdk_integration_test --quiet; then
-    echo -e "${GREEN}[OK] SDK integration tests passed${NC}"
+# Run HTTP API integration tests specifically
+echo -e "${BLUE}==== Running HTTP API integration tests... ====${NC}"
+if cargo test --test http_api_integration_test --quiet; then
+    echo -e "${GREEN}[OK] HTTP API integration tests passed${NC}"
 else
-    echo -e "${RED}[FAIL] SDK integration tests failed${NC}"
+    echo -e "${RED}[FAIL] HTTP API integration tests failed${NC}"
     ALL_PASSED=false
 fi
 
@@ -945,6 +1031,20 @@ if [ -f "$SCRIPT_DIR/ensure_mcp_compliance.sh" ]; then
     fi
 else
     echo -e "${YELLOW}[WARN] MCP compliance script not found - skipping${NC}"
+fi
+
+# Bridge Test Suite Validation
+echo ""
+echo -e "${BLUE}==== Bridge Test Suite Validation ====${NC}"
+if [ -f "$SCRIPT_DIR/run_bridge_tests.sh" ]; then
+    if "$SCRIPT_DIR/run_bridge_tests.sh"; then
+        echo -e "${GREEN}[OK] Bridge test suite passed${NC}"
+    else
+        echo -e "${RED}[FAIL] Bridge test suite failed${NC}"
+        ALL_PASSED=false
+    fi
+else
+    echo -e "${YELLOW}[WARN] Bridge test script not found - skipping${NC}"
 fi
 
 # Summary
