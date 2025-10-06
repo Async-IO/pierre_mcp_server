@@ -186,6 +186,13 @@ if [ -f "$VALIDATION_PATTERNS_FILE" ]; then
     TOML_ARC_USAGE=$(rg "$ARC_USAGE_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
     TOML_CLONE_USAGE=$(rg "$CLONE_USAGE_PATTERNS" src/ | grep -v 'src/bin/' --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 
+    # Claude Code anti-pattern analysis
+    TOML_STRING_ALLOCATIONS=$(rg "$STRING_ALLOCATION_ANTIPATTERNS_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TOML_ITERATOR_ANTIPATTERNS=$(rg "$ITERATOR_ANTIPATTERNS_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TOML_ERROR_CONTEXT=$(rg "$ERROR_CONTEXT_ANTIPATTERNS_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TOML_ASYNC_ANTIPATTERNS=$(rg "$ASYNC_ANTIPATTERNS_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TOML_LIFETIME_COMPLEXITY=$(rg "$LIFETIME_ANTIPATTERNS_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+
     # Map TOML results to legacy variable names for backward compatibility
     PROBLEMATIC_UNWRAPS=$TOML_UNWRAPS
     PROBLEMATIC_EXPECTS=$TOML_EXPECTS
@@ -589,6 +596,49 @@ else
     printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$FIRST_MAGIC"
 fi
 
+echo "├─────────────────────────────────────┼───────┼──────────┼─────────────────────────────────────────┤"
+
+# Claude Code Anti-Patterns (AI-generated code quality)
+printf "│ %-35s │ %5d │ " "String allocations (String vs &str)" "$TOML_STRING_ALLOCATIONS"
+if [ "$TOML_STRING_ALLOCATIONS" -le 20 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "Good string handling"
+else
+    FIRST_STRING=$(get_first_location 'rg "String\\) ->|fn.*\\(.*: String," src/ -g "!src/bin/*" -g "!tests/*" -n')
+    printf "$(format_status "⚠️ INFO")│ %-39s │\n" "$FIRST_STRING"
+fi
+
+printf "│ %-35s │ %5d │ " "Iterator anti-patterns" "$TOML_ITERATOR_ANTIPATTERNS"
+if [ "$TOML_ITERATOR_ANTIPATTERNS" -le 15 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "Idiomatic iterator usage"
+else
+    FIRST_ITERATOR=$(get_first_location 'rg "let mut.*vec.*=.*Vec::new\\(\\);\\s*for" src/ -g "!src/bin/*" -g "!tests/*" -n')
+    printf "$(format_status "⚠️ INFO")│ %-39s │\n" "$FIRST_ITERATOR"
+fi
+
+printf "│ %-35s │ %5d │ " "Error context missing" "$TOML_ERROR_CONTEXT"
+if [ "$TOML_ERROR_CONTEXT" -le 10 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "Good error context"
+else
+    FIRST_ERROR=$(get_first_location 'rg "Err\\(anyhow::anyhow!\\(" src/ -g "!src/bin/*" -g "!tests/*" -n')
+    printf "$(format_status "⚠️ INFO")│ %-39s │\n" "$FIRST_ERROR"
+fi
+
+printf "│ %-35s │ %5d │ " "Async anti-patterns (blocking)" "$TOML_ASYNC_ANTIPATTERNS"
+if [ "$TOML_ASYNC_ANTIPATTERNS" -le 5 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "Proper async patterns"
+else
+    FIRST_ASYNC=$(get_first_location 'rg "async fn.*std::fs::|async fn.*std::thread::sleep" src/ -n')
+    printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$FIRST_ASYNC"
+fi
+
+printf "│ %-35s │ %5d │ " "Lifetime complexity" "$TOML_LIFETIME_COMPLEXITY"
+if [ "$TOML_LIFETIME_COMPLEXITY" -le 3 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "Reasonable lifetime usage"
+else
+    # Pattern contains single quotes, skip location for simplicity
+    printf "$(format_status "⚠️ WARN")│ %-39s │\n" "Multiple complex lifetime patterns found"
+fi
+
 echo "└─────────────────────────────────────┴───────┴──────────┴─────────────────────────────────────────┘"
 
 # Critical Fast-Fail: Null UUIDs (must exit immediately)
@@ -615,6 +665,13 @@ WARNINGS=$((WARNINGS + RESOURCE_CREATION + TODOS + PROBLEMATIC_UNDERSCORE_NAMES 
 WARNINGS=$((WARNINGS + (PROBLEMATIC_CLONES > 300 ? 1 : 0) + (TOTAL_ARCS >= 50 ? 1 : 0) + (MAGIC_NUMBERS >= 10 ? 1 : 0)))
 WARNINGS=$((WARNINGS + (PLACEHOLDER_WARNINGS > 0 ? 1 : 0)))
 WARNINGS=$((WARNINGS + (TOML_DEVELOPMENT_ARTIFACTS > 0 ? 1 : 0) + (TOML_TEMPORARY_CODE > MAX_TEMPORARY_CODE ? 1 : 0) + (TOML_MAGIC_NUMBERS > MAX_MAGIC_NUMBERS ? 1 : 0)))
+
+# Claude Code anti-pattern warnings (informational - encourage better Rust idioms)
+WARNINGS=$((WARNINGS + (TOML_STRING_ALLOCATIONS > 20 ? 1 : 0)))
+WARNINGS=$((WARNINGS + (TOML_ITERATOR_ANTIPATTERNS > 15 ? 1 : 0)))
+WARNINGS=$((WARNINGS + (TOML_ERROR_CONTEXT > 10 ? 1 : 0)))
+WARNINGS=$((WARNINGS + (TOML_ASYNC_ANTIPATTERNS > 5 ? 1 : 0)))
+WARNINGS=$((WARNINGS + (TOML_LIFETIME_COMPLEXITY > 3 ? 1 : 0)))
 
 if [ "$CRITICAL_ISSUES" -gt 0 ]; then
     echo -e "${RED}❌ ARCHITECTURAL VALIDATION FAILED${NC}"
