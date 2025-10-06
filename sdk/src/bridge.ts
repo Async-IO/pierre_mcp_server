@@ -193,7 +193,11 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
       // Start callback server synchronously if not already started
       this.startCallbackServerSync();
     }
-    return `http://localhost:${this.callbackPort || 35536}/oauth/callback`;
+    // Wait for callbackPort to be set by the server startup
+    if (this.callbackPort === 0) {
+      throw new Error('Callback server failed to start - no port available');
+    }
+    return `http://localhost:${this.callbackPort}/oauth/callback`;
   }
 
   get clientMetadata(): OAuthClientMetadata {
@@ -547,14 +551,38 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
 
     // Create server immediately with fixed port
     this.callbackServer = http.createServer();
+
+    // Add error handler for port-in-use errors
+    this.callbackServer.on('error', (error: any) => {
+      if (error.code === 'EADDRINUSE') {
+        console.error(`[Pierre OAuth] Port ${port} is already in use - likely from previous session`);
+        console.error(`[Pierre OAuth] Attempting to use dynamic port assignment instead...`);
+
+        // Clean up failed server
+        this.callbackServer?.close();
+        this.callbackServer = null;
+
+        // Retry with dynamic port (OS will assign available port)
+        this.callbackServer = http.createServer();
+        this.callbackServer.listen(0, 'localhost', () => {
+          this.callbackPort = this.callbackServer.address().port;
+          console.error(`[Pierre OAuth] Callback server listening on http://localhost:${this.callbackPort}/oauth/callback`);
+          console.error(`[Pierre OAuth] Focus recovery endpoint: http://localhost:${this.callbackPort}/oauth/focus-recovery`);
+          this.setupCallbackHandler();
+        });
+      } else {
+        console.error(`[Pierre OAuth] Failed to start callback server:`, error);
+        throw error;
+      }
+    });
+
     this.callbackServer.listen(port, 'localhost', () => {
       this.callbackPort = this.callbackServer.address().port;
       console.error(`[Pierre OAuth] Callback server listening on http://localhost:${this.callbackPort}/oauth/callback`);
       console.error(`[Pierre OAuth] Focus recovery endpoint: http://localhost:${this.callbackPort}/oauth/focus-recovery`);
+      // Set up the actual request handler
+      this.setupCallbackHandler();
     });
-
-    // Set up the actual request handler
-    this.setupCallbackHandler();
   }
 
   private setupCallbackHandler(): void {

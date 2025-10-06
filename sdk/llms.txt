@@ -1,0 +1,406 @@
+# Pierre MCP Server SDK
+
+> TypeScript bridge enabling Claude Desktop to communicate with Pierre MCP Server
+
+## Overview
+
+The SDK provides a bridge between Claude Desktop (MCP client) and Pierre MCP Server (fitness data aggregator). It handles OAuth 2.0 authentication, token management, and protocol translation.
+
+## Quick Start
+
+```bash
+npm install
+npm run build
+node dist/cli.js --server http://localhost:8081 --verbose
+```
+
+## File Structure
+
+```
+sdk/
+├── src/
+│   ├── bridge.ts          # Main bridge implementation
+│   ├── cli.ts             # CLI entry point
+│   └── oauth-types.ts     # OAuth type definitions
+├── dist/                  # Compiled JavaScript output
+├── package.json
+├── tsconfig.json
+├── README.md              # Comprehensive technical documentation
+└── llms.txt               # This file
+```
+
+## Core Components
+
+### PierreClaudeBridge (src/bridge.ts)
+
+Main bridge class handling:
+- MCP protocol server (stdio) for Claude Desktop
+- HTTP client for Pierre MCP Server
+- Request/response translation
+- Tool discovery and execution
+
+Key methods:
+- `start()` - Initialize bridge and start listening
+- `setupRequestHandlers()` - Register MCP protocol handlers
+- `handleConnectToPierre()` - OAuth flow for Pierre authentication
+- `handleConnectProvider()` - OAuth flow for fitness providers
+
+### PierreOAuthClientProvider (src/bridge.ts)
+
+OAuth 2.0 client implementation:
+- Token storage (~/.pierre-claude-tokens.json)
+- Authorization code flow with PKCE
+- Local callback server (port 35535)
+- Token validation and refresh
+
+Key methods:
+- `tokens()` - Get cached tokens or trigger OAuth flow
+- `redirectToAuthorization()` - Open browser for OAuth
+- `startCallbackServerSync()` - Start local HTTP server for callbacks
+- `validateToken()` - Verify token with server
+
+## Architecture
+
+```
+Claude Desktop (MCP client)
+    ↓ stdio (JSON-RPC)
+PierreClaudeBridge (this SDK)
+    ↓ HTTP/SSE
+Pierre MCP Server
+    ↓ OAuth
+Fitness Providers (Strava, Fitbit, etc.)
+```
+
+## Token Management
+
+### Storage Location
+`~/.pierre-claude-tokens.json`
+
+### Structure
+```json
+{
+  "pierre": {
+    "access_token": "eyJ0eXA...",
+    "expires_in": 3600,
+    "saved_at": 1759339326
+  },
+  "providers": {
+    "strava": {
+      "access_token": "...",
+      "refresh_token": "...",
+      "expires_at": 1759425726000
+    }
+  }
+}
+```
+
+### Lifecycle
+1. Load from file on startup
+2. Validate expiry (client-side)
+3. Validate with server (prevents stale user IDs)
+4. Use if valid, otherwise trigger OAuth flow
+5. Save new tokens after successful authentication
+
+## OAuth Flow
+
+### Pierre Authentication (OAuth 2.0 Authorization Code + PKCE)
+
+1. Client registration: POST /oauth2/register
+2. Generate PKCE challenge/verifier
+3. Open browser to /oauth2/authorize
+4. User authenticates
+5. Redirect to http://localhost:35535/oauth/callback
+6. Exchange code for token: POST /oauth2/token
+7. Save token to ~/.pierre-claude-tokens.json
+
+### Provider Authentication (Strava, Fitbit, etc.)
+
+1. Tool call requires provider auth
+2. Server returns authProvider URL
+3. Bridge opens URL in browser
+4. User authorizes with provider
+5. Provider redirects to server
+6. Server saves provider token
+7. Bridge retries tool call
+
+## Callback Server
+
+### Port Assignment
+- **Default**: 35535 (fixed for consistency)
+- **Fallback**: Dynamic port if 35535 in use (EADDRINUSE)
+
+### Endpoints
+- `GET /oauth/callback` - Receives OAuth authorization code
+- `POST /oauth/focus-recovery` - Restores Claude Desktop focus after OAuth
+
+### Error Handling
+```typescript
+callbackServer.on('error', (error) => {
+  if (error.code === 'EADDRINUSE') {
+    // Port in use - retry with OS-assigned port
+    callbackServer.listen(0, 'localhost');
+  }
+});
+```
+
+## MCP Protocol Mapping
+
+### Tools Discovery
+```
+Client: tools/list
+Bridge: GET /mcp/tools/list
+Server: {...tools...}
+Bridge: Convert to MCP format
+Client: Receives tool list
+```
+
+### Tool Execution
+```
+Client: tools/call {name, arguments}
+Bridge: POST /mcp/tools/call {tool_name, tool_input}
+Server: Execute and return result
+Bridge: Convert to MCP ToolResponse
+Client: Display formatted output
+```
+
+### Special Tools Handled by Bridge
+
+**connect_to_pierre**
+- Initiates OAuth flow for Pierre authentication
+- Always available even when not connected
+- Opens browser for user login
+
+**connect_provider**
+- Initiates OAuth flow for fitness provider
+- Requires `provider` argument (e.g., "strava")
+- Opens browser for provider authorization
+
+## Configuration
+
+### BridgeConfig Interface
+```typescript
+interface BridgeConfig {
+  pierreServerUrl: string;    // Pierre server URL
+  verbose: boolean;           // Debug logging
+  pollInterval: number;       // SSE reconnect interval (ms)
+  callbackPort?: number;      // OAuth callback port (default: 35535)
+  oauthClientSecret?: string; // Optional: pre-configured client
+  userEmail?: string;         // Optional: for automated tests
+  userPassword?: string;      // Optional: for automated tests
+}
+```
+
+### Command-Line Arguments
+```bash
+--server <url>     # Pierre server URL (default: http://localhost:8081)
+--verbose          # Enable debug logging
+--poll <ms>        # SSE reconnect interval (default: 30000)
+```
+
+## Common Workflows
+
+### First-Time Setup
+1. Start Pierre server
+2. Build SDK: `npm run build`
+3. Configure Claude Desktop config
+4. Launch Claude Desktop
+5. Bridge starts and shows connect_to_pierre tool
+6. User calls connect_to_pierre
+7. Browser opens for authentication
+8. Token saved, full tool list appears
+
+### Reconnection After Token Expiry
+1. Bridge loads expired token
+2. Validates with server (fails)
+3. Clears cached token
+4. Shows connect_to_pierre tool only
+5. User re-authenticates
+6. Full tool list restored
+
+### Provider Connection (e.g., Strava)
+1. User calls get_activities
+2. Server detects no Strava token
+3. Server returns authProvider URL
+4. Bridge opens browser
+5. User authorizes Strava
+6. Bridge retries get_activities
+7. Success with data
+
+## Debugging
+
+### Enable Verbose Logging
+```bash
+node dist/cli.js --server http://localhost:8081 --verbose 2>&1 | tee bridge.log
+```
+
+### Common Log Messages
+- `🔌 Pierre MCP connection will be established on first tool call` - Lazy connection mode
+- `🔑 Found existing tokens - connecting to Pierre proactively` - Using cached tokens
+- `⚠️ Proactive connection failed` - Token invalid, will show connect tool
+- `🚀 Initiating OAuth connection to Pierre MCP Server` - Starting OAuth flow
+- `[Pierre OAuth] Port 35535 is already in use` - Falling back to dynamic port
+
+### Check Token Status
+```bash
+cat ~/.pierre-claude-tokens.json | jq .
+```
+
+### Test Server Connection
+```bash
+curl http://localhost:8081/health
+curl http://localhost:8081/oauth/status
+curl http://localhost:8081/mcp/tools/list
+```
+
+## Troubleshooting
+
+### Tools Not Showing Up
+
+**Symptom**: Claude Desktop doesn't show any tools or only shows connect_to_pierre
+
+**Causes**:
+1. Bridge not connected to Pierre server
+2. Token expired or invalid
+3. Callback server failed to start
+
+**Solutions**:
+1. Check server is running: `curl http://localhost:8081/health`
+2. Delete token cache: `rm ~/.pierre-claude-tokens.json`
+3. Check logs for EADDRINUSE errors
+4. Restart Claude Desktop
+
+### Port Already in Use
+
+**Symptom**: `[Pierre OAuth] Port 35535 is already in use`
+
+**Cause**: Previous bridge instance didn't shut down cleanly
+
+**Solution**: Bridge automatically falls back to dynamic port - no action needed
+
+**Prevention**: Kill old processes: `lsof -ti:35535 | xargs kill -9`
+
+### Authentication Loop
+
+**Symptom**: Browser keeps opening for authentication
+
+**Causes**:
+1. Token not being saved to file
+2. File permissions prevent writing
+3. Server rejecting tokens
+
+**Solutions**:
+1. Check file exists: `ls -la ~/.pierre-claude-tokens.json`
+2. Fix permissions: `chmod 600 ~/.pierre-claude-tokens.json`
+3. Check server logs for validation errors
+
+### SSE Not Working
+
+**Symptom**: OAuth success notifications not received
+
+**Causes**:
+1. SSE connection failed
+2. Server not sending events
+3. Network proxy blocking
+
+**Solutions**:
+1. Test SSE endpoint: `curl http://localhost:8081/mcp/sse`
+2. Check bridge logs for "SSE Connected"
+3. Try without verbose mode (reduces log noise)
+
+## Security Considerations
+
+### Token Storage
+- **Plaintext**: Tokens stored unencrypted (acceptable for local development)
+- **File permissions**: Should be 600 (user read/write only)
+- **Scope**: Limited to read/write fitness data
+
+### OAuth Security
+- **PKCE**: Prevents authorization code interception
+- **State parameter**: Prevents CSRF attacks
+- **Local callback**: Only accepts callbacks from localhost
+
+### Token Validation
+- **Client-side**: Expiry check before use
+- **Server-side**: JWT signature and user existence validation
+- **Automatic cleanup**: Invalid tokens cleared immediately
+
+## Development
+
+### Build and Test
+```bash
+npm run build
+npm run test  # If tests exist
+```
+
+### Add New Tool Handler
+1. Add handler in `setupRequestHandlers()`
+2. Check if tool requires special auth
+3. Forward to Pierre server if standard tool
+4. Convert response to MCP format
+
+### Debug OAuth Flow
+1. Enable verbose logging
+2. Watch for browser open events
+3. Check callback server logs
+4. Verify token saved to file
+5. Confirm server validation passes
+
+## Key Files to Understand
+
+1. **src/bridge.ts** (1100+ lines)
+   - PierreClaudeBridge class (main bridge)
+   - PierreOAuthClientProvider (OAuth client)
+   - All MCP protocol handlers
+   - OAuth HTML templates
+
+2. **src/cli.ts** (~150 lines)
+   - Argument parsing
+   - Bridge configuration
+   - Entry point
+
+3. **README.md**
+   - Comprehensive technical documentation
+   - Architecture decisions
+   - Troubleshooting guides
+
+## Architecture Decisions
+
+### Why Client-Side Token Storage?
+- Claude Desktop spawns new bridge process per session
+- Tokens must persist across restarts
+- No server-side session management
+
+### Why Token Validation on Startup?
+- Prevents using tokens for deleted users
+- Detects account changes (suspension, etc.)
+- Ensures tokens haven't been revoked
+
+### Why Fixed Port with Fallback?
+- Consistency: Same port across sessions
+- Resilience: Fallback prevents startup failures
+- Debugging: Known port easier to test
+
+### Why Lazy Connection?
+- Fast startup: Don't block on server connection
+- Graceful degradation: Show connect tool if server down
+- User control: Explicit connection flow
+
+## Recent Changes
+
+### OAuth Improvements (commit ebbb9a5)
+- Fixed port 35535 with dynamic fallback
+- Added HTML error/success templates
+- Added focus recovery endpoint
+- Improved logging for debugging
+
+### Port Conflict Resilience (latest)
+- Error handler for EADDRINUSE
+- Automatic retry with dynamic port
+- Clear error messages in logs
+- Prevents bridge startup failures
+
+## Related Documentation
+
+- **README.md**: Full technical documentation
+- **/docs/developer-guide/oauth2-authorization-server.md**: Server-side OAuth implementation
+- **Pierre MCP Server docs**: Complete server API documentation

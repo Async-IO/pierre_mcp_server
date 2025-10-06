@@ -10,11 +10,11 @@ The Pierre MCP Server SDK provides a TypeScript bridge that enables Claude Deskt
 
 ```
 Claude Desktop
-    “ (MCP Protocol via stdio)
+    ï¿½ (MCP Protocol via stdio)
 Bridge (sdk/dist/cli.js)
-    “ (HTTP/SSE)
+    ï¿½ (HTTP/SSE)
 Pierre MCP Server (port 8081)
-    “ (OAuth)
+    ï¿½ (OAuth)
 External Providers (Strava, Fitbit, etc.)
 ```
 
@@ -26,7 +26,7 @@ External Providers (Strava, Fitbit, etc.)
    - Configures server connection
 
 2. **Bridge** (`src/bridge.ts`)
-   - **PierreMcpBridge**: Main bridge class that translates between MCP and HTTP
+   - **PierreClaudeBridge**: Main bridge class that translates between MCP and HTTP
    - **PierreOAuthClientProvider**: Handles OAuth 2.0 client flow and token management
 
 ## Token Storage
@@ -130,21 +130,21 @@ This prevents the bridge from using a cached JWT token containing a user ID that
 1. **Client Registration**
    ```
    POST /oauth2/register
-   ’ Returns: client_id, client_secret
+   ï¿½ Returns: client_id, client_secret
    ```
 
 2. **Authorization Request**
    ```
    GET /oauth2/authorize?
      client_id=...
-     &redirect_uri=http://localhost:35536/oauth/callback
+     &redirect_uri=http://localhost:35535/oauth/callback
      &response_type=code
      &state=...
      &code_challenge=...
      &code_challenge_method=S256
 
-   ’ User authenticates in browser
-   ’ Redirects to: http://localhost:35536/oauth/callback?code=...&state=...
+   ï¿½ User authenticates in browser
+   ï¿½ Redirects to: http://localhost:35535/oauth/callback?code=...&state=...
    ```
 
 3. **Token Exchange**
@@ -159,22 +159,40 @@ This prevents the bridge from using a cached JWT token containing a user ID that
      "code_verifier": "..."
    }
 
-   ’ Returns: access_token, refresh_token, expires_in
+   ï¿½ Returns: access_token, refresh_token, expires_in
    ```
 
 ### Callback Server
 
-The bridge runs a local HTTP server on a random port (default: 35536) to receive the OAuth callback:
+The bridge runs a local HTTP server on a fixed port (default: 35535) to receive the OAuth callback. If the port is already in use (e.g., from a previous session), it falls back to a dynamic port:
 
 ```typescript
 // Bridge starts local server
-const callbackServer = express();
-callbackServer.get('/oauth/callback', handleCallback);
-callbackServer.listen(callbackPort);
+const callbackServer = http.createServer();
+callbackServer.on('error', (error) => {
+  if (error.code === 'EADDRINUSE') {
+    // Port in use - retry with dynamic port (OS assigns available port)
+    callbackServer.listen(0, 'localhost');
+  }
+});
+callbackServer.listen(35535, 'localhost');
 
 // Browser redirects here after authentication
-// http://localhost:35536/oauth/callback?code=abc123&state=xyz789
+// http://localhost:35535/oauth/callback?code=abc123&state=xyz789
 ```
+
+**Endpoints:**
+- `/oauth/callback` - Receives OAuth authorization code from Pierre server
+- `/oauth/focus-recovery` - POST endpoint to restore focus to Claude Desktop after OAuth completion
+
+**OAuth Response Pages:**
+
+The callback server renders HTML pages for OAuth results:
+
+- **Success Page**: Shows "Authorization Successful" with automatic tab close and focus recovery
+- **Error Page**: Shows error details with user-friendly messages (e.g., "Port in use", "Invalid request")
+
+Both pages attempt to restore focus to Claude Desktop via the `/oauth/focus-recovery` endpoint.
 
 ## Provider Authentication Flow
 
@@ -182,7 +200,7 @@ When a tool requires provider authentication (e.g., Strava):
 
 1. **Tool Call** (e.g., `get_activities`)
    ```
-   MCP tools/call ’ Bridge ’ POST /mcp/tools/call
+   MCP tools/call ï¿½ Bridge ï¿½ POST /mcp/tools/call
    ```
 
 2. **Server Responds** with authProvider if not authenticated:
@@ -213,13 +231,13 @@ When a tool requires provider authentication (e.g., Strava):
 
 ```
 Claude Desktop: tools/list
-    “
+    ï¿½
 Bridge: GET /mcp/tools/list
-    “
+    ï¿½
 Server: Returns 35 tools (Strava, Fitbit, Configuration)
-    “
+    ï¿½
 Bridge: Converts to MCP format
-    “
+    ï¿½
 Claude Desktop: Displays available tools
 ```
 
@@ -227,15 +245,15 @@ Claude Desktop: Displays available tools
 
 ```
 Claude Desktop: tools/call { name: "get_activities", arguments: {...} }
-    “
+    ï¿½
 Bridge: POST /mcp/tools/call { tool_name: "get_activities", tool_input: {...} }
-    “
+    ï¿½
 Server: Executes tool
-    “
+    ï¿½
 Server: Returns { result: { content: [...], structuredContent: {...} } }
-    “
+    ï¿½
 Bridge: Converts to MCP ToolResponse
-    “
+    ï¿½
 Claude Desktop: Displays formatted result
 ```
 
@@ -279,15 +297,15 @@ For real-time OAuth notifications:
 
 ```
 Bridge connects: GET /mcp/sse
-    “
+    ï¿½
 Server: Opens SSE stream
-    “
+    ï¿½
 User completes OAuth in browser
-    “
+    ï¿½
 Server: Sends SSE event { type: "oauth_success", provider: "strava" }
-    “
+    ï¿½
 Bridge: Receives notification
-    “
+    ï¿½
 Claude Desktop: Shows success message
 ```
 
@@ -300,6 +318,10 @@ interface BridgeConfig {
   pierreServerUrl: string;       // Default: http://localhost:8081
   verbose: boolean;              // Debug logging
   pollInterval: number;          // SSE reconnect interval (ms)
+  callbackPort?: number;         // OAuth callback port (default: 35535)
+  oauthClientSecret?: string;    // Optional: Pre-configured OAuth client secret
+  userEmail?: string;            // Optional: For automated testing
+  userPassword?: string;         // Optional: For automated testing
 }
 ```
 
@@ -424,4 +446,6 @@ node dist/cli.js --server http://localhost:8081 --verbose 2>&1 | tee bridge.log
 
 - **OAuth redirect requirement**: OAuth providers need an HTTP callback URL
 - **MCP limitation**: stdio-based MCP can't receive HTTP callbacks directly
-- **Dynamic port**: Avoids conflicts if multiple bridges run simultaneously
+- **Fixed port with fallback**: Uses port 35535 by default for consistency, but falls back to dynamic port if unavailable
+- **Error resilience**: Handles EADDRINUSE errors gracefully to prevent bridge startup failures
+- **Focus recovery**: Provides POST endpoint for OAuth success page to restore Claude Desktop focus
