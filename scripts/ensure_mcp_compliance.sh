@@ -46,8 +46,9 @@ cleanup_mcp_server() {
     fi
 }
 
-# Register cleanup function to run on exit
-trap cleanup_mcp_server EXIT INT TERM
+# Register cleanup function to run on normal exit only
+# INT and TERM should propagate to parent script (lint-and-test.sh)
+trap cleanup_mcp_server EXIT
 
 # Change to SDK directory
 cd "$PROJECT_ROOT/sdk"

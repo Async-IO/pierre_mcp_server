@@ -77,8 +77,22 @@ cleanup_mcp_server() {
     fi
 }
 
-# Register cleanup function to run on exit
-trap cleanup_mcp_server EXIT INT TERM
+# Signal handler for Ctrl-C - kill process group and exit immediately
+handle_interrupt() {
+    echo ""
+    echo -e "${YELLOW}[INTERRUPTED] Received Ctrl-C, terminating all processes...${NC}"
+
+    # Kill the entire process group to stop cargo and all spawned test processes
+    # This is necessary because cargo test spawns multiple child processes
+    kill -- -$$ 2>/dev/null || true
+
+    cleanup_mcp_server
+    exit 130  # Standard exit code for SIGINT
+}
+
+# Register signal handlers
+trap cleanup_mcp_server EXIT
+trap handle_interrupt INT TERM
 
 echo ""
 echo -e "${BLUE}==== Rust Backend Checks ====${NC}"
