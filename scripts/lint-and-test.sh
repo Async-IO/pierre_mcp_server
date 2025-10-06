@@ -166,13 +166,15 @@ if [ -f "$VALIDATION_PATTERNS_FILE" ]; then
     # Use TOML-configured patterns for existing checks
     IMPLEMENTATION_PLACEHOLDERS=$(rg "$CRITICAL_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
     if [ -n "$WARNING_PATTERNS" ]; then
-        TOTAL_WARNING_COUNT=$(rg "$WARNING_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-        # Count long functions with proper documentation (either inline or on preceding line)
-        DOCUMENTED_LONG_FUNCTIONS=$(rg "#\[allow\(clippy::too_many_lines\)\]" src/ -B1 | rg -c "// Long function:|// Safe:" 2>/dev/null || echo "0")
-        PLACEHOLDER_WARNINGS=$((TOTAL_WARNING_COUNT > DOCUMENTED_LONG_FUNCTIONS ? TOTAL_WARNING_COUNT - DOCUMENTED_LONG_FUNCTIONS : 0))
+        PLACEHOLDER_WARNINGS=$(rg "$WARNING_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
     else
         PLACEHOLDER_WARNINGS=0
     fi
+
+    # Separate check for undocumented long functions (not in warning_groups)
+    TOTAL_LONG_FUNCTIONS=$(rg "#\[allow\(clippy::too_many_lines\)\]" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    DOCUMENTED_LONG_FUNCTIONS=$(rg "#\[allow\(clippy::too_many_lines\)\]" src/ -B1 | rg -c "// Long function:|// Safe:" 2>/dev/null || echo "0")
+    UNDOCUMENTED_LONG_FUNCTIONS=$((TOTAL_LONG_FUNCTIONS - DOCUMENTED_LONG_FUNCTIONS))
 
     # TOML-based checks (replacing legacy hardcoded patterns)
     TOML_UNWRAPS=$(rg "$UNWRAP_PATTERNS_PATTERNS" src/ -g "!src/bin/*" -g "!tests/*" | rg -v "// Safe|hardcoded.*valid|static.*data" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
@@ -466,12 +468,12 @@ else
     printf "$(format_status "❌ FAIL")│ %-39s │\n" "$FIRST_PROBLEMATIC_ALLOW"
 fi
 
-printf "│ %-35s │ %5d │ " "Long functions (too_many_lines)" "$CLIPPY_ALLOWS_TOO_MANY_LINES"
-if [ "$CLIPPY_ALLOWS_TOO_MANY_LINES" -eq 0 ]; then
-    printf "$(format_status "✅ PASS")│ %-39s │\n" "Functions are appropriately sized"
+printf "│ %-35s │ %5d │ " "Undocumented long functions" "$UNDOCUMENTED_LONG_FUNCTIONS"
+if [ "$UNDOCUMENTED_LONG_FUNCTIONS" -eq 0 ]; then
+    printf "$(format_status "✅ PASS")│ %-39s │\n" "All long functions documented"
 else
-    FIRST_LONG_FUNCTION=$(get_first_location 'rg "#!?\[allow\(clippy::too_many_lines\)\]" src/ -n')
-    printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$FIRST_LONG_FUNCTION"
+    FIRST_UNDOCUMENTED=$(get_first_location 'rg "#\[allow\(clippy::too_many_lines\)\]" src/ -B1 | rg -v "// Long function:|// Safe:" | rg "#\[allow" -n')
+    printf "$(format_status "⚠️ WARN")│ %-39s │\n" "$FIRST_UNDOCUMENTED"
 fi
 
 printf "│ %-35s │ %5d │ " "Dead code annotations" "$DEAD_CODE"

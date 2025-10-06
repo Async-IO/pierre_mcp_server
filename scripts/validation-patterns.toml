@@ -323,16 +323,11 @@ lifetime_antipatterns = [
 critical_groups = ["critical", "unwrap_patterns", "expect_patterns", "panic_patterns", "production_hygiene", "fake_resources"]
 
 # Which pattern groups are warnings only (logged but don't fail build)
+# Note: Claude Code anti-patterns have dedicated validation rows and should not be in warning_groups
 warning_groups = [
     "development_artifacts",
-    "long_function_suppressions",
     "obsolete_functions",
-    "deprecated_code",
-    "string_allocation_antipatterns",
-    "iterator_antipatterns",
-    "error_context_antipatterns",
-    "async_antipatterns",
-    "lifetime_antipatterns"
+    "deprecated_code"
 ]
 
 # Pattern groups with thresholds (count-based validation)
