@@ -174,13 +174,23 @@ impl OAuthFlowManager {
 
     /// Extract tenant ID from user
     fn extract_tenant_id(user: &crate::models::User) -> Result<Uuid, warp::Rejection> {
-        user.tenant_id
+        let tenant_id_str = user.tenant_id
             .clone()
             .ok_or_else(|| {
+                error!(
+                    "Missing tenant for user - user_id: {}, email: {}. User does not belong to any tenant.",
+                    user.id, user.email
+                );
                 warp::reject::custom(ApiError(api_error("User does not belong to any tenant")))
-            })?
-            .parse()
-            .map_err(|_| warp::reject::custom(ApiError(api_error("Invalid tenant ID format"))))
+            })?;
+
+        tenant_id_str.parse().map_err(|_| {
+            error!(
+                "Invalid tenant ID format - user_id: {}, email: {}, tenant_id_str: {}. Failed to parse tenant ID as UUID.",
+                user.id, user.email, tenant_id_str
+            );
+            warp::reject::custom(ApiError(api_error("Invalid tenant ID format")))
+        })
     }
 
     /// Get tenant name
