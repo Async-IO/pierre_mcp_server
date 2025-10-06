@@ -1321,6 +1321,36 @@ impl DatabaseProvider for Database {
         }
     }
 
+    async fn store_oauth2_refresh_token(
+        &self,
+        refresh_token: &crate::oauth2::models::OAuth2RefreshToken,
+    ) -> Result<()> {
+        match self {
+            Self::SQLite(db) => db.store_oauth2_refresh_token(refresh_token).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.store_oauth2_refresh_token(refresh_token).await,
+        }
+    }
+
+    async fn get_oauth2_refresh_token(
+        &self,
+        token: &str,
+    ) -> Result<Option<crate::oauth2::models::OAuth2RefreshToken>> {
+        match self {
+            Self::SQLite(db) => db.get_oauth2_refresh_token(token).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_oauth2_refresh_token(token).await,
+        }
+    }
+
+    async fn revoke_oauth2_refresh_token(&self, token: &str) -> Result<()> {
+        match self {
+            Self::SQLite(db) => db.revoke_oauth2_refresh_token(token).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.revoke_oauth2_refresh_token(token).await,
+        }
+    }
+
     async fn store_authorization_code(
         &self,
         code: &str,

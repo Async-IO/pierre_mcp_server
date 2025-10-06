@@ -201,6 +201,8 @@ impl std::fmt::Display for DatabaseUrl {
 pub struct ServerConfig {
     /// Server port (handles both MCP and HTTP)
     pub http_port: u16,
+    /// OAuth callback port for bridge focus recovery
+    pub oauth_callback_port: u16,
     /// Log level
     pub log_level: LogLevel,
     /// Database configuration
@@ -394,6 +396,7 @@ impl ServerConfig {
 
         let config = Self {
             http_port: env_config::server_port(),
+            oauth_callback_port: env_config::oauth_callback_port(),
             log_level: LogLevel::from_str_or_default(&env_config::log_level()),
             database: Self::load_database_config()?,
             auth: Self::load_auth_config()?,

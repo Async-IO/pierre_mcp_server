@@ -74,7 +74,7 @@ pub struct AuthorizeResponse {
 /// OAuth 2.0 Token Request
 #[derive(Debug, Deserialize)]
 pub struct TokenRequest {
-    /// Grant type (`authorization_code`, `client_credentials`)
+    /// Grant type (`authorization_code`, `client_credentials`, `refresh_token`)
     pub grant_type: String,
     /// Authorization code (for `authorization_code` grant)
     pub code: Option<String>,
@@ -86,6 +86,8 @@ pub struct TokenRequest {
     pub client_secret: String,
     /// Requested scopes (for `client_credentials` grant)
     pub scope: Option<String>,
+    /// Refresh token (for `refresh_token` grant)
+    pub refresh_token: Option<String>,
 }
 
 /// OAuth 2.0 Token Response
@@ -197,4 +199,16 @@ pub struct OAuth2AccessToken {
     pub scope: Option<String>,
     pub expires_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
+}
+
+/// OAuth 2.0 Refresh Token
+#[derive(Debug, Clone)]
+pub struct OAuth2RefreshToken {
+    pub token: String,
+    pub client_id: String,
+    pub user_id: Uuid,
+    pub scope: Option<String>,
+    pub expires_at: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
+    pub revoked: bool,
 }

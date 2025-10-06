@@ -46,6 +46,7 @@ fn create_test_config(
 ) -> Arc<pierre_mcp_server::config::environment::ServerConfig> {
     Arc::new(pierre_mcp_server::config::environment::ServerConfig {
         http_port: port,
+        oauth_callback_port: 35535,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,

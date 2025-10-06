@@ -322,6 +322,12 @@ impl OAuthService {
         }
     }
 
+    /// Get configuration context
+    #[must_use]
+    pub const fn config(&self) -> &ConfigContext {
+        &self.config
+    }
+
     /// Handle OAuth callback
     ///
     /// # Errors
@@ -372,16 +378,26 @@ impl OAuthService {
 
         // Get database and user
         let database = self.data.database();
-        let user = database
-            .get_user(user_id)
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+        let user = database.get_user(user_id).await?.ok_or_else(|| {
+            tracing::error!(
+                "OAuth callback failed: User not found - user_id: {}, provider: {}",
+                user_id,
+                provider
+            );
+            anyhow::anyhow!("User not found")
+        })?;
 
-        let tenant_id = user
-            .tenant_id
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("User has no tenant"))?
-            .clone();
+        let tenant_id =
+            user.tenant_id
+                .as_ref()
+                .ok_or_else(|| {
+                    tracing::error!(
+                    "OAuth callback failed: Missing tenant - user_id: {}, email: {}, provider: {}",
+                    user.id, user.email, provider
+                );
+                    anyhow::anyhow!("User has no tenant")
+                })?
+                .clone();
 
         // Create OAuth2 client and exchange code for token
         let oauth_config = Self::create_oauth_config(provider)?;
@@ -389,17 +405,28 @@ impl OAuthService {
 
         // Use provider-specific exchange function if available
         let token = match provider {
-            oauth_providers::STRAVA => {
-                let (token, _athlete) = crate::oauth2_client::strava::exchange_strava_code(
-                    oauth_client.http_client(),
-                    &oauth_config.client_id,
-                    &oauth_config.client_secret,
-                    code,
-                )
-                .await?;
-                token
-            }
-            _ => oauth_client.exchange_code(code).await?,
+            oauth_providers::STRAVA => crate::oauth2_client::strava::exchange_strava_code(
+                oauth_client.http_client(),
+                &oauth_config.client_id,
+                &oauth_config.client_secret,
+                code,
+            )
+            .await
+            .map(|(token, _athlete)| token)
+            .map_err(|e| {
+                tracing::error!(
+                    "OAuth token exchange failed for {provider} - user_id: {user_id}, email: {}, code: {code}, error: {e}",
+                    user.email
+                );
+                anyhow::anyhow!("Failed to exchange OAuth code for token: {e}")
+            })?,
+            _ => oauth_client.exchange_code(code).await.map_err(|e| {
+                tracing::error!(
+                    "OAuth token exchange failed for {provider} - user_id: {user_id}, email: {}, code: {code}, error: {e}",
+                    user.email
+                );
+                anyhow::anyhow!("Failed to exchange OAuth code for token: {e}")
+            })?,
         };
 
         tracing::info!(
@@ -929,9 +956,12 @@ impl AuthRoutes {
 
         match oauth_routes.handle_callback(code, state, &provider).await {
             Ok(response) => {
+                let oauth_callback_port = server_context.config().config().oauth_callback_port;
                 let html =
                     crate::mcp::oauth_flow_manager::OAuthTemplateRenderer::render_success_template(
-                        &provider, &response,
+                        &provider,
+                        &response,
+                        oauth_callback_port,
                     )
                     .map_err(|e| {
                         tracing::error!("Failed to render OAuth success template: {}", e);

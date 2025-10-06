@@ -11,11 +11,20 @@ BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# Load HTTP_PORT from .envrc if available
+if [ -f .envrc ]; then
+    source .envrc
+fi
+
+# Use HTTP_PORT from environment or default to 8081
+HTTP_PORT=${HTTP_PORT:-8081}
+
 echo -e "${BLUE}=== Pierre MCP Server Complete User Workflow Test ===${NC}"
+echo -e "${BLUE}Using server port: $HTTP_PORT${NC}"
 
 # Check if server is running
-if ! curl -s -f http://localhost:8081/admin/health > /dev/null; then
-    echo -e "${RED}❌ Server not running on http://localhost:8081${NC}"
+if ! curl -s -f http://localhost:$HTTP_PORT/admin/health > /dev/null; then
+    echo -e "${RED}❌ Server not running on http://localhost:$HTTP_PORT${NC}"
     echo "Please start the server first:"
     echo "  source .envrc && RUST_LOG=debug cargo run --bin pierre-mcp-server"
     exit 1
@@ -26,7 +35,7 @@ echo -e "${GREEN}✅ Server is running${NC}"
 # Step 1: Create Admin User
 echo -e "\n${BLUE}=== Step 1: Create Admin User ===${NC}"
 
-ADMIN_RESPONSE=$(curl -s -X POST http://localhost:8081/admin/setup \
+ADMIN_RESPONSE=$(curl -s -X POST http://localhost:$HTTP_PORT/admin/setup \
   -H "Content-Type: application/json" \
   -d '{
     "email": "admin@pierre.mcp",
@@ -49,7 +58,7 @@ echo "Admin token (first 50 chars): ${ADMIN_TOKEN:0:50}..."
 # Step 2: Register Regular User
 echo -e "\n${BLUE}=== Step 2: Register Regular User ===${NC}"
 
-USER_RESPONSE=$(curl -s -X POST http://localhost:8081/api/auth/register \
+USER_RESPONSE=$(curl -s -X POST http://localhost:$HTTP_PORT/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "user@example.com",
@@ -72,7 +81,7 @@ echo "User ID: $USER_ID"
 # Step 3: Approve User WITH Tenant Creation
 echo -e "\n${BLUE}=== Step 3: Approve User with Tenant Creation ===${NC}"
 
-APPROVAL_RESPONSE=$(curl -s -X POST "http://localhost:8081/admin/approve-user/$USER_ID" \
+APPROVAL_RESPONSE=$(curl -s -X POST "http://localhost:$HTTP_PORT/admin/approve-user/$USER_ID" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -d '{
@@ -99,7 +108,7 @@ echo "Tenant ID: $TENANT_ID"
 # Step 4: User Login
 echo -e "\n${BLUE}=== Step 4: User Login ===${NC}"
 
-LOGIN_RESPONSE=$(curl -s -X POST http://localhost:8081/api/auth/login \
+LOGIN_RESPONSE=$(curl -s -X POST http://localhost:$HTTP_PORT/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "user@example.com",
@@ -121,7 +130,7 @@ echo "JWT Token (first 50 chars): ${JWT_TOKEN:0:50}..."
 # Step 5: Test MCP Access
 echo -e "\n${BLUE}=== Step 5: Test MCP Access ===${NC}"
 
-TOOLS_RESPONSE=$(curl -s -X POST http://localhost:8080/mcp \
+TOOLS_RESPONSE=$(curl -s -X POST http://localhost:$HTTP_PORT/mcp \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $JWT_TOKEN" \
   -d '{
@@ -144,7 +153,7 @@ echo -e "${GREEN}✅ MCP working: $TOOLS_COUNT tools available${NC}"
 # Test connection status
 echo -e "\n${BLUE}=== Testing Connection Status ===${NC}"
 
-CONNECTION_RESPONSE=$(curl -s -X POST http://localhost:8080/mcp \
+CONNECTION_RESPONSE=$(curl -s -X POST http://localhost:$HTTP_PORT/mcp \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $JWT_TOKEN" \
   -d '{

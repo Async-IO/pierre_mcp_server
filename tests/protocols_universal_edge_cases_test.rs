@@ -32,6 +32,7 @@ fn create_test_user(email: &str, display_name: Option<String>) -> pierre_mcp_ser
 fn create_test_config() -> Arc<ServerConfig> {
     Arc::new(ServerConfig {
         http_port: 4000,
+        oauth_callback_port: 35535,
         log_level: LogLevel::Info,
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,

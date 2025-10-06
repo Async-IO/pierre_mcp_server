@@ -61,6 +61,7 @@ export interface BridgeConfig {
   oauthClientSecret?: string;
   userEmail?: string;
   userPassword?: string;
+  callbackPort?: number;
   verbose: boolean;
 }
 
@@ -534,18 +535,22 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
 
   private startCallbackServerSync(): void {
     // This is a synchronous wrapper that starts the server immediately
-    // The actual server setup is done synchronously with a temporary port assignment
+    // Use configured port (default 35535) instead of dynamic port
     const http = require('http');
 
     if (this.callbackServer) {
       return; // Already started
     }
 
-    // Create server immediately to get port
+    // Use configured callback port or default to 35535
+    const port = this.config.callbackPort || 35535;
+
+    // Create server immediately with fixed port
     this.callbackServer = http.createServer();
-    this.callbackServer.listen(0, 'localhost', () => {
+    this.callbackServer.listen(port, 'localhost', () => {
       this.callbackPort = this.callbackServer.address().port;
-      console.error(`[Pierre OAuth] Early callback server listening on http://localhost:${this.callbackPort}/oauth/callback`);
+      console.error(`[Pierre OAuth] Callback server listening on http://localhost:${this.callbackPort}/oauth/callback`);
+      console.error(`[Pierre OAuth] Focus recovery endpoint: http://localhost:${this.callbackPort}/oauth/focus-recovery`);
     });
 
     // Set up the actual request handler

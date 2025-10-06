@@ -47,7 +47,7 @@ use crate::providers::ProviderRegistry;
 use crate::routes::{AuthRoutes, LoginRequest, OAuthRoutes, RefreshTokenRequest, RegisterRequest};
 use crate::security::headers::SecurityConfig;
 use crate::tenant::{TenantContext, TenantOAuthClient};
-use crate::utils::json_responses::{api_error, invalid_format_error, oauth_error};
+use crate::utils::json_responses::{api_error, invalid_format_error};
 
 use anyhow::Result;
 use chrono::Utc;
@@ -382,6 +382,21 @@ impl MultiTenantMcpServer {
             .await
     }
 
+    /// Helper function to create error response with HTML template
+    fn create_oauth_error_response(
+        provider: &str,
+        title: &str,
+        message: &str,
+    ) -> warp::http::Response<warp::hyper::Body> {
+        let html = OAuthTemplateRenderer::render_error_template(provider, title, Some(message))
+            .unwrap_or_else(|e| {
+                tracing::error!("Failed to render error template: {}", e);
+                format!("<h1>{title}</h1><p>{message}</p>")
+            });
+        warp::reply::with_status(warp::reply::html(html), warp::http::StatusCode::BAD_REQUEST)
+            .into_response()
+    }
+
     /// Create OAuth callback endpoint
     fn create_oauth_callback_route(
         oauth_routes: &OAuthRoutes,
@@ -400,57 +415,27 @@ impl MultiTenantMcpServer {
                     let oauth_routes = oauth_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         let Some(code) = params.get("code").cloned() else {
-                                tracing::error!("Missing OAuth code parameter in callback");
-                                let html_content = match OAuthTemplateRenderer::render_error_template(
-                                    &provider,
-                                    "Authorization Failed",
-                                    Some("Missing OAuth code parameter. Please try connecting again.")
-                                ) {
-                                    Ok(html) => html,
-                                    Err(e) => {
-                                        tracing::error!("Failed to render error template: {}", e);
-                                        "<h1>Authorization Failed</h1><p>Missing OAuth code parameter. Please try connecting again.</p>".to_string()
-                                    }
-                                };
-                                return Ok::<warp::http::Response<warp::hyper::Body>, warp::Rejection>(warp::reply::with_status(
-                                    warp::reply::html(html_content),
-                                    warp::http::StatusCode::BAD_REQUEST
-                                ).into_response());
-                            };
+                            tracing::error!("Missing OAuth code parameter in callback");
+                            return Ok::<warp::http::Response<warp::hyper::Body>, warp::Rejection>(
+                                Self::create_oauth_error_response(&provider, "Authorization Failed", "Missing OAuth code parameter. Please try connecting again.")
+                            );
+                        };
                         let Some(state) = params.get("state").cloned() else {
-                                tracing::error!("Missing OAuth state parameter in callback");
-                                let html_content = match OAuthTemplateRenderer::render_error_template(
-                                    &provider,
-                                    "Authorization Failed",
-                                    Some("Missing OAuth state parameter. Please try connecting again.")
-                                ) {
-                                    Ok(html) => html,
-                                    Err(e) => {
-                                        tracing::error!("Failed to render error template: {}", e);
-                                        "<h1>Authorization Failed</h1><p>Missing OAuth state parameter. Please try connecting again.</p>".to_string()
-                                    }
-                                };
-                                return Ok(warp::reply::with_status(
-                                    warp::reply::html(html_content),
-                                    warp::http::StatusCode::BAD_REQUEST
-                                ).into_response());
-                            };
+                            tracing::error!("Missing OAuth state parameter in callback");
+                            return Ok(Self::create_oauth_error_response(&provider, "Authorization Failed", "Missing OAuth state parameter. Please try connecting again."));
+                        };
 
                         if let Some(error_msg) = params.get("error") {
-                            let error_response = oauth_error(
-                                "OAuth authorization failed",
-                                error_msg,
-                                Some(&provider)
-                            );
-                            return Ok(warp::reply::with_status(
-                                warp::reply::json(&error_response),
-                                warp::http::StatusCode::BAD_REQUEST
-                            ).into_response());
+                            tracing::error!("OAuth error from provider {}: {}", provider, error_msg);
+                            let error_description = params.get("error_description").map_or(error_msg.as_str(), |desc| desc.as_str());
+                            let message = format!("The OAuth provider returned an error: {error_description}. Please try again or contact support if the problem persists.");
+                            return Ok(Self::create_oauth_error_response(&provider, "OAuth Authorization Denied", &message));
                         }
 
                         match oauth_routes.handle_callback(&code, &state, &provider).await {
                             Ok(callback_response) => {
-                                let html_content = match OAuthTemplateRenderer::render_success_template(&provider, &callback_response) {
+                                let oauth_callback_port = oauth_routes.config().config().oauth_callback_port;
+                                let html_content = match OAuthTemplateRenderer::render_success_template(&provider, &callback_response, oauth_callback_port) {
                                     Ok(html) => html,
                                     Err(e) => {
                                         tracing::error!("Failed to render success template: {}", e);
@@ -464,22 +449,8 @@ impl MultiTenantMcpServer {
                                 ).into_response())
                             }
                             Err(e) => {
-                                let html_content = match OAuthTemplateRenderer::render_error_template(
-                                    &provider,
-                                    "Connection Failed",
-                                    Some(&format!("There was an error connecting your {} account to Pierre Fitness: {}", provider.to_uppercase(), e))
-                                ) {
-                                    Ok(html) => html,
-                                    Err(template_err) => {
-                                        tracing::error!("Failed to render error template: {}", template_err);
-                                        format!("<h1>Error</h1><p>Failed to connect {} account: {}</p>", provider.to_uppercase(), e)
-                                    }
-                                };
-
-                                Ok(warp::reply::with_status(
-                                    warp::reply::html(html_content),
-                                    warp::http::StatusCode::BAD_REQUEST
-                                ).into_response())
+                                let message = format!("There was an error connecting your {} account to Pierre Fitness: {e}", provider.to_uppercase());
+                                Ok(Self::create_oauth_error_response(&provider, "Connection Failed", &message))
                             }
                         }
                     }

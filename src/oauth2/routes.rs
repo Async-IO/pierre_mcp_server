@@ -386,6 +386,7 @@ fn parse_token_request(form: &HashMap<String, String>) -> Result<TokenRequest, O
     let code = form.get("code").cloned();
     let redirect_uri = form.get("redirect_uri").cloned();
     let scope = form.get("scope").cloned();
+    let refresh_token = form.get("refresh_token").cloned();
 
     Ok(TokenRequest {
         grant_type,
@@ -394,6 +395,7 @@ fn parse_token_request(form: &HashMap<String, String>) -> Result<TokenRequest, O
         client_id,
         client_secret,
         scope,
+        refresh_token,
     })
 }
 

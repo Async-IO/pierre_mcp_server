@@ -170,6 +170,15 @@ pub mod env_config {
     pub fn strava_api_base() -> String {
         env::var("STRAVA_API_BASE").unwrap_or_else(|_| "https://www.strava.com/api/v3".to_string())
     }
+
+    /// Get OAuth callback port from environment or default (for bridge focus recovery)
+    #[must_use]
+    pub fn oauth_callback_port() -> u16 {
+        env::var("OAUTH_CALLBACK_PORT")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(super::ports::DEFAULT_OAUTH_CALLBACK_PORT)
+    }
 }
 
 /// API endpoints
@@ -188,6 +197,8 @@ pub mod ports {
     pub const DEFAULT_MCP_PORT: u16 = 8081;
     /// Default docs port
     pub const DEFAULT_DOCS_PORT: u16 = 8082;
+    /// Default OAuth callback port (for bridge focus recovery)
+    pub const DEFAULT_OAUTH_CALLBACK_PORT: u16 = 35535;
 }
 
 /// API routes

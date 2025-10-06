@@ -28,6 +28,7 @@ async fn create_test_auth_routes() -> Result<AuthRoutes> {
     let temp_dir = tempfile::tempdir()?;
     let config = std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
         http_port: 8081,
+        oauth_callback_port: 35535,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
@@ -193,6 +194,7 @@ async fn create_test_oauth_routes() -> Result<(OAuthRoutes, Uuid, Arc<Database>)
     let temp_dir = tempfile::tempdir()?;
     let config = std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
         http_port: 8081,
+        oauth_callback_port: 35535,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
@@ -412,6 +414,7 @@ async fn test_user_login_success() -> Result<()> {
     let temp_dir = tempfile::tempdir()?;
     let config = std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
         http_port: 8081,
+        oauth_callback_port: 35535,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
@@ -629,6 +632,7 @@ async fn test_token_refresh_success() -> Result<()> {
     let temp_dir = tempfile::tempdir()?;
     let config = std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
         http_port: 8081,
+        oauth_callback_port: 35535,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
@@ -791,6 +795,7 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
     let temp_dir = tempfile::tempdir()?;
     let config = std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
         http_port: 8081,
+        oauth_callback_port: 35535,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
@@ -1189,6 +1194,7 @@ async fn test_complete_auth_flow() -> Result<()> {
     let temp_dir = tempfile::tempdir()?;
     let config = std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
         http_port: 8081,
+        oauth_callback_port: 35535,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
@@ -1423,6 +1429,7 @@ async fn test_concurrent_logins() -> Result<()> {
     let temp_dir = tempfile::tempdir()?;
     let config = std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
         http_port: 8081,
+        oauth_callback_port: 35535,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,

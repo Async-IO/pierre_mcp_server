@@ -1570,6 +1570,7 @@ fn create_test_server_config() -> ServerConfig {
 
     ServerConfig {
         http_port: 8081,
+        oauth_callback_port: 35535,
         log_level: LogLevel::Info,
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,

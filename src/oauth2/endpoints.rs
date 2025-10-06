@@ -103,6 +103,7 @@ impl OAuth2AuthorizationServer {
         match request.grant_type.as_str() {
             "authorization_code" => self.handle_authorization_code_grant(request).await,
             "client_credentials" => self.handle_client_credentials_grant(request),
+            "refresh_token" => self.handle_refresh_token_grant(request).await,
             _ => Err(OAuth2Error::unsupported_grant_type()),
         }
     }
@@ -134,12 +135,31 @@ impl OAuth2AuthorizationServer {
             )
             .map_err(|_| OAuth2Error::invalid_request("Failed to generate access token"))?;
 
+        // Generate refresh token
+        let refresh_token_value = Self::generate_refresh_token();
+        let refresh_token_expires_at = Utc::now() + Duration::days(30); // 30 days
+
+        let refresh_token = crate::oauth2::models::OAuth2RefreshToken {
+            token: refresh_token_value.clone(),   // Safe: Clone for storage
+            client_id: request.client_id.clone(), // Safe: Clone for ownership
+            user_id: auth_code.user_id,
+            scope: auth_code.scope.clone(), // Safe: Clone for storage
+            expires_at: refresh_token_expires_at,
+            created_at: Utc::now(),
+            revoked: false,
+        };
+
+        // Store refresh token
+        self.store_refresh_token(&refresh_token)
+            .await
+            .map_err(|_| OAuth2Error::invalid_request("Failed to store refresh token"))?;
+
         Ok(TokenResponse {
             access_token,
             token_type: "Bearer".to_string(),
             expires_in: 3600, // 1 hour
             scope: auth_code.scope,
-            refresh_token: None, // Not implemented yet
+            refresh_token: Some(refresh_token_value),
         })
     }
 
@@ -163,6 +183,68 @@ impl OAuth2AuthorizationServer {
             expires_in: 3600, // 1 hour
             scope: request.scope,
             refresh_token: None,
+        })
+    }
+
+    /// Handle refresh token grant with rotation
+    async fn handle_refresh_token_grant(
+        &self,
+        request: TokenRequest,
+    ) -> Result<TokenResponse, OAuth2Error> {
+        let refresh_token_value = request
+            .refresh_token
+            .ok_or_else(|| OAuth2Error::invalid_request("Missing refresh_token"))?;
+
+        // Validate and get existing refresh token
+        let old_refresh_token = self
+            .validate_and_consume_refresh_token(&refresh_token_value, &request.client_id)
+            .await?;
+
+        // Revoke old refresh token (rotation)
+        self.revoke_refresh_token(&refresh_token_value)
+            .await
+            .map_err(|_| OAuth2Error::invalid_request("Failed to revoke old refresh token"))?;
+
+        // Generate new access token
+        let access_token = self
+            .generate_access_token(
+                &request.client_id,
+                Some(old_refresh_token.user_id),
+                old_refresh_token.scope.as_deref(),
+            )
+            .map_err(|_| OAuth2Error::invalid_request("Failed to generate access token"))?;
+
+        // Generate new refresh token (rotation)
+        let new_refresh_token_value = Self::generate_refresh_token();
+        let refresh_token_expires_at = Utc::now() + Duration::days(30); // 30 days
+
+        let new_refresh_token = crate::oauth2::models::OAuth2RefreshToken {
+            token: new_refresh_token_value.clone(), // Safe: Clone for storage
+            client_id: request.client_id.clone(),   // Safe: Clone for ownership
+            user_id: old_refresh_token.user_id,
+            scope: old_refresh_token.scope.clone(), // Safe: Clone for storage
+            expires_at: refresh_token_expires_at,
+            created_at: Utc::now(),
+            revoked: false,
+        };
+
+        // Store new refresh token
+        self.store_refresh_token(&new_refresh_token)
+            .await
+            .map_err(|_| OAuth2Error::invalid_request("Failed to store new refresh token"))?;
+
+        tracing::info!(
+            "Refresh token rotated for client {} and user {}",
+            request.client_id,
+            old_refresh_token.user_id
+        );
+
+        Ok(TokenResponse {
+            access_token,
+            token_type: "Bearer".to_string(),
+            expires_in: 3600, // 1 hour
+            scope: old_refresh_token.scope,
+            refresh_token: Some(new_refresh_token_value),
         })
     }
 
@@ -286,5 +368,64 @@ impl OAuth2AuthorizationServer {
     /// Update authorization code (database operation)
     async fn update_auth_code(&self, auth_code: &OAuth2AuthCode) -> Result<()> {
         self.database.update_oauth2_auth_code(auth_code).await
+    }
+
+    /// Generate refresh token with secure randomness
+    fn generate_refresh_token() -> String {
+        // Generate 32 bytes (256 bits) of secure random data
+        Self::generate_random_string(32)
+    }
+
+    /// Store refresh token (database operation)
+    async fn store_refresh_token(
+        &self,
+        refresh_token: &crate::oauth2::models::OAuth2RefreshToken,
+    ) -> Result<()> {
+        self.database
+            .store_oauth2_refresh_token(refresh_token)
+            .await
+    }
+
+    /// Get refresh token (database operation)
+    async fn get_refresh_token(
+        &self,
+        token: &str,
+    ) -> Result<Option<crate::oauth2::models::OAuth2RefreshToken>> {
+        self.database.get_oauth2_refresh_token(token).await
+    }
+
+    /// Revoke refresh token (database operation)
+    async fn revoke_refresh_token(&self, token: &str) -> Result<()> {
+        self.database.revoke_oauth2_refresh_token(token).await
+    }
+
+    /// Validate and consume refresh token
+    async fn validate_and_consume_refresh_token(
+        &self,
+        token: &str,
+        client_id: &str,
+    ) -> Result<crate::oauth2::models::OAuth2RefreshToken, OAuth2Error> {
+        let refresh_token = self
+            .get_refresh_token(token)
+            .await
+            .map_err(|_| OAuth2Error::invalid_grant("Invalid refresh token"))?
+            .ok_or_else(|| OAuth2Error::invalid_grant("Refresh token not found"))?;
+
+        // Validate token properties
+        if refresh_token.client_id != client_id {
+            return Err(OAuth2Error::invalid_grant(
+                "Refresh token was issued to different client",
+            ));
+        }
+
+        if refresh_token.revoked {
+            return Err(OAuth2Error::invalid_grant("Refresh token has been revoked"));
+        }
+
+        if Utc::now() > refresh_token.expires_at {
+            return Err(OAuth2Error::invalid_grant("Refresh token expired"));
+        }
+
+        Ok(refresh_token)
     }
 }

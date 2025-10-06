@@ -21,6 +21,7 @@ program
   .option('--oauth-client-secret <secret>', 'OAuth 2.0 client secret')
   .option('--user-email <email>', 'User email for automated login')
   .option('--user-password <password>', 'User password for automated login')
+  .option('--callback-port <port>', 'OAuth callback server port', '35535')
   .option('-v, --verbose', 'Enable verbose logging')
   .action(async (options) => {
     try {
@@ -31,6 +32,7 @@ program
         oauthClientSecret: options.oauthClientSecret,
         userEmail: options.userEmail,
         userPassword: options.userPassword,
+        callbackPort: parseInt(options.callbackPort, 10),
         verbose: options.verbose || false
       });
 
