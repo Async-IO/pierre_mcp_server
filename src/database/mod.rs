@@ -165,6 +165,38 @@ impl Database {
             .execute(&self.pool)
             .await?;
 
+        // Create oauth2_refresh_tokens table
+        sqlx::query(
+            r"
+            CREATE TABLE IF NOT EXISTS oauth2_refresh_tokens (
+                token TEXT PRIMARY KEY,
+                client_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                scope TEXT,
+                expires_at DATETIME NOT NULL,
+                created_at DATETIME NOT NULL,
+                revoked BOOLEAN NOT NULL DEFAULT 0,
+                FOREIGN KEY (client_id) REFERENCES oauth2_clients(client_id) ON DELETE CASCADE
+            )
+            ",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create index for refresh token lookups
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_oauth2_refresh_tokens_token ON oauth2_refresh_tokens(token)",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Create index for user refresh tokens
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_oauth2_refresh_tokens_user_id ON oauth2_refresh_tokens(user_id)",
+        )
+        .execute(&self.pool)
+        .await?;
+
         Ok(())
     }
 

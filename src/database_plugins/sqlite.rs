@@ -1504,6 +1504,85 @@ impl DatabaseProvider for SqliteDatabase {
         Ok(())
     }
 
+    /// Store OAuth 2.0 refresh token
+    async fn store_oauth2_refresh_token(
+        &self,
+        refresh_token: &crate::oauth2::models::OAuth2RefreshToken,
+    ) -> Result<()> {
+        let query = r"
+            INSERT INTO oauth2_refresh_tokens
+            (token, client_id, user_id, scope, expires_at, created_at, revoked)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+        ";
+
+        sqlx::query(query)
+            .bind(&refresh_token.token)
+            .bind(&refresh_token.client_id)
+            .bind(refresh_token.user_id.to_string())
+            .bind(&refresh_token.scope)
+            .bind(refresh_token.expires_at)
+            .bind(refresh_token.created_at)
+            .bind(refresh_token.revoked)
+            .execute(self.inner.pool())
+            .await
+            .context("Failed to store OAuth2 refresh token")?;
+
+        Ok(())
+    }
+
+    /// Get OAuth 2.0 refresh token
+    async fn get_oauth2_refresh_token(
+        &self,
+        token: &str,
+    ) -> Result<Option<crate::oauth2::models::OAuth2RefreshToken>> {
+        let query = r"
+            SELECT token, client_id, user_id, scope, expires_at, created_at, revoked
+            FROM oauth2_refresh_tokens
+            WHERE token = ?1
+        ";
+
+        let row = sqlx::query(query)
+            .bind(token)
+            .fetch_optional(self.inner.pool())
+            .await
+            .context("Failed to get OAuth2 refresh token")?;
+
+        if let Some(row) = row {
+            let user_id_str: String = row.try_get("user_id")?;
+            let user_id =
+                Uuid::parse_str(&user_id_str).context("Failed to parse user_id as UUID")?;
+
+            Ok(Some(crate::oauth2::models::OAuth2RefreshToken {
+                token: row.try_get("token")?,
+                client_id: row.try_get("client_id")?,
+                user_id,
+                scope: row.try_get("scope")?,
+                expires_at: row.try_get("expires_at")?,
+                created_at: row.try_get("created_at")?,
+                revoked: row.try_get("revoked")?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Revoke OAuth 2.0 refresh token
+    async fn revoke_oauth2_refresh_token(&self, token: &str) -> Result<()> {
+        let query = r"
+            UPDATE oauth2_refresh_tokens
+            SET revoked = 1
+            WHERE token = ?1
+        ";
+
+        sqlx::query(query)
+            .bind(token)
+            .execute(self.inner.pool())
+            .await
+            .context("Failed to revoke OAuth2 refresh token")?;
+
+        Ok(())
+    }
+
     /// Store authorization code
     async fn store_authorization_code(
         &self,

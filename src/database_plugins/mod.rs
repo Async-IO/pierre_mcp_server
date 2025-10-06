@@ -551,6 +551,21 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         auth_code: &crate::oauth2::models::OAuth2AuthCode,
     ) -> Result<()>;
 
+    /// Store OAuth 2.0 refresh token
+    async fn store_oauth2_refresh_token(
+        &self,
+        refresh_token: &crate::oauth2::models::OAuth2RefreshToken,
+    ) -> Result<()>;
+
+    /// Get OAuth 2.0 refresh token
+    async fn get_oauth2_refresh_token(
+        &self,
+        token: &str,
+    ) -> Result<Option<crate::oauth2::models::OAuth2RefreshToken>>;
+
+    /// Revoke OAuth 2.0 refresh token
+    async fn revoke_oauth2_refresh_token(&self, token: &str) -> Result<()>;
+
     /// Store authorization code
     async fn store_authorization_code(
         &self,
