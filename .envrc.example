@@ -6,31 +6,51 @@ export STRAVA_CLIENT_ID=your-strava-client-id
 export STRAVA_CLIENT_SECRET=your-strava-client-secret
 export STRAVA_REDIRECT_URI=http://localhost:8080/api/oauth/callback/strava
 
+# Bridge OAuth Callback Configuration
+# After provider OAuth completes, server redirects to bridge callback server to trigger focus recovery
+export OAUTH_CALLBACK_PORT=35535
+
+# Weather Service Configuration
+export OPENWEATHER_API_KEY="your-openweathermap-api-key"
+
 # Server Configuration - Unified Single Port Architecture
 export HTTP_PORT="8080"
 export RUST_LOG="info"
 
-# Database Configuration (server-side only)
-export DATABASE_URL="sqlite:data/pierre.db"
-# For PostgreSQL: export DATABASE_URL="postgres://user:pass@localhost/pierre_db"
+# Database Configuration
+export DATABASE_URL="sqlite:./data/users.db"
+# For PostgreSQL: export DATABASE_URL="postgresql://user:pass@localhost/pierre_db"
+export ENCRYPTION_KEY_PATH="./data/encryption.key"
+export JWT_SECRET_PATH="./data/jwt.secret"
+export JWT_EXPIRY_HOURS="24"
 
 # PostgreSQL Connection Pool Configuration (when using PostgreSQL)
 # These values are automatically optimized for CI vs production environments
-# export PG_MAX_CONNECTIONS="10"        # Default: 10 (prod), 20 (CI)
-# export PG_MIN_CONNECTIONS="0"         # Default: 0 (prod), 1 (CI)  
-# export PG_ACQUIRE_TIMEOUT_SECS="30"   # Default: 30 (prod), 120 (CI)
+export POSTGRES_MAX_CONNECTIONS="10"     # Default: 10 (prod), 5 (CI)
+export POSTGRES_MIN_CONNECTIONS="0"      # Default: 0 (prod), 1 (CI)
+export POSTGRES_ACQUIRE_TIMEOUT="30"     # Default: 30 (prod), 30 (CI)
+
+# Master Encryption Key for persistent two-tier key management
+# Generate with: openssl rand -base64 32
+export PIERRE_MASTER_ENCRYPTION_KEY="your-base64-encoded-master-key"
+
+# Rate Limiting Configuration
+export RATE_LIMIT_ENABLED="true"
+export RATE_LIMIT_REQUESTS="100"
+export RATE_LIMIT_WINDOW="60"
+
+# Backup Configuration
+export BACKUP_ENABLED="true"
+export BACKUP_INTERVAL="21600"  # 6 hours in seconds
+export BACKUP_RETENTION="7"
+export BACKUP_DIRECTORY="./backups"
+
+# Activity Fetch Limits
+export MAX_ACTIVITIES_FETCH="100"
+export DEFAULT_ACTIVITIES_LIMIT="20"
 
 # Development settings
 export CARGO_TERM_COLOR="always"
-export RUST_BACKTRACE="1"
-
-# Security (server-side only)
-# Note: JWT secrets are managed automatically via database-stored admin_jwt_secret
-# export JWT_SECRET="dev-secret-key-change-in-production"  # No longer required
-
-# Optional: External service API keys (server-side only)  
-# export WEATHER_API_KEY="your-openweathermap-key"
-# export GOOGLE_MAPS_API_KEY="your-google-maps-key"
 
 # ============================================================================
 # FITNESS CONFIGURATION - Environment-Only (Cloud-Native Approach)
@@ -39,39 +59,42 @@ export RUST_BACKTRACE="1"
 # for easy cloud deployment. No TOML files - single source of truth.
 
 # Sport Type Mappings (optional - override default mappings)
-# export SPORT_TYPE_RUN="run"                    # Override Strava "Run" -> internal mapping
-# export SPORT_TYPE_RIDE="bike_ride"             # Override Strava "Ride" -> internal mapping  
-# export SPORT_TYPE_SWIM="swim"                  # Override Strava "Swim" -> internal mapping
-# export SPORT_TYPE_VIRTUALRIDE="virtual_ride"   # Override Strava "VirtualRide" -> internal mapping
+export SPORT_TYPE_RUN="run"
+export SPORT_TYPE_RIDE="bike_ride"
+export SPORT_TYPE_SWIM="swim"
+export SPORT_TYPE_WALK="walk"
+export SPORT_TYPE_HIKE="hike"
+export SPORT_TYPE_VIRTUALRIDE="virtual_ride"
+export SPORT_TYPE_VIRTUALRUN="virtual_run"
+export SPORT_TYPE_WORKOUT="workout"
+export SPORT_TYPE_YOGA="yoga"
+export SPORT_TYPE_EBIKERIDE="ebike_ride"
+export SPORT_TYPE_MOUNTAINBIKERIDE="mountain_bike"
+export SPORT_TYPE_GRAVELRIDE="gravel_ride"
 
 # Fitness Effort Thresholds (1-10 scale for workout intensity classification)
-export FITNESS_EFFORT_LIGHT_MAX="3.0"         # Light effort upper bound
-export FITNESS_EFFORT_MODERATE_MAX="5.0"      # Moderate effort upper bound  
-export FITNESS_EFFORT_HARD_MAX="7.0"          # Hard effort upper bound (>7.0 = very high)
+export FITNESS_EFFORT_LIGHT_MAX="3.0"
+export FITNESS_EFFORT_MODERATE_MAX="5.0"
+export FITNESS_EFFORT_HARD_MAX="7.0"
+# > 7.0 = very_high
 
 # Heart Rate Zone Thresholds (percentage of max HR)
-export FITNESS_ZONE_RECOVERY_MAX="60.0"       # Recovery zone upper bound
-export FITNESS_ZONE_ENDURANCE_MAX="70.0"      # Endurance zone upper bound
-export FITNESS_ZONE_TEMPO_MAX="80.0"          # Tempo zone upper bound
-export FITNESS_ZONE_THRESHOLD_MAX="90.0"      # Threshold zone upper bound (>90% = VO2Max)
+export FITNESS_ZONE_RECOVERY_MAX="60.0"
+export FITNESS_ZONE_ENDURANCE_MAX="70.0"
+export FITNESS_ZONE_TEMPO_MAX="80.0"
+export FITNESS_ZONE_THRESHOLD_MAX="90.0"
+# > 90.0 = vo2max
 
 # Weather Integration Settings
-export FITNESS_WEATHER_WIND_THRESHOLD="15.0"             # Wind speed threshold (km/h) for windy conditions
-export FITNESS_WEATHER_ENABLED="true"                    # Enable weather API integration
-export FITNESS_WEATHER_CACHE_DURATION_HOURS="24"        # Weather data cache duration
-export FITNESS_WEATHER_REQUEST_TIMEOUT_SECONDS="10"     # Weather API request timeout  
-export FITNESS_WEATHER_RATE_LIMIT_PER_MINUTE="60"       # Weather API rate limit
+export FITNESS_WEATHER_WIND_THRESHOLD="15.0"
+export FITNESS_WEATHER_ENABLED="true"
+export FITNESS_WEATHER_CACHE_DURATION_HOURS="24"
+export FITNESS_WEATHER_REQUEST_TIMEOUT_SECONDS="10"
+export FITNESS_WEATHER_RATE_LIMIT_PER_MINUTE="60"
 
 # Personal Records Configuration
-export FITNESS_PR_PACE_IMPROVEMENT_THRESHOLD="5.0"      # Minimum pace improvement % to count as PR
-
-# MCP Client Configuration (for testing)
-# These are set when configuring Claude Desktop or Python clients
-# export TENANT_ID="your-tenant-id"
-# export TENANT_JWT_TOKEN="your-jwt-token"
-# export PIERRE_SERVER_URL="http://localhost:8080"
+export FITNESS_PR_PACE_IMPROVEMENT_THRESHOLD="5.0"
 
 # OAuth Login Form Defaults (for dev/test only - leave empty in production)
-# These pre-fill the OAuth login form for easier testing
 export OAUTH_DEFAULT_EMAIL="user@example.com"
 export OAUTH_DEFAULT_PASSWORD="userpass123"
