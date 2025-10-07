@@ -4,7 +4,7 @@
 use super::resources::ServerResources;
 use crate::database_plugins::DatabaseProvider;
 use crate::tenant::{TenantContext, TenantRole};
-use crate::utils::json_responses::{api_error, oauth_error};
+use crate::utils::json_responses::api_error;
 use anyhow::Result;
 use std::sync::Arc;
 use tracing::{error, info, warn};
@@ -32,15 +32,62 @@ impl OAuthFlowManager {
         provider: String,
         user_id_str: String,
         headers: HeaderMap,
-    ) -> Result<impl warp::Reply, warp::Rejection> {
-        let user_id = Uuid::parse_str(&user_id_str)
-            .map_err(|_| warp::reject::custom(ApiError(api_error("Invalid user ID format"))))?;
+    ) -> Result<Box<dyn warp::Reply>, warp::Rejection> {
+        // Parse user_id - return HTML error if invalid
+        let Ok(user_id) = Uuid::parse_str(&user_id_str) else {
+            error!("Invalid user_id format: {}", user_id_str);
+            return match Self::create_html_error_response(
+                &provider,
+                "Invalid user ID format",
+                Some("The user ID provided in the URL is not a valid UUID format."),
+            ) {
+                Ok(reply) => Ok(Box::new(reply) as Box<dyn warp::Reply>),
+                Err(e) => Err(e),
+            };
+        };
 
-        let user = self.get_user_with_tenant(user_id).await?;
-        let tenant_id = Self::extract_tenant_id(&user)?;
+        // Get user - return HTML error if not found
+        let Ok(user) = self.get_user_with_tenant(user_id).await else {
+            error!("User {} not found", user_id);
+            return match Self::create_html_error_response(
+                &provider,
+                "User account not found",
+                Some("The user account associated with this OAuth request could not be found."),
+            ) {
+                Ok(reply) => Ok(Box::new(reply) as Box<dyn warp::Reply>),
+                Err(e) => Err(e),
+            };
+        };
 
-        self.process_oauth_credentials(&headers, &provider, tenant_id, user_id)
-            .await?;
+        // Extract tenant_id - return HTML error if missing
+        let Ok(tenant_id) = Self::extract_tenant_id(&user) else {
+            error!("Missing or invalid tenant for user {}", user_id);
+            return match Self::create_html_error_response(
+                &provider,
+                "Tenant configuration error",
+                Some("User does not belong to any tenant or tenant ID is invalid."),
+            ) {
+                Ok(reply) => Ok(Box::new(reply) as Box<dyn warp::Reply>),
+                Err(e) => Err(e),
+            };
+        };
+
+        // Process credentials - return HTML error if fails
+        if self
+            .process_oauth_credentials(&headers, &provider, tenant_id, user_id)
+            .await
+            .is_err()
+        {
+            error!("Failed to process OAuth credentials for user {}", user_id);
+            return match Self::create_html_error_response(
+                &provider,
+                "OAuth configuration error",
+                Some("Failed to store OAuth credentials. Please check your configuration."),
+            ) {
+                Ok(reply) => Ok(Box::new(reply) as Box<dyn warp::Reply>),
+                Err(e) => Err(e),
+            };
+        }
 
         let tenant_name = self.get_tenant_name(tenant_id).await;
         let tenant_context = TenantContext {
@@ -113,7 +160,7 @@ impl OAuthFlowManager {
         &self,
         provider: &str,
         tenant_context: &TenantContext,
-    ) -> Result<impl warp::Reply, warp::Rejection> {
+    ) -> Result<Box<dyn warp::Reply>, warp::Rejection> {
         let tenant_oauth_client = &self.resources.tenant_oauth_client;
         let state = format!("{}:{}", tenant_context.user_id, uuid::Uuid::new_v4());
 
@@ -133,25 +180,34 @@ impl OAuthFlowManager {
                 );
 
                 // Return redirect response with 302 status (expected by tests)
-                let uri = auth_url.parse::<warp::http::Uri>().map_err(|_| {
-                    warp::reject::custom(ApiError(oauth_error(
-                        "Invalid authorization URL",
-                        "URL parse error",
-                        Some(provider),
-                    )))
-                })?;
-                Ok(warp::redirect::found(uri))
+                auth_url.parse::<warp::http::Uri>().map_or_else(
+                    |_| {
+                        error!("Invalid authorization URL format: {}", auth_url);
+                        match Self::create_html_error_response(
+                            provider,
+                            "Invalid authorization URL",
+                            Some("The generated authorization URL has an invalid format."),
+                        ) {
+                            Ok(reply) => Ok(Box::new(reply) as Box<dyn warp::Reply>),
+                            Err(e) => Err(e),
+                        }
+                    },
+                    |uri| Ok(Box::new(warp::redirect::found(uri)) as Box<dyn warp::Reply>),
+                )
             }
             Err(e) => {
                 error!(
                     "Failed to generate authorization URL for provider {}: {}",
                     provider, e
                 );
-                Err(warp::reject::custom(ApiError(oauth_error(
+                match Self::create_html_error_response(
+                    provider,
                     "Failed to generate authorization URL",
-                    &e.to_string(),
-                    Some(provider),
-                ))))
+                    Some("Could not generate the authorization URL. Please check your OAuth configuration."),
+                ) {
+                    Ok(reply) => Ok(Box::new(reply) as Box<dyn warp::Reply>),
+                    Err(e) => Err(e),
+                }
             }
         }
     }
@@ -240,6 +296,26 @@ impl OAuthFlowManager {
                 "weight".to_string(),
             ],
             _ => vec!["read".to_string()], // Default scope
+        }
+    }
+
+    /// Create HTML error response using the OAuth template renderer
+    fn create_html_error_response(
+        provider: &str,
+        error: &str,
+        description: Option<&str>,
+    ) -> Result<impl warp::Reply, warp::Rejection> {
+        match OAuthTemplateRenderer::render_error_template(provider, error, description) {
+            Ok(html) => Ok(warp::reply::with_status(
+                warp::reply::html(html),
+                warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+            )),
+            Err(e) => {
+                error!("Failed to render OAuth error template: {}", e);
+                Err(warp::reject::custom(ApiError(api_error(
+                    "Failed to render error page",
+                ))))
+            }
         }
     }
 }

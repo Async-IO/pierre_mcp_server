@@ -975,7 +975,28 @@ impl AuthRoutes {
             }
             Err(e) => {
                 tracing::error!("OAuth callback failed: {}", e);
-                Err(warp::reject::custom(AppError::from(e)))
+
+                // Determine error message and description based on error type
+                let (error_msg, description) = Self::categorize_oauth_error(&e);
+
+                let html =
+                    crate::mcp::oauth_flow_manager::OAuthTemplateRenderer::render_error_template(
+                        &provider,
+                        error_msg,
+                        description,
+                    )
+                    .map_err(|template_err| {
+                        tracing::error!(
+                            "Critical: Failed to render OAuth error template: {}",
+                            template_err
+                        );
+                        warp::reject::custom(AppError::internal("Template rendering failed"))
+                    })?;
+
+                Ok(warp::reply::with_status(
+                    warp::reply::html(html),
+                    warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+                ))
             }
         }
     }
@@ -1060,93 +1081,143 @@ impl AuthRoutes {
         ))
     }
 
-    /// Generate OAuth error HTML page
-    fn generate_oauth_error_html(
+    /// Render HTML error response for OAuth failures
+    fn render_oauth_html_error(
         provider: &str,
-        error_message: &str,
-        user_id: uuid::Uuid,
-    ) -> String {
-        format!(
-            r#"<!DOCTYPE html>
-<html>
-<head>
-    <title>OAuth Error - Pierre Fitness</title>
-    <meta charset="UTF-8">
-    <style>
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            max-width: 600px;
-            margin: 50px auto;
-            padding: 20px;
-            background: #f5f5f5;
-        }}
-        .error-container {{
-            background: white;
-            border-radius: 8px;
-            padding: 30px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }}
-        h1 {{
-            color: #d32f2f;
-            margin-top: 0;
-        }}
-        .error-message {{
-            color: #666;
-            line-height: 1.6;
-            margin: 20px 0;
-        }}
-        .details {{
-            background: #f5f5f5;
-            padding: 15px;
-            border-radius: 4px;
-            font-family: monospace;
-            font-size: 14px;
-            word-break: break-all;
-        }}
-        .actions {{
-            margin-top: 30px;
-        }}
-        button {{
-            background: #1976d2;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-        }}
-        button:hover {{
-            background: #1565c0;
-        }}
-    </style>
-</head>
-<body>
-    <div class="error-container">
-        <h1>OAuth Authorization Failed</h1>
-        <div class="error-message">
-            <p>We couldn't start the OAuth authorization process for <strong>{}</strong>.</p>
-            <p><strong>Error:</strong> {}</p>
-        </div>
-        <div class="details">
-            <strong>Provider:</strong> {}<br>
-            <strong>User ID:</strong> {}<br>
-            <strong>Timestamp:</strong> {}
-        </div>
-        <div class="actions">
-            <button onclick="window.close()">Close Window</button>
-        </div>
-    </div>
-</body>
-</html>"#,
-            provider,
-            error_message,
-            provider,
-            user_id,
-            chrono::Utc::now().to_rfc3339()
-        )
+        error: &str,
+        description: Option<&str>,
+        status: warp::http::StatusCode,
+    ) -> Result<Box<dyn warp::Reply>, Rejection> {
+        let error_html =
+            crate::mcp::oauth_flow_manager::OAuthTemplateRenderer::render_error_template(
+                provider,
+                error,
+                description,
+            )
+            .map_err(|template_err| {
+                tracing::error!(
+                    "Critical: Failed to render OAuth error template: {}",
+                    template_err
+                );
+                warp::reject::custom(AppError::internal("Template rendering failed"))
+            })?;
+        let error_response = warp::reply::with_status(warp::reply::html(error_html), status);
+        Ok(Box::new(error_response) as Box<dyn warp::Reply>)
+    }
+
+    /// Validate and retrieve user for OAuth flow
+    ///
+    /// Returns error tuple: (`error_message`, `description`, `status_code`)
+    async fn validate_user_for_oauth(
+        user_id_str: &str,
+        resources: &Arc<ServerResources>,
+    ) -> Result<
+        (uuid::Uuid, crate::models::User),
+        (&'static str, Option<&'static str>, warp::http::StatusCode),
+    > {
+        let user_id = uuid::Uuid::parse_str(user_id_str).map_err(|_| {
+            tracing::error!("Invalid user_id format: {}", user_id_str);
+            (
+                "Invalid user ID format",
+                Some("The user ID provided in the URL is not a valid UUID format."),
+                warp::http::StatusCode::BAD_REQUEST,
+            )
+        })?;
+
+        let user = match resources.database.get_user(user_id).await {
+            Ok(Some(user)) => user,
+            Ok(None) => {
+                tracing::error!("User {} not found in database", user_id);
+                return Err((
+                    "User account not found",
+                    Some("The user account associated with this OAuth request could not be found in the database."),
+                    warp::http::StatusCode::NOT_FOUND,
+                ));
+            }
+            Err(e) => {
+                tracing::error!("Failed to get user {} for OAuth: {}", user_id, e);
+                return Err((
+                    "Database error",
+                    Some("Failed to retrieve user information from the database. Please try again later."),
+                    warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+                ));
+            }
+        };
+
+        Ok((user_id, user))
+    }
+
+    /// Categorize OAuth errors into user-friendly messages
+    ///
+    /// Returns tuple of (`error_message`, `optional_description`)
+    fn categorize_oauth_error(error: &anyhow::Error) -> (&'static str, Option<&'static str>) {
+        let error_str = error.to_string().to_lowercase();
+
+        if error_str.contains("jwt") && error_str.contains("expired") {
+            (
+                "Your session has expired",
+                Some("Please log in again to continue with OAuth authorization"),
+            )
+        } else if error_str.contains("jwt") && error_str.contains("invalid signature") {
+            (
+                "Invalid authentication token",
+                Some("The authentication token signature is invalid. This may happen if the server's secret key has changed. Please log in again."),
+            )
+        } else if error_str.contains("jwt") && error_str.contains("malformed") {
+            (
+                "Malformed authentication token",
+                Some("The authentication token format is invalid. Please log in again."),
+            )
+        } else if error_str.contains("jwt") {
+            (
+                "Authentication token validation failed",
+                Some(
+                    "There was an issue validating your authentication token. Please log in again.",
+                ),
+            )
+        } else if error_str.contains("user not found") {
+            (
+                "User account not found",
+                Some("The user account associated with this OAuth request could not be found."),
+            )
+        } else if error_str.contains("tenant") {
+            (
+                "Tenant configuration error",
+                Some("There was an issue with your account's tenant configuration. Please contact support."),
+            )
+        } else if error_str.contains("oauth code") || error_str.contains("token exchange") {
+            (
+                "OAuth token exchange failed",
+                Some("Failed to exchange the authorization code for an access token. The provider may have rejected the request."),
+            )
+        } else if error_str.contains("state parameter") {
+            (
+                "Invalid OAuth state",
+                Some("The OAuth state parameter is invalid or has been tampered with. This is a security measure to prevent CSRF attacks."),
+            )
+        } else {
+            (
+                "OAuth authorization failed",
+                Some("An unexpected error occurred during the OAuth authorization process."),
+            )
+        }
     }
 
     /// Handle OAuth authorization initiation - redirects to provider OAuth page
+    ///
+    /// This function validates the user and tenant, processes optional OAuth credentials
+    /// from headers, and generates an authorization redirect URL for the specified provider.
+    /// All errors return HTML templates instead of JSON for better user experience.
+    ///
+    /// # Flow
+    /// 1. Parse and validate user UUID
+    /// 2. Retrieve user from database and validate tenant
+    /// 3. Generate OAuth authorization URL
+    /// 4. Redirect user to provider's OAuth page
+    ///
+    /// # Errors
+    /// Returns HTML error pages for: invalid user ID, user not found, database errors,
+    /// or OAuth URL generation failures
     async fn handle_oauth_auth_initiate(
         provider: String,
         user_id_str: String,
@@ -1158,27 +1229,13 @@ impl AuthRoutes {
             user_id_str
         );
 
-        // Parse user_id
-        let user_id = uuid::Uuid::parse_str(&user_id_str).map_err(|e| {
-            tracing::error!("Invalid user_id format: {} - {}", user_id_str, e);
-            warp::reject::custom(AppError::auth_invalid(format!(
-                "Invalid user ID format: {e}"
-            )))
-        })?;
-
-        // Get user to validate they exist and get tenant_id
-        let user = resources
-            .database
-            .get_user(user_id)
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to get user {} for OAuth: {}", user_id, e);
-                warp::reject::custom(AppError::auth_invalid(format!("User not found: {e}")))
-            })?
-            .ok_or_else(|| {
-                tracing::error!("User {} not found in database", user_id);
-                warp::reject::custom(AppError::auth_invalid("User not found".to_string()))
-            })?;
+        // Validate user and get user data
+        let (user_id, user) = match Self::validate_user_for_oauth(&user_id_str, &resources).await {
+            Ok(result) => result,
+            Err((error, description, status)) => {
+                return Self::render_oauth_html_error(&provider, error, description, status);
+            }
+        };
 
         // Get tenant_id from user or use user_id as default
         let tenant_id = user
@@ -1217,13 +1274,14 @@ impl AuthRoutes {
                     user_id,
                     e
                 );
-                let error_html =
-                    Self::generate_oauth_error_html(&provider, &e.to_string(), user_id);
-                let error_response = warp::reply::with_status(
-                    warp::reply::html(error_html),
+                Self::render_oauth_html_error(
+                    &provider,
+                    "Failed to generate OAuth URL",
+                    Some(
+                        "Could not generate the authorization URL. Please check your OAuth configuration.",
+                    ),
                     warp::http::StatusCode::INTERNAL_SERVER_ERROR,
-                );
-                Ok(Box::new(error_response) as Box<dyn warp::Reply>)
+                )
             }
         }
     }
