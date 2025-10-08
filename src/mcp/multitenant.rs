@@ -2087,8 +2087,11 @@ impl MultiTenantMcpServer {
                         manager.unregister_protocol_stream(&session_id_clone).await;
                     };
 
-                    // Use warp's SSE reply with proper CORS headers and session ID
-                    let sse_reply = warp::sse::reply(warp::sse::keep_alive().stream(stream));
+                    // Use warp's SSE reply with proper keepalive interval and CORS headers
+                    let keep = warp::sse::keep_alive()
+                        .interval(std::time::Duration::from_secs(15))
+                        .text(": keepalive\n\n");
+                    let sse_reply = warp::sse::reply(keep.stream(stream));
                     let response = warp::reply::with_header(
                         warp::reply::with_header(
                             warp::reply::with_header(sse_reply, "access-control-allow-origin", "*"),

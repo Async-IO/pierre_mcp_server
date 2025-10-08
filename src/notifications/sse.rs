@@ -139,7 +139,12 @@ pub async fn handle_sse_connection(
         manager_clone.unregister_connection(&user_id_clone).await;
     };
 
-    Ok(warp::sse::reply(warp::sse::keep_alive().stream(stream)))
+    // Configure keepalive with 15-second interval
+    let keep = warp::sse::keep_alive()
+        .interval(std::time::Duration::from_secs(15))
+        .text(": keepalive\n\n");
+
+    Ok(warp::sse::reply(keep.stream(stream)))
 }
 
 /// SSE route filter for user authentication

@@ -59,7 +59,12 @@ pub async fn handle_notification_sse(
         manager_clone.unregister_notification_stream(user_id_clone).await;
     };
 
-    Ok(warp::sse::reply(warp::sse::keep_alive().stream(stream)))
+    // Configure keepalive with 15-second interval
+    let keep = warp::sse::keep_alive()
+        .interval(std::time::Duration::from_secs(15))
+        .text(": keepalive\n\n");
+
+    Ok(warp::sse::reply(keep.stream(stream)))
 }
 
 /// Handle MCP protocol SSE connection with session management
@@ -119,8 +124,11 @@ pub async fn handle_protocol_sse(
         manager_clone.unregister_protocol_stream(&session_id_clone).await;
     };
 
-    // Include session ID in response headers
-    let response = warp::sse::reply(warp::sse::keep_alive().stream(stream));
+    // Configure keepalive with 15-second interval and include session ID in response headers
+    let keep = warp::sse::keep_alive()
+        .interval(std::time::Duration::from_secs(15))
+        .text(": keepalive\n\n");
+    let response = warp::sse::reply(keep.stream(stream));
     Ok(warp::reply::with_header(
         response,
         "Mcp-Session-Id",
