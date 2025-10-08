@@ -223,7 +223,7 @@ else
     LATEST_REPORT=$(ls -t "$MCP_VALIDATOR_DIR"/reports/cr_*.md 2>/dev/null | head -1)
 
     if [ $EXIT_CODE -eq 124 ]; then
-        echo -e "${RED}[FAIL] MCP compliance tests timed out after 5 minutes${NC}"
+        echo -e "${RED}[FAIL] MCP compliance tests timed out after 10 minutes${NC}"
         cd - >/dev/null
         COMPLIANCE_PASSED=false
     else

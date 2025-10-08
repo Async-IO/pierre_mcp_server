@@ -878,7 +878,14 @@ export class PierreClaudeBridge {
     // This ensures all tools are visible immediately in Claude Desktop (tools/list_changed doesn't work)
     try {
       this.log('🔌 Connecting to Pierre proactively to cache all tools for Claude Desktop');
-      await this.connectToPierre();
+
+      // Add 10s timeout for proactive connection to prevent CI hangs
+      const connectionPromise = this.connectToPierre();
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Proactive connection timed out after 10s')), 10000)
+      );
+
+      await Promise.race([connectionPromise, timeoutPromise]);
 
       // Cache tools immediately so they're ready for tools/list
       if (this.pierreClient) {
