@@ -106,7 +106,7 @@ impl McpSseConnection {
     }
 }
 
-/// Create SSE event stream for MCP protocol communication
+/// Create SSE event stream for MCP protocol communication with sequential event IDs
 pub fn create_mcp_sse_stream(
     resources: Arc<ServerResources>,
     _authorization: Option<String>,
@@ -118,9 +118,12 @@ pub fn create_mcp_sse_stream(
         tracing::error!("Failed to send connection established event: {}", e);
     }
 
-    // Convert receiver to stream of SSE Event objects
-    UnboundedReceiverStream::new(receiver).map(|message| {
+    // Convert receiver to stream of SSE Event objects with sequential IDs
+    let mut event_id: u64 = 0;
+    UnboundedReceiverStream::new(receiver).map(move |message| {
+        event_id += 1;
         Ok(warp::sse::Event::default()
+            .id(event_id.to_string())
             .event(&message.event_type)
             .data(&message.data))
     })

@@ -21,9 +21,12 @@
 //!
 //! ## Usage
 //!
-//! ```rust
-//! use crate::providers::{create_provider, create_tenant_provider};
-//! use crate::constants::oauth_providers;
+//! ```rust,no_run
+//! use pierre_mcp_server::providers::{create_provider, create_tenant_provider};
+//! use pierre_mcp_server::constants::oauth_providers;
+//! # use uuid::Uuid;
+//! # let tenant_id = Uuid::new_v4();
+//! # let user_id = Uuid::new_v4();
 //!
 //! // Create a basic provider
 //! let mut provider = create_provider(oauth_providers::STRAVA)?;
@@ -34,6 +37,7 @@
 //!     tenant_id,
 //!     user_id
 //! )?;
+//! # Ok::<(), anyhow::Error>(())
 //! ```
 
 // Core provider system

@@ -2058,13 +2058,16 @@ impl MultiTenantMcpServer {
 
                     // Create SSE stream that forwards MCP protocol messages
                     let stream = async_stream::stream! {
-                        // Listen for MCP messages
+                        // Listen for MCP messages with sequential event IDs for client reconnection support
                         tracing::debug!("SSE stream listening for messages on session: {}", session_id_clone);
+                        let mut event_id: u64 = 0;
                         loop {
                             match receiver.recv().await {
                                 Ok(message) => {
+                                    event_id += 1;
                                     tracing::debug!("SSE stream received message on session {}: {}", session_id_clone, message);
                                     yield Ok::<_, warp::Error>(warp::sse::Event::default()
+                                        .id(event_id.to_string())
                                         .data(message.clone())
                                         .event("message"));
                                     tracing::debug!("SSE stream yielded message to client on session: {}", session_id_clone);

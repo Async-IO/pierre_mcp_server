@@ -11,14 +11,18 @@
 //!
 //! ## Usage
 //!
-//! ```rust
-//! use crate::plugins::core::{PluginToolStatic, PluginImplementation};
+//! ```rust,no_run
+//! use pierre_mcp_server::plugins::core::{PluginToolStatic, PluginImplementation};
+//! use pierre_mcp_server::plugins::PluginEnvironment;
+//! use pierre_mcp_server::protocols::{UniversalRequest, UniversalResponse, ProtocolError};
 //!
 //! pub struct CustomAnalysisTool;
 //!
+//! # #[async_trait::async_trait]
 //! impl PluginImplementation for CustomAnalysisTool {
 //!     async fn execute_impl(&self, request: UniversalRequest, env: PluginEnvironment<'_>) -> Result<UniversalResponse, ProtocolError> {
 //!         // Plugin implementation
+//! #       todo!()
 //!     }
 //! }
 //! ```

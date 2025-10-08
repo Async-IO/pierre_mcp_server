@@ -27,8 +27,11 @@ pub async fn handle_notification_sse(
     let user_id_clone = user_uuid;
 
     let stream = async_stream::stream! {
-        // Send initial connection established event
+        // Send initial connection established event with sequential event IDs
+        let mut event_id: u64 = 0;
+        event_id += 1;
         yield Ok::<_, warp::Error>(warp::sse::Event::default()
+            .id(event_id.to_string())
             .data("connected")
             .event("connection"));
 
@@ -36,7 +39,9 @@ pub async fn handle_notification_sse(
         loop {
             match receiver.recv().await {
                 Ok(message) => {
+                    event_id += 1;
                     yield Ok(warp::sse::Event::default()
+                        .id(event_id.to_string())
                         .data(message)
                         .event("notification"));
                 }
@@ -82,8 +87,11 @@ pub async fn handle_protocol_sse(
     let session_id_clone = session_id.clone();
 
     let stream = async_stream::stream! {
-        // Send initial connection established event
+        // Send initial connection established event with sequential event IDs
+        let mut event_id: u64 = 0;
+        event_id += 1;
         yield Ok::<_, warp::Error>(warp::sse::Event::default()
+            .id(event_id.to_string())
             .data("MCP protocol stream ready")
             .event("connected"));
 
@@ -91,7 +99,9 @@ pub async fn handle_protocol_sse(
         loop {
             match receiver.recv().await {
                 Ok(message) => {
+                    event_id += 1;
                     yield Ok(warp::sse::Event::default()
+                        .id(event_id.to_string())
                         .data(message)
                         .event("message"));
                 }

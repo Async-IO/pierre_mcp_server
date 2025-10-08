@@ -18,12 +18,15 @@
 //!
 //! ```rust
 //! use pierre_mcp_server::jsonrpc::{JsonRpcRequest, JsonRpcResponse};
+//! # use serde_json::json;
+//! # let params = json!({"key": "value"});
+//! # let result = json!({"status": "ok"});
 //!
 //! // Create a request
 //! let request = JsonRpcRequest::new("initialize", Some(params));
 //!
 //! // Create a success response
-//! let response = JsonRpcResponse::success(request.id, result);
+//! let response = JsonRpcResponse::success(request.id.clone(), result);
 //!
 //! // Create an error response
 //! let error_response = JsonRpcResponse::error(request.id, -32600, "Invalid Request");
