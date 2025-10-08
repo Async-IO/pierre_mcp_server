@@ -23,7 +23,11 @@ critical = [
     "unimplemented!",
     "todo!",
     "return Ok\\(\\); // placeholder",
-    "return Err.*not implemented"
+    "return Err.*not implemented",
+    "Intelligence analysis requires authenticated provider access",
+    "requires authenticated provider access",
+    "This handler.*delegates to.*services",
+    "success: false,\\s*result: None,\\s*error: Some"
 ]
 
 # Migration/compatibility patterns - should be rare and justified

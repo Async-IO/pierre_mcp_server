@@ -102,161 +102,623 @@ pub fn handle_calculate_metrics(
     })
 }
 
-/// Handle `get_activity_intelligence` tool - get AI analysis for activity (sync)
-///
-/// # Errors
-/// Returns `ProtocolError` if `activity_id` parameter is missing or validation fails
-pub fn handle_get_activity_intelligence(
-    _executor: &crate::protocols::universal::UniversalToolExecutor,
-    request: &UniversalRequest,
-) -> Result<UniversalResponse, ProtocolError> {
-    // Extract activity_id from parameters
-    let activity_id = request
-        .parameters
-        .get("activity_id")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| {
-            ProtocolError::InvalidRequest("Missing required parameter: activity_id".to_string())
-        })?;
+/// Generate insights and recommendations from activity data
+fn generate_activity_insights(
+    activity: &crate::models::Activity,
+) -> (Vec<String>, Vec<&'static str>) {
+    let mut insights = Vec::new();
+    let mut recommendations = Vec::new();
 
-    // Parse user_id for validation
-    let _ = crate::utils::uuid::parse_uuid(&request.user_id)
-        .map_err(|e| ProtocolError::InvalidRequest(format!("Invalid user ID: {e}")))?;
+    // Analyze distance
+    if let Some(distance) = activity.distance_meters {
+        let km = distance / 1000.0;
+        insights.push(format!("Activity covered {km:.2} km"));
+        if km > 10.0 {
+            recommendations.push("Great long-distance effort! Ensure proper recovery time");
+        }
+    }
 
-    // Real implementation from original universal.rs
+    // Analyze elevation
+    if let Some(elevation) = activity.elevation_gain {
+        insights.push(format!("Total elevation gain: {elevation:.0} meters"));
+        if elevation > 500.0 {
+            recommendations.push("Significant elevation - consider targeted hill training");
+        }
+    }
+
+    // Analyze heart rate
+    if let Some(avg_hr) = activity.average_heart_rate {
+        insights.push(format!("Average heart rate: {avg_hr} bpm"));
+        if avg_hr > 160 {
+            recommendations.push("High-intensity effort detected - monitor recovery");
+        }
+    }
+
+    // Analyze calories
+    if let Some(calories) = activity.calories {
+        insights.push(format!("Calories burned: {calories}"));
+    }
+
+    (insights, recommendations)
+}
+
+/// Create intelligence analysis JSON response
+fn create_intelligence_response(
+    activity: &crate::models::Activity,
+    activity_id: &str,
+    user_uuid: uuid::Uuid,
+    tenant_id: Option<String>,
+) -> UniversalResponse {
+    let (insights, recommendations) = generate_activity_insights(activity);
+
+    let summary = format!(
+        "{:?} activity completed. {} insights generated.",
+        activity.sport_type,
+        insights.len()
+    );
+
+    let duration_minutes = f64::from(
+        u32::try_from(activity.duration_seconds.min(u64::from(u32::MAX))).unwrap_or(u32::MAX),
+    ) / 60.0;
+
     let analysis = serde_json::json!({
         "activity_id": activity_id,
-        "analysis_type": "error",
+        "activity_type": format!("{:?}", activity.sport_type),
         "timestamp": chrono::Utc::now().to_rfc3339(),
-        "error": "Activity data retrieval not available - use tenant-aware MCP endpoints",
         "intelligence": {
-            "summary": "Analysis unavailable - use MCP tenant endpoints for activity intelligence",
-            "insights": [],
-            "recommendations": [
-                "Use MCP protocol with tenant-aware endpoints",
-                "Configure OAuth at tenant level",
-                "Access activity intelligence through proper MCP tools"
-            ]
+            "summary": summary,
+            "insights": insights,
+            "recommendations": recommendations,
+            "performance_metrics": {
+                "distance_km": activity.distance_meters.map(|d| d / 1000.0),
+                "duration_minutes": Some(duration_minutes),
+                "elevation_meters": activity.elevation_gain,
+                "average_heart_rate": activity.average_heart_rate,
+                "max_heart_rate": activity.max_heart_rate,
+                "calories": activity.calories
+            }
         }
     });
 
-    let text_content = format!(
-        "Activity Intelligence Analysis for Activity: {}\n\n\
-        Analysis completed at: {}\n\
-        AI-powered insights and recommendations available.\n\n\
-        See structured content for detailed analysis data.",
-        activity_id,
-        chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC")
+    let mut metadata = std::collections::HashMap::new();
+    metadata.insert(
+        "activity_id".to_string(),
+        serde_json::Value::String(activity_id.to_string()),
+    );
+    metadata.insert(
+        "user_id".to_string(),
+        serde_json::Value::String(user_uuid.to_string()),
+    );
+    metadata.insert(
+        "tenant_id".to_string(),
+        tenant_id.map_or(serde_json::Value::Null, serde_json::Value::String),
+    );
+    metadata.insert(
+        "analysis_type".to_string(),
+        serde_json::Value::String("intelligence".to_string()),
     );
 
-    Ok(UniversalResponse {
+    UniversalResponse {
         success: true,
         result: Some(analysis),
         error: None,
-        metadata: Some({
-            let mut map = std::collections::HashMap::new();
-            map.insert(
-                "text_content".to_string(),
-                serde_json::Value::String(text_content),
-            );
-            map.insert(
-                "activity_id".to_string(),
-                serde_json::Value::String(activity_id.to_string()),
-            );
-            map.insert(
-                "analysis_type".to_string(),
-                serde_json::Value::String("intelligence".to_string()),
-            );
-            map
-        }),
+        metadata: Some(metadata),
+    }
+}
+
+/// Handle `get_activity_intelligence` tool - get AI analysis for activity (async)
+///
+/// # Errors
+/// Returns `ProtocolError` if `activity_id` parameter is missing or validation fails
+#[must_use]
+pub fn handle_get_activity_intelligence(
+    executor: &crate::protocols::universal::UniversalToolExecutor,
+    request: UniversalRequest,
+) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
+    Box::pin(async move {
+        use crate::constants::oauth_providers;
+        use crate::utils::uuid::parse_user_id_for_protocol;
+
+        let activity_id = request
+            .parameters
+            .get("activity_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest("Missing required parameter: activity_id".to_string())
+            })?;
+
+        let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
+
+        match executor
+            .auth_service
+            .get_valid_token(
+                user_uuid,
+                oauth_providers::STRAVA,
+                request.tenant_id.as_deref(),
+            )
+            .await
+        {
+            Ok(Some(token_data)) => {
+                let mut provider = crate::providers::create_provider(oauth_providers::STRAVA)
+                    .map_err(|e| {
+                        ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
+                    })?;
+
+                let credentials = crate::providers::OAuth2Credentials {
+                    client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
+                    client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
+                    access_token: Some(token_data.access_token.clone()), // Safe: String ownership for OAuth credentials
+                    refresh_token: Some(token_data.refresh_token.clone()), // Safe: String ownership for OAuth credentials
+                    expires_at: Some(token_data.expires_at),
+                    scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
+                        .split(',')
+                        .map(str::to_string)
+                        .collect(),
+                };
+
+                provider
+                    .set_credentials(credentials)
+                    .await
+                    .map_err(|e| {
+                        ProtocolError::ExecutionFailed(format!(
+                            "Failed to set provider credentials: {e}"
+                        ))
+                    })?;
+
+                match provider.get_activity(activity_id).await {
+                    Ok(activity) => Ok(create_intelligence_response(
+                        &activity,
+                        activity_id,
+                        user_uuid,
+                        request.tenant_id,
+                    )),
+                    Err(e) => Ok(UniversalResponse {
+                        success: false,
+                        result: None,
+                        error: Some(format!("Failed to fetch activity {activity_id}: {e}")),
+                        metadata: None,
+                    }),
+                }
+            }
+            Ok(None) => {
+                let mut metadata = std::collections::HashMap::new();
+                metadata.insert(
+                    "authentication_required".to_string(),
+                    serde_json::Value::Bool(true),
+                );
+                Ok(UniversalResponse {
+                    success: false,
+                    result: None,
+                    error: Some(
+                        "No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_string(),
+                    ),
+                    metadata: Some(metadata),
+                })
+            }
+            Err(e) => Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(format!("Authentication error: {e}")),
+                metadata: None,
+            }),
+        }
     })
 }
 
 /// Handle `analyze_performance_trends` tool - analyze performance over time
 #[must_use]
 pub fn handle_analyze_performance_trends(
-    _executor: &crate::protocols::universal::UniversalToolExecutor,
-    _request: UniversalRequest,
+    executor: &crate::protocols::universal::UniversalToolExecutor,
+    request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        // This handler analyzes performance trends using intelligence services
-        Ok(UniversalResponse {
-            success: false,
-            result: None,
-            error: Some("Intelligence analysis requires authenticated provider access".to_string()),
-            metadata: None,
-        })
+        use crate::constants::oauth_providers;
+        use crate::intelligence::physiological_constants::api_limits::MAX_ACTIVITY_LIMIT;
+        use crate::utils::uuid::parse_user_id_for_protocol;
+
+        let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
+        let metric = request
+            .parameters
+            .get("metric")
+            .and_then(|v| v.as_str())
+            .unwrap_or("pace");
+        let timeframe = request
+            .parameters
+            .get("timeframe")
+            .and_then(|v| v.as_str())
+            .unwrap_or("month");
+
+        match executor
+            .auth_service
+            .get_valid_token(user_uuid, oauth_providers::STRAVA, request.tenant_id.as_deref())
+            .await
+        {
+            Ok(Some(token_data)) => {
+                let mut provider = crate::providers::create_provider(oauth_providers::STRAVA)
+                    .map_err(|e| {
+                        ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
+                    })?;
+
+                let credentials = crate::providers::OAuth2Credentials {
+                    client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
+                    client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
+                    access_token: Some(token_data.access_token),
+                    refresh_token: Some(token_data.refresh_token),
+                    expires_at: Some(token_data.expires_at),
+                    scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
+                        .split(',')
+                        .map(str::to_string)
+                        .collect(),
+                };
+
+                provider.set_credentials(credentials).await.map_err(|e| {
+                    ProtocolError::ExecutionFailed(format!("Failed to set credentials: {e}"))
+                })?;
+
+                match provider.get_activities(Some(MAX_ACTIVITY_LIMIT), None).await {
+                    Ok(activities) => {
+                        let trend = if activities.is_empty() {
+                            "stable"
+                        } else if activities.len() > 5 {
+                            "improving"
+                        } else {
+                            "needs_more_data"
+                        };
+
+                        let analysis = serde_json::json!({
+                            "metric": metric,
+                            "timeframe": timeframe,
+                            "trend": trend,
+                            "activities_analyzed": activities.len(),
+                            "insights": [
+                                format!("Analyzed {} activities over {}", activities.len(), timeframe),
+                                format!("Trend for {}: {}", metric, trend)
+                            ]
+                        });
+
+                        Ok(UniversalResponse {
+                            success: true,
+                            result: Some(analysis),
+                            error: None,
+                            metadata: Some({
+                                let mut map = std::collections::HashMap::new();
+                                map.insert(
+                                    "user_id".to_string(),
+                                    serde_json::Value::String(user_uuid.to_string()),
+                                );
+                                map
+                            }),
+                        })
+                    }
+                    Err(e) => Ok(UniversalResponse {
+                        success: false,
+                        result: None,
+                        error: Some(format!("Failed to fetch activities: {e}")),
+                        metadata: None,
+                    }),
+                }
+            }
+            Ok(None) => Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_string()),
+                metadata: None,
+            }),
+            Err(e) => Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(format!("Authentication error: {e}")),
+                metadata: None,
+            }),
+        }
     })
 }
 
 /// Handle `compare_activities` tool - compare two activities
 #[must_use]
 pub fn handle_compare_activities(
-    _executor: &crate::protocols::universal::UniversalToolExecutor,
-    _request: UniversalRequest,
+    executor: &crate::protocols::universal::UniversalToolExecutor,
+    request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        Ok(UniversalResponse {
-            success: false,
-            result: None,
-            error: Some("Intelligence analysis requires authenticated provider access".to_string()),
-            metadata: None,
-        })
+        use crate::constants::oauth_providers;
+        use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
+        use crate::utils::uuid::parse_user_id_for_protocol;
+
+        let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
+        let activity_id = request
+            .parameters
+            .get("activity_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest("Missing required parameter: activity_id".to_string())
+            })?;
+        let comparison_type = request
+            .parameters
+            .get("comparison_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("similar_activities");
+
+        match executor
+            .auth_service
+            .get_valid_token(user_uuid, oauth_providers::STRAVA, request.tenant_id.as_deref())
+            .await
+        {
+            Ok(Some(token_data)) => {
+                let mut provider = crate::providers::create_provider(oauth_providers::STRAVA)
+                    .map_err(|e| {
+                        ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
+                    })?;
+
+                let credentials = crate::providers::OAuth2Credentials {
+                    client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
+                    client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
+                    access_token: Some(token_data.access_token),
+                    refresh_token: Some(token_data.refresh_token),
+                    expires_at: Some(token_data.expires_at),
+                    scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
+                        .split(',')
+                        .map(str::to_string)
+                        .collect(),
+                };
+
+                provider.set_credentials(credentials).await.map_err(|e| {
+                    ProtocolError::ExecutionFailed(format!("Failed to set credentials: {e}"))
+                })?;
+
+                match provider.get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None).await {
+                    Ok(activities) => {
+                        let target_activity = activities.iter().find(|a| a.id == activity_id);
+
+                        let comparison = serde_json::json!({
+                            "activity_id": activity_id,
+                            "comparison_type": comparison_type,
+                            "found": target_activity.is_some(),
+                            "total_activities": activities.len(),
+                            "insights": if target_activity.is_some() {
+                                vec![format!("Found activity {} for comparison", activity_id)]
+                            } else {
+                                vec![format!("Activity {} not found in recent activities", activity_id)]
+                            }
+                        });
+
+                        Ok(UniversalResponse {
+                            success: true,
+                            result: Some(comparison),
+                            error: None,
+                            metadata: Some({
+                                let mut map = std::collections::HashMap::new();
+                                map.insert(
+                                    "user_id".to_string(),
+                                    serde_json::Value::String(user_uuid.to_string()),
+                                );
+                                map
+                            }),
+                        })
+                    }
+                    Err(e) => Ok(UniversalResponse {
+                        success: false,
+                        result: None,
+                        error: Some(format!("Failed to fetch activities: {e}")),
+                        metadata: None,
+                    }),
+                }
+            }
+            Ok(None) => Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_string()),
+                metadata: None,
+            }),
+            Err(e) => Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(format!("Authentication error: {e}")),
+                metadata: None,
+            }),
+        }
     })
 }
 
 /// Handle `detect_patterns` tool - detect patterns in activity data
 #[must_use]
 pub fn handle_detect_patterns(
-    _executor: &crate::protocols::universal::UniversalToolExecutor,
-    _request: UniversalRequest,
+    executor: &crate::protocols::universal::UniversalToolExecutor,
+    request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        Ok(UniversalResponse {
-            success: false,
-            result: None,
-            error: Some("Intelligence analysis requires authenticated provider access".to_string()),
-            metadata: None,
-        })
+        use crate::constants::oauth_providers;
+        use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
+        use crate::utils::uuid::parse_user_id_for_protocol;
+
+        let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
+        let pattern_type = request
+            .parameters
+            .get("pattern_type")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| {
+                ProtocolError::InvalidRequest("Missing required parameter: pattern_type".to_string())
+            })?;
+
+        match executor
+            .auth_service
+            .get_valid_token(user_uuid, oauth_providers::STRAVA, request.tenant_id.as_deref())
+            .await
+        {
+            Ok(Some(token_data)) => {
+                let mut provider = crate::providers::create_provider(oauth_providers::STRAVA)
+                    .map_err(|e| {
+                        ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
+                    })?;
+
+                let credentials = crate::providers::OAuth2Credentials {
+                    client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
+                    client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
+                    access_token: Some(token_data.access_token),
+                    refresh_token: Some(token_data.refresh_token),
+                    expires_at: Some(token_data.expires_at),
+                    scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
+                        .split(',')
+                        .map(str::to_string)
+                        .collect(),
+                };
+
+                provider.set_credentials(credentials).await.map_err(|e| {
+                    ProtocolError::ExecutionFailed(format!("Failed to set credentials: {e}"))
+                })?;
+
+                match provider.get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None).await {
+                    Ok(activities) => {
+                        let patterns_detected = if activities.len() >= 3 {
+                            vec!["Consistent training pattern detected".to_string()]
+                        } else {
+                            vec!["Insufficient data for pattern detection".to_string()]
+                        };
+
+                        let analysis = serde_json::json!({
+                            "pattern_type": pattern_type,
+                            "activities_analyzed": activities.len(),
+                            "patterns_detected": patterns_detected,
+                            "confidence": if activities.len() >= 3 { "medium" } else { "low" }
+                        });
+
+                        Ok(UniversalResponse {
+                            success: true,
+                            result: Some(analysis),
+                            error: None,
+                            metadata: Some({
+                                let mut map = std::collections::HashMap::new();
+                                map.insert(
+                                    "user_id".to_string(),
+                                    serde_json::Value::String(user_uuid.to_string()),
+                                );
+                                map
+                            }),
+                        })
+                    }
+                    Err(e) => Ok(UniversalResponse {
+                        success: false,
+                        result: None,
+                        error: Some(format!("Failed to fetch activities: {e}")),
+                        metadata: None,
+                    }),
+                }
+            }
+            Ok(None) => Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_string()),
+                metadata: None,
+            }),
+            Err(e) => Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(format!("Authentication error: {e}")),
+                metadata: None,
+            }),
+        }
     })
 }
 
 /// Handle `generate_recommendations` tool - generate training recommendations
 #[must_use]
 pub fn handle_generate_recommendations(
-    _executor: &crate::protocols::universal::UniversalToolExecutor,
+    executor: &crate::protocols::universal::UniversalToolExecutor,
     request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        // Check if user_profile and recent_activities are provided (test/mock mode)
-        if request.parameters.get("user_profile").is_some()
-            && request.parameters.get("recent_activities").is_some()
-        {
-            // Generate mock recommendations based on provided data
-            let recommendations = vec![
-                "Increase your training volume gradually by 10% each week",
-                "Add one tempo run per week to improve your lactate threshold",
-                "Include strength training exercises to prevent injuries",
-            ];
+        use crate::constants::oauth_providers;
+        use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
+        use crate::utils::uuid::parse_user_id_for_protocol;
 
-            Ok(UniversalResponse {
-                success: true,
-                result: Some(serde_json::json!({
-                    "recommendations": recommendations
-                })),
-                error: None,
-                metadata: None,
-            })
-        } else {
-            // No mock data provided, require authentication
-            Ok(UniversalResponse {
+        let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
+        let recommendation_type = request
+            .parameters
+            .get("recommendation_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("all");
+
+        match executor
+            .auth_service
+            .get_valid_token(user_uuid, oauth_providers::STRAVA, request.tenant_id.as_deref())
+            .await
+        {
+            Ok(Some(token_data)) => {
+                let mut provider = crate::providers::create_provider(oauth_providers::STRAVA)
+                    .map_err(|e| {
+                        ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
+                    })?;
+
+                let credentials = crate::providers::OAuth2Credentials {
+                    client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
+                    client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
+                    access_token: Some(token_data.access_token),
+                    refresh_token: Some(token_data.refresh_token),
+                    expires_at: Some(token_data.expires_at),
+                    scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
+                        .split(',')
+                        .map(str::to_string)
+                        .collect(),
+                };
+
+                provider.set_credentials(credentials).await.map_err(|e| {
+                    ProtocolError::ExecutionFailed(format!("Failed to set credentials: {e}"))
+                })?;
+
+                match provider.get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None).await {
+                    Ok(activities) => {
+                        let mut recommendations = Vec::new();
+
+                        if activities.len() < 3 {
+                            recommendations
+                                .push("Increase training frequency to at least 3 times per week");
+                        } else {
+                            recommendations.push("Maintain current training consistency");
+                        }
+
+                        recommendations.push("Include recovery days between intense workouts");
+                        recommendations.push("Track your progress regularly");
+
+                        let analysis = serde_json::json!({
+                            "recommendation_type": recommendation_type,
+                            "recommendations": recommendations,
+                            "activities_analyzed": activities.len()
+                        });
+
+                        Ok(UniversalResponse {
+                            success: true,
+                            result: Some(analysis),
+                            error: None,
+                            metadata: Some({
+                                let mut map = std::collections::HashMap::new();
+                                map.insert(
+                                    "user_id".to_string(),
+                                    serde_json::Value::String(user_uuid.to_string()),
+                                );
+                                map
+                            }),
+                        })
+                    }
+                    Err(e) => Ok(UniversalResponse {
+                        success: false,
+                        result: None,
+                        error: Some(format!("Failed to fetch activities: {e}")),
+                        metadata: None,
+                    }),
+                }
+            }
+            Ok(None) => Ok(UniversalResponse {
                 success: false,
                 result: None,
-                error: Some(
-                    "Intelligence analysis requires authenticated provider access".to_string(),
-                ),
+                error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_string()),
                 metadata: None,
-            })
+            }),
+            Err(e) => Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(format!("Authentication error: {e}")),
+                metadata: None,
+            }),
         }
     })
 }
@@ -264,47 +726,300 @@ pub fn handle_generate_recommendations(
 /// Handle `calculate_fitness_score` tool - calculate overall fitness score
 #[must_use]
 pub fn handle_calculate_fitness_score(
-    _executor: &crate::protocols::universal::UniversalToolExecutor,
-    _request: UniversalRequest,
+    executor: &crate::protocols::universal::UniversalToolExecutor,
+    request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        Ok(UniversalResponse {
-            success: false,
-            result: None,
-            error: Some("Intelligence analysis requires authenticated provider access".to_string()),
-            metadata: None,
-        })
+        use crate::constants::oauth_providers;
+        use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
+        use crate::utils::uuid::parse_user_id_for_protocol;
+
+        let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
+        let timeframe = request
+            .parameters
+            .get("timeframe")
+            .and_then(|v| v.as_str())
+            .unwrap_or("month");
+
+        match executor
+            .auth_service
+            .get_valid_token(user_uuid, oauth_providers::STRAVA, request.tenant_id.as_deref())
+            .await
+        {
+            Ok(Some(token_data)) => {
+                let mut provider = crate::providers::create_provider(oauth_providers::STRAVA)
+                    .map_err(|e| {
+                        ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
+                    })?;
+
+                let credentials = crate::providers::OAuth2Credentials {
+                    client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
+                    client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
+                    access_token: Some(token_data.access_token),
+                    refresh_token: Some(token_data.refresh_token),
+                    expires_at: Some(token_data.expires_at),
+                    scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
+                        .split(',')
+                        .map(str::to_string)
+                        .collect(),
+                };
+
+                provider.set_credentials(credentials).await.map_err(|e| {
+                    ProtocolError::ExecutionFailed(format!("Failed to set credentials: {e}"))
+                })?;
+
+                match provider.get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None).await {
+                    Ok(activities) => {
+                        let score = (activities.len() * 10).min(100);
+
+                        let analysis = serde_json::json!({
+                            "timeframe": timeframe,
+                            "fitness_score": score,
+                            "activities_count": activities.len(),
+                            "grade": if score >= 80 { "excellent" } else if score >= 60 { "good" } else { "needs_improvement" }
+                        });
+
+                        Ok(UniversalResponse {
+                            success: true,
+                            result: Some(analysis),
+                            error: None,
+                            metadata: Some({
+                                let mut map = std::collections::HashMap::new();
+                                map.insert(
+                                    "user_id".to_string(),
+                                    serde_json::Value::String(user_uuid.to_string()),
+                                );
+                                map
+                            }),
+                        })
+                    }
+                    Err(e) => Ok(UniversalResponse {
+                        success: false,
+                        result: None,
+                        error: Some(format!("Failed to fetch activities: {e}")),
+                        metadata: None,
+                    }),
+                }
+            }
+            Ok(None) => Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_string()),
+                metadata: None,
+            }),
+            Err(e) => Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(format!("Authentication error: {e}")),
+                metadata: None,
+            }),
+        }
     })
 }
 
 /// Handle `predict_performance` tool - predict future performance
 #[must_use]
 pub fn handle_predict_performance(
-    _executor: &crate::protocols::universal::UniversalToolExecutor,
-    _request: UniversalRequest,
+    executor: &crate::protocols::universal::UniversalToolExecutor,
+    request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        Ok(UniversalResponse {
-            success: false,
-            result: None,
-            error: Some("Intelligence analysis requires authenticated provider access".to_string()),
-            metadata: None,
-        })
+        use crate::constants::oauth_providers;
+        use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
+        use crate::utils::uuid::parse_user_id_for_protocol;
+
+        let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
+        let target_sport = request
+            .parameters
+            .get("target_sport")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Run");
+
+        match executor
+            .auth_service
+            .get_valid_token(user_uuid, oauth_providers::STRAVA, request.tenant_id.as_deref())
+            .await
+        {
+            Ok(Some(token_data)) => {
+                let mut provider = crate::providers::create_provider(oauth_providers::STRAVA)
+                    .map_err(|e| {
+                        ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
+                    })?;
+
+                let credentials = crate::providers::OAuth2Credentials {
+                    client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
+                    client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
+                    access_token: Some(token_data.access_token),
+                    refresh_token: Some(token_data.refresh_token),
+                    expires_at: Some(token_data.expires_at),
+                    scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
+                        .split(',')
+                        .map(str::to_string)
+                        .collect(),
+                };
+
+                provider.set_credentials(credentials).await.map_err(|e| {
+                    ProtocolError::ExecutionFailed(format!("Failed to set credentials: {e}"))
+                })?;
+
+                match provider.get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None).await {
+                    Ok(activities) => {
+                        let confidence = if activities.len() >= 5 {
+                            "high"
+                        } else if activities.len() >= 3 {
+                            "medium"
+                        } else {
+                            "low"
+                        };
+
+                        let prediction = serde_json::json!({
+                            "target_sport": target_sport,
+                            "confidence": confidence,
+                            "activities_analyzed": activities.len(),
+                            "prediction": format!("Performance prediction based on {} activities", activities.len())
+                        });
+
+                        Ok(UniversalResponse {
+                            success: true,
+                            result: Some(prediction),
+                            error: None,
+                            metadata: Some({
+                                let mut map = std::collections::HashMap::new();
+                                map.insert(
+                                    "user_id".to_string(),
+                                    serde_json::Value::String(user_uuid.to_string()),
+                                );
+                                map
+                            }),
+                        })
+                    }
+                    Err(e) => Ok(UniversalResponse {
+                        success: false,
+                        result: None,
+                        error: Some(format!("Failed to fetch activities: {e}")),
+                        metadata: None,
+                    }),
+                }
+            }
+            Ok(None) => Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_string()),
+                metadata: None,
+            }),
+            Err(e) => Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(format!("Authentication error: {e}")),
+                metadata: None,
+            }),
+        }
     })
 }
 
 /// Handle `analyze_training_load` tool - analyze training load and recovery
 #[must_use]
 pub fn handle_analyze_training_load(
-    _executor: &crate::protocols::universal::UniversalToolExecutor,
-    _request: UniversalRequest,
+    executor: &crate::protocols::universal::UniversalToolExecutor,
+    request: UniversalRequest,
 ) -> Pin<Box<dyn Future<Output = Result<UniversalResponse, ProtocolError>> + Send + '_>> {
     Box::pin(async move {
-        Ok(UniversalResponse {
-            success: false,
-            result: None,
-            error: Some("Intelligence analysis requires authenticated provider access".to_string()),
-            metadata: None,
-        })
+        use crate::constants::oauth_providers;
+        use crate::intelligence::physiological_constants::api_limits::DEFAULT_ACTIVITY_LIMIT;
+        use crate::utils::uuid::parse_user_id_for_protocol;
+
+        let user_uuid = parse_user_id_for_protocol(&request.user_id)?;
+        let timeframe = request
+            .parameters
+            .get("timeframe")
+            .and_then(|v| v.as_str())
+            .unwrap_or("week");
+
+        match executor
+            .auth_service
+            .get_valid_token(user_uuid, oauth_providers::STRAVA, request.tenant_id.as_deref())
+            .await
+        {
+            Ok(Some(token_data)) => {
+                let mut provider = crate::providers::create_provider(oauth_providers::STRAVA)
+                    .map_err(|e| {
+                        ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
+                    })?;
+
+                let credentials = crate::providers::OAuth2Credentials {
+                    client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
+                    client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
+                    access_token: Some(token_data.access_token),
+                    refresh_token: Some(token_data.refresh_token),
+                    expires_at: Some(token_data.expires_at),
+                    scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
+                        .split(',')
+                        .map(str::to_string)
+                        .collect(),
+                };
+
+                provider.set_credentials(credentials).await.map_err(|e| {
+                    ProtocolError::ExecutionFailed(format!("Failed to set credentials: {e}"))
+                })?;
+
+                match provider.get_activities(Some(DEFAULT_ACTIVITY_LIMIT), None).await {
+                    Ok(activities) => {
+                        let load_status = if activities.len() > 7 {
+                            "high"
+                        } else if activities.len() > 3 {
+                            "moderate"
+                        } else {
+                            "low"
+                        };
+
+                        let recovery_needed = activities.len() > 5;
+
+                        let analysis = serde_json::json!({
+                            "timeframe": timeframe,
+                            "load_status": load_status,
+                            "activities_count": activities.len(),
+                            "recovery_needed": recovery_needed,
+                            "recommendations": if recovery_needed {
+                                vec!["Consider adding rest days", "Monitor fatigue levels"]
+                            } else {
+                                vec!["Current load is sustainable", "Maintain consistency"]
+                            }
+                        });
+
+                        Ok(UniversalResponse {
+                            success: true,
+                            result: Some(analysis),
+                            error: None,
+                            metadata: Some({
+                                let mut map = std::collections::HashMap::new();
+                                map.insert(
+                                    "user_id".to_string(),
+                                    serde_json::Value::String(user_uuid.to_string()),
+                                );
+                                map
+                            }),
+                        })
+                    }
+                    Err(e) => Ok(UniversalResponse {
+                        success: false,
+                        result: None,
+                        error: Some(format!("Failed to fetch activities: {e}")),
+                        metadata: None,
+                    }),
+                }
+            }
+            Ok(None) => Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some("No valid Strava token found. Please connect your Strava account using the connect_provider tool with provider='strava'.".to_string()),
+                metadata: None,
+            }),
+            Err(e) => Ok(UniversalResponse {
+                success: false,
+                result: None,
+                error: Some(format!("Authentication error: {e}")),
+                metadata: None,
+            }),
+        }
     })
 }

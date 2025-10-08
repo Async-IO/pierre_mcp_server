@@ -106,14 +106,14 @@ fn create_activity_metadata(
 }
 
 /// Process activity analysis when activity is found
-fn process_activity_analysis(
+async fn process_activity_analysis(
     executor: &crate::protocols::universal::UniversalToolExecutor,
-    request: &UniversalRequest,
+    request: UniversalRequest,
     activity_id: &str,
     user_uuid: uuid::Uuid,
 ) -> Result<UniversalResponse, ProtocolError> {
     let analysis_response =
-        super::intelligence::handle_get_activity_intelligence(executor, request)?;
+        super::intelligence::handle_get_activity_intelligence(executor, request).await?;
     let analysis = analysis_response
         .result
         .unwrap_or_else(|| serde_json::json!({}));
@@ -127,7 +127,15 @@ fn process_activity_analysis(
         metadata: Some(create_activity_metadata(
             activity_id,
             user_uuid,
-            request.tenant_id.as_ref(),
+            analysis_response
+                .metadata
+                .as_ref()
+                .and_then(|m| {
+                    m.get("tenant_id")
+                        .and_then(serde_json::Value::as_str)
+                        .map(String::from)
+                })
+                .as_ref(),
         )),
     })
 }
@@ -446,6 +454,7 @@ pub fn handle_analyze_activity(
             .parameters
             .get("activity_id")
             .and_then(serde_json::Value::as_str)
+            .map(str::to_string) // Safe: String ownership needed to avoid borrowing issues
             .ok_or_else(|| {
                 ProtocolError::InvalidRequest("activity_id parameter required".to_string())
             })?;
@@ -474,10 +483,11 @@ pub fn handle_analyze_activity(
                                     // Activity found - process analysis
                                     process_activity_analysis(
                                         executor,
-                                        &request,
-                                        activity_id,
+                                        request,
+                                        &activity_id,
                                         user_uuid,
                                     )
+                                    .await
                                 } else {
                                     // Activity not found
                                     Ok(UniversalResponse {
