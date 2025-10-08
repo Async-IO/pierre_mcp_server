@@ -1,9 +1,9 @@
 // ABOUTME: HTTP REST endpoints for fitness configuration management with tenant isolation
 // ABOUTME: Provides API access to tenant-specific fitness configurations with proper authentication
 
+use crate::auth::AuthResult;
 use crate::config::fitness_config::FitnessConfig;
 use crate::database_plugins::DatabaseProvider;
-use crate::utils::auth::extract_bearer_token_from_option;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -96,24 +96,6 @@ impl FitnessConfigurationRoutes {
 
     /// Authenticate JWT token and extract user ID
     ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - The authorization header is missing
-    /// - The authorization header format is invalid
-    /// - The token validation fails
-    /// - The user ID cannot be parsed as a UUID
-    fn authenticate_user(&self, auth_header: Option<&str>) -> Result<Uuid> {
-        let auth_str =
-            auth_header.ok_or_else(|| anyhow::anyhow!("Missing authorization header"))?;
-
-        let token = extract_bearer_token_from_option(Some(auth_str))?;
-
-        let claims = self.resources.auth_manager.validate_token(token)?;
-        let user_id = crate::utils::uuid::parse_uuid(&claims.sub)?;
-        Ok(user_id)
-    }
-
     /// Get tenant ID for authenticated user
     ///
     /// # Errors
@@ -160,10 +142,10 @@ impl FitnessConfigurationRoutes {
     /// - Database operations fail
     pub async fn list_configurations(
         &self,
-        auth_header: Option<&str>,
+        auth: &AuthResult,
     ) -> Result<FitnessConfigurationListResponse> {
         let processing_start = std::time::Instant::now();
-        let user_id = self.authenticate_user(auth_header)?;
+        let user_id = auth.user_id;
         let tenant_id = self.get_user_tenant(user_id).await?;
 
         // Get both user-specific and tenant-level configurations
@@ -201,11 +183,11 @@ impl FitnessConfigurationRoutes {
     /// - Database operations fail
     pub async fn get_configuration(
         &self,
-        auth_header: Option<&str>,
+        auth: &AuthResult,
         configuration_name: &str,
     ) -> Result<FitnessConfigurationResponse> {
         let processing_start = std::time::Instant::now();
-        let user_id = self.authenticate_user(auth_header)?;
+        let user_id = auth.user_id;
         let tenant_id = self.get_user_tenant(user_id).await?;
 
         // Try user-specific first, then tenant-level
@@ -255,11 +237,11 @@ impl FitnessConfigurationRoutes {
     /// - Configuration validation fails
     pub async fn save_user_configuration(
         &self,
-        auth_header: Option<&str>,
+        auth: &AuthResult,
         request: SaveFitnessConfigRequest,
     ) -> Result<FitnessConfigurationSaveResponse> {
         let processing_start = std::time::Instant::now();
-        let user_id = self.authenticate_user(auth_header)?;
+        let user_id = auth.user_id;
         let tenant_id = self.get_user_tenant(user_id).await?;
 
         let configuration_name = request
@@ -295,11 +277,11 @@ impl FitnessConfigurationRoutes {
     /// - Configuration validation fails
     pub async fn save_tenant_configuration(
         &self,
-        auth_header: Option<&str>,
+        auth: &AuthResult,
         request: SaveFitnessConfigRequest,
     ) -> Result<FitnessConfigurationSaveResponse> {
         let processing_start = std::time::Instant::now();
-        let user_id = self.authenticate_user(auth_header)?;
+        let user_id = auth.user_id;
         let tenant_id = self.get_user_tenant(user_id).await?;
 
         // Check if user is admin (simplified check)
@@ -344,11 +326,11 @@ impl FitnessConfigurationRoutes {
     /// - Database operations fail
     pub async fn delete_user_configuration(
         &self,
-        auth_header: Option<&str>,
+        auth: &AuthResult,
         configuration_name: &str,
     ) -> Result<FitnessConfigurationSaveResponse> {
         let processing_start = std::time::Instant::now();
-        let user_id = self.authenticate_user(auth_header)?;
+        let user_id = auth.user_id;
         let tenant_id = self.get_user_tenant(user_id).await?;
 
         let deleted = self
@@ -384,11 +366,11 @@ impl FitnessConfigurationRoutes {
     /// - Database operations fail
     pub async fn delete_tenant_configuration(
         &self,
-        auth_header: Option<&str>,
+        auth: &AuthResult,
         configuration_name: &str,
     ) -> Result<FitnessConfigurationSaveResponse> {
         let processing_start = std::time::Instant::now();
-        let user_id = self.authenticate_user(auth_header)?;
+        let user_id = auth.user_id;
         let tenant_id = self.get_user_tenant(user_id).await?;
 
         // Check if user is admin

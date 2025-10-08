@@ -12,16 +12,35 @@ use chrono::{Duration, Utc};
 use pierre_mcp_server::{
     api_key_routes::ApiKeyRoutes,
     api_keys::{ApiKeyTier, CreateApiKeyRequest},
-    auth::AuthManager,
+    auth::{AuthManager, AuthMethod, AuthResult},
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
     models::User,
+    rate_limiting::UnifiedRateLimitInfo,
 };
 use std::sync::Arc;
 use uuid::Uuid;
 
+/// Helper function to create an `AuthResult` for testing
+fn create_test_auth_result(user_id: Uuid) -> AuthResult {
+    AuthResult {
+        user_id,
+        auth_method: AuthMethod::JwtToken {
+            tier: "free".to_string(),
+        },
+        rate_limit: UnifiedRateLimitInfo {
+            is_rate_limited: false,
+            limit: Some(1000),
+            remaining: Some(1000),
+            reset_at: Some(Utc::now() + Duration::hours(1)),
+            tier: "free".to_string(),
+            auth_method: "jwt".to_string(),
+        },
+    }
+}
+
 #[allow(clippy::too_many_lines)] // Long function: Complex test setup with full configuration
-async fn create_test_setup() -> (ApiKeyRoutes, Uuid, String) {
+async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
     // Create test database
     let database_url = "sqlite::memory:";
     let encryption_key = generate_encryption_key().to_vec();
@@ -40,7 +59,7 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, String) {
     let user_id = database.create_user(&user).await.unwrap();
 
     // Generate JWT token for the user
-    let jwt_token = auth_manager.generate_token(&user).unwrap();
+    let _jwt_token = auth_manager.generate_token(&user).unwrap(); // Not used directly, AuthResult created from user_id
 
     // Create ServerResources for API key routes
     let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
@@ -141,33 +160,15 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, String) {
     // Create API key routes
     let api_key_routes = ApiKeyRoutes::new(server_resources);
 
-    (api_key_routes, user_id, jwt_token)
-}
+    // Create AuthResult for testing
+    let auth_result = create_test_auth_result(user_id);
 
-/// Helper to create `AuthResult` from JWT token for testing
-fn create_auth_result(user_id: Uuid, tier: &str) -> pierre_mcp_server::auth::AuthResult {
-    use pierre_mcp_server::auth::{AuthMethod, AuthResult};
-    use pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo;
-
-    AuthResult {
-        user_id,
-        auth_method: AuthMethod::JwtToken {
-            tier: tier.to_string(),
-        },
-        rate_limit: UnifiedRateLimitInfo {
-            is_rate_limited: false,
-            limit: Some(1000),
-            remaining: Some(1000),
-            reset_at: None,
-            tier: tier.to_string(),
-            auth_method: "jwt".to_string(),
-        },
-    }
+    (api_key_routes, user_id, auth_result)
 }
 
 #[tokio::test]
 async fn test_create_api_key_success() {
-    let (api_key_routes, user_id, _jwt_token) = create_test_setup().await;
+    let (api_key_routes, _user_id, auth) = create_test_setup().await;
 
     let request = CreateApiKeyRequest {
         name: "Test API Key".to_string(),
@@ -177,8 +178,8 @@ async fn test_create_api_key_success() {
         rate_limit_requests: None,
     };
 
-    let auth = create_auth_result(user_id, "starter");
-    let response = api_key_routes.create_api_key(auth, request).await.unwrap();
+    // Auth is already AuthResult, no need for Bearer token
+    let response = api_key_routes.create_api_key(&auth, request).await.unwrap();
 
     // Verify response
     assert!(response.api_key.starts_with("pk_live_"));
@@ -189,18 +190,14 @@ async fn test_create_api_key_success() {
     assert!(response.warning.contains("Store this API key securely"));
 }
 
-// Note: Authentication testing moved to middleware layer tests
-// ApiKeyRoutes now expects pre-authenticated AuthResult
-#[allow(dead_code)]
-#[tokio::test]
-async fn test_create_api_key_invalid_auth_skipped() {
-    // This test is skipped because authentication is now handled at the middleware layer
-    // The ApiKeyRoutes service expects a validated AuthResult, not raw auth headers
-}
+// NOTE: This test is now obsolete - authentication happens at the HTTP filter level
+// before route methods are called. Route methods now receive validated AuthResult.
+// Invalid authentication is now tested at the integration test level (HTTP routes)
+// See test_create_api_key_invalid_auth in tests/api_key_integration_test.rs
 
 #[tokio::test]
 async fn test_list_api_keys() {
-    let (api_key_routes, user_id, _jwt_token) = create_test_setup().await;
+    let (api_key_routes, _user_id, auth) = create_test_setup().await;
 
     // Create a couple of API keys
     let request1 = CreateApiKeyRequest {
@@ -219,22 +216,21 @@ async fn test_list_api_keys() {
         rate_limit_requests: None,
     };
 
+    // Auth is already AuthResult, no need for Bearer token
+
     // Create the keys
     api_key_routes
-        .create_api_key(create_auth_result(user_id, "starter"), request1)
+        .create_api_key(&auth, request1)
         .await
         .unwrap();
 
     api_key_routes
-        .create_api_key(create_auth_result(user_id, "professional"), request2)
+        .create_api_key(&auth, request2)
         .await
         .unwrap();
 
     // List keys
-    let response = api_key_routes
-        .list_api_keys(create_auth_result(user_id, "starter"))
-        .await
-        .unwrap();
+    let response = api_key_routes.list_api_keys(&auth).await.unwrap();
 
     // Verify response
     assert_eq!(response.api_keys.len(), 2);
@@ -263,7 +259,7 @@ async fn test_list_api_keys() {
 
 #[tokio::test]
 async fn test_deactivate_api_key() {
-    let (api_key_routes, user_id, _jwt_token) = create_test_setup().await;
+    let (api_key_routes, _user_id, auth) = create_test_setup().await;
 
     // Create an API key
     let request = CreateApiKeyRequest {
@@ -274,16 +270,14 @@ async fn test_deactivate_api_key() {
         rate_limit_requests: None,
     };
 
-    let create_response = api_key_routes
-        .create_api_key(create_auth_result(user_id, "starter"), request)
-        .await
-        .unwrap();
+    // Auth is already AuthResult, no need for Bearer token
+    let create_response = api_key_routes.create_api_key(&auth, request).await.unwrap();
 
     let key_id = &create_response.key_info.id;
 
     // Deactivate the key
     let deactivate_response = api_key_routes
-        .deactivate_api_key(create_auth_result(user_id, "starter"), key_id)
+        .deactivate_api_key(&auth, key_id)
         .await
         .unwrap();
 
@@ -291,10 +285,7 @@ async fn test_deactivate_api_key() {
     assert!(deactivate_response.deactivated_at <= Utc::now());
 
     // Verify key is no longer active in the list
-    let list_response = api_key_routes
-        .list_api_keys(create_auth_result(user_id, "starter"))
-        .await
-        .unwrap();
+    let list_response = api_key_routes.list_api_keys(&auth).await.unwrap();
 
     let deactivated_key = list_response
         .api_keys
@@ -307,13 +298,12 @@ async fn test_deactivate_api_key() {
 
 #[tokio::test]
 async fn test_deactivate_nonexistent_key() {
-    let (api_key_routes, user_id, _jwt_token) = create_test_setup().await;
+    let (api_key_routes, _user_id, auth) = create_test_setup().await;
 
+    // Auth is already AuthResult, no need for Bearer token
     let fake_key_id = "nonexistent_key_id";
 
-    let result = api_key_routes
-        .deactivate_api_key(create_auth_result(user_id, "starter"), fake_key_id)
-        .await;
+    let result = api_key_routes.deactivate_api_key(&auth, fake_key_id).await;
 
     // Should succeed (idempotent operation)
     assert!(result.is_ok());
@@ -321,7 +311,7 @@ async fn test_deactivate_nonexistent_key() {
 
 #[tokio::test]
 async fn test_get_api_key_usage_stats() {
-    let (api_key_routes, user_id, _jwt_token) = create_test_setup().await;
+    let (api_key_routes, _user_id, auth) = create_test_setup().await;
 
     // Create an API key
     let request = CreateApiKeyRequest {
@@ -332,10 +322,8 @@ async fn test_get_api_key_usage_stats() {
         rate_limit_requests: None,
     };
 
-    let create_response = api_key_routes
-        .create_api_key(create_auth_result(user_id, "professional"), request)
-        .await
-        .unwrap();
+    // Auth is already AuthResult, no need for Bearer token
+    let create_response = api_key_routes.create_api_key(&auth, request).await.unwrap();
 
     let key_id = &create_response.key_info.id;
 
@@ -344,12 +332,7 @@ async fn test_get_api_key_usage_stats() {
     let end_date = Utc::now();
 
     let usage_response = api_key_routes
-        .get_api_key_usage(
-            create_auth_result(user_id, "professional"),
-            key_id,
-            start_date,
-            end_date,
-        )
+        .get_api_key_usage(&auth, key_id, start_date, end_date)
         .await
         .unwrap();
 
@@ -362,21 +345,17 @@ async fn test_get_api_key_usage_stats() {
 
 #[tokio::test]
 async fn test_get_usage_stats_unauthorized_key() {
-    let (api_key_routes, user_id, _jwt_token) = create_test_setup().await;
+    let (api_key_routes, _user_id, auth) = create_test_setup().await;
 
     // Try to access usage stats for a key that doesn't belong to the user
+    // Auth is already AuthResult, no need for Bearer token
     let fake_key_id = "some_other_users_key";
 
     let start_date = Utc::now() - Duration::days(30);
     let end_date = Utc::now();
 
     let result = api_key_routes
-        .get_api_key_usage(
-            create_auth_result(user_id, "starter"),
-            fake_key_id,
-            start_date,
-            end_date,
-        )
+        .get_api_key_usage(&auth, fake_key_id, start_date, end_date)
         .await;
 
     assert!(result.is_err());
@@ -388,7 +367,9 @@ async fn test_get_usage_stats_unauthorized_key() {
 
 #[tokio::test]
 async fn test_api_key_tiers() {
-    let (api_key_routes, user_id, _jwt_token) = create_test_setup().await;
+    let (api_key_routes, _user_id, auth) = create_test_setup().await;
+
+    // Auth is already AuthResult, no need for Bearer token
 
     // Test all tiers
     for (tier, tier_name) in [
@@ -404,13 +385,7 @@ async fn test_api_key_tiers() {
             rate_limit_requests: None,
         };
 
-        let response = api_key_routes
-            .create_api_key(
-                create_auth_result(user_id, &tier_name.to_lowercase()),
-                request,
-            )
-            .await
-            .unwrap();
+        let response = api_key_routes.create_api_key(&auth, request).await.unwrap();
 
         assert_eq!(response.key_info.tier, tier);
         assert_eq!(response.key_info.name, format!("{tier_name} Key"));
@@ -419,7 +394,9 @@ async fn test_api_key_tiers() {
 
 #[tokio::test]
 async fn test_api_key_expiration() {
-    let (api_key_routes, user_id, _jwt_token) = create_test_setup().await;
+    let (api_key_routes, _user_id, auth) = create_test_setup().await;
+
+    // Auth is already AuthResult, no need for Bearer token
 
     // Test key with expiration
     let request = CreateApiKeyRequest {
@@ -430,10 +407,7 @@ async fn test_api_key_expiration() {
         rate_limit_requests: None,
     };
 
-    let response = api_key_routes
-        .create_api_key(create_auth_result(user_id, "starter"), request)
-        .await
-        .unwrap();
+    let response = api_key_routes.create_api_key(&auth, request).await.unwrap();
 
     // Verify expiration is set correctly
     assert!(response.key_info.expires_at.is_some());
@@ -451,7 +425,7 @@ async fn test_api_key_expiration() {
 #[tokio::test]
 async fn test_authentication_with_different_users() {
     // Create first user setup
-    let (api_key_routes1, user_id1, _jwt_token1) = create_test_setup().await;
+    let (api_key_routes1, _user_id1, auth1) = create_test_setup().await;
 
     // Create second user in same database
     let _user2 = User::new(
@@ -465,6 +439,7 @@ async fn test_authentication_with_different_users() {
     // In a real scenario, we'd use the same database instance
 
     // For now, let's verify that each user can only access their own keys
+    // Auth is already AuthResult, no need for Bearer token
 
     // Create key for user 1
     let request = CreateApiKeyRequest {
@@ -476,15 +451,12 @@ async fn test_authentication_with_different_users() {
     };
 
     api_key_routes1
-        .create_api_key(create_auth_result(user_id1, "starter"), request)
+        .create_api_key(&auth1, request)
         .await
         .unwrap();
 
     // List keys for user 1
-    let list_response = api_key_routes1
-        .list_api_keys(create_auth_result(user_id1, "starter"))
-        .await
-        .unwrap();
+    let list_response = api_key_routes1.list_api_keys(&auth1).await.unwrap();
 
     assert_eq!(list_response.api_keys.len(), 1);
     assert_eq!(list_response.api_keys[0].name, "User 1 Key");

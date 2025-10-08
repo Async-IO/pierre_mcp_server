@@ -115,16 +115,19 @@ pub struct MultiTenantMcpServer {
 
 impl MultiTenantMcpServer {
     /// Create a new MCP server with pre-built resources (dependency injection)
+    ///
+    /// # Panics
+    ///
+    /// Panics if the hardcoded default session cache size (10000) cannot be converted to `NonZeroUsize`.
+    /// This should never happen as 10000 is a valid non-zero positive integer.
     #[must_use]
     pub fn new(resources: Arc<ServerResources>) -> Self {
         // Default session cache size to prevent DoS via unbounded memory growth
-        const DEFAULT_CACHE_SIZE: NonZeroUsize = NonZeroUsize::new(10_000).unwrap();
-
         let cache_size = std::env::var("MCP_SESSION_CACHE_SIZE")
             .ok()
             .and_then(|s| s.parse::<usize>().ok())
             .and_then(NonZeroUsize::new)
-            .unwrap_or(DEFAULT_CACHE_SIZE);
+            .unwrap_or_else(|| NonZeroUsize::new(10_000).expect("10000 is non-zero"));
 
         info!(
             "MCP session cache initialized with capacity: {}",
@@ -210,9 +213,13 @@ impl MultiTenantMcpServer {
         let api_key_usage_filter = Self::create_api_key_usage_route(
             api_key_routes.clone(),
             resources.auth_manager.clone(),
+        ); // Safe: Arc clone for HTTP route sharing
+        let dashboard_route_filter =
+            Self::create_dashboard_routes(&dashboard_routes, resources.auth_manager.clone());
+        let dashboard_detailed_filter = Self::create_dashboard_detailed_routes(
+            &dashboard_routes,
+            resources.auth_manager.clone(),
         );
-        let dashboard_route_filter = Self::create_dashboard_routes(&dashboard_routes);
-        let dashboard_detailed_filter = Self::create_dashboard_detailed_routes(&dashboard_routes);
 
         // Create A2A routes
         let a2a_basic_filter = Self::create_a2a_basic_routes(&a2a_routes);
@@ -222,14 +229,20 @@ impl MultiTenantMcpServer {
 
         // Create configuration routes
         let configuration_filter = Self::create_configuration_routes(&configuration_routes);
-        let user_configuration_filter =
-            Self::create_user_configuration_routes(&configuration_routes);
-        let specialized_configuration_filter =
-            Self::create_specialized_configuration_routes(&configuration_routes);
+        let user_configuration_filter = Self::create_user_configuration_routes(
+            &configuration_routes,
+            resources.auth_manager.clone(),
+        );
+        let specialized_configuration_filter = Self::create_specialized_configuration_routes(
+            &configuration_routes,
+            resources.auth_manager.clone(),
+        );
 
         // Create fitness configuration routes
-        let fitness_configuration_filter =
-            Self::create_fitness_configuration_routes(&fitness_configuration_routes);
+        let fitness_configuration_filter = Self::create_fitness_configuration_routes(
+            resources.auth_manager.clone(),
+            &fitness_configuration_routes,
+        );
 
         // Security headers middleware
         let security_headers = Self::create_security_headers_filter(&security_config);
@@ -550,10 +563,9 @@ impl MultiTenantMcpServer {
     }
 
     /// Create API key management endpoint routes
-    /// Create API key management routes
     fn create_api_key_routes(
         api_key_routes: &ApiKeyRoutes,
-        auth_manager: Arc<AuthManager>,
+        auth_manager: std::sync::Arc<AuthManager>,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
 
@@ -566,12 +578,11 @@ impl MultiTenantMcpServer {
             .and(with_auth.clone())
             .and(warp::body::json())
             .and_then({
-                let api_key_routes = api_key_routes.clone();
-                move |auth: crate::auth::AuthResult,
-                      request: crate::api_keys::CreateApiKeyRequestSimple| {
-                    let api_key_routes = api_key_routes.clone();
+                let api_key_routes = api_key_routes.clone(); // Safe: Arc clone for HTTP handler closure
+                move |auth: AuthResult, request: crate::api_keys::CreateApiKeyRequestSimple| {
+                    let api_key_routes = api_key_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
-                        match api_key_routes.create_api_key_simple(auth, request).await {
+                        match api_key_routes.create_api_key_simple(&auth, request).await {
                             Ok(response) => Ok(warp::reply::json(&response)),
                             Err(e) => {
                                 let error = api_error(&e.to_string());
@@ -588,11 +599,11 @@ impl MultiTenantMcpServer {
             .and(warp::get())
             .and(with_auth.clone())
             .and_then({
-                let api_key_routes = api_key_routes.clone();
-                move |auth: crate::auth::AuthResult| {
-                    let api_key_routes = api_key_routes.clone();
+                let api_key_routes = api_key_routes.clone(); // Safe: Arc clone for HTTP handler closure
+                move |auth: AuthResult| {
+                    let api_key_routes = api_key_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
-                        match api_key_routes.list_api_keys(auth).await {
+                        match api_key_routes.list_api_keys(&auth).await {
                             Ok(response) => Ok(warp::reply::json(&response)),
                             Err(e) => {
                                 let error = api_error(&e.to_string());
@@ -608,13 +619,13 @@ impl MultiTenantMcpServer {
             .and(warp::path("keys"))
             .and(warp::path!(String))
             .and(warp::delete())
-            .and(with_auth)
+            .and(with_auth.clone())
             .and_then({
-                let api_key_routes = api_key_routes.clone();
-                move |api_key_id: String, auth: crate::auth::AuthResult| {
-                    let api_key_routes = api_key_routes.clone();
+                let api_key_routes = api_key_routes.clone(); // Safe: Arc clone for HTTP handler closure
+                move |api_key_id: String, auth: AuthResult| {
+                    let api_key_routes = api_key_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
-                        match api_key_routes.deactivate_api_key(auth, &api_key_id).await {
+                        match api_key_routes.deactivate_api_key(&auth, &api_key_id).await {
                             Ok(response) => Ok(warp::reply::json(&response)),
                             Err(e) => {
                                 let error = api_error(&e.to_string());
@@ -631,7 +642,7 @@ impl MultiTenantMcpServer {
     /// Create API key usage endpoint route
     fn create_api_key_usage_route(
         api_key_routes: ApiKeyRoutes,
-        auth_manager: Arc<AuthManager>,
+        auth_manager: std::sync::Arc<AuthManager>,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
 
@@ -646,7 +657,7 @@ impl MultiTenantMcpServer {
             .and(warp::query::<std::collections::HashMap<String, String>>())
             .and_then({
                 move |api_key_id: String,
-                      auth: crate::auth::AuthResult,
+                      auth: AuthResult,
                       params: std::collections::HashMap<String, String>| {
                     let api_key_routes = api_key_routes.clone();
                     async move {
@@ -678,7 +689,7 @@ impl MultiTenantMcpServer {
                             };
 
                         match api_key_routes
-                            .get_api_key_usage(auth, &api_key_id, start_date, end_date)
+                            .get_api_key_usage(&auth, &api_key_id, start_date, end_date)
                             .await
                         {
                             Ok(response) => Ok(warp::reply::json(&response)),
@@ -695,24 +706,24 @@ impl MultiTenantMcpServer {
     /// Create dashboard endpoint routes
     fn create_dashboard_routes(
         dashboard_routes: &DashboardRoutes,
+        auth_manager: Arc<AuthManager>,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
+
+        let with_auth = Self::create_auth_filter(auth_manager);
 
         // Dashboard overview
         let dashboard_overview = warp::path("api")
             .and(warp::path("dashboard"))
             .and(warp::path("overview"))
             .and(warp::get())
-            .and(warp::header::optional::<String>("authorization"))
+            .and(with_auth.clone())
             .and_then({
                 let dashboard_routes = dashboard_routes.clone();
-                move |auth_header: Option<String>| {
+                move |auth: crate::auth::AuthResult| {
                     let dashboard_routes = dashboard_routes.clone();
                     async move {
-                        match dashboard_routes
-                            .get_dashboard_overview(auth_header.as_deref())
-                            .await
-                        {
+                        match dashboard_routes.get_dashboard_overview(auth).await {
                             Ok(overview) => Ok(warp::reply::json(&overview)),
                             Err(e) => {
                                 let error = api_error(&e.to_string());
@@ -728,11 +739,11 @@ impl MultiTenantMcpServer {
             .and(warp::path("dashboard"))
             .and(warp::path("analytics"))
             .and(warp::get())
-            .and(warp::header::optional::<String>("authorization"))
+            .and(with_auth.clone())
             .and(warp::query::<std::collections::HashMap<String, String>>())
             .and_then({
                 let dashboard_routes = dashboard_routes.clone();
-                move |auth_header: Option<String>,
+                move |auth: crate::auth::AuthResult,
                       params: std::collections::HashMap<String, String>| {
                     let dashboard_routes = dashboard_routes.clone();
                     async move {
@@ -740,10 +751,7 @@ impl MultiTenantMcpServer {
                             .get("days")
                             .and_then(|d| d.parse::<u32>().ok())
                             .unwrap_or(30);
-                        match dashboard_routes
-                            .get_usage_analytics(auth_header.as_deref(), days)
-                            .await
-                        {
+                        match dashboard_routes.get_usage_analytics(auth, days).await {
                             Ok(analytics) => Ok(warp::reply::json(&analytics)),
                             Err(e) => {
                                 let error = api_error(&e.to_string());
@@ -759,16 +767,13 @@ impl MultiTenantMcpServer {
             .and(warp::path("dashboard"))
             .and(warp::path("rate-limits"))
             .and(warp::get())
-            .and(warp::header::optional::<String>("authorization"))
+            .and(with_auth)
             .and_then({
-                let dashboard_routes = dashboard_routes.clone(); // Safe: Arc clone for HTTP handler closure
-                move |auth_header: Option<String>| {
-                    let dashboard_routes = dashboard_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
+                let dashboard_routes = dashboard_routes.clone();
+                move |auth: crate::auth::AuthResult| {
+                    let dashboard_routes = dashboard_routes.clone();
                     async move {
-                        match dashboard_routes
-                            .get_rate_limit_overview(auth_header.as_deref())
-                            .await
-                        {
+                        match dashboard_routes.get_rate_limit_overview(auth).await {
                             Ok(overview) => Ok(warp::reply::json(&overview)),
                             Err(e) => {
                                 let error = api_error(&e.to_string());
@@ -787,21 +792,24 @@ impl MultiTenantMcpServer {
     /// Create additional dashboard endpoint routes for logs and stats
     fn create_dashboard_detailed_routes(
         dashboard_routes: &DashboardRoutes,
+        auth_manager: Arc<AuthManager>,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
+
+        let with_auth = Self::create_auth_filter(auth_manager);
 
         // Dashboard request logs
         let dashboard_request_logs = warp::path("api")
             .and(warp::path("dashboard"))
             .and(warp::path("request-logs"))
             .and(warp::get())
-            .and(warp::header::optional::<String>("authorization"))
+            .and(with_auth.clone())
             .and(warp::query::<std::collections::HashMap<String, String>>())
             .and_then({
-                let dashboard_routes = dashboard_routes.clone(); // Safe: Arc clone for HTTP handler closure
-                move |auth_header: Option<String>,
+                let dashboard_routes = dashboard_routes.clone();
+                move |auth: crate::auth::AuthResult,
                       params: std::collections::HashMap<String, String>| {
-                    let dashboard_routes = dashboard_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
+                    let dashboard_routes = dashboard_routes.clone();
                     async move {
                         let api_key_id = params.get("api_key_id").map(std::string::String::as_str);
                         let time_range = params.get("time_range").map(std::string::String::as_str);
@@ -809,13 +817,7 @@ impl MultiTenantMcpServer {
                         let tool = params.get("tool").map(std::string::String::as_str);
 
                         match dashboard_routes
-                            .get_request_logs(
-                                auth_header.as_deref(),
-                                api_key_id,
-                                time_range,
-                                status,
-                                tool,
-                            )
+                            .get_request_logs(auth, api_key_id, time_range, status, tool)
                             .await
                         {
                             Ok(logs) => Ok(warp::reply::json(&logs)),
@@ -833,19 +835,19 @@ impl MultiTenantMcpServer {
             .and(warp::path("dashboard"))
             .and(warp::path("request-stats"))
             .and(warp::get())
-            .and(warp::header::optional::<String>("authorization"))
+            .and(with_auth.clone())
             .and(warp::query::<std::collections::HashMap<String, String>>())
             .and_then({
-                let dashboard_routes = dashboard_routes.clone(); // Safe: Arc clone for HTTP handler closure
-                move |auth_header: Option<String>,
+                let dashboard_routes = dashboard_routes.clone();
+                move |auth: crate::auth::AuthResult,
                       params: std::collections::HashMap<String, String>| {
-                    let dashboard_routes = dashboard_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
+                    let dashboard_routes = dashboard_routes.clone();
                     async move {
                         let api_key_id = params.get("api_key_id").map(std::string::String::as_str);
                         let time_range = params.get("time_range").map(std::string::String::as_str);
 
                         match dashboard_routes
-                            .get_request_stats(auth_header.as_deref(), api_key_id, time_range)
+                            .get_request_stats(auth, api_key_id, time_range)
                             .await
                         {
                             Ok(stats) => Ok(warp::reply::json(&stats)),
@@ -863,23 +865,19 @@ impl MultiTenantMcpServer {
             .and(warp::path("dashboard"))
             .and(warp::path("tool-usage"))
             .and(warp::get())
-            .and(warp::header::optional::<String>("authorization"))
+            .and(with_auth)
             .and(warp::query::<std::collections::HashMap<String, String>>())
             .and_then({
-                let dashboard_routes = dashboard_routes.clone(); // Safe: Arc clone for HTTP handler closure
-                move |auth_header: Option<String>,
+                let dashboard_routes = dashboard_routes.clone();
+                move |auth: crate::auth::AuthResult,
                       params: std::collections::HashMap<String, String>| {
-                    let dashboard_routes = dashboard_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
+                    let dashboard_routes = dashboard_routes.clone();
                     async move {
                         let api_key_id = params.get("api_key_id").map(std::string::String::as_str);
                         let time_range = params.get("time_range").map(std::string::String::as_str);
 
                         match dashboard_routes
-                            .get_tool_usage_breakdown(
-                                auth_header.as_deref(),
-                                api_key_id,
-                                time_range,
-                            )
+                            .get_tool_usage_breakdown(auth, api_key_id, time_range)
                             .await
                         {
                             Ok(usage) => Ok(warp::reply::json(&usage)),
@@ -1178,24 +1176,24 @@ impl MultiTenantMcpServer {
     /// Create user configuration endpoint routes
     fn create_user_configuration_routes(
         configuration_routes: &Arc<ConfigurationRoutes>,
+        auth_manager: std::sync::Arc<AuthManager>,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
+
+        let with_auth = Self::create_auth_filter(auth_manager);
 
         // Get user configuration
         let config_user_get = warp::path("api")
             .and(warp::path("configuration"))
             .and(warp::path("user"))
             .and(warp::get())
-            .and(warp::header::optional::<String>("authorization"))
+            .and(with_auth.clone())
             .and_then({
                 let config_routes = (*configuration_routes).clone(); // Safe: Arc clone for HTTP handler closure
-                move |auth_header: Option<String>| {
+                move |auth: AuthResult| {
                     let config_routes = config_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
-                        match config_routes
-                            .get_user_configuration(auth_header.as_deref())
-                            .await
-                        {
+                        match config_routes.get_user_configuration(&auth).await {
                             Ok(response) => Ok(warp::reply::json(&response)),
                             Err(e) => {
                                 let error = api_error(&e.to_string());
@@ -1211,15 +1209,15 @@ impl MultiTenantMcpServer {
             .and(warp::path("configuration"))
             .and(warp::path("user"))
             .and(warp::put())
-            .and(warp::header::optional::<String>("authorization"))
+            .and(with_auth.clone())
             .and(warp::body::json())
             .and_then({
                 let config_routes = (*configuration_routes).clone(); // Safe: Arc clone for HTTP handler closure
-                move |auth_header: Option<String>, request: crate::configuration_routes::UpdateConfigurationRequest| {
+                move |auth: AuthResult, request: crate::configuration_routes::UpdateConfigurationRequest| {
                     let config_routes = config_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match config_routes
-                            .update_user_configuration(auth_header.as_deref(), request)
+                            .update_user_configuration(&auth, request)
                             .await
                         {
                             Ok(response) => Ok(warp::reply::json(&response)),
@@ -1238,23 +1236,26 @@ impl MultiTenantMcpServer {
     /// Create specialized configuration endpoint routes
     fn create_specialized_configuration_routes(
         configuration_routes: &Arc<ConfigurationRoutes>,
+        auth_manager: std::sync::Arc<AuthManager>,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
+
+        let with_auth = Self::create_auth_filter(auth_manager);
 
         // Configuration zones
         let config_zones = warp::path("api")
             .and(warp::path("configuration"))
             .and(warp::path("zones"))
             .and(warp::post())
-            .and(warp::header::optional::<String>("authorization"))
+            .and(with_auth.clone())
             .and(warp::body::json())
             .and_then({
                 let config_routes = (*configuration_routes).clone(); // Safe: Arc clone for HTTP handler closure
-                move |auth_header: Option<String>, request: crate::configuration_routes::PersonalizedZonesRequest| {
+                move |auth: AuthResult, request: crate::configuration_routes::PersonalizedZonesRequest| {
                     let config_routes = config_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match config_routes
-                            .calculate_personalized_zones(auth_header.as_deref(), &request)
+                            .calculate_personalized_zones(&auth, &request)
                         {
                             Ok(response) => Ok(warp::reply::json(&response)),
                             Err(e) => {
@@ -1271,15 +1272,15 @@ impl MultiTenantMcpServer {
             .and(warp::path("configuration"))
             .and(warp::path("validate"))
             .and(warp::post())
-            .and(warp::header::optional::<String>("authorization"))
+            .and(with_auth.clone())
             .and(warp::body::json())
             .and_then({
                 let config_routes = (*configuration_routes).clone(); // Safe: Arc clone for HTTP handler closure
-                move |auth_header: Option<String>, request: crate::configuration_routes::ValidateConfigurationRequest| {
+                move |auth: AuthResult, request: crate::configuration_routes::ValidateConfigurationRequest| {
                     let config_routes = config_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match config_routes
-                            .validate_configuration(auth_header.as_deref(), &request)
+                            .validate_configuration(&auth, &request)
                         {
                             Ok(response) => Ok(warp::reply::json(&response)),
                             Err(e) => {
@@ -1296,16 +1297,21 @@ impl MultiTenantMcpServer {
 
     /// Create fitness configuration endpoint routes
     fn create_fitness_configuration_routes(
+        auth_manager: std::sync::Arc<AuthManager>,
         fitness_config_routes: &Arc<
             crate::fitness_configuration_routes::FitnessConfigurationRoutes,
         >,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
 
-        let list_configs = Self::create_list_fitness_configs_route(fitness_config_routes);
-        let get_config = Self::create_get_fitness_config_route(fitness_config_routes);
-        let save_user_config = Self::create_save_fitness_config_route(fitness_config_routes);
-        let delete_user_config = Self::create_delete_fitness_config_route(fitness_config_routes);
+        let list_configs =
+            Self::create_list_fitness_configs_route(fitness_config_routes, auth_manager.clone());
+        let get_config =
+            Self::create_get_fitness_config_route(fitness_config_routes, auth_manager.clone());
+        let save_user_config =
+            Self::create_save_fitness_config_route(fitness_config_routes, auth_manager.clone());
+        let delete_user_config =
+            Self::create_delete_fitness_config_route(fitness_config_routes, auth_manager);
 
         list_configs
             .or(get_config)
@@ -1318,22 +1324,23 @@ impl MultiTenantMcpServer {
         fitness_config_routes: &Arc<
             crate::fitness_configuration_routes::FitnessConfigurationRoutes,
         >,
+        auth_manager: std::sync::Arc<AuthManager>,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
+
+        let with_auth = Self::create_auth_filter(auth_manager);
+
         warp::path("api")
             .and(warp::path("fitness-configurations"))
             .and(warp::path::end())
             .and(warp::get())
-            .and(warp::header::optional::<String>("authorization"))
+            .and(with_auth)
             .and_then({
                 let fitness_routes = fitness_config_routes.clone(); // Safe: Arc clone for HTTP handler closure
-                move |auth_header: Option<String>| {
+                move |auth: AuthResult| {
                     let fitness_routes = fitness_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
-                        match fitness_routes
-                            .list_configurations(auth_header.as_deref())
-                            .await
-                        {
+                        match fitness_routes.list_configurations(&auth).await {
                             Ok(response) => Ok(warp::reply::with_status(
                                 warp::reply::json(&response),
                                 warp::http::StatusCode::OK,
@@ -1355,23 +1362,23 @@ impl MultiTenantMcpServer {
         fitness_config_routes: &Arc<
             crate::fitness_configuration_routes::FitnessConfigurationRoutes,
         >,
+        auth_manager: std::sync::Arc<AuthManager>,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
+        let with_auth = Self::create_auth_filter(auth_manager);
+
         warp::path("api")
             .and(warp::path("fitness-configurations"))
             .and(warp::path::param::<String>())
             .and(warp::path::end())
             .and(warp::get())
-            .and(warp::header::optional::<String>("authorization"))
+            .and(with_auth)
             .and_then({
                 let fitness_routes = fitness_config_routes.clone(); // Safe: Arc clone for HTTP handler closure
-                move |config_name: String, auth_header: Option<String>| {
+                move |config_name: String, auth: AuthResult| {
                     let fitness_routes = fitness_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
-                        match fitness_routes
-                            .get_configuration(auth_header.as_deref(), &config_name)
-                            .await
-                        {
+                        match fitness_routes.get_configuration(&auth, &config_name).await {
                             Ok(response) => Ok(warp::reply::with_status(
                                 warp::reply::json(&response),
                                 warp::http::StatusCode::OK,
@@ -1393,21 +1400,25 @@ impl MultiTenantMcpServer {
         fitness_config_routes: &Arc<
             crate::fitness_configuration_routes::FitnessConfigurationRoutes,
         >,
+        auth_manager: std::sync::Arc<AuthManager>,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
+
+        let with_auth = Self::create_auth_filter(auth_manager);
+
         warp::path("api")
             .and(warp::path("fitness-configurations"))
             .and(warp::path::end())
             .and(warp::post())
-            .and(warp::header::optional::<String>("authorization"))
+            .and(with_auth)
             .and(warp::body::json::<crate::fitness_configuration_routes::SaveFitnessConfigRequest>())
             .and_then({
                 let fitness_routes = fitness_config_routes.clone(); // Safe: Arc clone for HTTP handler closure
-                move |auth_header: Option<String>, request: crate::fitness_configuration_routes::SaveFitnessConfigRequest| {
+                move |auth: AuthResult, request: crate::fitness_configuration_routes::SaveFitnessConfigRequest| {
                     let fitness_routes = fitness_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match fitness_routes
-                            .save_user_configuration(auth_header.as_deref(), request)
+                            .save_user_configuration(&auth, request)
                             .await
                         {
                             Ok(response) => Ok(warp::reply::with_status(
@@ -1431,21 +1442,25 @@ impl MultiTenantMcpServer {
         fitness_config_routes: &Arc<
             crate::fitness_configuration_routes::FitnessConfigurationRoutes,
         >,
+        auth_manager: std::sync::Arc<AuthManager>,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
+
+        let with_auth = Self::create_auth_filter(auth_manager);
+
         warp::path("api")
             .and(warp::path("fitness-configurations"))
             .and(warp::path::param::<String>())
             .and(warp::path::end())
             .and(warp::delete())
-            .and(warp::header::optional::<String>("authorization"))
+            .and(with_auth)
             .and_then({
                 let fitness_routes = fitness_config_routes.clone(); // Safe: Arc clone for HTTP handler closure
-                move |config_name: String, auth_header: Option<String>| {
+                move |config_name: String, auth: AuthResult| {
                     let fitness_routes = fitness_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
                     async move {
                         match fitness_routes
-                            .delete_user_configuration(auth_header.as_deref(), &config_name)
+                            .delete_user_configuration(&auth, &config_name)
                             .await
                         {
                             Ok(response) => Ok(warp::reply::with_status(

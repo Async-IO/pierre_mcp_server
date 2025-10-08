@@ -489,3 +489,30 @@ async fn test_usage_analytics() {
     // Verify tool usage breakdown is captured
     assert!(stats.tool_usage.is_object());
 }
+
+#[tokio::test]
+async fn test_create_api_key_invalid_auth() {
+    let (_database, _auth_manager, auth_middleware, _user, _jwt_token) =
+        create_test_environment().await;
+
+    // Test with no authorization header
+    let result = auth_middleware.authenticate_request(None).await;
+    assert!(result.is_err());
+    // Just verify auth fails - don't check exact error message
+
+    // Test with invalid bearer token format
+    let result = auth_middleware
+        .authenticate_request(Some("invalid_token"))
+        .await;
+    assert!(result.is_err());
+
+    // Test with malformed bearer token
+    let result = auth_middleware.authenticate_request(Some("Bearer ")).await;
+    assert!(result.is_err());
+
+    // Test with completely fake token
+    let result = auth_middleware
+        .authenticate_request(Some("Bearer fake_token_12345"))
+        .await;
+    assert!(result.is_err());
+}

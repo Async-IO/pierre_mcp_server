@@ -79,11 +79,12 @@ impl ApiKeyRoutes {
     /// # Errors
     ///
     /// Returns an error if:
+    /// - Authentication fails
     /// - Database operations fail
     /// - API key creation fails
     pub async fn create_api_key_simple(
         &self,
-        auth: AuthResult,
+        auth: &AuthResult,
         request: CreateApiKeyRequestSimple,
     ) -> Result<ApiKeyCreateResponse> {
         let user_id = auth.user_id;
@@ -120,11 +121,12 @@ impl ApiKeyRoutes {
     /// # Errors
     ///
     /// Returns an error if:
+    /// - Authentication fails
     /// - Database operations fail
     /// - API key creation fails
     pub async fn create_api_key(
         &self,
-        auth: AuthResult,
+        auth: &AuthResult,
         request: CreateApiKeyRequest,
     ) -> Result<ApiKeyCreateResponse> {
         let user_id = auth.user_id;
@@ -159,8 +161,9 @@ impl ApiKeyRoutes {
     /// # Errors
     ///
     /// Returns an error if:
+    /// - Authentication fails
     /// - Database operations fail
-    pub async fn list_api_keys(&self, auth: AuthResult) -> Result<ApiKeyListResponse> {
+    pub async fn list_api_keys(&self, auth: &AuthResult) -> Result<ApiKeyListResponse> {
         let user_id = auth.user_id;
 
         let api_keys = self.resources.database.get_user_api_keys(user_id).await?;
@@ -190,11 +193,12 @@ impl ApiKeyRoutes {
     /// # Errors
     ///
     /// Returns an error if:
+    /// - Authentication fails
     /// - Database operations fail
     /// - API key not found or not owned by user
     pub async fn deactivate_api_key(
         &self,
-        auth: AuthResult,
+        auth: &AuthResult,
         api_key_id: &str,
     ) -> Result<ApiKeyDeactivateResponse> {
         let user_id = auth.user_id;
@@ -215,11 +219,12 @@ impl ApiKeyRoutes {
     /// # Errors
     ///
     /// Returns an error if:
+    /// - Authentication fails
     /// - Database operations fail
     /// - API key not found or not owned by user
     pub async fn get_api_key_usage(
         &self,
-        auth: AuthResult,
+        auth: &AuthResult,
         api_key_id: &str,
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
@@ -246,12 +251,13 @@ impl ApiKeyRoutes {
     /// # Errors
     ///
     /// Returns an error if:
+    /// - Authentication fails
     /// - User already has a trial key
     /// - Database operations fail
     /// - API key creation fails
     pub async fn create_trial_key(
         &self,
-        auth: AuthResult,
+        auth: &AuthResult,
         name: String,
         description: Option<String>,
     ) -> Result<ApiKeyCreateResponse> {

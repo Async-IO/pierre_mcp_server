@@ -165,10 +165,8 @@ use anyhow::Result;
 use chrono::{Duration, Utc};
 use pierre_mcp_server::{
     api_keys::{ApiKey, ApiKeyTier, ApiKeyUsage, CreateApiKeyRequest},
-    auth::AuthManager,
     dashboard_routes::DashboardRoutes,
     database_plugins::DatabaseProvider,
-    models::User,
 };
 use std::sync::Arc;
 use uuid::Uuid;
@@ -176,12 +174,8 @@ use uuid::Uuid;
 /// Test setup helper that creates all necessary components for dashboard route testing
 struct DashboardTestSetup {
     dashboard_routes: DashboardRoutes,
-    auth_manager: Arc<AuthManager>,
     database: Arc<pierre_mcp_server::database_plugins::factory::Database>,
     user_id: Uuid,
-    #[allow(dead_code)]
-    user: User,
-    jwt_token: String,
     api_keys: Vec<ApiKey>,
 }
 
@@ -290,10 +284,7 @@ impl DashboardTestSetup {
         let dashboard_routes = DashboardRoutes::new(server_resources);
 
         // Create test user
-        let (user_id, user) = common::create_test_user(&database).await?;
-
-        // Generate JWT token for the user
-        let jwt_token = auth_manager.generate_token(&user)?;
+        let (user_id, _) = common::create_test_user(&database).await?;
 
         // Create multiple test API keys with different tiers and usage patterns
         let mut api_keys = Vec::new();
@@ -336,18 +327,31 @@ impl DashboardTestSetup {
 
         Ok(Self {
             dashboard_routes,
-            auth_manager,
             database,
             user_id,
-            user,
-            jwt_token,
             api_keys,
         })
     }
 
-    /// Create authorization header with Bearer token
-    fn auth_header(&self) -> String {
-        format!("Bearer {}", self.jwt_token)
+    /// Create AuthResult for testing authenticated endpoints
+    fn auth_result(&self) -> pierre_mcp_server::auth::AuthResult {
+        use pierre_mcp_server::auth::{AuthMethod, AuthResult};
+        use pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo;
+
+        AuthResult {
+            user_id: self.user_id,
+            auth_method: AuthMethod::JwtToken {
+                tier: "premium".to_string(),
+            },
+            rate_limit: UnifiedRateLimitInfo {
+                is_rate_limited: false,
+                limit: Some(1000),
+                remaining: Some(1000),
+                reset_at: None,
+                tier: "premium".to_string(),
+                auth_method: "jwt".to_string(),
+            },
+        }
     }
 
     /// Create test usage data for dashboard analytics
@@ -418,7 +422,7 @@ async fn test_get_dashboard_overview_success() -> Result<()> {
 
     let overview = setup
         .dashboard_routes
-        .get_dashboard_overview(Some(&setup.auth_header()))
+        .get_dashboard_overview(setup.auth_result())
         .await?;
 
     // Verify basic structure
@@ -454,18 +458,60 @@ async fn test_get_dashboard_overview_invalid_auth() -> Result<()> {
     // Test with invalid token
     let result = setup
         .dashboard_routes
-        .get_dashboard_overview(Some("Bearer invalid_token"))
+        .get_dashboard_overview(pierre_mcp_server::auth::AuthResult {
+            user_id: uuid::Uuid::nil(),
+            auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
+                tier: "premium".to_string(),
+            },
+            rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
+                is_rate_limited: false,
+                limit: Some(1000),
+                remaining: Some(1000),
+                reset_at: None,
+                tier: "premium".to_string(),
+                auth_method: "jwt".to_string(),
+            },
+        })
         .await;
     assert!(result.is_err());
 
     // Test with no authorization header
-    let result = setup.dashboard_routes.get_dashboard_overview(None).await;
+    let result = setup
+        .dashboard_routes
+        .get_dashboard_overview(pierre_mcp_server::auth::AuthResult {
+            user_id: uuid::Uuid::nil(),
+            auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
+                tier: "premium".to_string(),
+            },
+            rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
+                is_rate_limited: false,
+                limit: Some(1000),
+                remaining: Some(1000),
+                reset_at: None,
+                tier: "premium".to_string(),
+                auth_method: "jwt".to_string(),
+            },
+        })
+        .await;
     assert!(result.is_err());
 
     // Test with malformed header
     let result = setup
         .dashboard_routes
-        .get_dashboard_overview(Some("InvalidFormat token"))
+        .get_dashboard_overview(pierre_mcp_server::auth::AuthResult {
+            user_id: uuid::Uuid::nil(),
+            auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
+                tier: "premium".to_string(),
+            },
+            rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
+                is_rate_limited: false,
+                limit: Some(1000),
+                remaining: Some(1000),
+                reset_at: None,
+                tier: "premium".to_string(),
+                auth_method: "jwt".to_string(),
+            },
+        })
         .await;
     assert!(result.is_err());
 
@@ -574,14 +620,24 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
 
     let dashboard_routes = DashboardRoutes::new(server_resources);
 
-    let (_user_id, user) = common::create_test_user(&database).await?;
-    let jwt_token = auth_manager.generate_token(&user)?;
-    let auth_header = format!("Bearer {jwt_token}");
+    let (user_id, _) = common::create_test_user(&database).await?;
+    let auth_result = pierre_mcp_server::auth::AuthResult {
+        user_id,
+        auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
+            tier: "premium".to_string(),
+        },
+        rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
+            is_rate_limited: false,
+            limit: Some(1000),
+            remaining: Some(1000),
+            reset_at: None,
+            tier: "premium".to_string(),
+            auth_method: "jwt".to_string(),
+        },
+    };
 
     // No API keys created - should return empty overview
-    let overview = dashboard_routes
-        .get_dashboard_overview(Some(&auth_header))
-        .await?;
+    let overview = dashboard_routes.get_dashboard_overview(auth_result).await?;
 
     assert_eq!(overview.total_api_keys, 0);
     assert_eq!(overview.active_api_keys, 0);
@@ -603,7 +659,7 @@ async fn test_get_usage_analytics_success() -> Result<()> {
 
     let analytics = setup
         .dashboard_routes
-        .get_usage_analytics(Some(&setup.auth_header()), 7)
+        .get_usage_analytics(setup.auth_result(), 7)
         .await?;
 
     // Verify time series data
@@ -644,7 +700,7 @@ async fn test_get_usage_analytics_different_timeframes() -> Result<()> {
     for days in timeframes {
         let analytics = setup
             .dashboard_routes
-            .get_usage_analytics(Some(&setup.auth_header()), days)
+            .get_usage_analytics(setup.auth_result(), days)
             .await?;
 
         assert_eq!(analytics.time_series.len(), days as usize);
@@ -664,11 +720,46 @@ async fn test_get_usage_analytics_invalid_auth() -> Result<()> {
 
     let result = setup
         .dashboard_routes
-        .get_usage_analytics(Some("Bearer invalid_token"), 7)
+        .get_usage_analytics(
+            pierre_mcp_server::auth::AuthResult {
+                user_id: uuid::Uuid::nil(),
+                auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
+                    tier: "premium".to_string(),
+                },
+                rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
+                    is_rate_limited: false,
+                    limit: Some(1000),
+                    remaining: Some(1000),
+                    reset_at: None,
+                    tier: "premium".to_string(),
+                    auth_method: "jwt".to_string(),
+                },
+            },
+            7,
+        )
         .await;
     assert!(result.is_err());
 
-    let result = setup.dashboard_routes.get_usage_analytics(None, 7).await;
+    let result = setup
+        .dashboard_routes
+        .get_usage_analytics(
+            pierre_mcp_server::auth::AuthResult {
+                user_id: uuid::Uuid::nil(),
+                auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
+                    tier: "premium".to_string(),
+                },
+                rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
+                    is_rate_limited: false,
+                    limit: Some(1000),
+                    remaining: Some(1000),
+                    reset_at: None,
+                    tier: "premium".to_string(),
+                    auth_method: "jwt".to_string(),
+                },
+            },
+            7,
+        )
+        .await;
     assert!(result.is_err());
 
     Ok(())
@@ -684,7 +775,7 @@ async fn test_get_rate_limit_overview_success() -> Result<()> {
 
     let overview = setup
         .dashboard_routes
-        .get_rate_limit_overview(Some(&setup.auth_header()))
+        .get_rate_limit_overview(setup.auth_result())
         .await?;
 
     assert_eq!(overview.len(), 3); // Three API keys
@@ -720,7 +811,7 @@ async fn test_get_rate_limit_overview_usage_calculation() -> Result<()> {
 
     let overview = setup
         .dashboard_routes
-        .get_rate_limit_overview(Some(&setup.auth_header()))
+        .get_rate_limit_overview(setup.auth_result())
         .await?;
 
     // Find starter tier key (has rate limit)
@@ -750,11 +841,40 @@ async fn test_get_rate_limit_overview_invalid_auth() -> Result<()> {
 
     let result = setup
         .dashboard_routes
-        .get_rate_limit_overview(Some("Bearer invalid_token"))
+        .get_rate_limit_overview(pierre_mcp_server::auth::AuthResult {
+            user_id: uuid::Uuid::nil(),
+            auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
+                tier: "premium".to_string(),
+            },
+            rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
+                is_rate_limited: false,
+                limit: Some(1000),
+                remaining: Some(1000),
+                reset_at: None,
+                tier: "premium".to_string(),
+                auth_method: "jwt".to_string(),
+            },
+        })
         .await;
     assert!(result.is_err());
 
-    let result = setup.dashboard_routes.get_rate_limit_overview(None).await;
+    let result = setup
+        .dashboard_routes
+        .get_rate_limit_overview(pierre_mcp_server::auth::AuthResult {
+            user_id: uuid::Uuid::nil(),
+            auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
+                tier: "premium".to_string(),
+            },
+            rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
+                is_rate_limited: false,
+                limit: Some(1000),
+                remaining: Some(1000),
+                reset_at: None,
+                tier: "premium".to_string(),
+                auth_method: "jwt".to_string(),
+            },
+        })
+        .await;
     assert!(result.is_err());
 
     Ok(())
@@ -771,7 +891,7 @@ async fn test_get_request_logs_success() -> Result<()> {
     let logs = setup
         .dashboard_routes
         .get_request_logs(
-            Some(&setup.auth_header()),
+            setup.auth_result(),
             None,        // No specific API key
             Some("24h"), // Last 24 hours
             None,        // All statuses
@@ -807,7 +927,7 @@ async fn test_get_request_logs_with_filters() -> Result<()> {
     let logs = setup
         .dashboard_routes
         .get_request_logs(
-            Some(&setup.auth_header()),
+            setup.auth_result(),
             Some(api_key_id),
             Some("7d"),
             None,
@@ -824,7 +944,7 @@ async fn test_get_request_logs_with_filters() -> Result<()> {
     let logs = setup
         .dashboard_routes
         .get_request_logs(
-            Some(&setup.auth_header()),
+            setup.auth_result(),
             None,
             Some("7d"),
             Some("200"), // Only successful requests
@@ -840,7 +960,7 @@ async fn test_get_request_logs_with_filters() -> Result<()> {
     let logs = setup
         .dashboard_routes
         .get_request_logs(
-            Some(&setup.auth_header()),
+            setup.auth_result(),
             None,
             Some("7d"),
             None,
@@ -864,13 +984,7 @@ async fn test_get_request_logs_time_ranges() -> Result<()> {
     for time_range in time_ranges {
         let logs = setup
             .dashboard_routes
-            .get_request_logs(
-                Some(&setup.auth_header()),
-                None,
-                Some(time_range),
-                None,
-                None,
-            )
+            .get_request_logs(setup.auth_result(), None, Some(time_range), None, None)
             .await?;
 
         // Verify all logs are within the time range
@@ -898,7 +1012,7 @@ async fn test_get_request_logs_unauthorized_api_key() -> Result<()> {
     let result = setup
         .dashboard_routes
         .get_request_logs(
-            Some(&setup.auth_header()),
+            setup.auth_result(),
             Some("nonexistent_key_id"),
             Some("24h"),
             None,
@@ -926,7 +1040,7 @@ async fn test_get_request_stats_success() -> Result<()> {
     let stats = setup
         .dashboard_routes
         .get_request_stats(
-            Some(&setup.auth_header()),
+            setup.auth_result(),
             None,        // All API keys
             Some("24h"), // Last 24 hours
         )
@@ -961,7 +1075,7 @@ async fn test_get_request_stats_specific_api_key() -> Result<()> {
     let api_key_id = &setup.api_keys[0].id;
     let stats = setup
         .dashboard_routes
-        .get_request_stats(Some(&setup.auth_header()), Some(api_key_id), Some("7d"))
+        .get_request_stats(setup.auth_result(), Some(api_key_id), Some("7d"))
         .await?;
 
     // Should have some requests for this specific key
@@ -980,7 +1094,7 @@ async fn test_get_request_stats_different_timeframes() -> Result<()> {
     for timeframe in timeframes {
         let stats = setup
             .dashboard_routes
-            .get_request_stats(Some(&setup.auth_header()), None, Some(timeframe))
+            .get_request_stats(setup.auth_result(), None, Some(timeframe))
             .await?;
 
         // Verify requests per minute calculation makes sense for timeframe
@@ -1005,13 +1119,47 @@ async fn test_get_request_stats_invalid_auth() -> Result<()> {
 
     let result = setup
         .dashboard_routes
-        .get_request_stats(Some("Bearer invalid_token"), None, Some("24h"))
+        .get_request_stats(
+            pierre_mcp_server::auth::AuthResult {
+                user_id: uuid::Uuid::nil(),
+                auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
+                    tier: "premium".to_string(),
+                },
+                rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
+                    is_rate_limited: false,
+                    limit: Some(1000),
+                    remaining: Some(1000),
+                    reset_at: None,
+                    tier: "premium".to_string(),
+                    auth_method: "jwt".to_string(),
+                },
+            },
+            None,
+            Some("24h"),
+        )
         .await;
     assert!(result.is_err());
 
     let result = setup
         .dashboard_routes
-        .get_request_stats(None, None, Some("24h"))
+        .get_request_stats(
+            pierre_mcp_server::auth::AuthResult {
+                user_id: uuid::Uuid::nil(),
+                auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
+                    tier: "premium".to_string(),
+                },
+                rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
+                    is_rate_limited: false,
+                    limit: Some(1000),
+                    remaining: Some(1000),
+                    reset_at: None,
+                    tier: "premium".to_string(),
+                    auth_method: "jwt".to_string(),
+                },
+            },
+            None,
+            Some("24h"),
+        )
         .await;
     assert!(result.is_err());
 
@@ -1029,7 +1177,7 @@ async fn test_get_tool_usage_breakdown_success() -> Result<()> {
     let tool_usage = setup
         .dashboard_routes
         .get_tool_usage_breakdown(
-            Some(&setup.auth_header()),
+            setup.auth_result(),
             None,       // All API keys
             Some("7d"), // Last 7 days
         )
@@ -1066,7 +1214,7 @@ async fn test_get_tool_usage_breakdown_different_timeframes() -> Result<()> {
     for timeframe in timeframes {
         let tool_usage = setup
             .dashboard_routes
-            .get_tool_usage_breakdown(Some(&setup.auth_header()), None, Some(timeframe))
+            .get_tool_usage_breakdown(setup.auth_result(), None, Some(timeframe))
             .await?;
 
         // Each timeframe should return valid data
@@ -1085,13 +1233,47 @@ async fn test_get_tool_usage_breakdown_invalid_auth() -> Result<()> {
 
     let result = setup
         .dashboard_routes
-        .get_tool_usage_breakdown(Some("Bearer invalid_token"), None, Some("7d"))
+        .get_tool_usage_breakdown(
+            pierre_mcp_server::auth::AuthResult {
+                user_id: uuid::Uuid::nil(),
+                auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
+                    tier: "premium".to_string(),
+                },
+                rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
+                    is_rate_limited: false,
+                    limit: Some(1000),
+                    remaining: Some(1000),
+                    reset_at: None,
+                    tier: "premium".to_string(),
+                    auth_method: "jwt".to_string(),
+                },
+            },
+            None,
+            Some("7d"),
+        )
         .await;
     assert!(result.is_err());
 
     let result = setup
         .dashboard_routes
-        .get_tool_usage_breakdown(None, None, Some("7d"))
+        .get_tool_usage_breakdown(
+            pierre_mcp_server::auth::AuthResult {
+                user_id: uuid::Uuid::nil(),
+                auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
+                    tier: "premium".to_string(),
+                },
+                rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
+                    is_rate_limited: false,
+                    limit: Some(1000),
+                    remaining: Some(1000),
+                    reset_at: None,
+                    tier: "premium".to_string(),
+                    auth_method: "jwt".to_string(),
+                },
+            },
+            None,
+            Some("7d"),
+        )
         .await;
     assert!(result.is_err());
 
@@ -1102,36 +1284,8 @@ async fn test_get_tool_usage_breakdown_invalid_auth() -> Result<()> {
 // Edge Cases and Error Handling Tests
 // ============================================================================
 
-#[tokio::test]
-async fn test_dashboard_with_expired_jwt() -> Result<()> {
-    let setup = DashboardTestSetup::new().await?;
-
-    // Create an expired JWT token
-    let expired_user = User::new(
-        "expired@example.com".to_string(),
-        "hash".to_string(),
-        Some("Expired User".to_string()),
-    );
-
-    // Create a JWT manager with very short expiry
-    let short_jwt_secret = pierre_mcp_server::auth::generate_jwt_secret().to_vec();
-    let short_auth_manager = AuthManager::new(short_jwt_secret, 0); // 0 hours = immediate expiry
-
-    let expired_token = short_auth_manager.generate_token(&expired_user)?;
-    let expired_header = format!("Bearer {expired_token}");
-
-    // Wait a moment to ensure token is expired
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-
-    // Try to use expired token
-    let result = setup
-        .dashboard_routes
-        .get_dashboard_overview(Some(&expired_header))
-        .await;
-    assert!(result.is_err());
-
-    Ok(())
-}
+// JWT expiration test removed - JWT validation happens at HTTP filter level
+// Route methods only validate that user_id is not nil
 
 #[tokio::test]
 async fn test_dashboard_with_malformed_jwt() -> Result<()> {
@@ -1147,7 +1301,20 @@ async fn test_dashboard_with_malformed_jwt() -> Result<()> {
     for malformed_token in malformed_tokens {
         let result = setup
             .dashboard_routes
-            .get_dashboard_overview(Some(malformed_token))
+            .get_dashboard_overview(pierre_mcp_server::auth::AuthResult {
+                user_id: uuid::Uuid::nil(),
+                auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
+                    tier: "premium".to_string(),
+                },
+                rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
+                    is_rate_limited: false,
+                    limit: Some(1000),
+                    remaining: Some(1000),
+                    reset_at: None,
+                    tier: "premium".to_string(),
+                    auth_method: "jwt".to_string(),
+                },
+            })
             .await;
         assert!(
             result.is_err(),
@@ -1164,15 +1331,27 @@ async fn test_dashboard_with_different_user() -> Result<()> {
     let setup = DashboardTestSetup::new().await?;
 
     // Create another user
-    let (_other_user_id, other_user) =
+    let (other_user_id, _) =
         common::create_test_user_with_email(&setup.database, "other@example.com").await?;
-    let other_jwt_token = setup.auth_manager.generate_token(&other_user)?;
-    let other_auth_header = format!("Bearer {other_jwt_token}");
+    let other_auth_result = pierre_mcp_server::auth::AuthResult {
+        user_id: other_user_id,
+        auth_method: pierre_mcp_server::auth::AuthMethod::JwtToken {
+            tier: "premium".to_string(),
+        },
+        rate_limit: pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo {
+            is_rate_limited: false,
+            limit: Some(1000),
+            remaining: Some(1000),
+            reset_at: None,
+            tier: "premium".to_string(),
+            auth_method: "jwt".to_string(),
+        },
+    };
 
     // This user should have no API keys and no data
     let overview = setup
         .dashboard_routes
-        .get_dashboard_overview(Some(&other_auth_header))
+        .get_dashboard_overview(other_auth_result)
         .await?;
 
     assert_eq!(overview.total_api_keys, 0);
@@ -1194,13 +1373,10 @@ async fn test_dashboard_concurrent_requests() -> Result<()> {
 
     for _ in 0..10 {
         let dashboard_routes = setup.dashboard_routes.clone();
-        let auth_header = setup.auth_header();
+        let auth_result = setup.auth_result();
 
-        let handle = tokio::spawn(async move {
-            dashboard_routes
-                .get_dashboard_overview(Some(&auth_header))
-                .await
-        });
+        let handle =
+            tokio::spawn(async move { dashboard_routes.get_dashboard_overview(auth_result).await });
 
         handles.push(handle);
     }
@@ -1231,7 +1407,7 @@ async fn test_dashboard_large_dataset() -> Result<()> {
 
     let overview = setup
         .dashboard_routes
-        .get_dashboard_overview(Some(&setup.auth_header()))
+        .get_dashboard_overview(setup.auth_result())
         .await?;
 
     let duration = start.elapsed();
@@ -1257,7 +1433,7 @@ async fn test_dashboard_boundary_conditions() -> Result<()> {
     // Test edge case: analytics for 0 days (should default to something reasonable)
     let analytics = setup
         .dashboard_routes
-        .get_usage_analytics(Some(&setup.auth_header()), 0)
+        .get_usage_analytics(setup.auth_result(), 0)
         .await?;
 
     assert_eq!(analytics.time_series.len(), 0);
@@ -1265,7 +1441,7 @@ async fn test_dashboard_boundary_conditions() -> Result<()> {
     // Test large number of days
     let analytics = setup
         .dashboard_routes
-        .get_usage_analytics(Some(&setup.auth_header()), 1000)
+        .get_usage_analytics(setup.auth_result(), 1000)
         .await?;
 
     assert_eq!(analytics.time_series.len(), 1000);
@@ -1284,13 +1460,13 @@ async fn test_dashboard_data_consistency() -> Result<()> {
     // Get overview data
     let overview = setup
         .dashboard_routes
-        .get_dashboard_overview(Some(&setup.auth_header()))
+        .get_dashboard_overview(setup.auth_result())
         .await?;
 
     // Get rate limit data
     let rate_limits = setup
         .dashboard_routes
-        .get_rate_limit_overview(Some(&setup.auth_header()))
+        .get_rate_limit_overview(setup.auth_result())
         .await?;
 
     // Number of API keys should be consistent
@@ -1320,7 +1496,7 @@ async fn test_dashboard_real_time_updates() -> Result<()> {
     // Get initial stats
     let initial_overview = setup
         .dashboard_routes
-        .get_dashboard_overview(Some(&setup.auth_header()))
+        .get_dashboard_overview(setup.auth_result())
         .await?;
 
     // Create a new API key
@@ -1331,7 +1507,7 @@ async fn test_dashboard_real_time_updates() -> Result<()> {
     // Get updated stats
     let updated_overview = setup
         .dashboard_routes
-        .get_dashboard_overview(Some(&setup.auth_header()))
+        .get_dashboard_overview(setup.auth_result())
         .await?;
 
     // Should reflect the new API key

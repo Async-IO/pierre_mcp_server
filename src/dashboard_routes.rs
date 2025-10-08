@@ -11,6 +11,7 @@
 // NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
 // - HashMap key ownership for statistics aggregation (tool_name.clone())
 
+use crate::auth::AuthResult;
 use crate::database_plugins::DatabaseProvider;
 use crate::mcp::resources::ServerResources;
 use anyhow::Result;
@@ -120,19 +121,19 @@ impl DashboardRoutes {
     /// Get dashboard overview data
     ///
     /// # Errors
-    /// Returns an error if authentication fails, database queries fail, or date parsing fails
+    /// Returns an error if database queries fail, or date parsing fails
     ///
     /// # Panics
     /// Panics if date construction fails with invalid values
-    pub async fn get_dashboard_overview(
-        &self,
-        auth_header: Option<&str>,
-    ) -> Result<DashboardOverview> {
+    pub async fn get_dashboard_overview(&self, auth: AuthResult) -> Result<DashboardOverview> {
         tracing::debug!("Dashboard overview request received");
 
-        // Authenticate user
-        let claims = self.validate_auth_header(auth_header)?;
-        let user_id = crate::utils::uuid::parse_uuid(&claims.sub)?;
+        let user_id = auth.user_id;
+
+        // Validate user_id is not nil
+        if user_id.is_nil() {
+            return Err(anyhow::anyhow!("Invalid user ID"));
+        }
 
         tracing::info!(
             "Dashboard overview data access granted for user: {}",
@@ -231,15 +232,15 @@ impl DashboardRoutes {
     ///
     /// # Errors
     /// Returns an error if authentication fails or database queries fail
-    pub async fn get_usage_analytics(
-        &self,
-        auth_header: Option<&str>,
-        days: u32,
-    ) -> Result<UsageAnalytics> {
+    pub async fn get_usage_analytics(&self, auth: AuthResult, days: u32) -> Result<UsageAnalytics> {
         tracing::debug!("Dashboard analytics request received for {} days", days);
 
-        let claims = self.validate_auth_header(auth_header)?;
-        let user_id = crate::utils::uuid::parse_uuid(&claims.sub)?;
+        let user_id = auth.user_id;
+
+        // Validate user_id is not nil
+        if user_id.is_nil() {
+            return Err(anyhow::anyhow!("Invalid user ID"));
+        }
 
         tracing::info!(
             "Dashboard analytics data access granted for user: {} (timeframe: {} days)",
@@ -336,12 +337,16 @@ impl DashboardRoutes {
     /// Panics if date construction fails with invalid values
     pub async fn get_rate_limit_overview(
         &self,
-        auth_header: Option<&str>,
+        auth: AuthResult,
     ) -> Result<Vec<RateLimitOverview>> {
         tracing::debug!("Dashboard rate limit overview request received");
 
-        let claims = self.validate_auth_header(auth_header)?;
-        let user_id = crate::utils::uuid::parse_uuid(&claims.sub)?;
+        let user_id = auth.user_id;
+
+        // Validate user_id is not nil
+        if user_id.is_nil() {
+            return Err(anyhow::anyhow!("Invalid user ID"));
+        }
 
         tracing::info!(
             "Dashboard rate limit data access granted for user: {}",
@@ -401,42 +406,6 @@ impl DashboardRoutes {
         }
 
         Ok(overview)
-    }
-
-    /// Validate authentication header and return claims
-    ///
-    /// # Errors
-    /// Returns an error if the authorization header is missing, malformed, or contains an invalid token
-    fn validate_auth_header(&self, auth_header: Option<&str>) -> Result<crate::auth::Claims> {
-        tracing::debug!("Dashboard endpoint authentication attempt");
-
-        let Some(auth_str) = auth_header else {
-            tracing::warn!("Dashboard access denied: Missing authorization header");
-            return Err(anyhow::anyhow!("Missing authorization header"));
-        };
-
-        auth_str.strip_prefix("Bearer ").map_or_else(
-            || {
-                tracing::warn!("Dashboard access denied: Invalid authorization header format (expected 'Bearer ...')");
-                Err(anyhow::anyhow!("Invalid authorization header format"))
-            },
-            |token| {
-                tracing::debug!("Validating JWT token for dashboard access");
-                self.resources.auth_manager.validate_token(token).map_or_else(
-                    |e| {
-                        tracing::warn!(
-                            "Dashboard access denied for token validation failure: {}",
-                            e
-                        );
-                        Err(e)
-                    },
-                    |claims| {
-                        tracing::info!("Dashboard access granted for user: {}", claims.sub);
-                        Ok(claims)
-                    },
-                )
-            },
-        )
     }
 
     /// Get recent activity for user
@@ -549,10 +518,10 @@ impl DashboardRoutes {
     /// Get request logs with filtering
     ///
     /// # Errors
-    /// Returns an error if authentication fails, API key access is denied, or database queries fail
+    /// Returns an error if API key access is denied, or database queries fail
     pub async fn get_request_logs(
         &self,
-        auth_header: Option<&str>,
+        auth: AuthResult,
         api_key_id: Option<&str>,
         time_range: Option<&str>,
         status: Option<&str>,
@@ -560,8 +529,12 @@ impl DashboardRoutes {
     ) -> Result<Vec<RequestLog>> {
         tracing::debug!("Dashboard request logs request received");
 
-        let claims = self.validate_auth_header(auth_header)?;
-        let user_id = crate::utils::uuid::parse_uuid(&claims.sub)?;
+        let user_id = auth.user_id;
+
+        // Validate user_id is not nil
+        if user_id.is_nil() {
+            return Err(anyhow::anyhow!("Invalid user ID"));
+        }
 
         tracing::info!(
             "Dashboard request logs access granted for user: {}",
@@ -599,17 +572,21 @@ impl DashboardRoutes {
     /// Get request statistics
     ///
     /// # Errors
-    /// Returns an error if authentication fails, API key access is denied, or database queries fail
+    /// Returns an error if API key access is denied, or database queries fail
     pub async fn get_request_stats(
         &self,
-        auth_header: Option<&str>,
+        auth: AuthResult,
         api_key_id: Option<&str>,
         time_range: Option<&str>,
     ) -> Result<RequestStats> {
         tracing::debug!("Dashboard request stats request received");
 
-        let claims = self.validate_auth_header(auth_header)?;
-        let user_id = crate::utils::uuid::parse_uuid(&claims.sub)?;
+        let user_id = auth.user_id;
+
+        // Validate user_id is not nil
+        if user_id.is_nil() {
+            return Err(anyhow::anyhow!("Invalid user ID"));
+        }
 
         tracing::info!(
             "Dashboard request stats access granted for user: {}",
@@ -695,14 +672,18 @@ impl DashboardRoutes {
     /// Returns an error if authentication fails or database queries fail
     pub async fn get_tool_usage_breakdown(
         &self,
-        auth_header: Option<&str>,
+        auth: AuthResult,
         _api_key_id: Option<&str>,
         time_range: Option<&str>,
     ) -> Result<Vec<ToolUsage>> {
         tracing::debug!("Dashboard tool usage breakdown request received");
 
-        let claims = self.validate_auth_header(auth_header)?;
-        let user_id = crate::utils::uuid::parse_uuid(&claims.sub)?;
+        let user_id = auth.user_id;
+
+        // Validate user_id is not nil
+        if user_id.is_nil() {
+            return Err(anyhow::anyhow!("Invalid user ID"));
+        }
 
         tracing::info!(
             "Dashboard tool usage breakdown access granted for user: {}",

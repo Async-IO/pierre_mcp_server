@@ -15,6 +15,7 @@
 //! HTTP endpoints for managing runtime configuration parameters,
 //! physiological profiles, and personalized training zones.
 
+use crate::auth::AuthResult;
 use crate::configuration::{
     catalog::{CatalogBuilder, ConfigCatalog},
     profiles::{ConfigProfile, ProfileTemplates},
@@ -23,7 +24,6 @@ use crate::configuration::{
     vo2_max::VO2MaxCalculator,
 };
 use crate::database_plugins::DatabaseProvider;
-use crate::utils::auth::extract_bearer_token_from_option;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -247,24 +247,6 @@ impl ConfigurationRoutes {
 
     /// Authenticate `JWT` token and extract user `ID`
     ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - The authorization header is missing
-    /// - The authorization header format is invalid
-    /// - The token validation fails
-    /// - The user ID cannot be parsed as a UUID
-    fn authenticate_user(&self, auth_header: Option<&str>) -> Result<Uuid> {
-        let auth_str =
-            auth_header.ok_or_else(|| anyhow::anyhow!("Missing authorization header"))?;
-
-        let token = extract_bearer_token_from_option(Some(auth_str))?;
-
-        let claims = self.resources.auth_manager.validate_token(token)?;
-        let user_id = crate::utils::uuid::parse_uuid(&claims.sub)?;
-        Ok(user_id)
-    }
-
     /// Create response metadata
     fn create_metadata(processing_start: std::time::Instant) -> ResponseMetadata {
         ResponseMetadata {
@@ -367,10 +349,10 @@ impl ConfigurationRoutes {
     /// - Database operations fail
     pub async fn get_user_configuration(
         &self,
-        auth_header: Option<&str>,
+        auth: &AuthResult,
     ) -> Result<UserConfigurationResponse> {
         let processing_start = std::time::Instant::now();
-        let user_id = self.authenticate_user(auth_header)?;
+        let user_id = auth.user_id;
 
         // Verify user exists in database before proceeding
         if let Err(e) = self.resources.database.get_user(user_id).await {
@@ -405,11 +387,11 @@ impl ConfigurationRoutes {
     /// - Database operations fail
     pub async fn update_user_configuration(
         &self,
-        auth_header: Option<&str>,
+        auth: &AuthResult,
         request: UpdateConfigurationRequest,
     ) -> Result<UpdateConfigurationResponse> {
         let processing_start = std::time::Instant::now();
-        let user_id = self.authenticate_user(auth_header)?;
+        let user_id = auth.user_id;
 
         let parameter_overrides = request.parameters.unwrap_or_default();
         let parameter_count = parameter_overrides.len();
@@ -512,11 +494,11 @@ impl ConfigurationRoutes {
     /// - Zone calculation fails
     pub fn calculate_personalized_zones(
         &self,
-        auth_header: Option<&str>,
+        auth: &AuthResult,
         request: &PersonalizedZonesRequest,
     ) -> Result<PersonalizedZonesResponse> {
         let processing_start = std::time::Instant::now();
-        let user_id = self.authenticate_user(auth_header)?;
+        let user_id = auth.user_id;
 
         // Log personalized zones request
         tracing::debug!("Generating personalized zones for user {}", user_id);
@@ -577,7 +559,7 @@ impl ConfigurationRoutes {
     /// - Parameter conversion fails
     pub fn validate_configuration(
         &self,
-        _auth_header: Option<&str>,
+        _auth: &AuthResult,
         request: &ValidateConfigurationRequest,
     ) -> Result<ValidationResponse> {
         let processing_start = std::time::Instant::now();
