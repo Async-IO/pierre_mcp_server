@@ -357,22 +357,39 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
 
   private async validateToken(accessToken: string): Promise<boolean> {
     try {
-      // Make a lightweight request to validate the token
-      const response = await fetch(`${this.serverUrl}/oauth/status`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
+      // AbortController with 5s timeout for token validation
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      try {
+        // Make a lightweight request to validate the token
+        const response = await fetch(`${this.serverUrl}/oauth/status`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          console.error(`[Pierre OAuth] Token validation successful`);
+          return true;
         }
-      });
 
-      if (response.ok) {
-        console.error(`[Pierre OAuth] Token validation successful`);
-        return true;
+        console.error(`[Pierre OAuth] Token validation failed: ${response.status} ${response.statusText}`);
+        return false;
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          console.error(`[Pierre OAuth] Token validation timed out after 5s`);
+        } else {
+          throw fetchError;
+        }
+        return false;
       }
-
-      console.error(`[Pierre OAuth] Token validation failed: ${response.status} ${response.statusText}`);
-      return false;
     } catch (error) {
       console.error(`[Pierre OAuth] Token validation request failed: ${error}`);
       return false;
