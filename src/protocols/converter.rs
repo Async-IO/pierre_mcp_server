@@ -162,15 +162,15 @@ impl ProtocolConverter {
                     .and_then(Value::as_str)
                     .unwrap_or("Unnamed Activity");
                 let activity_type = activity
-                    .get("type")
+                    .get("sport_type")
                     .and_then(Value::as_str)
                     .unwrap_or("Unknown");
                 let distance = activity
-                    .get("distance")
+                    .get("distance_meters")
                     .and_then(Value::as_f64)
                     .map_or_else(|| "N/A".to_string(), |d| format!("{:.2} km", d / 1000.0));
                 let moving_time = activity
-                    .get("moving_time")
+                    .get("duration_seconds")
                     .and_then(Value::as_u64)
                     .map_or_else(
                         || "N/A".to_string(),

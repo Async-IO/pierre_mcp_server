@@ -144,9 +144,30 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, String) {
     (api_key_routes, user_id, jwt_token)
 }
 
+/// Helper to create `AuthResult` from JWT token for testing
+fn create_auth_result(user_id: Uuid, tier: &str) -> pierre_mcp_server::auth::AuthResult {
+    use pierre_mcp_server::auth::{AuthMethod, AuthResult};
+    use pierre_mcp_server::rate_limiting::UnifiedRateLimitInfo;
+
+    AuthResult {
+        user_id,
+        auth_method: AuthMethod::JwtToken {
+            tier: tier.to_string(),
+        },
+        rate_limit: UnifiedRateLimitInfo {
+            is_rate_limited: false,
+            limit: Some(1000),
+            remaining: Some(1000),
+            reset_at: None,
+            tier: tier.to_string(),
+            auth_method: "jwt".to_string(),
+        },
+    }
+}
+
 #[tokio::test]
 async fn test_create_api_key_success() {
-    let (api_key_routes, _user_id, jwt_token) = create_test_setup().await;
+    let (api_key_routes, user_id, _jwt_token) = create_test_setup().await;
 
     let request = CreateApiKeyRequest {
         name: "Test API Key".to_string(),
@@ -156,11 +177,8 @@ async fn test_create_api_key_success() {
         rate_limit_requests: None,
     };
 
-    let auth_header = format!("Bearer {jwt_token}");
-    let response = api_key_routes
-        .create_api_key(Some(&auth_header), request)
-        .await
-        .unwrap();
+    let auth = create_auth_result(user_id, "starter");
+    let response = api_key_routes.create_api_key(auth, request).await.unwrap();
 
     // Verify response
     assert!(response.api_key.starts_with("pk_live_"));
@@ -171,40 +189,18 @@ async fn test_create_api_key_success() {
     assert!(response.warning.contains("Store this API key securely"));
 }
 
+// Note: Authentication testing moved to middleware layer tests
+// ApiKeyRoutes now expects pre-authenticated AuthResult
+#[allow(dead_code)]
 #[tokio::test]
-async fn test_create_api_key_invalid_auth() {
-    let (api_key_routes, _user_id, _jwt_token) = create_test_setup().await;
-
-    let request = CreateApiKeyRequest {
-        name: "Test API Key".to_string(),
-        description: None,
-        tier: ApiKeyTier::Professional,
-        expires_in_days: None,
-        rate_limit_requests: None,
-    };
-
-    // Test with invalid auth header
-    let result = api_key_routes
-        .create_api_key(Some("Invalid Bearer token"), request)
-        .await;
-    assert!(result.is_err());
-
-    // Test with no auth header
-    let request = CreateApiKeyRequest {
-        name: "Test API Key".to_string(),
-        description: None,
-        tier: ApiKeyTier::Professional,
-        expires_in_days: None,
-        rate_limit_requests: None,
-    };
-
-    let result = api_key_routes.create_api_key(None, request).await;
-    assert!(result.is_err());
+async fn test_create_api_key_invalid_auth_skipped() {
+    // This test is skipped because authentication is now handled at the middleware layer
+    // The ApiKeyRoutes service expects a validated AuthResult, not raw auth headers
 }
 
 #[tokio::test]
 async fn test_list_api_keys() {
-    let (api_key_routes, _user_id, jwt_token) = create_test_setup().await;
+    let (api_key_routes, user_id, _jwt_token) = create_test_setup().await;
 
     // Create a couple of API keys
     let request1 = CreateApiKeyRequest {
@@ -223,22 +219,20 @@ async fn test_list_api_keys() {
         rate_limit_requests: None,
     };
 
-    let auth_header = format!("Bearer {jwt_token}");
-
     // Create the keys
     api_key_routes
-        .create_api_key(Some(&auth_header), request1)
+        .create_api_key(create_auth_result(user_id, "starter"), request1)
         .await
         .unwrap();
 
     api_key_routes
-        .create_api_key(Some(&auth_header), request2)
+        .create_api_key(create_auth_result(user_id, "professional"), request2)
         .await
         .unwrap();
 
     // List keys
     let response = api_key_routes
-        .list_api_keys(Some(&auth_header))
+        .list_api_keys(create_auth_result(user_id, "starter"))
         .await
         .unwrap();
 
@@ -269,7 +263,7 @@ async fn test_list_api_keys() {
 
 #[tokio::test]
 async fn test_deactivate_api_key() {
-    let (api_key_routes, _user_id, jwt_token) = create_test_setup().await;
+    let (api_key_routes, user_id, _jwt_token) = create_test_setup().await;
 
     // Create an API key
     let request = CreateApiKeyRequest {
@@ -280,9 +274,8 @@ async fn test_deactivate_api_key() {
         rate_limit_requests: None,
     };
 
-    let auth_header = format!("Bearer {jwt_token}");
     let create_response = api_key_routes
-        .create_api_key(Some(&auth_header), request)
+        .create_api_key(create_auth_result(user_id, "starter"), request)
         .await
         .unwrap();
 
@@ -290,7 +283,7 @@ async fn test_deactivate_api_key() {
 
     // Deactivate the key
     let deactivate_response = api_key_routes
-        .deactivate_api_key(Some(&auth_header), key_id)
+        .deactivate_api_key(create_auth_result(user_id, "starter"), key_id)
         .await
         .unwrap();
 
@@ -299,7 +292,7 @@ async fn test_deactivate_api_key() {
 
     // Verify key is no longer active in the list
     let list_response = api_key_routes
-        .list_api_keys(Some(&auth_header))
+        .list_api_keys(create_auth_result(user_id, "starter"))
         .await
         .unwrap();
 
@@ -314,13 +307,12 @@ async fn test_deactivate_api_key() {
 
 #[tokio::test]
 async fn test_deactivate_nonexistent_key() {
-    let (api_key_routes, _user_id, jwt_token) = create_test_setup().await;
+    let (api_key_routes, user_id, _jwt_token) = create_test_setup().await;
 
-    let auth_header = format!("Bearer {jwt_token}");
     let fake_key_id = "nonexistent_key_id";
 
     let result = api_key_routes
-        .deactivate_api_key(Some(&auth_header), fake_key_id)
+        .deactivate_api_key(create_auth_result(user_id, "starter"), fake_key_id)
         .await;
 
     // Should succeed (idempotent operation)
@@ -329,7 +321,7 @@ async fn test_deactivate_nonexistent_key() {
 
 #[tokio::test]
 async fn test_get_api_key_usage_stats() {
-    let (api_key_routes, _user_id, jwt_token) = create_test_setup().await;
+    let (api_key_routes, user_id, _jwt_token) = create_test_setup().await;
 
     // Create an API key
     let request = CreateApiKeyRequest {
@@ -340,9 +332,8 @@ async fn test_get_api_key_usage_stats() {
         rate_limit_requests: None,
     };
 
-    let auth_header = format!("Bearer {jwt_token}");
     let create_response = api_key_routes
-        .create_api_key(Some(&auth_header), request)
+        .create_api_key(create_auth_result(user_id, "professional"), request)
         .await
         .unwrap();
 
@@ -353,7 +344,12 @@ async fn test_get_api_key_usage_stats() {
     let end_date = Utc::now();
 
     let usage_response = api_key_routes
-        .get_api_key_usage(Some(&auth_header), key_id, start_date, end_date)
+        .get_api_key_usage(
+            create_auth_result(user_id, "professional"),
+            key_id,
+            start_date,
+            end_date,
+        )
         .await
         .unwrap();
 
@@ -366,17 +362,21 @@ async fn test_get_api_key_usage_stats() {
 
 #[tokio::test]
 async fn test_get_usage_stats_unauthorized_key() {
-    let (api_key_routes, _user_id, jwt_token) = create_test_setup().await;
+    let (api_key_routes, user_id, _jwt_token) = create_test_setup().await;
 
     // Try to access usage stats for a key that doesn't belong to the user
-    let auth_header = format!("Bearer {jwt_token}");
     let fake_key_id = "some_other_users_key";
 
     let start_date = Utc::now() - Duration::days(30);
     let end_date = Utc::now();
 
     let result = api_key_routes
-        .get_api_key_usage(Some(&auth_header), fake_key_id, start_date, end_date)
+        .get_api_key_usage(
+            create_auth_result(user_id, "starter"),
+            fake_key_id,
+            start_date,
+            end_date,
+        )
         .await;
 
     assert!(result.is_err());
@@ -388,9 +388,7 @@ async fn test_get_usage_stats_unauthorized_key() {
 
 #[tokio::test]
 async fn test_api_key_tiers() {
-    let (api_key_routes, _user_id, jwt_token) = create_test_setup().await;
-
-    let auth_header = format!("Bearer {jwt_token}");
+    let (api_key_routes, user_id, _jwt_token) = create_test_setup().await;
 
     // Test all tiers
     for (tier, tier_name) in [
@@ -407,7 +405,10 @@ async fn test_api_key_tiers() {
         };
 
         let response = api_key_routes
-            .create_api_key(Some(&auth_header), request)
+            .create_api_key(
+                create_auth_result(user_id, &tier_name.to_lowercase()),
+                request,
+            )
             .await
             .unwrap();
 
@@ -418,9 +419,7 @@ async fn test_api_key_tiers() {
 
 #[tokio::test]
 async fn test_api_key_expiration() {
-    let (api_key_routes, _user_id, jwt_token) = create_test_setup().await;
-
-    let auth_header = format!("Bearer {jwt_token}");
+    let (api_key_routes, user_id, _jwt_token) = create_test_setup().await;
 
     // Test key with expiration
     let request = CreateApiKeyRequest {
@@ -432,7 +431,7 @@ async fn test_api_key_expiration() {
     };
 
     let response = api_key_routes
-        .create_api_key(Some(&auth_header), request)
+        .create_api_key(create_auth_result(user_id, "starter"), request)
         .await
         .unwrap();
 
@@ -452,7 +451,7 @@ async fn test_api_key_expiration() {
 #[tokio::test]
 async fn test_authentication_with_different_users() {
     // Create first user setup
-    let (api_key_routes1, _user_id1, jwt_token1) = create_test_setup().await;
+    let (api_key_routes1, user_id1, _jwt_token1) = create_test_setup().await;
 
     // Create second user in same database
     let _user2 = User::new(
@@ -466,7 +465,6 @@ async fn test_authentication_with_different_users() {
     // In a real scenario, we'd use the same database instance
 
     // For now, let's verify that each user can only access their own keys
-    let auth_header1 = format!("Bearer {jwt_token1}");
 
     // Create key for user 1
     let request = CreateApiKeyRequest {
@@ -478,13 +476,13 @@ async fn test_authentication_with_different_users() {
     };
 
     api_key_routes1
-        .create_api_key(Some(&auth_header1), request)
+        .create_api_key(create_auth_result(user_id1, "starter"), request)
         .await
         .unwrap();
 
     // List keys for user 1
     let list_response = api_key_routes1
-        .list_api_keys(Some(&auth_header1))
+        .list_api_keys(create_auth_result(user_id1, "starter"))
         .await
         .unwrap();
 

@@ -75,6 +75,7 @@ async function startServer(config) {
     HTTP_PORT: port.toString(),
     DATABASE_URL: config.database || 'sqlite::memory:',
     PIERRE_MASTER_ENCRYPTION_KEY: config.encryptionKey || 'rEFe91l6lqLahoyl9OSzum9dKa40VvV5RYj8bHGNTeo=',
+    PIERRE_JWT_SECRET: config.jwtSecret || 'test_jwt_secret_for_automated_tests_only',
     RUST_LOG: config.logLevel || 'info'
   };
 

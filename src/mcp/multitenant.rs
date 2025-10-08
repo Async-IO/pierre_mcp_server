@@ -51,9 +51,11 @@ use crate::utils::json_responses::{api_error, invalid_format_error};
 
 use anyhow::Result;
 use chrono::Utc;
+use lru::LruCache;
 
 use serde_json::Value;
 use std::fmt::Write;
+use std::num::NonZeroUsize;
 use std::str::FromStr;
 use std::sync::Arc;
 use tracing::info;
@@ -108,16 +110,33 @@ struct McpRequestParams {
 #[derive(Clone)]
 pub struct MultiTenantMcpServer {
     resources: Arc<ServerResources>,
-    sessions: Arc<tokio::sync::Mutex<std::collections::HashMap<String, SessionData>>>,
+    sessions: Arc<tokio::sync::Mutex<LruCache<String, SessionData>>>,
 }
 
 impl MultiTenantMcpServer {
     /// Create a new MCP server with pre-built resources (dependency injection)
+    ///
+    /// # Panics
+    ///
+    /// Panics if the hardcoded default session cache size (10000) cannot be converted to `NonZeroUsize`.
+    /// This should never happen as 10000 is a valid non-zero positive integer.
     #[must_use]
     pub fn new(resources: Arc<ServerResources>) -> Self {
+        // Default session cache size to prevent DoS via unbounded memory growth
+        let cache_size = std::env::var("MCP_SESSION_CACHE_SIZE")
+            .ok()
+            .and_then(|s| s.parse::<usize>().ok())
+            .and_then(NonZeroUsize::new)
+            .unwrap_or_else(|| NonZeroUsize::new(10_000).expect("10000 is non-zero"));
+
+        info!(
+            "MCP session cache initialized with capacity: {}",
+            cache_size
+        );
+
         Self {
             resources,
-            sessions: Arc::new(tokio::sync::Mutex::new(std::collections::HashMap::new())),
+            sessions: Arc::new(tokio::sync::Mutex::new(LruCache::new(cache_size))),
         }
     }
 
@@ -189,8 +208,12 @@ impl MultiTenantMcpServer {
         // Create OAuth 2.0 server routes for MCP client compatibility
         let oauth2_server_routes =
             oauth2_routes(resources.database.clone(), &resources.auth_manager, port);
-        let api_key_route_filter = Self::create_api_key_routes(&api_key_routes);
-        let api_key_usage_filter = Self::create_api_key_usage_route(api_key_routes.clone()); // Safe: Arc clone for HTTP route sharing
+        let api_key_route_filter =
+            Self::create_api_key_routes(&api_key_routes, resources.auth_manager.clone());
+        let api_key_usage_filter = Self::create_api_key_usage_route(
+            api_key_routes.clone(),
+            resources.auth_manager.clone(),
+        );
         let dashboard_route_filter = Self::create_dashboard_routes(&dashboard_routes);
         let dashboard_detailed_filter = Self::create_dashboard_detailed_routes(&dashboard_routes);
 
@@ -434,8 +457,7 @@ impl MultiTenantMcpServer {
 
                         match oauth_routes.handle_callback(&code, &state, &provider).await {
                             Ok(callback_response) => {
-                                let oauth_callback_port = oauth_routes.config().config().oauth_callback_port;
-                                let html_content = match OAuthTemplateRenderer::render_success_template(&provider, &callback_response, oauth_callback_port) {
+                                let html_content = match OAuthTemplateRenderer::render_success_template(&provider, &callback_response) {
                                     Ok(html) => html,
                                     Err(e) => {
                                         tracing::error!("Failed to render success template: {}", e);
@@ -473,7 +495,7 @@ impl MultiTenantMcpServer {
     /// Create MCP endpoint routes for HTTP server
     fn create_mcp_endpoint_routes(
         resources: &Arc<ServerResources>,
-        sessions: Arc<tokio::sync::Mutex<std::collections::HashMap<String, SessionData>>>,
+        sessions: Arc<tokio::sync::Mutex<LruCache<String, SessionData>>>,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
 
@@ -531,27 +553,28 @@ impl MultiTenantMcpServer {
     }
 
     /// Create API key management endpoint routes
+    /// Create API key management routes
     fn create_api_key_routes(
         api_key_routes: &ApiKeyRoutes,
+        auth_manager: Arc<AuthManager>,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
+
+        let with_auth = Self::create_auth_filter(auth_manager);
 
         // Create API key endpoint
         let create_api_key = warp::path("api")
             .and(warp::path("keys"))
             .and(warp::post())
+            .and(with_auth.clone())
             .and(warp::body::json())
-            .and(warp::header::optional::<String>("authorization"))
             .and_then({
-                let api_key_routes = api_key_routes.clone(); // Safe: Arc clone for HTTP handler closure
-                move |request: crate::api_keys::CreateApiKeyRequestSimple,
-                      auth_header: Option<String>| {
-                    let api_key_routes = api_key_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
+                let api_key_routes = api_key_routes.clone();
+                move |auth: crate::auth::AuthResult,
+                      request: crate::api_keys::CreateApiKeyRequestSimple| {
+                    let api_key_routes = api_key_routes.clone();
                     async move {
-                        match api_key_routes
-                            .create_api_key_simple(auth_header.as_deref(), request)
-                            .await
-                        {
+                        match api_key_routes.create_api_key_simple(auth, request).await {
                             Ok(response) => Ok(warp::reply::json(&response)),
                             Err(e) => {
                                 let error = api_error(&e.to_string());
@@ -566,13 +589,13 @@ impl MultiTenantMcpServer {
         let list_api_keys = warp::path("api")
             .and(warp::path("keys"))
             .and(warp::get())
-            .and(warp::header::optional::<String>("authorization"))
+            .and(with_auth.clone())
             .and_then({
-                let api_key_routes = api_key_routes.clone(); // Safe: Arc clone for HTTP handler closure
-                move |auth_header: Option<String>| {
-                    let api_key_routes = api_key_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
+                let api_key_routes = api_key_routes.clone();
+                move |auth: crate::auth::AuthResult| {
+                    let api_key_routes = api_key_routes.clone();
                     async move {
-                        match api_key_routes.list_api_keys(auth_header.as_deref()).await {
+                        match api_key_routes.list_api_keys(auth).await {
                             Ok(response) => Ok(warp::reply::json(&response)),
                             Err(e) => {
                                 let error = api_error(&e.to_string());
@@ -588,16 +611,13 @@ impl MultiTenantMcpServer {
             .and(warp::path("keys"))
             .and(warp::path!(String))
             .and(warp::delete())
-            .and(warp::header::optional::<String>("authorization"))
+            .and(with_auth)
             .and_then({
-                let api_key_routes = api_key_routes.clone(); // Safe: Arc clone for HTTP handler closure
-                move |api_key_id: String, auth_header: Option<String>| {
-                    let api_key_routes = api_key_routes.clone(); // Safe: Arc clone needed for Fn trait in Warp
+                let api_key_routes = api_key_routes.clone();
+                move |api_key_id: String, auth: crate::auth::AuthResult| {
+                    let api_key_routes = api_key_routes.clone();
                     async move {
-                        match api_key_routes
-                            .deactivate_api_key(auth_header.as_deref(), &api_key_id)
-                            .await
-                        {
+                        match api_key_routes.deactivate_api_key(auth, &api_key_id).await {
                             Ok(response) => Ok(warp::reply::json(&response)),
                             Err(e) => {
                                 let error = api_error(&e.to_string());
@@ -614,19 +634,22 @@ impl MultiTenantMcpServer {
     /// Create API key usage endpoint route
     fn create_api_key_usage_route(
         api_key_routes: ApiKeyRoutes,
+        auth_manager: Arc<AuthManager>,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
+
+        let with_auth = Self::create_auth_filter(auth_manager);
 
         warp::path("api")
             .and(warp::path("keys"))
             .and(warp::path!(String))
             .and(warp::path("usage"))
             .and(warp::get())
-            .and(warp::header::optional::<String>("authorization"))
+            .and(with_auth)
             .and(warp::query::<std::collections::HashMap<String, String>>())
             .and_then({
                 move |api_key_id: String,
-                      auth_header: Option<String>,
+                      auth: crate::auth::AuthResult,
                       params: std::collections::HashMap<String, String>| {
                     let api_key_routes = api_key_routes.clone();
                     async move {
@@ -658,12 +681,7 @@ impl MultiTenantMcpServer {
                             };
 
                         match api_key_routes
-                            .get_api_key_usage(
-                                auth_header.as_deref(),
-                                &api_key_id,
-                                start_date,
-                                end_date,
-                            )
+                            .get_api_key_usage(auth, &api_key_id, start_date, end_date)
                             .await
                         {
                             Ok(response) => Ok(warp::reply::json(&response)),
@@ -1797,7 +1815,7 @@ impl MultiTenantMcpServer {
         headers: McpRequestHeaders,
         body: serde_json::Value,
         ctx: &HttpRequestContext,
-        sessions: Arc<tokio::sync::Mutex<std::collections::HashMap<String, SessionData>>>,
+        sessions: Arc<tokio::sync::Mutex<LruCache<String, SessionData>>>,
     ) -> Result<Box<dyn warp::Reply>, warp::Rejection> {
         tracing::debug!("=== MCP HTTP Request with Session START ===");
         tracing::debug!(
@@ -1823,7 +1841,7 @@ impl MultiTenantMcpServer {
             headers.auth_header.clone()
         } else if let Some(sid) = headers.session_id.as_ref() {
             // No auth in current request, check session
-            let sessions_guard = sessions.lock().await;
+            let mut sessions_guard = sessions.lock().await;
             sessions_guard.get(sid).map(|session_data| {
                 tracing::info!(
                     "Using stored session auth for user {}",
@@ -1839,7 +1857,7 @@ impl MultiTenantMcpServer {
         if let Some(ref auth) = headers.auth_header {
             let needs_validation = {
                 let sessions_guard = sessions.lock().await;
-                !sessions_guard.contains_key(&actual_session_id)
+                !sessions_guard.contains(&actual_session_id)
             };
 
             if needs_validation {
@@ -1859,7 +1877,7 @@ impl MultiTenantMcpServer {
                         {
                             // Store session
                             let mut sessions_guard = sessions.lock().await;
-                            sessions_guard.insert(
+                            sessions_guard.put(
                                 actual_session_id.clone(),
                                 SessionData {
                                     jwt_token: token.to_string(),
@@ -2081,14 +2099,42 @@ impl MultiTenantMcpServer {
         }
     }
 
-    /// Validate origin header for security
+    /// Validate origin header for security (DNS rebinding and CSRF protection)
     fn is_valid_origin(origin: &str) -> bool {
-        // Allow localhost origins for development
-        crate::constants::network_config::LOCALHOST_PATTERNS
-            .iter()
-            .any(|pattern| origin.contains(&format!("//{pattern}")) || origin.contains(&format!("://{pattern}"))) ||
-        // Allow null origin for direct connections
-        origin == "null"
+        // Check environment-configured allowed origins first
+        if let Ok(allowed_origins) = std::env::var("CORS_ALLOWED_ORIGINS") {
+            if allowed_origins
+                .split(',')
+                .map(str::trim)
+                .any(|x| x == origin)
+            {
+                return true;
+            }
+        }
+
+        // Allow localhost in development only if explicitly enabled
+        let allow_localhost = std::env::var("CORS_ALLOW_LOCALHOST_DEV")
+            .ok()
+            .and_then(|v| v.parse::<bool>().ok())
+            .unwrap_or(true); // Default to true for backwards compatibility
+
+        if allow_localhost {
+            // Validate localhost patterns - be more strict than before
+            let is_localhost = crate::constants::network_config::LOCALHOST_PATTERNS
+                .iter()
+                .any(|pattern| {
+                    origin.starts_with(&format!("http://{pattern}"))
+                        || origin.starts_with(&format!("https://{pattern}"))
+                });
+
+            if is_localhost {
+                return true;
+            }
+        }
+
+        // Reject "null" origin as it's a security risk (file:// origins, CSRF attacks)
+        // In production, clients should have proper origins
+        false
     }
 
     /// Handle MCP request with `ServerResources`

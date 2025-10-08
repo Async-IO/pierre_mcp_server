@@ -8,7 +8,7 @@ The mcp-validator (Janix-ai) incorrectly runs `test_jsonrpc_batch_support` for p
 
 ### 1. Official Specification (2025-06-18)
 
-Source: `/Users/jeanfrancoisarcand/mcp-validator/specification/specification-2025-06-18.md`
+Source: `../../../mcp-validator/specification/specification-2025-06-18.md`
 
 **Key Changes from 2025-03-26:**
 > 1. **Remove support for JSON-RPC batching** (PR [#416](https://github.com/modelcontextprotocol/specification/pull/416))

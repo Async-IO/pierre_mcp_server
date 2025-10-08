@@ -153,6 +153,20 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
     }
   }
 
+  async clearTokens(): Promise<void> {
+    try {
+      // Clear in-memory Pierre tokens
+      this.savedTokens = undefined;
+      delete this.allStoredTokens.pierre;
+
+      // Save updated storage (without Pierre tokens)
+      await this.saveStoredTokens();
+      console.error(`[Pierre OAuth] Cleared Pierre tokens from storage`);
+    } catch (error) {
+      console.error(`[Pierre OAuth] Failed to clear tokens: ${error}`);
+    }
+  }
+
   async saveProviderToken(provider: string, tokenData: any): Promise<void> {
     if (!this.allStoredTokens.providers) {
       this.allStoredTokens.providers = {};
@@ -373,20 +387,8 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
 
     console.error(`[Pierre OAuth] Opening browser for authorization`);
 
-    // Open the authorization URL in the user's default browser
-    const { spawn } = await import('child_process');
-    const platform = process.platform;
-
-    let openCommand: string;
-    if (platform === 'darwin') {
-      openCommand = 'open';
-    } else if (platform === 'win32') {
-      openCommand = 'start';
-    } else {
-      openCommand = 'xdg-open';
-    }
-
-    spawn(openCommand, [authorizationUrl.toString()], { detached: true, stdio: 'ignore' });
+    // Open the authorization URL in the user's default browser with focus
+    await this.openUrlInBrowserWithFocus(authorizationUrl.toString());
 
     console.error(`[Pierre OAuth] If browser doesn't open automatically, visit:`);
     console.error(`[Pierre OAuth] ${authorizationUrl.toString()}`);
@@ -537,6 +539,44 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
     return result;
   }
 
+  private async openUrlInBrowserWithFocus(url: string): Promise<void> {
+    const { exec } = await import('child_process');
+    const platform = process.platform;
+
+    if (platform === 'darwin') {
+      // macOS: Open URL then explicitly activate browser after a brief delay
+      exec(`open "${url}"`, (error: Error | null) => {
+        if (error) {
+          console.error('[Pierre OAuth] Failed to open browser:', error.message);
+          return;
+        }
+
+        // After opening, try to activate common browsers
+        setTimeout(() => {
+          exec(`osascript -e 'tell application "Google Chrome" to activate' 2>/dev/null || osascript -e 'tell application "Safari" to activate' 2>/dev/null || osascript -e 'tell application "Firefox" to activate' 2>/dev/null || osascript -e 'tell application "Brave Browser" to activate' 2>/dev/null`, (activateError) => {
+            if (activateError) {
+              console.error('[Pierre OAuth] Could not activate browser (non-fatal)');
+            }
+          });
+        }, 500);
+      });
+    } else if (platform === 'win32') {
+      // Windows: start command brings window to front by default
+      exec(`start "" "${url}"`, (error: Error | null) => {
+        if (error) {
+          console.error('[Pierre OAuth] Failed to open browser:', error.message);
+        }
+      });
+    } else {
+      // Linux: xdg-open
+      exec(`xdg-open "${url}"`, (error: Error | null) => {
+        if (error) {
+          console.error('[Pierre OAuth] Failed to open browser:', error.message);
+        }
+      });
+    }
+  }
+
   private startCallbackServerSync(): void {
     // This is a synchronous wrapper that starts the server immediately
     // Use configured port (default 35535) instead of dynamic port
@@ -567,7 +607,6 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
         this.callbackServer.listen(0, 'localhost', () => {
           this.callbackPort = this.callbackServer.address().port;
           console.error(`[Pierre OAuth] Callback server listening on http://localhost:${this.callbackPort}/oauth/callback`);
-          console.error(`[Pierre OAuth] Focus recovery endpoint: http://localhost:${this.callbackPort}/oauth/focus-recovery`);
           this.setupCallbackHandler();
         });
       } else {
@@ -579,7 +618,6 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
     this.callbackServer.listen(port, 'localhost', () => {
       this.callbackPort = this.callbackServer.address().port;
       console.error(`[Pierre OAuth] Callback server listening on http://localhost:${this.callbackPort}/oauth/callback`);
-      console.error(`[Pierre OAuth] Focus recovery endpoint: http://localhost:${this.callbackPort}/oauth/focus-recovery`);
       // Set up the actual request handler
       this.setupCallbackHandler();
     });
@@ -631,19 +669,6 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
               'Invalid Request',
               'Missing required authorization parameters. Please try connecting again.'
             ));
-          }
-        } else if (parsedUrl.pathname === '/oauth/focus-recovery' && req.method === 'POST') {
-          // Handle focus recovery request from OAuth success page
-          console.error(`[Pierre OAuth] Focus recovery requested - attempting to focus Claude Desktop`);
-
-          try {
-            await this.focusClaudeDesktop();
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: true, message: 'Focus recovery attempted' }));
-          } catch (error) {
-            console.error(`[Pierre OAuth] Focus recovery failed: ${error}`);
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: false, message: 'Focus recovery failed' }));
           }
         } else if (parsedUrl.pathname?.startsWith('/oauth/provider-callback/') && req.method === 'POST') {
           // Handle provider token callback for client-side storage
@@ -731,105 +756,21 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
         <div class="info"><strong>Provider:</strong> ${provider}</div>
         <div class="info"><strong>Status:</strong> Connected successfully</div>
         <div class="info"><strong>Status:</strong> <span class="code">Connected</span></div>
-        <p>You can now close this window and return to Claude Desktop.</p>
-        <p><small>Attempting to return focus to Claude Desktop automatically...</small></p>
+        <p><strong>✅ Authentication complete!</strong></p>
+        <p>Please return to your MCP client (Claude Desktop, ChatGPT, etc.) to continue.</p>
+        <p><small>This window will close automatically in 3 seconds...</small></p>
         <script>
-            // Attempt to focus Claude Desktop before closing
-            async function focusClaudeDesktop() {
-                try {
-                    // Try to trigger focus recovery via bridge communication
-                    await fetch('/oauth/focus-recovery', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'focus_claude_desktop' })
-                    }).catch(() => {
-                        // Ignore fetch errors - focus recovery is best-effort
-                    });
-                } catch (error) {
-                    // Silently ignore errors
-                }
-
-                // Close the window after a short delay
+            // Auto-close window after user has time to read the success message
+            window.onload = function() {
                 setTimeout(() => {
                     window.close();
-                }, 1500);
-            }
-
-            // Start focus recovery immediately
-            focusClaudeDesktop();
+                }, 3000);
+            };
         </script>
     </div>
 </body>
 </html>
     `;
-  }
-
-  private async focusClaudeDesktop(): Promise<void> {
-    console.error(`[Pierre OAuth] Attempting to focus Claude Desktop application`);
-
-    const { spawn } = await import('child_process');
-    const platform = process.platform;
-
-    try {
-      let focusCommand: string[];
-
-      if (platform === 'darwin') {
-        // macOS - Use AppleScript to activate Claude Desktop
-        focusCommand = [
-          'osascript',
-          '-e',
-          'tell application "Claude" to activate'
-        ];
-      } else if (platform === 'win32') {
-        // Windows - Use PowerShell to bring Claude Desktop to foreground
-        focusCommand = [
-          'powershell',
-          '-Command',
-          'Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Interaction]::AppActivate("Claude")'
-        ];
-      } else {
-        // Linux - Use wmctrl if available, otherwise xdotool
-        focusCommand = [
-          'bash',
-          '-c',
-          'if command -v wmctrl >/dev/null 2>&1; then wmctrl -a "Claude"; elif command -v xdotool >/dev/null 2>&1; then xdotool search --name "Claude" windowactivate; fi'
-        ];
-      }
-
-      console.error(`[Pierre OAuth] Executing focus command for ${platform}`);
-
-      // Execute the focus command
-      const focusProcess = spawn(focusCommand[0], focusCommand.slice(1), {
-        detached: false,
-        stdio: 'ignore',
-        timeout: 5000 // 5 second timeout
-      });
-
-      // Wait for the process to complete (with timeout)
-      await new Promise<void>((resolve) => {
-        const timer = setTimeout(() => {
-          focusProcess.kill('SIGTERM');
-          resolve();
-        }, 5000);
-
-        focusProcess.on('close', () => {
-          clearTimeout(timer);
-          resolve();
-        });
-
-        focusProcess.on('error', (error) => {
-          clearTimeout(timer);
-          console.error(`[Pierre OAuth] Focus command error (ignored): ${error.message}`);
-          resolve(); // Don't fail - focus recovery is best-effort
-        });
-      });
-
-      console.error(`[Pierre OAuth] Focus recovery command completed`);
-
-    } catch (error: any) {
-      console.error(`[Pierre OAuth] Focus recovery failed (ignored): ${error.message}`);
-      // Don't throw - focus recovery is best-effort and shouldn't break the OAuth flow
-    }
   }
 
   private renderErrorTemplate(provider: string, error: string, description: string): string {
@@ -854,32 +795,15 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
         <div class="info"><strong>Provider:</strong> ${provider}</div>
         <div class="info"><strong>Error:</strong> <span class="code">${error}</span></div>
         <div class="info"><strong>Description:</strong> ${description}</div>
-        <p>You can close this window and try connecting again from Claude Desktop.</p>
-        <p><small>Returning focus to Claude Desktop...</small></p>
+        <p>Please return to your MCP client and try connecting again.</p>
+        <p><small>This window will close automatically in 5 seconds...</small></p>
         <script>
-            // Attempt to focus Claude Desktop before closing (even on error)
-            async function focusClaudeDesktop() {
-                try {
-                    // Try to trigger focus recovery via bridge communication
-                    await fetch('/oauth/focus-recovery', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'focus_claude_desktop' })
-                    }).catch(() => {
-                        // Ignore fetch errors - focus recovery is best-effort
-                    });
-                } catch (error) {
-                    // Silently ignore errors
-                }
-
-                // Close the window after a longer delay for error cases
+            // Auto-close window after user has time to read the error
+            window.onload = function() {
                 setTimeout(() => {
                     window.close();
-                }, 3000);
-            }
-
-            // Start focus recovery immediately
-            focusClaudeDesktop();
+                }, 5000);
+            };
         </script>
     </div>
 </body>
@@ -894,6 +818,7 @@ export class PierreClaudeBridge {
   private pierreClient: Client | null = null;
   private claudeServer: Server | null = null;
   private serverTransport: StdioServerTransport | null = null;
+  private cachedTools: any = null;
 
   constructor(config: BridgeConfig) {
     this.config = config;
@@ -915,9 +840,8 @@ export class PierreClaudeBridge {
       await this.startBridge();
 
       // Step 3: Create MCP client connection to Pierre using Streamable HTTP
-      // This is done lazily - connection will be established when first tool is called
-      this.log('🔌 Pierre MCP connection will be established on first tool call');
-      this.initializePierreConnection();
+      // With proactive connection: if tokens exist, connect and cache tools
+      await this.initializePierreConnection();
 
       this.log('✅ Bridge started successfully');
     } catch (error) {
@@ -926,11 +850,33 @@ export class PierreClaudeBridge {
     }
   }
 
-  private initializePierreConnection(): void {
-    // Set up Pierre connection parameters without blocking startup
+  private async initializePierreConnection(): Promise<void> {
+    // Set up Pierre connection parameters
     this.mcpUrl = `${this.config.pierreServerUrl}/mcp`;
     this.oauthProvider = new PierreOAuthClientProvider(this.config.pierreServerUrl, this.config);
     this.log(`📡 Pierre MCP URL configured: ${this.mcpUrl}`);
+
+    // ALWAYS connect proactively to cache tools for Claude Desktop
+    // Server allows tools/list without authentication - only tool calls require auth
+    // This ensures all tools are visible immediately in Claude Desktop (tools/list_changed doesn't work)
+    try {
+      this.log('🔌 Connecting to Pierre proactively to cache all tools for Claude Desktop');
+      await this.connectToPierre();
+
+      // Cache tools immediately so they're ready for tools/list
+      if (this.pierreClient) {
+        const client = this.pierreClient;
+        const tools = await client.listTools();
+        this.cachedTools = tools;
+        this.log(`✅ Cached ${tools.tools.length} tools from Pierre: ${JSON.stringify(tools.tools.map((t: any) => t.name))}`);
+      }
+    } catch (error: any) {
+      // If proactive connection fails, continue anyway
+      // The bridge should still start - provide minimal toolset
+      this.log(`⚠️ Proactive connection failed: ${error.message}`);
+      this.log('📋 Bridge will start with connect_to_pierre tool only');
+      // Don't propagate error - bridge should start successfully
+    }
   }
 
   private async ensurePierreConnected(): Promise<void> {
@@ -1083,15 +1029,25 @@ export class PierreClaudeBridge {
     // Bridge tools/list requests
     this.claudeServer.setRequestHandler(ListToolsRequestSchema, async (request) => {
       this.log('📋 Bridging tools/list request');
-      this.log(`📋 pierreClient exists: ${!!this.pierreClient}`);
+      this.log(`📋 pierreClient exists: ${!!this.pierreClient}, cached tools: ${!!this.cachedTools}`);
 
       try {
+        // If we have cached tools, return them immediately (from proactive connection)
+        if (this.cachedTools) {
+          this.log(`📤 Sending cached tools/list response: ${JSON.stringify(this.cachedTools.tools.map((t: any) => t.name))}`);
+          return this.cachedTools;
+        }
+
         if (this.pierreClient) {
           // If connected, forward the request through the pierreClient
           // The client already has OAuth authentication built into its transport
           this.log('📋 Forwarding tools/list to Pierre via authenticated client');
-          const result = await this.pierreClient.listTools();
+          const client = this.pierreClient;
+          const result = await client.listTools();
           this.log(`📋 Received ${result.tools.length} tools from Pierre`);
+          // Cache the result for next time
+          this.cachedTools = result;
+          this.log(`📤 Sending tools/list response: ${JSON.stringify(result.tools.map((t: any) => t.name))}`);
           return result;
         } else {
           // If not connected, provide minimal tool list with connect_to_pierre
@@ -1271,8 +1227,9 @@ export class PierreClaudeBridge {
         };
       }
 
-      // Check if already connected
-      if (this.pierreClient) {
+      // Check if already authenticated (have valid tokens)
+      const existingTokens = await this.oauthProvider.tokens();
+      if (existingTokens && this.pierreClient) {
         return {
           content: [{
             type: 'text',
@@ -1284,6 +1241,18 @@ export class PierreClaudeBridge {
 
       // Initiate the OAuth connection
       await this.initiateConnection();
+
+      // Cache tools immediately after successful connection
+      if (this.pierreClient) {
+        try {
+          const client = this.pierreClient as Client;
+          const tools = await client.listTools();
+          this.cachedTools = tools;
+          this.log(`✅ Cached ${tools.tools.length} tools after connect_to_pierre: ${JSON.stringify(tools.tools.map((t: any) => t.name))}`);
+        } catch (toolError: any) {
+          this.log(`⚠️ Failed to cache tools: ${toolError.message}`);
+        }
+      }
 
       // Notify Claude Desktop that tools have changed (now authenticated)
       if (this.claudeServer) {
@@ -1420,20 +1389,8 @@ export class PierreClaudeBridge {
         // Correct OAuth URL format: /api/oauth/auth/{provider}/{user_id}
         const providerOAuthUrl = `${this.config.pierreServerUrl}/api/oauth/auth/${provider}/${userId}`;
 
-        // Open provider OAuth in browser
-        const { spawn } = await import('child_process');
-        const platform = process.platform;
-
-        let openCommand: string;
-        if (platform === 'darwin') {
-          openCommand = 'open';
-        } else if (platform === 'win32') {
-          openCommand = 'start';
-        } else {
-          openCommand = 'xdg-open';
-        }
-
-        spawn(openCommand, [providerOAuthUrl], { detached: true, stdio: 'ignore' });
+        // Open provider OAuth in browser with focus
+        await this.openUrlInBrowserWithFocus(providerOAuthUrl);
 
         this.log(`🌐 Opened ${provider} OAuth in browser: ${providerOAuthUrl}`);
 
@@ -1466,6 +1423,44 @@ export class PierreClaudeBridge {
         }],
         isError: true
       };
+    }
+  }
+
+  private async openUrlInBrowserWithFocus(url: string): Promise<void> {
+    const { exec } = await import('child_process');
+    const platform = process.platform;
+
+    if (platform === 'darwin') {
+      // macOS: Open URL then explicitly activate browser after a brief delay
+      exec(`open "${url}"`, (error: Error | null) => {
+        if (error) {
+          this.log(`⚠️ Failed to open browser: ${error.message}`);
+          return;
+        }
+
+        // After opening, try to activate common browsers
+        setTimeout(() => {
+          exec(`osascript -e 'tell application "Google Chrome" to activate' 2>/dev/null || osascript -e 'tell application "Safari" to activate' 2>/dev/null || osascript -e 'tell application "Firefox" to activate' 2>/dev/null || osascript -e 'tell application "Brave Browser" to activate' 2>/dev/null`, (activateError) => {
+            if (activateError) {
+              this.log('⚠️ Could not activate browser (non-fatal)');
+            }
+          });
+        }, 500);
+      });
+    } else if (platform === 'win32') {
+      // Windows: start command brings window to front by default
+      exec(`start "" "${url}"`, (error: Error | null) => {
+        if (error) {
+          this.log(`⚠️ Failed to open browser: ${error.message}`);
+        }
+      });
+    } else {
+      // Linux: xdg-open
+      exec(`xdg-open "${url}"`, (error: Error | null) => {
+        if (error) {
+          this.log(`⚠️ Failed to open browser: ${error.message}`);
+        }
+      });
     }
   }
 

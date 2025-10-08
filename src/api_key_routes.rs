@@ -11,12 +11,12 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use uuid::Uuid;
 
 use crate::{
     api_keys::{
         ApiKeyManager, ApiKeyTier, ApiKeyUsageStats, CreateApiKeyRequest, CreateApiKeyRequestSimple,
     },
+    auth::AuthResult,
     database_plugins::DatabaseProvider,
     mcp::resources::ServerResources,
 };
@@ -74,34 +74,19 @@ impl ApiKeyRoutes {
         }
     }
 
-    /// Authenticate JWT token and extract user ID
-    fn authenticate_user(&self, auth_header: Option<&str>) -> Result<Uuid> {
-        let auth_str =
-            auth_header.ok_or_else(|| anyhow::anyhow!("Missing authorization header"))?;
-
-        let token = auth_str
-            .strip_prefix("Bearer ")
-            .ok_or_else(|| anyhow::anyhow!("Invalid authorization header format"))?;
-
-        let claims = self.resources.auth_manager.validate_token(token)?;
-        let user_id = crate::utils::uuid::parse_uuid(&claims.sub)?;
-        Ok(user_id)
-    }
-
     /// Create a new API key with simplified rate limit approach
     ///
     /// # Errors
     ///
     /// Returns an error if:
-    /// - Authentication fails
     /// - Database operations fail
     /// - API key creation fails
     pub async fn create_api_key_simple(
         &self,
-        auth_header: Option<&str>,
+        auth: AuthResult,
         request: CreateApiKeyRequestSimple,
     ) -> Result<ApiKeyCreateResponse> {
-        let user_id = self.authenticate_user(auth_header)?;
+        let user_id = auth.user_id;
 
         // Create the API key
         let (api_key, full_key) = self
@@ -135,15 +120,14 @@ impl ApiKeyRoutes {
     /// # Errors
     ///
     /// Returns an error if:
-    /// - Authentication fails
     /// - Database operations fail
     /// - API key creation fails
     pub async fn create_api_key(
         &self,
-        auth_header: Option<&str>,
+        auth: AuthResult,
         request: CreateApiKeyRequest,
     ) -> Result<ApiKeyCreateResponse> {
-        let user_id = self.authenticate_user(auth_header)?;
+        let user_id = auth.user_id;
 
         // Create the API key
         let (api_key, full_key) = self.api_key_manager.create_api_key(user_id, request)?;
@@ -175,10 +159,9 @@ impl ApiKeyRoutes {
     /// # Errors
     ///
     /// Returns an error if:
-    /// - Authentication fails
     /// - Database operations fail
-    pub async fn list_api_keys(&self, auth_header: Option<&str>) -> Result<ApiKeyListResponse> {
-        let user_id = self.authenticate_user(auth_header)?;
+    pub async fn list_api_keys(&self, auth: AuthResult) -> Result<ApiKeyListResponse> {
+        let user_id = auth.user_id;
 
         let api_keys = self.resources.database.get_user_api_keys(user_id).await?;
 
@@ -207,15 +190,14 @@ impl ApiKeyRoutes {
     /// # Errors
     ///
     /// Returns an error if:
-    /// - Authentication fails
     /// - Database operations fail
     /// - API key not found or not owned by user
     pub async fn deactivate_api_key(
         &self,
-        auth_header: Option<&str>,
+        auth: AuthResult,
         api_key_id: &str,
     ) -> Result<ApiKeyDeactivateResponse> {
-        let user_id = self.authenticate_user(auth_header)?;
+        let user_id = auth.user_id;
 
         self.resources
             .database
@@ -233,17 +215,16 @@ impl ApiKeyRoutes {
     /// # Errors
     ///
     /// Returns an error if:
-    /// - Authentication fails
     /// - Database operations fail
     /// - API key not found or not owned by user
     pub async fn get_api_key_usage(
         &self,
-        auth_header: Option<&str>,
+        auth: AuthResult,
         api_key_id: &str,
         start_date: DateTime<Utc>,
         end_date: DateTime<Utc>,
     ) -> Result<ApiKeyUsageResponse> {
-        let user_id = self.authenticate_user(auth_header)?;
+        let user_id = auth.user_id;
 
         // Verify the API key belongs to the user
         let user_keys = self.resources.database.get_user_api_keys(user_id).await?;
@@ -265,17 +246,16 @@ impl ApiKeyRoutes {
     /// # Errors
     ///
     /// Returns an error if:
-    /// - Authentication fails
     /// - User already has a trial key
     /// - Database operations fail
     /// - API key creation fails
     pub async fn create_trial_key(
         &self,
-        auth_header: Option<&str>,
+        auth: AuthResult,
         name: String,
         description: Option<String>,
     ) -> Result<ApiKeyCreateResponse> {
-        let user_id = self.authenticate_user(auth_header)?;
+        let user_id = auth.user_id;
 
         // Check if user already has a trial key
         let existing_keys = self.resources.database.get_user_api_keys(user_id).await?;

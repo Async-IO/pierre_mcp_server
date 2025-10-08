@@ -249,6 +249,304 @@ pub struct Limit {
 - Burst support
 - Graceful degradation
 
+## Module Dependency Architecture
+
+This section provides a detailed view of how Rust modules are organized and depend on each other within the codebase.
+
+### Layer 1: Entry Points & Routing
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         bin/pierre-mcp-server.rs                        │
+│                         (Main Server Binary)                            │
+└──────────────────────────────┬──────────────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    mcp::multitenant::MultiTenantMcpServer               │
+│                    (Central HTTP Server - Port 8081)                    │
+│                                                                           │
+│  Consolidates all protocol routes on single port:                       │
+│  • MCP Protocol (JSON-RPC 2.0)         [mcp/protocol.rs]                │
+│  • OAuth2 Server (RFC 7591)            [oauth2/routes.rs]               │
+│  • A2A Protocol                         [a2a_routes.rs]                  │
+│  • REST APIs (Auth, Config, Admin)     [routes/]                        │
+│  • SSE Notifications                    [sse/mod.rs]                     │
+│  • WebSocket                            [websocket.rs]                   │
+└───────┬──────────────┬────────────┬───────────────┬─────────────────────┘
+        │              │            │               │
+        ▼              ▼            ▼               ▼
+   [Security]    [Middleware]  [Rate Limit]   [Health Check]
+   security/     middleware/   rate_limiting.rs  health.rs
+```
+
+### Layer 2: Protocol Handlers & Authentication
+
+```
+┌──────────────────┐  ┌──────────────────┐  ┌─────────────────────────┐
+│   MCP Protocol   │  │   A2A Protocol   │  │   OAuth2 Server         │
+│                  │  │                  │  │                         │
+│ • protocol.rs    │  │ • protocol.rs    │  │ • client_registration   │
+│ • tool_handlers  │  │ • agent_card.rs  │  │ • endpoints.rs          │
+│ • sse_transport  │  │ • auth.rs        │  │ • routes.rs             │
+│ • schema.rs      │  │ • client.rs      │  │ • models.rs             │
+│ • resources.rs   │  │ • system_user.rs │  │                         │
+└────────┬─────────┘  └────────┬─────────┘  └───────────┬─────────────┘
+         │                     │                         │
+         └─────────────────────┼─────────────────────────┘
+                               │
+                   ┌───────────▼───────────┐
+                   │   auth.rs (JWT Auth)   │
+                   │                        │
+                   │ • AuthManager          │
+                   │ • JwtTokens            │
+                   │ • Password Hashing     │
+                   │ • Session Management   │
+                   └───────────┬────────────┘
+                               │
+                               ▼
+                   ┌────────────────────────┐
+                   │   api_keys.rs          │
+                   │                        │
+                   │ • ApiKey Management    │
+                   │ • B2B Authentication   │
+                   │ • Usage Tracking       │
+                   └────────────────────────┘
+```
+
+### Layer 3: Unified Business Logic
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                       protocols::universal                               │
+│                                                                           │
+│  Protocol-agnostic business logic layer (MCP + A2A unified)             │
+│  • UniversalProtocol        [universal/mod.rs]                          │
+│  • UniversalToolExecutor    [universal/handlers/]                       │
+│  • ToolRegistry            [universal/tool_registry.rs]                 │
+│  • Tool Definitions        [universal/tools.rs]                         │
+└─────────────────────────────┬───────────────────────────────────────────┘
+                              │
+              ┌───────────────┼────────────────┐
+              ▼               ▼                ▼
+    ┌──────────────┐  ┌─────────────┐  ┌──────────────────┐
+    │    tools/    │  │  plugins/   │  │  configuration/  │
+    │              │  │              │  │                  │
+    │ • engine.rs  │  │ • core.rs    │  │ • profiles.rs    │
+    │ • providers  │  │ • registry   │  │ • parameters.rs  │
+    │ • responses  │  │ • executor   │  │ • catalog.rs     │
+    │              │  │ • community/ │  │ • zones.rs       │
+    └──────┬───────┘  └──────────────┘  └──────────────────┘
+           │
+           └──────────────────┐
+```
+
+### Layer 4: Domain Logic & Intelligence
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                         intelligence/                                   │
+│                                                                          │
+│  Fitness Data Analysis & Recommendations Engine                        │
+│  • activity_analyzer.rs       (Activity analysis)                      │
+│  • performance_analyzer_v2.rs (Performance metrics)                    │
+│  • goal_engine.rs             (Goal tracking & feasibility)            │
+│  • recommendation_engine.rs   (Training recommendations)               │
+│  • metrics_extractor.rs       (Data extraction)                        │
+│  • statistical_analysis.rs    (Trend detection)                        │
+│  • weather.rs                 (Weather integration)                    │
+│  • location.rs                (Geo services)                           │
+└────────────────────────────┬───────────────────────────────────────────┘
+                             │
+           ┌─────────────────┼─────────────────┐
+           │                 │                 │
+           ▼                 ▼                 ▼
+┌──────────────────┐  ┌────────────┐  ┌──────────────────┐
+│   providers/     │  │  models.rs │  │   context/       │
+│                  │  │            │  │                  │
+│ Fitness Provider │  │ Domain     │  │ Request Context  │
+│ Integrations:    │  │ Models:    │  │ Management:      │
+│                  │  │            │  │                  │
+│ • core.rs        │  │ • User     │  │ • tenant_ctx.rs  │
+│ • registry.rs    │  │ • Activity │  │ • provider_ctx   │
+│ • strava_*.rs    │  │ • Athlete  │  │ • auth_ctx       │
+│ • fitbit.rs      │  │ • Stats    │  │                  │
+│                  │  │ • OAuth    │  │                  │
+└──────┬───────────┘  └────────────┘  └──────────────────┘
+       │
+       └──────────────────┐
+```
+
+### Layer 5: Tenant & OAuth Management
+
+```
+┌──────────────────────┐         ┌─────────────────────────────────────┐
+│     tenant/          │         │        oauth/                        │
+│                      │         │                                      │
+│ Multi-Tenant System: │◄────────┤ Unified OAuth Manager:               │
+│                      │         │                                      │
+│ • tenant_context.rs  │         │ • providers/ (Strava, Fitbit)        │
+│ • tenant_oauth.rs    │         │ • token_storage.rs                   │
+│ • isolation.rs       │         │ • refresh_handler.rs                 │
+│                      │         │                                      │
+└──────────┬───────────┘         └──────────────────────────────────────┘
+           │
+           │
+           ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│                   database_plugins/                                       │
+│                                                                            │
+│  Database Abstraction Layer (Plugin Architecture)                        │
+│  • factory.rs          (DatabaseProvider trait)                          │
+│  • sqlite/             (SQLite implementation)                           │
+│  • postgres/           (PostgreSQL implementation)                       │
+│                                                                            │
+│  Manages:                                                                 │
+│    - Users, Sessions, Tenants                                            │
+│    - OAuth Tokens (encrypted)                                            │
+│    - API Keys, Usage Stats                                               │
+│    - A2A Clients, Tasks                                                  │
+│    - Configuration, Goals                                                │
+└────────────────────────────┬─────────────────────────────────────────────┘
+                             │
+                             ▼
+                   ┌───────────────────┐
+                   │     crypto/       │
+                   │                   │
+                   │ • keys.rs         │
+                   │ • encryption      │
+                   │ • signing         │
+                   └───────┬───────────┘
+                           │
+                           ▼
+                   ┌───────────────────┐
+                   │ key_management.rs │
+                   │                   │
+                   │ Two-Tier Keys:    │
+                   │ • Master Key      │
+                   │ • Tenant Keys     │
+                   └───────────────────┘
+```
+
+### Layer 6: Cross-Cutting Concerns
+
+```
+┌────────────────┐  ┌──────────────┐  ┌─────────────────┐  ┌─────────────┐
+│  constants/    │  │   errors.rs  │  │  notifications/ │  │  logging.rs │
+│                │  │              │  │                 │  │             │
+│ • protocol/    │  │ Unified      │  │ • sse.rs        │  │ Structured  │
+│ • oauth/       │  │ Error        │  │ • events.rs     │  │ Logging:    │
+│ • tools/       │  │ Handling     │  │ • broadcaster   │  │             │
+│ • errors/      │  │ System       │  │                 │  │ • Tracing   │
+│ • limits       │  │              │  │                 │  │ • OpenTel   │
+└────────────────┘  └──────────────┘  └─────────────────┘  └─────────────┘
+```
+
+### Key Dependency Flows
+
+#### Request Processing Flow
+
+```
+HTTP Request
+     │
+     ▼
+[Security Middleware] → [Rate Limiting] → [CORS/Headers]
+     │
+     ▼
+[Auth Validation] → auth.rs → database_plugins
+     │                              │
+     │                              ▼
+     ▼                         [JWT/API Key Check]
+[Tenant Context]                    │
+     │                              │
+     ▼                              │
+[Protocol Router] ◄─────────────────┘
+     │
+     ├──→ MCP Protocol ──→ protocols::universal ──┐
+     │                                             │
+     ├──→ A2A Protocol ──→ protocols::universal ──┤
+     │                                             │
+     └──→ REST APIs ──────────────────────────────┤
+                                                   │
+                                                   ▼
+                                       [tools/engine.rs]
+                                                   │
+                             ┌─────────────────────┼──────────────────┐
+                             │                     │                  │
+                             ▼                     ▼                  ▼
+                       [providers]          [intelligence]      [configuration]
+                             │                     │                  │
+                             └─────────────────────┼──────────────────┘
+                                                   │
+                                                   ▼
+                                         [database_plugins]
+                                                   │
+                                                   ▼
+                                             [SQLite/PG]
+```
+
+#### OAuth Integration Flow
+
+```
+User Request → [OAuth Routes] → oauth/providers/
+                     │                  │
+                     ▼                  ▼
+           [oauth_flow_manager]   [Strava/Fitbit OAuth]
+                     │                  │
+                     ▼                  ▼
+             [Browser Redirect]   [External Provider]
+                     │                  │
+                     ▼                  ▼
+             [OAuth Callback]     [Authorization Code]
+                     │                  │
+                     └──────────────────┤
+                                        ▼
+                             [Token Exchange & Storage]
+                                        │
+                                        ▼
+                               [database_plugins]
+                                        │
+                                        ▼
+                             [crypto::keys (Encryption)]
+                                        │
+                                        ▼
+                             [notifications::sse (Notify)]
+```
+
+### Architectural Patterns in Use
+
+#### 1. Layered Architecture
+The codebase follows a strict layered pattern where upper layers depend on lower layers but not vice versa.
+
+#### 2. Plugin Architecture
+- Database backends (SQLite/PostgreSQL) via `DatabaseProvider` trait
+- Fitness providers (Strava/Fitbit) via `FitnessProvider` trait  
+- Tool plugins via `PluginRegistry` + `linkme` macros for compile-time registration
+
+#### 3. Multi-Tenant Isolation
+- `TenantContext` propagated through all layers
+- Tenant-specific encryption keys managed by `key_management`
+- Row-level tenant_id filtering in database operations
+
+#### 4. Unified Protocol Abstraction
+- `protocols::universal` layer decouples business logic from transport
+- Tools work identically for MCP and A2A protocols
+- Single tool implementation serves multiple protocol types
+
+#### 5. Dependency Injection
+- `Arc<Database>`, `Arc<AuthManager>` passed through route handlers
+- Context objects carry dependencies across async boundaries
+- No global mutable state (except compile-time plugin registry)
+
+### Module Statistics
+
+- **Total Rust files**: 181 source files
+- **Total lines of code**: ~58,000 LOC
+- **Primary modules**: 37 top-level modules in `src/lib.rs`
+- **Database implementations**: 2 (SQLite, PostgreSQL)
+- **Provider implementations**: 2 (Strava, Fitbit) + Universal adapter
+- **Protocol handlers**: 4 (MCP, A2A, OAuth2, REST)
+
 ## Component Interactions
 
 ### Initialization Sequence

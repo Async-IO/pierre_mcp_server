@@ -109,6 +109,8 @@ eventsource-stream = "0.2"
 base64ct = "=1.6.0"
 # For documentation server
 env_logger = "0.11"
+# LRU cache for bounded session storage (DoS prevention)
+lru = "0.12"
 
 [dev-dependencies]
 tempfile = "3.20"

@@ -331,7 +331,6 @@ impl OAuthTemplateRenderer {
     pub fn render_success_template(
         provider: &str,
         callback_response: &crate::routes::OAuthCallbackResponse,
-        oauth_callback_port: u16,
     ) -> Result<String, Box<dyn std::error::Error>> {
         let template = format!(
             r#"
@@ -349,30 +348,11 @@ impl OAuthTemplateRenderer {
         .code {{ background: #ecf0f1; padding: 10px; border-radius: 4px; font-family: monospace; }}
     </style>
     <script>
-        // Attempt to focus Claude Desktop before closing
-        async function focusClaudeDesktop() {{
-            try {{
-                // Try to trigger focus recovery via bridge communication
-                await fetch('http://localhost:{}/oauth/focus-recovery', {{
-                    method: 'POST',
-                    headers: {{ 'Content-Type': 'application/json' }},
-                    body: JSON.stringify({{ action: 'focus_claude_desktop' }})
-                }}).catch(() => {{
-                    // Ignore fetch errors - focus recovery is best-effort
-                }});
-            }} catch (error) {{
-                // Silently ignore errors
-            }}
-
-            // Close the window after a short delay
+        // Auto-close window after user has time to read the success message
+        window.onload = function() {{
             setTimeout(() => {{
                 window.close();
-            }}, 1500);
-        }}
-
-        window.onload = function() {{
-            // Start focus recovery immediately
-            focusClaudeDesktop();
+            }}, 3000);
         }};
     </script>
 </head>
@@ -383,13 +363,14 @@ impl OAuthTemplateRenderer {
         <div class="info"><strong>Status:</strong> Connected successfully</div>
         <div class="info"><strong>User ID:</strong> {}</div>
         <div class="info"><strong>Status:</strong> <span class="code">Connected</span></div>
-        <p>You can now close this window and return to your MCP client.</p>
-        <p><small>Attempting to return focus to your MCP client automatically...</small></p>
+        <p><strong>✅ Authentication complete!</strong></p>
+        <p>Please return to your MCP client (Claude Desktop, ChatGPT, etc.) to continue.</p>
+        <p><small>This window will close automatically in 3 seconds...</small></p>
     </div>
 </body>
 </html>
 "#,
-            provider, oauth_callback_port, provider, callback_response.user_id
+            provider, provider, callback_response.user_id
         );
 
         Ok(template)

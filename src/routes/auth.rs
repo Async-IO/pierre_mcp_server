@@ -450,6 +450,9 @@ impl OAuthService {
         self.send_oauth_notifications(user_id, provider, &expires_at)
             .await?;
 
+        // Notify bridge about successful OAuth (for client-side token storage)
+        self.notify_bridge_oauth_success(provider, &token).await;
+
         Ok(OAuthCallbackResponse {
             user_id: user_id.to_string(),
             provider: provider.to_string(),
@@ -571,6 +574,67 @@ impl OAuthService {
         }
 
         Ok(())
+    }
+
+    /// Notify bridge about successful OAuth (for client-side token storage and focus recovery)
+    async fn notify_bridge_oauth_success(
+        &self,
+        provider: &str,
+        token: &crate::oauth2_client::OAuth2Token,
+    ) {
+        let oauth_callback_port = self.config.config().oauth_callback_port;
+        let callback_url =
+            format!("http://localhost:{oauth_callback_port}/oauth/provider-callback/{provider}");
+
+        // Calculate expires_in from expires_at if available
+        let expires_in = token.expires_at.map(|expires_at| {
+            let duration = expires_at - chrono::Utc::now();
+            duration.num_seconds().max(0)
+        });
+
+        let token_data = serde_json::json!({
+            "access_token": token.access_token,
+            "refresh_token": token.refresh_token,
+            "expires_in": expires_in,
+            "token_type": token.token_type,
+            "scope": token.scope
+        });
+
+        tracing::debug!(
+            "Notifying bridge about {} OAuth success at {}",
+            provider,
+            callback_url
+        );
+
+        // Best-effort notification - don't fail OAuth flow if bridge notification fails
+        match reqwest::Client::new()
+            .post(&callback_url)
+            .json(&token_data)
+            .timeout(std::time::Duration::from_secs(5))
+            .send()
+            .await
+        {
+            Ok(response) if response.status().is_success() => {
+                tracing::info!(
+                    "✅ Successfully notified bridge about {} OAuth completion",
+                    provider
+                );
+            }
+            Ok(response) => {
+                tracing::warn!(
+                    "Bridge notification responded with status {} for provider {}",
+                    response.status(),
+                    provider
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "Failed to notify bridge about {} OAuth (bridge may not be running): {}",
+                    provider,
+                    e
+                );
+            }
+        }
     }
 
     /// Disconnect OAuth provider for user
@@ -956,12 +1020,9 @@ impl AuthRoutes {
 
         match oauth_routes.handle_callback(code, state, &provider).await {
             Ok(response) => {
-                let oauth_callback_port = server_context.config().config().oauth_callback_port;
                 let html =
                     crate::mcp::oauth_flow_manager::OAuthTemplateRenderer::render_success_template(
-                        &provider,
-                        &response,
-                        oauth_callback_port,
+                        &provider, &response,
                     )
                     .map_err(|e| {
                         tracing::error!("Failed to render OAuth success template: {}", e);
