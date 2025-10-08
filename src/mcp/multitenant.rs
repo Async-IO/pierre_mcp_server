@@ -2009,7 +2009,7 @@ impl MultiTenantMcpServer {
                             body_str
                         );
 
-                        // Create and log the error response we're about to send
+                        // Per JSON-RPC 2.0 spec: Parse/validation errors return HTTP 200 with error in JSON-RPC envelope
                         let error_response = McpResponse::error(
                             Some(default_request_id()),
                             -32600,
@@ -2019,7 +2019,10 @@ impl MultiTenantMcpServer {
                             .unwrap_or_else(|_| "failed to serialize error response".to_string());
                         tracing::warn!("Sending MCP error response: {}", error_response_str);
 
-                        Err(warp::reject::custom(McpHttpError::InvalidRequest))
+                        Ok(Box::new(warp::reply::with_status(
+                            warp::reply::json(&error_response),
+                            warp::http::StatusCode::OK,
+                        )) as Box<dyn warp::Reply>)
                     }
                 }
             }
@@ -3023,6 +3026,29 @@ fn with_cors_headers(
 async fn handle_rejection(
     err: warp::Rejection,
 ) -> Result<Box<dyn warp::Reply>, std::convert::Infallible> {
+    // Handle MCP-specific errors first
+    if let Some(mcp_error) = err.find::<McpHttpError>() {
+        return match mcp_error {
+            McpHttpError::InvalidOrigin => {
+                let json = warp::reply::json(&serde_json::json!({
+                    "error": "Forbidden",
+                    "message": "Invalid origin header for security"
+                }));
+                let reply = warp::reply::with_status(json, warp::http::StatusCode::FORBIDDEN);
+                Ok(Box::new(with_cors_headers(reply, None)) as Box<dyn warp::Reply>)
+            }
+            McpHttpError::InvalidRequest => {
+                // This shouldn't happen anymore since we handle it inline, but keep for safety
+                let json = warp::reply::json(&serde_json::json!({
+                    "error": "Bad Request",
+                    "message": "Invalid MCP request"
+                }));
+                let reply = warp::reply::with_status(json, warp::http::StatusCode::BAD_REQUEST);
+                Ok(Box::new(with_cors_headers(reply, None)) as Box<dyn warp::Reply>)
+            }
+        };
+    }
+
     err.find::<ApiError>().map_or_else(
         || {
             if err.find::<warp::reject::MethodNotAllowed>().is_some() {

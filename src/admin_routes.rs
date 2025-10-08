@@ -229,7 +229,8 @@ pub fn admin_routes(
         .or(pending_users_route)
         .or(approve_user_route)
         .or(suspend_user_route)
-        .or(health_route);
+        .or(health_route)
+        .boxed();
 
     warp::path("admin")
         .and(admin_routes)

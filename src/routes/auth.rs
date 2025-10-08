@@ -849,6 +849,7 @@ impl AuthRoutes {
             .or(oauth_callback)
             .or(oauth_status)
             .or(oauth_auth)
+            .boxed()
     }
 
     /// User registration endpoint

@@ -30,12 +30,14 @@ pub fn oauth2_routes(
     let jwks_route = jwks_route();
 
     // OAuth routes under /oauth2 prefix
-    let oauth_prefixed_routes = warp::path("oauth2").and(
-        client_registration_routes
-            .or(authorization_routes)
-            .or(token_routes)
-            .or(jwks_route),
-    );
+    let oauth_prefixed_routes = warp::path("oauth2")
+        .and(
+            client_registration_routes
+                .or(authorization_routes)
+                .or(token_routes)
+                .or(jwks_route),
+        )
+        .boxed();
 
     // Discovery route at root level (RFC 8414 compliance)
     let discovery_route = oauth2_discovery_route(http_port);
@@ -111,7 +113,10 @@ fn authorization_routes(
         .and(with_auth_manager(auth_manager))
         .and_then(handle_oauth_login_submit);
 
-    authorize_route.or(login_route).or(login_submit_route)
+    authorize_route
+        .or(login_route)
+        .or(login_submit_route)
+        .boxed()
 }
 
 /// Token endpoint routes

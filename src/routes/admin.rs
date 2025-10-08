@@ -86,7 +86,7 @@ impl AdminRoutes {
         let users = Self::user_routes(context.clone());
         let setup = Self::setup_routes(context);
 
-        api_keys.or(users).or(setup)
+        api_keys.or(users).or(setup).boxed()
     }
 
     /// API key management routes
@@ -120,7 +120,7 @@ impl AdminRoutes {
             .and(with_context(context))
             .and_then(Self::handle_list_api_keys);
 
-        provision.or(revoke).or(list)
+        provision.or(revoke).or(list).boxed()
     }
 
     /// User management routes
@@ -155,7 +155,7 @@ impl AdminRoutes {
             .and(with_context(context))
             .and_then(Self::handle_setup_status);
 
-        setup.or(status)
+        setup.or(status).boxed()
     }
 
     /// Handle API key provisioning

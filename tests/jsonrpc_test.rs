@@ -97,3 +97,26 @@ fn test_error_with_data() {
     assert_eq!(error.message, "Invalid params");
     assert_eq!(error.data, Some(error_data));
 }
+
+#[test]
+fn test_invalid_request_error_code() {
+    // Per JSON-RPC 2.0 spec, invalid request should use error code -32600
+    let resp = JsonRpcResponse::error(Some(Value::from(1)), -32600, "Invalid Request");
+
+    assert!(resp.is_error());
+    assert!(resp.error.is_some());
+
+    let error = resp.error.unwrap();
+    assert_eq!(error.code, -32600);
+    assert_eq!(error.message, "Invalid Request");
+}
+
+#[test]
+fn test_parse_error_code() {
+    // Per JSON-RPC 2.0 spec, parse error should use error code -32700
+    let resp = JsonRpcResponse::error(Some(Value::Null), -32700, "Parse error");
+
+    assert!(resp.is_error());
+    let error = resp.error.unwrap();
+    assert_eq!(error.code, -32700);
+}
