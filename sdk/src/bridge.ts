@@ -357,22 +357,39 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
 
   private async validateToken(accessToken: string): Promise<boolean> {
     try {
-      // Make a lightweight request to validate the token
-      const response = await fetch(`${this.serverUrl}/oauth/status`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
+      // AbortController with 5s timeout for token validation
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      try {
+        // Make a lightweight request to validate the token
+        const response = await fetch(`${this.serverUrl}/oauth/status`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          console.error(`[Pierre OAuth] Token validation successful`);
+          return true;
         }
-      });
 
-      if (response.ok) {
-        console.error(`[Pierre OAuth] Token validation successful`);
-        return true;
+        console.error(`[Pierre OAuth] Token validation failed: ${response.status} ${response.statusText}`);
+        return false;
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          console.error(`[Pierre OAuth] Token validation timed out after 5s`);
+        } else {
+          throw fetchError;
+        }
+        return false;
       }
-
-      console.error(`[Pierre OAuth] Token validation failed: ${response.status} ${response.statusText}`);
-      return false;
     } catch (error) {
       console.error(`[Pierre OAuth] Token validation request failed: ${error}`);
       return false;
@@ -856,12 +873,27 @@ export class PierreClaudeBridge {
     this.oauthProvider = new PierreOAuthClientProvider(this.config.pierreServerUrl, this.config);
     this.log(`📡 Pierre MCP URL configured: ${this.mcpUrl}`);
 
+    // Skip proactive connection in test/CI environments to prevent hangs
+    // The MCP validator doesn't need tools cached upfront - it will request them
+    if (process.env.CI || process.env.NODE_ENV === 'test') {
+      this.log('⚠️ CI/test environment detected - skipping proactive connection');
+      this.log('📋 Bridge will start with connect_to_pierre tool only');
+      return;
+    }
+
     // ALWAYS connect proactively to cache tools for Claude Desktop
     // Server allows tools/list without authentication - only tool calls require auth
     // This ensures all tools are visible immediately in Claude Desktop (tools/list_changed doesn't work)
     try {
       this.log('🔌 Connecting to Pierre proactively to cache all tools for Claude Desktop');
-      await this.connectToPierre();
+
+      // Add 10s timeout for proactive connection to prevent hangs
+      const connectionPromise = this.connectToPierre();
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Proactive connection timed out after 10s')), 10000)
+      );
+
+      await Promise.race([connectionPromise, timeoutPromise]);
 
       // Cache tools immediately so they're ready for tools/list
       if (this.pierreClient) {

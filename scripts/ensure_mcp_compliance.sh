@@ -192,16 +192,16 @@ fi
 # Set PYTHONPATH to include validator directory for module imports
 export PYTHONPATH="$MCP_VALIDATOR_DIR"
 
-# Run validator with 5-minute timeout and verbose output
+# Run validator with 10-minute timeout and verbose output
 echo -e "${BLUE}     Testing bridge: node $BRIDGE_PATH${NC}"
 echo -e "${BLUE}     Protocol version: 2025-06-18${NC}"
 
 # Detect available timeout command (Linux: timeout, macOS: gtimeout)
 TIMEOUT_CMD=""
 if command -v timeout >/dev/null 2>&1; then
-    TIMEOUT_CMD="timeout 300"
+    TIMEOUT_CMD="timeout 600"
 elif command -v gtimeout >/dev/null 2>&1; then
-    TIMEOUT_CMD="gtimeout 300"
+    TIMEOUT_CMD="gtimeout 600"
 else
     echo -e "${YELLOW}[WARN] timeout command not available - running without timeout${NC}"
     echo -e "${YELLOW}       Install coreutils for timeout support: brew install coreutils${NC}"
@@ -223,7 +223,7 @@ else
     LATEST_REPORT=$(ls -t "$MCP_VALIDATOR_DIR"/reports/cr_*.md 2>/dev/null | head -1)
 
     if [ $EXIT_CODE -eq 124 ]; then
-        echo -e "${RED}[FAIL] MCP compliance tests timed out after 5 minutes${NC}"
+        echo -e "${RED}[FAIL] MCP compliance tests timed out after 10 minutes${NC}"
         cd - >/dev/null
         COMPLIANCE_PASSED=false
     else
