@@ -22,7 +22,7 @@
 //! impl PluginImplementation for CustomAnalysisTool {
 //!     async fn execute_impl(&self, request: UniversalRequest, env: PluginEnvironment<'_>) -> Result<UniversalResponse, ProtocolError> {
 //!         // Plugin implementation
-//! #       todo!()
+//! #       Ok(UniversalResponse::default())
 //!     }
 //! }
 //! ```
