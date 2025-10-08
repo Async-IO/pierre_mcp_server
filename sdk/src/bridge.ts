@@ -873,13 +873,21 @@ export class PierreClaudeBridge {
     this.oauthProvider = new PierreOAuthClientProvider(this.config.pierreServerUrl, this.config);
     this.log(`📡 Pierre MCP URL configured: ${this.mcpUrl}`);
 
+    // Skip proactive connection in test/CI environments to prevent hangs
+    // The MCP validator doesn't need tools cached upfront - it will request them
+    if (process.env.CI || process.env.NODE_ENV === 'test') {
+      this.log('⚠️ CI/test environment detected - skipping proactive connection');
+      this.log('📋 Bridge will start with connect_to_pierre tool only');
+      return;
+    }
+
     // ALWAYS connect proactively to cache tools for Claude Desktop
     // Server allows tools/list without authentication - only tool calls require auth
     // This ensures all tools are visible immediately in Claude Desktop (tools/list_changed doesn't work)
     try {
       this.log('🔌 Connecting to Pierre proactively to cache all tools for Claude Desktop');
 
-      // Add 10s timeout for proactive connection to prevent CI hangs
+      // Add 10s timeout for proactive connection to prevent hangs
       const connectionPromise = this.connectToPierre();
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Proactive connection timed out after 10s')), 10000)
