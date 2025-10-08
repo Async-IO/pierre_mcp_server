@@ -740,6 +740,17 @@ impl DatabaseProvider for Database {
         }
     }
 
+    async fn get_a2a_client_by_api_key_id(
+        &self,
+        api_key_id: &str,
+    ) -> Result<Option<A2AClient>> {
+        match self {
+            Self::SQLite(db) => db.get_a2a_client_by_api_key_id(api_key_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_a2a_client_by_api_key_id(api_key_id).await,
+        }
+    }
+
     async fn get_a2a_client_by_name(&self, name: &str) -> Result<Option<A2AClient>> {
         match self {
             Self::SQLite(db) => db.get_a2a_client_by_name(name).await,

@@ -279,6 +279,10 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// Get A2A client by ID
     async fn get_a2a_client(&self, client_id: &str) -> Result<Option<A2AClient>>;
 
+    /// Get A2A client by API key ID
+    async fn get_a2a_client_by_api_key_id(&self, api_key_id: &str)
+        -> Result<Option<A2AClient>>;
+
     /// Get A2A client by name
     async fn get_a2a_client_by_name(&self, name: &str) -> Result<Option<A2AClient>>;
 

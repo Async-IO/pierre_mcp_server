@@ -112,7 +112,7 @@ impl A2AAuthenticator {
         // Add A2A-specific rate limiting
         if let AuthMethod::ApiKey { key_id, tier: _ } = &auth_result.auth_method {
             // Find A2A client associated with this API key
-            if let Some(client) = Self::get_a2a_client_by_api_key(key_id) {
+            if let Some(client) = self.get_a2a_client_by_api_key(key_id).await? {
                 let client_manager = &*self.resources.a2a_client_manager;
 
                 // Check A2A-specific rate limits
@@ -152,15 +152,18 @@ impl A2AAuthenticator {
     }
 
     /// Get A2A client by API key ID
-    const fn get_a2a_client_by_api_key(_api_key_id: &str) -> Option<A2AClient> {
-        // Use database method to get A2A client by API key ID
-        // Query database for A2A client by API key
-        // Use client iteration until direct query method is available
-        // This is not efficient but works for the implementation
-        //
-        // Note: `get_a2a_client_by_api_key_id` method would need to be added to Database
-        // Return None when client not found
-        None
+    ///
+    /// # Errors
+    /// Returns an error if database query fails
+    async fn get_a2a_client_by_api_key(
+        &self,
+        api_key_id: &str,
+    ) -> Result<Option<A2AClient>, anyhow::Error> {
+        self.resources
+            .database
+            .get_a2a_client_by_api_key_id(api_key_id)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to lookup A2A client by API key: {e}"))
     }
 
     /// Authenticate using `OAuth2` token

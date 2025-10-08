@@ -1328,11 +1328,54 @@ impl DatabaseProvider for PostgresDatabase {
         )
     }
 
+    async fn get_a2a_client_by_api_key_id(
+        &self,
+        api_key_id: &str,
+    ) -> Result<Option<A2AClient>> {
+        let row = sqlx::query(
+            r"
+            SELECT c.client_id, c.user_id, c.name, c.description, c.client_secret_hash, c.capabilities,
+                   c.redirect_uris, c.contact_email, c.is_active, c.rate_limit_per_minute,
+                   c.rate_limit_per_day, c.created_at, c.updated_at
+            FROM a2a_clients c
+            INNER JOIN a2a_client_api_keys k ON c.client_id = k.client_id
+            WHERE k.api_key_id = $1 AND c.is_active = true
+            ",
+        )
+        .bind(api_key_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        row.map_or_else(
+            || Ok(None),
+            |row| {
+                Ok(Some(A2AClient {
+                    id: row.get("client_id"),
+                    user_id: row.get("user_id"),
+                    name: row.get("name"),
+                    description: row.get("description"),
+                    public_key: row.get("client_secret_hash"),
+                    capabilities: row.get("capabilities"),
+                    redirect_uris: row.get("redirect_uris"),
+                    is_active: row.get("is_active"),
+                    created_at: row.get("created_at"),
+                    permissions: vec!["read_activities".into()],
+                    rate_limit_requests: u32::try_from(
+                        row.get::<i32, _>("rate_limit_per_minute").max(0),
+                    )
+                    .unwrap_or(0),
+                    rate_limit_window_seconds: 60,
+                    updated_at: row.get("updated_at"),
+                }))
+            },
+        )
+    }
+
     async fn get_a2a_client_by_name(&self, name: &str) -> Result<Option<A2AClient>> {
         let row = sqlx::query(
             r"
-            SELECT client_id, user_id, name, description, client_secret_hash, capabilities, 
-                   redirect_uris, contact_email, is_active, rate_limit_per_minute, 
+            SELECT client_id, user_id, name, description, client_secret_hash, capabilities,
+                   redirect_uris, contact_email, is_active, rate_limit_per_minute,
                    rate_limit_per_day, created_at, updated_at
             FROM a2a_clients
             WHERE name = $1

@@ -256,14 +256,11 @@ pub fn handle_get_activity_intelligence(
                         .collect(),
                 };
 
-                provider
-                    .set_credentials(credentials)
-                    .await
-                    .map_err(|e| {
-                        ProtocolError::ExecutionFailed(format!(
-                            "Failed to set provider credentials: {e}"
-                        ))
-                    })?;
+                provider.set_credentials(credentials).await.map_err(|e| {
+                    ProtocolError::ExecutionFailed(format!(
+                        "Failed to set provider credentials: {e}"
+                    ))
+                })?;
 
                 match provider.get_activity(activity_id).await {
                     Ok(activity) => Ok(create_intelligence_response(
@@ -537,7 +534,9 @@ pub fn handle_detect_patterns(
             .get("pattern_type")
             .and_then(|v| v.as_str())
             .ok_or_else(|| {
-                ProtocolError::InvalidRequest("Missing required parameter: pattern_type".to_string())
+                ProtocolError::InvalidRequest(
+                    "Missing required parameter: pattern_type".to_string(),
+                )
             })?;
 
         match executor

@@ -269,6 +269,12 @@ impl Database {
             .execute(&self.pool)
             .await?;
 
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_a2a_client_api_keys_api_key_id ON a2a_client_api_keys(api_key_id)",
+        )
+        .execute(&self.pool)
+        .await?;
+
         Ok(())
     }
 
@@ -359,6 +365,60 @@ impl Database {
             let redirect_uris_json: String = row.get("redirect_uris");
             let redirect_uris =
                 serde_json::from_str(&redirect_uris_json).unwrap_or_else(|_| vec![]); // Default to empty vec if parsing fails
+
+            Ok(Some(A2AClient {
+                id: row.get("id"),
+                user_id: uuid::Uuid::parse_str(&row.get::<String, _>("user_id"))?,
+                name: row.get("name"),
+                description: row.get("description"),
+                public_key: row.get("public_key"),
+                capabilities,
+                redirect_uris,
+                is_active: row.get("is_active"),
+                created_at: row.get("created_at"),
+                permissions,
+                rate_limit_requests: safe_i32_to_u32(row.get::<i32, _>("rate_limit_requests"))?,
+                rate_limit_window_seconds: safe_i32_to_u32(
+                    row.get::<i32, _>("rate_limit_window_seconds"),
+                )?,
+                updated_at: row.get("updated_at"),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Get A2A client by API key ID
+    ///
+    /// # Errors
+    /// Returns an error if database query fails
+    pub async fn get_a2a_client_by_api_key_id(
+        &self,
+        api_key_id: &str,
+    ) -> Result<Option<A2AClient>> {
+        let row = sqlx::query(
+            r"
+            SELECT c.id, c.user_id, c.name, c.description, c.public_key, c.permissions, c.capabilities,
+                   c.redirect_uris, c.rate_limit_requests, c.rate_limit_window_seconds, c.is_active,
+                   c.created_at, c.updated_at
+            FROM a2a_clients c
+            INNER JOIN a2a_client_api_keys k ON c.id = k.client_id
+            WHERE k.api_key_id = $1 AND c.is_active = 1
+            ",
+        )
+        .bind(api_key_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            let permissions_json: String = row.get("permissions");
+            let permissions = serde_json::from_str(&permissions_json)?;
+
+            let capabilities_json: String = row.get("capabilities");
+            let capabilities = serde_json::from_str(&capabilities_json).unwrap_or_else(|_| vec![]);
+
+            let redirect_uris_json: String = row.get("redirect_uris");
+            let redirect_uris = serde_json::from_str(&redirect_uris_json).unwrap_or_else(|_| vec![]);
 
             Ok(Some(A2AClient {
                 id: row.get("id"),
