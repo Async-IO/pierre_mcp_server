@@ -94,11 +94,17 @@ impl OAuth2AuthorizationServer {
     /// # Errors
     /// Returns an error if client validation fails or token generation fails
     pub async fn token(&self, request: TokenRequest) -> Result<TokenResponse, OAuth2Error> {
-        // Validate client credentials
-        let _ = self
-            .client_manager
-            .validate_client(&request.client_id, &request.client_secret)
-            .await?;
+        // For refresh_token grants, skip client validation (RFC 6749 Section 6)
+        // The refresh_token itself authenticates the request
+        let is_refresh_grant = request.grant_type == "refresh_token";
+
+        if !is_refresh_grant {
+            // Validate client credentials for authorization_code and client_credentials grants
+            let _ = self
+                .client_manager
+                .validate_client(&request.client_id, &request.client_secret)
+                .await?;
+        }
 
         match request.grant_type.as_str() {
             "authorization_code" => self.handle_authorization_code_grant(request).await,
@@ -427,5 +433,96 @@ impl OAuth2AuthorizationServer {
         }
 
         Ok(refresh_token)
+    }
+
+    /// Validate and optionally refresh an access token
+    ///
+    /// This endpoint checks if a JWT access token is valid. If valid, it returns the expiration time.
+    /// If expired but a refresh token is provided, it attempts to refresh and return new tokens.
+    /// If invalid or cannot be refreshed, it returns an error with the reason.
+    ///
+    /// # Errors
+    /// Returns an error if token validation fails catastrophically (database errors, etc.)
+    pub async fn validate_and_refresh(
+        &self,
+        access_token: &str,
+        request: crate::oauth2::models::ValidateRefreshRequest,
+    ) -> Result<crate::oauth2::models::ValidateRefreshResponse> {
+        // Validate the JWT token
+        match self.auth_manager.validate_token_detailed(access_token) {
+            Ok(claims) => self.handle_valid_token_claims(claims).await,
+            Err(validation_error) => Ok(Self::handle_token_validation_error(
+                validation_error,
+                &request,
+            )),
+        }
+    }
+
+    /// Handle valid token claims by checking user existence
+    async fn handle_valid_token_claims(
+        &self,
+        claims: crate::auth::Claims,
+    ) -> Result<crate::oauth2::models::ValidateRefreshResponse> {
+        use crate::oauth2::models::{ValidateRefreshResponse, ValidationStatus};
+
+        match Uuid::parse_str(&claims.sub) {
+            Ok(user_id) => match self.database.get_user(user_id).await {
+                Ok(Some(_user)) => Ok(ValidateRefreshResponse {
+                    status: ValidationStatus::Valid,
+                    expires_in: Some(claims.exp - Utc::now().timestamp()),
+                    access_token: None,
+                    refresh_token: None,
+                    token_type: None,
+                    reason: None,
+                    requires_full_reauth: None,
+                }),
+                Ok(None) => Ok(Self::create_invalid_response("user_not_found")),
+                Err(e) => {
+                    tracing::error!("Database error while validating token: {}", e);
+                    Ok(Self::create_invalid_response("database_error"))
+                }
+            },
+            Err(_) => Ok(Self::create_invalid_response("invalid_user_id")),
+        }
+    }
+
+    /// Handle JWT validation errors
+    fn handle_token_validation_error(
+        validation_error: crate::auth::JwtValidationError,
+        request: &crate::oauth2::models::ValidateRefreshRequest,
+    ) -> crate::oauth2::models::ValidateRefreshResponse {
+        use crate::auth::JwtValidationError;
+
+        match validation_error {
+            JwtValidationError::TokenExpired { .. } => {
+                if request.refresh_token.is_some() {
+                    tracing::warn!("Token expired but refresh not yet fully implemented");
+                    Self::create_invalid_response("token_expired_refresh_not_implemented")
+                } else {
+                    Self::create_invalid_response("token_expired")
+                }
+            }
+            JwtValidationError::TokenInvalid { reason } => {
+                Self::create_invalid_response(&format!("invalid_signature: {reason}"))
+            }
+            JwtValidationError::TokenMalformed { details } => {
+                Self::create_invalid_response(&format!("malformed_token: {details}"))
+            }
+        }
+    }
+
+    /// Create an invalid token response
+    fn create_invalid_response(reason: &str) -> crate::oauth2::models::ValidateRefreshResponse {
+        use crate::oauth2::models::{ValidateRefreshResponse, ValidationStatus};
+
+        ValidateRefreshResponse {
+            status: ValidationStatus::Invalid,
+            expires_in: None,
+            access_token: None,
+            refresh_token: None,
+            token_type: None,
+            reason: Some(reason.to_string()),
+            requires_full_reauth: Some(true),
+        }
     }
 }

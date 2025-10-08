@@ -197,7 +197,7 @@ impl<'de> Deserialize<'de> for ErrorCode {
 }
 
 /// Simplified error type for the application
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, Error)]
 pub struct AppError {
     /// Error code
     pub code: ErrorCode,
@@ -229,6 +229,28 @@ impl AppError {
     #[must_use]
     pub const fn http_status(&self) -> u16 {
         self.code.http_status()
+    }
+
+    /// Get sanitized message safe for client exposure
+    /// Internal error details are replaced with generic messages
+    #[must_use]
+    pub fn sanitized_message(&self) -> String {
+        match self.code {
+            // Validation errors: message is already safe to expose
+            ErrorCode::InvalidInput
+            | ErrorCode::MissingRequiredField
+            | ErrorCode::InvalidFormat
+            | ErrorCode::ValueOutOfRange => self.message.clone(),
+            // All other errors: use generic description (auth, database, internal)
+            _ => self.code.description().to_string(),
+        }
+    }
+
+    /// Get full error details for internal logging
+    /// NEVER send this to clients - contains sensitive information
+    #[must_use]
+    pub fn internal_details(&self) -> String {
+        format!("{:?}: {}", self.code, self.message)
     }
 }
 
@@ -269,9 +291,12 @@ pub struct ErrorResponse {
 
 impl From<AppError> for ErrorResponse {
     fn from(error: AppError) -> Self {
+        // Log full details internally before sanitizing
+        tracing::warn!("API error: {}", error.internal_details());
+
         Self {
             code: error.code,
-            message: error.message,
+            message: error.sanitized_message(), // Use sanitized message for client
             request_id: error.request_id,
             timestamp: chrono::Utc::now().to_rfc3339(),
         }

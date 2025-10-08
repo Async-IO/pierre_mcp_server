@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ABOUTME: Automated Claude Desktop testing setup script
-# ABOUTME: Prepares server, tokens, and config for testing fix/token-expiry-clean branch
+# ABOUTME: Prepares server, tokens, and config for testing feature/automatic-oauth-reauth branch
 
 set -e
 
@@ -19,7 +19,7 @@ TOKEN_FILE="$HOME/.pierre-claude-tokens.json"
 
 echo "=========================================="
 echo "Claude Desktop Testing Automation"
-echo "Branch: fix/token-expiry-clean"
+echo "Branch: feature/automatic-oauth-reauth"
 if [ "$AUTOMATIC_OAUTH" = true ]; then
     echo "Mode: Automatic OAuth (skip browser flow)"
 else
@@ -35,9 +35,23 @@ cd "$PROJECT_ROOT"
 echo "✅ Fresh start complete"
 echo ""
 
-# Step 2: Build SDK
+# Step 2: Build SDK (install dependencies only if needed)
 echo "Step 2: Building SDK..."
 cd "$PROJECT_ROOT/sdk"
+
+# Only run npm install if node_modules doesn't exist
+if [ ! -d "node_modules" ]; then
+    echo "Installing dependencies..."
+    npm install
+    if [ $? -ne 0 ]; then
+        echo "❌ npm install failed"
+        exit 1
+    fi
+    echo "✅ Dependencies installed"
+else
+    echo "✅ Dependencies already installed (node_modules exists)"
+fi
+
 npm run build
 if [ $? -ne 0 ]; then
     echo "❌ SDK build failed"
@@ -79,10 +93,10 @@ else
 fi
 
 # Source workflow test env (overwrites with test tokens)
+# Note: This file is created by complete-user-workflow.sh, so it's OK if it doesn't exist yet
 if [ -f "$PROJECT_ROOT/.workflow_test_env" ]; then
     source "$PROJECT_ROOT/.workflow_test_env"
-else
-    echo "⚠️  Warning: $PROJECT_ROOT/.workflow_test_env not found"
+    echo "✅ Loaded existing workflow test environment"
 fi
 
 # Start server in background with trace logging
@@ -228,8 +242,7 @@ cat > "$CLAUDE_CONFIG" <<EOF
       "args": [
         "$PROJECT_ROOT/sdk/dist/cli.js",
         "--server",
-        "http://localhost:${HTTP_PORT:-8081}",
-        "--verbose"
+        "http://localhost:${HTTP_PORT:-8081}"
       ],
       "env": {}
     }

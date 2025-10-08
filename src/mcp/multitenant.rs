@@ -47,7 +47,7 @@ use crate::providers::ProviderRegistry;
 use crate::routes::{AuthRoutes, LoginRequest, OAuthRoutes, RefreshTokenRequest, RegisterRequest};
 use crate::security::headers::SecurityConfig;
 use crate::tenant::{TenantContext, TenantOAuthClient};
-use crate::utils::json_responses::{api_error, invalid_format_error};
+// Removed unused imports - now using AppError directly
 
 use anyhow::Result;
 use chrono::Utc;
@@ -322,10 +322,7 @@ impl MultiTenantMcpServer {
                     async move {
                         match auth_routes.register(request).await {
                             Ok(response) => Ok(warp::reply::json(&response)),
-                            Err(e) => {
-                                let error = api_error(&e.to_string());
-                                Err(warp::reject::custom(ApiError(error)))
-                            }
+                            Err(e) => Err(warp::reject::custom(ApiError::internal(e.to_string()))),
                         }
                     }
                 }
@@ -345,10 +342,7 @@ impl MultiTenantMcpServer {
                     async move {
                         match auth_routes.login(request).await {
                             Ok(response) => Ok(warp::reply::json(&response)),
-                            Err(e) => {
-                                let error = api_error(&e.to_string());
-                                Err(warp::reject::custom(ApiError(error)))
-                            }
+                            Err(e) => Err(warp::reject::custom(ApiError::internal(e.to_string()))),
                         }
                     }
                 }
@@ -367,10 +361,7 @@ impl MultiTenantMcpServer {
                     async move {
                         match auth_routes.refresh_token(request).await {
                             Ok(response) => Ok(warp::reply::json(&response)),
-                            Err(e) => {
-                                let error = api_error(&e.to_string());
-                                Err(warp::reject::custom(ApiError(error)))
-                            }
+                            Err(e) => Err(warp::reject::custom(ApiError::internal(e.to_string()))),
                         }
                     }
                 }
@@ -584,10 +575,7 @@ impl MultiTenantMcpServer {
                     async move {
                         match api_key_routes.create_api_key_simple(&auth, request).await {
                             Ok(response) => Ok(warp::reply::json(&response)),
-                            Err(e) => {
-                                let error = api_error(&e.to_string());
-                                Err(warp::reject::custom(ApiError(error)))
-                            }
+                            Err(e) => Err(warp::reject::custom(ApiError::internal(e.to_string()))),
                         }
                     }
                 }
@@ -605,10 +593,7 @@ impl MultiTenantMcpServer {
                     async move {
                         match api_key_routes.list_api_keys(&auth).await {
                             Ok(response) => Ok(warp::reply::json(&response)),
-                            Err(e) => {
-                                let error = api_error(&e.to_string());
-                                Err(warp::reject::custom(ApiError(error)))
-                            }
+                            Err(e) => Err(warp::reject::custom(ApiError::internal(e.to_string()))),
                         }
                     }
                 }
@@ -627,10 +612,7 @@ impl MultiTenantMcpServer {
                     async move {
                         match api_key_routes.deactivate_api_key(&auth, &api_key_id).await {
                             Ok(response) => Ok(warp::reply::json(&response)),
-                            Err(e) => {
-                                let error = api_error(&e.to_string());
-                                Err(warp::reject::custom(ApiError(error)))
-                            }
+                            Err(e) => Err(warp::reject::custom(ApiError::internal(e.to_string()))),
                         }
                     }
                 }
@@ -676,16 +658,18 @@ impl MultiTenantMcpServer {
                             if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(&start_date_str) {
                                 dt.with_timezone(&chrono::Utc)
                             } else {
-                                let error = invalid_format_error("start_date", "RFC3339");
-                                return Err(warp::reject::custom(ApiError(error)));
+                                return Err(warp::reject::custom(ApiError::invalid_input(
+                                    format!("{} must be in {} format", "start_date", "RFC3339"),
+                                )));
                             };
 
                         let end_date =
                             if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(&end_date_str) {
                                 dt.with_timezone(&chrono::Utc)
                             } else {
-                                let error = invalid_format_error("end_date", "RFC3339");
-                                return Err(warp::reject::custom(ApiError(error)));
+                                return Err(warp::reject::custom(ApiError::invalid_input(
+                                    format!("{} must be in {} format", "end_date", "RFC3339"),
+                                )));
                             };
 
                         match api_key_routes
@@ -693,10 +677,7 @@ impl MultiTenantMcpServer {
                             .await
                         {
                             Ok(response) => Ok(warp::reply::json(&response)),
-                            Err(e) => {
-                                let error = api_error(&e.to_string());
-                                Err(warp::reject::custom(ApiError(error)))
-                            }
+                            Err(e) => Err(warp::reject::custom(ApiError::internal(e.to_string()))),
                         }
                     }
                 }
@@ -725,10 +706,7 @@ impl MultiTenantMcpServer {
                     async move {
                         match dashboard_routes.get_dashboard_overview(auth).await {
                             Ok(overview) => Ok(warp::reply::json(&overview)),
-                            Err(e) => {
-                                let error = api_error(&e.to_string());
-                                Err(warp::reject::custom(ApiError(error)))
-                            }
+                            Err(e) => Err(warp::reject::custom(ApiError::internal(e.to_string()))),
                         }
                     }
                 }
@@ -753,10 +731,7 @@ impl MultiTenantMcpServer {
                             .unwrap_or(30);
                         match dashboard_routes.get_usage_analytics(auth, days).await {
                             Ok(analytics) => Ok(warp::reply::json(&analytics)),
-                            Err(e) => {
-                                let error = api_error(&e.to_string());
-                                Err(warp::reject::custom(ApiError(error)))
-                            }
+                            Err(e) => Err(warp::reject::custom(ApiError::internal(e.to_string()))),
                         }
                     }
                 }
@@ -775,10 +750,7 @@ impl MultiTenantMcpServer {
                     async move {
                         match dashboard_routes.get_rate_limit_overview(auth).await {
                             Ok(overview) => Ok(warp::reply::json(&overview)),
-                            Err(e) => {
-                                let error = api_error(&e.to_string());
-                                Err(warp::reject::custom(ApiError(error)))
-                            }
+                            Err(e) => Err(warp::reject::custom(ApiError::internal(e.to_string()))),
                         }
                     }
                 }
@@ -821,10 +793,7 @@ impl MultiTenantMcpServer {
                             .await
                         {
                             Ok(logs) => Ok(warp::reply::json(&logs)),
-                            Err(e) => {
-                                let error = api_error(&e.to_string());
-                                Err(warp::reject::custom(ApiError(error)))
-                            }
+                            Err(e) => Err(warp::reject::custom(ApiError::internal(e.to_string()))),
                         }
                     }
                 }
@@ -851,10 +820,7 @@ impl MultiTenantMcpServer {
                             .await
                         {
                             Ok(stats) => Ok(warp::reply::json(&stats)),
-                            Err(e) => {
-                                let error = api_error(&e.to_string());
-                                Err(warp::reject::custom(ApiError(error)))
-                            }
+                            Err(e) => Err(warp::reject::custom(ApiError::internal(e.to_string()))),
                         }
                     }
                 }
@@ -881,10 +847,7 @@ impl MultiTenantMcpServer {
                             .await
                         {
                             Ok(usage) => Ok(warp::reply::json(&usage)),
-                            Err(e) => {
-                                let error = api_error(&e.to_string());
-                                Err(warp::reject::custom(ApiError(error)))
-                            }
+                            Err(e) => Err(warp::reject::custom(ApiError::internal(e.to_string()))),
                         }
                     }
                 }
@@ -912,10 +875,7 @@ impl MultiTenantMcpServer {
                     async move {
                         match a2a_routes.get_agent_card() {
                             Ok(agent_card) => Ok(warp::reply::json(&agent_card)),
-                            Err(e) => {
-                                let error = api_error(&e.to_string());
-                                Err(warp::reject::custom(ApiError(error)))
-                            }
+                            Err(e) => Err(warp::reject::custom(ApiError::internal(e.to_string()))),
                         }
                     }
                 }
@@ -937,10 +897,7 @@ impl MultiTenantMcpServer {
                             .await
                         {
                             Ok(overview) => Ok(warp::reply::json(&overview)),
-                            Err(e) => {
-                                let error = api_error(&e.to_string());
-                                Err(warp::reject::custom(ApiError(error)))
-                            }
+                            Err(e) => Err(warp::reject::custom(ApiError::internal(e.to_string()))),
                         }
                     }
                 }
@@ -971,10 +928,7 @@ impl MultiTenantMcpServer {
                             .await
                         {
                             Ok(credentials) => Ok(warp::reply::json(&credentials)),
-                            Err(e) => {
-                                let error = api_error(&e.to_string());
-                                Err(warp::reject::custom(ApiError(error)))
-                            }
+                            Err(e) => Err(warp::reject::custom(ApiError::internal(e.to_string()))),
                         }
                     }
                 }
@@ -992,10 +946,7 @@ impl MultiTenantMcpServer {
                     async move {
                         match a2a_routes.list_clients(auth_header.as_deref()).await {
                             Ok(clients) => Ok(warp::reply::json(&clients)),
-                            Err(e) => {
-                                let error = api_error(&e.to_string());
-                                Err(warp::reject::custom(ApiError(error)))
-                            }
+                            Err(e) => Err(warp::reject::custom(ApiError::internal(e.to_string()))),
                         }
                     }
                 }
@@ -1026,10 +977,7 @@ impl MultiTenantMcpServer {
                             .await
                         {
                             Ok(usage) => Ok(warp::reply::json(&usage)),
-                            Err(e) => {
-                                let error = api_error(&e.to_string());
-                                Err(warp::reject::custom(ApiError(error)))
-                            }
+                            Err(e) => Err(warp::reject::custom(ApiError::internal(e.to_string()))),
                         }
                     }
                 }
@@ -1051,10 +999,7 @@ impl MultiTenantMcpServer {
                             .await
                         {
                             Ok(rate_limit) => Ok(warp::reply::json(&rate_limit)),
-                            Err(e) => {
-                                let error = api_error(&e.to_string());
-                                Err(warp::reject::custom(ApiError(error)))
-                            }
+                            Err(e) => Err(warp::reject::custom(ApiError::internal(e.to_string()))),
                         }
                     }
                 }
@@ -1081,10 +1026,7 @@ impl MultiTenantMcpServer {
                     async move {
                         match a2a_routes.authenticate(request).await {
                             Ok(response) => Ok(warp::reply::json(&response)),
-                            Err(e) => {
-                                let error = api_error(&e.to_string());
-                                Err(warp::reject::custom(ApiError(error)))
-                            }
+                            Err(e) => Err(warp::reject::custom(ApiError::internal(e.to_string()))),
                         }
                     }
                 }
@@ -1106,10 +1048,7 @@ impl MultiTenantMcpServer {
                             .await
                         {
                             Ok(response) => Ok(warp::reply::json(&response)),
-                            Err(e) => {
-                                let error = api_error(&e.to_string());
-                                Err(warp::reject::custom(ApiError(error)))
-                            }
+                            Err(e) => Err(warp::reject::custom(ApiError::internal(e.to_string()))),
                         }
                     }
                 }
@@ -1138,10 +1077,7 @@ impl MultiTenantMcpServer {
                         match config_routes_inner.get_configuration_catalog(auth_header.as_deref())
                         {
                             Ok(response) => Ok(warp::reply::json(&response)),
-                            Err(e) => {
-                                let error = api_error(&e.to_string());
-                                Err(warp::reject::custom(ApiError(error)))
-                            }
+                            Err(e) => Err(warp::reject::custom(ApiError::internal(e.to_string()))),
                         }
                     }
                 }
@@ -1161,10 +1097,7 @@ impl MultiTenantMcpServer {
                         match config_routes_inner.get_configuration_profiles(auth_header.as_deref())
                         {
                             Ok(response) => Ok(warp::reply::json(&response)),
-                            Err(e) => {
-                                let error = api_error(&e.to_string());
-                                Err(warp::reject::custom(ApiError(error)))
-                            }
+                            Err(e) => Err(warp::reject::custom(ApiError::internal(e.to_string()))),
                         }
                     }
                 }
@@ -1195,10 +1128,7 @@ impl MultiTenantMcpServer {
                     async move {
                         match config_routes.get_user_configuration(&auth).await {
                             Ok(response) => Ok(warp::reply::json(&response)),
-                            Err(e) => {
-                                let error = api_error(&e.to_string());
-                                Err(warp::reject::custom(ApiError(error)))
-                            }
+                            Err(e) => Err(warp::reject::custom(ApiError::internal(e.to_string()))),
                         }
                     }
                 }
@@ -1222,8 +1152,7 @@ impl MultiTenantMcpServer {
                         {
                             Ok(response) => Ok(warp::reply::json(&response)),
                             Err(e) => {
-                                let error = api_error(&e.to_string());
-                                Err(warp::reject::custom(ApiError(error)))
+                                Err(warp::reject::custom(ApiError::internal(e.to_string())))
                             }
                         }
                     }
@@ -1259,8 +1188,7 @@ impl MultiTenantMcpServer {
                         {
                             Ok(response) => Ok(warp::reply::json(&response)),
                             Err(e) => {
-                                let error = api_error(&e.to_string());
-                                Err(warp::reject::custom(ApiError(error)))
+                                Err(warp::reject::custom(ApiError::internal(e.to_string())))
                             }
                         }
                     }
@@ -1284,8 +1212,7 @@ impl MultiTenantMcpServer {
                         {
                             Ok(response) => Ok(warp::reply::json(&response)),
                             Err(e) => {
-                                let error = api_error(&e.to_string());
-                                Err(warp::reject::custom(ApiError(error)))
+                                Err(warp::reject::custom(ApiError::internal(e.to_string())))
                             }
                         }
                     }
@@ -1347,9 +1274,7 @@ impl MultiTenantMcpServer {
                             )),
                             Err(e) => {
                                 tracing::error!("List fitness configurations failed: {e}");
-                                Err(warp::reject::custom(crate::mcp::multitenant::ApiError(
-                                    serde_json::json!({"error": e.to_string()}),
-                                )))
+                                Err(warp::reject::custom(ApiError::internal(e.to_string())))
                             }
                         }
                     }
@@ -1385,9 +1310,7 @@ impl MultiTenantMcpServer {
                             )),
                             Err(e) => {
                                 tracing::error!("Get fitness configuration failed: {e}");
-                                Err(warp::reject::custom(crate::mcp::multitenant::ApiError(
-                                    serde_json::json!({"error": e.to_string()}),
-                                )))
+                                Err(warp::reject::custom(ApiError::internal(e.to_string())))
                             }
                         }
                     }
@@ -1427,9 +1350,7 @@ impl MultiTenantMcpServer {
                             )),
                             Err(e) => {
                                 tracing::error!("Save user fitness configuration failed: {e}");
-                                Err(warp::reject::custom(crate::mcp::multitenant::ApiError(
-                                    serde_json::json!({"error": e.to_string()}),
-                                )))
+                                Err(warp::reject::custom(ApiError::internal(e.to_string())))
                             }
                         }
                     }
@@ -1469,9 +1390,7 @@ impl MultiTenantMcpServer {
                             )),
                             Err(e) => {
                                 tracing::error!("Delete user fitness configuration failed: {e}");
-                                Err(warp::reject::custom(crate::mcp::multitenant::ApiError(
-                                    serde_json::json!({"error": e.to_string()}),
-                                )))
+                                Err(warp::reject::custom(ApiError::internal(e.to_string())))
                             }
                         }
                     }
@@ -1716,7 +1635,9 @@ impl MultiTenantMcpServer {
             )
             .await
             .map_err(|e| {
-                warp::reject::custom(ApiError(api_error(&format!("JWT validation failed: {e}"))))
+                warp::reject::custom(ApiError::auth_invalid(format!(
+                    "JWT validation failed: {e}"
+                )))
             })?;
             tracing::debug!("Proceeding to handle_mcp_http_request with user context");
 
@@ -1792,6 +1713,17 @@ impl MultiTenantMcpServer {
             requires_auth
         );
 
+        // CRITICAL: DO NOT MODIFY THIS AUTH LOGIC
+        //
+        // Discovery methods (tools/list, initialize, resources/list, prompts/list) MUST work
+        // without authentication. This is required by the MCP specification.
+        //
+        // DO NOT add "security improvements" that validate auth headers for discovery methods.
+        // Clients send cached/expired tokens during discovery - this is normal and expected.
+        // Rejecting these requests breaks the entire MCP handshake.
+        //
+        // Only validate authentication for methods where requires_auth = true.
+        // See: https://spec.modelcontextprotocol.io/specification/architecture/#security
         if requires_auth {
             Self::validate_auth_and_handle(
                 McpRequestParams {
@@ -1807,7 +1739,7 @@ impl MultiTenantMcpServer {
             )
             .await
         } else {
-            // No authentication required for this method
+            // No authentication header provided and none required
             Self::handle_mcp_http_request(
                 method,
                 origin,
@@ -2983,11 +2915,8 @@ pub type McpRequest = crate::jsonrpc::JsonRpcRequest;
 pub type McpResponse = crate::jsonrpc::JsonRpcResponse;
 pub type McpError = crate::jsonrpc::JsonRpcError;
 
-/// HTTP API error wrapper
-#[derive(Debug)]
-struct ApiError(serde_json::Value);
-
-impl warp::reject::Reject for ApiError {}
+/// Re-export `AppError` as `ApiError` for this module
+type ApiError = crate::errors::AppError;
 
 /// MCP HTTP transport errors
 #[derive(Debug)]
@@ -3079,10 +3008,13 @@ async fn handle_rejection(
                 Ok(Box::new(with_cors_headers(reply, None)) as Box<dyn warp::Reply>)
             }
         },
-        |api_error| {
-            let json = warp::reply::json(&api_error.0);
-            let reply = warp::reply::with_status(json, warp::http::StatusCode::BAD_REQUEST);
-            Ok(Box::new(with_cors_headers(reply, None)) as Box<dyn warp::Reply>)
+        |api_error: &ApiError| {
+            // AppError implements Reply with built-in sanitization
+            // Clone to take ownership for into_response()
+            Ok(
+                Box::new(with_cors_headers(api_error.clone().into_response(), None))
+                    as Box<dyn warp::Reply>,
+            )
         },
     )
 }

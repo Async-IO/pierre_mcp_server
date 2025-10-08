@@ -212,3 +212,53 @@ pub struct OAuth2RefreshToken {
     pub created_at: DateTime<Utc>,
     pub revoked: bool,
 }
+
+/// Validate and Refresh Request
+#[derive(Debug, Deserialize)]
+pub struct ValidateRefreshRequest {
+    /// Optional refresh token to use if access token is expired but refreshable
+    pub refresh_token: Option<String>,
+}
+
+/// Validation status for token
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ValidationStatus {
+    /// Token is valid and can be used
+    Valid,
+    /// Token was refreshed, use new tokens
+    Refreshed,
+    /// Token is invalid, requires full re-authentication
+    Invalid,
+}
+
+/// Validate and Refresh Response
+#[derive(Debug, Serialize)]
+pub struct ValidateRefreshResponse {
+    /// Validation status
+    pub status: ValidationStatus,
+
+    /// Seconds until expiration (only for Valid status)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_in: Option<i64>,
+
+    /// New access token (only for Refreshed status)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub access_token: Option<String>,
+
+    /// New refresh token (only for Refreshed status)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refresh_token: Option<String>,
+
+    /// Token type (only for Refreshed status)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_type: Option<String>,
+
+    /// Reason for invalidity (only for Invalid status)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+
+    /// Whether full re-authentication is required (only for Invalid status)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub requires_full_reauth: Option<bool>,
+}

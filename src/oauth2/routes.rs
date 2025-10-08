@@ -26,18 +26,20 @@ pub fn oauth2_routes(
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     let client_registration_routes = client_registration_routes(database.clone());
     let authorization_routes = authorization_routes(database.clone(), auth_manager);
-    let token_routes = token_routes(database, auth_manager);
+    let token_routes = token_routes(database.clone(), auth_manager);
+    let validate_refresh_routes = validate_and_refresh_routes(database.clone(), auth_manager);
+    let token_validate_routes = token_validate_routes(database, auth_manager);
     let jwks_route = jwks_route();
 
     // OAuth routes under /oauth2 prefix
-    let oauth_prefixed_routes = warp::path("oauth2")
-        .and(
-            client_registration_routes
-                .or(authorization_routes)
-                .or(token_routes)
-                .or(jwks_route),
-        )
-        .boxed();
+    let oauth_prefixed_routes = warp::path("oauth2").and(
+        client_registration_routes
+            .or(authorization_routes)
+            .or(token_routes)
+            .or(validate_refresh_routes)
+            .or(token_validate_routes)
+            .or(jwks_route),
+    );
 
     // Discovery route at root level (RFC 8414 compliance)
     let discovery_route = oauth2_discovery_route(http_port);
@@ -113,10 +115,7 @@ fn authorization_routes(
         .and(with_auth_manager(auth_manager))
         .and_then(handle_oauth_login_submit);
 
-    authorize_route
-        .or(login_route)
-        .or(login_submit_route)
-        .boxed()
+    authorize_route.or(login_route).or(login_submit_route)
 }
 
 /// Token endpoint routes
@@ -131,6 +130,36 @@ fn token_routes(
         .and(with_database(database))
         .and(with_auth_manager(auth_manager))
         .and_then(handle_token)
+}
+
+/// Validate and refresh endpoint routes
+fn validate_and_refresh_routes(
+    database: Arc<Database>,
+    auth_manager: &Arc<AuthManager>,
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    warp::path("validate-and-refresh")
+        .and(warp::path::end())
+        .and(warp::post())
+        .and(warp::header::optional::<String>("authorization"))
+        .and(warp::body::json())
+        .and(with_database(database))
+        .and(with_auth_manager(auth_manager))
+        .and_then(handle_validate_and_refresh)
+}
+
+/// Token validation route for startup validation
+fn token_validate_routes(
+    database: Arc<Database>,
+    auth_manager: &Arc<AuthManager>,
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    warp::path("token-validate")
+        .and(warp::path::end())
+        .and(warp::post())
+        .and(warp::header::optional::<String>("authorization"))
+        .and(warp::body::json())
+        .and(with_database(database))
+        .and(with_auth_manager(auth_manager))
+        .and_then(handle_token_validate)
 }
 
 /// Helper to inject database
@@ -184,9 +213,10 @@ async fn handle_authorization(
     let request = match parse_authorize_request(&params) {
         Ok(req) => req,
         Err(error) => {
-            let json = warp::reply::json(&error);
+            let html = render_oauth_error_html(&error);
+            let reply = warp::reply::html(html);
             return Ok(Box::new(warp::reply::with_status(
-                json,
+                reply,
                 warp::http::StatusCode::BAD_REQUEST,
             )));
         }
@@ -279,9 +309,10 @@ async fn handle_authorization(
                 authenticated_user_id,
                 error
             );
-            let json = warp::reply::json(&error);
+            let html = render_oauth_error_html(&error);
+            let reply = warp::reply::html(html);
             Ok(Box::new(warp::reply::with_status(
-                json,
+                reply,
                 warp::http::StatusCode::BAD_REQUEST,
             )))
         }
@@ -340,6 +371,202 @@ async fn handle_token(
     }
 }
 
+/// Handle validate and refresh request (POST /oauth2/validate-and-refresh)
+async fn handle_validate_and_refresh(
+    auth_header: Option<String>,
+    request: crate::oauth2::models::ValidateRefreshRequest,
+    database: Arc<Database>,
+    auth_manager: Arc<AuthManager>,
+) -> Result<impl Reply, Rejection> {
+    // Extract Bearer token from Authorization header
+    let access_token = if let Some(header) = auth_header {
+        if let Some(token) = header.strip_prefix("Bearer ") {
+            token.to_string()
+        } else {
+            tracing::warn!("Invalid Authorization header format - missing Bearer prefix");
+            return Ok(warp::reply::with_status(
+                warp::reply::json(&serde_json::json!({
+                    "error": "invalid_request",
+                    "error_description": "Authorization header must use Bearer scheme"
+                })),
+                warp::http::StatusCode::UNAUTHORIZED,
+            ));
+        }
+    } else {
+        tracing::warn!("Missing Authorization header in validate-and-refresh request");
+        return Ok(warp::reply::with_status(
+            warp::reply::json(&serde_json::json!({
+                "error": "invalid_request",
+                "error_description": "Authorization header is required"
+            })),
+            warp::http::StatusCode::UNAUTHORIZED,
+        ));
+    };
+
+    tracing::debug!(
+        "Validate-and-refresh request received with token (first 20 chars): {}...",
+        &access_token[..std::cmp::min(20, access_token.len())]
+    );
+
+    let auth_server = OAuth2AuthorizationServer::new(database, auth_manager);
+
+    match auth_server
+        .validate_and_refresh(&access_token, request)
+        .await
+    {
+        Ok(response) => {
+            tracing::info!(
+                "Token validation completed with status: {:?}",
+                response.status
+            );
+            let json = warp::reply::json(&response);
+            Ok(warp::reply::with_status(json, warp::http::StatusCode::OK))
+        }
+        Err(error) => {
+            tracing::error!("Validate-and-refresh failed: {}", error);
+            Ok(warp::reply::with_status(
+                warp::reply::json(&serde_json::json!({
+                    "error": "internal_error",
+                    "error_description": "Failed to validate token"
+                })),
+                warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+            ))
+        }
+    }
+}
+
+/// Handle token validation request (POST /oauth2/token-validate)
+async fn handle_token_validate(
+    auth_header: Option<String>,
+    request: serde_json::Value,
+    database: Arc<Database>,
+    auth_manager: Arc<AuthManager>,
+) -> Result<impl Reply, Rejection> {
+    tracing::debug!("Token validation request received");
+
+    // Extract client_id from request body (optional)
+    let client_id = request.get("client_id").and_then(|v| v.as_str());
+
+    // Validate access token if provided
+    let token_valid = if let Some(header) = auth_header {
+        if let Some(token) = header.strip_prefix("Bearer ") {
+            // Validate JWT token
+            match auth_manager.validate_token(token) {
+                Ok(_) => true,
+                Err(e) => {
+                    tracing::debug!("Token validation failed: {}", e);
+                    return Ok(warp::reply::with_status(
+                        warp::reply::json(&serde_json::json!({
+                            "valid": false,
+                            "error": "invalid_token",
+                            "error_description": "Access token is invalid or expired"
+                        })),
+                        warp::http::StatusCode::OK,
+                    ));
+                }
+            }
+        } else {
+            return Ok(warp::reply::with_status(
+                warp::reply::json(&serde_json::json!({
+                    "valid": false,
+                    "error": "invalid_request",
+                    "error_description": "Authorization header must use Bearer scheme"
+                })),
+                warp::http::StatusCode::OK,
+            ));
+        }
+    } else {
+        // No token provided - only validate client_id
+        false
+    };
+
+    // Validate client_id if provided
+    if let Some(cid) = client_id {
+        let client_manager =
+            crate::oauth2::client_registration::ClientRegistrationManager::new(database);
+        match client_manager.get_client(cid).await {
+            Ok(_) => {
+                // Both token (if provided) and client_id are valid
+                tracing::info!("Credentials validated successfully for client_id: {}", cid);
+                Ok(warp::reply::with_status(
+                    warp::reply::json(&serde_json::json!({
+                        "valid": true
+                    })),
+                    warp::http::StatusCode::OK,
+                ))
+            }
+            Err(e) => {
+                tracing::debug!("Client validation failed for {}: {}", cid, e);
+                Ok(warp::reply::with_status(
+                    warp::reply::json(&serde_json::json!({
+                        "valid": false,
+                        "error": "invalid_client",
+                        "error_description": "Client ID not found or invalid"
+                    })),
+                    warp::http::StatusCode::OK,
+                ))
+            }
+        }
+    } else if token_valid {
+        // Only token was provided and it's valid
+        Ok(warp::reply::with_status(
+            warp::reply::json(&serde_json::json!({
+                "valid": true
+            })),
+            warp::http::StatusCode::OK,
+        ))
+    } else {
+        // Neither token nor client_id provided
+        Ok(warp::reply::with_status(
+            warp::reply::json(&serde_json::json!({
+                "valid": false,
+                "error": "invalid_request",
+                "error_description": "Either access token or client_id must be provided"
+            })),
+            warp::http::StatusCode::OK,
+        ))
+    }
+}
+
+/// Render HTML error page for OAuth errors shown in browser
+fn render_oauth_error_html(error: &OAuth2Error) -> String {
+    let error_title = match error.error.as_str() {
+        "invalid_client" => "Invalid Client",
+        "unauthorized_client" => "Unauthorized Client",
+        "access_denied" => "Access Denied",
+        "unsupported_response_type" => "Unsupported Response Type",
+        "invalid_scope" => "Invalid Scope",
+        "server_error" => "Server Error",
+        "temporarily_unavailable" => "Temporarily Unavailable",
+        _ => "OAuth Error",
+    };
+
+    let default_description =
+        "An error occurred during the OAuth authorization process.".to_string();
+    let error_description = error
+        .error_description
+        .as_ref()
+        .unwrap_or(&default_description);
+
+    // Load template from file
+    let template_path = std::path::Path::new("templates/oauth_error.html");
+    let template = std::fs::read_to_string(template_path).unwrap_or_else(|_| {
+        // Fallback to simple inline HTML if template file is missing
+        format!(
+            r"<!DOCTYPE html>
+<html><head><title>OAuth Error</title></head>
+<body><h1>{}</h1><p>{}</p><p>Error: {}</p></body></html>",
+            error_title, error_description, error.error
+        )
+    });
+
+    // Replace template variables
+    template
+        .replace("{{error_title}}", error_title)
+        .replace("{{error_description}}", error_description)
+        .replace("{{error_code}}", &error.error)
+}
+
 /// Parse query parameters into `AuthorizeRequest`
 fn parse_authorize_request(
     params: &HashMap<String, String>,
@@ -378,15 +605,28 @@ fn parse_token_request(form: &HashMap<String, String>) -> Result<TokenRequest, O
         .ok_or_else(|| OAuth2Error::invalid_request("Missing grant_type parameter"))?
         .clone(); // Safe: String ownership required for OAuth2 request struct
 
-    let client_id = form
-        .get("client_id")
-        .ok_or_else(|| OAuth2Error::invalid_request("Missing client_id parameter"))?
-        .clone(); // Safe: String ownership required for OAuth2 request struct
+    // For refresh_token grants, client credentials are optional (RFC 6749 recommends but doesn't require)
+    // The refresh_token itself authenticates the request
+    let is_refresh = grant_type == "refresh_token";
 
-    let client_secret = form
-        .get("client_secret")
-        .ok_or_else(|| OAuth2Error::invalid_request("Missing client_secret parameter"))?
-        .replace(' ', "+"); // Fix URL decoding: spaces back to + for Base64
+    let client_id = if is_refresh {
+        form.get("client_id").cloned().unwrap_or_default()
+    } else {
+        form.get("client_id")
+            .ok_or_else(|| OAuth2Error::invalid_request("Missing client_id parameter"))?
+            .clone()
+    };
+
+    let client_secret = if is_refresh {
+        form.get("client_secret")
+            .cloned()
+            .unwrap_or_default()
+            .replace(' ', "+")
+    } else {
+        form.get("client_secret")
+            .ok_or_else(|| OAuth2Error::invalid_request("Missing client_secret parameter"))?
+            .replace(' ', "+")
+    };
 
     let code = form.get("code").cloned();
     let redirect_uri = form.get("redirect_uri").cloned();

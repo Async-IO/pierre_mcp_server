@@ -26,6 +26,20 @@ ALL_TESTS_PASSED=true
 cd "$PROJECT_ROOT/sdk"
 
 echo ""
+# Only run npm install if node_modules doesn't exist
+if [ ! -d "node_modules" ]; then
+    echo -e "${BLUE}==== Installing Dependencies ====${NC}"
+    if npm install; then
+        echo -e "${GREEN}[OK] Dependencies installed${NC}"
+    else
+        echo -e "${RED}[FAIL] npm install failed${NC}"
+        exit 1
+    fi
+else
+    echo -e "${GREEN}[OK] Dependencies already installed (node_modules exists)${NC}"
+fi
+
+echo ""
 echo -e "${BLUE}==== Building Bridge ====${NC}"
 if npm run build; then
     echo -e "${GREEN}[OK] Bridge built successfully${NC}"

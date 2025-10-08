@@ -62,7 +62,6 @@ export interface BridgeConfig {
   userEmail?: string;
   userPassword?: string;
   callbackPort?: number;
-  verbose: boolean;
 }
 
 interface OAuth2TokenResponse {
@@ -82,6 +81,16 @@ interface OAuth2ClientRegistration {
   scope: string;
 }
 
+interface ValidateRefreshResponse {
+  status: 'valid' | 'refreshed' | 'invalid';
+  expires_in?: number;
+  access_token?: string;
+  refresh_token?: string;
+  token_type?: string;
+  reason?: string;
+  requires_full_reauth?: boolean;
+}
+
 class PierreOAuthClientProvider implements OAuthClientProvider {
   private serverUrl: string;
   private config: BridgeConfig;
@@ -97,28 +106,39 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
   private tokenStoragePath: string;
   private allStoredTokens: StoredTokens = {};
 
+  // Client-side client info storage
+  private clientInfoPath: string;
+
   constructor(serverUrl: string, config: BridgeConfig) {
     this.serverUrl = serverUrl;
     this.config = config;
 
-    // Initialize client-side token storage
+    // Initialize client-side storage paths
     const os = require('os');
     const path = require('path');
     this.tokenStoragePath = path.join(os.homedir(), '.pierre-claude-tokens.json');
+    this.clientInfoPath = path.join(os.homedir(), '.pierre-claude-client-info.json');
 
-    // Load existing tokens from storage
+    // Load existing tokens and client info from storage
     this.loadStoredTokens();
+    this.loadClientInfo();
 
-    console.error(`[Pierre OAuth] OAuth client provider created for server: ${serverUrl}`);
-    console.error(`[Pierre OAuth] Token storage path: ${this.tokenStoragePath}`);
+    this.log(`OAuth client provider created for server: ${serverUrl}`);
+    this.log(`Token storage path: ${this.tokenStoragePath}`);
+    this.log(`Client info storage path: ${this.clientInfoPath}`);
+  }
+
+  private log(message: string, ...args: any[]): void {
+    const timestamp = new Date().toISOString();
+    console.error(`[${timestamp}] [Pierre OAuth] ${message}`, ...args);
   }
 
   // Client-side token storage methods
   private loadStoredTokens(): void {
     try {
       const fs = require('fs');
-      console.error(`[Pierre OAuth] Checking for tokens at path: ${this.tokenStoragePath}`);
-      console.error(`[Pierre OAuth] File exists: ${fs.existsSync(this.tokenStoragePath)}`);
+      this.log(`Checking for tokens at path: ${this.tokenStoragePath}`);
+      this.log(`File exists: ${fs.existsSync(this.tokenStoragePath)}`);
       if (fs.existsSync(this.tokenStoragePath)) {
         const data = fs.readFileSync(this.tokenStoragePath, 'utf8');
         this.allStoredTokens = JSON.parse(data);
@@ -126,19 +146,49 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
         // Load Pierre tokens into memory for MCP SDK compatibility
         if (this.allStoredTokens.pierre) {
           this.savedTokens = this.allStoredTokens.pierre;
-          console.error(`[Pierre OAuth] Loaded Pierre tokens from storage`);
+          this.log(`Loaded Pierre tokens from storage`);
         }
 
         if (this.allStoredTokens.providers) {
           const providerCount = Object.keys(this.allStoredTokens.providers).length;
-          console.error(`[Pierre OAuth] Loaded ${providerCount} provider token(s) from storage`);
+          this.log(`Loaded ${providerCount} provider token(s) from storage`);
         }
       } else {
-        console.error(`[Pierre OAuth] No stored tokens found, starting fresh`);
+        this.log(`No stored tokens found, starting fresh`);
       }
     } catch (error) {
-      console.error(`[Pierre OAuth] Failed to load stored tokens: ${error}`);
+      this.log(`Failed to load stored tokens: ${error}`);
       this.allStoredTokens = {};
+    }
+  }
+
+  private loadClientInfo(): void {
+    try {
+      const fs = require('fs');
+      if (fs.existsSync(this.clientInfoPath)) {
+        const data = fs.readFileSync(this.clientInfoPath, 'utf8');
+        this.clientInfo = JSON.parse(data);
+        this.log(`Loaded client info from storage: ${this.clientInfo?.client_id}`);
+      } else {
+        this.log(`No stored client info found, will perform dynamic registration on first OAuth`);
+      }
+    } catch (error) {
+      this.log(`Failed to load client info: ${error}`);
+      this.clientInfo = undefined;
+    }
+  }
+
+  private saveClientInfoToFile(): void {
+    if (!this.clientInfo) {
+      return;
+    }
+
+    try {
+      const fs = require('fs');
+      fs.writeFileSync(this.clientInfoPath, JSON.stringify(this.clientInfo, null, 2), 'utf8');
+      this.log(`Saved client info to disk: ${this.clientInfo.client_id}`);
+    } catch (error) {
+      this.log(`Failed to save client info: ${error}`);
     }
   }
 
@@ -147,9 +197,9 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
       const fs = require('fs');
       const data = JSON.stringify(this.allStoredTokens, null, 2);
       fs.writeFileSync(this.tokenStoragePath, data, 'utf8');
-      console.error(`[Pierre OAuth] Saved tokens to storage`);
+      this.log(`Saved tokens to storage`);
     } catch (error) {
-      console.error(`[Pierre OAuth] Failed to save tokens to storage: ${error}`);
+      this.log(`Failed to save tokens to storage: ${error}`);
     }
   }
 
@@ -161,9 +211,9 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
 
       // Save updated storage (without Pierre tokens)
       await this.saveStoredTokens();
-      console.error(`[Pierre OAuth] Cleared Pierre tokens from storage`);
+      this.log(`Cleared Pierre tokens from storage`);
     } catch (error) {
-      console.error(`[Pierre OAuth] Failed to clear tokens: ${error}`);
+      this.log(`Failed to clear tokens: ${error}`);
     }
   }
 
@@ -181,7 +231,7 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
     };
 
     await this.saveStoredTokens();
-    console.error(`[Pierre OAuth] Saved ${provider} provider token to client storage`);
+    this.log(`Saved ${provider} provider token to client storage`);
   }
 
   getProviderToken(provider: string): any | undefined {
@@ -192,7 +242,7 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
 
     // Check if token is expired
     if (token.expires_at && Date.now() > token.expires_at) {
-      console.error(`[Pierre OAuth] ${provider} token expired, removing from storage`);
+      this.log(`${provider} token expired, removing from storage`);
       delete this.allStoredTokens.providers![provider];
       this.saveStoredTokens();
       return undefined;
@@ -247,13 +297,14 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
   }
 
   async saveClientInformation(clientInformation: OAuthClientInformationFull): Promise<void> {
-    console.error(`[Pierre OAuth] Registering client with Pierre OAuth server: ${clientInformation.client_id}`);
+    this.log(`Registering client with Pierre OAuth server: ${clientInformation.client_id}`);
 
     // Register this client with Pierre's OAuth server
     await this.registerClientWithPierre(clientInformation);
 
     this.clientInfo = clientInformation;
-    console.error(`[Pierre OAuth] Saved client info: ${clientInformation.client_id}`);
+    this.saveClientInfoToFile(); // Persist to disk
+    this.log(`Saved client info to memory and disk: ${clientInformation.client_id}`);
   }
 
   private async registerClientWithPierre(clientInfo: OAuthClientInformationFull): Promise<void> {
@@ -270,7 +321,7 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
       client_uri: this.clientMetadata.client_uri
     };
 
-    console.error(`[Pierre OAuth] Registering client at ${registrationEndpoint}`);
+    this.log(`Registering client at ${registrationEndpoint}`);
 
     try {
       const fetch = (await import('node-fetch')).default;
@@ -289,17 +340,17 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
       }
 
       const registrationResponse: any = await response.json();
-      console.error(`[Pierre OAuth] Client registration successful: ${JSON.stringify(registrationResponse)}`);
+      this.log(`Client registration successful: ${JSON.stringify(registrationResponse)}`);
 
       // Update client info with the response from Pierre's server
       if (registrationResponse.client_id && registrationResponse.client_secret) {
-        console.error(`[Pierre OAuth] Updating client info to use Pierre's returned client ID: ${registrationResponse.client_id}`);
+        this.log(`Updating client info to use Pierre's returned client ID: ${registrationResponse.client_id}`);
         clientInfo.client_id = registrationResponse.client_id;
         clientInfo.client_secret = registrationResponse.client_secret;
       }
 
     } catch (error) {
-      console.error(`[Pierre OAuth] Client registration failed: ${error}`);
+      this.log(`Client registration failed: ${error}`);
       throw error;
     }
   }
@@ -311,22 +362,25 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
     this.allStoredTokens.pierre = { ...tokens, saved_at: Math.floor(Date.now() / 1000) };
     await this.saveStoredTokens();
 
-    console.error(`[Pierre OAuth] Saved Pierre tokens: expires_in=${tokens.expires_in}`);
+    this.log(`Saved Pierre tokens: expires_in=${tokens.expires_in}`);
   }
 
   async tokens(): Promise<OAuthTokens | undefined> {
     // If no in-memory tokens, try to load from persistent storage
     if (!this.savedTokens && this.allStoredTokens.pierre) {
-      console.error(`[Pierre OAuth] No in-memory tokens, attempting to reload from persistent storage`);
+      this.log(`No in-memory tokens, attempting to reload from persistent storage`);
 
-      // Check if stored tokens are still valid
       const storedTokens = this.allStoredTokens.pierre;
-      const now = Math.floor(Date.now() / 1000);
-      const expiresAt = (storedTokens.saved_at || 0) + (storedTokens.expires_in || 0);
-      if (storedTokens.expires_in && storedTokens.saved_at && now < expiresAt) {
-        // Token hasn't expired, but validate it with the server
-        const isValid = await this.validateToken(storedTokens.access_token);
-        if (isValid) {
+
+      // Always validate with server using validate-and-refresh endpoint
+      const validationResult = await this.validateAndRefreshToken(
+        storedTokens.access_token,
+        storedTokens.refresh_token
+      );
+
+      if (validationResult) {
+        if (validationResult.status === 'valid') {
+          // Token is valid, reload into memory
           this.savedTokens = {
             access_token: storedTokens.access_token,
             refresh_token: storedTokens.refresh_token,
@@ -334,87 +388,103 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
             token_type: storedTokens.token_type || 'Bearer',
             scope: storedTokens.scope
           };
-          console.error(`[Pierre OAuth] Reloaded valid tokens from storage`);
+          this.log(`✅ Your session is valid (expires in ${validationResult.expires_in}s)`);
+        } else if (validationResult.status === 'refreshed') {
+          // Token was refreshed, save new tokens
+          this.log(`🔄 Your session was automatically renewed with a fresh token`);
+
+          this.savedTokens = {
+            access_token: validationResult.access_token!,
+            refresh_token: validationResult.refresh_token,
+            expires_in: validationResult.expires_in,
+            token_type: validationResult.token_type || 'Bearer',
+            scope: storedTokens.scope
+          };
+
+          // Update persistent storage with new tokens
+          this.allStoredTokens.pierre = { ...this.savedTokens, saved_at: Math.floor(Date.now() / 1000) };
+          await this.saveStoredTokens();
+          this.log(`✅ Session renewed successfully - you can continue using Pierre tools`);
         } else {
-          console.error(`[Pierre OAuth] Stored token failed server validation (user may no longer exist), clearing storage`);
+          // Token is invalid, clear storage and require full re-auth
+          this.log(`⚠️  Your session has expired and cannot be renewed automatically`);
+          this.log(`ℹ️  Reason: ${validationResult.reason || 'Token validation failed'}`);
+          this.log(`🔐 Please use the "Connect to Pierre" tool to re-authenticate`);
           delete this.allStoredTokens.pierre;
           await this.saveStoredTokens();
+          this.savedTokens = undefined;
         }
       } else {
-        console.error(`[Pierre OAuth] Stored tokens are expired, clearing storage`);
+        // Validation request failed, clear storage to be safe
+        this.log(`⚠️  Unable to validate your session with Pierre server`);
+        this.log(`🔐 Please use the "Connect to Pierre" tool to re-authenticate`);
         delete this.allStoredTokens.pierre;
         await this.saveStoredTokens();
+        this.savedTokens = undefined;
       }
     }
 
-    console.error(`[Pierre OAuth] tokens() called, returning tokens: ${this.savedTokens ? 'available' : 'none'}`);
+    this.log(`tokens() called, returning tokens: ${this.savedTokens ? 'available' : 'none'}`);
     if (this.savedTokens) {
-      console.error(`[Pierre OAuth] Returning access_token: ${this.savedTokens.access_token.substring(0, 20)}...`);
-      console.error(`[Pierre OAuth] Token type: ${this.savedTokens.token_type}`);
+      this.log(`Returning access_token: ${this.savedTokens.access_token.substring(0, 20)}...`);
+      this.log(`Token type: ${this.savedTokens.token_type}`);
     }
     return this.savedTokens;
   }
 
-  private async validateToken(accessToken: string): Promise<boolean> {
+  private async validateAndRefreshToken(accessToken: string, refreshToken?: string): Promise<ValidateRefreshResponse | null> {
     try {
-      // AbortController with 5s timeout for token validation
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      this.log(`Validating token with server validate-and-refresh endpoint`);
 
-      try {
-        // Make a lightweight request to validate the token
-        const response = await fetch(`${this.serverUrl}/oauth/status`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
-          },
-          signal: controller.signal
-        });
+      const response = await fetch(`${this.serverUrl}/oauth2/validate-and-refresh`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          refresh_token: refreshToken
+        })
+      });
 
-        clearTimeout(timeoutId);
-
-        if (response.ok) {
-          console.error(`[Pierre OAuth] Token validation successful`);
-          return true;
-        }
-
-        console.error(`[Pierre OAuth] Token validation failed: ${response.status} ${response.statusText}`);
-        return false;
-      } catch (fetchError) {
-        clearTimeout(timeoutId);
-        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-          console.error(`[Pierre OAuth] Token validation timed out after 5s`);
-        } else {
-          throw fetchError;
-        }
-        return false;
+      if (!response.ok) {
+        this.log(`Validate-and-refresh request failed: ${response.status} ${response.statusText}`);
+        return null;
       }
+
+      const result = await response.json() as ValidateRefreshResponse;
+      this.log(`Token validation status: ${result.status}`);
+
+      if (result.status === 'invalid' && result.reason) {
+        this.log(`Token invalid reason: ${result.reason}`);
+      }
+
+      return result;
     } catch (error) {
-      console.error(`[Pierre OAuth] Token validation request failed: ${error}`);
-      return false;
+      this.log(`Validate-and-refresh request failed: ${error}`);
+      return null;
     }
   }
 
   async redirectToAuthorization(authorizationUrl: URL): Promise<void> {
-    console.error(`[Pierre OAuth] Starting OAuth 2.0 authorization flow`);
+    this.log(`Starting OAuth 2.0 authorization flow`);
 
     // Start callback server to receive authorization response
     await this.startCallbackServer();
 
-    console.error(`[Pierre OAuth] Opening browser for authorization`);
+    this.log(`Opening browser for authorization`);
 
     // Open the authorization URL in the user's default browser with focus
     await this.openUrlInBrowserWithFocus(authorizationUrl.toString());
 
-    console.error(`[Pierre OAuth] If browser doesn't open automatically, visit:`);
-    console.error(`[Pierre OAuth] ${authorizationUrl.toString()}`);
-    console.error(`[Pierre OAuth] Waiting for authorization completion`);
+    this.log(`If browser doesn't open automatically, visit:`);
+    this.log(`${authorizationUrl.toString()}`);
+    this.log(`Waiting for authorization completion`);
 
     // Wait for authorization completion
     if (this.authorizationPending) {
       const authResult = await this.authorizationPending;
-      console.error(`[Pierre OAuth] Authorization callback completed, exchanging code for tokens`);
+      this.log(`Authorization callback completed, exchanging code for tokens`);
 
       // Exchange authorization code for JWT token
       await this.exchangeCodeForTokens(authResult.code, authResult.state);
@@ -444,7 +514,7 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
       code_verifier: this.codeVerifierValue
     });
 
-    console.error(`[Pierre OAuth] Requesting JWT token from ${tokenEndpoint}`);
+    this.log(`Requesting JWT token from ${tokenEndpoint}`);
 
     try {
       const fetch = (await import('node-fetch')).default;
@@ -463,7 +533,7 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
       }
 
       const tokenResponse = await response.json() as OAuth2TokenResponse;
-      console.error(`[Pierre OAuth] Successfully received JWT token, expires_in=${tokenResponse.expires_in}`);
+      this.log(`Successfully received JWT token, expires_in=${tokenResponse.expires_in}`);
 
       // Convert to MCP SDK OAuthTokens format and save
       const oauthTokens: OAuthTokens = {
@@ -477,7 +547,7 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
       await this.saveTokens(oauthTokens);
 
     } catch (error) {
-      console.error(`[Pierre OAuth] Token exchange failed: ${error}`);
+      this.log(`Token exchange failed: ${error}`);
       throw error;
     }
   }
@@ -517,13 +587,13 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
         this.codeVerifierValue = undefined;
         break;
     }
-    console.error(`[Pierre OAuth] Invalidated credentials: ${scope}`);
+    this.log(`Invalidated credentials: ${scope}`);
   }
 
   async clearProviderTokens(): Promise<void> {
     this.allStoredTokens.providers = {};
     await this.saveStoredTokens();
-    console.error(`[Pierre OAuth] Cleared all provider tokens from client storage`);
+    this.log(`Cleared all provider tokens from client storage`);
   }
 
   getTokenStatus(): { pierre: boolean; providers: Record<string, boolean> } {
@@ -556,6 +626,18 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
     return result;
   }
 
+  private async generateCodeChallenge(codeVerifier: string): Promise<string> {
+    // Generate SHA-256 hash of the code verifier
+    const crypto = require('crypto');
+    const hash = crypto.createHash('sha256').update(codeVerifier).digest();
+
+    // Base64 URL encode the hash
+    return hash.toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, '');
+  }
+
   private async openUrlInBrowserWithFocus(url: string): Promise<void> {
     const { exec } = await import('child_process');
     const platform = process.platform;
@@ -564,7 +646,7 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
       // macOS: Open URL then explicitly activate browser after a brief delay
       exec(`open "${url}"`, (error: Error | null) => {
         if (error) {
-          console.error('[Pierre OAuth] Failed to open browser:', error.message);
+          this.log(`Failed to open browser: ${error.message}`);
           return;
         }
 
@@ -572,7 +654,7 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
         setTimeout(() => {
           exec(`osascript -e 'tell application "Google Chrome" to activate' 2>/dev/null || osascript -e 'tell application "Safari" to activate' 2>/dev/null || osascript -e 'tell application "Firefox" to activate' 2>/dev/null || osascript -e 'tell application "Brave Browser" to activate' 2>/dev/null`, (activateError) => {
             if (activateError) {
-              console.error('[Pierre OAuth] Could not activate browser (non-fatal)');
+              this.log(`Could not activate browser (non-fatal)`);
             }
           });
         }, 500);
@@ -581,14 +663,14 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
       // Windows: start command brings window to front by default
       exec(`start "" "${url}"`, (error: Error | null) => {
         if (error) {
-          console.error('[Pierre OAuth] Failed to open browser:', error.message);
+          this.log(`Failed to open browser: ${error.message}`);
         }
       });
     } else {
       // Linux: xdg-open
       exec(`xdg-open "${url}"`, (error: Error | null) => {
         if (error) {
-          console.error('[Pierre OAuth] Failed to open browser:', error.message);
+          this.log(`Failed to open browser: ${error.message}`);
         }
       });
     }
@@ -606,14 +688,18 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
     // Use configured callback port or default to 35535
     const port = this.config.callbackPort || 35535;
 
+    // Set the port immediately so redirectUrl can use it
+    // (server.listen is async but we need the port value synchronously)
+    this.callbackPort = port;
+
     // Create server immediately with fixed port
     this.callbackServer = http.createServer();
 
     // Add error handler for port-in-use errors
     this.callbackServer.on('error', (error: any) => {
       if (error.code === 'EADDRINUSE') {
-        console.error(`[Pierre OAuth] Port ${port} is already in use - likely from previous session`);
-        console.error(`[Pierre OAuth] Attempting to use dynamic port assignment instead...`);
+        this.log(`Port ${port} is already in use - likely from previous session`);
+        this.log(`Attempting to use dynamic port assignment instead...`);
 
         // Clean up failed server
         this.callbackServer?.close();
@@ -623,18 +709,22 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
         this.callbackServer = http.createServer();
         this.callbackServer.listen(0, 'localhost', () => {
           this.callbackPort = this.callbackServer.address().port;
-          console.error(`[Pierre OAuth] Callback server listening on http://localhost:${this.callbackPort}/oauth/callback`);
+          this.log(`Callback server listening on http://localhost:${this.callbackPort}/oauth/callback`);
           this.setupCallbackHandler();
         });
       } else {
-        console.error(`[Pierre OAuth] Failed to start callback server:`, error);
+        this.log(`Failed to start callback server:`, error);
         throw error;
       }
     });
 
     this.callbackServer.listen(port, 'localhost', () => {
-      this.callbackPort = this.callbackServer.address().port;
-      console.error(`[Pierre OAuth] Callback server listening on http://localhost:${this.callbackPort}/oauth/callback`);
+      // Port already set above, just confirm it matches
+      const actualPort = this.callbackServer.address().port;
+      if (actualPort !== this.callbackPort) {
+        this.log(`⚠️ Warning: Server started on ${actualPort} but expected ${this.callbackPort}`);
+      }
+      this.log(`Callback server listening on http://localhost:${this.callbackPort}/oauth/callback`);
       // Set up the actual request handler
       this.setupCallbackHandler();
     });
@@ -659,7 +749,7 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
           const query = parsedUrl.query;
 
           if (query.error) {
-            console.error(`[Pierre OAuth] Authorization failed: ${query.error}`);
+            this.log(`Authorization failed: ${query.error}`);
             res.writeHead(400, { 'Content-Type': 'text/html' });
             res.end(this.renderErrorTemplate(
               'Claude Desktop OAuth',
@@ -667,7 +757,7 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
               `${query.error_description || 'Please try connecting again.'}`
             ));
           } else if (query.code && query.state) {
-            console.error(`[Pierre OAuth] Authorization successful, received code`);
+            this.log(`Authorization successful, received code`);
             res.writeHead(200, { 'Content-Type': 'text/html' });
             res.end(this.renderSuccessTemplate('Claude Desktop OAuth'));
 
@@ -679,7 +769,7 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
 
             // Authorization result is handled via promise resolution in redirectToAuthorization()
           } else {
-            console.error(`[Pierre OAuth] Invalid callback parameters`);
+            this.log(`Invalid callback parameters`);
             res.writeHead(400, { 'Content-Type': 'text/html' });
             res.end(this.renderErrorTemplate(
               'Claude Desktop OAuth',
@@ -692,7 +782,7 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
           const pathParts = parsedUrl.pathname.split('/');
           const provider = pathParts[3]; // /oauth/provider-callback/{provider}
 
-          console.error(`[Pierre OAuth] Provider token callback for ${provider}`);
+          this.log(`Provider token callback for ${provider}`);
 
           let body = '';
           req.on('data', (chunk: any) => {
@@ -710,7 +800,7 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
                 message: `${provider} token stored client-side`
               }));
             } catch (error) {
-              console.error(`[Pierre OAuth] Failed to save ${provider} token: ${error}`);
+              this.log(`Failed to save ${provider} token: ${error}`);
               res.writeHead(400, { 'Content-Type': 'application/json' });
               res.end(JSON.stringify({
                 success: false,
@@ -725,7 +815,7 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
           res.end('Not Found');
         }
       } catch (error) {
-        console.error(`[Pierre OAuth] Callback server error: ${error}`);
+        this.log(`Callback server error: ${error}`);
         res.writeHead(500, { 'Content-Type': 'text/plain' });
         res.end('Internal Server Error');
       }
@@ -828,6 +918,67 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
     `;
   }
 
+  async validateAndCleanupCachedCredentials(): Promise<void> {
+    const existingTokens = await this.tokens();
+    const clientInfo = await this.clientInformation();
+
+    if (!existingTokens && !clientInfo) {
+      this.log('🆕 No cached credentials found - fresh start');
+      return;
+    }
+
+    this.log('🔍 Validating cached credentials with server...');
+
+    // Try to validate by calling the token validation endpoint
+    try {
+      const response = await fetch(`${this.serverUrl}/oauth2/token-validate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(existingTokens ? { 'Authorization': `Bearer ${existingTokens.access_token}` } : {})
+        },
+        body: JSON.stringify({
+          client_id: clientInfo?.client_id
+        })
+      });
+
+      const result: any = await response.json();
+
+      if (result.valid === false) {
+        this.log(`⚠️ Cached credentials are invalid: ${result.error || 'unknown error'}`);
+        this.log('🧹 Cleaning up invalid cached credentials...');
+
+        // Clear invalid tokens
+        if (existingTokens) {
+          const fs = require('fs');
+          if (fs.existsSync(this.tokenStoragePath)) {
+            fs.unlinkSync(this.tokenStoragePath);
+            this.log('✅ Cleared invalid tokens');
+          }
+        }
+
+        // Clear invalid client info
+        if (clientInfo) {
+          const fs = require('fs');
+          if (fs.existsSync(this.clientInfoPath)) {
+            fs.unlinkSync(this.clientInfoPath);
+            this.log('✅ Cleared invalid client registration');
+          }
+        }
+
+        // Reset in-memory state
+        this.savedTokens = undefined;
+        this.clientInfo = undefined;
+        this.allStoredTokens = {};
+      } else {
+        this.log('✅ Cached credentials are valid');
+      }
+    } catch (error: any) {
+      this.log(`⚠️ Failed to validate credentials: ${error.message}`);
+      this.log('🔄 Will proceed with cached credentials and handle errors during connection');
+    }
+  }
+
 }
 
 export class PierreClaudeBridge {
@@ -842,9 +993,8 @@ export class PierreClaudeBridge {
   }
 
   private log(message: string, ...args: any[]) {
-    if (this.config.verbose) {
-      console.error(`[Pierre-Claude Bridge] ${message}`, ...args);
-    }
+    const timestamp = new Date().toISOString();
+    console.error(`[${timestamp}] [Pierre Bridge] ${message}`, ...args);
   }
 
   async start(): Promise<void> {
@@ -873,27 +1023,16 @@ export class PierreClaudeBridge {
     this.oauthProvider = new PierreOAuthClientProvider(this.config.pierreServerUrl, this.config);
     this.log(`📡 Pierre MCP URL configured: ${this.mcpUrl}`);
 
-    // Skip proactive connection in test/CI environments to prevent hangs
-    // The MCP validator doesn't need tools cached upfront - it will request them
-    if (process.env.CI || process.env.NODE_ENV === 'test') {
-      this.log('⚠️ CI/test environment detected - skipping proactive connection');
-      this.log('📋 Bridge will start with connect_to_pierre tool only');
-      return;
-    }
+    // Validate cached tokens and client registration at startup
+    // This prevents wasting user time with invalid credentials
+    await this.oauthProvider.validateAndCleanupCachedCredentials();
 
     // ALWAYS connect proactively to cache tools for Claude Desktop
     // Server allows tools/list without authentication - only tool calls require auth
     // This ensures all tools are visible immediately in Claude Desktop (tools/list_changed doesn't work)
     try {
       this.log('🔌 Connecting to Pierre proactively to cache all tools for Claude Desktop');
-
-      // Add 10s timeout for proactive connection to prevent hangs
-      const connectionPromise = this.connectToPierre();
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Proactive connection timed out after 10s')), 10000)
-      );
-
-      await Promise.race([connectionPromise, timeoutPromise]);
+      await this.connectToPierre();
 
       // Cache tools immediately so they're ready for tools/list
       if (this.pierreClient) {
@@ -981,7 +1120,15 @@ export class PierreClaudeBridge {
         // Connect to Pierre MCP Server with OAuth 2.0 flow
         await this.pierreClient.connect(transport);
         connected = true;
-        this.log('✅ Connected to Pierre MCP Server with OAuth 2.0');
+
+        // Check if we have authentication tokens
+        const tokens = await this.oauthProvider.tokens();
+        if (tokens) {
+          this.log('✅ Connected to Pierre MCP Server (authenticated)');
+        } else {
+          this.log('✅ Connected to Pierre MCP Server (unauthenticated - tool discovery only)');
+          this.log('ℹ️  Use "Connect to Pierre" tool to authenticate and access your fitness data');
+        }
         this.log(`✅ pierreClient is now set: ${!!this.pierreClient}`);
       } catch (error: any) {
         if (error.message === 'Unauthorized' && retryCount < maxRetries - 1) {
@@ -1011,8 +1158,86 @@ export class PierreClaudeBridge {
 
     this.log('🚀 Initiating OAuth connection to Pierre MCP Server');
 
-    // This will trigger the OAuth flow if no valid tokens exist
-    await this.attemptConnection();
+    // Check if we already have tokens
+    const existingTokens = await this.oauthProvider.tokens();
+
+    if (!existingTokens) {
+      this.log('🔐 No tokens found - starting OAuth 2.0 authorization flow');
+
+      // Manually trigger OAuth flow by building authorization URL and redirecting
+      try {
+        // Step 1: Ensure client is registered (dynamic client registration)
+        let clientInfo = await this.oauthProvider.clientInformation();
+
+        // Get client metadata for redirect URI (needed for both new and existing clients)
+        const clientMetadata = this.oauthProvider['clientMetadata'];
+
+        if (!clientInfo) {
+          this.log('📝 No client info found - performing dynamic client registration');
+
+          // Generate new client credentials
+          const crypto = require('crypto');
+          const clientId = `pierre-bridge-${crypto.randomBytes(8).toString('hex')}`;
+          const clientSecret = crypto.randomBytes(32).toString('hex');
+
+          const fullClientInfo: OAuthClientInformationFull = {
+            client_id: clientId,
+            client_secret: clientSecret,
+            redirect_uris: clientMetadata.redirect_uris,
+            grant_types: clientMetadata.grant_types,
+            response_types: clientMetadata.response_types,
+            scope: clientMetadata.scope,
+            client_name: clientMetadata.client_name,
+            client_uri: clientMetadata.client_uri,
+            client_id_issued_at: Math.floor(Date.now() / 1000),
+            client_secret_expires_at: 0  // Never expires
+          };
+
+          // Save and register the client (this updates clientInfo with Pierre's assigned client_id)
+          await this.oauthProvider.saveClientInformation(fullClientInfo);
+
+          // Re-fetch client information to get the server-assigned client_id
+          clientInfo = await this.oauthProvider.clientInformation();
+          if (!clientInfo) {
+            throw new Error('Client registration failed - no client info after registration');
+          }
+
+          this.log(`✅ Dynamic client registration complete: ${clientInfo.client_id}`);
+        }
+
+        // Step 2: Get redirect URI
+        const redirectUri = clientMetadata.redirect_uris[0];
+
+        // Step 3: Generate PKCE values
+        const state = await this.oauthProvider.state();
+        const codeVerifier = this.oauthProvider['generateRandomString'](64);
+        await this.oauthProvider.saveCodeVerifier(codeVerifier);
+
+        const codeChallenge = await this.oauthProvider['generateCodeChallenge'](codeVerifier);
+
+        // Step 4: Build authorization URL
+        const authUrl = new URL(`${this.config.pierreServerUrl}/oauth2/authorize`);
+        authUrl.searchParams.set('client_id', clientInfo.client_id);
+        authUrl.searchParams.set('redirect_uri', redirectUri);
+        authUrl.searchParams.set('response_type', 'code');
+        authUrl.searchParams.set('state', state);
+        authUrl.searchParams.set('code_challenge', codeChallenge);
+        authUrl.searchParams.set('code_challenge_method', 'S256');
+        authUrl.searchParams.set('scope', 'read:fitness write:fitness');
+
+        // Step 5: Redirect to authorization (opens browser)
+        await this.oauthProvider.redirectToAuthorization(authUrl);
+
+        // Step 6: Connect after OAuth completes
+        await this.attemptConnection();
+      } catch (error) {
+        this.log(`❌ Failed to start OAuth flow: ${error}`);
+        throw error;
+      }
+    } else {
+      this.log('✅ Tokens already exist - connecting with existing authentication');
+      await this.attemptConnection();
+    }
 
     this.log(`✅ After attemptConnection, pierreClient is: ${!!this.pierreClient}`);
   }
@@ -1151,10 +1376,88 @@ export class PierreClaudeBridge {
         return result;
       } catch (error) {
         this.log(`❌ Tool call ${request.params.name} failed:`, error);
+
+        // Check if this is an authentication error using multiple detection methods
+        const errorAny = error as any;
+
+        // Method 1: Check structured MCP error data (server sets authentication_failed: true)
+        const authFailedFlag = errorAny?.data?.authentication_failed === true;
+
+        // Method 2: Check MCP JSON-RPC error codes for auth errors
+        const errorCode = errorAny?.code;
+        const hasAuthErrorCode = errorCode && (errorCode === -32603 || errorCode === -32602);
+
+        // Method 3: Check HTTP status (transport layer errors)
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorLower = errorMessage.toLowerCase();
+        const hasHttpAuthStatus = errorLower.includes('http 401') ||
+                                  errorLower.includes('http 400'); // Fallback for misconfigured servers
+
+        // Method 4: Check error message content
+        const messageIndicatesAuth = errorLower.includes('unauthorized') ||
+                                     errorLower.includes('authentication failed') ||
+                                     errorLower.includes('jwt token') ||
+                                     errorLower.includes('authentication') ||
+                                     errorLower.includes('re-authenticate');
+
+        const isAuthError = authFailedFlag || hasAuthErrorCode || hasHttpAuthStatus || messageIndicatesAuth;
+
+        if (isAuthError && this.oauthProvider) {
+          this.log(`🔐 Authentication error detected - attempting automatic recovery`);
+
+          // Try to validate and refresh the token
+          const tokens = await this.oauthProvider.tokens();
+          if (tokens?.access_token && tokens?.refresh_token) {
+            const validationResult = await this.oauthProvider['validateAndRefreshToken'](
+              tokens.access_token,
+              tokens.refresh_token
+            );
+
+            if (validationResult?.status === 'refreshed') {
+              this.log(`✅ Session automatically renewed - retrying your request`);
+
+              // Retry the tool call with new tokens
+              try {
+                const retryResult = await this.pierreClient!.callTool({
+                  name: request.params.name,
+                  arguments: request.params.arguments || {}
+                });
+                this.log(`✅ Request succeeded after automatic session renewal`);
+                return retryResult;
+              } catch (retryError) {
+                this.log(`❌ Request failed even after session renewal`);
+                return {
+                  content: [{
+                    type: 'text',
+                    text: `Tool execution failed after token refresh: ${retryError instanceof Error ? retryError.message : String(retryError)}`
+                  }],
+                  isError: true
+                };
+              }
+            } else if (validationResult?.status === 'invalid') {
+              this.log(`⚠️  Automatic recovery failed - session cannot be renewed`);
+              this.log(`🔐 Full re-authentication required`);
+
+              // Clear the invalid connection
+              await this.oauthProvider.invalidateCredentials('all');
+              this.pierreClient = null;
+
+              return {
+                content: [{
+                  type: 'text',
+                  text: `Your session has expired and could not be refreshed. Please use the "Connect to Pierre" tool to re-authenticate.`
+                }],
+                isError: true
+              };
+            }
+          }
+        }
+
+        // Return the original error if not an auth error or recovery failed
         return {
           content: [{
             type: 'text',
-            text: `Tool execution failed: ${error instanceof Error ? error.message : String(error)}`
+            text: `Tool execution failed: ${errorMessage}`
           }],
           isError: true
         };
@@ -1259,7 +1562,8 @@ export class PierreClaudeBridge {
         };
       }
 
-      // Check if already authenticated (have valid tokens)
+      // Check if already authenticated
+      // Credentials were validated at startup, so if they exist they're valid
       const existingTokens = await this.oauthProvider.tokens();
       if (existingTokens && this.pierreClient) {
         return {
@@ -1302,7 +1606,12 @@ export class PierreClaudeBridge {
       return {
         content: [{
           type: 'text',
-          text: 'Successfully connected to Pierre! You can now access all your fitness data including Strava activities, athlete profile, and performance statistics.'
+          text: 'Successfully connected to Pierre Fitness Server! 🎉\n\n' +
+                '**Next step:** Connect to a fitness provider to access your activity data.\n\n' +
+                'Available providers:\n' +
+                '- **Strava** - Connect your Strava account to access activities, stats, and athlete profile\n' +
+                '- **Fitbit** - Connect your Fitbit account (if you use Fitbit)\n\n' +
+                'To connect to Strava, say: "Connect to Strava"'
         }],
         isError: false
       };
@@ -1559,9 +1868,7 @@ export class PierreClaudeBridge {
     const mcpServerOnMessage = this.serverTransport.onmessage;
     this.serverTransport.onmessage = (message: any) => {
       // Debug log to understand message format
-      if (this.config.verbose) {
-        this.log(`📨 Received message type: ${typeof message}, isArray: ${Array.isArray(message)}`);
-      }
+      this.log(`📨 Received message type: ${typeof message}, isArray: ${Array.isArray(message)}`);
 
       // Handle server/info requests
       if (message.method === 'server/info' && message.id !== undefined) {
