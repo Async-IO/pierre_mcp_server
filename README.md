@@ -38,6 +38,20 @@ Pierre runs as a single HTTP server on port 8081 (configurable). All protocols (
 - `auth`: JWT token authentication
 - `crypto`: Two-tier key management system
 
+## LLM Interaction
+
+AI assistants query fitness data through natural language. The LLM determines which MCP tools to call and combines results.
+
+### Example Interactions
+
+| Natural Language Request | What Happens | Tools Used |
+|--------------------------|--------------|------------|
+| "Get my last 10 activities and propose a week-long meal plan with protein targets based on my training load" | Retrieves recent activities, analyzes intensity and duration, calculates caloric expenditure, generates nutrition recommendations with macro breakdowns | `get_activities`, `analyze_training_load`, `calculate_metrics` |
+| "Compare my three longest runs this month and identify areas for improvement" | Fetches top runs by distance, analyzes pace consistency, heart rate zones, elevation patterns, provides feedback | `get_activities`, `compare_activities`, `analyze_performance_trends` |
+| "Analyze my cycling data from the past 3 months and suggest realistic goals for next quarter" | Reviews historical performance, detects trends and patterns, evaluates fitness progression, recommends targets | `get_activities`, `analyze_performance_trends`, `suggest_goals`, `analyze_goal_feasibility` |
+| "Check my training load for the last two weeks and tell me if I need a recovery day" | Calculates cumulative training stress, analyzes recovery metrics, provides rest recommendations | `analyze_training_load`, `get_activities`, `generate_recommendations` |
+| "When's the best day this week for an outdoor run based on my typical schedule and weather conditions?" | Analyzes activity patterns, checks weather forecasts, recommends timing | `detect_patterns`, `get_activities`, weather integration |
+
 ## Quick Start
 
 ### Prerequisites
