@@ -1,5 +1,8 @@
 // ABOUTME: Model Context Protocol (MCP) implementation for AI assistant integration
 // ABOUTME: Multi-tenant MCP server functionality for MCP clients and AI assistants
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 pub mod http_setup;
 pub mod mcp_request_processor;

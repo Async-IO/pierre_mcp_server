@@ -1,5 +1,8 @@
 // ABOUTME: HTTP REST API routes for multi-tenant management and tenant OAuth configuration
 // ABOUTME: Handles tenant creation, OAuth app management, and tenant-isolated authentication flows
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 // NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
 // - String ownership transfers for tenant, OAuth, and app struct construction

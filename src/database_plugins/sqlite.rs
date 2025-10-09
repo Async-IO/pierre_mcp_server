@@ -1,5 +1,8 @@
 // ABOUTME: SQLite database implementation for local development and single-user deployments
 // ABOUTME: Provides embedded database support with encryption and file-based storage
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 //! `SQLite` database implementation
 //!
 //! This module wraps the existing `SQLite` database functionality

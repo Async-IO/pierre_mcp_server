@@ -1,3 +1,9 @@
+// ABOUTME: Unit tests for progress tracker functionality
+// ABOUTME: Validates progress tracker behavior, edge cases, and error handling
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+
 use pierre_mcp_server::mcp::progress::ProgressTracker;
 use tokio::sync::mpsc;
 

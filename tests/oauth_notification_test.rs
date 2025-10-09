@@ -1,5 +1,8 @@
 // ABOUTME: Tests for OAuth notification functionality and database operations
 // ABOUTME: Verifies notification creation, storage, retrieval, and cleanup workflows
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use anyhow::Result;
 use chrono::Utc;

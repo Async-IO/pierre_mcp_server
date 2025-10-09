@@ -1,5 +1,8 @@
 // ABOUTME: Transport coordination for MCP server with stdio, HTTP, and SSE transports
 // ABOUTME: Manages notification channels and coordinates multiple transport methods
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 // NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
 // - Arc resource clones for parallel transport protocol handling

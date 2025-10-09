@@ -1,3 +1,9 @@
+// ABOUTME: Unit tests for admin routes functionality
+// ABOUTME: Validates admin routes behavior, edge cases, and error handling
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+
 // Integration tests for admin_routes.rs module
 // Tests for admin API endpoints and authentication
 

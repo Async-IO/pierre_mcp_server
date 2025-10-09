@@ -1,5 +1,8 @@
 // ABOUTME: Performance trend analysis and historical comparison engine for fitness progression
 // ABOUTME: Tracks fitness improvements, identifies performance patterns, and provides trend analysis
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 //! Performance trend analysis and historical comparison engine
 #![allow(clippy::cast_precision_loss)] // Safe: fitness data conversions
 #![allow(clippy::cast_possible_truncation)] // Safe: controlled ranges

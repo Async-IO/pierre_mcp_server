@@ -1,5 +1,8 @@
 // ABOUTME: Production-critical coverage tests for uncovered code paths
 // ABOUTME: Tests specific uncovered code paths that represent production risks
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 //! Production-Critical Coverage Tests
 //!

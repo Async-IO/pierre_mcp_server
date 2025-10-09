@@ -1,5 +1,8 @@
 // ABOUTME: User authentication route handlers for registration, login, and OAuth flows
 // ABOUTME: Provides REST endpoints for user account management and fitness provider OAuth callbacks
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 //! Authentication routes for user management and OAuth flows
 //!

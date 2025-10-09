@@ -1,5 +1,8 @@
 // ABOUTME: Integration tests for configuration system MCP protocol exposure
 // ABOUTME: Verifies configuration tools are properly exposed through MCP schema
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 //! Integration test for configuration system MCP protocol exposure
 //!
 //! Verifies that configuration tools are properly exposed through the MCP schema

@@ -1,5 +1,8 @@
 // ABOUTME: Core tool execution engine for processing fitness and analysis operations
 // ABOUTME: Handles tool routing, execution, error handling, and response formatting for all protocols
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 //! Unified tool execution engine
 //!
 //! This engine provides a single implementation for tool execution that can be

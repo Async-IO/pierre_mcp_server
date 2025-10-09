@@ -1,5 +1,8 @@
 // ABOUTME: MCP protocol streaming implementation for session-based bidirectional communication
 // ABOUTME: Handles SSE streaming of MCP protocol messages with session management
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use crate::mcp::{
     protocol::{McpRequest, McpResponse},

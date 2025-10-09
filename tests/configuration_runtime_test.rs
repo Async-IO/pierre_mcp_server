@@ -1,5 +1,8 @@
 // ABOUTME: Integration tests for runtime configuration management
 // ABOUTME: Tests runtime config creation, overrides, and session management
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use pierre_mcp_server::configuration::profiles::ConfigProfile;
 use pierre_mcp_server::configuration::runtime::{ConfigValue, ConfigurationManager, RuntimeConfig};

@@ -1,3 +1,9 @@
+// ABOUTME: Unit tests for database tokens functionality
+// ABOUTME: Validates database tokens behavior, edge cases, and error handling
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+
 use pierre_mcp_server::constants::oauth_providers;
 use pierre_mcp_server::database::{user_oauth_tokens::OAuthTokenData, Database};
 use pierre_mcp_server::models::{DecryptedToken, User, UserTier};

@@ -1,5 +1,8 @@
 // ABOUTME: Server-Sent Events route handlers for real-time notifications and streaming
 // ABOUTME: Provides SSE endpoints for pushing live updates to clients
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 //! SSE routes for server-sent events
 

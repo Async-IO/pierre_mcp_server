@@ -1,5 +1,8 @@
 // ABOUTME: Comprehensive tests for multi-tenant MCP server functionality
 // ABOUTME: Tests tenant isolation, MCP protocol handling, and server operations
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 //! Comprehensive tests for mcp/multitenant.rs
 //!
 //! This test suite aims to improve coverage from 38.56% by testing

@@ -1,3 +1,9 @@
+// ABOUTME: Unit tests for intelligence weather functionality
+// ABOUTME: Validates intelligence weather behavior, edge cases, and error handling
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+
 use chrono::Utc;
 use pierre_mcp_server::config::fitness_config::WeatherApiConfig;
 use pierre_mcp_server::intelligence::weather::{WeatherDifficulty, WeatherService};

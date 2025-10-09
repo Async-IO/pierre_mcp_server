@@ -1,5 +1,8 @@
 // ABOUTME: Integration tests for VO2 max configuration and calculations
 // ABOUTME: Tests extracted from embedded test module in src/configuration/vo2_max.rs
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use pierre_mcp_server::configuration::vo2_max::VO2MaxCalculator;
 

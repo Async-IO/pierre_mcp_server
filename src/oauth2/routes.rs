@@ -1,6 +1,9 @@
 // ABOUTME: OAuth 2.0 HTTP route handlers for warp web framework
 // ABOUTME: Provides REST endpoints for client registration, authorization, and token exchange
 //
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+//
 // NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
 // - OAuth client field ownership transfers for registration and token requests
 // - Resource Arc sharing for HTTP route handlers

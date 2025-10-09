@@ -1,5 +1,8 @@
 // ABOUTME: Database factory and provider abstraction for multi-database support
 // ABOUTME: Provides unified interface for SQLite and PostgreSQL with runtime database selection
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 //! Database factory for creating database providers
 //!
 //! This module provides automatic database type detection and creation

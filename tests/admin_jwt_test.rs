@@ -1,5 +1,8 @@
 // ABOUTME: Integration tests for admin JWT token generation, validation, and management
 // ABOUTME: Tests JWT token lifecycle including generation, validation, expiration, and storage operations
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use chrono::{Duration, Utc};
 use pierre_mcp_server::admin::{

@@ -1,5 +1,8 @@
 // ABOUTME: Integration tests for admin models and types
 // ABOUTME: Tests admin permissions, token structures, and validation types extracted from src/admin/models.rs
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use pierre_mcp_server::admin::models::{AdminPermission, AdminPermissions, RateLimitPeriod};
 

@@ -1,3 +1,9 @@
+// ABOUTME: Unit tests for crypto keys functionality
+// ABOUTME: Validates crypto keys behavior, edge cases, and error handling
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+
 use base64::{engine::general_purpose, Engine};
 use pierre_mcp_server::crypto::keys::A2AKeyManager;
 

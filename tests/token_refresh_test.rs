@@ -1,5 +1,8 @@
 // ABOUTME: Tests JWT token refresh functionality in MCP client and server
 // ABOUTME: Validates automatic token refresh, expiry detection, and refresh endpoint integration
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use anyhow::Result;
 use base64::{engine::general_purpose, Engine as _};

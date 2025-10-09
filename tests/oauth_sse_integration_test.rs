@@ -1,5 +1,8 @@
 // ABOUTME: Complete OAuth+SSE integration test for real-time notifications
 // ABOUTME: Tests end-to-end OAuth flow with SSE notification delivery to MCP client
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use anyhow::Result;
 use pierre_mcp_server::{

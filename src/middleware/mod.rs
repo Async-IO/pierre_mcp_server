@@ -1,5 +1,8 @@
 // ABOUTME: HTTP middleware for request tracing, authentication, and context propagation
 // ABOUTME: Provides request ID generation, span creation, and tenant context for structured logging
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 pub mod auth;
 pub mod cors;

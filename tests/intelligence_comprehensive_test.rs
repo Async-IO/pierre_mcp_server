@@ -1,5 +1,8 @@
 // ABOUTME: Comprehensive tests for intelligence modules to improve coverage
 // ABOUTME: Tests activity analyzer, performance analyzer, and intelligence engines
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 //! Comprehensive tests for intelligence modules to improve coverage
 //!
 //! This test suite focuses on intelligence modules (activity analyzer, performance analyzer)

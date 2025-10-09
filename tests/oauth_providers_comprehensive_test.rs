@@ -1,5 +1,8 @@
 // ABOUTME: Comprehensive tests for OAuth provider implementations
 // ABOUTME: Tests all OAuth provider functionality for Strava and Fitbit
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 //! Comprehensive tests for oauth/providers.rs - OAuth provider implementations
 //!
 //! This test suite aims to improve coverage from 43.19% to 80%+ by testing

@@ -1,5 +1,8 @@
 // ABOUTME: Integration tests for configuration validation functionality
 // ABOUTME: Tests configuration parameter validation, safety rules, and impact analysis
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use pierre_mcp_server::configuration::{
     profiles::FitnessLevel, runtime::ConfigValue, validation::ConfigValidator,

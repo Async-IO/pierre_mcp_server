@@ -1,5 +1,8 @@
 // ABOUTME: Integration tests for protocol converter functionality
 // ABOUTME: Tests conversion between A2A, MCP, and universal protocol formats
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use pierre_mcp_server::a2a::protocol::A2ARequest;
 use pierre_mcp_server::mcp::schema::ToolCall;

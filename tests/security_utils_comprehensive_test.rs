@@ -1,5 +1,8 @@
 // ABOUTME: Comprehensive integration tests for security and utilities modules
 // ABOUTME: Tests encryption, key management, and core utilities
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 //! Comprehensive tests for security and utility modules
 //!
 //! This test suite provides comprehensive coverage for security utilities,

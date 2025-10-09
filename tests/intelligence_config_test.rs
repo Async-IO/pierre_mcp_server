@@ -1,5 +1,8 @@
 // ABOUTME: Tests for intelligence configuration and parameter validation
 // ABOUTME: Validates intelligence engine configuration settings and defaults
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 #![allow(
     clippy::uninlined_format_args,
     clippy::cast_possible_truncation,

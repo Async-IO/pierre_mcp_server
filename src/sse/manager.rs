@@ -1,5 +1,8 @@
 // ABOUTME: Central SSE manager that coordinates both OAuth notifications and MCP protocol streams
 // ABOUTME: Provides unified connection management with clean separation of stream types
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use super::{notifications::NotificationStream, protocol::McpProtocolStream};
 use crate::{

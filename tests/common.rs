@@ -1,5 +1,8 @@
 // ABOUTME: Shared test utilities and setup functions for integration tests
 // ABOUTME: Provides common database, auth, and user creation helpers
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 #![allow(
     dead_code,
     clippy::wildcard_in_or_patterns,

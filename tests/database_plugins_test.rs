@@ -1,5 +1,8 @@
 // ABOUTME: Unit tests for database plugin functionality and factory patterns
 // ABOUTME: Tests database creation, user operations, and plugin isolation
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 use chrono::Utc;
 use pierre_mcp_server::constants::oauth_providers;
 use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};

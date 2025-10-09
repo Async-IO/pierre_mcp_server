@@ -1,5 +1,8 @@
 // ABOUTME: Simple tests for SSE transport module and MCP protocol streaming
 // ABOUTME: Basic functionality tests that compile and run successfully
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use futures_util::future;
 use serde_json::{json, Value};

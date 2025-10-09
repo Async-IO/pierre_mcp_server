@@ -1,5 +1,8 @@
 // ABOUTME: Multi-tenant architecture support for enterprise SaaS deployment
 // ABOUTME: Provides tenant management, OAuth credential isolation, and per-tenant rate limiting
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 //! # Multi-Tenant Architecture
 //!

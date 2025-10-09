@@ -1,5 +1,8 @@
 // ABOUTME: UserOAuthToken database operations for per-user, per-tenant OAuth credential storage
 // ABOUTME: Handles tenant-aware OAuth token management for multi-tenant architecture
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use super::Database;
 use crate::models::UserOAuthToken;

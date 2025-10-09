@@ -1,5 +1,8 @@
 // ABOUTME: Training recommendation engine for personalized fitness guidance and coaching
 // ABOUTME: Generates custom workout plans, recovery suggestions, and training adaptations
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 //! Training recommendation engine for personalized insights
 #![allow(clippy::cast_precision_loss)] // Safe: fitness data conversions
 #![allow(clippy::cast_possible_truncation)] // Safe: controlled ranges

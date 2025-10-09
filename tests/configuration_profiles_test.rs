@@ -1,3 +1,9 @@
+// ABOUTME: Unit tests for configuration profiles functionality
+// ABOUTME: Validates configuration profiles behavior, edge cases, and error handling
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+
 use pierre_mcp_server::configuration::profiles::{ConfigProfile, FitnessLevel, ProfileTemplates};
 
 #[test]

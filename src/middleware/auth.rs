@@ -1,5 +1,8 @@
 // ABOUTME: MCP authentication middleware for request authentication and authorization
 // ABOUTME: Handles JWT tokens and API keys with rate limiting and user context extraction
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use crate::api_keys::ApiKeyManager;
 use crate::auth::{AuthManager, AuthMethod, AuthResult};

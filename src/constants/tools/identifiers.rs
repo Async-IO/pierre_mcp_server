@@ -1,5 +1,8 @@
 // ABOUTME: MCP tool identifier constants to eliminate hardcoded tool names
 // ABOUTME: Provides centralized tool name constants organized by functional groups
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 //! MCP tool identifier constants
 

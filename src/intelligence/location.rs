@@ -1,6 +1,9 @@
 // ABOUTME: Location and geographic intelligence for activity analysis and environmental context
 // ABOUTME: Provides geocoding, elevation data, route analysis, and location-based insights
 //
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+//
 // NOTE: All remaining `.clone()` calls in this file are Safe - they are necessary for:
 // - HTTP client Arc sharing for geocoding requests
 // - Cache key and data ownership transfers for async operations

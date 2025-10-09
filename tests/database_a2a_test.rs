@@ -1,3 +1,9 @@
+// ABOUTME: Unit tests for database a2a functionality
+// ABOUTME: Validates database a2a behavior, edge cases, and error handling
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+
 use chrono::Utc;
 use pierre_mcp_server::{
     a2a::{

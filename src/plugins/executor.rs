@@ -1,5 +1,8 @@
 // ABOUTME: Plugin-enabled tool executor with builder pattern for flexible tool registration
 // ABOUTME: Bridges the plugin system with the existing UniversalToolExecutor architecture
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 // NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
 // - Arc resource clones for parallel plugin execution

@@ -1,5 +1,8 @@
 // ABOUTME: Integration tests for multi-tenant architecture and functionality
 // ABOUTME: Tests tenant isolation, data separation, and multi-tenant workflows
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 #![allow(
     clippy::uninlined_format_args,
     clippy::cast_possible_truncation,

@@ -1,5 +1,8 @@
 // ABOUTME: Key rotation mechanisms for enhanced security and compliance
 // ABOUTME: Provides automated key rotation, version management, and seamless key transitions
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 //! # Key Rotation Module
 //!

@@ -1,5 +1,8 @@
 // ABOUTME: Generic authentication utilities for bearer token extraction and validation
 // ABOUTME: Eliminates duplication in Authorization header parsing across routes and middleware
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use crate::constants::key_prefixes;
 use anyhow::{anyhow, Context, Result};

@@ -1,5 +1,8 @@
 // ABOUTME: A2A (Agent-to-Agent) protocol route handlers for inter-agent communication
 // ABOUTME: Provides endpoints for agent registration, messaging, and protocol management
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 //! A2A protocol routes for agent-to-agent communication
 

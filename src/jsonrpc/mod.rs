@@ -1,5 +1,8 @@
 // ABOUTME: Unified JSON-RPC 2.0 implementation for all protocols (MCP, A2A)
 // ABOUTME: Provides shared request, response, and error types eliminating duplication
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 //! # JSON-RPC 2.0 Foundation
 //!

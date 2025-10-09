@@ -1,3 +1,9 @@
+// ABOUTME: Unit tests for activity intelligence and performance analysis features
+// ABOUTME: Tests intelligence module components including metrics, trends, and contextual factors
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+
 use pierre_mcp_server::intelligence::{
     ActivityIntelligence, ContextualFactors, PerformanceMetrics, TimeOfDay, TrendDirection,
     TrendIndicators, ZoneDistribution,

@@ -1,5 +1,8 @@
 // ABOUTME: OAuth token management database operations
 // ABOUTME: Handles encryption, storage, and retrieval of OAuth tokens
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 // NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
 // - Option<String> ownership for OAuth token scope fields
 

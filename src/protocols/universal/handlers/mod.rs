@@ -1,5 +1,8 @@
 // ABOUTME: Tool handlers with single responsibilities
 // ABOUTME: Clean separation of concerns replacing monolithic handler functions
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 pub mod configuration;
 pub mod connections;

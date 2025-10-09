@@ -1,5 +1,8 @@
 // ABOUTME: Tenant-aware fitness provider factory for multi-tenant OAuth credential management
 // ABOUTME: Routes provider requests through tenant-specific OAuth credentials and rate limiting
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use crate::database_plugins::DatabaseProvider;
 use crate::models::{Activity, Athlete, PersonalRecord, Stats};

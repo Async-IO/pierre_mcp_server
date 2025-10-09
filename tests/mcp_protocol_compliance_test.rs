@@ -1,5 +1,8 @@
 // ABOUTME: Comprehensive MCP protocol compliance integration tests
 // ABOUTME: Tests version negotiation, error handling, progress tracking, and cancellation features
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use pierre_mcp_server::constants::{errors::*, protocol::JSONRPC_VERSION};
 use pierre_mcp_server::mcp::{

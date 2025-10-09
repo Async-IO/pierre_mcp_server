@@ -1,5 +1,8 @@
 // ABOUTME: OAuth 2.0 data models for client registration and token exchange
 // ABOUTME: Implements RFC 7591 and OAuth 2.0 request/response structures
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

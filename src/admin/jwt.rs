@@ -1,5 +1,8 @@
 // ABOUTME: JWT token generation, validation, and management for admin authentication
 // ABOUTME: Creates secure admin JWT tokens with permissions and validates token claims for authorization
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 //! JWT Token Generation and Validation for Admin Authentication
 //!
 //! This module provides secure JWT token generation and validation for admin services.

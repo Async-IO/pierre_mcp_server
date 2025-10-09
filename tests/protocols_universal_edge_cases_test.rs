@@ -1,5 +1,8 @@
 // ABOUTME: Universal protocol edge cases and error path tests
 // ABOUTME: Tests error conditions, edge cases, and untested paths in universal layer
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 //! Universal Protocol Edge Cases and Error Path Tests
 //!
 //! Tests for error conditions, edge cases, and untested paths

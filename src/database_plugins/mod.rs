@@ -1,5 +1,8 @@
 // ABOUTME: Database abstraction layer for Pierre MCP Server
 // ABOUTME: Plugin architecture for database support with SQLite and PostgreSQL backends
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use crate::a2a::auth::A2AClient;
 use crate::a2a::client::A2ASession;

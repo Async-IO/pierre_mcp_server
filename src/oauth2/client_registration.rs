@@ -1,5 +1,8 @@
 // ABOUTME: OAuth 2.0 dynamic client registration implementation (RFC 7591)
 // ABOUTME: Handles client registration endpoint for MCP clients and other OAuth clients
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use crate::database_plugins::DatabaseProvider;
 use crate::oauth2::models::{

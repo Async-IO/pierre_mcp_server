@@ -1,5 +1,8 @@
 // ABOUTME: Integration tests for admin user approval workflow
 // ABOUTME: Tests pending users listing, approval, and suspension via database operations
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use anyhow::Result;
 use pierre_mcp_server::{

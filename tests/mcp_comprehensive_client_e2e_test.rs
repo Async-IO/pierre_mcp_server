@@ -1,5 +1,8 @@
 // ABOUTME: Simplified comprehensive MCP protocol test using in-process mock handler
 // ABOUTME: Tests all MCP tools through direct protocol validation without external dependencies
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use anyhow::Result;
 use pierre_mcp_server::constants::tools::*;

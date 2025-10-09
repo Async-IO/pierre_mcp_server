@@ -1,5 +1,8 @@
 // ABOUTME: Integration tests for database API key operations
 // ABOUTME: Tests creation, retrieval, usage tracking, and expiration cleanup
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use chrono::{DateTime, Duration, Utc};
 use pierre_mcp_server::api_keys::{

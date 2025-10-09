@@ -1,5 +1,8 @@
 // ABOUTME: Per-tenant OAuth credential management for isolated multi-tenant operation
 // ABOUTME: Handles secure storage, encryption, and retrieval of tenant-specific OAuth applications
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use anyhow::Result;

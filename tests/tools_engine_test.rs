@@ -1,5 +1,8 @@
 // ABOUTME: Integration tests for the tools engine functionality
 // ABOUTME: Tests tool listing, descriptions, and engine operations without database dependencies
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 #[test]
 fn test_list_available_tools() {

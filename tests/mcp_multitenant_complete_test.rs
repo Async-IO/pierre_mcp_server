@@ -1,5 +1,8 @@
 // ABOUTME: Complete multi-tenant MCP server test covering the entire workflow
 // ABOUTME: Tests user registration, JWT auth, OAuth integration, and MCP protocol usage
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 #![allow(clippy::too_many_lines)]
 #![recursion_limit = "256"]

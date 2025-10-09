@@ -1,5 +1,8 @@
 // ABOUTME: Notification context for dependency injection of WebSocket and SSE services
 // ABOUTME: Contains WebSocket manager, SSE manager, and OAuth notification channels
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use crate::mcp::schema::OAuthCompletedNotification;
 use crate::websocket::WebSocketManager;
