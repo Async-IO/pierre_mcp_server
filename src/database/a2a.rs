@@ -418,7 +418,8 @@ impl Database {
             let capabilities = serde_json::from_str(&capabilities_json).unwrap_or_else(|_| vec![]);
 
             let redirect_uris_json: String = row.get("redirect_uris");
-            let redirect_uris = serde_json::from_str(&redirect_uris_json).unwrap_or_else(|_| vec![]);
+            let redirect_uris =
+                serde_json::from_str(&redirect_uris_json).unwrap_or_else(|_| vec![]);
 
             Ok(Some(A2AClient {
                 id: row.get("id"),

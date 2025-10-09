@@ -255,7 +255,10 @@ fn test_error_response_from_app_error() {
 
     assert_eq!(error_response.code, ErrorCode::AuthRequired);
     // Auth errors use generic description for security, not the specific message
-    assert_eq!(error_response.message, "Authentication is required to access this resource");
+    assert_eq!(
+        error_response.message,
+        "Authentication is required to access this resource"
+    );
     assert_eq!(error_response.request_id, Some("req_123".to_string()));
 
     // Check that timestamp is valid RFC3339 format

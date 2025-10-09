@@ -1328,10 +1328,7 @@ impl DatabaseProvider for PostgresDatabase {
         )
     }
 
-    async fn get_a2a_client_by_api_key_id(
-        &self,
-        api_key_id: &str,
-    ) -> Result<Option<A2AClient>> {
+    async fn get_a2a_client_by_api_key_id(&self, api_key_id: &str) -> Result<Option<A2AClient>> {
         let row = sqlx::query(
             r"
             SELECT c.client_id, c.user_id, c.name, c.description, c.client_secret_hash, c.capabilities,

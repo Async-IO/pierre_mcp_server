@@ -337,10 +337,7 @@ impl DatabaseProvider for SqliteDatabase {
         self.inner.get_a2a_client(client_id).await
     }
 
-    async fn get_a2a_client_by_api_key_id(
-        &self,
-        api_key_id: &str,
-    ) -> Result<Option<A2AClient>> {
+    async fn get_a2a_client_by_api_key_id(&self, api_key_id: &str) -> Result<Option<A2AClient>> {
         self.inner.get_a2a_client_by_api_key_id(api_key_id).await
     }
 
