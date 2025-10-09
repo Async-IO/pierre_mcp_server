@@ -20,8 +20,6 @@ export RUST_LOG="info"
 # Database Configuration
 export DATABASE_URL="sqlite:./data/users.db"
 # For PostgreSQL: export DATABASE_URL="postgresql://user:pass@localhost/pierre_db"
-export ENCRYPTION_KEY_PATH="./data/encryption.key"
-export JWT_SECRET_PATH="./data/jwt.secret"
 export JWT_EXPIRY_HOURS="24"
 
 # PostgreSQL Connection Pool Configuration (when using PostgreSQL)
@@ -49,28 +47,11 @@ export BACKUP_DIRECTORY="./backups"
 export MAX_ACTIVITIES_FETCH="100"
 export DEFAULT_ACTIVITIES_LIMIT="20"
 
-# Development settings
-export CARGO_TERM_COLOR="always"
-
 # ============================================================================
 # FITNESS CONFIGURATION - Environment-Only (Cloud-Native Approach)
 # ============================================================================
 # All fitness algorithm parameters are now configured via environment variables
 # for easy cloud deployment. No TOML files - single source of truth.
-
-# Sport Type Mappings (optional - override default mappings)
-export SPORT_TYPE_RUN="run"
-export SPORT_TYPE_RIDE="bike_ride"
-export SPORT_TYPE_SWIM="swim"
-export SPORT_TYPE_WALK="walk"
-export SPORT_TYPE_HIKE="hike"
-export SPORT_TYPE_VIRTUALRIDE="virtual_ride"
-export SPORT_TYPE_VIRTUALRUN="virtual_run"
-export SPORT_TYPE_WORKOUT="workout"
-export SPORT_TYPE_YOGA="yoga"
-export SPORT_TYPE_EBIKERIDE="ebike_ride"
-export SPORT_TYPE_MOUNTAINBIKERIDE="mountain_bike"
-export SPORT_TYPE_GRAVELRIDE="gravel_ride"
 
 # Fitness Effort Thresholds (1-10 scale for workout intensity classification)
 export FITNESS_EFFORT_LIGHT_MAX="3.0"

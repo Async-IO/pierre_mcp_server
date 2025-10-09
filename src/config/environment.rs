@@ -221,8 +221,6 @@ pub struct ServerConfig {
 pub struct DatabaseConfig {
     /// Database URL (`SQLite` path or `PostgreSQL` connection string)
     pub url: DatabaseUrl,
-    /// Path to encryption key file
-    pub encryption_key_path: PathBuf,
     /// Enable database migrations on startup
     pub auto_migrate: bool,
     /// Database backup configuration
@@ -243,8 +241,6 @@ pub struct BackupConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AuthConfig {
-    /// JWT secret key path
-    pub jwt_secret_path: PathBuf,
     /// JWT expiry time in hours
     pub jwt_expiry_hours: u64,
     /// Enable JWT refresh tokens
@@ -579,7 +575,6 @@ impl ServerConfig {
         Ok(DatabaseConfig {
             url: DatabaseUrl::parse_url(&env_config::database_url())
                 .unwrap_or_else(|_| DatabaseUrl::default()),
-            encryption_key_path: PathBuf::from(env_config::encryption_key_path()),
             auto_migrate: env_var_or("AUTO_MIGRATE", "true")
                 .parse()
                 .context("Invalid AUTO_MIGRATE value")?,
@@ -620,7 +615,6 @@ impl ServerConfig {
     /// Returns an error if auth environment variables are invalid
     fn load_auth_config() -> Result<AuthConfig> {
         Ok(AuthConfig {
-            jwt_secret_path: PathBuf::from(env_config::jwt_secret_path()),
             jwt_expiry_hours: u64::try_from(env_config::jwt_expiry_hours().max(0)).unwrap_or(24),
             enable_refresh_tokens: env_var_or("ENABLE_REFRESH_TOKENS", "false")
                 .parse()

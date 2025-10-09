@@ -72,7 +72,6 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
         log_level: LogLevel::Info,
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
-            encryption_key_path: PathBuf::from("test.key"),
             auto_migrate: true,
             backup: BackupConfig {
                 enabled: false,
@@ -82,7 +81,6 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
             },
         },
         auth: AuthConfig {
-            jwt_secret_path: PathBuf::from("test.secret"),
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
         },
@@ -382,7 +380,6 @@ async fn test_set_goal_tool() -> Result<()> {
         log_level: LogLevel::Info,
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
-            encryption_key_path: PathBuf::from("test.key"),
             auto_migrate: true,
             backup: BackupConfig {
                 enabled: false,
@@ -392,7 +389,6 @@ async fn test_set_goal_tool() -> Result<()> {
             },
         },
         auth: AuthConfig {
-            jwt_secret_path: PathBuf::from("test.secret"),
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
         },
@@ -968,7 +964,6 @@ async fn test_disconnect_provider_tool() -> Result<()> {
         log_level: LogLevel::Info,
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
-            encryption_key_path: PathBuf::from("test.key"),
             auto_migrate: true,
             backup: BackupConfig {
                 enabled: false,
@@ -978,7 +973,6 @@ async fn test_disconnect_provider_tool() -> Result<()> {
             },
         },
         auth: AuthConfig {
-            jwt_secret_path: PathBuf::from("test.secret"),
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
         },

@@ -140,18 +140,6 @@ pub mod env_config {
         env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string())
     }
 
-    /// Get encryption key path from environment or default
-    #[must_use]
-    pub fn encryption_key_path() -> String {
-        env::var("ENCRYPTION_KEY_PATH").unwrap_or_else(|_| "./encryption.key".to_string())
-    }
-
-    /// Get JWT secret path from environment or default
-    #[must_use]
-    pub fn jwt_secret_path() -> String {
-        env::var("JWT_SECRET_PATH").unwrap_or_else(|_| "./jwt.secret".to_string())
-    }
-
     /// Get JWT expiry hours from environment or default
     #[must_use]
     pub fn jwt_expiry_hours() -> i64 {

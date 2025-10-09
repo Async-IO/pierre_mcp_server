@@ -35,7 +35,6 @@ async fn create_test_auth_routes() -> Result<AuthRoutes> {
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
-            encryption_key_path: temp_dir.path().join("encryption_key"),
             auto_migrate: true,
             backup: pierre_mcp_server::config::environment::BackupConfig {
                 enabled: false,
@@ -45,7 +44,6 @@ async fn create_test_auth_routes() -> Result<AuthRoutes> {
             },
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
-            jwt_secret_path: temp_dir.path().join("jwt_secret"),
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
         },
@@ -201,7 +199,6 @@ async fn create_test_oauth_routes() -> Result<(OAuthRoutes, Uuid, Arc<Database>)
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
-            encryption_key_path: temp_dir.path().join("encryption_key"),
             auto_migrate: true,
             backup: pierre_mcp_server::config::environment::BackupConfig {
                 enabled: false,
@@ -211,7 +208,6 @@ async fn create_test_oauth_routes() -> Result<(OAuthRoutes, Uuid, Arc<Database>)
             },
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
-            jwt_secret_path: temp_dir.path().join("jwt_secret"),
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
         },
@@ -421,7 +417,6 @@ async fn test_user_login_success() -> Result<()> {
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
-            encryption_key_path: temp_dir.path().join("encryption_key"),
             auto_migrate: true,
             backup: pierre_mcp_server::config::environment::BackupConfig {
                 enabled: false,
@@ -431,7 +426,6 @@ async fn test_user_login_success() -> Result<()> {
             },
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
-            jwt_secret_path: temp_dir.path().join("jwt_secret"),
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
         },
@@ -639,7 +633,6 @@ async fn test_token_refresh_success() -> Result<()> {
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
-            encryption_key_path: temp_dir.path().join("encryption_key"),
             auto_migrate: true,
             backup: pierre_mcp_server::config::environment::BackupConfig {
                 enabled: false,
@@ -649,7 +642,6 @@ async fn test_token_refresh_success() -> Result<()> {
             },
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
-            jwt_secret_path: temp_dir.path().join("jwt_secret"),
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
         },
@@ -802,7 +794,6 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
-            encryption_key_path: temp_dir.path().join("encryption_key"),
             auto_migrate: true,
             backup: pierre_mcp_server::config::environment::BackupConfig {
                 enabled: false,
@@ -812,7 +803,6 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
             },
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
-            jwt_secret_path: temp_dir.path().join("jwt_secret"),
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
         },
@@ -1201,7 +1191,6 @@ async fn test_complete_auth_flow() -> Result<()> {
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
-            encryption_key_path: temp_dir.path().join("encryption_key"),
             auto_migrate: true,
             backup: pierre_mcp_server::config::environment::BackupConfig {
                 enabled: false,
@@ -1211,7 +1200,6 @@ async fn test_complete_auth_flow() -> Result<()> {
             },
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
-            jwt_secret_path: temp_dir.path().join("jwt_secret"),
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
         },
@@ -1436,7 +1424,6 @@ async fn test_concurrent_logins() -> Result<()> {
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
-            encryption_key_path: temp_dir.path().join("encryption_key"),
             auto_migrate: true,
             backup: pierre_mcp_server::config::environment::BackupConfig {
                 enabled: false,
@@ -1446,7 +1433,6 @@ async fn test_concurrent_logins() -> Result<()> {
             },
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
-            jwt_secret_path: temp_dir.path().join("jwt_secret"),
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
         },

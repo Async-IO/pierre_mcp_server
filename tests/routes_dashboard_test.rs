@@ -192,7 +192,6 @@ impl DashboardTestSetup {
             log_level: pierre_mcp_server::config::environment::LogLevel::Info,
             database: pierre_mcp_server::config::environment::DatabaseConfig {
                 url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
-                encryption_key_path: temp_dir.path().join("encryption_key"),
                 auto_migrate: true,
                 backup: pierre_mcp_server::config::environment::BackupConfig {
                     enabled: false,
@@ -202,7 +201,6 @@ impl DashboardTestSetup {
                 },
             },
             auth: pierre_mcp_server::config::environment::AuthConfig {
-                jwt_secret_path: temp_dir.path().join("jwt_secret"),
                 jwt_expiry_hours: 24,
                 enable_refresh_tokens: false,
             },
@@ -531,7 +529,6 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
-            encryption_key_path: temp_dir.path().join("encryption_key"),
             auto_migrate: true,
             backup: pierre_mcp_server::config::environment::BackupConfig {
                 enabled: false,
@@ -541,7 +538,6 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
             },
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
-            jwt_secret_path: temp_dir.path().join("jwt_secret"),
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
         },

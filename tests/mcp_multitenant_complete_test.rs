@@ -42,18 +42,13 @@ fn find_available_port() -> u16 {
 }
 
 /// Test configuration for multi-tenant MCP server
-fn create_test_config(
-    jwt_secret_path: &std::path::Path,
-    encryption_key_path: &std::path::Path,
-    port: u16,
-) -> Arc<pierre_mcp_server::config::environment::ServerConfig> {
+fn create_test_config(port: u16) -> Arc<pierre_mcp_server::config::environment::ServerConfig> {
     Arc::new(pierre_mcp_server::config::environment::ServerConfig {
         http_port: port,
         oauth_callback_port: 35535,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
-            encryption_key_path: encryption_key_path.to_path_buf(),
             auto_migrate: true,
             backup: pierre_mcp_server::config::environment::BackupConfig {
                 enabled: false,
@@ -63,7 +58,6 @@ fn create_test_config(
             },
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
-            jwt_secret_path: jwt_secret_path.to_path_buf(),
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
         },
@@ -401,16 +395,8 @@ async fn setup_test_environment() -> Result<(Database, AuthManager, u16, TempDir
         "Database JWT secret mismatch!"
     );
 
-    // Create temporary files for JWT secret and encryption key
+    // Create temporary directory for test
     let temp_dir = TempDir::new()?;
-    let jwt_secret_path = temp_dir.path().join("jwt.secret");
-    let encryption_key_path = temp_dir.path().join("encryption.key");
-
-    // Write JWT secret (using the actual value stored in database)
-    std::fs::write(&jwt_secret_path, &verified_secret)?;
-
-    // Write encryption key
-    std::fs::write(&encryption_key_path, &encryption_key)?;
 
     // Use unified port allocation strategy
     let port = find_available_port();
@@ -427,20 +413,18 @@ async fn test_complete_multitenant_workflow() -> Result<()> {
     std::env::set_var("FITBIT_CLIENT_ID", "test_fitbit_client_id");
     std::env::set_var("FITBIT_CLIENT_SECRET", "test_fitbit_client_secret");
 
-    let (database, auth_manager, server_port, temp_dir, stored_jwt_secret) =
+    let (database, auth_manager, server_port, _temp_dir, stored_jwt_secret) =
         setup_test_environment().await?;
 
     // Clone database for user approval operations
     let database_for_approval = database.clone();
 
     // Start the server
-    let jwt_secret_path = temp_dir.path().join("jwt.secret");
-    let encryption_key_path = temp_dir.path().join("encryption.key");
     let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         database,
         auth_manager,
         &stored_jwt_secret,
-        create_test_config(&jwt_secret_path, &encryption_key_path, server_port),
+        create_test_config(server_port),
     ));
     let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
@@ -595,17 +579,15 @@ async fn test_complete_multitenant_workflow() -> Result<()> {
 /// Test MCP server without authentication (should fail)
 #[tokio::test]
 async fn test_mcp_authentication_required() -> Result<()> {
-    let (database, auth_manager, server_port, temp_dir, stored_jwt_secret) =
+    let (database, auth_manager, server_port, _temp_dir, stored_jwt_secret) =
         setup_test_environment().await?;
 
     // Start the server
-    let jwt_secret_path = temp_dir.path().join("jwt.secret");
-    let encryption_key_path = temp_dir.path().join("encryption.key");
     let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         database,
         auth_manager,
         &stored_jwt_secret,
-        create_test_config(&jwt_secret_path, &encryption_key_path, server_port),
+        create_test_config(server_port),
     ));
     let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
@@ -671,17 +653,15 @@ async fn test_mcp_authentication_required() -> Result<()> {
 /// Test MCP server initialization without authentication (should work)
 #[tokio::test]
 async fn test_mcp_initialization_no_auth() -> Result<()> {
-    let (database, auth_manager, server_port, temp_dir, stored_jwt_secret) =
+    let (database, auth_manager, server_port, _temp_dir, stored_jwt_secret) =
         setup_test_environment().await?;
 
     // Start the server
-    let jwt_secret_path = temp_dir.path().join("jwt.secret");
-    let encryption_key_path = temp_dir.path().join("encryption.key");
     let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         database,
         auth_manager,
         &stored_jwt_secret,
-        create_test_config(&jwt_secret_path, &encryption_key_path, server_port),
+        create_test_config(server_port),
     ));
     let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
@@ -739,20 +719,18 @@ async fn test_mcp_initialization_no_auth() -> Result<()> {
 /// Test rate limiting and concurrent requests
 #[tokio::test]
 async fn test_mcp_concurrent_requests() -> Result<()> {
-    let (database, auth_manager, server_port, temp_dir, stored_jwt_secret) =
+    let (database, auth_manager, server_port, _temp_dir, stored_jwt_secret) =
         setup_test_environment().await?;
 
     // Clone database for user approval operations
     let database_for_approval = database.clone();
 
     // Start the server
-    let jwt_secret_path = temp_dir.path().join("jwt.secret");
-    let encryption_key_path = temp_dir.path().join("encryption.key");
     let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         database,
         auth_manager,
         &stored_jwt_secret,
-        create_test_config(&jwt_secret_path, &encryption_key_path, server_port),
+        create_test_config(server_port),
     ));
     let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
@@ -835,16 +813,10 @@ async fn test_mcp_concurrent_requests() -> Result<()> {
 /// Test multi-tenant server configuration creation
 #[tokio::test]
 async fn test_multitenant_server_config() -> Result<()> {
-    let (database, auth_manager, _port, temp_dir, stored_jwt_secret) =
+    let (database, auth_manager, _port, _temp_dir, stored_jwt_secret) =
         setup_test_environment().await?;
 
-    let jwt_secret_path = temp_dir.path().join("jwt.secret");
-    let encryption_key_path = temp_dir.path().join("encryption.key");
-    let config = create_test_config(
-        &jwt_secret_path,
-        &encryption_key_path,
-        find_available_port(),
-    );
+    let config = create_test_config(find_available_port());
 
     // Test server creation
     let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(

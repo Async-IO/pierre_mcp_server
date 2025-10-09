@@ -91,11 +91,6 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthRoutes, OAuthRou
         .store_tenant_oauth_credentials(&fitbit_credentials)
         .await?;
 
-    // Create test directories for config files
-    let temp_dir = tempfile::tempdir()?;
-    let jwt_secret_path = temp_dir.path().join("jwt_secret");
-    let encryption_key_path = temp_dir.path().join("encryption_key");
-
     // Create basic config with correct structure
     let config = Arc::new(pierre_mcp_server::config::environment::ServerConfig {
         http_port: 8081,
@@ -103,7 +98,6 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthRoutes, OAuthRou
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
-            encryption_key_path,
             auto_migrate: true,
             backup: pierre_mcp_server::config::environment::BackupConfig {
                 enabled: false,
@@ -113,7 +107,6 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthRoutes, OAuthRou
             },
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
-            jwt_secret_path,
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
         },

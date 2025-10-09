@@ -39,7 +39,6 @@ fn create_test_config() -> Arc<ServerConfig> {
         log_level: LogLevel::Info,
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
-            encryption_key_path: PathBuf::from("test.key"),
             auto_migrate: true,
             backup: BackupConfig {
                 enabled: false,
@@ -49,7 +48,6 @@ fn create_test_config() -> Arc<ServerConfig> {
             },
         },
         auth: AuthConfig {
-            jwt_secret_path: PathBuf::from("test.secret"),
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
         },

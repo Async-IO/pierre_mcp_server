@@ -89,7 +89,6 @@ fn test_config_validation() {
             url: DatabaseUrl::SQLite {
                 path: "./test.db".into(),
             },
-            encryption_key_path: "./test.key".into(),
             auto_migrate: true,
             backup: BackupConfig {
                 enabled: false,
@@ -99,7 +98,6 @@ fn test_config_validation() {
             },
         },
         auth: AuthConfig {
-            jwt_secret_path: "./test.secret".into(),
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
         },

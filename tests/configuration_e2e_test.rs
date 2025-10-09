@@ -75,7 +75,6 @@ fn create_test_config() -> pierre_mcp_server::config::environment::ServerConfig 
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::default(),
-            encryption_key_path: std::path::PathBuf::from("data/encryption.key"),
             auto_migrate: true,
             backup: pierre_mcp_server::config::environment::BackupConfig {
                 enabled: false,
@@ -85,7 +84,6 @@ fn create_test_config() -> pierre_mcp_server::config::environment::ServerConfig 
             },
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
-            jwt_secret_path: std::path::PathBuf::from("data/jwt.secret"),
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
         },

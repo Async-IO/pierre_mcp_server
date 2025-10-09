@@ -72,7 +72,6 @@ async fn test_register_user() {
         log_level: LogLevel::Info,
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
-            encryption_key_path: temp_dir.path().join("encryption_key"),
             auto_migrate: true,
             backup: BackupConfig {
                 enabled: false,
@@ -82,7 +81,6 @@ async fn test_register_user() {
             },
         },
         auth: AuthConfig {
-            jwt_secret_path: temp_dir.path().join("jwt_secret"),
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
         },
@@ -193,7 +191,6 @@ async fn test_register_duplicate_user() {
         log_level: LogLevel::Info,
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
-            encryption_key_path: temp_dir.path().join("encryption_key"),
             auto_migrate: true,
             backup: BackupConfig {
                 enabled: false,
@@ -203,7 +200,6 @@ async fn test_register_duplicate_user() {
             },
         },
         auth: AuthConfig {
-            jwt_secret_path: temp_dir.path().join("jwt_secret"),
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
         },

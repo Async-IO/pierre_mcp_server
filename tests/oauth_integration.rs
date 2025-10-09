@@ -43,7 +43,6 @@ async fn test_oauth_authorization_url_generation() {
         log_level: LogLevel::Info,
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
-            encryption_key_path: temp_dir.path().join("encryption_key"),
             auto_migrate: true,
             backup: BackupConfig {
                 enabled: false,
@@ -53,7 +52,6 @@ async fn test_oauth_authorization_url_generation() {
             },
         },
         auth: AuthConfig {
-            jwt_secret_path: temp_dir.path().join("jwt_secret"),
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
         },
@@ -259,7 +257,6 @@ async fn test_oauth_state_validation() {
         log_level: LogLevel::Info,
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
-            encryption_key_path: temp_dir.path().join("encryption_key"),
             auto_migrate: true,
             backup: BackupConfig {
                 enabled: false,
@@ -269,7 +266,6 @@ async fn test_oauth_state_validation() {
             },
         },
         auth: AuthConfig {
-            jwt_secret_path: temp_dir.path().join("jwt_secret"),
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
         },
@@ -382,7 +378,6 @@ async fn test_connection_status_no_providers() {
         log_level: LogLevel::Info,
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
-            encryption_key_path: temp_dir.path().join("encryption_key"),
             auto_migrate: true,
             backup: BackupConfig {
                 enabled: false,
@@ -392,7 +387,6 @@ async fn test_connection_status_no_providers() {
             },
         },
         auth: AuthConfig {
-            jwt_secret_path: temp_dir.path().join("jwt_secret"),
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
         },
@@ -528,7 +522,6 @@ async fn test_invalid_provider_error() {
         log_level: LogLevel::Info,
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
-            encryption_key_path: temp_dir.path().join("encryption_key"),
             auto_migrate: true,
             backup: BackupConfig {
                 enabled: false,
@@ -538,7 +531,6 @@ async fn test_invalid_provider_error() {
             },
         },
         auth: AuthConfig {
-            jwt_secret_path: temp_dir.path().join("jwt_secret"),
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
         },
@@ -645,7 +637,6 @@ async fn test_disconnect_provider() {
         log_level: LogLevel::Info,
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
-            encryption_key_path: temp_dir.path().join("encryption_key"),
             auto_migrate: true,
             backup: BackupConfig {
                 enabled: false,
@@ -655,7 +646,6 @@ async fn test_disconnect_provider() {
             },
         },
         auth: AuthConfig {
-            jwt_secret_path: temp_dir.path().join("jwt_secret"),
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
         },
@@ -856,7 +846,6 @@ async fn test_oauth_urls_contain_required_parameters() {
         log_level: LogLevel::Info,
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
-            encryption_key_path: temp_dir.path().join("encryption_key"),
             auto_migrate: true,
             backup: BackupConfig {
                 enabled: false,
@@ -866,7 +855,6 @@ async fn test_oauth_urls_contain_required_parameters() {
             },
         },
         auth: AuthConfig {
-            jwt_secret_path: temp_dir.path().join("jwt_secret"),
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
         },

@@ -180,7 +180,6 @@ fn create_test_server_config_without_oauth(
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
-            encryption_key_path: std::path::PathBuf::from("test.key"),
             auto_migrate: true,
             backup: pierre_mcp_server::config::environment::BackupConfig {
                 enabled: false,
@@ -190,7 +189,6 @@ fn create_test_server_config_without_oauth(
             },
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
-            jwt_secret_path: std::path::PathBuf::from("test.secret"),
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
         },
@@ -269,7 +267,6 @@ fn create_test_server_config(
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
-            encryption_key_path: std::path::PathBuf::from("test.key"),
             auto_migrate: true,
             backup: pierre_mcp_server::config::environment::BackupConfig {
                 enabled: false,
@@ -279,7 +276,6 @@ fn create_test_server_config(
             },
         },
         auth: pierre_mcp_server::config::environment::AuthConfig {
-            jwt_secret_path: std::path::PathBuf::from("test.secret"),
             jwt_expiry_hours: 24,
             enable_refresh_tokens: false,
         },
