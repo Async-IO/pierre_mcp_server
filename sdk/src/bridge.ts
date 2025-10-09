@@ -137,8 +137,6 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
   private loadStoredTokens(): void {
     try {
       const fs = require('fs');
-      this.log(`Checking for tokens at path: ${this.tokenStoragePath}`);
-      this.log(`File exists: ${fs.existsSync(this.tokenStoragePath)}`);
       if (fs.existsSync(this.tokenStoragePath)) {
         const data = fs.readFileSync(this.tokenStoragePath, 'utf8');
         this.allStoredTokens = JSON.parse(data);
@@ -388,10 +386,10 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
             token_type: storedTokens.token_type || 'Bearer',
             scope: storedTokens.scope
           };
-          this.log(`✅ Your session is valid (expires in ${validationResult.expires_in}s)`);
+          this.log(`Your session is valid (expires in ${validationResult.expires_in}s)`);
         } else if (validationResult.status === 'refreshed') {
           // Token was refreshed, save new tokens
-          this.log(`🔄 Your session was automatically renewed with a fresh token`);
+          this.log(`Your session was automatically renewed with a fresh token`);
 
           this.savedTokens = {
             access_token: validationResult.access_token!,
@@ -404,20 +402,20 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
           // Update persistent storage with new tokens
           this.allStoredTokens.pierre = { ...this.savedTokens, saved_at: Math.floor(Date.now() / 1000) };
           await this.saveStoredTokens();
-          this.log(`✅ Session renewed successfully - you can continue using Pierre tools`);
+          this.log(`Session renewed successfully - you can continue using Pierre tools`);
         } else {
           // Token is invalid, clear storage and require full re-auth
-          this.log(`⚠️  Your session has expired and cannot be renewed automatically`);
-          this.log(`ℹ️  Reason: ${validationResult.reason || 'Token validation failed'}`);
-          this.log(`🔐 Please use the "Connect to Pierre" tool to re-authenticate`);
+          this.log(`Your session has expired and cannot be renewed automatically`);
+          this.log(`Reason: ${validationResult.reason || 'Token validation failed'}`);
+          this.log(`Please use the "Connect to Pierre" tool to re-authenticate`);
           delete this.allStoredTokens.pierre;
           await this.saveStoredTokens();
           this.savedTokens = undefined;
         }
       } else {
         // Validation request failed, clear storage to be safe
-        this.log(`⚠️  Unable to validate your session with Pierre server`);
-        this.log(`🔐 Please use the "Connect to Pierre" tool to re-authenticate`);
+        this.log(`Unable to validate your session with Pierre server`);
+        this.log(`Please use the "Connect to Pierre" tool to re-authenticate`);
         delete this.allStoredTokens.pierre;
         await this.saveStoredTokens();
         this.savedTokens = undefined;
@@ -722,7 +720,7 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
       // Port already set above, just confirm it matches
       const actualPort = this.callbackServer.address().port;
       if (actualPort !== this.callbackPort) {
-        this.log(`⚠️ Warning: Server started on ${actualPort} but expected ${this.callbackPort}`);
+        this.log(`Warning: Server started on ${actualPort} but expected ${this.callbackPort}`);
       }
       this.log(`Callback server listening on http://localhost:${this.callbackPort}/oauth/callback`);
       // Set up the actual request handler
@@ -863,7 +861,7 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
         <div class="info"><strong>Provider:</strong> ${provider}</div>
         <div class="info"><strong>Status:</strong> Connected successfully</div>
         <div class="info"><strong>Status:</strong> <span class="code">Connected</span></div>
-        <p><strong>✅ Authentication complete!</strong></p>
+        <p><strong>Authentication complete!</strong></p>
         <p>Please return to your MCP client (Claude Desktop, ChatGPT, etc.) to continue.</p>
         <p><small>This window will close automatically in 3 seconds...</small></p>
         <script>
@@ -923,11 +921,11 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
     const clientInfo = await this.clientInformation();
 
     if (!existingTokens && !clientInfo) {
-      this.log('🆕 No cached credentials found - fresh start');
+      this.log('No cached credentials found - fresh start');
       return;
     }
 
-    this.log('🔍 Validating cached credentials with server...');
+    this.log('Validating cached credentials with server...');
 
     // Try to validate by calling the token validation endpoint
     try {
@@ -945,15 +943,15 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
       const result: any = await response.json();
 
       if (result.valid === false) {
-        this.log(`⚠️ Cached credentials are invalid: ${result.error || 'unknown error'}`);
-        this.log('🧹 Cleaning up invalid cached credentials...');
+        this.log(`Cached credentials are invalid: ${result.error || 'unknown error'}`);
+        this.log('Cleaning up invalid cached credentials...');
 
         // Clear invalid tokens
         if (existingTokens) {
           const fs = require('fs');
           if (fs.existsSync(this.tokenStoragePath)) {
             fs.unlinkSync(this.tokenStoragePath);
-            this.log('✅ Cleared invalid tokens');
+            this.log('Cleared invalid tokens');
           }
         }
 
@@ -962,7 +960,7 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
           const fs = require('fs');
           if (fs.existsSync(this.clientInfoPath)) {
             fs.unlinkSync(this.clientInfoPath);
-            this.log('✅ Cleared invalid client registration');
+            this.log('Cleared invalid client registration');
           }
         }
 
@@ -971,11 +969,11 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
         this.clientInfo = undefined;
         this.allStoredTokens = {};
       } else {
-        this.log('✅ Cached credentials are valid');
+        this.log('Cached credentials are valid');
       }
     } catch (error: any) {
-      this.log(`⚠️ Failed to validate credentials: ${error.message}`);
-      this.log('🔄 Will proceed with cached credentials and handle errors during connection');
+      this.log(`Failed to validate credentials: ${error.message}`);
+      this.log('Will proceed with cached credentials and handle errors during connection');
     }
   }
 
@@ -1010,9 +1008,9 @@ export class PierreClaudeBridge {
       // With proactive connection: if tokens exist, connect and cache tools
       await this.initializePierreConnection();
 
-      this.log('✅ Bridge started successfully');
+      this.log('Bridge started successfully');
     } catch (error) {
-      this.log('❌ Failed to start bridge:', error);
+      this.log('Failed to start bridge:', error);
       throw error;
     }
   }
@@ -1021,7 +1019,7 @@ export class PierreClaudeBridge {
     // Set up Pierre connection parameters
     this.mcpUrl = `${this.config.pierreServerUrl}/mcp`;
     this.oauthProvider = new PierreOAuthClientProvider(this.config.pierreServerUrl, this.config);
-    this.log(`📡 Pierre MCP URL configured: ${this.mcpUrl}`);
+    this.log(`Pierre MCP URL configured: ${this.mcpUrl}`);
 
     // Validate cached tokens and client registration at startup
     // This prevents wasting user time with invalid credentials
@@ -1031,7 +1029,7 @@ export class PierreClaudeBridge {
     // Server allows tools/list without authentication - only tool calls require auth
     // This ensures all tools are visible immediately in Claude Desktop (tools/list_changed doesn't work)
     try {
-      this.log('🔌 Connecting to Pierre proactively to cache all tools for Claude Desktop');
+      this.log('Connecting to Pierre proactively to cache all tools for Claude Desktop');
       await this.connectToPierre();
 
       // Cache tools immediately so they're ready for tools/list
@@ -1039,13 +1037,13 @@ export class PierreClaudeBridge {
         const client = this.pierreClient;
         const tools = await client.listTools();
         this.cachedTools = tools;
-        this.log(`✅ Cached ${tools.tools.length} tools from Pierre: ${JSON.stringify(tools.tools.map((t: any) => t.name))}`);
+        this.log(`Cached ${tools.tools.length} tools from Pierre: ${JSON.stringify(tools.tools.map((t: any) => t.name))}`);
       }
     } catch (error: any) {
       // If proactive connection fails, continue anyway
       // The bridge should still start - provide minimal toolset
-      this.log(`⚠️ Proactive connection failed: ${error.message}`);
-      this.log('📋 Bridge will start with connect_to_pierre tool only');
+      this.log(`Proactive connection failed: ${error.message}`);
+      this.log('Bridge will start with connect_to_pierre tool only');
       // Don't propagate error - bridge should start successfully
     }
   }
@@ -1055,7 +1053,7 @@ export class PierreClaudeBridge {
       return; // Already connected
     }
 
-    this.log('🔌 Connecting to Pierre MCP Server...');
+    this.log('Connecting to Pierre MCP Server...');
     await this.connectToPierre();
   }
 
@@ -1063,22 +1061,22 @@ export class PierreClaudeBridge {
   private mcpUrl: string = '';
 
   private async connectToPierre(): Promise<void> {
-    this.log('🔌 Connecting to Pierre MCP Server...');
+    this.log('Connecting to Pierre MCP Server...');
 
     if (!this.oauthProvider) {
       throw new Error('OAuth provider not initialized - call initializePierreConnection() first');
     }
 
-    this.log(`📡 Target URL: ${this.mcpUrl}`);
+    this.log(`Target URL: ${this.mcpUrl}`);
 
     // Always attempt connection to discover tools (initialize and tools/list don't require auth)
     // If tokens exist, the connection will be fully authenticated
     // If no tokens, we can still discover tools but tool calls will require authentication via connect_to_pierre
     const existingTokens = await this.oauthProvider.tokens();
     if (existingTokens) {
-      this.log('🎫 Found existing tokens - connecting with authentication');
+      this.log('Found existing tokens - connecting with authentication');
     } else {
-      this.log('📋 No tokens found - connecting without authentication to discover tools');
+      this.log('No tokens found - connecting without authentication to discover tools');
     }
 
     await this.attemptConnection();
@@ -1124,23 +1122,23 @@ export class PierreClaudeBridge {
         // Check if we have authentication tokens
         const tokens = await this.oauthProvider.tokens();
         if (tokens) {
-          this.log('✅ Connected to Pierre MCP Server (authenticated)');
+          this.log('Connected to Pierre MCP Server (authenticated)');
         } else {
-          this.log('✅ Connected to Pierre MCP Server (unauthenticated - tool discovery only)');
-          this.log('ℹ️  Use "Connect to Pierre" tool to authenticate and access your fitness data');
+          this.log('Connected to Pierre MCP Server (unauthenticated - tool discovery only)');
+          this.log('Use "Connect to Pierre" tool to authenticate and access your fitness data');
         }
-        this.log(`✅ pierreClient is now set: ${!!this.pierreClient}`);
+        this.log(`pierreClient is now set: ${!!this.pierreClient}`);
       } catch (error: any) {
         if (error.message === 'Unauthorized' && retryCount < maxRetries - 1) {
           retryCount++;
-          this.log(`🔄 Token expired or invalid, retrying... (attempt ${retryCount}/${maxRetries})`);
+          this.log(`Token expired or invalid, retrying... (attempt ${retryCount}/${maxRetries})`);
 
           // Clear invalid tokens
           await this.oauthProvider.invalidateCredentials('tokens');
 
           await new Promise(resolve => setTimeout(resolve, 1000));
         } else {
-          this.log(`❌ Failed to connect after ${retryCount + 1} attempts: ${error.message}`);
+          this.log(`Failed to connect after ${retryCount + 1} attempts: ${error.message}`);
           throw error;
         }
       }
@@ -1156,13 +1154,13 @@ export class PierreClaudeBridge {
       throw new Error('OAuth provider not initialized');
     }
 
-    this.log('🚀 Initiating OAuth connection to Pierre MCP Server');
+    this.log('Initiating OAuth connection to Pierre MCP Server');
 
     // Check if we already have tokens
     const existingTokens = await this.oauthProvider.tokens();
 
     if (!existingTokens) {
-      this.log('🔐 No tokens found - starting OAuth 2.0 authorization flow');
+      this.log('No tokens found - starting OAuth 2.0 authorization flow');
 
       // Manually trigger OAuth flow by building authorization URL and redirecting
       try {
@@ -1173,7 +1171,7 @@ export class PierreClaudeBridge {
         const clientMetadata = this.oauthProvider['clientMetadata'];
 
         if (!clientInfo) {
-          this.log('📝 No client info found - performing dynamic client registration');
+          this.log('No client info found - performing dynamic client registration');
 
           // Generate new client credentials
           const crypto = require('crypto');
@@ -1202,7 +1200,7 @@ export class PierreClaudeBridge {
             throw new Error('Client registration failed - no client info after registration');
           }
 
-          this.log(`✅ Dynamic client registration complete: ${clientInfo.client_id}`);
+          this.log(`Dynamic client registration complete: ${clientInfo.client_id}`);
         }
 
         // Step 2: Get redirect URI
@@ -1231,15 +1229,15 @@ export class PierreClaudeBridge {
         // Step 6: Connect after OAuth completes
         await this.attemptConnection();
       } catch (error) {
-        this.log(`❌ Failed to start OAuth flow: ${error}`);
+        this.log(`Failed to start OAuth flow: ${error}`);
         throw error;
       }
     } else {
-      this.log('✅ Tokens already exist - connecting with existing authentication');
+      this.log('Tokens already exist - connecting with existing authentication');
       await this.attemptConnection();
     }
 
-    this.log(`✅ After attemptConnection, pierreClient is: ${!!this.pierreClient}`);
+    this.log(`After attemptConnection, pierreClient is: ${!!this.pierreClient}`);
   }
 
   getClientSideTokenStatus(): { pierre: boolean; providers: Record<string, boolean> } {
@@ -1251,7 +1249,7 @@ export class PierreClaudeBridge {
   }
 
   private async createClaudeServer(): Promise<void> {
-    this.log('🖥️ Creating Claude Desktop server...');
+    this.log('Creating Claude Desktop server...');
 
     // Create MCP server for Claude Desktop
     this.claudeServer = new Server(
@@ -1275,7 +1273,7 @@ export class PierreClaudeBridge {
     // Create stdio transport for Claude Desktop
     this.serverTransport = new StdioServerTransport();
 
-    this.log('✅ Claude Desktop server created');
+    this.log('Claude Desktop server created');
   }
 
   private setupRequestHandlers(): void {
@@ -1285,29 +1283,28 @@ export class PierreClaudeBridge {
 
     // Bridge tools/list requests
     this.claudeServer.setRequestHandler(ListToolsRequestSchema, async (request) => {
-      this.log('📋 Bridging tools/list request');
-      this.log(`📋 pierreClient exists: ${!!this.pierreClient}, cached tools: ${!!this.cachedTools}`);
+      this.log('Bridging tools/list request');
 
       try {
         // If we have cached tools, return them immediately (from proactive connection)
         if (this.cachedTools) {
-          this.log(`📤 Sending cached tools/list response: ${JSON.stringify(this.cachedTools.tools.map((t: any) => t.name))}`);
+          this.log(`Using cached tools from proactive connection (${this.cachedTools.tools.length} tools)`);
           return this.cachedTools;
         }
 
         if (this.pierreClient) {
           // If connected, forward the request through the pierreClient
           // The client already has OAuth authentication built into its transport
-          this.log('📋 Forwarding tools/list to Pierre via authenticated client');
+          this.log('Fetching tools from Pierre server via authenticated client');
           const client = this.pierreClient;
           const result = await client.listTools();
-          this.log(`📋 Received ${result.tools.length} tools from Pierre`);
+          this.log(`Received ${result.tools.length} tools from Pierre`);
           // Cache the result for next time
           this.cachedTools = result;
-          this.log(`📤 Sending tools/list response: ${JSON.stringify(result.tools.map((t: any) => t.name))}`);
           return result;
         } else {
           // If not connected, provide minimal tool list with connect_to_pierre
+          this.log('Not connected to Pierre - offering connect_to_pierre tool only');
           return {
             tools: [{
               name: 'connect_to_pierre',
@@ -1321,8 +1318,8 @@ export class PierreClaudeBridge {
           };
         }
       } catch (error: any) {
-        this.log(`❌ Error getting tools list: ${error.message || error}`);
-        this.log('❌ Providing connect tool only');
+        this.log(`Error getting tools list: ${error.message || error}`);
+        this.log('Providing connect tool only');
 
         return {
           tools: [{
@@ -1340,7 +1337,7 @@ export class PierreClaudeBridge {
 
     // Bridge tools/call requests
     this.claudeServer.setRequestHandler(CallToolRequestSchema, async (request) => {
-      this.log('🔧 Bridging tool call:', request.params.name);
+      this.log('Bridging tool call:', request.params.name);
 
       // Handle special authentication tools
       if (request.params.name === 'connect_to_pierre') {
@@ -1365,17 +1362,17 @@ export class PierreClaudeBridge {
       }
 
       try {
-        this.log(`🔄 Forwarding tool call ${request.params.name} to Pierre server...`);
+        this.log(`Forwarding tool call ${request.params.name} to Pierre server...`);
         // Use callTool() instead of request() - Client.request() is for raw JSON-RPC,
         // but we want the higher-level callTool() method which handles the protocol correctly
         const result = await this.pierreClient!.callTool({
           name: request.params.name,
           arguments: request.params.arguments || {}
         });
-        this.log(`✅ Tool call ${request.params.name} result:`, JSON.stringify(result).substring(0, 200));
+        this.log(`Tool call ${request.params.name} result:`, JSON.stringify(result).substring(0, 200));
         return result;
       } catch (error) {
-        this.log(`❌ Tool call ${request.params.name} failed:`, error);
+        this.log(`Tool call ${request.params.name} failed:`, error);
 
         // Check if this is an authentication error using multiple detection methods
         const errorAny = error as any;
@@ -1403,7 +1400,7 @@ export class PierreClaudeBridge {
         const isAuthError = authFailedFlag || hasAuthErrorCode || hasHttpAuthStatus || messageIndicatesAuth;
 
         if (isAuthError && this.oauthProvider) {
-          this.log(`🔐 Authentication error detected - attempting automatic recovery`);
+          this.log(`Authentication error detected - attempting automatic recovery`);
 
           // Try to validate and refresh the token
           const tokens = await this.oauthProvider.tokens();
@@ -1414,7 +1411,7 @@ export class PierreClaudeBridge {
             );
 
             if (validationResult?.status === 'refreshed') {
-              this.log(`✅ Session automatically renewed - retrying your request`);
+              this.log(`Session automatically renewed - retrying your request`);
 
               // Retry the tool call with new tokens
               try {
@@ -1422,10 +1419,10 @@ export class PierreClaudeBridge {
                   name: request.params.name,
                   arguments: request.params.arguments || {}
                 });
-                this.log(`✅ Request succeeded after automatic session renewal`);
+                this.log(`Request succeeded after automatic session renewal`);
                 return retryResult;
               } catch (retryError) {
-                this.log(`❌ Request failed even after session renewal`);
+                this.log(`Request failed even after session renewal`);
                 return {
                   content: [{
                     type: 'text',
@@ -1435,8 +1432,8 @@ export class PierreClaudeBridge {
                 };
               }
             } else if (validationResult?.status === 'invalid') {
-              this.log(`⚠️  Automatic recovery failed - session cannot be renewed`);
-              this.log(`🔐 Full re-authentication required`);
+              this.log(`Automatic recovery failed - session cannot be renewed`);
+              this.log(`Full re-authentication required`);
 
               // Clear the invalid connection
               await this.oauthProvider.invalidateCredentials('all');
@@ -1466,7 +1463,7 @@ export class PierreClaudeBridge {
 
     // Bridge resources/list requests
     this.claudeServer.setRequestHandler(ListResourcesRequestSchema, async (request) => {
-      this.log('📚 Bridging resources/list request');
+      this.log('Bridging resources/list request');
 
       // Pierre server doesn't provide resources, so always return empty list
       return { resources: [] };
@@ -1474,7 +1471,7 @@ export class PierreClaudeBridge {
 
     // Bridge resources/read requests
     this.claudeServer.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-      this.log('📖 Bridging resource read:', request.params.uri);
+      this.log('Bridging resource read:', request.params.uri);
 
       if (!this.pierreClient) {
         return {
@@ -1490,7 +1487,7 @@ export class PierreClaudeBridge {
 
     // Bridge prompts/list requests
     this.claudeServer.setRequestHandler(ListPromptsRequestSchema, async (request) => {
-      this.log('💭 Bridging prompts/list request');
+      this.log('Bridging prompts/list request');
 
       // Pierre server doesn't provide prompts, so always return empty list
       return { prompts: [] };
@@ -1498,7 +1495,7 @@ export class PierreClaudeBridge {
 
     // Bridge prompts/get requests
     this.claudeServer.setRequestHandler(GetPromptRequestSchema, async (request) => {
-      this.log('💬 Bridging prompt get:', request.params.name);
+      this.log('Bridging prompt get:', request.params.name);
 
       if (!this.pierreClient) {
         return {
@@ -1518,19 +1515,19 @@ export class PierreClaudeBridge {
 
     // Handle ping requests
     this.claudeServer.setRequestHandler(PingRequestSchema, async () => {
-      this.log('🏓 Handling ping request');
+      this.log('Handling ping request');
       return {};
     });
 
     // Handle logging/setLevel requests
     this.claudeServer.setRequestHandler(SetLevelRequestSchema, async (request) => {
-      this.log(`📊 Setting log level to: ${request.params.level}`);
+      this.log(`Setting log level to: ${request.params.level}`);
       return {};
     });
 
     // Bridge completion requests
     this.claudeServer.setRequestHandler(CompleteRequestSchema, async (request) => {
-      this.log('✨ Bridging completion request');
+      this.log('Bridging completion request');
 
       if (!this.pierreClient) {
         return {
@@ -1545,12 +1542,12 @@ export class PierreClaudeBridge {
       return await this.pierreClient.request(request, CompleteRequestSchema);
     });
 
-    this.log('🌉 Request handlers configured');
+    this.log('Request handlers configured');
   }
 
   private async handleConnectToPierre(request: any): Promise<any> {
     try {
-      this.log('🔐 Handling connect_to_pierre tool call - initiating OAuth flow');
+      this.log('Handling connect_to_pierre tool call - initiating OAuth flow');
 
       if (!this.oauthProvider) {
         return {
@@ -1584,9 +1581,9 @@ export class PierreClaudeBridge {
           const client = this.pierreClient as Client;
           const tools = await client.listTools();
           this.cachedTools = tools;
-          this.log(`✅ Cached ${tools.tools.length} tools after connect_to_pierre: ${JSON.stringify(tools.tools.map((t: any) => t.name))}`);
+          this.log(`Cached ${tools.tools.length} tools after connect_to_pierre: ${JSON.stringify(tools.tools.map((t: any) => t.name))}`);
         } catch (toolError: any) {
-          this.log(`⚠️ Failed to cache tools: ${toolError.message}`);
+          this.log(`Failed to cache tools: ${toolError.message}`);
         }
       }
 
@@ -1597,16 +1594,16 @@ export class PierreClaudeBridge {
             method: 'notifications/tools/list_changed',
             params: {}
           });
-          this.log('📢 Sent tools/list_changed notification to Claude Desktop');
+          this.log('Sent tools/list_changed notification to Claude Desktop');
         } catch (error: any) {
-          this.log('⚠️ Failed to send tools/list_changed notification:', error.message);
+          this.log('Failed to send tools/list_changed notification:', error.message);
         }
       }
 
       return {
         content: [{
           type: 'text',
-          text: 'Successfully connected to Pierre Fitness Server! 🎉\n\n' +
+          text: 'Successfully connected to Pierre Fitness Server!\n\n' +
                 '**Next step:** Connect to a fitness provider to access your activity data.\n\n' +
                 'Available providers:\n' +
                 '- **Strava** - Connect your Strava account to access activities, stats, and athlete profile\n' +
@@ -1617,7 +1614,7 @@ export class PierreClaudeBridge {
       };
 
     } catch (error: any) {
-      this.log('❌ Failed to connect to Pierre:', error.message);
+      this.log('Failed to connect to Pierre:', error.message);
 
       return {
         content: [{
@@ -1631,7 +1628,7 @@ export class PierreClaudeBridge {
 
   private async handleConnectProvider(request: any): Promise<any> {
     try {
-      this.log('🔄 Handling unified connect_provider tool call');
+      this.log('Handling unified connect_provider tool call');
 
       if (!this.oauthProvider) {
         return {
@@ -1645,16 +1642,16 @@ export class PierreClaudeBridge {
 
       // Extract provider from request parameters
       const provider = request.params.arguments?.provider || 'strava';
-      this.log(`🔄 Unified flow for provider: ${provider}`);
+      this.log(`Unified flow for provider: ${provider}`);
 
       // Step 1: Ensure Pierre authentication is complete
       if (!this.pierreClient) {
-        this.log('🔐 Pierre not connected - initiating Pierre authentication first');
+        this.log('Pierre not connected - initiating Pierre authentication first');
         try {
           await this.initiateConnection();
-          this.log('✅ Pierre authentication completed');
+          this.log('Pierre authentication completed');
         } catch (error: any) {
-          this.log(`❌ Pierre authentication failed: ${error.message}`);
+          this.log(`Pierre authentication failed: ${error.message}`);
           return {
             content: [{
               type: 'text',
@@ -1664,11 +1661,11 @@ export class PierreClaudeBridge {
           };
         }
       } else {
-        this.log('✅ Pierre already authenticated');
+        this.log('Pierre already authenticated');
       }
 
       // Step 2: Check if provider is already connected
-      this.log(`🔍 Checking if ${provider} is already connected`);
+      this.log(`Checking if ${provider} is already connected`);
       try {
         if (this.pierreClient) {
           const connectionStatus = await this.pierreClient.callTool({
@@ -1679,7 +1676,7 @@ export class PierreClaudeBridge {
           // Check if the provider is already connected
           // The server returns structuredContent with providers array containing connection status
           if (connectionStatus) {
-            this.log(`📊 Full connection status response: ${JSON.stringify(connectionStatus).substring(0, 500)}...`);
+            this.log(`Full connection status response: ${JSON.stringify(connectionStatus).substring(0, 500)}...`);
 
             // Access the structured content with provider connection status
             const structured = (connectionStatus as any).structuredContent;
@@ -1689,7 +1686,7 @@ export class PierreClaudeBridge {
               );
 
               if (providerInfo && providerInfo.connected === true) {
-                this.log(`✅ ${provider} is already connected - no OAuth needed`);
+                this.log(`${provider} is already connected - no OAuth needed`);
                 return {
                   content: [{
                     type: 'text',
@@ -1698,15 +1695,15 @@ export class PierreClaudeBridge {
                   isError: false
                 };
               } else {
-                this.log(`🔄 ${provider} connected status: ${providerInfo ? providerInfo.connected : 'not found'}`);
+                this.log(`${provider} connected status: ${providerInfo ? providerInfo.connected : 'not found'}`);
               }
             }
           }
         }
 
-        this.log(`🔄 ${provider} not connected - proceeding with OAuth flow`);
+        this.log(`${provider} not connected - proceeding with OAuth flow`);
       } catch (error: any) {
-        this.log(`⚠️ Could not check connection status: ${error.message} - proceeding with OAuth anyway`);
+        this.log(`Could not check connection status: ${error.message} - proceeding with OAuth anyway`);
       }
 
       // Step 3: Extract user_id from JWT token
@@ -1724,7 +1721,7 @@ export class PierreClaudeBridge {
         throw new Error('Could not extract user_id from JWT token');
       }
 
-      this.log(`🔄 Initiating ${provider} OAuth flow for user: ${userId}`);
+      this.log(`Initiating ${provider} OAuth flow for user: ${userId}`);
 
       try {
         // Correct OAuth URL format: /api/oauth/auth/{provider}/{user_id}
@@ -1733,18 +1730,18 @@ export class PierreClaudeBridge {
         // Open provider OAuth in browser with focus
         await this.openUrlInBrowserWithFocus(providerOAuthUrl);
 
-        this.log(`🌐 Opened ${provider} OAuth in browser: ${providerOAuthUrl}`);
+        this.log(`Opened ${provider} OAuth in browser: ${providerOAuthUrl}`);
 
         return {
           content: [{
             type: 'text',
-            text: `🎉 Unified authentication flow completed!\n\n✅ Pierre: Connected\n🔄 ${provider.toUpperCase()}: Opening in browser...\n\nPlease complete the ${provider.toUpperCase()} authentication in your browser. Once done, you'll have full access to your fitness data!`
+            text: `Unified authentication flow completed!\n\nPierre: Connected\n${provider.toUpperCase()}: Opening in browser...\n\nPlease complete the ${provider.toUpperCase()} authentication in your browser. Once done, you'll have full access to your fitness data!`
           }],
           isError: false
         };
 
       } catch (error: any) {
-        this.log(`❌ Failed to open ${provider} OAuth: ${error.message}`);
+        this.log(`Failed to open ${provider} OAuth: ${error.message}`);
         return {
           content: [{
             type: 'text',
@@ -1755,7 +1752,7 @@ export class PierreClaudeBridge {
       }
 
     } catch (error: any) {
-      this.log('❌ Unified connect_provider failed:', error.message);
+      this.log('Unified connect_provider failed:', error.message);
 
       return {
         content: [{
@@ -1775,7 +1772,7 @@ export class PierreClaudeBridge {
       // macOS: Open URL then explicitly activate browser after a brief delay
       exec(`open "${url}"`, (error: Error | null) => {
         if (error) {
-          this.log(`⚠️ Failed to open browser: ${error.message}`);
+          this.log(`Failed to open browser: ${error.message}`);
           return;
         }
 
@@ -1783,7 +1780,7 @@ export class PierreClaudeBridge {
         setTimeout(() => {
           exec(`osascript -e 'tell application "Google Chrome" to activate' 2>/dev/null || osascript -e 'tell application "Safari" to activate' 2>/dev/null || osascript -e 'tell application "Firefox" to activate' 2>/dev/null || osascript -e 'tell application "Brave Browser" to activate' 2>/dev/null`, (activateError) => {
             if (activateError) {
-              this.log('⚠️ Could not activate browser (non-fatal)');
+              this.log('Could not activate browser (non-fatal)');
             }
           });
         }, 500);
@@ -1792,14 +1789,14 @@ export class PierreClaudeBridge {
       // Windows: start command brings window to front by default
       exec(`start "" "${url}"`, (error: Error | null) => {
         if (error) {
-          this.log(`⚠️ Failed to open browser: ${error.message}`);
+          this.log(`Failed to open browser: ${error.message}`);
         }
       });
     } else {
       // Linux: xdg-open
       exec(`xdg-open "${url}"`, (error: Error | null) => {
         if (error) {
-          this.log(`⚠️ Failed to open browser: ${error.message}`);
+          this.log(`Failed to open browser: ${error.message}`);
         }
       });
     }
@@ -1867,12 +1864,17 @@ export class PierreClaudeBridge {
     // The Server.connect() sets up its own onmessage handler, so we need to wrap it
     const mcpServerOnMessage = this.serverTransport.onmessage;
     this.serverTransport.onmessage = (message: any) => {
-      // Debug log to understand message format
-      this.log(`📨 Received message type: ${typeof message}, isArray: ${Array.isArray(message)}`);
+      // Log message details for debugging
+      const messageMethod = message?.method || 'unknown';
+      const messageId = message?.id !== undefined ? `id: ${message.id}` : 'notification';
+      const messagePreview = Array.isArray(message)
+        ? `batch[${message.length}]`
+        : messageMethod;
+      this.log(`Received MCP message: ${messagePreview} (${messageId})`);
 
       // Handle server/info requests
       if (message.method === 'server/info' && message.id !== undefined) {
-        this.log(`📊 Handling server/info request with ID: ${message.id}`);
+        this.log(`Handling server/info request with ID: ${message.id}`);
         const response = {
           jsonrpc: '2.0' as const,
           id: message.id,
@@ -1890,7 +1892,7 @@ export class PierreClaudeBridge {
           }
         };
         this.serverTransport!.send(response).catch((err: any) => {
-          this.log(`❌ Failed to send server/info response: ${err.message}`);
+          this.log(`Failed to send server/info response: ${err.message}`);
         });
         return;
       }
@@ -1898,8 +1900,8 @@ export class PierreClaudeBridge {
       // Handle JSON-RPC batch requests (should be rejected in 2025-06-18)
       // Batch requests come as arrays at the JSON level, not after parsing
       if (Array.isArray(message)) {
-        this.log(`🚫 Rejecting JSON-RPC batch request (${message.length} requests, not supported in 2025-06-18)`);
-        this.log(`📦 Batch request IDs: ${message.map((r: any) => r.id).join(', ')}`);
+        this.log(`Rejecting JSON-RPC batch request (${message.length} requests, not supported in 2025-06-18)`);
+        this.log(`Batch request IDs: ${message.map((r: any) => r.id).join(', ')}`);
 
         // For batch requests, the validator expects a JSON array response on a SINGLE line
         // Each request in the batch gets an individual error response
@@ -1912,23 +1914,23 @@ export class PierreClaudeBridge {
           }
         }));
 
-        this.log(`📤 Sending batch response array with ${responses.length} responses`);
-        this.log(`📤 Response structure: ${JSON.stringify(responses).substring(0, 200)}...`);
+        this.log(`Sending batch response array with ${responses.length} responses`);
+        this.log(`Response structure: ${JSON.stringify(responses).substring(0, 200)}...`);
 
         // The MCP SDK's send() method serializes objects/arrays and adds newline
         // For batch responses, we need to send the array itself, not individual items
         // Cast to any to bypass TypeScript type checking for the array
         this.serverTransport!.send(responses as any).then(() => {
-          this.log(`✅ Batch response sent successfully`);
+          this.log(`Batch response sent successfully`);
         }).catch((err: any) => {
-          this.log(`❌ Failed to send batch rejection response: ${err.message}`);
+          this.log(`Failed to send batch rejection response: ${err.message}`);
         });
         return;
       }
 
       // Handle client/log notifications gracefully
       if (message.method === 'client/log' && message.id === undefined) {
-        this.log(`📝 Client log [${message.params?.level}]: ${message.params?.message}`);
+        this.log(`Client log [${message.params?.level}]: ${message.params?.message}`);
         return;
       }
 
@@ -1939,7 +1941,7 @@ export class PierreClaudeBridge {
           mcpServerOnMessage(message);
         }
       } catch (error: any) {
-        this.log(`⚠️ Error handling message: ${error.message}`);
+        this.log(`Error handling message: ${error.message}`);
         // Send error response if message had an ID
         if (message.id !== undefined) {
           const errorResponse = {
@@ -1958,7 +1960,7 @@ export class PierreClaudeBridge {
     // Set up notification forwarding from Pierre to Claude
     this.setupNotificationForwarding();
 
-    this.log('🚀 Bridge is running - Claude Desktop can now access Pierre Fitness tools');
+    this.log('Bridge is running - Claude Desktop can now access Pierre Fitness tools');
   }
 
   private setupNotificationForwarding(): void {
@@ -1968,7 +1970,7 @@ export class PierreClaudeBridge {
 
     // Set up error handler for visibility
     this.pierreClient.onerror = (error) => {
-      this.log('📢 Pierre client error:', error);
+      this.log('Pierre client error:', error);
     };
 
     // Set up OAuth completion notification handler
@@ -1978,7 +1980,7 @@ export class PierreClaudeBridge {
       this.pierreClient.setNotificationHandler(
         OAuthCompletedNotificationSchema,
         async (notification) => {
-          this.log('🔔 Received OAuth completion notification from Pierre:', JSON.stringify(notification));
+          this.log('Received OAuth completion notification from Pierre:', JSON.stringify(notification));
 
           if (this.claudeServer) {
             try {
@@ -1990,23 +1992,23 @@ export class PierreClaudeBridge {
                   message: notification.params?.message || 'OAuth authentication completed successfully!'
                 }
               });
-              this.log('✅ Forwarded OAuth notification to Claude Desktop');
+              this.log('Forwarded OAuth notification to Claude Desktop');
             } catch (error: any) {
-              this.log('❌ Failed to forward OAuth notification to Claude:', error.message);
+              this.log('Failed to forward OAuth notification to Claude:', error.message);
             }
           }
         }
       );
-      this.log('📡 OAuth notification handler registered');
+      this.log('OAuth notification handler registered');
     } catch (error: any) {
-      this.log('⚠️ Failed to set up OAuth notification handler:', error.message);
+      this.log('Failed to set up OAuth notification handler:', error.message);
     }
 
-    this.log('📡 Notification forwarding configured');
+    this.log('Notification forwarding configured');
   }
 
   async stop(): Promise<void> {
-    this.log('🛑 Stopping bridge...');
+    this.log('Stopping bridge...');
 
     try {
       if (this.pierreClient) {
@@ -2019,9 +2021,9 @@ export class PierreClaudeBridge {
         this.claudeServer = null;
       }
 
-      this.log('✅ Bridge stopped');
+      this.log('Bridge stopped');
     } catch (error) {
-      this.log('❌ Error stopping bridge:', error);
+      this.log('Error stopping bridge:', error);
       throw error;
     }
   }
