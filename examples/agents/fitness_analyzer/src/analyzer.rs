@@ -1,5 +1,8 @@
 // ABOUTME: Fitness pattern detection and analysis logic
 // ABOUTME: Demonstrates autonomous analysis capabilities using A2A data
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use anyhow::Result;
 use chrono::{DateTime, Datelike, Duration, Utc};

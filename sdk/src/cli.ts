@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 
+// ABOUTME: Command-line interface for Pierre-Claude Bridge
+// ABOUTME: Parses arguments, configures bridge, and manages process lifecycle
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+
 /**
  * Pierre-Claude Bridge CLI
  *

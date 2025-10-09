@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 
+// ABOUTME: Integration test verifying full tools list exposure after OAuth
+// ABOUTME: Tests MCP protocol fixes for resources/list and prompts/list endpoint errors
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+
 /**
  * Test script to verify that the full tools list is properly exposed after OAuth connection
  * This specifically tests the MCP protocol fixes for resources/list and prompts/list errors

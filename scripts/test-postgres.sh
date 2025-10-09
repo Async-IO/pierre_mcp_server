@@ -1,4 +1,9 @@
 #!/bin/bash
+# ABOUTME: PostgreSQL database plugin integration test runner
+# ABOUTME: Starts PostgreSQL via Docker and runs database operation tests
+#
+# Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+# Copyright ©2025 Async-IO.org
 
 # Test PostgreSQL database plugin integration
 # This script starts PostgreSQL via Docker and runs tests against it

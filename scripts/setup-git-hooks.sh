@@ -1,6 +1,9 @@
 #!/bin/bash
 # ABOUTME: Script to install git hooks for code quality enforcement
 # ABOUTME: Sets up pre-commit hook to block AI-generated commit messages and validate code quality
+#
+# Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+# Copyright ©2025 Async-IO.org
 
 set -e
 

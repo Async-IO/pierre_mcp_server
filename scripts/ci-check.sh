@@ -1,4 +1,9 @@
 #!/bin/bash
+# ABOUTME: Continuous integration check script for CI/CD pipeline
+# ABOUTME: Runs formatting, linting, and test checks for both Rust and frontend code
+#
+# Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+# Copyright ©2025 Async-IO.org
 
 # Pierre MCP Server - CI Check Script
 # Simplified version for CI environments

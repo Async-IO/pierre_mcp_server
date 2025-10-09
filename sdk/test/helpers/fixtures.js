@@ -1,5 +1,8 @@
-// ABOUTME: Test fixtures and sample data for bridge tests
-// ABOUTME: Provides reusable test data for MCP protocol testing
+// ABOUTME: Test fixtures with sample MCP protocol messages and responses
+// ABOUTME: Reusable test data for validating bridge MCP protocol compliance
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 /**
  * Sample MCP protocol messages

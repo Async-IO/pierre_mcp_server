@@ -1,3 +1,9 @@
+// ABOUTME: Bidirectional MCP bridge connecting Claude Desktop (stdio) to Pierre Server (HTTP)
+// ABOUTME: Manages OAuth 2.0 flows, token persistence, and transparent MCP message translation
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+
 /**
  * Pierre-Claude Bridge
  *

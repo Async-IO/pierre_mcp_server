@@ -1,4 +1,9 @@
 #!/bin/bash
+# ABOUTME: Test script for business API key provisioning system
+# ABOUTME: Validates trial key generation, registration, and authentication workflow
+#
+# Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+# Copyright ©2025 Async-IO.org
 
 # Test script for business API key provisioning system
 

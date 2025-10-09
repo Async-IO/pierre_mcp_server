@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 
-// ABOUTME: Fully automated test for clean token expiry fix with proactive tool caching
-// ABOUTME: CRITICAL: Tests tools/list regression where Strava tools were missing on startup with valid tokens
+// ABOUTME: Automated test for token expiry handling with proactive tool caching
+// ABOUTME: Tests critical regression where tools disappeared on startup with valid cached tokens
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
 const { StdioClientTransport } = require('@modelcontextprotocol/sdk/client/stdio.js');

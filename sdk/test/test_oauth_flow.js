@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 
+// ABOUTME: Integration test for OAuth 2.0 authentication flow verification
+// ABOUTME: Tests token acquisition, storage, invalidation, and reload without Claude Desktop
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+
 /**
  * Test script to verify OAuth authentication flow without Claude Desktop
  * This simulates the exact sequence that Claude Desktop uses

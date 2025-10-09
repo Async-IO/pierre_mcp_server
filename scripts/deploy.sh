@@ -1,4 +1,10 @@
 #!/bin/bash
+# ABOUTME: Production deployment script with Docker Compose management
+# ABOUTME: Handles starting, stopping, and managing development/production environments
+#
+# Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+# Copyright ©2025 Async-IO.org
+
 # Pierre MCP Server - Deployment Script
 
 set -euo pipefail

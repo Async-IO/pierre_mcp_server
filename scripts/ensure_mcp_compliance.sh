@@ -1,4 +1,9 @@
 #!/bin/bash
+# ABOUTME: MCP protocol compliance validation script
+# ABOUTME: Tests pierre-claude-bridge against Model Context Protocol specification
+#
+# Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+# Copyright ©2025 Async-IO.org
 
 # Pierre MCP Compliance Validation Script
 # Tests the pierre-claude-bridge against the MCP (Model Context Protocol) specification

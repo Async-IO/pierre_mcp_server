@@ -1,7 +1,9 @@
 #!/bin/bash
-
 # ABOUTME: Complete end-to-end test script for user registration and approval workflow  
 # ABOUTME: Tests server-first admin setup, user registration, and admin approval process
+#
+# Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+# Copyright ©2025 Async-IO.org
 
 set -e
 

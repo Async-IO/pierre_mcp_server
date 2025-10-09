@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 
+// ABOUTME: SSE/Streamable HTTP transport test mimicking Claude Desktop behavior
+// ABOUTME: Tests real-time server-sent events and streaming HTTP transport layer
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+
 /**
  * Test script that mimics Claude Desktop's SSE/Streamable HTTP Transport interaction
  * This is the REAL transport that Claude Desktop uses (not stdio)

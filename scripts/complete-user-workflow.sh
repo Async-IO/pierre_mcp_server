@@ -1,6 +1,9 @@
 #!/bin/bash
 # ABOUTME: Complete user registration and approval workflow test script
 # ABOUTME: Implements all 5 steps from HOW_TO_REGISTER_A_USER.md with proper error handling
+#
+# Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+# Copyright ©2025 Async-IO.org
 
 set -e
 

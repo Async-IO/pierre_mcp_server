@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 
+// ABOUTME: Simple smoke test for basic MCP client functionality
+// ABOUTME: Quick validation test for development and debugging workflow
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+
 /**
  * Simple test script to run the Claude Desktop test
  */

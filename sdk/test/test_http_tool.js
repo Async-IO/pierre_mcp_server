@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 
+// ABOUTME: Direct HTTP tool invocation test using StreamableHTTPClientTransport
+// ABOUTME: Tests MCP tools/call endpoint with HTTP transport bypassing bridge
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+
 /**
  * Test HTTP Tool Call - Direct test of get_connection_status via HTTP transport
  *

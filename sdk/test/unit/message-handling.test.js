@@ -1,5 +1,8 @@
 // ABOUTME: Unit tests for message handling and validation
 // ABOUTME: Tests MCP message parsing, validation, and error handling
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 const { MCPMessages, MCPResponses } = require('../helpers/fixtures');
 

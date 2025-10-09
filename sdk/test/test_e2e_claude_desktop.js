@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 
+// ABOUTME: End-to-end test simulating complete Claude Desktop interaction flow
+// ABOUTME: Tests SSE/Streamable HTTP implementation with session management and tool execution
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+
 /**
  * Comprehensive E2E test that mimics Claude Desktop interaction
  * Tests our new SSE/Streamable HTTP implementation with session management

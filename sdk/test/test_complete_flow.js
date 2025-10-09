@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 
+// ABOUTME: Complete OAuth flow test replicating exact Claude Desktop behavior
+// ABOUTME: Tests initialization, authentication, tools refresh, and provider connection using MCP SDK
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+
 /**
  * Complete OAuth Flow Test - Mimics Claude Desktop exactly
  *

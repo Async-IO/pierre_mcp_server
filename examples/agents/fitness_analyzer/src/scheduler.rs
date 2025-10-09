@@ -1,5 +1,8 @@
 // ABOUTME: Autonomous scheduling and reporting system for fitness analysis
 // ABOUTME: Demonstrates continuous agent operation with configurable intervals
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};

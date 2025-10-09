@@ -1,4 +1,9 @@
 #!/bin/bash
+# ABOUTME: Comprehensive validation script enforcing all code quality standards
+# ABOUTME: Runs linters, tests, format checks, and security audits before commits
+#
+# Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+# Copyright ©2025 Async-IO.org
 
 # Pierre MCP Server - Comprehensive Validation Script
 # This script enforces all mandatory code quality standards and dev best practices

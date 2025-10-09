@@ -1,5 +1,8 @@
-// ABOUTME: Mock MCP client for testing stdio communication
-// ABOUTME: Simulates MCP Client behavior over stdio
+// ABOUTME: Mock MCP client for testing bridge stdio communication
+// ABOUTME: Simulates Claude Desktop's MCP Client behavior over stdin/stdout
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 const { spawn } = require('child_process');
 const { EventEmitter } = require('events');

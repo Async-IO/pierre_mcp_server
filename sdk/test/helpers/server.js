@@ -1,5 +1,8 @@
-// ABOUTME: Server lifecycle management for bridge tests
-// ABOUTME: Handles starting/stopping Pierre MCP server with health checks
+// ABOUTME: Server lifecycle management helper for integration tests
+// ABOUTME: Starts, monitors health, and cleanly shuts down Pierre MCP server instances
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 const { spawn } = require('child_process');
 const path = require('path');

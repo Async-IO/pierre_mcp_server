@@ -1,4 +1,9 @@
 #!/bin/bash
+# ABOUTME: Debugging helper for Linux Docker environment race conditions
+# ABOUTME: Runs multitenant workflow test in Docker to reproduce Linux-specific issues
+#
+# Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+# Copyright ©2025 Async-IO.org
 
 # Script to debug race condition in Linux Docker environment
 

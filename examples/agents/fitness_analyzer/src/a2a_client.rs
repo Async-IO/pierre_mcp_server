@@ -1,5 +1,8 @@
 // ABOUTME: A2A protocol client implementation for direct JSON-RPC communication
 // ABOUTME: Demonstrates raw A2A protocol usage without SDK abstractions
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use anyhow::{Context, Result};
 use reqwest::Client;

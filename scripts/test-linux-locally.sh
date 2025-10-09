@@ -1,4 +1,10 @@
 #!/bin/bash
+# ABOUTME: Local Linux environment test script using Docker
+# ABOUTME: Tests platform compatibility in Linux container for cross-platform validation
+#
+# Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+# Copyright ©2025 Async-IO.org
+
 # Test Linux-specific code locally using Docker
 
 set -e

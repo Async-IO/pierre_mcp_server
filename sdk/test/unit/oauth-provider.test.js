@@ -1,5 +1,8 @@
 // ABOUTME: Unit tests for OAuth provider functionality
 // ABOUTME: Tests OAuth client metadata generation and token management
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 describe('OAuth Client Metadata', () => {
   test('should generate valid client metadata', () => {

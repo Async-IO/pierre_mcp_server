@@ -1,6 +1,9 @@
 #!/bin/bash
 # ABOUTME: Installs git hooks from scripts/hooks/ to .git/hooks/
 # ABOUTME: Run this script once after cloning the repository to enable project git hooks
+#
+# Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+# Copyright ©2025 Async-IO.org
 
 set -e
 

@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 
+// ABOUTME: Test suite for token cleanup and expiry fix validation
+// ABOUTME: Automated testing of token lifecycle scenarios including expiry and refresh
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+
 /**
  * Test script for clean token expiry fix
  * Tests scenarios 1-6 with automated validation

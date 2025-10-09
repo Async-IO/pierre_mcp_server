@@ -1,5 +1,8 @@
-// ABOUTME: End-to-end tests simulating MCP Client integration
-// ABOUTME: Tests complete workflow: initialize, list tools, handle batch requests
+// ABOUTME: End-to-end Claude Desktop integration tests with full MCP workflow
+// ABOUTME: Tests initialization, tool listing, batch requests, and client-bridge communication
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 const { ensureServerRunning } = require('../helpers/server');
 const { MockMCPClient } = require('../helpers/mock-client');

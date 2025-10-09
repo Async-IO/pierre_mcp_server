@@ -1,5 +1,8 @@
-// ABOUTME: Integration tests for bridge-server connection
-// ABOUTME: Tests bridge connecting to Pierre MCP server and basic operations
+// ABOUTME: Integration tests for bridge connection establishment and validation
+// ABOUTME: Tests server connectivity, health checks, and MCP endpoint availability
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 const { ensureServerRunning } = require('../helpers/server');
 const { TestConfig } = require('../helpers/fixtures');

@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 
+// ABOUTME: Final comprehensive integration test for OAuth and MCP protocol
+// ABOUTME: Validates complete working flow and identifies remaining issues for resolution
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+
 /**
  * Final integration test - this demonstrates the complete working OAuth + MCP flow
  * This will be the basis for our formal test suite once everything passes

@@ -1,4 +1,9 @@
 #!/bin/bash
+# ABOUTME: Complete bridge test suite runner for unit, integration, and E2E tests
+# ABOUTME: Validates bridge functionality from CLI parsing to full MCP Client simulation
+#
+# Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+# Copyright ©2025 Async-IO.org
 
 # ABOUTME: Run complete bridge test suite (unit, integration, E2E)
 # ABOUTME: Validates bridge functionality from CLI parsing to full MCP Client simulation

@@ -1,4 +1,9 @@
 #!/bin/bash
+# ABOUTME: Validates SQLite in-memory database URL patterns in codebase
+# ABOUTME: Detects and fixes patterns that create physical files instead of in-memory databases
+#
+# Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+# Copyright ©2025 Async-IO.org
 
 # Script to find and fix problematic SQLite memory database patterns
 # These patterns create physical files instead of in-memory databases

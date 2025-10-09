@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 
+// ABOUTME: stdio MCP interaction test mimicking Claude Desktop communication
+// ABOUTME: Tests OAuth 2.0 flow through stdin/stdout as Claude Desktop would
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+
 /**
  * Test script that mimics Claude Desktop's stdio MCP interaction
  * This tests the OAuth 2.0 flow as if Claude Desktop were connecting

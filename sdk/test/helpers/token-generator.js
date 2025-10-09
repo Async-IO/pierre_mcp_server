@@ -1,5 +1,8 @@
-// ABOUTME: Test helper to generate JWT tokens programmatically for automated testing
-// ABOUTME: Bypasses browser OAuth flow by directly creating valid JWT tokens
+// ABOUTME: JWT token generator for automated testing without browser OAuth
+// ABOUTME: Creates valid test tokens with configurable claims and expiration
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 const { spawn } = require('child_process');
 const crypto = require('crypto');

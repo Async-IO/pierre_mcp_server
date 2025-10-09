@@ -1,6 +1,9 @@
 #!/bin/bash
 # ABOUTME: Clean up accumulated test database files from test_data directory
 # ABOUTME: Removes old test databases while preserving directory structure
+#
+# Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+# Copyright ©2025 Async-IO.org
 
 set -euo pipefail
 

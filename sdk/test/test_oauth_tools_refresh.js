@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 
+// ABOUTME: Integration test for OAuth token refresh and tools list updates
+// ABOUTME: Verifies tools availability changes from connect-only to full list after authentication
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+
 /**
  * Test OAuth authentication and tools refresh flow
  *

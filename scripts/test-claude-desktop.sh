@@ -1,7 +1,9 @@
 #!/bin/bash
-
 # ABOUTME: Automated Claude Desktop testing setup script
 # ABOUTME: Prepares server, tokens, and config for testing feature/automatic-oauth-reauth branch
+#
+# Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+# Copyright ©2025 Async-IO.org
 
 set -e
 
