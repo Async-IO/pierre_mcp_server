@@ -1,6 +1,9 @@
 // ABOUTME: MCP request processing and protocol handling for multi-tenant server
 // ABOUTME: Validates, routes, and executes MCP protocol requests with proper error handling
 //
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+//
 // NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
 // - Request/response ownership transfers across async boundaries
 // - Resource Arc sharing for concurrent request processing

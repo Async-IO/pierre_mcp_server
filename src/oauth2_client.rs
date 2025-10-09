@@ -1,10 +1,8 @@
 // ABOUTME: OAuth2 client implementation for fitness platform authentication
 // ABOUTME: Generic OAuth2 client supporting multiple fitness platform providers
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use crate::utils::http_client::oauth_client;
 use anyhow::{Context, Result};

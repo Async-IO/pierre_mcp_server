@@ -1,5 +1,8 @@
 // ABOUTME: Core plugin trait definitions and metadata structures
 // ABOUTME: Provides the foundational abstractions for all Pierre MCP Server plugins
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use super::{PluginEnvironment, PluginResult};
 use crate::protocols::universal::{UniversalRequest, UniversalResponse};

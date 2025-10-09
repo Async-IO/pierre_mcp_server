@@ -1,5 +1,8 @@
 // ABOUTME: MCP protocol constants including version, JSON-RPC, and server identification
 // ABOUTME: Provides environment-configurable protocol values with sensible defaults
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 //! Protocol constants for MCP and JSON-RPC
 

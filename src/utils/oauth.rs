@@ -1,5 +1,8 @@
 // ABOUTME: Generic OAuth utility functions to eliminate code duplication
 // ABOUTME: Provides common OAuth token exchange and refresh patterns for all providers
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use crate::oauth::{OAuthError, TokenData};
 use crate::utils::http_client::oauth_client;

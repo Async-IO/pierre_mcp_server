@@ -1,5 +1,8 @@
 // ABOUTME: End-to-end integration test for complete admin setup and user approval workflow
 // ABOUTME: Tests server-first admin creation, user registration, and approval process with database cleanup
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use anyhow::Result;
 use pierre_mcp_server::{

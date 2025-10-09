@@ -1,5 +1,8 @@
 // ABOUTME: Tenant-aware logging utilities for structured, contextual logging
 // ABOUTME: Provides logging macros and utilities that automatically include tenant and user context
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use tracing::Span;
 use uuid::Uuid;

@@ -1,5 +1,8 @@
 // ABOUTME: Comprehensive tests for database plugin implementations
 // ABOUTME: Tests SQLite and PostgreSQL database providers with full CRUD operations
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 //! Comprehensive tests for database plugins
 //!
 //! This test suite covers the database plugin implementations

@@ -1,5 +1,8 @@
 // ABOUTME: Tests for A2A (Agent-to-Agent) route handlers
 // ABOUTME: Tests A2A protocol routes and endpoint functionality
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 #![allow(
     clippy::uninlined_format_args,
     clippy::cast_possible_truncation,
@@ -147,11 +150,7 @@
     clippy::verbose_file_reads,
     clippy::zero_sized_map_values
 )]
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
+//
 
 //! Comprehensive integration tests for A2A routes
 //!

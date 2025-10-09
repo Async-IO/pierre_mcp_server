@@ -1,5 +1,8 @@
 // ABOUTME: Authentication context for dependency injection of auth-related services
 // ABOUTME: Contains auth manager, middleware, and JWT secret for authentication operations
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use crate::auth::AuthManager;
 use crate::middleware::McpAuthMiddleware;

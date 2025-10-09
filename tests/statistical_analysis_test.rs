@@ -1,3 +1,9 @@
+// ABOUTME: Unit tests for statistical analysis functionality
+// ABOUTME: Validates statistical analysis behavior, edge cases, and error handling
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+
 // Statistical analysis module tests
 
 #![allow(clippy::cast_possible_wrap)] // Test helper uses small indices

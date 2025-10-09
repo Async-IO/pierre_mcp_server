@@ -1,5 +1,8 @@
 // ABOUTME: Weather API diagnostic utility for troubleshooting external weather service integration
 // ABOUTME: Network connectivity and API configuration testing tool for weather services
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 use chrono::{Duration, Utc};
 use reqwest::Client;
 use serde_json::Value;

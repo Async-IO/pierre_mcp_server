@@ -1,5 +1,8 @@
 // ABOUTME: Tests for unified JSON-RPC 2.0 foundation module
 // ABOUTME: Validates request, response, error structures and serialization
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use pierre_mcp_server::jsonrpc::{JsonRpcRequest, JsonRpcResponse, JSONRPC_VERSION};
 use serde_json::Value;

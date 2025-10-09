@@ -1,5 +1,8 @@
 // ABOUTME: Clean universal executor that coordinates authentication, routing, and execution
 // ABOUTME: Replaces monolithic universal.rs with composable services and type-safe routing
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use super::auth_service::AuthService;
 use super::handlers::{

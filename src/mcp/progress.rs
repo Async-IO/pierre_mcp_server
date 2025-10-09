@@ -1,5 +1,8 @@
 // ABOUTME: Progress tracking utilities for MCP long-running operations
 // ABOUTME: Manages progress notifications, tracking tokens, and operation status reporting
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use crate::mcp::schema::ProgressNotification;
 use std::collections::HashMap;

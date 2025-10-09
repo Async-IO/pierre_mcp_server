@@ -1,5 +1,8 @@
 // ABOUTME: Final focused coverage tests to boost critical areas
 // ABOUTME: Simplified tests targeting actual API structure and uncovered code paths
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 //! Final focused coverage tests to boost critical areas
 //!
 //! Simplified and corrected tests targeting the actual API structure

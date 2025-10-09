@@ -1,5 +1,8 @@
 // ABOUTME: Focused dependency injection contexts replacing the ServerResources service locator
 // ABOUTME: Provides type-safe dependency injection with minimal coupling between components
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 //! Focused dependency injection contexts
 //!

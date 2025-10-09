@@ -1,5 +1,8 @@
 // ABOUTME: Integration tests for plugin registry functionality
 // ABOUTME: Tests plugin registration, filtering, and management operations
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use async_trait::async_trait;
 use pierre_mcp_server::plugins::{

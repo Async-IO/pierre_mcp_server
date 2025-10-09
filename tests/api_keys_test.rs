@@ -1,3 +1,9 @@
+// ABOUTME: Unit tests for api keys functionality
+// ABOUTME: Validates api keys behavior, edge cases, and error handling
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+
 use chrono::{Datelike, Duration, Timelike, Utc};
 use pierre_mcp_server::api_keys::{ApiKey, ApiKeyManager, ApiKeyTier, CreateApiKeyRequest};
 use uuid::Uuid;

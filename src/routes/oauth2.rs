@@ -1,5 +1,8 @@
 // ABOUTME: OAuth 2.0 server route handlers for RFC-compliant authorization server endpoints
 // ABOUTME: Provides OAuth 2.0 protocol endpoints including client registration and token exchange
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 //! OAuth 2.0 server routes for authorization server functionality
 

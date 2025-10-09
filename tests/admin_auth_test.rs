@@ -1,5 +1,8 @@
 // ABOUTME: Integration tests for admin authentication and authorization system
 // ABOUTME: Tests authentication flow, permissions, and token validation using real database connections
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use pierre_mcp_server::admin::{
     auth::AdminAuthService,

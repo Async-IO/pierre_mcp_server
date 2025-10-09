@@ -1,5 +1,8 @@
 // ABOUTME: Unified response formatting for all APIs
 // ABOUTME: Provides consistent response formatting across MCP, A2A, and HTTP APIs
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 // NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
 // - String ownership for error message extraction from structs

@@ -1,5 +1,8 @@
 // ABOUTME: Compile-time plugin registry using distributed slices for zero-cost plugin discovery
 // ABOUTME: Provides thread-safe, efficient plugin management with Rust-idiomatic patterns
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 // NOTE: All `.clone()` calls in this file are Safe - they are necessary for:
 // - Plugin info cloning for registry operations

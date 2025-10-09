@@ -1,5 +1,8 @@
 // ABOUTME: Tenant isolation and multi-tenancy management for MCP server
 // ABOUTME: Handles user validation, tenant context extraction, and access control
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use super::resources::ServerResources;
 use crate::auth::AuthManager;

@@ -1,5 +1,8 @@
 // ABOUTME: Test to verify JWT secret persistence across server restarts
 // ABOUTME: Ensures admin tokens remain valid after server restart - fixes the 12-hour issue
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use anyhow::Result;
 use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};

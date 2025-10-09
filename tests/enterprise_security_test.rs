@@ -1,5 +1,8 @@
 // ABOUTME: Enterprise security tests for API key creation restrictions
 // ABOUTME: Verifies self-service endpoints are disabled and admin-only access works
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 //! Enterprise Security Tests
 //!
 //! Tests to verify that self-service API key creation endpoints

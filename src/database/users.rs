@@ -1,5 +1,8 @@
 // ABOUTME: User management database operations
 // ABOUTME: Handles user registration, authentication, and profile management
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use super::Database;
 use crate::models::{EncryptedToken, User, UserStatus};

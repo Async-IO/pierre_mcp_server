@@ -1,5 +1,8 @@
 // ABOUTME: Request tracing middleware for correlation and structured logging
 // ABOUTME: Generates request IDs and creates spans for all HTTP requests with tenant context
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use tracing::Span;
 use uuid::Uuid;

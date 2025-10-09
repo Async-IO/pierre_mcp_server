@@ -1,5 +1,8 @@
 // ABOUTME: Specific tests for MultiTenantMcpServer handler methods
 // ABOUTME: Targets handler methods with low coverage for improved testing
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 //! Additional specific tests for `MultiTenantMcpServer` handler methods
 //!
 //! This test suite targets specific handler methods that may have low coverage.

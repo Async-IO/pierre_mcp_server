@@ -1,5 +1,8 @@
 // ABOUTME: Route module organization for Pierre MCP Server HTTP endpoints
 // ABOUTME: Provides centralized route definitions organized by domain with clean separation of concerns
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 //! Route module for Pierre MCP Server
 //!

@@ -1,5 +1,8 @@
 // ABOUTME: WebSocket route handlers for real-time bidirectional communication
 // ABOUTME: Provides WebSocket endpoints for live notifications and streaming data
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 //! `WebSocket` routes for real-time communication
 

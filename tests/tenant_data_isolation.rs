@@ -1,5 +1,8 @@
 // ABOUTME: Multi-tenant data isolation security tests for preventing data breaches
 // ABOUTME: Critical tests verifying users cannot access data from other tenants
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 //! Multi-Tenant Data Isolation Security Tests
 //!
 //! Critical security tests to verify that users cannot access data from other tenants.

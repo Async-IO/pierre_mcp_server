@@ -1,5 +1,8 @@
 // ABOUTME: Server-Sent Events implementation for MCP protocol message streaming
 // ABOUTME: Handles bidirectional MCP communication over SSE for MCP client compatibility
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use super::{protocol::McpRequest, resources::ServerResources, tool_handlers::ToolHandlers};
 use crate::mcp::protocol::McpResponse;

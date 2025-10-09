@@ -1,5 +1,8 @@
 // ABOUTME: Tool execution handlers for MCP server tool calls and provider routing
 // ABOUTME: Handles tool call routing, execution, authentication, and provider-specific operations
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use super::multitenant::{McpError, McpRequest, McpResponse, MultiTenantMcpServer};
 use super::resources::ServerResources;

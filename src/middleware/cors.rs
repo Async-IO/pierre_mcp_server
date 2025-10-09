@@ -1,5 +1,8 @@
 // ABOUTME: CORS middleware configuration for HTTP API endpoints
 // ABOUTME: Provides Cross-Origin Resource Sharing setup for web client access
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 /// Configure CORS settings for the MCP server
 ///

@@ -1,5 +1,8 @@
 // ABOUTME: Test suite for POST /oauth2/validate-and-refresh endpoint
 // ABOUTME: Covers token validation, refresh, and invalid token scenarios
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use chrono::Utc;
 use pierre_mcp_server::auth::AuthManager;

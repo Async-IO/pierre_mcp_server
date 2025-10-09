@@ -1,5 +1,8 @@
 // ABOUTME: Integration test for tenant context resolution to verify factory delegation works
 // ABOUTME: Tests that tenant operations work through the factory pattern (critical fix for 0% functional architecture)
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use chrono::Utc;
 use pierre_mcp_server::{

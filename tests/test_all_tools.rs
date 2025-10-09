@@ -1,5 +1,8 @@
 // ABOUTME: Comprehensive test harness for all Pierre MCP Server fitness tools
 // ABOUTME: Tests all 18 tools with real stored Strava OAuth tokens to validate functionality
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use anyhow::Result;
 use base64::prelude::*;

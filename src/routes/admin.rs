@@ -1,5 +1,8 @@
 // ABOUTME: Admin API route handlers for administrative operations and API key management
 // ABOUTME: Provides REST endpoints for admin services with proper authentication and authorization
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 //! Admin routes for administrative operations
 //!

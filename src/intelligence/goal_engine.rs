@@ -1,5 +1,8 @@
 // ABOUTME: Goal tracking and progress monitoring engine for fitness objectives
 // ABOUTME: Tracks training goals, milestones, progress metrics, and provides achievement insights
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 //! Goal tracking and progress monitoring engine
 #![allow(clippy::cast_precision_loss)] // Safe: fitness data conversions
 #![allow(clippy::cast_possible_truncation)] // Safe: controlled ranges

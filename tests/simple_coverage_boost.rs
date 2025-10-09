@@ -1,5 +1,8 @@
 // ABOUTME: Simple tests to boost coverage for critical areas
 // ABOUTME: Focused on exercising code paths rather than complex functionality
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 #![allow(
     clippy::uninlined_format_args,
     clippy::match_same_arms,

@@ -1,5 +1,8 @@
 // ABOUTME: HTTP REST endpoints for fitness configuration management with tenant isolation
 // ABOUTME: Provides API access to tenant-specific fitness configurations with proper authentication
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use crate::auth::AuthResult;
 use crate::config::fitness_config::FitnessConfig;

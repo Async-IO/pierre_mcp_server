@@ -1,5 +1,8 @@
 // ABOUTME: Intelligence module configuration for AI-powered fitness analysis and recommendations
 // ABOUTME: Configures analysis algorithms, recommendation engines, and intelligence processing parameters
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 //! Intelligence Configuration Module
 //!
 //! Provides type-safe, compile-time validated configuration for all intelligence modules

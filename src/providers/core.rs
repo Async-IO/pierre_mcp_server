@@ -1,5 +1,8 @@
 // ABOUTME: Core provider traits and interfaces for unified fitness data access
 // ABOUTME: Defines the foundational abstractions for all fitness data providers
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use crate::models::{Activity, Athlete, PersonalRecord, Stats};
 use anyhow::Result;

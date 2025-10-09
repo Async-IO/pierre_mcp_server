@@ -1,5 +1,8 @@
 // ABOUTME: Core database management with migration system for SQLite and PostgreSQL
 // ABOUTME: Handles schema setup, user management, API keys, analytics, and A2A authentication
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 pub mod a2a;
 pub mod analytics;

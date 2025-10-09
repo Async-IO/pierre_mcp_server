@@ -1,5 +1,8 @@
 // ABOUTME: OAuth flow management for multi-tenant MCP server
 // ABOUTME: Handles authorization requests, callbacks, token processing, and template rendering
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use super::resources::ServerResources;
 use crate::database_plugins::DatabaseProvider;

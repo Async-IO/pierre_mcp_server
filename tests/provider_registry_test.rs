@@ -1,5 +1,8 @@
 // ABOUTME: Tests for provider registry functionality including factory patterns and global registry
 // ABOUTME: Validates provider creation, tenant provider creation, and registry operations
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use pierre_mcp_server::constants::oauth_providers;
 use pierre_mcp_server::providers::core::FitnessProvider;

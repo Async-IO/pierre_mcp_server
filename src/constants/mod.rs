@@ -1,5 +1,8 @@
 // ABOUTME: Constants module with domain-separated organization
 // ABOUTME: Replaces the 933-line dumping ground with organized domain modules
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 //! Constants module
 //!

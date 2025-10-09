@@ -1,3 +1,9 @@
+// ABOUTME: Unit tests for security functionality
+// ABOUTME: Validates security behavior, edge cases, and error handling
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+
 // Integration tests for security.rs module
 // Tests for security headers configuration and validation
 

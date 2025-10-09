@@ -1,3 +1,9 @@
+// ABOUTME: Unit tests for auth functionality
+// ABOUTME: Validates auth behavior, edge cases, and error handling
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+
 use chrono::{Duration, Utc};
 use pierre_mcp_server::{
     auth::{generate_jwt_secret, AuthManager, AuthMethod, Claims, JwtValidationError},

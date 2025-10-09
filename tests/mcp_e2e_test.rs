@@ -1,5 +1,8 @@
 // ABOUTME: End-to-end tests for complete MCP protocol flow with MCP clients
 // ABOUTME: Tests full server startup, MCP client connectivity, and SSE streaming
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use futures_util::future;
 use serde_json::{json, Value};

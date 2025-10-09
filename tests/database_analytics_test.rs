@@ -1,5 +1,8 @@
 // ABOUTME: Integration tests for database analytics functionality
 // ABOUTME: Tests JWT usage tracking, goals management, insights storage, and system stats
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use chrono::Utc;
 use pierre_mcp_server::{

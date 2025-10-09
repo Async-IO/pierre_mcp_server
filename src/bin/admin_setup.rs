@@ -1,5 +1,8 @@
 // ABOUTME: Administrative token setup utility for configuring system admin credentials
 // ABOUTME: Command-line interface for managing admin tokens and administrative access controls
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 //! for the Pierre MCP Server. Admin tokens are used by admin services to
 //! provision and manage API keys for users.
 //!

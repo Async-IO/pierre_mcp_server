@@ -1,5 +1,8 @@
 // ABOUTME: Tests for key management functionality including MEK/DEK encryption and decryption
 // ABOUTME: Validates master encryption key operations and database encryption key handling
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use pierre_mcp_server::key_management::{DatabaseEncryptionKey, MasterEncryptionKey};
 

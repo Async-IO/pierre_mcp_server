@@ -1,5 +1,8 @@
 // ABOUTME: Basic security tests for authentication and authorization
 // ABOUTME: Tests essential security features and data protection mechanisms
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 //! Basic Security Tests
 //!
 //! Essential security tests for authentication, authorization, and data protection.

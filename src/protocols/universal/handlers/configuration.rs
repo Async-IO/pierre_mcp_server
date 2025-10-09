@@ -1,5 +1,8 @@
 // ABOUTME: Configuration management handlers
 // ABOUTME: Handle configuration catalogs, profiles, and user settings
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use crate::configuration::{catalog::CatalogBuilder, profiles::ProfileTemplates};
 use crate::database_plugins::DatabaseProvider;

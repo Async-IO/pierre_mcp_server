@@ -1,5 +1,8 @@
 // ABOUTME: Strava API handlers for universal protocol
 // ABOUTME: Single responsibility handlers that delegate auth to AuthService
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use crate::constants::oauth_providers;
 use crate::intelligence::physiological_constants::api_limits::{

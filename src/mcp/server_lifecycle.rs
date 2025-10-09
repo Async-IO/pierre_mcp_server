@@ -1,5 +1,8 @@
 // ABOUTME: Server lifecycle management and coordination for multi-tenant MCP server
 // ABOUTME: Handles server startup, transport coordination, and notification forwarding
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use super::multitenant::{McpRequest, McpResponse};
 use super::schema::OAuthCompletedNotification;

@@ -1,3 +1,9 @@
+// ABOUTME: Unit tests for database factory functionality
+// ABOUTME: Validates database factory behavior, edge cases, and error handling
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+
 use pierre_mcp_server::database_plugins::factory::{detect_database_type, DatabaseType};
 
 #[test]

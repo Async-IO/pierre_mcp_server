@@ -1,3 +1,9 @@
+// ABOUTME: Unit tests for logging functionality
+// ABOUTME: Validates logging behavior, edge cases, and error handling
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
+
 // Integration tests for logging.rs module
 // Tests for logging configuration and environment variable handling
 

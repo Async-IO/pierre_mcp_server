@@ -1,5 +1,8 @@
 // ABOUTME: UUID parsing and validation utilities to eliminate duplication across the codebase
 // ABOUTME: Provides safe UUID parsing with consistent error handling and format validation
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use anyhow::{anyhow, Context, Result};
 use uuid::Uuid;

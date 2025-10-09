@@ -1,5 +1,8 @@
 // ABOUTME: Shared HTTP client utilities with connection pooling and timeout configuration
 // ABOUTME: Provides singleton and configurable HTTP clients to eliminate redundant client creation
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use reqwest::{Client, ClientBuilder};
 use std::sync::OnceLock;

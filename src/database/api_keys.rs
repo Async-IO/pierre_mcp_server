@@ -1,5 +1,8 @@
 // ABOUTME: API key management database operations
 // ABOUTME: Handles API key generation, validation, and rate limiting storage
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use super::Database;
 use crate::api_keys::{ApiKey, ApiKeyTier, ApiKeyUsage, ApiKeyUsageStats};

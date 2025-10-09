@@ -1,5 +1,8 @@
 // ABOUTME: Test utilities for creating User structs and other test data in a consistent way
 // ABOUTME: Centralizes test data creation to avoid duplication and ensure consistency across tests
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use crate::models::{User, UserStatus, UserTier};
 use chrono::Utc;

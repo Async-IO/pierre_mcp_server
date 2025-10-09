@@ -1,5 +1,8 @@
 // ABOUTME: OAuth notification database operations for storing completion events
 // ABOUTME: Handles MCP notification delivery tracking for OAuth flows
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 use super::Database;
 use anyhow::Result;

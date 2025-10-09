@@ -1,5 +1,8 @@
 // ABOUTME: Security audit logging for OAuth operations and sensitive data access
 // ABOUTME: Provides comprehensive audit trails for compliance and security investigation
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 
 //! # Security Audit Module
 //!

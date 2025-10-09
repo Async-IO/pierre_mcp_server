@@ -1,5 +1,8 @@
 // ABOUTME: Advanced fitness metrics calculation and performance analysis algorithms
 // ABOUTME: Computes training load, power metrics, heart rate zones, and physiological indicators
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 //! Advanced fitness metrics calculation and analysis
 #![allow(clippy::cast_possible_truncation)] // Safe: controlled ranges for fitness metrics
 

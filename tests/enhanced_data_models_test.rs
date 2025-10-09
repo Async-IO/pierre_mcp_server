@@ -1,5 +1,8 @@
 // ABOUTME: Tests for enhanced data models supporting advanced intelligence engines
 // ABOUTME: Validates power metrics, performance data, and activity modeling
+//
+// Licensed under either of Apache License, Version 2.0 or MIT License at your option.
+// Copyright ©2025 Async-IO.org
 //! Tests for enhanced data models supporting advanced intelligence engines
 
 use chrono::Utc;
