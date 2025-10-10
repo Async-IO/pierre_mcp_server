@@ -70,13 +70,14 @@ pub struct ServerResources {
     pub auth_middleware: Arc<McpAuthMiddleware>,
     pub websocket_manager: Arc<WebSocketManager>,
     pub tenant_oauth_client: Arc<TenantOAuthClient>,
-    pub tenant_provider_factory: Arc<TenantProviderFactory>,
+    pub provider_registry: Arc<ProviderRegistry>,
     pub admin_jwt_secret: Arc<str>,
     pub config: Arc<ServerConfig>,
     pub activity_intelligence: Arc<ActivityIntelligence>,
-    pub oauth_manager: Arc<RwLock<OAuthManager>>,
     pub a2a_client_manager: Arc<A2AClientManager>,
     pub a2a_system_user_service: Arc<A2ASystemUserService>,
+    pub oauth_notification_sender: Option<broadcast::Sender<OAuthCompletedNotification>>,
+    pub sse_manager: Arc<SseManager>,
 }
 ```
 
@@ -179,25 +180,14 @@ impl AuthManager {
 
 ### Running the Server
 
+The server runs as a unified HTTP server on a single port (default 8081), serving all protocols (MCP, OAuth 2.0, REST API) through warp routes:
+
 ```rust
+// From src/bin/pierre-mcp-server.rs
 impl MultiTenantMcpServer {
-    pub async fn run(self, mcp_port: u16) -> Result<()> {
-        let http_port = mcp_port + 1;
-        
-        // Start HTTP server in background
-        let http_server = self.clone();
-        tokio::spawn(async move {
-            http_server.run_http_server(http_port).await
-        });
-        
-        // Start WebSocket server in background
-        let ws_server = self.clone();
-        tokio::spawn(async move {
-            ws_server.run_websocket_server(http_port).await
-        });
-        
-        // Run MCP server on main thread
-        self.run_mcp_server(mcp_port).await
+    pub async fn run(self, http_port: u16) -> Result<()> {
+        // Unified HTTP server handles all protocols
+        self.run_http_server_with_resources(http_port, self.resources).await
     }
 }
 ```
@@ -328,44 +318,14 @@ impl MultiTenantMcpServer {
     }
 ```
 
-### MCP Server Implementation
+### MCP Protocol Endpoint
+
+MCP requests are handled through HTTP POST to `/mcp` endpoint (see lines 281-282 above). The MCP protocol uses JSON-RPC over HTTP, not a separate TCP listener.
 
 ```rust
-async fn run_mcp_server(&self, port: u16) -> Result<()> {
-    let listener = TcpListener::bind(("0.0.0.0", port)).await?;
-    info!("MCP server listening on port {}", port);
-    
-    loop {
-        let (stream, addr) = listener.accept().await?;
-        let server = self.clone();
-        
-        tokio::spawn(async move {
-            if let Err(e) = server.handle_mcp_connection(stream, addr).await {
-                error!("MCP connection error: {}", e);
-            }
-        });
-    }
-}
-
-async fn handle_mcp_connection(&self, stream: TcpStream, addr: SocketAddr) -> Result<()> {
-    let (reader, writer) = stream.into_split();
-    let reader = BufReader::new(reader);
-    let writer = Arc::new(Mutex::new(writer));
-    
-    let mut lines = reader.lines();
-    while let Some(line) = lines.next_line().await? {
-        let request: JsonRpcRequest = serde_json::from_str(&line)?;
-        let response = self.handle_mcp_request(request).await;
-        
-        let response_json = serde_json::to_string(&response)?;
-        let mut writer = writer.lock().await;
-        writer.write_all(response_json.as_bytes()).await?;
-        writer.write_all(b"\n").await?;
-        writer.flush().await?;
-    }
-    
-    Ok(())
-}
+// MCP endpoint created as part of unified HTTP routes (src/mcp/multitenant.rs)
+let mcp_endpoint_routes = Self::create_mcp_endpoint_routes(&resources);
+// Routes combined with warp's .or() combinator (line 307 above)
 ```
 
 ## Request Handling
@@ -529,7 +489,7 @@ impl MultiTenantMcpServer {
         ).await?;
         
         // Close provider connections
-        self.tenant_provider_factory.shutdown().await?;
+        self.provider_registry.shutdown().await?;
         
         // Close database connections
         self.database.close().await?;
@@ -613,33 +573,23 @@ impl RequestBatcher {
 
 ### Response Caching
 
-```rust
-pub struct ResponseCache {
-    cache: Arc<RwLock<HashMap<String, CachedResponse>>>,
-    ttl: Duration,
-}
+Pierre implements targeted caching for specific use cases rather than a generic response cache:
 
-impl ResponseCache {
-    pub async fn get_or_compute<F, Fut>(&self, key: &str, compute: F) -> Result<Response>
-    where
-        F: FnOnce() -> Fut,
-        Fut: Future<Output = Result<Response>>,
-    {
-        // Check cache
-        if let Some(cached) = self.get(key).await {
-            if cached.expires_at > Instant::now() {
-                return Ok(cached.response);
-            }
-        }
-        
-        // Compute and cache
-        let response = compute().await?;
-        self.set(key, response.clone()).await;
-        
-        Ok(response)
-    }
-}
+```rust
+// Health check cache (src/health.rs:81)
+// Caches comprehensive health status for 30 seconds
+cached_status: RwLock<Option<(HealthResponse, Instant)>>
+
+// MCP session cache (src/mcp/multitenant.rs:137)
+// LRU cache with 10,000 entry capacity
+sessions: Arc<tokio::sync::Mutex<LruCache::new(10000)>>
+
+// Weather data cache (src/intelligence/weather.rs:67)
+// Caches weather API responses based on config duration
+cache: HashMap<String, CachedWeatherData>
 ```
+
+These specific caches provide performance optimization without the complexity of a generic caching layer.
 
 ## Monitoring & Metrics
 

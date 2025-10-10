@@ -490,10 +490,9 @@ services:
       FITBIT_CLIENT_SECRET: ${FITBIT_CLIENT_SECRET}
       FITBIT_REDIRECT_URI: https://pierre-api.example.com/oauth/fitbit/callback
       
-      # Rate limiting
+      # Rate limiting (in-memory, not Redis)
       RATE_LIMITING_ENABLED: true
-      REDIS_URL: redis://redis:6379
-      
+
       # Security
       CORS_ORIGINS: https://pierre.example.com
       SESSION_SECURE: true
@@ -508,7 +507,6 @@ services:
       - db_password
     depends_on:
       - postgres
-      - redis
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
@@ -542,20 +540,6 @@ services:
     networks:
       - pierre-network
 
-  redis:
-    image: redis:7-alpine
-    command: redis-server --appendonly yes
-    volumes:
-      - redis_data:/data
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-    networks:
-      - pierre-network
-
 secrets:
   encryption_key:
     file: ./secrets/encryption.key
@@ -566,7 +550,6 @@ secrets:
 
 volumes:
   postgres_data:
-  redis_data:
   logs:
 
 networks:
@@ -751,15 +734,10 @@ impl ConfigValidator {
         config: &ServerConfig,
         warnings: &mut Vec<ConfigWarning>,
     ) -> Result<()> {
-        // Port conflicts
-        if config.mcp_port == config.http_port {
-            return Err(anyhow!("MCP port and HTTP port cannot be the same"));
-        }
-        
-        // Port ranges
-        if config.mcp_port < 1024 || config.http_port < 1024 {
+        // Port range validation (unified port architecture)
+        if config.http_port < 1024 {
             warnings.push(ConfigWarning::new(
-                "ports",
+                "http_port",
                 "Using privileged ports (< 1024) may require root access"
             ));
         }
@@ -899,10 +877,9 @@ mod tests {
         env::remove_var("DATABASE_URL");
         
         let config = ServerConfig::from_env().unwrap();
-        
+
         assert_eq!(config.environment, Environment::Development);
-        assert_eq!(config.mcp_port, 8081);  // Unified port architecture
-        assert_eq!(config.http_port, 8081);
+        assert_eq!(config.http_port, 8081);  // Unified port architecture (single port)
         assert!(matches!(config.database.url, DatabaseUrl::SQLite { .. }));
     }
     
