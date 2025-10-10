@@ -101,7 +101,7 @@ Tenant ID: tenant_550e8400-e29b-41d4-a716-446655440000
 JWT Token (first 50 chars): eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 === Step 5: Test MCP Access ===
-✅ MCP working: 26 tools available
+✅ MCP working: 25 tools available
 
 🎉 Complete workflow test completed successfully!
 ```

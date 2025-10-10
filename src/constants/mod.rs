@@ -183,7 +183,7 @@ pub mod endpoints {
 /// Network ports
 pub mod ports {
     /// Default HTTP port
-    pub const DEFAULT_HTTP_PORT: u16 = 8080;
+    pub const DEFAULT_HTTP_PORT: u16 = 8081;
     /// Default MCP port
     pub const DEFAULT_MCP_PORT: u16 = 8081;
     /// Default docs port

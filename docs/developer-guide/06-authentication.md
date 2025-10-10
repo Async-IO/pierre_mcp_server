@@ -1278,7 +1278,7 @@ Pierre MCP Server implements a unified OAuth authentication system that provides
 
 ### OAuth Credential Hierarchy
 
-The system resolves OAuth credentials using a **precedence hierarchy** to ensure consistent authentication behavior across all 26 fitness and configuration tools:
+The system resolves OAuth credentials using a **precedence hierarchy** to ensure consistent authentication behavior across all 25 fitness and configuration tools:
 
 ```
 1. MCP Client Credentials (Highest Priority)
@@ -1472,7 +1472,7 @@ The system also supports direct user token storage in the `user_oauth_tokens` ta
 
 ### Tool Compatibility Matrix
 
-All 26 tools now use the unified OAuth resolution system:
+All 25 tools now use the unified OAuth resolution system:
 
 | Tool Category | Tools | Authentication Method |
 |--------------|-------|---------------------|
@@ -1560,7 +1560,7 @@ secrets:
 
 The unified OAuth system is validated through comprehensive test suites:
 
-- **`test_all_tools.rs`**: Tests all 26 tools with real OAuth credentials (93.8% success rate)
+- **`test_all_tools.rs`**: Tests all 25 tools with real OAuth credentials (93.8% success rate)
 - **`configuration_mcp_integration_test.rs`**: Validates tool schemas and counts
 - **`mcp_tools_unit.rs`**: Unit tests for individual tool authentication flows
 

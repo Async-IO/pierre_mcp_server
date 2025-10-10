@@ -168,7 +168,7 @@ No manual token management required.
 
 ## Available MCP Tools
 
-Pierre provides 26 tools through the MCP protocol. Tool definitions are in `src/protocols/universal/tool_registry.rs:12-45`.
+Pierre provides 25 tools through the MCP protocol. Tool definitions are in `src/protocols/universal/tool_registry.rs:12-45`.
 
 ### Core Fitness Data
 
