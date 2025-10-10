@@ -33,9 +33,23 @@ COMPLIANCE_PASSED=true
 # Track Pierre MCP server PID if we start it
 MCP_SERVER_PID=""
 SERVER_LOG=""
+VALIDATOR_PID=""
 
 # Cleanup function - shut down server if we started it
 cleanup_mcp_server() {
+    # Kill validator subprocess and its children (including Node.js bridge)
+    if [ -n "$VALIDATOR_PID" ]; then
+        echo ""
+        echo -e "${BLUE}==== Stopping MCP validator and bridge processes... ====${NC}"
+        # Kill the entire process group
+        kill -TERM -$VALIDATOR_PID 2>/dev/null || true
+        sleep 1
+        # Force kill if still running
+        kill -KILL -$VALIDATOR_PID 2>/dev/null || true
+        echo -e "${GREEN}[OK] Validator stopped${NC}"
+        VALIDATOR_PID=""
+    fi
+
     if [ -n "$MCP_SERVER_PID" ]; then
         echo ""
         echo -e "${BLUE}==== Shutting down Pierre MCP server (PID: $MCP_SERVER_PID)... ====${NC}"
@@ -51,9 +65,17 @@ cleanup_mcp_server() {
     fi
 }
 
-# Register cleanup function to run on normal exit only
-# INT and TERM should propagate to parent script (lint-and-test.sh)
+# Handle CTRL-C gracefully
+handle_interrupt() {
+    echo ""
+    echo -e "${YELLOW}⚠️  Received interrupt signal - cleaning up...${NC}"
+    cleanup_mcp_server
+    exit 130
+}
+
+# Register cleanup and signal handlers
 trap cleanup_mcp_server EXIT
+trap handle_interrupt INT TERM
 
 # Change to SDK directory
 cd "$PROJECT_ROOT/sdk"
@@ -214,15 +236,22 @@ fi
 
 echo -e "${BLUE}     Timeout: ${TIMEOUT_CMD:-none}${NC}"
 
-if $TIMEOUT_CMD $PYTHON_CMD -m mcp_testing.scripts.compliance_report \
+# Run validator in background to capture PID for signal handling
+$TIMEOUT_CMD $PYTHON_CMD -m mcp_testing.scripts.compliance_report \
     --server-command "node $BRIDGE_PATH" \
     --protocol-version 2025-06-18 \
     --test-timeout 30 \
-    --verbose; then
+    --verbose &
+VALIDATOR_PID=$!
+
+# Wait for validator to complete
+if wait $VALIDATOR_PID; then
     echo -e "${GREEN}[OK] MCP spec compliance tests passed${NC}"
+    VALIDATOR_PID=""
     cd - >/dev/null
 else
     EXIT_CODE=$?
+    VALIDATOR_PID=""
 
     # Find the most recent compliance report
     LATEST_REPORT=$(ls -t "$MCP_VALIDATOR_DIR"/reports/cr_*.md 2>/dev/null | head -1)

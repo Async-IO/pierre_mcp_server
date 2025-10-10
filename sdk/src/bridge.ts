@@ -68,6 +68,10 @@ export interface BridgeConfig {
   userEmail?: string;
   userPassword?: string;
   callbackPort?: number;
+  tokenValidationTimeoutMs?: number;  // Default: 3000ms
+  proactiveConnectionTimeoutMs?: number;  // Default: 5000ms
+  proactiveToolsListTimeoutMs?: number;  // Default: 3000ms
+  toolCallConnectionTimeoutMs?: number;  // Default: 10000ms (10s for tool-triggered connections)
 }
 
 interface OAuth2TokenResponse {
@@ -440,7 +444,9 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
     try {
       this.log(`Validating token with server validate-and-refresh endpoint`);
 
-      const response = await fetch(`${this.serverUrl}/oauth2/validate-and-refresh`, {
+      const timeoutMs = this.config.tokenValidationTimeoutMs || 3000;
+
+      const fetchPromise = fetch(`${this.serverUrl}/oauth2/validate-and-refresh`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -450,6 +456,13 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
           refresh_token: refreshToken
         })
       });
+
+      const response = await Promise.race([
+        fetchPromise,
+        new Promise<Response>((_, reject) =>
+          setTimeout(() => reject(new Error(`Token validate-and-refresh timeout after ${timeoutMs}ms`)), timeoutMs)
+        )
+      ]);
 
       if (!response.ok) {
         this.log(`Validate-and-refresh request failed: ${response.status} ${response.statusText}`);
@@ -931,11 +944,12 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
       return;
     }
 
-    this.log('Validating cached credentials with server...');
+    const timeoutMs = this.config.tokenValidationTimeoutMs || 3000;
+    this.log(`Validating cached credentials with server (timeout: ${timeoutMs}ms)...`);
 
-    // Try to validate by calling the token validation endpoint
+    // Try to validate by calling the token validation endpoint with configurable timeout
     try {
-      const response = await fetch(`${this.serverUrl}/oauth2/token-validate`, {
+      const fetchPromise = fetch(`${this.serverUrl}/oauth2/token-validate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -945,6 +959,13 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
           client_id: clientInfo?.client_id
         })
       });
+
+      const response = await Promise.race([
+        fetchPromise,
+        new Promise<Response>((_, reject) =>
+          setTimeout(() => reject(new Error(`Token validation timeout after ${timeoutMs}ms`)), timeoutMs)
+        )
+      ]);
 
       const result: any = await response.json();
 
@@ -1001,6 +1022,18 @@ export class PierreClaudeBridge {
     console.error(`[${timestamp}] [Pierre Bridge] ${message}`, ...args);
   }
 
+  private async withTimeout<T>(promise: Promise<T>, timeoutMs: number, operation: string): Promise<T | null> {
+    return Promise.race([
+      promise,
+      new Promise<null>((resolve) =>
+        setTimeout(() => {
+          this.log(`Operation '${operation}' timed out after ${timeoutMs}ms`);
+          resolve(null);
+        }, timeoutMs)
+      )
+    ]);
+  }
+
   async start(): Promise<void> {
     try {
       // Step 1: Create MCP server for Claude Desktop using stdio
@@ -1034,16 +1067,39 @@ export class PierreClaudeBridge {
     // ALWAYS connect proactively to cache tools for Claude Desktop
     // Server allows tools/list without authentication - only tool calls require auth
     // This ensures all tools are visible immediately in Claude Desktop (tools/list_changed doesn't work)
+    const connectionTimeoutMs = this.config.proactiveConnectionTimeoutMs || 5000;
+    const toolsListTimeoutMs = this.config.proactiveToolsListTimeoutMs || 3000;
+
     try {
-      this.log('Connecting to Pierre proactively to cache all tools for Claude Desktop');
-      await this.connectToPierre();
+      this.log(`Connecting to Pierre proactively to cache all tools for Claude Desktop (timeout: ${connectionTimeoutMs}ms)`);
+      const connectionResult = await this.withTimeout(
+        this.connectToPierre(),
+        connectionTimeoutMs,
+        'proactive Pierre connection'
+      );
+
+      if (connectionResult === null) {
+        // Connection timed out - this is non-fatal for the bridge
+        this.log(`Proactive connection timed out after ${connectionTimeoutMs}ms - will connect on first tool use`);
+        this.log('Bridge will start with connect_to_pierre tool only');
+        return;
+      }
 
       // Cache tools immediately so they're ready for tools/list
       if (this.pierreClient) {
         const client = this.pierreClient;
-        const tools = await client.listTools();
-        this.cachedTools = tools;
-        this.log(`Cached ${tools.tools.length} tools from Pierre: ${JSON.stringify(tools.tools.map((t: any) => t.name))}`);
+        const toolsResult = await this.withTimeout(
+          client.listTools(),
+          toolsListTimeoutMs,
+          'proactive tools list'
+        );
+
+        if (toolsResult) {
+          this.cachedTools = toolsResult;
+          this.log(`Cached ${toolsResult.tools.length} tools from Pierre: ${JSON.stringify(toolsResult.tools.map((t: any) => t.name))}`);
+        } else {
+          this.log(`Tools list timed out after ${toolsListTimeoutMs}ms - will fetch on first request`);
+        }
       }
     } catch (error: any) {
       // If proactive connection fails, continue anyway
@@ -1059,8 +1115,18 @@ export class PierreClaudeBridge {
       return; // Already connected
     }
 
-    this.log('Connecting to Pierre MCP Server...');
-    await this.connectToPierre();
+    const connectionTimeoutMs = this.config.toolCallConnectionTimeoutMs || 10000;
+    this.log(`Connecting to Pierre MCP Server (timeout: ${connectionTimeoutMs}ms)...`);
+
+    const connectionResult = await this.withTimeout(
+      this.connectToPierre(),
+      connectionTimeoutMs,
+      'tool-triggered Pierre connection'
+    );
+
+    if (connectionResult === null) {
+      throw new Error(`Failed to connect to Pierre within ${connectionTimeoutMs}ms. Please use the "Connect to Pierre" tool to establish a connection.`);
+    }
   }
 
   private oauthProvider: PierreOAuthClientProvider | null = null;
@@ -1115,19 +1181,23 @@ export class PierreClaudeBridge {
           }
         );
 
+        // Check if we have authentication tokens BEFORE creating transport
+        // This prevents the SDK from triggering interactive OAuth flow
+        const hasTokens = !!(this.oauthProvider as any).savedTokens;
+
         // Create fresh transport for each attempt
         const baseUrl = new URL(this.mcpUrl);
         const transport = new StreamableHTTPClientTransport(baseUrl, {
-          authProvider: this.oauthProvider
+          // CRITICAL: Only provide authProvider if we have tokens
+          // If we don't have tokens, connect without auth (tools/list works unauthenticated)
+          authProvider: hasTokens ? this.oauthProvider : undefined
         });
 
-        // Connect to Pierre MCP Server with OAuth 2.0 flow
+        // Connect to Pierre MCP Server
         await this.pierreClient.connect(transport);
         connected = true;
 
-        // Check if we have authentication tokens
-        const tokens = await this.oauthProvider.tokens();
-        if (tokens) {
+        if (hasTokens) {
           this.log('Connected to Pierre MCP Server (authenticated)');
         } else {
           this.log('Connected to Pierre MCP Server (unauthenticated - tool discovery only)');
@@ -1354,6 +1424,23 @@ export class PierreClaudeBridge {
         return await this.handleConnectProvider(request);
       }
 
+      // CRITICAL: Check for authentication tokens BEFORE attempting to connect
+      // This prevents the SDK from triggering interactive OAuth flow during connection attempts
+      if (this.oauthProvider) {
+        // Check saved tokens directly without triggering validation
+        const hasTokens = !!(this.oauthProvider as any).savedTokens;
+        if (!hasTokens) {
+          this.log(`No authentication tokens available - rejecting tool call ${request.params.name}`);
+          return {
+            content: [{
+              type: 'text',
+              text: `Authentication required. Please use the "Connect to Pierre" tool to authenticate before accessing fitness data.`
+            }],
+            isError: true
+          };
+        }
+      }
+
       // Ensure we have a connection before forwarding other tools
       try {
         await this.ensurePierreConnected();
@@ -1567,14 +1654,27 @@ export class PierreClaudeBridge {
 
       // Check if already authenticated
       // Credentials were validated at startup, so if they exist they're valid
-      const existingTokens = await this.oauthProvider.tokens();
-      if (existingTokens && this.pierreClient) {
+      const hasTokens = !!(this.oauthProvider as any).savedTokens;
+      if (hasTokens && this.pierreClient) {
         return {
           content: [{
             type: 'text',
             text: 'Already connected to Pierre! You can now use all fitness tools to access your Strava and Fitbit data.'
           }],
           isError: false
+        };
+      }
+
+      // CRITICAL: Prevent interactive OAuth flow in non-interactive environments (e.g., automated tests)
+      // Check if stdin is a TTY to detect if this is an interactive session
+      if (!hasTokens && !process.stdin.isTTY) {
+        this.log('Refusing to start interactive OAuth flow in non-TTY environment (likely automated test)');
+        return {
+          content: [{
+            type: 'text',
+            text: 'Authentication required but cannot start interactive OAuth flow in non-interactive environment. Please authenticate manually or provide credentials via environment variables.'
+          }],
+          isError: true
         };
       }
 
@@ -2017,14 +2117,27 @@ export class PierreClaudeBridge {
     this.log('Stopping bridge...');
 
     try {
+      // Close Pierre client connection
       if (this.pierreClient) {
         await this.pierreClient.close();
         this.pierreClient = null;
       }
 
+      // Close Claude server
       if (this.claudeServer) {
         await this.claudeServer.close();
         this.claudeServer = null;
+      }
+
+      // Close OAuth callback server
+      if (this.oauthProvider && (this.oauthProvider as any).callbackServer) {
+        const callbackServer = (this.oauthProvider as any).callbackServer;
+        return new Promise<void>((resolve) => {
+          callbackServer.close(() => {
+            this.log('OAuth callback server closed');
+            resolve();
+          });
+        });
       }
 
       this.log('Bridge stopped');
