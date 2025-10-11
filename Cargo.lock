@@ -1821,6 +1821,7 @@ dependencies = [
  "env_logger",
  "eventsource-stream",
  "futures-util",
+ "glob",
  "hex",
  "jsonwebtoken",
  "linkme",

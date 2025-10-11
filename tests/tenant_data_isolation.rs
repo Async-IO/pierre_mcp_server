@@ -446,11 +446,13 @@ async fn test_mcp_server_tenant_isolation() -> Result<()> {
     let auth_manager = AuthManager::new(vec![0u8; 64], 24);
 
     // Create test server
+    let cache = common::create_test_cache().await.unwrap();
     let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         database.clone(),
         auth_manager.clone(),
         TEST_JWT_SECRET,
         create_test_server_config(),
+        cache,
     ));
     let _server = MultiTenantMcpServer::new(resources);
 

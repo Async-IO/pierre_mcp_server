@@ -6,6 +6,8 @@
 
 //! Unit tests for API key routes
 
+mod common;
+
 use chrono::{Duration, Utc};
 use pierre_mcp_server::{
     api_key_routes::ApiKeyRoutes,
@@ -58,6 +60,9 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
 
     // Generate JWT token for the user
     let _jwt_token = auth_manager.generate_token(&user).unwrap(); // Not used directly, AuthResult created from user_id
+
+    // Create cache for API key routes
+    let cache = common::create_test_cache().await.unwrap();
 
     // Create ServerResources for API key routes
     let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
@@ -151,6 +156,7 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
                 },
             }
         }),
+        cache,
     ));
 
     // Create API key routes

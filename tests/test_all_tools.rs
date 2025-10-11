@@ -25,6 +25,8 @@ use pierre_mcp_server::models::{Tenant, User, UserOAuthToken};
 use pierre_mcp_server::protocols::universal::{UniversalRequest, UniversalToolExecutor};
 use std::{path::PathBuf, sync::Arc};
 
+mod common;
+
 #[tokio::test]
 async fn test_complete_multitenant_workflow() -> Result<(), Box<dyn std::error::Error>> {
     println!("Pierre MCP Server - Comprehensive Tool Testing Harness");
@@ -191,11 +193,13 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
 
     // Create ServerResources for the test
     let auth_manager = pierre_mcp_server::auth::AuthManager::new(vec![0u8; 64], 24);
+    let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
         (*database).clone(),
         auth_manager,
         "test_secret",
         config,
+        cache,
     ));
 
     let executor = UniversalToolExecutor::new(server_resources);

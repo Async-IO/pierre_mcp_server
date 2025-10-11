@@ -25,7 +25,12 @@
 //! impl PluginImplementation for CustomAnalysisTool {
 //!     async fn execute_impl(&self, request: UniversalRequest, env: PluginEnvironment<'_>) -> Result<UniversalResponse, ProtocolError> {
 //!         // Plugin implementation
-//! #       Ok(UniversalResponse::default())
+//! #       Ok(UniversalResponse {
+//! #           success: true,
+//! #           result: None,
+//! #           error: None,
+//! #           metadata: None,
+//! #       })
 //!     }
 //! }
 //! ```

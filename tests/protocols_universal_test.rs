@@ -151,11 +151,24 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
 
     // Create ServerResources for the test
     let auth_manager = pierre_mcp_server::auth::AuthManager::new(vec![0u8; 64], 24);
+
+    // Create test cache with background cleanup disabled
+    let cache_config = pierre_mcp_server::cache::CacheConfig {
+        max_entries: 1000,
+        redis_url: None,
+        cleanup_interval: std::time::Duration::from_secs(60),
+        enable_background_cleanup: false,
+    };
+    let cache = pierre_mcp_server::cache::factory::Cache::new(cache_config)
+        .await
+        .expect("Failed to create test cache");
+
     let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         (*database).clone(),
         auth_manager,
         "test_secret",
         config,
+        cache,
     ));
     let executor = UniversalToolExecutor::new(server_resources);
     Ok(executor)
@@ -459,11 +472,24 @@ async fn test_set_goal_tool() -> Result<()> {
 
     // Create ServerResources for the test
     let auth_manager = pierre_mcp_server::auth::AuthManager::new(vec![0u8; 64], 24);
+
+    // Create test cache with background cleanup disabled
+    let cache_config = pierre_mcp_server::cache::CacheConfig {
+        max_entries: 1000,
+        redis_url: None,
+        cleanup_interval: std::time::Duration::from_secs(60),
+        enable_background_cleanup: false,
+    };
+    let cache = pierre_mcp_server::cache::factory::Cache::new(cache_config)
+        .await
+        .expect("Failed to create test cache");
+
     let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         (*database).clone(),
         auth_manager,
         "test_secret",
         config,
+        cache,
     ));
     let executor = UniversalToolExecutor::new(server_resources);
 
@@ -1043,11 +1069,24 @@ async fn test_disconnect_provider_tool() -> Result<()> {
 
     // Create ServerResources for the test
     let auth_manager = pierre_mcp_server::auth::AuthManager::new(vec![0u8; 64], 24);
+
+    // Create test cache with background cleanup disabled
+    let cache_config = pierre_mcp_server::cache::CacheConfig {
+        max_entries: 1000,
+        redis_url: None,
+        cleanup_interval: std::time::Duration::from_secs(60),
+        enable_background_cleanup: false,
+    };
+    let cache = pierre_mcp_server::cache::factory::Cache::new(cache_config)
+        .await
+        .expect("Failed to create test cache");
+
     let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         (*database).clone(),
         auth_manager,
         "test_secret",
         config,
+        cache,
     ));
     let executor = UniversalToolExecutor::new(server_resources);
 

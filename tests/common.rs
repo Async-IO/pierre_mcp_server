@@ -84,6 +84,17 @@ pub fn create_test_auth_middleware(
     Arc::new(McpAuthMiddleware::new((**auth_manager).clone(), database))
 }
 
+/// Create test cache with background cleanup disabled
+pub async fn create_test_cache() -> Result<pierre_mcp_server::cache::factory::Cache> {
+    let cache_config = pierre_mcp_server::cache::CacheConfig {
+        max_entries: 1000,
+        redis_url: None,
+        cleanup_interval: std::time::Duration::from_secs(60),
+        enable_background_cleanup: false, // Disable background cleanup for tests
+    };
+    pierre_mcp_server::cache::factory::Cache::new(cache_config).await
+}
+
 /// Create a standard test user
 pub async fn create_test_user(database: &Database) -> Result<(Uuid, User)> {
     let user = User::new(
@@ -201,11 +212,21 @@ pub async fn create_test_server_resources() -> Result<Arc<ServerResources>> {
     let admin_jwt_secret = "test_admin_secret";
     let config = Arc::new(pierre_mcp_server::config::environment::ServerConfig::default());
 
+    // Create test cache with background cleanup disabled for tests
+    let cache_config = pierre_mcp_server::cache::CacheConfig {
+        max_entries: 1000,
+        redis_url: None,
+        cleanup_interval: std::time::Duration::from_secs(60),
+        enable_background_cleanup: false, // Disable background cleanup for tests
+    };
+    let cache = pierre_mcp_server::cache::factory::Cache::new(cache_config).await?;
+
     Ok(Arc::new(ServerResources::new(
         database,
         auth_manager,
         admin_jwt_secret,
         config,
+        cache,
     )))
 }
 

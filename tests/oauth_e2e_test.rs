@@ -154,6 +154,8 @@
 
 //! End-to-end tests for OAuth flow with MCP integration
 
+mod common;
+
 use pierre_mcp_server::{
     auth::AuthManager,
     config::environment::{
@@ -270,11 +272,13 @@ async fn test_oauth_flow_through_mcp() {
     });
 
     // Create server instance
+    let cache = common::create_test_cache().await.unwrap();
     let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         database,
         auth_manager,
         TEST_JWT_SECRET,
         config,
+        cache,
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -488,11 +492,13 @@ async fn test_oauth_callback_error_handling() {
         },
     });
 
+    let cache = common::create_test_cache().await.unwrap();
     let server_resources = std::sync::Arc::new(ServerResources::new(
         database.clone(),
         auth_manager,
         "test_jwt_secret",
         config,
+        cache,
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -673,11 +679,13 @@ async fn test_oauth_state_csrf_protection() {
         },
     });
 
+    let cache = common::create_test_cache().await.unwrap();
     let server_resources = std::sync::Arc::new(ServerResources::new(
         database.clone(),
         auth_manager.clone(),
         "test_jwt_secret",
         config,
+        cache,
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -804,11 +812,13 @@ async fn test_connection_status_tracking() {
         },
     });
 
+    let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
         database.clone(),
         auth_manager,
         TEST_JWT_SECRET,
         config,
+        cache,
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());

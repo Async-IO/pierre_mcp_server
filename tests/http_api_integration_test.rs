@@ -175,11 +175,22 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthRoutes, OAuthRou
         },
     });
 
+    let cache_config = pierre_mcp_server::cache::CacheConfig {
+        max_entries: 1000,
+        redis_url: None,
+        cleanup_interval: std::time::Duration::from_secs(60),
+        enable_background_cleanup: false,
+    };
+    let cache = pierre_mcp_server::cache::factory::Cache::new(cache_config)
+        .await
+        .unwrap();
+
     let server_resources = Arc::new(ServerResources::new(
         (*database).clone(),
         (*auth_manager).clone(),
         "test_jwt_secret",
         config,
+        cache,
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());

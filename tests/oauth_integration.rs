@@ -6,6 +6,8 @@
 
 //! Integration tests for OAuth flow in multi-tenant mode
 
+mod common;
+
 use pierre_mcp_server::{
     auth::AuthManager,
     config::environment::{
@@ -120,11 +122,13 @@ async fn test_oauth_authorization_url_generation() {
         },
     });
 
+    let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
         database.clone(),
         auth_manager.clone(),
         "test_jwt_secret",
         config,
+        cache,
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -334,11 +338,13 @@ async fn test_oauth_state_validation() {
         },
     });
 
+    let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
         database,
         auth_manager,
         "test_jwt_secret",
         config,
+        cache,
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -477,11 +483,13 @@ async fn test_connection_status_no_providers() {
     };
     database.create_user(&user).await.unwrap();
 
+    let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
         database,
         auth_manager,
         "test_jwt_secret",
         config,
+        cache,
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -598,11 +606,13 @@ async fn test_invalid_provider_error() {
             },
         },
     });
+    let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
         database,
         auth_manager,
         "test_jwt_secret",
         config,
+        cache,
     ));
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
     let oauth_routes = OAuthRoutes::new(
@@ -713,11 +723,13 @@ async fn test_disconnect_provider() {
             },
         },
     });
+    let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
         database,
         auth_manager,
         "test_jwt_secret",
         config,
+        cache,
     ));
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
     let oauth_routes = OAuthRoutes::new(
@@ -922,11 +934,13 @@ async fn test_oauth_urls_contain_required_parameters() {
             },
         },
     });
+    let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
         database,
         auth_manager,
         "test_jwt_secret",
         config,
+        cache,
     ));
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
     let oauth_routes = OAuthRoutes::new(

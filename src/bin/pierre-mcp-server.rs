@@ -15,6 +15,7 @@ use anyhow::Result;
 use clap::Parser;
 use pierre_mcp_server::{
     auth::AuthManager,
+    cache::factory::Cache,
     config::environment::ServerConfig,
     database_plugins::{factory::Database, DatabaseProvider},
     logging,
@@ -76,7 +77,12 @@ fn setup_configuration(args: &Args) -> Result<ServerConfig> {
 /// Bootstrap the complete server with all dependencies
 async fn bootstrap_server(config: ServerConfig) -> Result<()> {
     let (database, auth_manager, jwt_secret) = initialize_core_systems(&config).await?;
-    let server = create_server(database, auth_manager, &jwt_secret, &config);
+
+    // Initialize cache from environment
+    let cache = Cache::from_env().await?;
+    info!("Cache initialized successfully");
+
+    let server = create_server(database, auth_manager, &jwt_secret, &config, cache);
     run_server(server, &config).await
 }
 
@@ -139,12 +145,14 @@ fn create_server(
     auth_manager: AuthManager,
     jwt_secret: &str,
     config: &ServerConfig,
+    cache: Cache,
 ) -> MultiTenantMcpServer {
     let resources = Arc::new(ServerResources::new(
         database,
         auth_manager,
         jwt_secret,
         Arc::new(config.clone()),
+        cache,
     ));
     MultiTenantMcpServer::new(resources)
 }

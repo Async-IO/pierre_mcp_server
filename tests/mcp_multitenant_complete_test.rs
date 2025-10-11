@@ -420,11 +420,22 @@ async fn test_complete_multitenant_workflow() -> Result<()> {
     let database_for_approval = database.clone();
 
     // Start the server
+    // Create cache
+    let cache =
+        pierre_mcp_server::cache::factory::Cache::new(pierre_mcp_server::cache::CacheConfig {
+            max_entries: 1000,
+            redis_url: None,
+            cleanup_interval: std::time::Duration::from_secs(60),
+            enable_background_cleanup: false,
+        })
+        .await?;
+
     let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         database,
         auth_manager,
         &stored_jwt_secret,
         create_test_config(server_port),
+        cache,
     ));
     let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
@@ -583,11 +594,22 @@ async fn test_mcp_authentication_required() -> Result<()> {
         setup_test_environment().await?;
 
     // Start the server
+    // Create cache
+    let cache =
+        pierre_mcp_server::cache::factory::Cache::new(pierre_mcp_server::cache::CacheConfig {
+            max_entries: 1000,
+            redis_url: None,
+            cleanup_interval: std::time::Duration::from_secs(60),
+            enable_background_cleanup: false,
+        })
+        .await?;
+
     let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         database,
         auth_manager,
         &stored_jwt_secret,
         create_test_config(server_port),
+        cache,
     ));
     let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
@@ -657,11 +679,22 @@ async fn test_mcp_initialization_no_auth() -> Result<()> {
         setup_test_environment().await?;
 
     // Start the server
+    // Create cache
+    let cache =
+        pierre_mcp_server::cache::factory::Cache::new(pierre_mcp_server::cache::CacheConfig {
+            max_entries: 1000,
+            redis_url: None,
+            cleanup_interval: std::time::Duration::from_secs(60),
+            enable_background_cleanup: false,
+        })
+        .await?;
+
     let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         database,
         auth_manager,
         &stored_jwt_secret,
         create_test_config(server_port),
+        cache,
     ));
     let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
@@ -726,11 +759,22 @@ async fn test_mcp_concurrent_requests() -> Result<()> {
     let database_for_approval = database.clone();
 
     // Start the server
+    // Create cache
+    let cache =
+        pierre_mcp_server::cache::factory::Cache::new(pierre_mcp_server::cache::CacheConfig {
+            max_entries: 1000,
+            redis_url: None,
+            cleanup_interval: std::time::Duration::from_secs(60),
+            enable_background_cleanup: false,
+        })
+        .await?;
+
     let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         database,
         auth_manager,
         &stored_jwt_secret,
         create_test_config(server_port),
+        cache,
     ));
     let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
@@ -818,12 +862,23 @@ async fn test_multitenant_server_config() -> Result<()> {
 
     let config = create_test_config(find_available_port());
 
+    // Create cache
+    let cache =
+        pierre_mcp_server::cache::factory::Cache::new(pierre_mcp_server::cache::CacheConfig {
+            max_entries: 1000,
+            redis_url: None,
+            cleanup_interval: std::time::Duration::from_secs(60),
+            enable_background_cleanup: false,
+        })
+        .await?;
+
     // Test server creation
     let resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         database,
         auth_manager,
         &stored_jwt_secret,
         config.clone(),
+        cache,
     ));
     let _server = MultiTenantMcpServer::new(resources);
 

@@ -261,11 +261,23 @@ async fn test_multitenant_auth_flow() -> Result<()> {
         },
     });
 
+    // Create test cache with background cleanup disabled
+    let cache_config = pierre_mcp_server::cache::CacheConfig {
+        max_entries: 1000,
+        redis_url: None,
+        cleanup_interval: std::time::Duration::from_secs(60),
+        enable_background_cleanup: false,
+    };
+    let cache = pierre_mcp_server::cache::factory::Cache::new(cache_config)
+        .await
+        .expect("Failed to create test cache");
+
     let server_resources = std::sync::Arc::new(ServerResources::new(
         database.clone(),
         auth_manager.clone(),
         "test_jwt_secret",
         config,
+        cache,
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -637,11 +649,23 @@ async fn test_input_validation() -> Result<()> {
         },
     });
 
+    // Create test cache with background cleanup disabled
+    let cache_config = pierre_mcp_server::cache::CacheConfig {
+        max_entries: 1000,
+        redis_url: None,
+        cleanup_interval: std::time::Duration::from_secs(60),
+        enable_background_cleanup: false,
+    };
+    let cache = pierre_mcp_server::cache::factory::Cache::new(cache_config)
+        .await
+        .expect("Failed to create test cache");
+
     let server_resources = std::sync::Arc::new(ServerResources::new(
         database.clone(),
         auth_manager.clone(),
         "test_jwt_secret",
         config,
+        cache,
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());

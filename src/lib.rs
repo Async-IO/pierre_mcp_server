@@ -98,8 +98,11 @@ pub mod a2a_routes;
 /// Multi-tenant database management (legacy)
 pub mod database;
 
-/// Database abstraction layer with plugin support  
+/// Database abstraction layer with plugin support
 pub mod database_plugins;
+
+/// Cache abstraction layer with pluggable backends
+pub mod cache;
 
 /// Authentication and session management
 pub mod auth;

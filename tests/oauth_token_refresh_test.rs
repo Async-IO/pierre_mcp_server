@@ -156,6 +156,8 @@
 //!
 //! Tests for automatic token refresh in Universal Tool Executor.
 
+mod common;
+
 use pierre_mcp_server::{
     constants::oauth_providers,
     database::generate_encryption_key,
@@ -380,11 +382,13 @@ async fn create_test_executor() -> (Arc<UniversalToolExecutor>, Arc<Database>) {
     // Create ServerResources for the test
     let auth_manager =
         pierre_mcp_server::auth::AuthManager::new(generate_encryption_key().to_vec(), 24);
+    let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         (*database).clone(),
         auth_manager,
         "test_secret",
         create_test_server_config(),
+        cache,
     ));
     let executor = Arc::new(UniversalToolExecutor::new(server_resources));
 
@@ -426,11 +430,13 @@ async fn create_test_executor_without_oauth() -> (Arc<UniversalToolExecutor>, Ar
     // Create ServerResources for the test
     let auth_manager =
         pierre_mcp_server::auth::AuthManager::new(generate_encryption_key().to_vec(), 24);
+    let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         (*database).clone(),
         auth_manager,
         "test_secret",
         create_test_server_config_without_oauth(),
+        cache,
     ));
     let executor = Arc::new(UniversalToolExecutor::new(server_resources));
 

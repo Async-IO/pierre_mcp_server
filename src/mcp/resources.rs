@@ -16,6 +16,7 @@
 use crate::a2a::client::A2AClientManager;
 use crate::a2a::system_user::A2ASystemUserService;
 use crate::auth::AuthManager;
+use crate::cache::factory::Cache;
 use crate::database_plugins::factory::Database;
 use crate::intelligence::ActivityIntelligence;
 use crate::mcp::schema::OAuthCompletedNotification;
@@ -45,6 +46,7 @@ pub struct ServerResources {
     pub a2a_system_user_service: Arc<A2ASystemUserService>,
     pub oauth_notification_sender: Option<broadcast::Sender<OAuthCompletedNotification>>,
     pub sse_manager: Arc<crate::sse::SseManager>,
+    pub cache: Arc<Cache>,
 }
 
 impl ServerResources {
@@ -54,6 +56,7 @@ impl ServerResources {
         auth_manager: AuthManager,
         admin_jwt_secret: &str,
         config: Arc<crate::config::environment::ServerConfig>,
+        cache: Cache,
     ) -> Self {
         let database_arc = Arc::new(database);
         let auth_manager_arc = Arc::new(auth_manager);
@@ -112,6 +115,9 @@ impl ServerResources {
         // Create unified SSE manager for both notifications and MCP protocol
         let sse_manager = Arc::new(crate::sse::SseManager::new());
 
+        // Wrap cache in Arc for shared access across handlers
+        let cache_arc = Arc::new(cache);
+
         Self {
             database: database_arc,
             auth_manager: auth_manager_arc,
@@ -126,6 +132,7 @@ impl ServerResources {
             a2a_system_user_service,
             oauth_notification_sender: None,
             sse_manager,
+            cache: cache_arc,
         }
     }
 
@@ -150,6 +157,7 @@ pub struct ServerResourcesBuilder {
     auth_manager: Option<AuthManager>,
     admin_jwt_secret: Option<String>,
     config: Option<Arc<crate::config::environment::ServerConfig>>,
+    cache: Option<Cache>,
 }
 
 impl ServerResourcesBuilder {
@@ -161,6 +169,7 @@ impl ServerResourcesBuilder {
             auth_manager: None,
             admin_jwt_secret: None,
             config: None,
+            cache: None,
         }
     }
 
@@ -192,6 +201,13 @@ impl ServerResourcesBuilder {
         self
     }
 
+    /// Set the cache
+    #[must_use]
+    pub fn with_cache(mut self, cache: Cache) -> Self {
+        self.cache = Some(cache);
+        self
+    }
+
     /// Build the `ServerResources`
     ///
     /// # Errors
@@ -204,8 +220,10 @@ impl ServerResourcesBuilder {
             .admin_jwt_secret
             .ok_or("Admin JWT secret is required")?;
         let config = self.config.ok_or("Server config is required")?;
+        let cache = self.cache.ok_or("Cache is required")?;
 
-        let resources = ServerResources::new(database, auth_manager, &admin_jwt_secret, config);
+        let resources =
+            ServerResources::new(database, auth_manager, &admin_jwt_secret, config, cache);
         Ok(resources)
     }
 

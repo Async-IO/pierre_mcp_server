@@ -6,6 +6,8 @@
 
 //! Unit tests for OAuth routes module
 
+mod common;
+
 use pierre_mcp_server::{
     auth::AuthManager,
     config::environment::{
@@ -114,11 +116,13 @@ async fn test_email_validation() {
         },
     });
 
+    let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
         database,
         auth_manager,
         "test_jwt_secret",
         config,
+        cache,
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -270,11 +274,13 @@ async fn test_password_validation() {
         },
     });
 
+    let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
         database,
         auth_manager,
         "test_jwt_secret",
         config,
+        cache,
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -398,11 +404,13 @@ async fn test_duplicate_user_registration() {
         },
     });
 
+    let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
         database,
         auth_manager,
         "test_jwt_secret",
         config,
+        cache,
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -517,11 +525,13 @@ async fn test_login_with_correct_credentials() {
         },
     });
 
+    let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
         database,
         auth_manager,
         "test_jwt_secret",
         config,
+        cache,
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -680,11 +690,13 @@ async fn test_login_with_wrong_password() {
         },
     });
 
+    let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
         database,
         auth_manager,
         "test_jwt_secret",
         config,
+        cache,
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -806,11 +818,13 @@ async fn test_login_with_non_existent_user() {
         },
     });
 
+    let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
         database,
         auth_manager,
         "test_jwt_secret",
         config,
+        cache,
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());

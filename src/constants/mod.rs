@@ -12,6 +12,7 @@
 use std::env;
 
 // Domain-specific modules
+pub mod cache;
 pub mod errors;
 pub mod oauth;
 pub mod protocol;

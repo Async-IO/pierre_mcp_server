@@ -7,6 +7,8 @@
 // Integration tests for routes.rs module
 // Tests for authentication routes, OAuth routes, and A2A routes
 
+mod common;
+
 use pierre_mcp_server::{
     auth::AuthManager,
     config::environment::{
@@ -148,11 +150,13 @@ async fn test_register_user() {
             },
         },
     });
+    let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
         database.clone(),
         auth_manager.clone(),
         "test_jwt_secret",
         config,
+        cache,
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -267,11 +271,13 @@ async fn test_register_duplicate_user() {
             },
         },
     });
+    let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
         database.clone(),
         auth_manager.clone(),
         "test_jwt_secret",
         config,
+        cache,
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());

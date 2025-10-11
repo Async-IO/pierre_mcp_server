@@ -218,12 +218,24 @@ impl A2ATestSetup {
         // Create test server config - use a minimal config for testing
         let config = Arc::new(create_test_server_config());
 
+        // Create test cache with background cleanup disabled
+        let cache_config = pierre_mcp_server::cache::CacheConfig {
+            max_entries: 1000,
+            redis_url: None,
+            cleanup_interval: std::time::Duration::from_secs(60),
+            enable_background_cleanup: false,
+        };
+        let cache = pierre_mcp_server::cache::factory::Cache::new(cache_config)
+            .await
+            .expect("Failed to create test cache");
+
         // Create ServerResources for A2A routes
         let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
             (*database).clone(),
             (*auth_manager).clone(),
             "test_jwt_secret",
             config,
+            cache,
         ));
 
         // Create A2A routes
@@ -256,6 +268,18 @@ impl A2ATestSetup {
             b"test_secret".to_vec(),
             24,
         ));
+
+        // Create test cache with background cleanup disabled
+        let cache_config = pierre_mcp_server::cache::CacheConfig {
+            max_entries: 1000,
+            redis_url: None,
+            cleanup_interval: std::time::Duration::from_secs(60),
+            enable_background_cleanup: false,
+        };
+        let cache = pierre_mcp_server::cache::factory::Cache::new(cache_config)
+            .await
+            .expect("Failed to create test cache");
+
         let test_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
             (*self.database).clone(),
             (*auth_manager).clone(),
@@ -264,6 +288,7 @@ impl A2ATestSetup {
                 pierre_mcp_server::config::environment::ServerConfig::from_env()
                     .unwrap_or_default(),
             ),
+            cache,
         ));
         let client_manager = &*test_resources.a2a_client_manager;
         let credentials = client_manager

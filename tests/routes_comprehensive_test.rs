@@ -23,13 +23,10 @@ mod common;
 
 // === Test Setup Helpers ===
 
-async fn create_test_auth_routes() -> Result<AuthRoutes> {
-    let database = common::create_test_database().await?;
-    let auth_manager = common::create_test_auth_manager();
-
-    // Create minimal config for ServerResources
-    let temp_dir = tempfile::tempdir()?;
-    let config = std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
+fn create_minimal_test_config(
+    temp_dir: &tempfile::TempDir,
+) -> Arc<pierre_mcp_server::config::environment::ServerConfig> {
+    std::sync::Arc::new(pierre_mcp_server::config::environment::ServerConfig {
         http_port: 8081,
         oauth_callback_port: 35535,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
@@ -110,13 +107,22 @@ async fn create_test_auth_routes() -> Result<AuthRoutes> {
                 server_version: env!("CARGO_PKG_VERSION").to_string(),
             },
         },
-    });
+    })
+}
+
+async fn create_test_auth_routes() -> Result<AuthRoutes> {
+    let database = common::create_test_database().await?;
+    let auth_manager = common::create_test_auth_manager();
+    let temp_dir = tempfile::tempdir()?;
+    let config = create_minimal_test_config(&temp_dir);
+    let cache = common::create_test_cache().await.unwrap();
 
     let server_resources = std::sync::Arc::new(ServerResources::new(
         (*database).clone(),
         (*auth_manager).clone(),
         "test_jwt_secret",
         config,
+        cache,
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -276,11 +282,14 @@ async fn create_test_oauth_routes() -> Result<(OAuthRoutes, Uuid, Arc<Database>)
         },
     });
 
+    let cache = common::create_test_cache().await.unwrap();
+
     let server_resources = std::sync::Arc::new(ServerResources::new(
         (*database).clone(),
         (*auth_manager).clone(),
         "test_jwt_secret",
         config,
+        cache,
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -494,11 +503,14 @@ async fn test_user_login_success() -> Result<()> {
         },
     });
 
+    let cache = common::create_test_cache().await.unwrap();
+
     let server_resources = std::sync::Arc::new(ServerResources::new(
         (*database).clone(),
         (*auth_manager).clone(),
         "test_jwt_secret",
         config,
+        cache,
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -710,11 +722,14 @@ async fn test_token_refresh_success() -> Result<()> {
         },
     });
 
+    let cache = common::create_test_cache().await.unwrap();
+
     let server_resources = std::sync::Arc::new(ServerResources::new(
         (*database).clone(),
         (*auth_manager).clone(),
         "test_jwt_secret",
         config,
+        cache,
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -871,11 +886,14 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
         },
     });
 
+    let cache = common::create_test_cache().await.unwrap();
+
     let server_resources = std::sync::Arc::new(ServerResources::new(
         (*database).clone(),
         (*auth_manager).clone(),
         "test_jwt_secret",
         config,
+        cache,
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -1268,11 +1286,14 @@ async fn test_complete_auth_flow() -> Result<()> {
         },
     });
 
+    let cache = common::create_test_cache().await.unwrap();
+
     let server_resources = std::sync::Arc::new(ServerResources::new(
         (*database).clone(),
         (*auth_manager).clone(),
         "test_jwt_secret",
         config,
+        cache,
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -1501,11 +1522,14 @@ async fn test_concurrent_logins() -> Result<()> {
         },
     });
 
+    let cache = common::create_test_cache().await.unwrap();
+
     let server_resources = std::sync::Arc::new(ServerResources::new(
         (*database).clone(),
         (*auth_manager).clone(),
         "test_jwt_secret",
         config,
+        cache,
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());

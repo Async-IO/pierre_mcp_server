@@ -269,12 +269,16 @@ impl DashboardTestSetup {
             },
         });
 
+        // Create test cache
+        let cache = common::create_test_cache().await?;
+
         // Create ServerResources using proper constructor
         let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
             (*database).clone(),
             (*auth_manager).clone(),
             "test_jwt_secret",
             config,
+            cache,
         ));
 
         // Create dashboard routes
@@ -606,11 +610,14 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
         },
     });
 
+    let cache = common::create_test_cache().await.unwrap();
+
     let server_resources = Arc::new(pierre_mcp_server::mcp::resources::ServerResources::new(
         database.as_ref().clone(),
         auth_manager.as_ref().clone(),
         "test_jwt_secret",
         config,
+        cache,
     ));
 
     let dashboard_routes = DashboardRoutes::new(server_resources);
