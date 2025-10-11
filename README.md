@@ -16,6 +16,7 @@ Pierre MCP Server connects AI assistants to fitness data from Strava and Fitbit.
 - **Multi-Tenancy**: Isolated data and configuration per organization
 - **Real-Time Updates**: Server-Sent Events for OAuth notifications
 - **Plugin System**: Compile-time plugin architecture for fitness analysis
+- **Intelligent Caching**: LRU cache with TTL for API response optimization
 
 ## Architecture
 
@@ -35,6 +36,7 @@ Pierre runs as a single HTTP server on port 8081 (configurable). All protocols (
 - `providers`: Fitness provider integrations (Strava, Fitbit)
 - `intelligence`: Activity analysis and insights
 - `database_plugins`: SQLite and PostgreSQL support
+- `cache`: Pluggable cache system (in-memory LRU, Redis future)
 - `auth`: JWT token authentication
 - `crypto`: Two-tier key management system
 
@@ -69,6 +71,26 @@ cargo build --release
 
 ### Configuration
 
+#### Using `.envrc` (Recommended)
+
+Pierre includes a `.envrc` file for environment configuration. Use [direnv](https://direnv.net/) to automatically load environment variables:
+
+```bash
+# Install direnv (macOS)
+brew install direnv
+
+# Add to your shell profile (~/.zshrc or ~/.bashrc)
+eval "$(direnv hook zsh)"  # or bash
+
+# Allow direnv for this directory
+cd pierre_mcp_server
+direnv allow
+```
+
+The `.envrc` file includes all required configuration with development defaults. Edit `.envrc` to customize settings for your environment.
+
+#### Manual Configuration
+
 **Required Environment Variables**:
 ```bash
 export DATABASE_URL="sqlite:./data/pierre.db"
@@ -88,6 +110,11 @@ export STRAVA_REDIRECT_URI=http://localhost:8081/oauth/callback/strava
 
 # Weather data (optional)
 export OPENWEATHER_API_KEY=your_api_key
+
+# Cache configuration
+export CACHE_MAX_ENTRIES=10000                    # Maximum cached entries (default: 10,000)
+export CACHE_CLEANUP_INTERVAL_SECS=300            # Cleanup interval in seconds (default: 300)
+# export REDIS_URL=redis://localhost:6379         # Redis cache (future support)
 ```
 
 See `src/constants/mod.rs:32-173` for all environment variables.
@@ -426,6 +453,7 @@ Complete documentation is in the `docs/` directory:
 - **[A2A Protocol](docs/developer-guide/05-a2a-protocol.md)** - Agent-to-agent communication
 - **[Authentication](docs/developer-guide/06-authentication.md)** - OAuth 2.0 and JWT
 - **[Database](docs/developer-guide/08-database.md)** - Database schema and migrations
+- **[Cache System](docs/developer-guide/09-cache.md)** - Cache architecture and configuration
 - **[Configuration](docs/developer-guide/12-configuration.md)** - Configuration management
 - **[API Reference](docs/developer-guide/14-api-reference.md)** - REST API documentation
 - **[Security](docs/developer-guide/17-security-guide.md)** - Security best practices
