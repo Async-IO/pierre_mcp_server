@@ -12,10 +12,13 @@ pub const STRAVA: &str = "strava";
 /// Fitbit fitness provider identifier
 pub const FITBIT: &str = "fitbit";
 
+/// Garmin fitness provider identifier
+pub const GARMIN: &str = "garmin";
+
 /// Get all supported OAuth providers
 #[must_use]
 pub const fn all() -> &'static [&'static str] {
-    &[STRAVA, FITBIT]
+    &[STRAVA, FITBIT, GARMIN]
 }
 
 /// Check if a provider is supported
@@ -29,3 +32,6 @@ pub const STRAVA_DEFAULT_SCOPES: &str = "activity:read_all";
 
 /// Fitbit default scopes
 pub const FITBIT_DEFAULT_SCOPES: &str = "activity profile";
+
+/// Garmin default scopes
+pub const GARMIN_DEFAULT_SCOPES: &str = "wellness:read,activities:read";

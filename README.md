@@ -6,7 +6,7 @@
 
 **Development Status**: This project is under active development. APIs and features may change.
 
-Pierre MCP Server connects AI assistants to fitness data from Strava and Fitbit. The server implements the Model Context Protocol (MCP) for integration with Claude, ChatGPT, and other AI assistants.
+Pierre MCP Server connects AI assistants to fitness data from Strava, Garmin, and Fitbit. The server implements the Model Context Protocol (MCP) for integration with Claude, ChatGPT, and other AI assistants.
 
 ## Features
 
@@ -33,7 +33,7 @@ Pierre runs as a single HTTP server on port 8081 (configurable). All protocols (
 - `mcp`: MCP protocol server implementation
 - `oauth2`: OAuth 2.0 authorization server (RFC 7591)
 - `a2a`: Agent-to-agent protocol with agent cards
-- `providers`: Fitness provider integrations (Strava, Fitbit)
+- `providers`: Fitness provider integrations (Strava, Garmin, Fitbit)
 - `intelligence`: Activity analysis and insights
 - `database_plugins`: SQLite and PostgreSQL support
 - `cache`: Pluggable cache system (in-memory LRU, Redis future)
@@ -107,6 +107,11 @@ export JWT_EXPIRY_HOURS=24         # JWT token expiry
 export STRAVA_CLIENT_ID=your_client_id
 export STRAVA_CLIENT_SECRET=your_client_secret
 export STRAVA_REDIRECT_URI=http://localhost:8081/oauth/callback/strava
+
+# Garmin Connect OAuth (optional)
+export GARMIN_CLIENT_ID=your_consumer_key
+export GARMIN_CLIENT_SECRET=your_consumer_secret
+export GARMIN_REDIRECT_URI=http://localhost:8081/oauth/callback/garmin
 
 # Weather data (optional)
 export OPENWEATHER_API_KEY=your_api_key

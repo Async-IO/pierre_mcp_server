@@ -58,7 +58,7 @@ All users operate in isolated tenant contexts with their own data, configuration
 Business logic is separated from protocol handlers, allowing multiple interfaces to the same functionality.
 
 ### 3. Provider Abstraction
-Fitness data providers (Strava, Fitbit, etc.) are abstracted behind a common interface.
+Fitness data providers (Strava, Garmin, Fitbit, etc.) are abstracted behind a common interface.
 
 ### 4. Security First
 - Two-tier key management system (MEK/DEK)

@@ -696,7 +696,7 @@ Error: `No OAuth credentials configured for tenant`
 
 Solutions:
 - Ensure OAuth credentials are set in `.env`
-- Register your application with Strava/Fitbit
+- Register your application with Strava/Garmin/Fitbit
 - Check redirect URIs match exactly
 - Verify client ID and secret are correct
 

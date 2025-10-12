@@ -5,7 +5,7 @@
 Pierre MCP Server implements a comprehensive authentication system with **dual OAuth 2.0 capabilities**:
 
 1. **OAuth 2.0 Authorization Server**: Standards-compliant server for MCP client integration (RFC 6749, RFC 7591, RFC 8414)
-2. **OAuth 2.0 Client**: For fitness provider integration (Strava, Fitbit)
+2. **OAuth 2.0 Client**: For fitness provider integration (Strava, Garmin, Fitbit)
 3. **JWT Authentication**: Token-based authentication for all protocols
 4. **API Keys**: For A2A communication and system access
 
@@ -26,6 +26,7 @@ graph TB
 
     subgraph "Pierre as OAuth 2.0 Client"
         StravaAuth[Strava OAuth Flow]
+        GarminAuth[Garmin OAuth Flow]
         FitbitAuth[Fitbit OAuth Flow]
     end
 
@@ -33,6 +34,7 @@ graph TB
         MCP[MCP Clients]
         Claude[Claude Desktop]
         Strava[Strava API]
+        Garmin[Garmin API]
         Fitbit[Fitbit API]
     end
 
@@ -43,8 +45,10 @@ graph TB
     Claude --> MCP
 
     Pierre --> StravaAuth
+    Pierre --> GarminAuth
     Pierre --> FitbitAuth
     StravaAuth --> Strava
+    GarminAuth --> Garmin
     FitbitAuth --> Fitbit
 ```
 
@@ -75,23 +79,25 @@ graph TB
     
     subgraph "External Providers"
         Strava[Strava OAuth]
+        Garmin[Garmin OAuth]
         Fitbit[Fitbit OAuth]
     end
-    
+
     WebApp --> AuthManager
     MCP --> AuthManager
     A2A --> ApiKeys
     Admin --> AuthManager
-    
+
     AuthManager --> JWT
     AuthManager --> OAuth
-    
+
     JWT --> UserTokens
     JWT --> RefreshTokens
     ApiKeys --> ApiKeyStore
     OAuth --> OAuthTokens
-    
+
     OAuth --> Strava
+    OAuth --> Garmin
     OAuth --> Fitbit
 ```
 
@@ -585,7 +591,7 @@ sequenceDiagram
                     "properties": {
                         "provider": {
                             "type": "string",
-                            "enum": ["strava", "fitbit"],
+                            "enum": ["strava", "garmin", "fitbit"],
                             "description": "Fitness provider to query"
                         }
                     },
@@ -600,7 +606,7 @@ sequenceDiagram
                     "properties": {
                         "provider": {
                             "type": "string",
-                            "enum": ["strava", "fitbit"]
+                            "enum": ["strava", "garmin", "fitbit"]
                         },
                         "limit": {
                             "type": "integer",
@@ -1257,6 +1263,7 @@ curl -X GET https://pierre-api.example.com/api/health/auth \
     "password_service": "healthy",
     "oauth_providers": {
       "strava": "healthy",
+      "garmin": "healthy",
       "fitbit": "healthy"
     },
     "rate_limiter": "healthy",

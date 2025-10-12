@@ -88,7 +88,7 @@ PIERRE_MASTER_ENCRYPTION_KEY=$(openssl rand -base64 32)  # Required for producti
 JWT_EXPIRY_HOURS=24                    # JWT token expiry (line 153-159, default: 24)
 
 # === OAuth Provider Configuration ===
-# For fitness provider integration (Strava, Fitbit)
+# For fitness provider integration (Strava, Garmin, Fitbit)
 STRAVA_CLIENT_ID=your_strava_client_id
 STRAVA_CLIENT_SECRET=your_strava_client_secret
 STRAVA_REDIRECT_URI=http://localhost:8081/oauth/callback/strava  # (line 73-76)

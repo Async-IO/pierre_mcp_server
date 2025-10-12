@@ -5,6 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 use super::core::{FitnessProvider, ProviderConfig, ProviderFactory, TenantProvider};
+use super::garmin_provider::GarminProvider;
 use super::strava_provider::StravaProvider;
 use crate::constants::oauth_providers;
 use anyhow::{Context, Result};
@@ -22,6 +23,19 @@ impl ProviderFactory for StravaProviderFactory {
 
     fn supported_providers(&self) -> &'static [&'static str] {
         &[oauth_providers::STRAVA]
+    }
+}
+
+/// Factory for creating Garmin providers
+pub struct GarminProviderFactory;
+
+impl ProviderFactory for GarminProviderFactory {
+    fn create(&self, config: ProviderConfig) -> Box<dyn FitnessProvider> {
+        Box::new(GarminProvider::with_config(config))
+    }
+
+    fn supported_providers(&self) -> &'static [&'static str] {
+        &[oauth_providers::GARMIN]
     }
 }
 
@@ -51,6 +65,23 @@ impl ProviderRegistry {
                 api_base_url: "https://www.strava.com/api/v3".to_string(),
                 revoke_url: Some("https://www.strava.com/oauth/deauthorize".to_string()),
                 default_scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
+                    .split(',')
+                    .map(str::to_string)
+                    .collect(),
+            },
+        );
+
+        // Register Garmin provider
+        registry.register_factory(oauth_providers::GARMIN, Box::new(GarminProviderFactory));
+        registry.set_default_config(
+            oauth_providers::GARMIN,
+            ProviderConfig {
+                name: oauth_providers::GARMIN.to_string(),
+                auth_url: crate::constants::env_config::garmin_auth_url(),
+                token_url: crate::constants::env_config::garmin_token_url(),
+                api_base_url: crate::constants::env_config::garmin_api_base(),
+                revoke_url: Some(crate::constants::env_config::garmin_revoke_url()),
+                default_scopes: crate::constants::oauth::GARMIN_DEFAULT_SCOPES
                     .split(',')
                     .map(str::to_string)
                     .collect(),

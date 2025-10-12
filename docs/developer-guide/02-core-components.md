@@ -385,7 +385,7 @@ This section provides a detailed view of how Rust modules are organized and depe
 │                      │         │                                      │
 │ Multi-Tenant System: │◄────────┤ Unified OAuth Manager:               │
 │                      │         │                                      │
-│ • tenant_context.rs  │         │ • providers/ (Strava, Fitbit)        │
+│ • tenant_context.rs  │         │ • providers/ (Strava, Garmin, Fitbit)│
 │ • tenant_oauth.rs    │         │ • token_storage.rs                   │
 │ • isolation.rs       │         │ • refresh_handler.rs                 │
 │                      │         │                                      │
@@ -491,7 +491,7 @@ HTTP Request
 User Request → [OAuth Routes] → oauth/providers/
                      │                  │
                      ▼                  ▼
-           [oauth_flow_manager]   [Strava/Fitbit OAuth]
+           [oauth_flow_manager]   [Strava/Garmin/Fitbit OAuth]
                      │                  │
                      ▼                  ▼
              [Browser Redirect]   [External Provider]
@@ -520,7 +520,7 @@ The codebase follows a strict layered pattern where upper layers depend on lower
 
 #### 2. Plugin Architecture
 - Database backends (SQLite/PostgreSQL) via `DatabaseProvider` trait
-- Fitness providers (Strava/Fitbit) via `FitnessProvider` trait  
+- Fitness providers (Strava, Garmin, Fitbit) via `FitnessProvider` trait
 - Tool plugins via `PluginRegistry` + `linkme` macros for compile-time registration
 
 #### 3. Multi-Tenant Isolation
@@ -544,7 +544,7 @@ The codebase follows a strict layered pattern where upper layers depend on lower
 - **Total lines of code**: ~58,000 LOC
 - **Primary modules**: 37 top-level modules in `src/lib.rs`
 - **Database implementations**: 2 (SQLite, PostgreSQL)
-- **Provider implementations**: 2 (Strava, Fitbit) + Universal adapter
+- **Provider implementations**: 3 (Strava, Garmin, Fitbit) + Universal adapter
 - **Protocol handlers**: 4 (MCP, A2A, OAuth2, REST)
 
 ## Component Interactions

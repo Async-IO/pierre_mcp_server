@@ -41,8 +41,10 @@
 // Core provider system
 pub mod core;
 pub mod registry;
+pub mod utils;
 
 // Provider implementations
+pub mod garmin_provider;
 pub mod strava_provider;
 
 // Re-export key types for convenience

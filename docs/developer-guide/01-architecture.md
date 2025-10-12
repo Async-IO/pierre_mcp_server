@@ -36,6 +36,7 @@ graph TB
     
     subgraph "Provider Layer"
         Strava[Strava Provider]
+        Garmin[Garmin Provider]
         Fitbit[Fitbit Provider]
         Universal[Universal Provider]
     end
@@ -71,10 +72,12 @@ graph TB
     TenantMgr --> ConfigMgr
     
     ProviderFactory --> Strava
+    ProviderFactory --> Garmin
     ProviderFactory --> Fitbit
     ProviderFactory --> Universal
     
     Strava --> DB
+    Garmin --> DB
     Fitbit --> DB
     Universal --> DB
     

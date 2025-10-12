@@ -124,7 +124,7 @@ graph TB
     end
 
     subgraph "External Integration"
-        OAUTH[OAuth Providers<br/>Strava, Fitbit]
+        OAUTH[OAuth Providers<br/>Strava, Garmin, Fitbit]
         CACHE[Redis Cache<br/>Rate Limiting]
         METRICS[Telemetry<br/>OpenTelemetry]
     end
@@ -193,7 +193,7 @@ graph LR
     subgraph "Business Logic"
         AUTH_LAYER[Authentication<br/>JWT & API Key Validation]
         BUSINESS_LAYER[Business Logic<br/>Data Processing]
-        INTEGRATION_LAYER[External Integration<br/>Strava, Fitbit APIs]
+        INTEGRATION_LAYER[External Integration<br/>Strava, Garmin, Fitbit APIs]
     end
 
     CLIENT1 --> WS
@@ -700,6 +700,6 @@ graph LR
 - **Horizontal Scaling**: Stateless application design supports unlimited instances
 - **Database Scaling**: Read replicas for analytics, primary for writes
 - **Cache Scaling**: Redis cluster for distributed rate limiting state
-- **External API Limits**: Bounded by Strava/Fitbit rate limits (600 requests/15min)
+- **External API Limits**: Bounded by provider rate limits (Strava/Garmin/Fitbit: 600 requests/15min)
 
 These architecture diagrams provide a comprehensive view of how Pierre MCP Server is structured to handle multi-protocol communication, maintain tenant isolation, and scale horizontally while preserving security and performance characteristics.

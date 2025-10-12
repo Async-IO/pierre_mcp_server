@@ -84,7 +84,7 @@ suspended → active (admin reinstatement)
 
 ### user_oauth_tokens
 
-OAuth tokens for fitness providers (Strava, Fitbit) - src/database/user_oauth_tokens.rs.
+OAuth tokens for fitness providers (Strava, Garmin, Fitbit) - src/database/user_oauth_tokens.rs.
 
 ```sql
 CREATE TABLE user_oauth_tokens (
@@ -283,7 +283,7 @@ CREATE INDEX idx_tenants_name ON tenants(name);
 
 ### tenant_oauth_credentials
 
-Per-tenant OAuth app credentials (custom Strava/Fitbit apps).
+Per-tenant OAuth app credentials (custom Strava/Garmin/Fitbit apps).
 
 ```sql
 CREATE TABLE tenant_oauth_credentials (

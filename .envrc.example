@@ -6,6 +6,11 @@ export STRAVA_CLIENT_ID=your-strava-client-id
 export STRAVA_CLIENT_SECRET=your-strava-client-secret
 export STRAVA_REDIRECT_URI=http://localhost:8080/api/oauth/callback/strava
 
+# Garmin Connect OAuth Configuration
+export GARMIN_CLIENT_ID=your-garmin-consumer-key
+export GARMIN_CLIENT_SECRET=your-garmin-consumer-secret
+export GARMIN_REDIRECT_URI=http://localhost:8080/api/oauth/callback/garmin
+
 # Bridge OAuth Callback Configuration
 # After provider OAuth completes, server redirects to bridge callback server to trigger focus recovery
 export OAUTH_CALLBACK_PORT=35535

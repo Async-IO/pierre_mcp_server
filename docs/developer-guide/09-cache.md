@@ -2,7 +2,7 @@
 
 ## Overview
 
-Pierre MCP Server implements a pluggable cache layer for API response caching with multi-tenant isolation. The cache system reduces load on external fitness providers (Strava, Fitbit) and improves response times for frequently accessed data. The architecture follows the same plugin pattern as the database layer, supporting in-memory LRU caching with future Redis support planned.
+Pierre MCP Server implements a pluggable cache layer for API response caching with multi-tenant isolation. The cache system reduces load on external fitness providers (Strava, Garmin, Fitbit) and improves response times for frequently accessed data. The architecture follows the same plugin pattern as the database layer, supporting in-memory LRU caching with future Redis support planned.
 
 ## Cache Architecture
 

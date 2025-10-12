@@ -129,6 +129,43 @@ pub mod env_config {
             .unwrap_or_else(|_| "https://api.fitbit.com/oauth2/revoke".to_string())
     }
 
+    /// Get Garmin redirect URI from environment or default
+    #[must_use]
+    pub fn garmin_redirect_uri() -> String {
+        env::var("GARMIN_REDIRECT_URI")
+            .unwrap_or_else(|_| format!("{}/api/oauth/callback/garmin", base_url()))
+    }
+
+    /// Get Garmin auth URL from environment or default
+    #[must_use]
+    pub fn garmin_auth_url() -> String {
+        env::var("GARMIN_AUTH_URL")
+            .unwrap_or_else(|_| "https://connect.garmin.com/oauthConfirm".to_string())
+    }
+
+    /// Get Garmin token URL from environment or default
+    #[must_use]
+    pub fn garmin_token_url() -> String {
+        env::var("GARMIN_TOKEN_URL").unwrap_or_else(|_| {
+            "https://connectapi.garmin.com/oauth-service/oauth/access_token".to_string()
+        })
+    }
+
+    /// Get Garmin API base URL from environment or default
+    #[must_use]
+    pub fn garmin_api_base() -> String {
+        env::var("GARMIN_API_BASE")
+            .unwrap_or_else(|_| "https://apis.garmin.com/wellness-api/rest".to_string())
+    }
+
+    /// Get Garmin revoke URL from environment or default
+    #[must_use]
+    pub fn garmin_revoke_url() -> String {
+        env::var("GARMIN_REVOKE_URL").unwrap_or_else(|_| {
+            "https://connectapi.garmin.com/oauth-service/oauth/revoke".to_string()
+        })
+    }
+
     /// Get log level from environment or default
     #[must_use]
     pub fn log_level() -> String {
@@ -523,6 +560,71 @@ pub mod api_provider_limits {
         pub const DEFAULT_ACTIVITIES_PER_PAGE: usize = 30;
         /// Maximum activities per request
         pub const MAX_ACTIVITIES_PER_REQUEST: usize = 200;
+    }
+
+    /// Garmin Connect API limits
+    ///
+    /// **IMPORTANT**: These limits are based on community observations of unofficial API endpoints.
+    /// Garmin does not publicly document rate limits for their unofficial API.
+    ///
+    /// # Official API
+    /// - Official Garmin Connect Developer Program requires business developer approval
+    /// - Application: <https://developer.garmin.com/gc-developer-program/>
+    /// - Rate limits are not publicly documented even for approved developers
+    /// - Contact: connect-support@developer.garmin.com for official limits
+    ///
+    /// # Unofficial API (Current Implementation)
+    /// - Based on reverse-engineered endpoints from python-garminconnect
+    /// - Source: <https://github.com/cyberjunky/python-garminconnect>
+    ///
+    /// ## Observed Rate Limits (Community Reports)
+    /// - **Login attempts**: Very strict, ~5-10 login attempts trigger 429 error
+    /// - **API requests**: Rate limit triggered after "few dozen" requests in ~90 minutes
+    /// - **Block duration**: Approximately 1 hour
+    /// - **HTTP error**: 429 Too Many Requests
+    /// - **References**:
+    ///   - <https://github.com/cyberjunky/python-garminconnect/issues/26>
+    ///   - <https://github.com/cyberjunky/python-garminconnect/issues/213>
+    ///
+    /// ## Recommended Conservative Limits
+    /// - Max 100 requests per hour per user (unofficial estimate)
+    /// - Max 1 login per 5 minutes per user
+    /// - Use token refresh instead of repeated logins
+    /// - Implement exponential backoff on 429 errors
+    pub mod garmin {
+        /// Default number of activities per page request
+        /// Conservative default to minimize API calls
+        pub const DEFAULT_ACTIVITIES_PER_PAGE: usize = 20;
+
+        /// Maximum activities per single API request
+        /// Based on Garmin Connect web interface behavior
+        pub const MAX_ACTIVITIES_PER_REQUEST: usize = 100;
+
+        /// Recommended maximum requests per hour per user
+        /// Conservative estimate based on community observations
+        /// to avoid triggering rate limit errors
+        ///
+        /// Source: Community reports of rate limiting after ~50-60 requests/90min
+        /// Reference: <https://github.com/cyberjunky/python-garminconnect/issues/26>
+        pub const RECOMMENDED_MAX_REQUESTS_PER_HOUR: usize = 100;
+
+        /// Recommended minimum interval between login attempts (seconds)
+        /// Garmin has strict login rate limiting - space out authentication attempts
+        ///
+        /// Source: User reports of rate limiting after several login attempts
+        /// Reference: <https://github.com/cyberjunky/python-garminconnect/issues/213>
+        pub const RECOMMENDED_MIN_LOGIN_INTERVAL_SECS: u64 = 300; // 5 minutes
+
+        /// Rate limit HTTP status code
+        /// Returned when rate limit is exceeded
+        pub const RATE_LIMIT_HTTP_STATUS: u16 = 429;
+
+        /// Estimated rate limit block duration (seconds)
+        /// Based on community reports of blocks lasting approximately 1 hour
+        ///
+        /// Source: User observations in GitHub issues
+        /// Reference: <https://github.com/cyberjunky/python-garminconnect/issues/213>
+        pub const ESTIMATED_RATE_LIMIT_BLOCK_DURATION_SECS: u64 = 3600; // 1 hour
     }
 }
 
