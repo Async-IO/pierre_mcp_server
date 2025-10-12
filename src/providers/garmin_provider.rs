@@ -297,6 +297,11 @@ impl FitnessProvider for GarminProvider {
     }
 
     async fn refresh_token_if_needed(&mut self) -> Result<()> {
+        // Ensure credentials exist before checking refresh status
+        if self.credentials.is_none() {
+            return Err(anyhow::anyhow!("No credentials available"));
+        }
+
         if !utils::needs_token_refresh(&self.credentials, 5) {
             return Ok(());
         }
