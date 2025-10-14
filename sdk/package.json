@@ -1,10 +1,10 @@
 {
-  "name": "pierre-claude-bridge",
-  "version": "1.0.0",
-  "description": "MCP-compliant bridge connecting Claude Desktop to Pierre Fitness MCP Server",
+  "name": "pierre-mcp-client",
+  "version": "0.1.0",
+  "description": "MCP client for Pierre Fitness MCP Server - works with Claude Desktop, ChatGPT, and any MCP host",
   "main": "dist/index.js",
   "bin": {
-    "pierre-claude-bridge": "./dist/cli.js"
+    "pierre-mcp-client": "./dist/cli.js"
   },
   "scripts": {
     "build": "tsc",
@@ -30,10 +30,23 @@
     "claude",
     "fitness",
     "oauth",
-    "streamable-http"
+    "streamable-http",
+    "model-context-protocol",
+    "strava",
+    "garmin",
+    "chatgpt"
   ],
   "author": "Pierre Fitness Team",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Async-IO/pierre_mcp_server.git",
+    "directory": "sdk"
+  },
+  "homepage": "https://github.com/Async-IO/pierre_mcp_server/tree/main/sdk#readme",
+  "bugs": {
+    "url": "https://github.com/Async-IO/pierre_mcp_server/issues"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
     "@types/node-fetch": "^2.6.13",

@@ -152,6 +152,16 @@ Pierre includes an SDK bridge for direct integration with MCP clients. The SDK h
 
 ### SDK Installation
 
+**Option 1: Install from npm (Recommended)**
+
+```bash
+npm install pierre-mcp-client@next
+```
+
+The SDK is published as a pre-release package (`@next` tag) during v0.x development.
+
+**Option 2: Build from source**
+
 The SDK is included in the `sdk/` directory:
 
 ```bash
@@ -169,7 +179,24 @@ Add Pierre to your MCP client configuration. For Claude Desktop:
 - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 - Linux: `~/.config/claude/claude_desktop_config.json`
 
-**Configuration**:
+**Configuration (using npm package)**:
+```json
+{
+  "mcpServers": {
+    "pierre-fitness": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "pierre-mcp-client@next",
+        "--server",
+        "http://localhost:8081"
+      ]
+    }
+  }
+}
+```
+
+**Alternative (using local installation)**:
 ```json
 {
   "mcpServers": {
@@ -185,7 +212,7 @@ Add Pierre to your MCP client configuration. For Claude Desktop:
 }
 ```
 
-Replace `/absolute/path/to/` with your actual path.
+Replace `/absolute/path/to/` with your actual path for local installations.
 
 ### Authentication Flow
 
@@ -465,9 +492,8 @@ Complete documentation is in the `docs/` directory:
 - **[Plugin System](docs/developer-guide/18-plugin-system.md)** - Plugin development
 - **[Logging](docs/developer-guide/19-logging-and-observability.md)** - Logging and monitoring
 
-Installation guides for specific platforms:
-- **[Claude Desktop](docs/installation-guides/install-claude.md)**
-- **[ChatGPT](docs/installation-guides/install-chatgpt.md)**
+Installation guide for MCP clients:
+- **[MCP Client Installation](docs/installation-guides/install-mcp-client.md)** - Claude Desktop, ChatGPT, and other MCP clients
 
 ## Code Quality
 

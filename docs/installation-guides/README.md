@@ -1,19 +1,21 @@
 # Installation Guides
 
-This directory contains detailed installation instructions for Pierre MCP Server across different MCP clients and environments.
+This directory contains detailed installation instructions for Pierre MCP Client SDK.
 
-## Available Guides
+## Quick Start
 
-### MCP Client Installation
+Get started with Pierre MCP Client in under 5 minutes:
 
-| Client | Guide | Support |
-|--------|-------|---------|
-| Claude Desktop | [install-claude.md](install-claude.md) | Full Support |
-| ChatGPT Desktop | [install-chatgpt.md](install-chatgpt.md) | Full Support |
+**[MCP Client Installation Guide](install-mcp-client.md)**
 
-### Environment-Specific Installation
+This unified guide covers installation for all MCP-compatible applications:
+- **Claude Desktop** - Full support
+- **ChatGPT Desktop** - Full support
+- **Other MCP Clients** - Generic stdio configuration
 
-Refer to the main README.md and developer guide for environment-specific setup instructions.
+### Server Installation
+
+Refer to the [main README.md](../../README.md) for Pierre MCP Server installation and setup.
 
 ## Installation Methods
 

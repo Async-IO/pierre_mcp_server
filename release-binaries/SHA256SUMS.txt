@@ -1,0 +1,5 @@
+2a0ee0beae74734bb839e9d7ad96a6f6099e14f9b1992a045136a19a42ad79f7  pierre-mcp-server-v0.1.0-linux-x86_64-gnu.tar.gz
+521f91e0051e4f249575a0dc186e2e2eb9e11335501632bc4eb96fe302d9da5f  pierre-mcp-server-v0.1.0-linux-x86_64-musl.tar.gz
+76bbdaa54e3bf6a122f4fee5e55b37f016608e1f78ded9dd330dac4e0d0507d4  pierre-mcp-server-v0.1.0-macos-aarch64.tar.gz
+17cb38743bdb5ca84f83bd486086242fdc4fc1ae7822c9d01cb23597628139fa  pierre-mcp-server-v0.1.0-macos-x86_64.tar.gz
+f5013b24f63e817e0110bb5c8ee75e5234791ca497989e097648e13c9d3fe815  pierre-mcp-server-v0.1.0-windows-x86_64.zip
