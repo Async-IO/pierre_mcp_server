@@ -1,25 +1,25 @@
 #!/usr/bin/env node
 
-// ABOUTME: Command-line interface for Pierre-Claude Bridge
-// ABOUTME: Parses arguments, configures bridge, and manages process lifecycle
+// ABOUTME: Command-line interface for Pierre MCP Client
+// ABOUTME: Parses arguments, configures MCP client, and manages process lifecycle
 //
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
 /**
- * Pierre-Claude Bridge CLI
+ * Pierre MCP Client CLI
  *
- * MCP-compliant bridge connecting Claude Desktop (stdio) to Pierre Fitness MCP Server (Streamable HTTP + OAuth 2.0)
+ * MCP-compliant client connecting MCP hosts to Pierre Fitness MCP Server (HTTP + OAuth 2.0)
  */
 
 import { Command } from 'commander';
-import { PierreClaudeBridge } from './bridge';
+import { PierreMcpClient } from './bridge';
 
 const program = new Command();
 
 program
-  .name('pierre-claude-bridge')
-  .description('MCP bridge connecting Claude Desktop to Pierre Fitness MCP Server')
+  .name('pierre-mcp-client')
+  .description('MCP client connecting to Pierre Fitness MCP Server')
   .version('1.0.0')
   .option('-s, --server <url>', 'Pierre MCP server URL', process.env.PIERRE_SERVER_URL || 'http://localhost:8080')
   .option('-t, --token <jwt>', 'JWT authentication token', process.env.PIERRE_JWT_TOKEN)
@@ -34,7 +34,7 @@ program
   .option('--tool-call-connection-timeout <ms>', 'Tool-triggered connection timeout in milliseconds (default: 10000)', process.env.PIERRE_TOOL_CALL_CONNECTION_TIMEOUT_MS || '10000')
   .action(async (options) => {
     try {
-      const bridge = new PierreClaudeBridge({
+      const bridge = new PierreMcpClient({
         pierreServerUrl: options.server,
         jwtToken: options.token,
         oauthClientId: options.oauthClientId,

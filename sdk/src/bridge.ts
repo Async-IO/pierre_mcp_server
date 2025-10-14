@@ -1,13 +1,13 @@
-// ABOUTME: Bidirectional MCP bridge connecting Claude Desktop (stdio) to Pierre Server (HTTP)
+// ABOUTME: Bidirectional MCP bridge connecting MCP host (stdio) to Pierre Server (HTTP)
 // ABOUTME: Manages OAuth 2.0 flows, token persistence, and transparent MCP message translation
 //
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
 /**
- * Pierre-Claude Bridge
+ * Pierre MCP Client
  *
- * MCP-compliant bridge implementation connecting Claude Desktop (stdio) to Pierre MCP Server (Streamable HTTP + OAuth 2.0)
+ * MCP-compliant client implementation connecting MCP hosts to Pierre MCP Server (HTTP + OAuth 2.0)
  */
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -126,8 +126,8 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
     // Initialize client-side storage paths
     const os = require('os');
     const path = require('path');
-    this.tokenStoragePath = path.join(os.homedir(), '.pierre-claude-tokens.json');
-    this.clientInfoPath = path.join(os.homedir(), '.pierre-claude-client-info.json');
+    this.tokenStoragePath = path.join(os.homedir(), '.pierre-mcp-tokens.json');
+    this.clientInfoPath = path.join(os.homedir(), '.pierre-mcp-client-info.json');
 
     // Load existing tokens and client info from storage
     this.loadStoredTokens();
@@ -274,7 +274,7 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
 
   get clientMetadata(): OAuthClientMetadata {
     return {
-      client_name: 'Pierre Claude Bridge',
+      client_name: 'Pierre MCP Client',
       client_uri: 'https://claude.ai',
       redirect_uris: [this.redirectUrl],
       grant_types: ['authorization_code'],
@@ -769,14 +769,14 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
             this.log(`Authorization failed: ${query.error}`);
             res.writeHead(400, { 'Content-Type': 'text/html' });
             res.end(this.renderErrorTemplate(
-              'Claude Desktop OAuth',
+              'MCP host OAuth',
               `${query.error}`,
               `${query.error_description || 'Please try connecting again.'}`
             ));
           } else if (query.code && query.state) {
             this.log(`Authorization successful, received code`);
             res.writeHead(200, { 'Content-Type': 'text/html' });
-            res.end(this.renderSuccessTemplate('Claude Desktop OAuth'));
+            res.end(this.renderSuccessTemplate('MCP host OAuth'));
 
             // Resolve the authorization promise if it exists
             const authResolve = (this.callbackServer as any)._authResolve;
@@ -789,7 +789,7 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
             this.log(`Invalid callback parameters`);
             res.writeHead(400, { 'Content-Type': 'text/html' });
             res.end(this.renderErrorTemplate(
-              'Claude Desktop OAuth',
+              'MCP host OAuth',
               'Invalid Request',
               'Missing required authorization parameters. Please try connecting again.'
             ));
@@ -881,7 +881,7 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
         <div class="info"><strong>Status:</strong> Connected successfully</div>
         <div class="info"><strong>Status:</strong> <span class="code">Connected</span></div>
         <p><strong>Authentication complete!</strong></p>
-        <p>Please return to your MCP client (Claude Desktop, ChatGPT, etc.) to continue.</p>
+        <p>Please return to your MCP client to continue.</p>
         <p><small>This window will close automatically in 3 seconds...</small></p>
         <script>
             // Auto-close window after user has time to read the success message
@@ -1006,10 +1006,10 @@ class PierreOAuthClientProvider implements OAuthClientProvider {
 
 }
 
-export class PierreClaudeBridge {
+export class PierreMcpClient {
   private config: BridgeConfig;
   private pierreClient: Client | null = null;
-  private claudeServer: Server | null = null;
+  private mcpServer: Server | null = null;
   private serverTransport: StdioServerTransport | null = null;
   private cachedTools: any = null;
 
@@ -1036,9 +1036,9 @@ export class PierreClaudeBridge {
 
   async start(): Promise<void> {
     try {
-      // Step 1: Create MCP server for Claude Desktop using stdio
+      // Step 1: Create MCP server for MCP host using stdio
       // This must happen FIRST so the bridge can respond to MCP validator
-      await this.createClaudeServer();
+      await this.createMcpServer();
 
       // Step 2: Start the bridge (stdio transport)
       await this.startBridge();
@@ -1064,14 +1064,14 @@ export class PierreClaudeBridge {
     // This prevents wasting user time with invalid credentials
     await this.oauthProvider.validateAndCleanupCachedCredentials();
 
-    // ALWAYS connect proactively to cache tools for Claude Desktop
+    // ALWAYS connect proactively to cache tools for MCP host
     // Server allows tools/list without authentication - only tool calls require auth
-    // This ensures all tools are visible immediately in Claude Desktop (tools/list_changed doesn't work)
+    // This ensures all tools are visible immediately in MCP host (tools/list_changed doesn't work)
     const connectionTimeoutMs = this.config.proactiveConnectionTimeoutMs || 5000;
     const toolsListTimeoutMs = this.config.proactiveToolsListTimeoutMs || 3000;
 
     try {
-      this.log(`Connecting to Pierre proactively to cache all tools for Claude Desktop (timeout: ${connectionTimeoutMs}ms)`);
+      this.log(`Connecting to Pierre proactively to cache all tools for MCP host (timeout: ${connectionTimeoutMs}ms)`);
       const connectionResult = await this.withTimeout(
         this.connectToPierre(),
         connectionTimeoutMs,
@@ -1168,7 +1168,7 @@ export class PierreClaudeBridge {
         // Create fresh MCP client for each attempt
         this.pierreClient = new Client(
           {
-            name: 'pierre-claude-bridge',
+            name: 'pierre-mcp-client',
             version: '1.0.0'
           },
           {
@@ -1324,11 +1324,11 @@ export class PierreClaudeBridge {
     return this.oauthProvider.getTokenStatus();
   }
 
-  private async createClaudeServer(): Promise<void> {
-    this.log('Creating Claude Desktop server...');
+  private async createMcpServer(): Promise<void> {
+    this.log('Creating MCP host server...');
 
-    // Create MCP server for Claude Desktop
-    this.claudeServer = new Server(
+    // Create MCP server for MCP host
+    this.mcpServer = new Server(
       {
         name: 'pierre-fitness',
         version: '1.0.0'
@@ -1346,19 +1346,19 @@ export class PierreClaudeBridge {
     // Set up request handlers - bridge all requests to Pierre
     this.setupRequestHandlers();
 
-    // Create stdio transport for Claude Desktop
+    // Create stdio transport for MCP host
     this.serverTransport = new StdioServerTransport();
 
-    this.log('Claude Desktop server created');
+    this.log('MCP host server created');
   }
 
   private setupRequestHandlers(): void {
-    if (!this.claudeServer) {
-      throw new Error('Claude server not initialized');
+    if (!this.mcpServer) {
+      throw new Error('MCP server not initialized');
     }
 
     // Bridge tools/list requests
-    this.claudeServer.setRequestHandler(ListToolsRequestSchema, async (request) => {
+    this.mcpServer.setRequestHandler(ListToolsRequestSchema, async (request) => {
       this.log('Bridging tools/list request');
 
       try {
@@ -1412,7 +1412,7 @@ export class PierreClaudeBridge {
     });
 
     // Bridge tools/call requests
-    this.claudeServer.setRequestHandler(CallToolRequestSchema, async (request) => {
+    this.mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
       this.log('Bridging tool call:', request.params.name);
 
       // Handle special authentication tools
@@ -1555,7 +1555,7 @@ export class PierreClaudeBridge {
     });
 
     // Bridge resources/list requests
-    this.claudeServer.setRequestHandler(ListResourcesRequestSchema, async (request) => {
+    this.mcpServer.setRequestHandler(ListResourcesRequestSchema, async (request) => {
       this.log('Bridging resources/list request');
 
       // Pierre server doesn't provide resources, so always return empty list
@@ -1563,7 +1563,7 @@ export class PierreClaudeBridge {
     });
 
     // Bridge resources/read requests
-    this.claudeServer.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    this.mcpServer.setRequestHandler(ReadResourceRequestSchema, async (request) => {
       this.log('Bridging resource read:', request.params.uri);
 
       if (!this.pierreClient) {
@@ -1579,7 +1579,7 @@ export class PierreClaudeBridge {
     });
 
     // Bridge prompts/list requests
-    this.claudeServer.setRequestHandler(ListPromptsRequestSchema, async (request) => {
+    this.mcpServer.setRequestHandler(ListPromptsRequestSchema, async (request) => {
       this.log('Bridging prompts/list request');
 
       // Pierre server doesn't provide prompts, so always return empty list
@@ -1587,7 +1587,7 @@ export class PierreClaudeBridge {
     });
 
     // Bridge prompts/get requests
-    this.claudeServer.setRequestHandler(GetPromptRequestSchema, async (request) => {
+    this.mcpServer.setRequestHandler(GetPromptRequestSchema, async (request) => {
       this.log('Bridging prompt get:', request.params.name);
 
       if (!this.pierreClient) {
@@ -1607,19 +1607,19 @@ export class PierreClaudeBridge {
     });
 
     // Handle ping requests
-    this.claudeServer.setRequestHandler(PingRequestSchema, async () => {
+    this.mcpServer.setRequestHandler(PingRequestSchema, async () => {
       this.log('Handling ping request');
       return {};
     });
 
     // Handle logging/setLevel requests
-    this.claudeServer.setRequestHandler(SetLevelRequestSchema, async (request) => {
+    this.mcpServer.setRequestHandler(SetLevelRequestSchema, async (request) => {
       this.log(`Setting log level to: ${request.params.level}`);
       return {};
     });
 
     // Bridge completion requests
-    this.claudeServer.setRequestHandler(CompleteRequestSchema, async (request) => {
+    this.mcpServer.setRequestHandler(CompleteRequestSchema, async (request) => {
       this.log('Bridging completion request');
 
       if (!this.pierreClient) {
@@ -1693,14 +1693,14 @@ export class PierreClaudeBridge {
         }
       }
 
-      // Notify Claude Desktop that tools have changed (now authenticated)
-      if (this.claudeServer) {
+      // Notify MCP host that tools have changed (now authenticated)
+      if (this.mcpServer) {
         try {
-          await this.claudeServer.notification({
+          await this.mcpServer.notification({
             method: 'notifications/tools/list_changed',
             params: {}
           });
-          this.log('Sent tools/list_changed notification to Claude Desktop');
+          this.log('Sent tools/list_changed notification to MCP host');
         } catch (error: any) {
           this.log('Failed to send tools/list_changed notification:', error.message);
         }
@@ -1909,7 +1909,7 @@ export class PierreClaudeBridge {
   }
 
   private async startBridge(): Promise<void> {
-    if (!this.claudeServer || !this.serverTransport) {
+    if (!this.mcpServer || !this.serverTransport) {
       throw new Error('Server or transport not initialized');
     }
 
@@ -1963,8 +1963,8 @@ export class PierreClaudeBridge {
       }
     };
 
-    // Start the stdio server for Claude Desktop
-    await this.claudeServer.connect(this.serverTransport);
+    // Start the stdio server for MCP host
+    await this.mcpServer.connect(this.serverTransport);
 
     // IMPORTANT: Intercept messages AFTER connect() to ensure our handler isn't overwritten
     // The Server.connect() sets up its own onmessage handler, so we need to wrap it
@@ -1985,7 +1985,7 @@ export class PierreClaudeBridge {
           jsonrpc: '2.0' as const,
           id: message.id,
           result: {
-            name: 'pierre-claude-bridge',
+            name: 'pierre-mcp-client',
             version: '1.0.0',
             protocolVersion: '2025-06-18',
             supportedVersions: ['2024-11-05', '2025-03-26', '2025-06-18'],
@@ -2066,11 +2066,11 @@ export class PierreClaudeBridge {
     // Set up notification forwarding from Pierre to Claude
     this.setupNotificationForwarding();
 
-    this.log('Bridge is running - Claude Desktop can now access Pierre Fitness tools');
+    this.log('Bridge is running - MCP host can now access Pierre Fitness tools');
   }
 
   private setupNotificationForwarding(): void {
-    if (!this.pierreClient || !this.claudeServer) {
+    if (!this.pierreClient || !this.mcpServer) {
       return;
     }
 
@@ -2081,26 +2081,26 @@ export class PierreClaudeBridge {
 
     // Set up OAuth completion notification handler
     // Listen for OAuth completion notifications from Pierre server
-    // and forward them to Claude Desktop so users see the success message
+    // and forward them to MCP host so users see the success message
     try {
       this.pierreClient.setNotificationHandler(
         OAuthCompletedNotificationSchema,
         async (notification) => {
           this.log('Received OAuth completion notification from Pierre:', JSON.stringify(notification));
 
-          if (this.claudeServer) {
+          if (this.mcpServer) {
             try {
-              // Forward the notification to Claude Desktop
-              await this.claudeServer.notification({
+              // Forward the notification to MCP host
+              await this.mcpServer.notification({
                 method: 'notifications/message',
                 params: {
                   level: 'info',
                   message: notification.params?.message || 'OAuth authentication completed successfully!'
                 }
               });
-              this.log('Forwarded OAuth notification to Claude Desktop');
+              this.log('Forwarded OAuth notification to MCP host');
             } catch (error: any) {
-              this.log('Failed to forward OAuth notification to Claude:', error.message);
+              this.log('Failed to forward OAuth notification to MCP host:', error.message);
             }
           }
         }
@@ -2123,10 +2123,10 @@ export class PierreClaudeBridge {
         this.pierreClient = null;
       }
 
-      // Close Claude server
-      if (this.claudeServer) {
-        await this.claudeServer.close();
-        this.claudeServer = null;
+      // Close MCP server
+      if (this.mcpServer) {
+        await this.mcpServer.close();
+        this.mcpServer = null;
       }
 
       // Close OAuth callback server
