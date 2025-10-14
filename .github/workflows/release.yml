@@ -1,0 +1,342 @@
+name: Release Binaries
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v0.1.0)'
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux GNU (glibc) - x86_64
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+            platform: linux
+            arch: x86_64
+            variant: gnu
+
+          # Linux musl (static) - x86_64 - RECOMMENDED
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            archive: tar.gz
+            platform: linux
+            arch: x86_64
+            variant: musl
+
+          # macOS x86_64 (Intel)
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            archive: tar.gz
+            platform: macos
+            arch: x86_64
+            variant: ''
+
+          # macOS ARM64 (Apple Silicon)
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            archive: tar.gz
+            platform: macos
+            arch: aarch64
+            variant: ''
+
+          # Windows x86_64 (MSVC)
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: zip
+            platform: windows
+            arch: x86_64
+            variant: ''
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.87.0
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install musl tools (Linux musl only)
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.target }}-cargo-release-
+
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }} --locked
+        env:
+          # Minimal env for build (no secrets needed)
+          CARGO_INCREMENTAL: 0
+
+      - name: Strip binary (Unix only)
+        if: matrix.os != 'windows-latest'
+        run: |
+          strip target/${{ matrix.target }}/release/pierre-mcp-server || true
+          strip target/${{ matrix.target }}/release/admin-setup || true
+          strip target/${{ matrix.target }}/release/diagnose-weather-api || true
+          strip target/${{ matrix.target }}/release/serve-docs || true
+
+      - name: Get version from tag
+        id: get_version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create package directory structure (Unix)
+        if: matrix.os != 'windows-latest'
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          PACKAGE_NAME="pierre-mcp-server-${VERSION}-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.variant && format('-{0}', matrix.variant) || '' }}"
+          mkdir -p "dist/${PACKAGE_NAME}/bin"
+
+          # Copy binaries
+          cp target/${{ matrix.target }}/release/pierre-mcp-server "dist/${PACKAGE_NAME}/bin/"
+          cp target/${{ matrix.target }}/release/admin-setup "dist/${PACKAGE_NAME}/bin/"
+          cp target/${{ matrix.target }}/release/diagnose-weather-api "dist/${PACKAGE_NAME}/bin/"
+          cp target/${{ matrix.target }}/release/serve-docs "dist/${PACKAGE_NAME}/bin/"
+
+          # Copy documentation
+          cp README.md "dist/${PACKAGE_NAME}/"
+          cp LICENSE-MIT "dist/${PACKAGE_NAME}/" || true
+          cp LICENSE-APACHE "dist/${PACKAGE_NAME}/" || true
+
+          # Create INSTALL.txt with quick start instructions
+          cat > "dist/${PACKAGE_NAME}/INSTALL.txt" <<EOF
+          Pierre MCP Server $VERSION - Installation Instructions
+
+          Quick Start:
+          1. Add the bin/ directory to your PATH:
+             export PATH="\$PWD/bin:\$PATH"
+
+          2. Verify installation:
+             pierre-mcp-server --version
+
+          3. Set up admin user:
+             admin-setup create-admin-user --email admin@example.com --password YourSecurePassword
+
+          4. Run the server:
+             pierre-mcp-server
+
+          For full documentation, see README.md or visit:
+          https://github.com/Async-IO/pierre_mcp_server
+          EOF
+
+          echo "PACKAGE_NAME=${PACKAGE_NAME}" >> $GITHUB_ENV
+
+      - name: Create package directory structure (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $VERSION = "${{ steps.get_version.outputs.VERSION }}"
+          $PACKAGE_NAME = "pierre-mcp-server-${VERSION}-${{ matrix.platform }}-${{ matrix.arch }}"
+          New-Item -ItemType Directory -Force -Path "dist\${PACKAGE_NAME}\bin"
+
+          # Copy binaries
+          Copy-Item "target\${{ matrix.target }}\release\pierre-mcp-server.exe" "dist\${PACKAGE_NAME}\bin\"
+          Copy-Item "target\${{ matrix.target }}\release\admin-setup.exe" "dist\${PACKAGE_NAME}\bin\"
+          Copy-Item "target\${{ matrix.target }}\release\diagnose-weather-api.exe" "dist\${PACKAGE_NAME}\bin\"
+          Copy-Item "target\${{ matrix.target }}\release\serve-docs.exe" "dist\${PACKAGE_NAME}\bin\"
+
+          # Copy documentation
+          Copy-Item "README.md" "dist\${PACKAGE_NAME}\"
+          Copy-Item "LICENSE-MIT" "dist\${PACKAGE_NAME}\" -ErrorAction SilentlyContinue
+          Copy-Item "LICENSE-APACHE" "dist\${PACKAGE_NAME}\" -ErrorAction SilentlyContinue
+
+          # Create INSTALL.txt
+          @"
+          Pierre MCP Server $VERSION - Installation Instructions
+
+          Quick Start:
+          1. Add the bin\ directory to your PATH or run from this directory
+
+          2. Verify installation:
+             bin\pierre-mcp-server.exe --version
+
+          3. Set up admin user:
+             bin\admin-setup.exe create-admin-user --email admin@example.com --password YourSecurePassword
+
+          4. Run the server:
+             bin\pierre-mcp-server.exe
+
+          For full documentation, see README.md or visit:
+          https://github.com/Async-IO/pierre_mcp_server
+          "@ | Out-File -FilePath "dist\${PACKAGE_NAME}\INSTALL.txt" -Encoding utf8
+
+          echo "PACKAGE_NAME=${PACKAGE_NAME}" >> $env:GITHUB_ENV
+
+      - name: Create tar.gz archive (Unix)
+        if: matrix.archive == 'tar.gz'
+        run: |
+          cd dist
+          tar -czf "${PACKAGE_NAME}.tar.gz" "${PACKAGE_NAME}"
+          ls -lh "${PACKAGE_NAME}.tar.gz"
+
+      - name: Create zip archive (Windows)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          cd dist
+          Compress-Archive -Path "${env:PACKAGE_NAME}" -DestinationPath "${env:PACKAGE_NAME}.zip"
+          Get-ChildItem "${env:PACKAGE_NAME}.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.target }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+          retention-days: 1
+
+  create-release:
+    name: Create GitHub Release
+    needs: [build]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Organize artifacts
+        run: |
+          mkdir -p release-assets
+          find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec cp {} release-assets/ \;
+          ls -lh release-assets/
+
+      - name: Generate SHA256 checksums
+        run: |
+          cd release-assets
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Get version from tag
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check if CHANGELOG exists
+        id: check_changelog
+        run: |
+          if [ -f "CHANGELOG.md" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Extract release notes from CHANGELOG
+        if: steps.check_changelog.outputs.exists == 'true'
+        id: extract_notes
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+
+          # Extract section for this version from CHANGELOG.md
+          awk "/^## \[${VERSION#v}\]/ {flag=1; next} /^## \[/ {flag=0} flag" CHANGELOG.md > release-notes.md
+
+          if [ ! -s release-notes.md ]; then
+            echo "No release notes found in CHANGELOG.md for version ${VERSION}"
+            echo "## What's New" > release-notes.md
+            echo "" >> release-notes.md
+            echo "See [CHANGELOG.md](CHANGELOG.md) for details." >> release-notes.md
+          fi
+
+      - name: Create default release notes
+        if: steps.check_changelog.outputs.exists == 'false'
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          cat > release-notes.md <<EOF
+          ## Pierre MCP Server ${VERSION}
+
+          Multi-protocol fitness data API for LLMs with MCP and A2A support.
+
+          ### Installation
+
+          Download the appropriate binary for your platform below.
+
+          **Linux (Recommended):**
+          - \`pierre-mcp-server-${VERSION}-linux-x86_64-musl.tar.gz\` - Static binary, no dependencies
+
+          **macOS:**
+          - \`pierre-mcp-server-${VERSION}-macos-x86_64.tar.gz\` - Intel Macs
+          - \`pierre-mcp-server-${VERSION}-macos-aarch64.tar.gz\` - Apple Silicon (M1/M2/M3)
+
+          **Windows:**
+          - \`pierre-mcp-server-${VERSION}-windows-x86_64.zip\`
+
+          ### Verification
+
+          Verify your download with SHA256 checksums:
+          \`\`\`bash
+          sha256sum -c SHA256SUMS.txt
+          \`\`\`
+
+          ### Documentation
+
+          See [README.md](https://github.com/Async-IO/pierre_mcp_server) for configuration and usage.
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          body_path: release-notes.md
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          name: Pierre MCP Server ${{ steps.get_version.outputs.VERSION }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release summary
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          echo "✅ Release ${VERSION} created successfully!"
+          echo ""
+          echo "📦 Released binaries:"
+          ls -lh release-assets/ | grep -v total
+          echo ""
+          echo "🔗 Release URL: https://github.com/${{ github.repository }}/releases/tag/${VERSION}"
