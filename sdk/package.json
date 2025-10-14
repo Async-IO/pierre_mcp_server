@@ -1,6 +1,6 @@
 {
   "name": "pierre-mcp-client",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP client for Pierre Fitness MCP Server - works with Claude Desktop, ChatGPT, and any MCP host",
   "main": "dist/index.js",
   "bin": {
