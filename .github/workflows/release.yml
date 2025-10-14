@@ -328,6 +328,7 @@ jobs:
           prerelease: false
           generate_release_notes: true
           name: Pierre MCP Server ${{ steps.get_version.outputs.VERSION }}
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
