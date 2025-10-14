@@ -138,21 +138,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive environment variable documentation
 - Configuration validation and defaults
 
-### Changed
-- Unified HTTP architecture on single port (8081)
-- Improved MCP performance and spec compliance
-- Enhanced logging clarity (removed emojis)
-- Standardized copyright headers across codebase
-- Improved OAuth flow with better error handling
-
-### Fixed
-- OAuth regression in token refresh flow
-- CTRL-C signal handling for clean shutdown
-- Refresh token error handling when no credentials exist
-- MCP compliance test timeouts in CI environment
-- Architecture documentation mismatches
-- Unused environment variables cleanup (15 removed)
-
 ### Security
 - No known vulnerabilities in initial release
 - Encrypted OAuth credentials at rest
