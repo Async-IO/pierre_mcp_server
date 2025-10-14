@@ -1436,8 +1436,8 @@ impl DatabaseProvider for SqliteDatabase {
     ) -> Result<()> {
         let query = r"
             INSERT INTO oauth2_auth_codes
-            (code, client_id, user_id, redirect_uri, scope, expires_at, used)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+            (code, client_id, user_id, redirect_uri, scope, expires_at, used, code_challenge, code_challenge_method)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
         ";
 
         sqlx::query(query)
@@ -1448,6 +1448,8 @@ impl DatabaseProvider for SqliteDatabase {
             .bind(&auth_code.scope)
             .bind(auth_code.expires_at)
             .bind(auth_code.used)
+            .bind(&auth_code.code_challenge)
+            .bind(&auth_code.code_challenge_method)
             .execute(self.inner.pool())
             .await
             .context("Failed to store OAuth2 auth code")?;
@@ -1461,7 +1463,7 @@ impl DatabaseProvider for SqliteDatabase {
         code: &str,
     ) -> Result<Option<crate::oauth2::models::OAuth2AuthCode>> {
         let query = r"
-            SELECT code, client_id, user_id, redirect_uri, scope, expires_at, used
+            SELECT code, client_id, user_id, redirect_uri, scope, expires_at, used, code_challenge, code_challenge_method
             FROM oauth2_auth_codes
             WHERE code = ?1
         ";
@@ -1484,6 +1486,8 @@ impl DatabaseProvider for SqliteDatabase {
                 scope: row.get("scope"),
                 expires_at: row.get("expires_at"),
                 used: row.get("used"),
+                code_challenge: row.get("code_challenge"),
+                code_challenge_method: row.get("code_challenge_method"),
             }))
         } else {
             Ok(None)

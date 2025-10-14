@@ -280,6 +280,27 @@ Tool descriptions from `src/protocols/universal/tool_registry.rs:114-162`.
 
 Pierre supports multiple authentication methods for different use cases.
 
+### OAuth vs OAuth2 - Two Different Systems
+
+Pierre implements two distinct OAuth systems with different purposes:
+
+**`oauth` module** (Fitness Provider Integration):
+- Pierre acts as an OAuth **client** connecting TO external fitness providers (Strava, Garmin, Fitbit)
+- Manages user connections and tokens for accessing fitness data from these providers
+- Implementation in `src/oauth/` and `src/providers/`
+- Configuration via `STRAVA_CLIENT_ID`, `GARMIN_CLIENT_ID`, etc.
+- Used internally when fetching fitness data
+
+**`oauth2` module** (Authorization Server):
+- Pierre acts as an OAuth **server** for MCP clients connecting TO Pierre
+- Implements RFC 7591 (Dynamic Client Registration) and RFC 7636 (PKCE)
+- Issues JWT access tokens for MCP protocol authentication
+- Implementation in `src/oauth2/`
+- Endpoints: `/oauth2/register`, `/oauth2/authorize`, `/oauth2/token`
+- Used by MCP clients (Claude, ChatGPT, etc.) to authenticate with Pierre
+
+**Summary**: Use `oauth` configuration for fitness provider credentials. Use `oauth2` endpoints when building MCP clients that connect to Pierre.
+
 ### OAuth 2.0 Authorization Server
 
 Pierre implements an OAuth 2.0 Authorization Server for MCP client authentication. Implementation in `src/oauth2/`.

@@ -591,6 +591,8 @@ fn parse_authorize_request(
 
     let scope = params.get("scope").cloned();
     let state = params.get("state").cloned();
+    let code_challenge = params.get("code_challenge").cloned();
+    let code_challenge_method = params.get("code_challenge_method").cloned();
 
     Ok(AuthorizeRequest {
         response_type,
@@ -598,6 +600,8 @@ fn parse_authorize_request(
         redirect_uri,
         scope,
         state,
+        code_challenge,
+        code_challenge_method,
     })
 }
 
@@ -635,6 +639,7 @@ fn parse_token_request(form: &HashMap<String, String>) -> Result<TokenRequest, O
     let redirect_uri = form.get("redirect_uri").cloned();
     let scope = form.get("scope").cloned();
     let refresh_token = form.get("refresh_token").cloned();
+    let code_verifier = form.get("code_verifier").cloned();
 
     Ok(TokenRequest {
         grant_type,
@@ -644,6 +649,7 @@ fn parse_token_request(form: &HashMap<String, String>) -> Result<TokenRequest, O
         client_secret,
         scope,
         refresh_token,
+        code_verifier,
     })
 }
 

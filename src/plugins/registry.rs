@@ -1,4 +1,4 @@
-// ABOUTME: Compile-time plugin registry using distributed slices for zero-cost plugin discovery
+// ABOUTME: Plugin registry for managing all available plugins
 // ABOUTME: Provides thread-safe, efficient plugin management with Rust-idiomatic patterns
 //
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
@@ -8,18 +8,12 @@
 // - Plugin info cloning for registry operations
 // - Arc plugin clones for concurrent access
 
-use super::core::{PluginInfo, PluginTool};
+use super::core::{PluginInfo, PluginTool, PluginToolStatic};
 use super::PluginEnvironment;
 use crate::protocols::universal::UniversalRequest;
 use crate::protocols::ProtocolError;
-use linkme::distributed_slice;
 use std::collections::HashMap;
 use std::sync::Arc;
-
-/// Distributed slice for compile-time plugin registration
-/// Each plugin adds itself to this slice via the linkme crate
-#[distributed_slice]
-pub static PIERRE_PLUGINS: [fn() -> Box<dyn PluginTool>] = [..];
 
 /// Plugin registry that manages all available plugins
 pub struct PluginRegistry {
@@ -42,28 +36,18 @@ impl PluginRegistry {
         registry
     }
 
-    /// Register all plugins from the distributed slice
+    /// Register all built-in plugins
     fn register_builtin_plugins(&mut self) {
-        for plugin_factory in PIERRE_PLUGINS {
-            let plugin = plugin_factory();
-            let info = plugin.info().clone();
-
-            tracing::info!(
-                "Registering plugin: {} (category: {:?})",
-                info.name,
-                info.category
-            );
-
-            // Call plugin lifecycle hook
-            if let Err(e) = plugin.on_register() {
-                tracing::error!("Failed to register plugin {}: {}", info.name, e);
-                continue;
-            }
-
-            let plugin_arc = Arc::from(plugin);
-            self.plugins.insert(info.name.to_string(), plugin_arc);
-            self.plugin_info.insert(info.name.to_string(), info);
-        }
+        // Manually register all built-in plugins
+        // Note: When adding new plugins, add them to this list
+        self.register_plugin(Box::new(
+            crate::plugins::community::BasicAnalysisPlugin::new(),
+        ))
+        .ok();
+        self.register_plugin(Box::new(
+            crate::plugins::community::WeatherIntegrationPlugin::new(),
+        ))
+        .ok();
 
         tracing::info!("Registered {} plugins", self.plugins.len());
     }
@@ -218,17 +202,6 @@ pub struct PluginRegistryStatistics {
     pub provider_plugins: usize,
     pub environmental_plugins: usize,
     pub custom_plugins: usize,
-}
-
-/// Macro for registering a plugin at compile time
-#[macro_export]
-macro_rules! register_plugin {
-    ($plugin_type:ty) => {
-        #[linkme::distributed_slice($crate::plugins::registry::PIERRE_PLUGINS)]
-        #[linkme(crate = linkme)]
-        static PLUGIN_FACTORY: fn() -> Box<dyn $crate::plugins::core::PluginTool> =
-            || Box::new(<$plugin_type>::new());
-    };
 }
 
 /// Convenience function to create a global plugin registry

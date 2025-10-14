@@ -8,7 +8,7 @@ use crate::plugins::core::{PluginCategory, PluginImplementation, PluginInfo, Plu
 use crate::plugins::PluginEnvironment;
 use crate::protocols::universal::{UniversalRequest, UniversalResponse};
 use crate::protocols::ProtocolError;
-use crate::{impl_static_plugin, plugin_info, register_plugin};
+use crate::{impl_static_plugin, plugin_info};
 use async_trait::async_trait;
 use serde_json::Value;
 
@@ -134,6 +134,3 @@ fn generate_weather_insights(_weather_analysis: &Value) -> Vec<String> {
 
 // Implement PluginTool for this static plugin
 impl_static_plugin!(WeatherIntegrationPlugin);
-
-// Register this plugin at compile time
-register_plugin!(WeatherIntegrationPlugin);

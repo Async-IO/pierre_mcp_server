@@ -63,6 +63,10 @@ pub struct AuthorizeRequest {
     pub scope: Option<String>,
     /// State parameter for CSRF protection
     pub state: Option<String>,
+    /// PKCE code challenge (RFC 7636)
+    pub code_challenge: Option<String>,
+    /// PKCE code challenge method (plain or S256)
+    pub code_challenge_method: Option<String>,
 }
 
 /// OAuth 2.0 Authorization Response
@@ -91,6 +95,8 @@ pub struct TokenRequest {
     pub scope: Option<String>,
     /// Refresh token (for `refresh_token` grant)
     pub refresh_token: Option<String>,
+    /// PKCE code verifier (RFC 7636, for `authorization_code` grant)
+    pub code_verifier: Option<String>,
 }
 
 /// OAuth 2.0 Token Response
@@ -191,6 +197,10 @@ pub struct OAuth2AuthCode {
     pub scope: Option<String>,
     pub expires_at: DateTime<Utc>,
     pub used: bool,
+    /// PKCE code challenge (RFC 7636)
+    pub code_challenge: Option<String>,
+    /// PKCE code challenge method (plain or S256)
+    pub code_challenge_method: Option<String>,
 }
 
 /// OAuth 2.0 Access Token

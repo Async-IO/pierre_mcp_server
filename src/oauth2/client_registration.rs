@@ -9,9 +9,12 @@ use crate::oauth2::models::{
     ClientRegistrationRequest, ClientRegistrationResponse, OAuth2Client, OAuth2Error,
 };
 use anyhow::Result;
+use argon2::{
+    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    Argon2,
+};
 use base64::{engine::general_purpose, Engine as _};
 use chrono::{Duration, Utc};
-use ring::digest::{digest, SHA256};
 use ring::rand::{SecureRandom, SystemRandom};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -113,15 +116,17 @@ impl ClientRegistrationManager {
 
         tracing::debug!("OAuth client {} found, validating secret", client_id);
 
-        // Verify client secret
-        let provided_hash = Self::hash_client_secret(client_secret);
-        tracing::debug!(
-            "Provided secret hash: {}, Stored hash: {}",
-            provided_hash,
-            client.client_secret_hash
-        );
+        // Verify client secret using constant-time comparison via Argon2
+        let parsed_hash = PasswordHash::new(&client.client_secret_hash).map_err(|e| {
+            tracing::error!("Failed to parse stored password hash: {}", e);
+            OAuth2Error::invalid_client()
+        })?;
 
-        if provided_hash != client.client_secret_hash {
+        let argon2 = Argon2::default();
+        if argon2
+            .verify_password(client_secret.as_bytes(), &parsed_hash)
+            .is_err()
+        {
             tracing::warn!("OAuth client {} secret validation failed", client_id);
             return Err(OAuth2Error::invalid_client());
         }
@@ -200,11 +205,72 @@ impl ClientRegistrationManager {
 
     /// Check if redirect URI is valid
     fn is_valid_redirect_uri(uri: &str) -> bool {
-        // Basic validation - should be HTTPS or localhost
-        uri.starts_with("https://")
-            || uri.starts_with("http://localhost")
-            || uri.starts_with("http://127.0.0.1")
-            || uri.starts_with("urn:ietf:wg:oauth:2.0:oob") // Out-of-band for native apps
+        // OAuth 2.0 Security Best Practices (RFC 6749 Section 3.1.2.2)
+        // - MUST be absolute URI
+        // - MUST NOT include fragment component
+        // - SHOULD use https:// except for localhost/loopback
+
+        if !Self::validate_uri_format(uri) {
+            return false;
+        }
+
+        // Allow out-of-band URN for native apps (RFC 8252)
+        if uri == "urn:ietf:wg:oauth:2.0:oob" {
+            return true;
+        }
+
+        // Parse and validate HTTP(S) URIs
+        Self::validate_http_uri(uri)
+    }
+
+    /// Validate basic URI format requirements
+    fn validate_uri_format(uri: &str) -> bool {
+        // Reject empty or whitespace-only URIs
+        if uri.trim().is_empty() {
+            return false;
+        }
+
+        // Reject URIs with fragments (security risk - RFC 6749 Section 3.1.2)
+        if uri.contains('#') {
+            tracing::warn!("Rejected redirect_uri with fragment: {}", uri);
+            return false;
+        }
+
+        // Reject wildcard patterns (subdomain bypass attack prevention)
+        if uri.contains('*') {
+            tracing::warn!("Rejected redirect_uri with wildcard: {}", uri);
+            return false;
+        }
+
+        true
+    }
+
+    /// Validate HTTP(S) URI scheme and host
+    fn validate_http_uri(uri: &str) -> bool {
+        let Ok(parsed_uri) = url::Url::parse(uri) else {
+            tracing::warn!("Rejected malformed redirect_uri: {}", uri);
+            return false;
+        };
+
+        let scheme = parsed_uri.scheme();
+        let is_localhost = parsed_uri.host_str() == Some("localhost")
+            || parsed_uri.host_str() == Some("127.0.0.1");
+
+        if scheme == "https" {
+            // HTTPS is always allowed
+            return true;
+        }
+
+        if scheme == "http" && is_localhost {
+            // HTTP only allowed for localhost/loopback
+            return true;
+        }
+
+        tracing::warn!(
+            "Rejected redirect_uri with non-HTTPS scheme for non-localhost: {}",
+            uri
+        );
+        false
     }
 
     /// Check if grant type is supported
@@ -229,17 +295,24 @@ impl ClientRegistrationManager {
     fn generate_client_secret() -> String {
         let rng = SystemRandom::new();
         let mut secret = [0u8; 32];
-        if rng.fill(&mut secret).is_err() {
-            return "fallback_secret_32_chars_long_xyz".to_string();
-        }
+        rng.fill(&mut secret)
+            .expect("System RNG failure - cannot generate secure client secret");
 
         // Base64 encode the secret
         general_purpose::STANDARD.encode(secret)
     }
 
-    /// Hash client secret for storage
+    /// Hash client secret for storage using Argon2id
+    ///
+    /// Uses Argon2id with a random salt for secure password hashing.
+    /// Argon2id provides resistance against GPU-based attacks and side-channel attacks.
     fn hash_client_secret(secret: &str) -> String {
-        let hash = digest(&SHA256, secret.as_bytes());
-        hex::encode(hash.as_ref())
+        let salt = SaltString::generate(&mut OsRng);
+        let argon2 = Argon2::default();
+
+        argon2
+            .hash_password(secret.as_bytes(), &salt)
+            .expect("Argon2 password hashing failed")
+            .to_string()
     }
 }

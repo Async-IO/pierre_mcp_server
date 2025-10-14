@@ -18,7 +18,9 @@ use anyhow::Result;
 use base64::{engine::general_purpose, Engine as _};
 use chrono::{Duration, Utc};
 use ring::rand::{SecureRandom, SystemRandom};
+use sha2::{Digest, Sha256};
 use std::sync::Arc;
+use subtle::ConstantTimeEq;
 use uuid::Uuid;
 
 /// OAuth 2.0 Authorization Server
@@ -70,6 +72,37 @@ impl OAuth2AuthorizationServer {
             return Err(OAuth2Error::invalid_request("Invalid redirect_uri"));
         }
 
+        // Validate PKCE parameters (RFC 7636)
+        if let Some(ref code_challenge) = request.code_challenge {
+            // Validate code_challenge format (base64url-encoded, 43-128 characters)
+            if code_challenge.len() < 43 || code_challenge.len() > 128 {
+                return Err(OAuth2Error::invalid_request(
+                    "code_challenge must be between 43 and 128 characters",
+                ));
+            }
+
+            // Validate code_challenge_method
+            let method = request.code_challenge_method.as_deref().unwrap_or("plain");
+            if method != "S256" && method != "plain" {
+                return Err(OAuth2Error::invalid_request(
+                    "code_challenge_method must be 'S256' or 'plain'",
+                ));
+            }
+
+            // Warn if using plain method (less secure)
+            if method == "plain" {
+                tracing::warn!(
+                    "Client {} using plain PKCE method - S256 is recommended",
+                    request.client_id
+                );
+            }
+        } else {
+            // PKCE is required for authorization code flow
+            return Err(OAuth2Error::invalid_request(
+                "code_challenge is required for authorization_code flow (PKCE)",
+            ));
+        }
+
         // For now, we'll skip the consent screen and auto-approve
         // In a real implementation, this would redirect to a consent page
         let user_id =
@@ -82,6 +115,8 @@ impl OAuth2AuthorizationServer {
                 user_id,
                 &request.redirect_uri,
                 request.scope.as_deref(),
+                request.code_challenge.as_deref(),
+                request.code_challenge_method.as_deref(),
             )
             .await
             .map_err(|_| OAuth2Error::invalid_request("Failed to generate authorization code"))?;
@@ -130,9 +165,14 @@ impl OAuth2AuthorizationServer {
             .redirect_uri
             .ok_or_else(|| OAuth2Error::invalid_request("Missing redirect_uri"))?;
 
-        // Validate and consume authorization code
+        // Validate and consume authorization code (with PKCE verification)
         let auth_code = self
-            .validate_and_consume_auth_code(&code, &request.client_id, &redirect_uri)
+            .validate_and_consume_auth_code(
+                &code,
+                &request.client_id,
+                &redirect_uri,
+                request.code_verifier.as_deref(),
+            )
             .await?;
 
         // Generate JWT access token
@@ -264,6 +304,8 @@ impl OAuth2AuthorizationServer {
         user_id: Uuid,
         redirect_uri: &str,
         scope: Option<&str>,
+        code_challenge: Option<&str>,
+        code_challenge_method: Option<&str>,
     ) -> Result<String> {
         let code = Self::generate_random_string(32);
         let expires_at = Utc::now() + Duration::minutes(10); // 10 minute expiry
@@ -276,6 +318,8 @@ impl OAuth2AuthorizationServer {
             scope: scope.map(std::string::ToString::to_string),
             expires_at,
             used: false,
+            code_challenge: code_challenge.map(std::string::ToString::to_string),
+            code_challenge_method: code_challenge_method.map(std::string::ToString::to_string),
         };
 
         self.store_auth_code(&auth_code).await?;
@@ -288,6 +332,7 @@ impl OAuth2AuthorizationServer {
         code: &str,
         client_id: &str,
         redirect_uri: &str,
+        code_verifier: Option<&str>,
     ) -> Result<OAuth2AuthCode, OAuth2Error> {
         let mut auth_code = self
             .get_auth_code(code)
@@ -313,6 +358,58 @@ impl OAuth2AuthorizationServer {
 
         if Utc::now() > auth_code.expires_at {
             return Err(OAuth2Error::invalid_grant("Authorization code expired"));
+        }
+
+        // Verify PKCE code_verifier (RFC 7636)
+        if let Some(stored_challenge) = &auth_code.code_challenge {
+            let verifier = code_verifier
+                .ok_or_else(|| OAuth2Error::invalid_grant("code_verifier is required (PKCE)"))?;
+
+            // Validate verifier format (43-128 characters, unreserved chars only)
+            if verifier.len() < 43 || verifier.len() > 128 {
+                return Err(OAuth2Error::invalid_grant(
+                    "code_verifier must be between 43 and 128 characters",
+                ));
+            }
+
+            let method = auth_code
+                .code_challenge_method
+                .as_deref()
+                .unwrap_or("plain");
+
+            let computed_challenge = match method {
+                "S256" => {
+                    // SHA-256 hash of verifier, then base64url encode
+                    let mut hasher = Sha256::new();
+                    hasher.update(verifier.as_bytes());
+                    let hash = hasher.finalize();
+                    general_purpose::URL_SAFE_NO_PAD.encode(hash)
+                }
+                "plain" => verifier.to_string(),
+                _ => {
+                    return Err(OAuth2Error::invalid_grant("Invalid code_challenge_method"));
+                }
+            };
+
+            // Constant-time comparison to prevent timing attacks
+            if computed_challenge
+                .as_bytes()
+                .ct_eq(stored_challenge.as_bytes())
+                .into()
+            {
+                tracing::debug!("PKCE verification successful for client {}", client_id);
+            } else {
+                tracing::warn!(
+                    "PKCE verification failed for client {} - code_verifier does not match code_challenge",
+                    client_id
+                );
+                return Err(OAuth2Error::invalid_grant("Invalid code_verifier"));
+            }
+        } else if code_verifier.is_some() {
+            // Client provided verifier but no challenge was stored
+            return Err(OAuth2Error::invalid_grant(
+                "code_verifier provided but no code_challenge was issued",
+            ));
         }
 
         // Mark as used

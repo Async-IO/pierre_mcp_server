@@ -45,7 +45,7 @@ pub mod community;
 // Re-export key types
 pub use core::{PluginInfo, PluginTool, PluginToolStatic};
 pub use executor::{PluginToolExecutor, PluginToolExecutorBuilder, ToolInfo};
-pub use registry::{PluginRegistry, PIERRE_PLUGINS};
+pub use registry::PluginRegistry;
 
 use crate::protocols::universal::UniversalResponse;
 use crate::protocols::ProtocolError;

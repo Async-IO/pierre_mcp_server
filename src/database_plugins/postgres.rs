@@ -4458,8 +4458,8 @@ impl DatabaseProvider for PostgresDatabase {
         auth_code: &crate::oauth2::models::OAuth2AuthCode,
     ) -> Result<()> {
         sqlx::query(
-            "INSERT INTO oauth2_auth_codes (code, client_id, user_id, redirect_uri, scope, expires_at, used)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)"
+            "INSERT INTO oauth2_auth_codes (code, client_id, user_id, redirect_uri, scope, expires_at, used, code_challenge, code_challenge_method)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)"
         )
         .bind(&auth_code.code)
         .bind(&auth_code.client_id)
@@ -4468,6 +4468,8 @@ impl DatabaseProvider for PostgresDatabase {
         .bind(&auth_code.scope)
         .bind(auth_code.expires_at)
         .bind(auth_code.used)
+        .bind(&auth_code.code_challenge)
+        .bind(&auth_code.code_challenge_method)
         .execute(&self.pool)
         .await?;
 
@@ -4479,7 +4481,7 @@ impl DatabaseProvider for PostgresDatabase {
         code: &str,
     ) -> Result<Option<crate::oauth2::models::OAuth2AuthCode>> {
         let row = sqlx::query(
-            "SELECT code, client_id, user_id, redirect_uri, scope, expires_at, used
+            "SELECT code, client_id, user_id, redirect_uri, scope, expires_at, used, code_challenge, code_challenge_method
              FROM oauth2_auth_codes WHERE code = $1",
         )
         .bind(code)
@@ -4497,6 +4499,8 @@ impl DatabaseProvider for PostgresDatabase {
                     scope: row.get("scope"),
                     expires_at: row.get("expires_at"),
                     used: row.get("used"),
+                    code_challenge: row.get("code_challenge"),
+                    code_challenge_method: row.get("code_challenge_method"),
                 }))
             },
         )
