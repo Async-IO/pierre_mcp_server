@@ -1826,6 +1826,7 @@ dependencies = [
  "jsonwebtoken",
  "linkme",
  "lru",
+ "num-traits",
  "opentelemetry",
  "opentelemetry-stdout",
  "opentelemetry_sdk 0.22.1",

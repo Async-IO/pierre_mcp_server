@@ -39,42 +39,57 @@ impl Default for RetryConfig {
 
 /// Type conversion utilities for safe float-to-integer conversions
 pub mod conversions {
+    use num_traits::ToPrimitive;
+
     /// Safely convert f64 to u64, clamping to valid range
     /// Used for duration values from APIs that return floats
-    #[allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::cast_precision_loss,
-        clippy::missing_const_for_fn
-    )]
     #[must_use]
     pub fn f64_to_u64(value: f64) -> u64 {
-        value.max(0.0).min(u64::MAX as f64) as u64
+        if !value.is_finite() {
+            return 0;
+        }
+        let t = value.trunc();
+        if t.is_sign_negative() {
+            return 0;
+        }
+        match t.to_u64() {
+            Some(v) => v,
+            None => u64::MAX,
+        }
     }
 
     /// Safely convert f32 to u32, clamping to valid range
     /// Used for metrics like heart rate, power, cadence
-    #[allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::cast_precision_loss,
-        clippy::missing_const_for_fn
-    )]
     #[must_use]
     pub fn f32_to_u32(value: f32) -> u32 {
-        value.max(0.0).min(u32::MAX as f32) as u32
+        if !value.is_finite() {
+            return 0;
+        }
+        let t = value.trunc();
+        if t.is_sign_negative() {
+            return 0;
+        }
+        match t.to_u32() {
+            Some(v) => v,
+            None => u32::MAX,
+        }
     }
 
     /// Safely convert f64 to u32, clamping to valid range
     /// Used for calorie values and other metrics
-    #[allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::missing_const_for_fn
-    )]
     #[must_use]
     pub fn f64_to_u32(value: f64) -> u32 {
-        value.max(0.0).min(f64::from(u32::MAX)) as u32
+        if !value.is_finite() {
+            return 0;
+        }
+        let t = value.trunc();
+        if t.is_sign_negative() {
+            return 0;
+        }
+        match t.to_u32() {
+            Some(v) => v,
+            None => u32::MAX,
+        }
     }
 }
 
