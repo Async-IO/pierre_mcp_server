@@ -52,10 +52,7 @@ pub mod conversions {
         if t.is_sign_negative() {
             return 0;
         }
-        match t.to_u64() {
-            Some(v) => v,
-            None => u64::MAX,
-        }
+        t.to_u64().map_or(u64::MAX, |v| v)
     }
 
     /// Safely convert f32 to u32, clamping to valid range
@@ -69,10 +66,7 @@ pub mod conversions {
         if t.is_sign_negative() {
             return 0;
         }
-        match t.to_u32() {
-            Some(v) => v,
-            None => u32::MAX,
-        }
+        t.to_u32().map_or(u32::MAX, |v| v)
     }
 
     /// Safely convert f64 to u32, clamping to valid range
@@ -86,10 +80,7 @@ pub mod conversions {
         if t.is_sign_negative() {
             return 0;
         }
-        match t.to_u32() {
-            Some(v) => v,
-            None => u32::MAX,
-        }
+        t.to_u32().map_or(u32::MAX, |v| v)
     }
 }
 
