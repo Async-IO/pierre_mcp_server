@@ -128,7 +128,7 @@ impl StravaProvider {
             );
         }
 
-        tracing::info!("Using access token: {}...", &access_token[..10]);
+        tracing::debug!("Making authenticated request to Strava API");
 
         let url = format!(
             "{}/{}",

@@ -5,7 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 #![recursion_limit = "256"]
-#![deny(unsafe_code)]
+#![forbid(unsafe_code)]
 
 //! # Pierre MCP Server
 //!

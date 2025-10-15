@@ -572,12 +572,8 @@ impl DatabaseProvider for SqliteDatabase {
         // Generate unique token ID
         let token_id = format!("admin_{}", Uuid::new_v4().simple());
 
-        // Debug: Log the JWT secret being used for token creation
-        tracing::debug!(
-            "Creating admin token with JWT secret (first 10 chars): {}...",
-            admin_jwt_secret.chars().take(10).collect::<String>()
-        );
-        tracing::info!("FULL JWT SECRET FOR TOKEN CREATION: {}", admin_jwt_secret);
+        // Debug: Log token creation without exposing secrets
+        tracing::debug!("Creating admin token with provided JWT secret");
 
         // Use the JWT secret passed from server startup
         let jwt_manager = AdminJwtManager::with_secret(admin_jwt_secret);

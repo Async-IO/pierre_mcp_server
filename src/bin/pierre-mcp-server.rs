@@ -5,6 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 #![recursion_limit = "256"]
+#![forbid(unsafe_code)]
 
 //! # Pierre Fitness API Server Binary
 //!
@@ -117,10 +118,7 @@ async fn initialize_core_systems(config: &ServerConfig) -> Result<(Database, Aut
         .get_or_create_system_secret("admin_jwt_secret")
         .await?;
 
-    info!(
-        "Admin JWT secret ready (first 10 chars): {}...",
-        jwt_secret_string.chars().take(10).collect::<String>()
-    );
+    info!("Admin JWT secret ready for secure token generation");
     info!("Server is ready for admin setup via POST /admin/setup");
 
     // Initialize authentication manager
