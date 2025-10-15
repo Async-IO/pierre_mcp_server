@@ -403,7 +403,7 @@ impl OAuthService {
                 .clone();
 
         // Create OAuth2 client and exchange code for token
-        let oauth_config = Self::create_oauth_config(provider)?;
+        let oauth_config = self.create_oauth_config(provider)?;
         let oauth_client = crate::oauth2_client::OAuth2Client::new(oauth_config.clone());
 
         // Use provider-specific exchange function if available
@@ -464,20 +464,32 @@ impl OAuthService {
         })
     }
 
-    /// Create `OAuth2` config for provider
-    fn create_oauth_config(provider: &str) -> Result<crate::oauth2_client::OAuth2Config> {
+    /// Create `OAuth2` config for provider using injected configuration
+    fn create_oauth_config(&self, provider: &str) -> Result<crate::oauth2_client::OAuth2Config> {
+        let server_config = self.config.config();
         match provider {
-            "strava" => Ok(crate::oauth2_client::OAuth2Config {
-                client_id: std::env::var("STRAVA_CLIENT_ID")
-                    .unwrap_or_else(|_| "163846".to_string()),
-                client_secret: std::env::var("STRAVA_CLIENT_SECRET")
-                    .unwrap_or_else(|_| String::new()),
-                auth_url: "https://www.strava.com/oauth/authorize".to_string(),
-                token_url: "https://www.strava.com/oauth/token".to_string(),
-                redirect_uri: crate::constants::env_config::strava_redirect_uri(),
-                scopes: vec![crate::constants::oauth::STRAVA_DEFAULT_SCOPES.to_string()],
-                use_pkce: true,
-            }),
+            "strava" => {
+                let oauth_config = &server_config.oauth.strava;
+                let api_config = &server_config.external_services.strava_api;
+
+                Ok(crate::oauth2_client::OAuth2Config {
+                    client_id: oauth_config
+                        .client_id
+                        .clone()
+                        .unwrap_or_else(|| "163846".to_string()),
+                    client_secret: oauth_config.client_secret.clone().unwrap_or_default(),
+                    auth_url: api_config.auth_url.clone(),
+                    token_url: api_config.token_url.clone(),
+                    redirect_uri: oauth_config.redirect_uri.clone().unwrap_or_else(|| {
+                        format!(
+                            "http://localhost:{}/api/oauth/callback/strava",
+                            server_config.http_port
+                        )
+                    }),
+                    scopes: vec![crate::constants::oauth::STRAVA_DEFAULT_SCOPES.to_string()],
+                    use_pkce: true,
+                })
+            }
             _ => Err(anyhow::anyhow!("Unsupported provider: {provider}")),
         }
     }
@@ -609,11 +621,14 @@ impl OAuthService {
             callback_url
         );
 
-        // Best-effort notification - don't fail OAuth flow if bridge notification fails
+        // Best-effort notification with configured timeout - don't fail OAuth flow if bridge notification fails
+        // Configuration must be initialized via initialize_http_clients() at server startup
+        let timeout_secs =
+            crate::utils::http_client::get_oauth_callback_notification_timeout_secs();
         match reqwest::Client::new()
             .post(&callback_url)
             .json(&token_data)
-            .timeout(std::time::Duration::from_secs(5))
+            .timeout(std::time::Duration::from_secs(timeout_secs))
             .send()
             .await
         {

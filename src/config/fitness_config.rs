@@ -66,6 +66,7 @@ pub struct PersonalRecordConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WeatherApiConfig {
     pub provider: String,
+    pub base_url: String,
     pub enabled: bool,
     pub cache_duration_hours: u64,
     pub request_timeout_seconds: u64,
@@ -431,6 +432,7 @@ impl Default for WeatherApiConfig {
     fn default() -> Self {
         Self {
             provider: "openweathermap".into(),
+            base_url: "https://api.openweathermap.org".into(),
             enabled: true,
             cache_duration_hours: 24,
             request_timeout_seconds: 10,

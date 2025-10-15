@@ -236,10 +236,9 @@ impl WeatherService {
             .as_ref()
             .ok_or_else(|| WeatherError::ApiError("OpenWeather API key not configured".into()))?;
 
-        let base_url = crate::constants::env_config::openweather_api_base();
         let url = format!(
             "{}/data/3.0/onecall/timemachine?lat={}&lon={}&dt={}&appid={}&units=metric",
-            base_url,
+            &self.api_config.base_url,
             latitude,
             longitude,
             timestamp.timestamp(),

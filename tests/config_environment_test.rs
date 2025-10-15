@@ -85,6 +85,7 @@ fn test_config_validation() {
         http_port: 3000, // Single unified port for all protocols
         oauth_callback_port: 35535,
         log_level: LogLevel::default(),
+        http_client: pierre_mcp_server::config::environment::HttpClientConfig::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::SQLite {
                 path: "./test.db".into(),
@@ -147,11 +148,13 @@ fn test_config_validation() {
                 base_url: "https://www.strava.com/api/v3".into(),
                 auth_url: "https://www.strava.com/oauth/authorize".into(),
                 token_url: "https://www.strava.com/oauth/token".into(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".into(),
             },
             fitbit_api: FitbitApiConfig {
                 base_url: "https://api.fitbit.com".into(),
                 auth_url: "https://www.fitbit.com/oauth2/authorize".into(),
                 token_url: "https://api.fitbit.com/oauth2/token".into(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".into(),
             },
         },
         app_behavior: AppBehaviorConfig {
@@ -164,6 +167,7 @@ fn test_config_validation() {
                 server_version: "test".into(),
             },
         },
+        sse: pierre_mcp_server::config::environment::SseConfig::default(),
     };
 
     // With single-port architecture, validation should pass

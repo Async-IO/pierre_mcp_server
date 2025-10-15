@@ -37,6 +37,7 @@ fn create_test_config() -> Arc<ServerConfig> {
         http_port: 4000,
         oauth_callback_port: 35535,
         log_level: LogLevel::Info,
+        http_client: HttpClientConfig::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
             auto_migrate: true,
@@ -93,11 +94,13 @@ fn create_test_config() -> Arc<ServerConfig> {
                 base_url: "https://www.strava.com/api/v3".to_string(),
                 auth_url: "https://www.strava.com/oauth/authorize".to_string(),
                 token_url: "https://www.strava.com/oauth/token".to_string(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
             },
             fitbit_api: FitbitApiConfig {
                 base_url: "https://api.fitbit.com".to_string(),
                 auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
                 token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
             },
             geocoding: GeocodingServiceConfig {
                 base_url: "https://nominatim.openstreetmap.org".to_string(),
@@ -114,6 +117,7 @@ fn create_test_config() -> Arc<ServerConfig> {
                 server_version: "0.1.0".to_string(),
             },
         },
+        sse: pierre_mcp_server::config::environment::SseConfig::default(),
     })
 }
 

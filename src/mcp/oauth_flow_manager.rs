@@ -130,7 +130,7 @@ impl OAuthFlowManager {
                 tenant_id, provider
             );
 
-            let redirect_uri = Self::get_provider_redirect_uri(provider);
+            let redirect_uri = self.get_provider_redirect_uri(provider);
             let scopes = Self::get_provider_scopes(provider);
 
             let request = crate::tenant::oauth_client::StoreCredentialsRequest {
@@ -267,13 +267,37 @@ impl OAuthFlowManager {
     }
 
     /// Get provider redirect URI
-    fn get_provider_redirect_uri(provider: &str) -> String {
+    fn get_provider_redirect_uri(&self, provider: &str) -> String {
         match provider {
-            "strava" => crate::constants::env_config::strava_redirect_uri(),
-            "fitbit" => crate::constants::env_config::fitbit_redirect_uri(),
+            "strava" => self
+                .resources
+                .config
+                .oauth
+                .strava
+                .redirect_uri
+                .clone() // Safe: Config string ownership for OAuth request setup
+                .unwrap_or_else(|| {
+                    format!(
+                        "http://localhost:{}/api/oauth/callback/strava",
+                        self.resources.config.http_port
+                    )
+                }),
+            "fitbit" => self
+                .resources
+                .config
+                .oauth
+                .fitbit
+                .redirect_uri
+                .clone() // Safe: Config string ownership for OAuth request setup
+                .unwrap_or_else(|| {
+                    format!(
+                        "http://localhost:{}/api/oauth/callback/fitbit",
+                        self.resources.config.http_port
+                    )
+                }),
             _ => format!(
-                "{}/api/oauth/callback/unknown",
-                crate::constants::env_config::base_url()
+                "http://localhost:{}/api/oauth/callback/unknown",
+                self.resources.config.http_port
             ),
         }
     }

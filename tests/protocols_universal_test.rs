@@ -70,6 +70,7 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
         http_port: 4000,
         oauth_callback_port: 35535,
         log_level: LogLevel::Info,
+        http_client: HttpClientConfig::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
             auto_migrate: true,
@@ -130,11 +131,13 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
                 base_url: "https://www.strava.com/api/v3".to_string(),
                 auth_url: "https://www.strava.com/oauth/authorize".to_string(),
                 token_url: "https://www.strava.com/oauth/token".to_string(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
             },
             fitbit_api: FitbitApiConfig {
                 base_url: "https://api.fitbit.com".to_string(),
                 auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
                 token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
             },
         },
         app_behavior: AppBehaviorConfig {
@@ -147,6 +150,7 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
                 server_version: env!("CARGO_PKG_VERSION").to_string(),
             },
         },
+        sse: pierre_mcp_server::config::environment::SseConfig::default(),
     });
 
     // Create ServerResources for the test
@@ -391,6 +395,7 @@ async fn test_set_goal_tool() -> Result<()> {
         http_port: 4000,
         oauth_callback_port: 35535,
         log_level: LogLevel::Info,
+        http_client: HttpClientConfig::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
             auto_migrate: true,
@@ -451,11 +456,13 @@ async fn test_set_goal_tool() -> Result<()> {
                 base_url: "https://www.strava.com/api/v3".to_string(),
                 auth_url: "https://www.strava.com/oauth/authorize".to_string(),
                 token_url: "https://www.strava.com/oauth/token".to_string(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
             },
             fitbit_api: FitbitApiConfig {
                 base_url: "https://api.fitbit.com".to_string(),
                 auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
                 token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
             },
         },
         app_behavior: AppBehaviorConfig {
@@ -468,6 +475,7 @@ async fn test_set_goal_tool() -> Result<()> {
                 server_version: env!("CARGO_PKG_VERSION").to_string(),
             },
         },
+        sse: pierre_mcp_server::config::environment::SseConfig::default(),
     });
 
     // Create ServerResources for the test
@@ -988,6 +996,7 @@ async fn test_disconnect_provider_tool() -> Result<()> {
         http_port: 4000,
         oauth_callback_port: 35535,
         log_level: LogLevel::Info,
+        http_client: HttpClientConfig::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
             auto_migrate: true,
@@ -1048,11 +1057,13 @@ async fn test_disconnect_provider_tool() -> Result<()> {
                 base_url: "https://www.strava.com/api/v3".to_string(),
                 auth_url: "https://www.strava.com/oauth/authorize".to_string(),
                 token_url: "https://www.strava.com/oauth/token".to_string(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
             },
             fitbit_api: FitbitApiConfig {
                 base_url: "https://api.fitbit.com".to_string(),
                 auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
                 token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
             },
         },
         app_behavior: AppBehaviorConfig {
@@ -1065,6 +1076,7 @@ async fn test_disconnect_provider_tool() -> Result<()> {
                 server_version: env!("CARGO_PKG_VERSION").to_string(),
             },
         },
+        sse: pierre_mcp_server::config::environment::SseConfig::default(),
     });
 
     // Create ServerResources for the test

@@ -5,7 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 #![recursion_limit = "256"]
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
 
 //! # Pierre Fitness API Server Binary
 //!
@@ -77,6 +77,10 @@ fn setup_configuration(args: &Args) -> Result<ServerConfig> {
 
 /// Bootstrap the complete server with all dependencies
 async fn bootstrap_server(config: ServerConfig) -> Result<()> {
+    // Initialize HTTP client configuration (must be done before any HTTP clients are created)
+    pierre_mcp_server::utils::http_client::initialize_http_clients(config.http_client.clone());
+    info!("HTTP client configuration initialized");
+
     let (database, auth_manager, jwt_secret) = initialize_core_systems(&config).await?;
 
     // Initialize cache from environment

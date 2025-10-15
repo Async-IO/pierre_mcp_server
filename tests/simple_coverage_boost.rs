@@ -182,6 +182,13 @@ async fn test_encrypted_token_edge_cases() -> Result<()> {
 /// Test OAuth provider initialization errors
 #[tokio::test]
 async fn test_oauth_provider_error_cases() -> Result<()> {
+    let strava_api_config = pierre_mcp_server::config::environment::StravaApiConfig {
+        base_url: "https://www.strava.com/api/v3".to_string(),
+        auth_url: "https://www.strava.com/oauth/authorize".to_string(),
+        token_url: "https://www.strava.com/oauth/token".to_string(),
+        deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
+    };
+
     // Test missing client_id
     let missing_client_id = OAuthProviderConfig {
         client_id: None,
@@ -191,7 +198,7 @@ async fn test_oauth_provider_error_cases() -> Result<()> {
         enabled: true,
     };
 
-    let result = StravaOAuthProvider::from_config(&missing_client_id);
+    let result = StravaOAuthProvider::from_config(&missing_client_id, &strava_api_config);
     assert!(result.is_err());
 
     // Test missing client_secret
@@ -203,7 +210,7 @@ async fn test_oauth_provider_error_cases() -> Result<()> {
         enabled: true,
     };
 
-    let result2 = StravaOAuthProvider::from_config(&missing_secret);
+    let result2 = StravaOAuthProvider::from_config(&missing_secret, &strava_api_config);
     assert!(result2.is_err());
 
     Ok(())

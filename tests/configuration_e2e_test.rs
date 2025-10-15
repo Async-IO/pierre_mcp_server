@@ -86,6 +86,7 @@ fn create_test_config() -> pierre_mcp_server::config::environment::ServerConfig 
         http_port: 4000,
         oauth_callback_port: 35535,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
+        http_client: pierre_mcp_server::config::environment::HttpClientConfig::default(),
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::default(),
             auto_migrate: true,
@@ -146,11 +147,13 @@ fn create_test_config() -> pierre_mcp_server::config::environment::ServerConfig 
                 base_url: "https://www.strava.com/api/v3".to_string(),
                 auth_url: "https://www.strava.com/oauth/authorize".to_string(),
                 token_url: "https://www.strava.com/oauth/token".to_string(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
             },
             fitbit_api: pierre_mcp_server::config::environment::FitbitApiConfig {
                 base_url: "https://api.fitbit.com".to_string(),
                 auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
                 token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
             },
         },
         app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
@@ -163,6 +166,7 @@ fn create_test_config() -> pierre_mcp_server::config::environment::ServerConfig 
                 server_version: env!("CARGO_PKG_VERSION").to_string(),
             },
         },
+        sse: pierre_mcp_server::config::environment::SseConfig::default(),
     }
 }
 

@@ -187,7 +187,8 @@ impl TenantOAuthManager {
             std::env::var("STRAVA_CLIENT_ID"),
             std::env::var("STRAVA_CLIENT_SECRET"),
         ) {
-            let redirect_uri = crate::constants::env_config::strava_redirect_uri();
+            let redirect_uri = std::env::var("STRAVA_REDIRECT_URI")
+                .unwrap_or_else(|_| "http://localhost:8080/api/oauth/callback/strava".to_string());
             tracing::info!(
                 "Using server-level Strava OAuth credentials for tenant {}",
                 tenant_id
@@ -218,7 +219,8 @@ impl TenantOAuthManager {
             std::env::var("FITBIT_CLIENT_ID"),
             std::env::var("FITBIT_CLIENT_SECRET"),
         ) {
-            let redirect_uri = crate::constants::env_config::fitbit_redirect_uri();
+            let redirect_uri = std::env::var("FITBIT_REDIRECT_URI")
+                .unwrap_or_else(|_| "http://localhost:8080/api/oauth/callback/fitbit".to_string());
             tracing::info!(
                 "Using server-level Fitbit OAuth credentials for tenant {}",
                 tenant_id

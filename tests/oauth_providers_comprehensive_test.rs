@@ -11,15 +11,45 @@
 use anyhow::Result;
 use chrono::{Duration, Utc};
 use pierre_mcp_server::{
-    config::environment::OAuthProviderConfig,
+    config::environment::{FitbitApiConfig, OAuthProviderConfig, StravaApiConfig},
     oauth::{
         providers::{FitbitOAuthProvider, StravaOAuthProvider},
         OAuthError, OAuthProvider, TokenData,
     },
 };
+use std::sync::Once;
 use uuid::Uuid;
 
+/// Ensure HTTP clients are initialized only once across all tests
+static INIT_HTTP_CLIENTS: Once = Once::new();
+
+fn ensure_http_clients_initialized() {
+    INIT_HTTP_CLIENTS.call_once(|| {
+        pierre_mcp_server::utils::http_client::initialize_http_clients(
+            pierre_mcp_server::config::environment::HttpClientConfig::default(),
+        );
+    });
+}
+
 // === Test Setup Helpers ===
+
+fn create_strava_api_config() -> StravaApiConfig {
+    StravaApiConfig {
+        base_url: "https://www.strava.com/api/v3".to_string(),
+        auth_url: "https://www.strava.com/oauth/authorize".to_string(),
+        token_url: "https://www.strava.com/oauth/token".to_string(),
+        deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
+    }
+}
+
+fn create_fitbit_api_config() -> FitbitApiConfig {
+    FitbitApiConfig {
+        base_url: "https://api.fitbit.com".to_string(),
+        auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
+        token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+        revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
+    }
+}
 
 fn create_valid_strava_config() -> OAuthProviderConfig {
     OAuthProviderConfig {
@@ -76,7 +106,8 @@ fn create_expired_token_data(provider: &str) -> TokenData {
 #[tokio::test]
 async fn test_strava_provider_from_config_success() -> Result<()> {
     let config = create_valid_strava_config();
-    let provider = StravaOAuthProvider::from_config(&config)?;
+    let api_config = create_strava_api_config();
+    let provider = StravaOAuthProvider::from_config(&config, &api_config)?;
 
     assert_eq!(provider.name(), "strava");
 
@@ -86,8 +117,9 @@ async fn test_strava_provider_from_config_success() -> Result<()> {
 #[tokio::test]
 async fn test_strava_provider_from_config_missing_client_id() -> Result<()> {
     let config = create_incomplete_config();
+    let api_config = create_strava_api_config();
 
-    let result = StravaOAuthProvider::from_config(&config);
+    let result = StravaOAuthProvider::from_config(&config, &api_config);
 
     assert!(result.is_err());
     if let Err(OAuthError::ConfigurationError(msg)) = result {
@@ -103,8 +135,9 @@ async fn test_strava_provider_from_config_missing_client_id() -> Result<()> {
 async fn test_strava_provider_from_config_missing_client_secret() -> Result<()> {
     let mut config = create_valid_strava_config();
     config.client_secret = None;
+    let api_config = create_strava_api_config();
 
-    let result = StravaOAuthProvider::from_config(&config);
+    let result = StravaOAuthProvider::from_config(&config, &api_config);
 
     assert!(result.is_err());
     if let Err(OAuthError::ConfigurationError(msg)) = result {
@@ -120,8 +153,9 @@ async fn test_strava_provider_from_config_missing_client_secret() -> Result<()> 
 async fn test_strava_provider_from_config_default_redirect_uri() -> Result<()> {
     let mut config = create_valid_strava_config();
     config.redirect_uri = None;
+    let api_config = create_strava_api_config();
 
-    let provider = StravaOAuthProvider::from_config(&config)?;
+    let provider = StravaOAuthProvider::from_config(&config, &api_config)?;
 
     // Should succeed and use default redirect URI
     assert_eq!(provider.name(), "strava");
@@ -132,7 +166,8 @@ async fn test_strava_provider_from_config_default_redirect_uri() -> Result<()> {
 #[tokio::test]
 async fn test_strava_generate_auth_url() -> Result<()> {
     let config = create_valid_strava_config();
-    let provider = StravaOAuthProvider::from_config(&config)?;
+    let api_config = create_strava_api_config();
+    let provider = StravaOAuthProvider::from_config(&config, &api_config)?;
     let user_id = Uuid::new_v4();
     let state = "test_state";
 
@@ -154,8 +189,10 @@ async fn test_strava_generate_auth_url() -> Result<()> {
 
 #[tokio::test]
 async fn test_strava_exchange_code_invalid_code() -> Result<()> {
+    ensure_http_clients_initialized();
     let config = create_valid_strava_config();
-    let provider = StravaOAuthProvider::from_config(&config)?;
+    let api_config = create_strava_api_config();
+    let provider = StravaOAuthProvider::from_config(&config, &api_config)?;
 
     // Test with invalid code (will fail because no real OAuth server)
     let result = provider.exchange_code("invalid_code", "test_state").await;
@@ -167,8 +204,10 @@ async fn test_strava_exchange_code_invalid_code() -> Result<()> {
 
 #[tokio::test]
 async fn test_strava_refresh_token_invalid() -> Result<()> {
+    ensure_http_clients_initialized();
     let config = create_valid_strava_config();
-    let provider = StravaOAuthProvider::from_config(&config)?;
+    let api_config = create_strava_api_config();
+    let provider = StravaOAuthProvider::from_config(&config, &api_config)?;
 
     // Test with invalid refresh token (will fail because no real OAuth server)
     let result = provider.refresh_token("invalid_refresh_token").await;
@@ -180,8 +219,10 @@ async fn test_strava_refresh_token_invalid() -> Result<()> {
 
 #[tokio::test]
 async fn test_strava_revoke_token_invalid() -> Result<()> {
+    ensure_http_clients_initialized();
     let config = create_valid_strava_config();
-    let provider = StravaOAuthProvider::from_config(&config)?;
+    let api_config = create_strava_api_config();
+    let provider = StravaOAuthProvider::from_config(&config, &api_config)?;
 
     // Test with invalid access token (will fail because no real OAuth server)
     let result = provider.revoke_token("invalid_access_token").await;
@@ -194,7 +235,8 @@ async fn test_strava_revoke_token_invalid() -> Result<()> {
 #[tokio::test]
 async fn test_strava_validate_token_expired() -> Result<()> {
     let config = create_valid_strava_config();
-    let provider = StravaOAuthProvider::from_config(&config)?;
+    let api_config = create_strava_api_config();
+    let provider = StravaOAuthProvider::from_config(&config, &api_config)?;
     let expired_token = create_expired_token_data("strava");
 
     let is_valid = provider.validate_token(&expired_token).await?;
@@ -207,7 +249,8 @@ async fn test_strava_validate_token_expired() -> Result<()> {
 #[tokio::test]
 async fn test_strava_validate_token_valid() -> Result<()> {
     let config = create_valid_strava_config();
-    let provider = StravaOAuthProvider::from_config(&config)?;
+    let api_config = create_strava_api_config();
+    let provider = StravaOAuthProvider::from_config(&config, &api_config)?;
     let valid_token = create_test_token_data("strava");
 
     // Token validation might fail due to network, we just test it doesn't panic
@@ -221,7 +264,8 @@ async fn test_strava_validate_token_valid() -> Result<()> {
 #[tokio::test]
 async fn test_fitbit_provider_from_config_success() -> Result<()> {
     let config = create_valid_fitbit_config();
-    let provider = FitbitOAuthProvider::from_config(&config)?;
+    let api_config = create_fitbit_api_config();
+    let provider = FitbitOAuthProvider::from_config(&config, &api_config)?;
 
     assert_eq!(provider.name(), "fitbit");
 
@@ -231,8 +275,9 @@ async fn test_fitbit_provider_from_config_success() -> Result<()> {
 #[tokio::test]
 async fn test_fitbit_provider_from_config_missing_client_id() -> Result<()> {
     let config = create_incomplete_config();
+    let api_config = create_fitbit_api_config();
 
-    let result = FitbitOAuthProvider::from_config(&config);
+    let result = FitbitOAuthProvider::from_config(&config, &api_config);
 
     assert!(result.is_err());
     if let Err(OAuthError::ConfigurationError(msg)) = result {
@@ -248,8 +293,9 @@ async fn test_fitbit_provider_from_config_missing_client_id() -> Result<()> {
 async fn test_fitbit_provider_from_config_missing_client_secret() -> Result<()> {
     let mut config = create_valid_fitbit_config();
     config.client_secret = None;
+    let api_config = create_fitbit_api_config();
 
-    let result = FitbitOAuthProvider::from_config(&config);
+    let result = FitbitOAuthProvider::from_config(&config, &api_config);
 
     assert!(result.is_err());
     if let Err(OAuthError::ConfigurationError(msg)) = result {
@@ -265,8 +311,9 @@ async fn test_fitbit_provider_from_config_missing_client_secret() -> Result<()> 
 async fn test_fitbit_provider_from_config_default_redirect_uri() -> Result<()> {
     let mut config = create_valid_fitbit_config();
     config.redirect_uri = None;
+    let api_config = create_fitbit_api_config();
 
-    let provider = FitbitOAuthProvider::from_config(&config)?;
+    let provider = FitbitOAuthProvider::from_config(&config, &api_config)?;
 
     // Should succeed and use default redirect URI
     assert_eq!(provider.name(), "fitbit");
@@ -284,8 +331,9 @@ async fn test_fitbit_provider_missing_config() -> Result<()> {
         scopes: vec!["activity".to_string()],
         enabled: true,
     };
+    let api_config = create_fitbit_api_config();
 
-    let result = FitbitOAuthProvider::from_config(&config);
+    let result = FitbitOAuthProvider::from_config(&config, &api_config);
 
     assert!(result.is_err());
     if let Err(OAuthError::ConfigurationError(msg)) = result {
@@ -300,7 +348,8 @@ async fn test_fitbit_provider_missing_config() -> Result<()> {
 #[tokio::test]
 async fn test_fitbit_generate_auth_url() -> Result<()> {
     let config = create_valid_fitbit_config();
-    let provider = FitbitOAuthProvider::from_config(&config)?;
+    let api_config = create_fitbit_api_config();
+    let provider = FitbitOAuthProvider::from_config(&config, &api_config)?;
     let user_id = Uuid::new_v4();
     let state = "test_fitbit_state";
 
@@ -322,8 +371,10 @@ async fn test_fitbit_generate_auth_url() -> Result<()> {
 
 #[tokio::test]
 async fn test_fitbit_exchange_code_invalid_code() -> Result<()> {
+    ensure_http_clients_initialized();
     let config = create_valid_fitbit_config();
-    let provider = FitbitOAuthProvider::from_config(&config)?;
+    let api_config = create_fitbit_api_config();
+    let provider = FitbitOAuthProvider::from_config(&config, &api_config)?;
 
     // Test with invalid code (will fail because no real OAuth server)
     let result = provider
@@ -337,8 +388,10 @@ async fn test_fitbit_exchange_code_invalid_code() -> Result<()> {
 
 #[tokio::test]
 async fn test_fitbit_refresh_token_invalid() -> Result<()> {
+    ensure_http_clients_initialized();
     let config = create_valid_fitbit_config();
-    let provider = FitbitOAuthProvider::from_config(&config)?;
+    let api_config = create_fitbit_api_config();
+    let provider = FitbitOAuthProvider::from_config(&config, &api_config)?;
 
     // Test with invalid refresh token (will fail because no real OAuth server)
     let result = provider.refresh_token("invalid_fitbit_refresh_token").await;
@@ -350,8 +403,10 @@ async fn test_fitbit_refresh_token_invalid() -> Result<()> {
 
 #[tokio::test]
 async fn test_fitbit_revoke_token_invalid() -> Result<()> {
+    ensure_http_clients_initialized();
     let config = create_valid_fitbit_config();
-    let provider = FitbitOAuthProvider::from_config(&config)?;
+    let api_config = create_fitbit_api_config();
+    let provider = FitbitOAuthProvider::from_config(&config, &api_config)?;
 
     // Test with invalid access token (will fail because no real OAuth server)
     let result = provider.revoke_token("invalid_fitbit_access_token").await;
@@ -364,7 +419,8 @@ async fn test_fitbit_revoke_token_invalid() -> Result<()> {
 #[tokio::test]
 async fn test_fitbit_validate_token_expired() -> Result<()> {
     let config = create_valid_fitbit_config();
-    let provider = FitbitOAuthProvider::from_config(&config)?;
+    let api_config = create_fitbit_api_config();
+    let provider = FitbitOAuthProvider::from_config(&config, &api_config)?;
     let expired_token = create_expired_token_data("fitbit");
 
     let is_valid = provider.validate_token(&expired_token).await?;
@@ -377,7 +433,8 @@ async fn test_fitbit_validate_token_expired() -> Result<()> {
 #[tokio::test]
 async fn test_fitbit_validate_token_valid() -> Result<()> {
     let config = create_valid_fitbit_config();
-    let provider = FitbitOAuthProvider::from_config(&config)?;
+    let api_config = create_fitbit_api_config();
+    let provider = FitbitOAuthProvider::from_config(&config, &api_config)?;
     let valid_token = create_test_token_data("fitbit");
 
     // Token validation might fail due to network, we just test it doesn't panic
@@ -392,9 +449,11 @@ async fn test_fitbit_validate_token_valid() -> Result<()> {
 async fn test_provider_names() -> Result<()> {
     let strava_config = create_valid_strava_config();
     let fitbit_config = create_valid_fitbit_config();
+    let strava_api_config = create_strava_api_config();
+    let fitbit_api_config = create_fitbit_api_config();
 
-    let strava_provider = StravaOAuthProvider::from_config(&strava_config)?;
-    let fitbit_provider = FitbitOAuthProvider::from_config(&fitbit_config)?;
+    let strava_provider = StravaOAuthProvider::from_config(&strava_config, &strava_api_config)?;
+    let fitbit_provider = FitbitOAuthProvider::from_config(&fitbit_config, &fitbit_api_config)?;
 
     assert_eq!(strava_provider.name(), "strava");
     assert_eq!(fitbit_provider.name(), "fitbit");
@@ -407,9 +466,11 @@ async fn test_provider_names() -> Result<()> {
 async fn test_auth_urls_different() -> Result<()> {
     let strava_config = create_valid_strava_config();
     let fitbit_config = create_valid_fitbit_config();
+    let strava_api_config = create_strava_api_config();
+    let fitbit_api_config = create_fitbit_api_config();
 
-    let strava_provider = StravaOAuthProvider::from_config(&strava_config)?;
-    let fitbit_provider = FitbitOAuthProvider::from_config(&fitbit_config)?;
+    let strava_provider = StravaOAuthProvider::from_config(&strava_config, &strava_api_config)?;
+    let fitbit_provider = FitbitOAuthProvider::from_config(&fitbit_config, &fitbit_api_config)?;
 
     let user_id = Uuid::new_v4();
     let state = "comparison_test_state";
@@ -437,8 +498,9 @@ async fn test_auth_urls_different() -> Result<()> {
 async fn test_config_with_empty_scopes() -> Result<()> {
     let mut config = create_valid_strava_config();
     config.scopes = vec![]; // Empty scopes
+    let api_config = create_strava_api_config();
 
-    let provider = StravaOAuthProvider::from_config(&config)?;
+    let provider = StravaOAuthProvider::from_config(&config, &api_config)?;
     let user_id = Uuid::new_v4();
     let state = "empty_scopes_test";
 
@@ -456,8 +518,9 @@ async fn test_config_with_empty_scopes() -> Result<()> {
 async fn test_config_with_custom_scopes() -> Result<()> {
     let mut config = create_valid_strava_config();
     config.scopes = vec!["custom_scope1".to_string(), "custom_scope2".to_string()];
+    let api_config = create_strava_api_config();
 
-    let provider = StravaOAuthProvider::from_config(&config)?;
+    let provider = StravaOAuthProvider::from_config(&config, &api_config)?;
     let user_id = Uuid::new_v4();
     let state = "custom_scopes_test";
 
@@ -475,9 +538,10 @@ async fn test_config_with_custom_scopes() -> Result<()> {
 async fn test_config_disabled_provider() -> Result<()> {
     let mut config = create_valid_strava_config();
     config.enabled = false;
+    let api_config = create_strava_api_config();
 
     // Provider should still be creatable even if disabled
-    let provider = StravaOAuthProvider::from_config(&config)?;
+    let provider = StravaOAuthProvider::from_config(&config, &api_config)?;
 
     assert_eq!(provider.name(), "strava");
 
@@ -489,7 +553,8 @@ async fn test_config_disabled_provider() -> Result<()> {
 #[tokio::test]
 async fn test_token_validation_with_wrong_provider() -> Result<()> {
     let strava_config = create_valid_strava_config();
-    let strava_provider = StravaOAuthProvider::from_config(&strava_config)?;
+    let api_config = create_strava_api_config();
+    let strava_provider = StravaOAuthProvider::from_config(&strava_config, &api_config)?;
 
     // Create token data for fitbit but validate with strava provider
     let fitbit_token = create_test_token_data("fitbit");
@@ -502,7 +567,8 @@ async fn test_token_validation_with_wrong_provider() -> Result<()> {
 #[tokio::test]
 async fn test_token_validation_edge_case_expires_exactly_now() -> Result<()> {
     let config = create_valid_strava_config();
-    let provider = StravaOAuthProvider::from_config(&config)?;
+    let api_config = create_strava_api_config();
+    let provider = StravaOAuthProvider::from_config(&config, &api_config)?;
 
     let mut token = create_test_token_data("strava");
     token.expires_at = Utc::now(); // Expires exactly now
@@ -519,11 +585,14 @@ async fn test_token_validation_edge_case_expires_exactly_now() -> Result<()> {
 
 #[tokio::test]
 async fn test_complete_oauth_flow_simulation() -> Result<()> {
+    ensure_http_clients_initialized();
     let strava_config = create_valid_strava_config();
     let fitbit_config = create_valid_fitbit_config();
+    let strava_api_config = create_strava_api_config();
+    let fitbit_api_config = create_fitbit_api_config();
 
-    let strava_provider = StravaOAuthProvider::from_config(&strava_config)?;
-    let fitbit_provider = FitbitOAuthProvider::from_config(&fitbit_config)?;
+    let strava_provider = StravaOAuthProvider::from_config(&strava_config, &strava_api_config)?;
+    let fitbit_provider = FitbitOAuthProvider::from_config(&fitbit_config, &fitbit_api_config)?;
 
     let user_id = Uuid::new_v4();
     let state = "integration_test_state";
@@ -571,13 +640,15 @@ async fn test_complete_oauth_flow_simulation() -> Result<()> {
 #[tokio::test]
 async fn test_concurrent_auth_url_generation() -> Result<()> {
     let config = create_valid_strava_config();
+    let api_config = create_strava_api_config();
 
     let mut handles = vec![];
 
     for i in 0..5 {
         let config_clone = config.clone();
+        let api_config_clone = api_config.clone();
         handles.push(tokio::spawn(async move {
-            let provider = StravaOAuthProvider::from_config(&config_clone)?;
+            let provider = StravaOAuthProvider::from_config(&config_clone, &api_config_clone)?;
             let user_id = Uuid::new_v4();
             let state = format!("concurrent_test_{i}");
             provider.generate_auth_url(user_id, state).await
@@ -596,13 +667,15 @@ async fn test_concurrent_auth_url_generation() -> Result<()> {
 #[tokio::test]
 async fn test_concurrent_token_validation() -> Result<()> {
     let config = create_valid_strava_config();
+    let api_config = create_strava_api_config();
 
     let mut handles = vec![];
 
     for i in 0..3 {
         let config_clone = config.clone();
+        let api_config_clone = api_config.clone();
         handles.push(tokio::spawn(async move {
-            let provider = StravaOAuthProvider::from_config(&config_clone)?;
+            let provider = StravaOAuthProvider::from_config(&config_clone, &api_config_clone)?;
             let token = if i % 2 == 0 {
                 create_test_token_data("strava")
             } else {

@@ -197,6 +197,23 @@ async fn test_jsonrpc_scenarios() -> Result<()> {
 /// Test OAuth providers comprehensive error handling
 #[tokio::test]
 async fn test_oauth_providers_comprehensive() -> Result<()> {
+    use pierre_mcp_server::config::environment::{FitbitApiConfig, StravaApiConfig};
+
+    // Create API configs required by the new from_config signature
+    let strava_api_config = StravaApiConfig {
+        base_url: "https://www.strava.com/api/v3".to_string(),
+        auth_url: "https://www.strava.com/oauth/authorize".to_string(),
+        token_url: "https://www.strava.com/oauth/token".to_string(),
+        deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
+    };
+
+    let fitbit_api_config = FitbitApiConfig {
+        base_url: "https://api.fitbit.com".to_string(),
+        auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
+        token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+        revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
+    };
+
     // Test valid configurations
     let valid_configs = vec![
         OAuthProviderConfig {
@@ -218,7 +235,7 @@ async fn test_oauth_providers_comprehensive() -> Result<()> {
     for config in valid_configs {
         // Test Strava provider creation
         if config.scopes.contains(&"activity:read_all".to_string()) {
-            let _strava_provider = StravaOAuthProvider::from_config(&config)?;
+            let _strava_provider = StravaOAuthProvider::from_config(&config, &strava_api_config)?;
             println!("Created Strava provider");
             // Test provider creation was successful
             assert_eq!(2 + 2, 4); // Provider created successfully
@@ -228,7 +245,7 @@ async fn test_oauth_providers_comprehensive() -> Result<()> {
         if config.scopes.contains(&"activity".to_string())
             && !config.scopes.contains(&"activity:read_all".to_string())
         {
-            let _fitbit_provider = FitbitOAuthProvider::from_config(&config)?;
+            let _fitbit_provider = FitbitOAuthProvider::from_config(&config, &fitbit_api_config)?;
             println!("Created Fitbit provider");
             // Test provider creation was successful
             assert_eq!(2 + 2, 4); // Provider created successfully
@@ -254,10 +271,10 @@ async fn test_oauth_providers_comprehensive() -> Result<()> {
     ];
 
     for config in error_configs {
-        let strava_result = StravaOAuthProvider::from_config(&config);
+        let strava_result = StravaOAuthProvider::from_config(&config, &strava_api_config);
         assert!(strava_result.is_err());
 
-        let fitbit_result = FitbitOAuthProvider::from_config(&config);
+        let fitbit_result = FitbitOAuthProvider::from_config(&config, &fitbit_api_config);
         assert!(fitbit_result.is_err());
     }
 

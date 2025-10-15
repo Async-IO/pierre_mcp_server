@@ -12,9 +12,10 @@ use pierre_mcp_server::{
     auth::AuthManager,
     config::environment::{
         AppBehaviorConfig, AuthConfig, BackupConfig, DatabaseConfig, DatabaseUrl, Environment,
-        ExternalServicesConfig, FitbitApiConfig, GeocodingServiceConfig, LogLevel, OAuthConfig,
-        OAuthProviderConfig, ProtocolConfig, RateLimitConfig, SecurityConfig,
-        SecurityHeadersConfig, ServerConfig, StravaApiConfig, TlsConfig, WeatherServiceConfig,
+        ExternalServicesConfig, FitbitApiConfig, GeocodingServiceConfig, HttpClientConfig,
+        LogLevel, OAuthConfig, OAuthProviderConfig, ProtocolConfig, RateLimitConfig,
+        SecurityConfig, SecurityHeadersConfig, ServerConfig, StravaApiConfig, TlsConfig,
+        WeatherServiceConfig,
     },
     database::generate_encryption_key,
     database_plugins::{factory::Database, DatabaseProvider},
@@ -43,6 +44,7 @@ async fn test_oauth_authorization_url_generation() {
         http_port: 8080,
         oauth_callback_port: 35535,
         log_level: LogLevel::Info,
+        http_client: HttpClientConfig::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
             auto_migrate: true,
@@ -103,11 +105,13 @@ async fn test_oauth_authorization_url_generation() {
                 base_url: "https://www.strava.com/api/v3".to_string(),
                 auth_url: "https://www.strava.com/oauth/authorize".to_string(),
                 token_url: "https://www.strava.com/oauth/token".to_string(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
             },
             fitbit_api: FitbitApiConfig {
                 base_url: "https://api.fitbit.com".to_string(),
                 auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
                 token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
             },
         },
         app_behavior: AppBehaviorConfig {
@@ -120,6 +124,7 @@ async fn test_oauth_authorization_url_generation() {
                 server_version: env!("CARGO_PKG_VERSION").to_string(),
             },
         },
+        sse: pierre_mcp_server::config::environment::SseConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -259,6 +264,7 @@ async fn test_oauth_state_validation() {
         http_port: 8080,
         oauth_callback_port: 35535,
         log_level: LogLevel::Info,
+        http_client: HttpClientConfig::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
             auto_migrate: true,
@@ -319,11 +325,13 @@ async fn test_oauth_state_validation() {
                 base_url: "https://www.strava.com/api/v3".to_string(),
                 auth_url: "https://www.strava.com/oauth/authorize".to_string(),
                 token_url: "https://www.strava.com/oauth/token".to_string(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
             },
             fitbit_api: FitbitApiConfig {
                 base_url: "https://api.fitbit.com".to_string(),
                 auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
                 token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
             },
         },
         app_behavior: AppBehaviorConfig {
@@ -336,6 +344,7 @@ async fn test_oauth_state_validation() {
                 server_version: env!("CARGO_PKG_VERSION").to_string(),
             },
         },
+        sse: pierre_mcp_server::config::environment::SseConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -382,6 +391,7 @@ async fn test_connection_status_no_providers() {
         http_port: 8080,
         oauth_callback_port: 35535,
         log_level: LogLevel::Info,
+        http_client: HttpClientConfig::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
             auto_migrate: true,
@@ -442,11 +452,13 @@ async fn test_connection_status_no_providers() {
                 base_url: "https://www.strava.com/api/v3".to_string(),
                 auth_url: "https://www.strava.com/oauth/authorize".to_string(),
                 token_url: "https://www.strava.com/oauth/token".to_string(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
             },
             fitbit_api: FitbitApiConfig {
                 base_url: "https://api.fitbit.com".to_string(),
                 auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
                 token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
             },
         },
         app_behavior: AppBehaviorConfig {
@@ -459,6 +471,7 @@ async fn test_connection_status_no_providers() {
                 server_version: env!("CARGO_PKG_VERSION").to_string(),
             },
         },
+        sse: pierre_mcp_server::config::environment::SseConfig::default(),
     });
 
     let user_id = Uuid::new_v4();
@@ -528,6 +541,7 @@ async fn test_invalid_provider_error() {
         http_port: 8080,
         oauth_callback_port: 35535,
         log_level: LogLevel::Info,
+        http_client: HttpClientConfig::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
             auto_migrate: true,
@@ -588,11 +602,13 @@ async fn test_invalid_provider_error() {
                 base_url: "https://www.strava.com/api/v3".to_string(),
                 auth_url: "https://www.strava.com/oauth/authorize".to_string(),
                 token_url: "https://www.strava.com/oauth/token".to_string(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
             },
             fitbit_api: FitbitApiConfig {
                 base_url: "https://api.fitbit.com".to_string(),
                 auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
                 token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
             },
         },
         app_behavior: AppBehaviorConfig {
@@ -605,6 +621,7 @@ async fn test_invalid_provider_error() {
                 server_version: env!("CARGO_PKG_VERSION").to_string(),
             },
         },
+        sse: pierre_mcp_server::config::environment::SseConfig::default(),
     });
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
@@ -645,6 +662,7 @@ async fn test_disconnect_provider() {
         http_port: 8080,
         oauth_callback_port: 35535,
         log_level: LogLevel::Info,
+        http_client: HttpClientConfig::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
             auto_migrate: true,
@@ -705,11 +723,13 @@ async fn test_disconnect_provider() {
                 base_url: "https://www.strava.com/api/v3".to_string(),
                 auth_url: "https://www.strava.com/oauth/authorize".to_string(),
                 token_url: "https://www.strava.com/oauth/token".to_string(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
             },
             fitbit_api: FitbitApiConfig {
                 base_url: "https://api.fitbit.com".to_string(),
                 auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
                 token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
             },
         },
         app_behavior: AppBehaviorConfig {
@@ -722,6 +742,7 @@ async fn test_disconnect_provider() {
                 server_version: env!("CARGO_PKG_VERSION").to_string(),
             },
         },
+        sse: pierre_mcp_server::config::environment::SseConfig::default(),
     });
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
@@ -856,6 +877,7 @@ async fn test_oauth_urls_contain_required_parameters() {
         http_port: 8080,
         oauth_callback_port: 35535,
         log_level: LogLevel::Info,
+        http_client: HttpClientConfig::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
             auto_migrate: true,
@@ -916,11 +938,13 @@ async fn test_oauth_urls_contain_required_parameters() {
                 base_url: "https://www.strava.com/api/v3".to_string(),
                 auth_url: "https://www.strava.com/oauth/authorize".to_string(),
                 token_url: "https://www.strava.com/oauth/token".to_string(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
             },
             fitbit_api: FitbitApiConfig {
                 base_url: "https://api.fitbit.com".to_string(),
                 auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
                 token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
             },
         },
         app_behavior: AppBehaviorConfig {
@@ -933,6 +957,7 @@ async fn test_oauth_urls_contain_required_parameters() {
                 server_version: env!("CARGO_PKG_VERSION").to_string(),
             },
         },
+        sse: pierre_mcp_server::config::environment::SseConfig::default(),
     });
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(

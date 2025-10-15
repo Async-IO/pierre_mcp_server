@@ -4,25 +4,53 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+use crate::config::environment::HttpClientConfig;
 use reqwest::{Client, ClientBuilder};
 use std::sync::OnceLock;
 use std::time::Duration;
 
-/// Global shared HTTP client with default configuration
+/// Global HTTP client configuration
+static CLIENT_CONFIG: OnceLock<HttpClientConfig> = OnceLock::new();
+
+/// Global shared HTTP client with configured timeouts
 static SHARED_CLIENT: OnceLock<Client> = OnceLock::new();
 
-/// Get or create the shared HTTP client with default settings
+/// Initialize HTTP client configuration
 ///
-/// This client uses connection pooling and reasonable timeouts.
+/// Must be called once at server startup before any HTTP clients are created.
+/// This enables proper dependency injection of timeout configuration.
+///
+/// # Panics
+/// Panics if called more than once (configuration cannot be changed after initialization)
+pub fn initialize_http_clients(config: HttpClientConfig) {
+    CLIENT_CONFIG
+        .set(config)
+        .expect("HTTP client configuration already initialized");
+}
+
+/// Get or create the shared HTTP client with configured timeout settings
+///
+/// This client uses connection pooling and configurable timeouts.
 /// Prefer this over creating new clients for better performance.
+///
+/// Configuration must be initialized via `initialize_http_clients()` at server startup.
 ///
 /// # Returns
 /// A reference to the shared `reqwest::Client`
+///
+/// # Panics
+/// Panics if HTTP client configuration was not initialized at server startup
 pub fn shared_client() -> &'static Client {
     SHARED_CLIENT.get_or_init(|| {
+        let config = CLIENT_CONFIG.get().expect(
+            "HTTP client configuration not initialized - call initialize_http_clients() at startup",
+        );
+
         ClientBuilder::new()
-            .timeout(Duration::from_secs(30))
-            .connect_timeout(Duration::from_secs(10))
+            .timeout(Duration::from_secs(config.shared_client_timeout_secs))
+            .connect_timeout(Duration::from_secs(
+                config.shared_client_connect_timeout_secs,
+            ))
             .build()
             .unwrap_or_else(|_| Client::new())
     })
@@ -74,24 +102,78 @@ where
 
 /// Create a new HTTP client optimized for OAuth flows
 ///
-/// This client has shorter timeouts optimized for OAuth token exchanges
-/// which should be fast operations.
+/// This client has configured timeouts optimized for OAuth token exchanges.
+/// Configuration must be initialized via `initialize_http_clients()` at server startup.
 ///
 /// # Returns
 /// A new `reqwest::Client` optimized for OAuth operations
+///
+/// # Panics
+/// Panics if HTTP client configuration was not initialized at server startup
 #[must_use]
 pub fn oauth_client() -> Client {
-    create_client_with_timeout(15, 5) // 15s request timeout, 5s connect timeout
+    let config = CLIENT_CONFIG.get().expect(
+        "HTTP client configuration not initialized - call initialize_http_clients() at startup",
+    );
+
+    create_client_with_timeout(
+        config.oauth_client_timeout_secs,
+        config.oauth_client_connect_timeout_secs,
+    )
 }
 
 /// Create a new HTTP client optimized for API calls
 ///
-/// This client has longer timeouts suitable for external API calls
-/// that might take more time to process.
+/// This client has configured timeouts suitable for external API calls.
+/// Configuration must be initialized via `initialize_http_clients()` at server startup.
 ///
 /// # Returns
 /// A new `reqwest::Client` optimized for API operations
+///
+/// # Panics
+/// Panics if HTTP client configuration was not initialized at server startup
 #[must_use]
 pub fn api_client() -> Client {
-    create_client_with_timeout(60, 10) // 60s request timeout, 10s connect timeout
+    let config = CLIENT_CONFIG.get().expect(
+        "HTTP client configuration not initialized - call initialize_http_clients() at startup",
+    );
+
+    create_client_with_timeout(
+        config.api_client_timeout_secs,
+        config.api_client_connect_timeout_secs,
+    )
+}
+
+/// Get health check timeout configuration
+///
+/// # Returns
+/// Health check timeout in seconds
+///
+/// # Panics
+/// Panics if HTTP client configuration was not initialized at server startup
+#[must_use]
+pub fn get_health_check_timeout_secs() -> u64 {
+    CLIENT_CONFIG
+        .get()
+        .expect(
+            "HTTP client configuration not initialized - call initialize_http_clients() at startup",
+        )
+        .health_check_timeout_secs
+}
+
+/// Get OAuth callback notification timeout configuration
+///
+/// # Returns
+/// OAuth callback notification timeout in seconds
+///
+/// # Panics
+/// Panics if HTTP client configuration was not initialized at server startup
+#[must_use]
+pub fn get_oauth_callback_notification_timeout_secs() -> u64 {
+    CLIENT_CONFIG
+        .get()
+        .expect(
+            "HTTP client configuration not initialized - call initialize_http_clients() at startup",
+        )
+        .oauth_callback_notification_timeout_secs
 }

@@ -467,11 +467,7 @@ impl FitnessProvider for StravaProvider {
 
         let response: StravaActivity = self
             .client
-            .get(format!(
-                "{}/activities/{}",
-                env_config::strava_api_base(),
-                id
-            ))
+            .get(format!("{}/activities/{}", &self.config.base_url, id))
             .bearer_auth(token)
             .send()
             .await?
@@ -553,7 +549,7 @@ impl StravaProvider {
         // Get athlete ID first
         let athlete: StravaAthlete = self
             .client
-            .get(format!("{}/athlete", env_config::strava_api_base()))
+            .get(format!("{}/athlete", &self.config.base_url))
             .bearer_auth(token)
             .send()
             .await?
@@ -565,7 +561,7 @@ impl StravaProvider {
             .client
             .get(format!(
                 "{}/athletes/{}/stats",
-                env_config::strava_api_base(),
+                &self.config.base_url,
                 athlete.id
             ))
             .bearer_auth(token)

@@ -818,10 +818,14 @@ async fn handle_oauth_login_submit(
             );
 
             // Set session cookie and redirect to authorization endpoint
+            // Cookie security: HttpOnly prevents XSS, Secure enforces HTTPS, SameSite=Lax prevents CSRF
+            // Max-Age matches JWT expiration (24 hours = 86400 seconds)
             let redirect_response = warp::reply::with_header(
                 warp::reply::with_header(warp::reply(), "Location", auth_url),
                 "Set-Cookie",
-                format!("pierre_session={token}; HttpOnly; Path=/; SameSite=Lax"),
+                format!(
+                    "pierre_session={token}; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=86400"
+                ),
             );
 
             Ok(Box::new(warp::reply::with_status(

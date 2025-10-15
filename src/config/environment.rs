@@ -215,6 +215,10 @@ pub struct ServerConfig {
     pub external_services: ExternalServicesConfig,
     /// Application behavior settings
     pub app_behavior: AppBehaviorConfig,
+    /// HTTP client timeout configuration
+    pub http_client: HttpClientConfig,
+    /// SSE connection management configuration
+    pub sse: SseConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -345,6 +349,8 @@ pub struct StravaApiConfig {
     pub auth_url: String,
     /// Strava token URL
     pub token_url: String,
+    /// Strava deauthorize URL
+    pub deauthorize_url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -355,6 +361,8 @@ pub struct FitbitApiConfig {
     pub auth_url: String,
     /// Fitbit token URL
     pub token_url: String,
+    /// Fitbit revoke URL
+    pub revoke_url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -379,6 +387,69 @@ pub struct ProtocolConfig {
     pub server_version: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HttpClientConfig {
+    /// Shared HTTP client request timeout in seconds
+    pub shared_client_timeout_secs: u64,
+    /// Shared HTTP client connect timeout in seconds
+    pub shared_client_connect_timeout_secs: u64,
+    /// OAuth client request timeout in seconds
+    pub oauth_client_timeout_secs: u64,
+    /// OAuth client connect timeout in seconds
+    pub oauth_client_connect_timeout_secs: u64,
+    /// API client request timeout in seconds
+    pub api_client_timeout_secs: u64,
+    /// API client connect timeout in seconds
+    pub api_client_connect_timeout_secs: u64,
+    /// Health check client timeout in seconds
+    pub health_check_timeout_secs: u64,
+    /// OAuth callback notification timeout in seconds
+    pub oauth_callback_notification_timeout_secs: u64,
+}
+
+/// SSE connection management configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SseConfig {
+    /// Cleanup task interval in seconds
+    pub cleanup_interval_secs: u64,
+    /// Connection timeout in seconds (connections inactive for this duration will be removed)
+    pub connection_timeout_secs: u64,
+    /// OAuth session cookie Max-Age in seconds
+    pub session_cookie_max_age_secs: u64,
+    /// Enable Secure flag on cookies (requires HTTPS)
+    pub session_cookie_secure: bool,
+}
+
+impl Default for HttpClientConfig {
+    fn default() -> Self {
+        Self {
+            shared_client_timeout_secs: crate::constants::timeouts::HTTP_CLIENT_TIMEOUT_SECS,
+            shared_client_connect_timeout_secs:
+                crate::constants::timeouts::HTTP_CLIENT_CONNECT_TIMEOUT_SECS,
+            oauth_client_timeout_secs: crate::constants::timeouts::OAUTH_CLIENT_TIMEOUT_SECS,
+            oauth_client_connect_timeout_secs:
+                crate::constants::timeouts::OAUTH_CLIENT_CONNECT_TIMEOUT_SECS,
+            api_client_timeout_secs: crate::constants::timeouts::API_CLIENT_TIMEOUT_SECS,
+            api_client_connect_timeout_secs:
+                crate::constants::timeouts::API_CLIENT_CONNECT_TIMEOUT_SECS,
+            health_check_timeout_secs: crate::constants::timeouts::HEALTH_CHECK_TIMEOUT_SECS,
+            oauth_callback_notification_timeout_secs:
+                crate::constants::timeouts::OAUTH_CALLBACK_NOTIFICATION_TIMEOUT_SECS,
+        }
+    }
+}
+
+impl Default for SseConfig {
+    fn default() -> Self {
+        Self {
+            cleanup_interval_secs: crate::constants::timeouts::SSE_CLEANUP_INTERVAL_SECS,
+            connection_timeout_secs: crate::constants::timeouts::SSE_CONNECTION_TIMEOUT_SECS,
+            session_cookie_max_age_secs: crate::constants::timeouts::SESSION_COOKIE_MAX_AGE_SECS,
+            session_cookie_secure: false, // Default to false for development, override in production
+        }
+    }
+}
+
 impl ServerConfig {
     /// Load configuration from environment variables
     ///
@@ -398,6 +469,8 @@ impl ServerConfig {
             security: Self::load_security_config()?,
             external_services: Self::load_external_services_config()?,
             app_behavior: Self::load_app_behavior_config()?,
+            http_client: Self::load_http_client_config(),
+            sse: Self::load_sse_config()?,
         };
 
         config.validate()?;
@@ -772,6 +845,10 @@ impl ServerConfig {
             base_url: env_var_or("STRAVA_API_BASE", "https://www.strava.com/api/v3"),
             auth_url: env_var_or("STRAVA_AUTH_URL", "https://www.strava.com/oauth/authorize"),
             token_url: env_var_or("STRAVA_TOKEN_URL", "https://www.strava.com/oauth/token"),
+            deauthorize_url: env_var_or(
+                "STRAVA_DEAUTHORIZE_URL",
+                "https://www.strava.com/oauth/deauthorize",
+            ),
         }
     }
 
@@ -781,6 +858,7 @@ impl ServerConfig {
             base_url: env_var_or("FITBIT_API_BASE", "https://api.fitbit.com"),
             auth_url: env_var_or("FITBIT_AUTH_URL", "https://www.fitbit.com/oauth2/authorize"),
             token_url: env_var_or("FITBIT_TOKEN_URL", "https://api.fitbit.com/oauth2/token"),
+            revoke_url: env_var_or("FITBIT_REVOKE_URL", "https://api.fitbit.com/oauth2/revoke"),
         }
     }
 
@@ -811,6 +889,52 @@ impl ServerConfig {
             server_name: env_var_or("SERVER_NAME", "pierre-mcp-server"),
             server_version: env!("CARGO_PKG_VERSION").to_string(),
         }
+    }
+
+    /// Load HTTP client configuration from environment
+    fn load_http_client_config() -> HttpClientConfig {
+        HttpClientConfig {
+            shared_client_timeout_secs: env_config::http_client_timeout_secs(),
+            shared_client_connect_timeout_secs: env_config::http_client_connect_timeout_secs(),
+            oauth_client_timeout_secs: env_config::oauth_client_timeout_secs(),
+            oauth_client_connect_timeout_secs: env_config::oauth_client_connect_timeout_secs(),
+            api_client_timeout_secs: env_config::api_client_timeout_secs(),
+            api_client_connect_timeout_secs: env_config::api_client_connect_timeout_secs(),
+            health_check_timeout_secs: env_config::health_check_timeout_secs(),
+            oauth_callback_notification_timeout_secs:
+                env_config::oauth_callback_notification_timeout_secs(),
+        }
+    }
+
+    /// Load SSE configuration from environment
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if SSE environment variables are invalid
+    fn load_sse_config() -> Result<SseConfig> {
+        Ok(SseConfig {
+            cleanup_interval_secs: env_var_or(
+                "SSE_CLEANUP_INTERVAL_SECS",
+                &crate::constants::timeouts::SSE_CLEANUP_INTERVAL_SECS.to_string(),
+            )
+            .parse()
+            .context("Invalid SSE_CLEANUP_INTERVAL_SECS value")?,
+            connection_timeout_secs: env_var_or(
+                "SSE_CONNECTION_TIMEOUT_SECS",
+                &crate::constants::timeouts::SSE_CONNECTION_TIMEOUT_SECS.to_string(),
+            )
+            .parse()
+            .context("Invalid SSE_CONNECTION_TIMEOUT_SECS value")?,
+            session_cookie_max_age_secs: env_var_or(
+                "SESSION_COOKIE_MAX_AGE_SECS",
+                &crate::constants::timeouts::SESSION_COOKIE_MAX_AGE_SECS.to_string(),
+            )
+            .parse()
+            .context("Invalid SESSION_COOKIE_MAX_AGE_SECS value")?,
+            session_cookie_secure: env_var_or("SESSION_COOKIE_SECURE", "false")
+                .parse()
+                .context("Invalid SESSION_COOKIE_SECURE value")?,
+        })
     }
 }
 

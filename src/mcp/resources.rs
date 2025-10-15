@@ -115,6 +115,29 @@ impl ServerResources {
         // Create unified SSE manager for both notifications and MCP protocol
         let sse_manager = Arc::new(crate::sse::SseManager::new());
 
+        // Spawn background task to cleanup inactive SSE connections
+        // Uses configurable intervals and timeouts from config
+        {
+            let manager_for_cleanup = sse_manager.clone();
+            let cleanup_interval_secs = config.sse.cleanup_interval_secs;
+            let connection_timeout_secs = config.sse.connection_timeout_secs;
+
+            tokio::spawn(async move {
+                let mut interval =
+                    tokio::time::interval(std::time::Duration::from_secs(cleanup_interval_secs));
+                loop {
+                    interval.tick().await;
+                    tracing::debug!(
+                        "Running SSE connection cleanup task (timeout={}s)",
+                        connection_timeout_secs
+                    );
+                    manager_for_cleanup
+                        .cleanup_inactive_connections(connection_timeout_secs)
+                        .await;
+                }
+            });
+        }
+
         // Wrap cache in Arc for shared access across handlers
         let cache_arc = Arc::new(cache);
 

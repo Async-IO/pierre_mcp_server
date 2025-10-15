@@ -26,16 +26,30 @@ use pierre_mcp_server::{
     },
 };
 use serde_json::json;
-use std::sync::Arc;
+use std::sync::{Arc, Once};
 use uuid::Uuid;
 
 mod common;
+
+/// Ensure HTTP clients are initialized only once across all tests
+static INIT_HTTP_CLIENTS: Once = Once::new();
+
+fn ensure_http_clients_initialized() {
+    INIT_HTTP_CLIENTS.call_once(|| {
+        pierre_mcp_server::utils::http_client::initialize_http_clients(
+            pierre_mcp_server::config::environment::HttpClientConfig::default(),
+        );
+    });
+}
 
 /// Test configuration for end-to-end tenant onboarding
 #[allow(clippy::too_many_lines)] // Long function: Defines complete end-to-end tenant onboarding workflow
 #[tokio::test]
 async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
     tracing_subscriber::fmt::init();
+
+    // Initialize HTTP clients (only once across all tests)
+    ensure_http_clients_initialized();
 
     // Step 1: Create test database and base infrastructure
     let database = Arc::new(
@@ -326,6 +340,9 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
 /// Test tenant switching and context validation
 #[tokio::test]
 async fn test_tenant_context_switching() -> Result<()> {
+    // Initialize HTTP clients (only once across all tests)
+    ensure_http_clients_initialized();
+
     let database = Arc::new(
         Database::new("sqlite::memory:", vec![0; 32])
             .await
@@ -450,6 +467,7 @@ fn create_test_server_config() -> ServerConfig {
         http_port: 4000,
         oauth_callback_port: 35535,
         log_level: LogLevel::Info,
+        http_client: HttpClientConfig::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
             auto_migrate: true,
@@ -510,11 +528,13 @@ fn create_test_server_config() -> ServerConfig {
                 base_url: "https://www.strava.com/api/v3".to_string(),
                 auth_url: "https://www.strava.com/oauth/authorize".to_string(),
                 token_url: "https://www.strava.com/oauth/token".to_string(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
             },
             fitbit_api: FitbitApiConfig {
                 base_url: "https://api.fitbit.com".to_string(),
                 auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
                 token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
             },
         },
         app_behavior: AppBehaviorConfig {
@@ -527,5 +547,6 @@ fn create_test_server_config() -> ServerConfig {
                 server_version: env!("CARGO_PKG_VERSION").to_string(),
             },
         },
+        sse: pierre_mcp_server::config::environment::SseConfig::default(),
     }
 }

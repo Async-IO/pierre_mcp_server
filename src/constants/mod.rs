@@ -208,6 +208,78 @@ pub mod env_config {
             .and_then(|s| s.parse().ok())
             .unwrap_or(super::ports::DEFAULT_OAUTH_CALLBACK_PORT)
     }
+
+    /// Get HTTP client timeout from environment or default
+    #[must_use]
+    pub fn http_client_timeout_secs() -> u64 {
+        env::var("HTTP_CLIENT_TIMEOUT_SECS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(super::timeouts::HTTP_CLIENT_TIMEOUT_SECS)
+    }
+
+    /// Get HTTP client connect timeout from environment or default
+    #[must_use]
+    pub fn http_client_connect_timeout_secs() -> u64 {
+        env::var("HTTP_CLIENT_CONNECT_TIMEOUT_SECS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(super::timeouts::HTTP_CLIENT_CONNECT_TIMEOUT_SECS)
+    }
+
+    /// Get OAuth client timeout from environment or default
+    #[must_use]
+    pub fn oauth_client_timeout_secs() -> u64 {
+        env::var("OAUTH_CLIENT_TIMEOUT_SECS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(super::timeouts::OAUTH_CLIENT_TIMEOUT_SECS)
+    }
+
+    /// Get OAuth client connect timeout from environment or default
+    #[must_use]
+    pub fn oauth_client_connect_timeout_secs() -> u64 {
+        env::var("OAUTH_CLIENT_CONNECT_TIMEOUT_SECS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(super::timeouts::OAUTH_CLIENT_CONNECT_TIMEOUT_SECS)
+    }
+
+    /// Get API client timeout from environment or default
+    #[must_use]
+    pub fn api_client_timeout_secs() -> u64 {
+        env::var("API_CLIENT_TIMEOUT_SECS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(super::timeouts::API_CLIENT_TIMEOUT_SECS)
+    }
+
+    /// Get API client connect timeout from environment or default
+    #[must_use]
+    pub fn api_client_connect_timeout_secs() -> u64 {
+        env::var("API_CLIENT_CONNECT_TIMEOUT_SECS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(super::timeouts::API_CLIENT_CONNECT_TIMEOUT_SECS)
+    }
+
+    /// Get health check timeout from environment or default
+    #[must_use]
+    pub fn health_check_timeout_secs() -> u64 {
+        env::var("HEALTH_CHECK_TIMEOUT_SECS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(super::timeouts::HEALTH_CHECK_TIMEOUT_SECS)
+    }
+
+    /// Get OAuth callback notification timeout from environment or default
+    #[must_use]
+    pub fn oauth_callback_notification_timeout_secs() -> u64 {
+        env::var("OAUTH_CALLBACK_NOTIFICATION_TIMEOUT_SECS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(super::timeouts::OAUTH_CALLBACK_NOTIFICATION_TIMEOUT_SECS)
+    }
 }
 
 /// API endpoints
@@ -284,12 +356,32 @@ pub mod limits {
 
 /// Timeout configurations
 pub mod timeouts {
-    /// Default HTTP client timeout in seconds
+    /// Default HTTP client request timeout in seconds
     pub const HTTP_CLIENT_TIMEOUT_SECS: u64 = 30;
+    /// Default HTTP client connect timeout in seconds
+    pub const HTTP_CLIENT_CONNECT_TIMEOUT_SECS: u64 = 10;
+    /// OAuth client request timeout in seconds
+    pub const OAUTH_CLIENT_TIMEOUT_SECS: u64 = 15;
+    /// OAuth client connect timeout in seconds
+    pub const OAUTH_CLIENT_CONNECT_TIMEOUT_SECS: u64 = 5;
+    /// API client request timeout in seconds
+    pub const API_CLIENT_TIMEOUT_SECS: u64 = 60;
+    /// API client connect timeout in seconds
+    pub const API_CLIENT_CONNECT_TIMEOUT_SECS: u64 = 10;
+    /// Health check client timeout in seconds
+    pub const HEALTH_CHECK_TIMEOUT_SECS: u64 = 5;
+    /// OAuth callback notification timeout in seconds
+    pub const OAUTH_CALLBACK_NOTIFICATION_TIMEOUT_SECS: u64 = 5;
     /// Database connection timeout in seconds
     pub const DATABASE_TIMEOUT_SECS: u64 = 10;
-    /// OAuth callback timeout in seconds
-    pub const OAUTH_CALLBACK_TIMEOUT_SECS: u64 = 300; // 5 minutes
+    /// OAuth callback wait timeout in seconds (for bridge flow)
+    pub const OAUTH_CALLBACK_WAIT_TIMEOUT_SECS: u64 = 300; // 5 minutes
+    /// SSE cleanup task interval in seconds
+    pub const SSE_CLEANUP_INTERVAL_SECS: u64 = 300; // 5 minutes
+    /// SSE connection timeout in seconds (inactive connections removed after this duration)
+    pub const SSE_CONNECTION_TIMEOUT_SECS: u64 = 600; // 10 minutes
+    /// OAuth session cookie Max-Age in seconds (matches JWT expiration)
+    pub const SESSION_COOKIE_MAX_AGE_SECS: u64 = 86400; // 24 hours
 }
 
 /// Cryptographic constants

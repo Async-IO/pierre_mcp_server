@@ -2436,6 +2436,7 @@ impl MultiTenantMcpServer {
         tenant_context: &TenantContext,
         oauth_client: &Arc<TenantOAuthClient>,
         credentials: &McpOAuthCredentials<'_>,
+        config: &Arc<crate::config::environment::ServerConfig>,
     ) {
         // Store Strava credentials if provided
         if let (Some(id), Some(secret)) = (
@@ -2446,10 +2447,21 @@ impl MultiTenantMcpServer {
                 "Storing MCP-provided Strava OAuth credentials for tenant {}",
                 tenant_context.tenant_id
             );
+            let redirect_uri = config
+                .oauth
+                .strava
+                .redirect_uri
+                .clone() // Safe: Config string ownership for OAuth credential storage
+                .unwrap_or_else(|| {
+                    format!(
+                        "http://localhost:{}/api/oauth/callback/strava",
+                        config.http_port
+                    )
+                });
             let request = crate::tenant::oauth_client::StoreCredentialsRequest {
                 client_id: id.to_string(),
                 client_secret: secret.to_string(),
-                redirect_uri: crate::constants::env_config::strava_redirect_uri(),
+                redirect_uri,
                 scopes: crate::constants::oauth::STRAVA_DEFAULT_SCOPES
                     .split(',')
                     .map(str::to_string)
@@ -2474,10 +2486,21 @@ impl MultiTenantMcpServer {
                 "Storing MCP-provided Fitbit OAuth credentials for tenant {}",
                 tenant_context.tenant_id
             );
+            let redirect_uri = config
+                .oauth
+                .fitbit
+                .redirect_uri
+                .clone() // Safe: Config string ownership for OAuth credential storage
+                .unwrap_or_else(|| {
+                    format!(
+                        "http://localhost:{}/api/oauth/callback/fitbit",
+                        config.http_port
+                    )
+                });
             let request = crate::tenant::oauth_client::StoreCredentialsRequest {
                 client_id: id.to_string(),
                 client_secret: secret.to_string(),
-                redirect_uri: crate::constants::env_config::fitbit_redirect_uri(),
+                redirect_uri,
                 scopes: vec![
                     "activity".to_string(),
                     "heartrate".to_string(),
@@ -2509,6 +2532,7 @@ impl MultiTenantMcpServer {
         request_id: Value,
         credentials: McpOAuthCredentials<'_>,
         http_port: u16,
+        config: &Arc<crate::config::environment::ServerConfig>,
     ) -> McpResponse {
         tracing::info!(
             "Checking connection status for tenant {} user {}",
@@ -2517,7 +2541,13 @@ impl MultiTenantMcpServer {
         );
 
         // Store MCP-provided OAuth credentials if supplied
-        Self::store_mcp_oauth_credentials(tenant_context, tenant_oauth_client, &credentials).await;
+        Self::store_mcp_oauth_credentials(
+            tenant_context,
+            tenant_oauth_client,
+            &credentials,
+            config,
+        )
+        .await;
 
         let base_url = Self::build_oauth_base_url(http_port);
         let connection_status = Self::check_provider_connections(tenant_context, database).await;

@@ -9,7 +9,19 @@ use pierre_mcp_server::providers::core::FitnessProvider;
 use pierre_mcp_server::providers::registry::{
     create_provider, create_tenant_provider, global_registry, ProviderRegistry,
 };
+use std::sync::Once;
 use uuid::Uuid;
+
+/// Ensure HTTP clients are initialized only once across all tests
+static INIT_HTTP_CLIENTS: Once = Once::new();
+
+fn ensure_http_clients_initialized() {
+    INIT_HTTP_CLIENTS.call_once(|| {
+        pierre_mcp_server::utils::http_client::initialize_http_clients(
+            pierre_mcp_server::config::environment::HttpClientConfig::default(),
+        );
+    });
+}
 
 #[test]
 fn test_registry_creation() {
@@ -26,6 +38,7 @@ fn test_global_registry() {
 
 #[test]
 fn test_create_provider() {
+    ensure_http_clients_initialized();
     let provider = create_provider(oauth_providers::STRAVA);
     assert!(provider.is_ok());
 
@@ -35,6 +48,7 @@ fn test_create_provider() {
 
 #[tokio::test]
 async fn test_create_tenant_provider() {
+    ensure_http_clients_initialized();
     let tenant_id = Uuid::new_v4();
     let user_id = Uuid::new_v4();
 

@@ -373,6 +373,7 @@ impl ToolHandlers {
                         request_id,
                         credentials,
                         ctx.resources.config.http_port,
+                        &ctx.resources.config,
                     )
                     .await;
                 }

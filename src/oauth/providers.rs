@@ -26,6 +26,9 @@ pub struct StravaOAuthProvider {
     client_id: String,
     client_secret: String,
     redirect_uri: String,
+    auth_url: String,
+    token_url: String,
+    deauthorize_url: String,
 }
 
 /// Strava token response format
@@ -46,7 +49,10 @@ impl StravaOAuthProvider {
     /// - Client ID is not configured in the provided config
     /// - Client secret is not configured in the provided config
     /// - Configuration parameters are invalid
-    pub fn from_config(config: &OAuthProviderConfig) -> Result<Self, OAuthError> {
+    pub fn from_config(
+        config: &OAuthProviderConfig,
+        api_config: &crate::config::environment::StravaApiConfig,
+    ) -> Result<Self, OAuthError> {
         let client_id = config
             .client_id
             .as_ref()
@@ -72,6 +78,9 @@ impl StravaOAuthProvider {
             client_id,
             client_secret,
             redirect_uri,
+            auth_url: api_config.auth_url.clone(), // Safe: Config URL string ownership for provider struct
+            token_url: api_config.token_url.clone(), // Safe: Config URL string ownership for provider struct
+            deauthorize_url: api_config.deauthorize_url.clone(), // Safe: Config URL string ownership for provider struct
         })
     }
 }
@@ -97,10 +106,9 @@ impl OAuthProvider for StravaOAuthProvider {
     ) -> Result<AuthorizationResponse, OAuthError> {
         let scope = "crate::constants::oauth::STRAVA_DEFAULT_SCOPES";
 
-        let auth_base_url = crate::constants::env_config::strava_auth_url();
         let auth_url = format!(
             "{}?client_id={}&redirect_uri={}&response_type=code&scope={}&state={}",
-            auth_base_url,
+            &self.auth_url,
             urlencoding::encode(&self.client_id),
             urlencoding::encode(&self.redirect_uri),
             urlencoding::encode(scope),
@@ -121,7 +129,7 @@ impl OAuthProvider for StravaOAuthProvider {
             client_id: self.client_id.clone(),
             client_secret: self.client_secret.clone(),
             redirect_uri: self.redirect_uri.clone(),
-            token_url: crate::constants::env_config::strava_token_url(),
+            token_url: self.token_url.clone(), // Safe: String ownership for OAuth config
             provider_name: "strava".into(),
             auth_method: AuthMethod::FormParams,
         };
@@ -153,7 +161,7 @@ impl OAuthProvider for StravaOAuthProvider {
             client_id: self.client_id.clone(),
             client_secret: self.client_secret.clone(),
             redirect_uri: self.redirect_uri.clone(),
-            token_url: crate::constants::env_config::strava_token_url(),
+            token_url: self.token_url.clone(), // Safe: String ownership for OAuth config
             provider_name: "strava".into(),
             auth_method: AuthMethod::FormParams,
         };
@@ -182,7 +190,7 @@ impl OAuthProvider for StravaOAuthProvider {
 
     async fn revoke_token(&self, access_token: &str) -> Result<(), OAuthError> {
         revoke_access_token(
-            &crate::constants::env_config::strava_deauthorize_url(),
+            &self.deauthorize_url,
             access_token,
             &AuthMethod::FormParams,
             &self.client_id,
@@ -201,6 +209,9 @@ pub struct FitbitOAuthProvider {
     client_id: String,
     client_secret: String,
     redirect_uri: String,
+    auth_url: String,
+    token_url: String,
+    revoke_url: String,
 }
 
 /// Fitbit token response format
@@ -221,7 +232,10 @@ impl FitbitOAuthProvider {
     /// - Client ID is not configured in the provided config
     /// - Client secret is not configured in the provided config
     /// - Configuration parameters are invalid
-    pub fn from_config(config: &OAuthProviderConfig) -> Result<Self, OAuthError> {
+    pub fn from_config(
+        config: &OAuthProviderConfig,
+        api_config: &crate::config::environment::FitbitApiConfig,
+    ) -> Result<Self, OAuthError> {
         let client_id = config
             .client_id
             .as_ref()
@@ -247,6 +261,9 @@ impl FitbitOAuthProvider {
             client_id,
             client_secret,
             redirect_uri,
+            auth_url: api_config.auth_url.clone(), // Safe: Config URL string ownership for provider struct
+            token_url: api_config.token_url.clone(), // Safe: Config URL string ownership for provider struct
+            revoke_url: api_config.revoke_url.clone(), // Safe: Config URL string ownership for provider struct
         })
     }
 }
@@ -266,7 +283,7 @@ impl OAuthProvider for FitbitOAuthProvider {
 
         let auth_url = format!(
             "{}?client_id={}&redirect_uri={}&response_type=code&scope={}&state={}",
-            crate::constants::env_config::fitbit_auth_url(),
+            &self.auth_url,
             urlencoding::encode(&self.client_id),
             urlencoding::encode(&self.redirect_uri),
             urlencoding::encode(scope),
@@ -287,7 +304,7 @@ impl OAuthProvider for FitbitOAuthProvider {
             client_id: self.client_id.clone(),
             client_secret: self.client_secret.clone(),
             redirect_uri: self.redirect_uri.clone(),
-            token_url: crate::constants::env_config::fitbit_token_url(),
+            token_url: self.token_url.clone(), // Safe: String ownership for OAuth config
             provider_name: "fitbit".into(),
             auth_method: AuthMethod::BasicAuth,
         };
@@ -316,7 +333,7 @@ impl OAuthProvider for FitbitOAuthProvider {
             client_id: self.client_id.clone(),
             client_secret: self.client_secret.clone(),
             redirect_uri: self.redirect_uri.clone(),
-            token_url: crate::constants::env_config::fitbit_token_url(),
+            token_url: self.token_url.clone(), // Safe: String ownership for OAuth config
             provider_name: "fitbit".into(),
             auth_method: AuthMethod::BasicAuth,
         };
@@ -342,7 +359,7 @@ impl OAuthProvider for FitbitOAuthProvider {
 
     async fn revoke_token(&self, access_token: &str) -> Result<(), OAuthError> {
         revoke_access_token(
-            &crate::constants::env_config::fitbit_revoke_url(),
+            &self.revoke_url,
             access_token,
             &AuthMethod::BasicAuth,
             &self.client_id,

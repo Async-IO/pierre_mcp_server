@@ -190,6 +190,7 @@ impl DashboardTestSetup {
             http_port: 8081,
             oauth_callback_port: 35535,
             log_level: pierre_mcp_server::config::environment::LogLevel::Info,
+            http_client: pierre_mcp_server::config::environment::HttpClientConfig::default(),
             database: pierre_mcp_server::config::environment::DatabaseConfig {
                 url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
                 auto_migrate: true,
@@ -250,11 +251,13 @@ impl DashboardTestSetup {
                     base_url: "https://www.strava.com/api/v3".to_string(),
                     auth_url: "https://www.strava.com/oauth/authorize".to_string(),
                     token_url: "https://www.strava.com/oauth/token".to_string(),
+                    deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
                 },
                 fitbit_api: pierre_mcp_server::config::environment::FitbitApiConfig {
                     base_url: "https://api.fitbit.com".to_string(),
                     auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
                     token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+                    revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
                 },
             },
             app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
@@ -267,6 +270,7 @@ impl DashboardTestSetup {
                     server_version: env!("CARGO_PKG_VERSION").to_string(),
                 },
             },
+            sse: pierre_mcp_server::config::environment::SseConfig::default(),
         });
 
         // Create test cache
@@ -531,6 +535,7 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
         http_port: 8081,
         oauth_callback_port: 35535,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
+        http_client: pierre_mcp_server::config::environment::HttpClientConfig::default(),
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
             auto_migrate: true,
@@ -591,11 +596,13 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
                 base_url: "https://www.strava.com/api/v3".to_string(),
                 auth_url: "https://www.strava.com/oauth/authorize".to_string(),
                 token_url: "https://www.strava.com/oauth/token".to_string(),
+                deauthorize_url: "https://www.strava.com/oauth/deauthorize".to_string(),
             },
             fitbit_api: pierre_mcp_server::config::environment::FitbitApiConfig {
                 base_url: "https://api.fitbit.com".to_string(),
                 auth_url: "https://www.fitbit.com/oauth2/authorize".to_string(),
                 token_url: "https://api.fitbit.com/oauth2/token".to_string(),
+                revoke_url: "https://api.fitbit.com/oauth2/revoke".to_string(),
             },
         },
         app_behavior: pierre_mcp_server::config::environment::AppBehaviorConfig {
@@ -608,6 +615,7 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
                 server_version: env!("CARGO_PKG_VERSION").to_string(),
             },
         },
+        sse: pierre_mcp_server::config::environment::SseConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
