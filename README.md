@@ -500,21 +500,15 @@ See `frontend/README.md` for details.
 
 Complete documentation is in the `docs/` directory:
 
-- **[Getting Started](docs/developer-guide/15-getting-started.md)** - Setup guide
-- **[Architecture](docs/developer-guide/01-architecture.md)** - System design
-- **[MCP Protocol](docs/developer-guide/04-mcp-protocol.md)** - MCP implementation details
-- **[A2A Protocol](docs/developer-guide/05-a2a-protocol.md)** - Agent-to-agent communication
-- **[Authentication](docs/developer-guide/06-authentication.md)** - OAuth 2.0 and JWT
-- **[Database](docs/developer-guide/08-database.md)** - Database schema and migrations
-- **[Cache System](docs/developer-guide/09-cache.md)** - Cache architecture and configuration
-- **[Configuration](docs/developer-guide/12-configuration.md)** - Configuration management
-- **[API Reference](docs/developer-guide/14-api-reference.md)** - REST API documentation
-- **[Security](docs/developer-guide/17-security-guide.md)** - Security best practices
-- **[Plugin System](docs/developer-guide/18-plugin-system.md)** - Plugin development
-- **[Logging](docs/developer-guide/19-logging-and-observability.md)** - Logging and monitoring
+- **[Getting Started](docs/getting-started.md)** - installation and quick start
+- **[Architecture](docs/architecture.md)** - system design and components
+- **[Protocols](docs/protocols.md)** - mcp, oauth2, a2a, rest protocols
+- **[Authentication](docs/authentication.md)** - jwt, api keys, oauth2
+- **[Configuration](docs/configuration.md)** - environment variables and settings
+- **[Contributing](docs/contributing.md)** - development guidelines
 
 Installation guide for MCP clients:
-- **[MCP Client Installation](docs/installation-guides/install-mcp-client.md)** - Claude Desktop, ChatGPT, and other MCP clients
+- **[MCP Client Installation](docs/installation-guides/install-mcp-client.md)** - claude desktop, chatgpt, and other mcp clients
 
 ## Code Quality
 
