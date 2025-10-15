@@ -135,7 +135,7 @@ impl Database {
         .execute(&self.pool)
         .await?;
 
-        // Create oauth2_auth_codes table
+        // Create oauth2_auth_codes table with PKCE support
         sqlx::query(
             r"
             CREATE TABLE IF NOT EXISTS oauth2_auth_codes (
@@ -146,6 +146,8 @@ impl Database {
                 scope TEXT,
                 expires_at DATETIME NOT NULL,
                 used BOOLEAN NOT NULL DEFAULT 0,
+                code_challenge TEXT,
+                code_challenge_method TEXT,
                 FOREIGN KEY (client_id) REFERENCES oauth2_clients(client_id) ON DELETE CASCADE
             )
             ",
