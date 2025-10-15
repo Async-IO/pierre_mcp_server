@@ -53,7 +53,7 @@ pub enum DatabaseError {
     #[error("Invalid data format for {field}: {reason}")]
     InvalidData { field: String, reason: String },
 
-    /// Underlying SQLx error
+    /// Underlying `SQLx` error
     #[error("Database error: {0}")]
     Sqlx(#[from] sqlx::Error),
 
