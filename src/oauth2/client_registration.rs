@@ -43,8 +43,8 @@ impl ClientRegistrationManager {
 
         // Generate client credentials
         let client_id = Self::generate_client_id();
-        let client_secret = Self::generate_client_secret();
-        let client_secret_hash = Self::hash_client_secret(&client_secret);
+        let client_secret = Self::generate_client_secret()?;
+        let client_secret_hash = Self::hash_client_secret(&client_secret)?;
 
         // Set default values
         let grant_types = request.grant_types.unwrap_or_else(|| {
@@ -292,27 +292,39 @@ impl ClientRegistrationManager {
     }
 
     /// Generate client secret
-    fn generate_client_secret() -> String {
+    ///
+    /// # Errors
+    /// Returns an error if the system RNG fails to generate cryptographically secure random bytes
+    fn generate_client_secret() -> Result<String, OAuth2Error> {
         let rng = SystemRandom::new();
         let mut secret = [0u8; 32];
-        rng.fill(&mut secret)
-            .expect("System RNG failure - cannot generate secure client secret");
+        rng.fill(&mut secret).map_err(|_| {
+            OAuth2Error::invalid_request(
+                "System RNG failure - cannot generate secure client secret",
+            )
+        })?;
 
         // Base64 encode the secret
-        general_purpose::STANDARD.encode(secret)
+        Ok(general_purpose::STANDARD.encode(secret))
     }
 
     /// Hash client secret for storage using Argon2id
     ///
     /// Uses Argon2id with a random salt for secure password hashing.
     /// Argon2id provides resistance against GPU-based attacks and side-channel attacks.
-    fn hash_client_secret(secret: &str) -> String {
+    ///
+    /// # Errors
+    /// Returns an error if Argon2 password hashing fails
+    fn hash_client_secret(secret: &str) -> Result<String, OAuth2Error> {
         let salt = SaltString::generate(&mut OsRng);
         let argon2 = Argon2::default();
 
-        argon2
+        let hash = argon2
             .hash_password(secret.as_bytes(), &salt)
-            .expect("Argon2 password hashing failed")
-            .to_string()
+            .map_err(|e| {
+                OAuth2Error::invalid_request(&format!("Argon2 password hashing failed: {e}"))
+            })?;
+
+        Ok(hash.to_string())
     }
 }

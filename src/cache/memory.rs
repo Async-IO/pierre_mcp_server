@@ -50,11 +50,18 @@ pub struct InMemoryCache {
 }
 
 impl InMemoryCache {
+    /// Default cache capacity when config specifies zero entries
+    /// Note: `unwrap()` on compile-time constant is verified at compile time
+    const DEFAULT_CACHE_CAPACITY: NonZeroUsize = match NonZeroUsize::new(1000) {
+        Some(n) => n,
+        None => unreachable!(),
+    };
+
     /// Create new in-memory cache with optional background cleanup task
     fn new_with_config(config: &CacheConfig) -> Self {
         // LruCache requires NonZeroUsize for capacity
-        let capacity = NonZeroUsize::new(config.max_entries)
-            .unwrap_or_else(|| NonZeroUsize::new(1000).expect("1000 is non-zero"));
+        let capacity =
+            NonZeroUsize::new(config.max_entries).unwrap_or(Self::DEFAULT_CACHE_CAPACITY);
 
         let store = Arc::new(RwLock::new(LruCache::new(capacity)));
 

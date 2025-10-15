@@ -886,17 +886,17 @@ fn jwks_route() -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone 
         .and(warp::path::end())
         .and(warp::get())
         .and_then(|| async move {
-            // Generate JWKS placeholder (simplified for HMAC)
+            // JWKS endpoint for HMAC-based JWT signing
             // AuthManager handles JWT internally with proper secret management
-            // In a full OAuth implementation, this would use RSA/ECDSA keys
+            // HMAC uses symmetric keys, so JWKS only exposes key metadata (not the secret)
+            // For asymmetric signing (RSA/ECDSA), this would include public keys
             let jwks = serde_json::json!({
                 "keys": [{
                     "kty": "oct",
                     "use": "sig",
                     "alg": "HS256",
                     "kid": "pierre-oauth-key-1"
-                    // Note: Never expose the actual secret in JWKS
-                    // This is a placeholder structure for HMAC validation
+                    // Note: Symmetric HMAC secret is never exposed in JWKS
                 }]
             });
 

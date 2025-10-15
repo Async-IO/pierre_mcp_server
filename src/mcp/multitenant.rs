@@ -112,20 +112,22 @@ pub struct MultiTenantMcpServer {
 }
 
 impl MultiTenantMcpServer {
+    /// Default session cache size to prevent `DoS` via unbounded memory growth
+    /// Note: `unwrap()` on compile-time constant is verified at compile time
+    const DEFAULT_SESSION_CACHE_SIZE: NonZeroUsize = match NonZeroUsize::new(10_000) {
+        Some(n) => n,
+        None => unreachable!(),
+    };
+
     /// Create a new MCP server with pre-built resources (dependency injection)
-    ///
-    /// # Panics
-    ///
-    /// Panics if the hardcoded default session cache size (10000) cannot be converted to `NonZeroUsize`.
-    /// This should never happen as 10000 is a valid non-zero positive integer.
     #[must_use]
     pub fn new(resources: Arc<ServerResources>) -> Self {
-        // Default session cache size to prevent DoS via unbounded memory growth
+        // Default session cache size configurable via environment variable
         let cache_size = std::env::var("MCP_SESSION_CACHE_SIZE")
             .ok()
             .and_then(|s| s.parse::<usize>().ok())
             .and_then(NonZeroUsize::new)
-            .unwrap_or_else(|| NonZeroUsize::new(10_000).expect("10000 is non-zero"));
+            .unwrap_or(Self::DEFAULT_SESSION_CACHE_SIZE);
 
         info!(
             "MCP session cache initialized with capacity: {}",

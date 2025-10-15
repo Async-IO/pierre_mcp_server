@@ -389,8 +389,9 @@ impl FitnessProvider for GarminProvider {
 
     async fn get_stats(&self) -> Result<Stats> {
         // Source: https://github.com/cyberjunky/python-garminconnect
-        // Endpoint: /usersummary-service/usersummary/daily/{display_name}?calendarDate={date}
-        // Note: This endpoint requires display_name and date - using simplified placeholder for now
+        // Using aggregate stats endpoint which provides all-time totals
+        // Alternative endpoint /usersummary-service/usersummary/daily/{display_name}?calendarDate={date}
+        // provides daily summaries but requires display_name and specific date parameters
         let stats: GarminStatsResponse = self
             .api_request("usersummary-service/stats/aggregate")
             .await?;
