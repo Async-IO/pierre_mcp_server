@@ -81,20 +81,12 @@ impl OAuth2AuthorizationServer {
                 ));
             }
 
-            // Validate code_challenge_method
-            let method = request.code_challenge_method.as_deref().unwrap_or("plain");
-            if method != "S256" && method != "plain" {
+            // Validate code_challenge_method - only S256 is allowed (RFC 7636 security best practice)
+            let method = request.code_challenge_method.as_deref().unwrap_or("S256");
+            if method != "S256" {
                 return Err(OAuth2Error::invalid_request(
-                    "code_challenge_method must be 'S256' or 'plain'",
+                    "code_challenge_method must be 'S256' (plain method is not supported for security reasons)",
                 ));
-            }
-
-            // Warn if using plain method (less secure)
-            if method == "plain" {
-                tracing::warn!(
-                    "Client {} using plain PKCE method - S256 is recommended",
-                    request.client_id
-                );
             }
         } else {
             // PKCE is required for authorization code flow
@@ -375,20 +367,19 @@ impl OAuth2AuthorizationServer {
             let method = auth_code
                 .code_challenge_method
                 .as_deref()
-                .unwrap_or("plain");
+                .unwrap_or("S256");
 
-            let computed_challenge = match method {
-                "S256" => {
-                    // SHA-256 hash of verifier, then base64url encode
-                    let mut hasher = Sha256::new();
-                    hasher.update(verifier.as_bytes());
-                    let hash = hasher.finalize();
-                    general_purpose::URL_SAFE_NO_PAD.encode(hash)
-                }
-                "plain" => verifier.to_string(),
-                _ => {
-                    return Err(OAuth2Error::invalid_grant("Invalid code_challenge_method"));
-                }
+            // Only S256 is supported - plain method is rejected for security reasons
+            let computed_challenge = if method == "S256" {
+                // SHA-256 hash of verifier, then base64url encode
+                let mut hasher = Sha256::new();
+                hasher.update(verifier.as_bytes());
+                let hash = hasher.finalize();
+                general_purpose::URL_SAFE_NO_PAD.encode(hash)
+            } else {
+                return Err(OAuth2Error::invalid_grant(
+                    "Only S256 code_challenge_method is supported (plain method is not allowed for security reasons)",
+                ));
             };
 
             // Constant-time comparison to prevent timing attacks

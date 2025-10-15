@@ -21,7 +21,7 @@ use std::sync::Arc;
 async fn create_configured_strava_provider(
     token_data: &crate::oauth::TokenData,
 ) -> Result<Box<dyn FitnessProvider>, String> {
-    let mut provider = crate::providers::create_provider(oauth_providers::STRAVA)
+    let provider = crate::providers::create_provider(oauth_providers::STRAVA)
         .map_err(|e| format!("Failed to create provider: {e}"))?;
 
     let credentials = crate::providers::OAuth2Credentials {
@@ -264,7 +264,7 @@ async fn fetch_and_cache_athlete(
     tenant_id: Option<String>,
 ) -> Result<UniversalResponse, ProtocolError> {
     match crate::providers::create_provider(oauth_providers::STRAVA) {
-        Ok(mut provider) => {
+        Ok(provider) => {
             let credentials = crate::providers::OAuth2Credentials {
                 client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
                 client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),
@@ -598,7 +598,7 @@ async fn fetch_and_cache_stats(
     tenant_id: Option<String>,
 ) -> Result<UniversalResponse, ProtocolError> {
     match crate::providers::create_provider(oauth_providers::STRAVA) {
-        Ok(mut provider) => {
+        Ok(provider) => {
             let credentials = crate::providers::OAuth2Credentials {
                 client_id: std::env::var("STRAVA_CLIENT_ID").unwrap_or_default(),
                 client_secret: std::env::var("STRAVA_CLIENT_SECRET").unwrap_or_default(),

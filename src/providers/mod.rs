@@ -27,7 +27,7 @@
 //! # let user_id = Uuid::new_v4();
 //!
 //! // Create a basic provider
-//! let mut provider = create_provider(oauth_providers::STRAVA)?;
+//! let provider = create_provider(oauth_providers::STRAVA)?;
 //!
 //! // Or create a tenant-aware provider
 //! let tenant_provider = create_tenant_provider(

@@ -43,13 +43,13 @@ pub trait FitnessProvider: Send + Sync {
     fn config(&self) -> &ProviderConfig;
 
     /// Set OAuth2 credentials for this provider
-    async fn set_credentials(&mut self, credentials: OAuth2Credentials) -> Result<()>;
+    async fn set_credentials(&self, credentials: OAuth2Credentials) -> Result<()>;
 
     /// Check if provider has valid authentication
     async fn is_authenticated(&self) -> bool;
 
     /// Refresh access token if needed
-    async fn refresh_token_if_needed(&mut self) -> Result<()>;
+    async fn refresh_token_if_needed(&self) -> Result<()>;
 
     /// Get user's athlete profile
     async fn get_athlete(&self) -> Result<Athlete>;
@@ -71,7 +71,7 @@ pub trait FitnessProvider: Send + Sync {
     async fn get_personal_records(&self) -> Result<Vec<PersonalRecord>>;
 
     /// Revoke access tokens (disconnect)
-    async fn disconnect(&mut self) -> Result<()>;
+    async fn disconnect(&self) -> Result<()>;
 }
 
 /// Provider factory for creating instances
@@ -124,7 +124,7 @@ impl FitnessProvider for TenantProvider {
         self.inner.config()
     }
 
-    async fn set_credentials(&mut self, credentials: OAuth2Credentials) -> Result<()> {
+    async fn set_credentials(&self, credentials: OAuth2Credentials) -> Result<()> {
         // Add tenant-specific logging/metrics here
         tracing::info!(
             "Setting credentials for provider {} in tenant {} for user {}",
@@ -139,7 +139,7 @@ impl FitnessProvider for TenantProvider {
         self.inner.is_authenticated().await
     }
 
-    async fn refresh_token_if_needed(&mut self) -> Result<()> {
+    async fn refresh_token_if_needed(&self) -> Result<()> {
         self.inner.refresh_token_if_needed().await
     }
 
@@ -167,7 +167,7 @@ impl FitnessProvider for TenantProvider {
         self.inner.get_personal_records().await
     }
 
-    async fn disconnect(&mut self) -> Result<()> {
+    async fn disconnect(&self) -> Result<()> {
         self.inner.disconnect().await
     }
 }

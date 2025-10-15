@@ -67,7 +67,7 @@ struct StravaTotals {
 /// Clean Strava provider implementation
 pub struct StravaProvider {
     config: ProviderConfig,
-    credentials: Option<OAuth2Credentials>,
+    credentials: tokio::sync::RwLock<Option<OAuth2Credentials>>,
     client: Client,
 }
 
@@ -89,7 +89,7 @@ impl StravaProvider {
 
         Self {
             config,
-            credentials: None,
+            credentials: tokio::sync::RwLock::new(None),
             client: shared_client().clone(),
         }
     }
@@ -99,7 +99,7 @@ impl StravaProvider {
     pub fn with_config(config: ProviderConfig) -> Self {
         Self {
             config,
-            credentials: None,
+            credentials: tokio::sync::RwLock::new(None),
             client: shared_client().clone(),
         }
     }
@@ -111,15 +111,20 @@ impl StravaProvider {
     {
         tracing::info!("Starting API request to endpoint: {}", endpoint);
 
-        let credentials = self
-            .credentials
-            .as_ref()
-            .context("No credentials available for Strava API request")?;
+        // Clone access token to avoid holding lock across await
+        let access_token = {
+            let guard = self.credentials.read().await;
+            let credentials = guard
+                .as_ref()
+                .context("No credentials available for Strava API request")?;
 
-        let access_token = credentials
-            .access_token
-            .as_ref()
-            .context("No access token available")?;
+            let token = credentials
+                .access_token
+                .clone() // Safe: String ownership needed for async request
+                .context("No access token available")?;
+            drop(guard); // Release lock immediately after cloning
+            token
+        };
 
         // Reject test/invalid tokens with proper error message
         if access_token.starts_with("at_") || access_token.len() < 40 {
@@ -297,14 +302,14 @@ impl FitnessProvider for StravaProvider {
         &self.config
     }
 
-    async fn set_credentials(&mut self, credentials: OAuth2Credentials) -> Result<()> {
+    async fn set_credentials(&self, credentials: OAuth2Credentials) -> Result<()> {
         info!("Setting Strava credentials");
-        self.credentials = Some(credentials);
+        *self.credentials.write().await = Some(credentials);
         Ok(())
     }
 
     async fn is_authenticated(&self) -> bool {
-        if let Some(creds) = &self.credentials {
+        if let Some(creds) = self.credentials.read().await.as_ref() {
             if creds.access_token.is_some() {
                 // Check if token is expired
                 if let Some(expires_at) = creds.expires_at {
@@ -316,7 +321,7 @@ impl FitnessProvider for StravaProvider {
         false
     }
 
-    async fn refresh_token_if_needed(&mut self) -> Result<()> {
+    async fn refresh_token_if_needed(&self) -> Result<()> {
         #[derive(Deserialize)]
         struct TokenResponse {
             access_token: String,
@@ -324,22 +329,29 @@ impl FitnessProvider for StravaProvider {
             expires_at: i64,
         }
 
-        let needs_refresh = if let Some(creds) = &self.credentials {
-            creds
-                .expires_at
-                .is_some_and(|expires_at| Utc::now() + chrono::Duration::minutes(5) > expires_at)
-        } else {
-            return Err(anyhow::anyhow!("No credentials available"));
+        // Check if refresh is needed and extract credentials
+        let (needs_refresh, credentials) = {
+            let guard = self.credentials.read().await;
+            let needs_refresh = if let Some(creds) = guard.as_ref() {
+                creds.expires_at.is_some_and(|expires_at| {
+                    Utc::now() + chrono::Duration::minutes(5) > expires_at
+                })
+            } else {
+                return Err(anyhow::anyhow!("No credentials available"));
+            };
+
+            let credentials = guard
+                .as_ref()
+                .context("No credentials available for refresh")?
+                .clone(); // Safe: OAuth2Credentials ownership for refresh operation
+            drop(guard); // Release lock early to avoid contention
+
+            (needs_refresh, credentials)
         };
 
         if !needs_refresh {
             return Ok(());
         }
-
-        let credentials = self
-            .credentials
-            .take()
-            .context("No credentials available for refresh")?;
 
         let refresh_token = credentials
             .refresh_token
@@ -384,7 +396,7 @@ impl FitnessProvider for StravaProvider {
             scopes: credentials.scopes,
         };
 
-        self.credentials = Some(new_credentials);
+        *self.credentials.write().await = Some(new_credentials);
         Ok(())
     }
 
@@ -469,25 +481,31 @@ impl FitnessProvider for StravaProvider {
         Ok(vec![])
     }
 
-    async fn disconnect(&mut self) -> Result<()> {
-        if let Some(credentials) = &self.credentials {
-            if let Some(access_token) = &credentials.access_token {
-                // Attempt to revoke the token if revoke URL is available
-                if let Some(revoke_url) = &self.config.revoke_url {
-                    let _result = self
-                        .client
-                        .post(revoke_url)
-                        .form(&[("token", access_token)])
-                        .send()
-                        .await;
-                    // Don't fail if revoke fails, just log it
-                    info!("Attempted to revoke Strava access token");
-                }
-            }
+    async fn disconnect(&self) -> Result<()> {
+        // Clone access token and revoke URL to avoid holding lock across await
+        let (access_token_opt, revoke_url_opt) = {
+            let guard = self.credentials.read().await;
+            guard.as_ref().map_or((None, None), |credentials| {
+                (
+                    credentials.access_token.clone(), // Safe: String ownership for revoke request
+                    self.config.revoke_url.clone(),   // Safe: String ownership for revoke request
+                )
+            })
+        };
+
+        if let (Some(access_token), Some(revoke_url)) = (access_token_opt, revoke_url_opt) {
+            let _result = self
+                .client
+                .post(&revoke_url)
+                .form(&[("token", access_token.as_str())])
+                .send()
+                .await;
+            // Don't fail if revoke fails, just log it
+            info!("Attempted to revoke Strava access token");
         }
 
         // Clear credentials regardless of revoke success
-        self.credentials = None;
+        *self.credentials.write().await = None;
         Ok(())
     }
 }

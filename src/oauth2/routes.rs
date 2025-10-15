@@ -71,7 +71,7 @@ fn oauth2_discovery_route(
                 "token_endpoint_auth_methods_supported": ["client_secret_post", "client_secret_basic"],
                 "scopes_supported": ["fitness:read", "activities:read", "profile:read"],
                 "response_modes_supported": ["query"],
-                "code_challenge_methods_supported": ["S256", "plain"]
+                "code_challenge_methods_supported": ["S256"]
             }))
         })
 }

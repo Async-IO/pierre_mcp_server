@@ -61,7 +61,7 @@ struct GarminStatsResponse {
 /// Garmin Connect provider implementation
 pub struct GarminProvider {
     config: ProviderConfig,
-    credentials: Option<OAuth2Credentials>,
+    credentials: tokio::sync::RwLock<Option<OAuth2Credentials>>,
     client: Client,
 }
 
@@ -83,7 +83,7 @@ impl GarminProvider {
 
         Self {
             config,
-            credentials: None,
+            credentials: tokio::sync::RwLock::new(None),
             // Clone Arc<Client> from shared singleton - cheap reference counting operation
             client: shared_client().clone(),
         }
@@ -94,7 +94,7 @@ impl GarminProvider {
     pub fn with_config(config: ProviderConfig) -> Self {
         Self {
             config,
-            credentials: None,
+            credentials: tokio::sync::RwLock::new(None),
             // Clone Arc<Client> from shared singleton - cheap reference counting operation
             client: shared_client().clone(),
         }
@@ -106,15 +106,20 @@ impl GarminProvider {
     where
         T: for<'de> Deserialize<'de>,
     {
-        let credentials = self
-            .credentials
-            .as_ref()
-            .context("No credentials available for Garmin API request")?;
+        // Clone access token to avoid holding lock across await
+        let access_token = {
+            let guard = self.credentials.read().await;
+            let credentials = guard
+                .as_ref()
+                .context("No credentials available for Garmin API request")?;
 
-        let access_token = credentials
-            .access_token
-            .as_ref()
-            .context("No access token available")?;
+            let token = credentials
+                .access_token
+                .clone() // Safe: String ownership needed for async request
+                .context("No access token available")?;
+            drop(guard); // Release lock immediately after cloning
+            token
+        };
 
         let url = format!(
             "{}/{}",
@@ -130,7 +135,7 @@ impl GarminProvider {
                 api_provider_limits::garmin::ESTIMATED_RATE_LIMIT_BLOCK_DURATION_SECS,
         };
 
-        utils::api_request_with_retry(&self.client, &url, access_token, "Garmin", &retry_config)
+        utils::api_request_with_retry(&self.client, &url, &access_token, "Garmin", &retry_config)
             .await
     }
 
@@ -286,34 +291,55 @@ impl FitnessProvider for GarminProvider {
         &self.config
     }
 
-    async fn set_credentials(&mut self, credentials: OAuth2Credentials) -> Result<()> {
+    async fn set_credentials(&self, credentials: OAuth2Credentials) -> Result<()> {
         info!("Setting Garmin credentials");
-        self.credentials = Some(credentials);
+        *self.credentials.write().await = Some(credentials);
         Ok(())
     }
 
     async fn is_authenticated(&self) -> bool {
-        utils::is_authenticated(&self.credentials)
+        if let Some(creds) = self.credentials.read().await.as_ref() {
+            if creds.access_token.is_some() {
+                // Check if token is expired
+                if let Some(expires_at) = creds.expires_at {
+                    return Utc::now() < expires_at;
+                }
+                return true;
+            }
+        }
+        false
     }
 
-    async fn refresh_token_if_needed(&mut self) -> Result<()> {
-        // Ensure credentials exist before checking refresh status
-        if self.credentials.is_none() {
-            return Err(anyhow::anyhow!("No credentials available"));
-        }
+    async fn refresh_token_if_needed(&self) -> Result<()> {
+        // Check if refresh is needed and extract credentials
+        let (needs_refresh, credentials) = {
+            let guard = self.credentials.read().await;
+            let needs_refresh = if let Some(creds) = guard.as_ref() {
+                creds.expires_at.is_some_and(|expires_at| {
+                    Utc::now() + chrono::Duration::minutes(5) > expires_at
+                })
+            } else {
+                return Err(anyhow::anyhow!("No credentials available"));
+            };
 
-        if !utils::needs_token_refresh(&self.credentials, 5) {
+            let credentials = guard
+                .as_ref()
+                .context("No credentials available for refresh")?
+                .clone(); // Safe: OAuth2Credentials ownership for refresh operation
+            drop(guard); // Release lock early to avoid contention
+
+            (needs_refresh, credentials)
+        };
+
+        if !needs_refresh {
             return Ok(());
         }
-
-        let credentials = self
-            .credentials
-            .take()
-            .context("No credentials available for refresh")?;
 
         let refresh_token = credentials
             .refresh_token
             .context("No refresh token available")?;
+
+        info!("Refreshing Garmin access token");
 
         let mut new_credentials = utils::refresh_oauth_token(
             &self.client,
@@ -328,7 +354,7 @@ impl FitnessProvider for GarminProvider {
         // Preserve original scopes
         new_credentials.scopes = credentials.scopes;
 
-        self.credentials = Some(new_credentials);
+        *self.credentials.write().await = Some(new_credentials);
         Ok(())
     }
 
@@ -410,22 +436,31 @@ impl FitnessProvider for GarminProvider {
         Ok(vec![])
     }
 
-    async fn disconnect(&mut self) -> Result<()> {
-        if let Some(credentials) = &self.credentials {
-            if let Some(access_token) = &credentials.access_token {
-                if let Some(revoke_url) = &self.config.revoke_url {
-                    let _result = self
-                        .client
-                        .post(revoke_url)
-                        .form(&[("token", access_token)])
-                        .send()
-                        .await;
-                    info!("Attempted to revoke Garmin access token");
-                }
-            }
+    async fn disconnect(&self) -> Result<()> {
+        // Clone access token and revoke URL to avoid holding lock across await
+        let (access_token_opt, revoke_url_opt) = {
+            let guard = self.credentials.read().await;
+            guard.as_ref().map_or((None, None), |credentials| {
+                (
+                    credentials.access_token.clone(), // Safe: String ownership for revoke request
+                    self.config.revoke_url.clone(),   // Safe: String ownership for revoke request
+                )
+            })
+        };
+
+        if let (Some(access_token), Some(revoke_url)) = (access_token_opt, revoke_url_opt) {
+            let _result = self
+                .client
+                .post(&revoke_url)
+                .form(&[("token", access_token.as_str())])
+                .send()
+                .await;
+            // Don't fail if revoke fails, just log it
+            info!("Attempted to revoke Garmin access token");
         }
 
-        self.credentials = None;
+        // Clear credentials regardless of revoke success
+        *self.credentials.write().await = None;
         Ok(())
     }
 }

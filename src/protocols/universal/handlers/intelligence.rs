@@ -242,8 +242,8 @@ pub fn handle_get_activity_intelligence(
             .await
         {
             Ok(Some(token_data)) => {
-                let mut provider = crate::providers::create_provider(oauth_providers::STRAVA)
-                    .map_err(|e| {
+                let provider =
+                    crate::providers::create_provider(oauth_providers::STRAVA).map_err(|e| {
                         ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
                     })?;
 
@@ -334,7 +334,7 @@ pub fn handle_analyze_performance_trends(
             .await
         {
             Ok(Some(token_data)) => {
-                let mut provider = crate::providers::create_provider(oauth_providers::STRAVA)
+                let provider = crate::providers::create_provider(oauth_providers::STRAVA)
                     .map_err(|e| {
                         ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
                     })?;
@@ -445,7 +445,7 @@ pub fn handle_compare_activities(
             .await
         {
             Ok(Some(token_data)) => {
-                let mut provider = crate::providers::create_provider(oauth_providers::STRAVA)
+                let provider = crate::providers::create_provider(oauth_providers::STRAVA)
                     .map_err(|e| {
                         ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
                     })?;
@@ -548,7 +548,7 @@ pub fn handle_detect_patterns(
             .await
         {
             Ok(Some(token_data)) => {
-                let mut provider = crate::providers::create_provider(oauth_providers::STRAVA)
+                let provider = crate::providers::create_provider(oauth_providers::STRAVA)
                     .map_err(|e| {
                         ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
                     })?;
@@ -646,7 +646,7 @@ pub fn handle_generate_recommendations(
             .await
         {
             Ok(Some(token_data)) => {
-                let mut provider = crate::providers::create_provider(oauth_providers::STRAVA)
+                let provider = crate::providers::create_provider(oauth_providers::STRAVA)
                     .map_err(|e| {
                         ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
                     })?;
@@ -749,7 +749,7 @@ pub fn handle_calculate_fitness_score(
             .await
         {
             Ok(Some(token_data)) => {
-                let mut provider = crate::providers::create_provider(oauth_providers::STRAVA)
+                let provider = crate::providers::create_provider(oauth_providers::STRAVA)
                     .map_err(|e| {
                         ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
                     })?;
@@ -843,7 +843,7 @@ pub fn handle_predict_performance(
             .await
         {
             Ok(Some(token_data)) => {
-                let mut provider = crate::providers::create_provider(oauth_providers::STRAVA)
+                let provider = crate::providers::create_provider(oauth_providers::STRAVA)
                     .map_err(|e| {
                         ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
                     })?;
@@ -943,7 +943,7 @@ pub fn handle_analyze_training_load(
             .await
         {
             Ok(Some(token_data)) => {
-                let mut provider = crate::providers::create_provider(oauth_providers::STRAVA)
+                let provider = crate::providers::create_provider(oauth_providers::STRAVA)
                     .map_err(|e| {
                         ProtocolError::ExecutionFailed(format!("Failed to create provider: {e}"))
                     })?;
