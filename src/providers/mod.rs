@@ -40,6 +40,7 @@
 
 // Core provider system
 pub mod core;
+pub mod errors;
 pub mod registry;
 pub mod utils;
 
@@ -51,6 +52,7 @@ pub mod strava_provider;
 pub use core::{
     FitnessProvider as CoreFitnessProvider, OAuth2Credentials, ProviderConfig, TenantProvider,
 };
+pub use errors::{ProviderError, ProviderResult};
 pub use registry::{
     create_provider, create_tenant_provider, get_supported_providers, is_provider_supported,
     ProviderRegistry,

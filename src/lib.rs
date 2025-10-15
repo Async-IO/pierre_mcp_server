@@ -179,6 +179,7 @@ pub mod oauth2;
 
 // Utility modules
 pub mod tenant;
+pub mod types;
 pub mod utils;
 
 /// Test utilities for creating consistent test data

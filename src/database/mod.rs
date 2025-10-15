@@ -7,6 +7,7 @@
 pub mod a2a;
 pub mod analytics;
 pub mod api_keys;
+pub mod errors;
 pub mod fitness_configurations;
 pub mod oauth_notifications;
 pub mod user_oauth_tokens;
@@ -15,6 +16,7 @@ pub mod users;
 pub mod test_utils;
 
 pub use a2a::{A2AUsage, A2AUsageStats};
+pub use errors::{DatabaseError, DatabaseResult};
 
 use anyhow::Result;
 use sqlx::{Pool, Sqlite, SqlitePool};
