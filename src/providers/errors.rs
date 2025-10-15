@@ -51,7 +51,7 @@ pub enum ProviderError {
     },
 
     /// Network error
-    #[error("Network error communicating with {provider}: {0}")]
+    #[error("Network error: {0}")]
     NetworkError(String),
 
     /// Configuration error
