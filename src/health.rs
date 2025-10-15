@@ -196,7 +196,7 @@ impl HealthChecker {
         checks.push(Self::check_memory());
 
         // Disk space check
-        checks.push(self.check_disk_space());
+        checks.push(Self::check_disk_space());
 
         // External API connectivity
         checks.push(self.check_external_apis().await);
@@ -259,52 +259,38 @@ impl HealthChecker {
     fn check_memory() -> ComponentHealth {
         let start = Instant::now();
 
-        let (status, message, metadata) = Self::get_memory_info().map_or_else(
-            |_| {
-                (
-                    HealthStatus::Unhealthy,
-                    "Memory information unavailable".into(),
-                    Some(serde_json::json!({
-                        "note": "Unable to retrieve system memory information"
-                    })),
-                )
-            },
-            |memory_info| {
-                let memory_usage_percent = memory_info.used_percent;
-                let status = if memory_usage_percent > 90.0 {
-                    HealthStatus::Unhealthy
-                } else if memory_usage_percent > 80.0 {
-                    HealthStatus::Degraded
-                } else {
-                    HealthStatus::Healthy
-                };
+        let memory_info = Self::get_memory_info();
+        let memory_usage_percent = memory_info.used_percent;
+        let status = if memory_usage_percent > 90.0 {
+            HealthStatus::Unhealthy
+        } else if memory_usage_percent > 80.0 {
+            HealthStatus::Degraded
+        } else {
+            HealthStatus::Healthy
+        };
 
-                let message = format!("Memory usage: {memory_usage_percent:.1}%");
-                let metadata = serde_json::json!({
-                    "used_percent": memory_usage_percent,
-                    "used_mb": memory_info.used_mb,
-                    "total_mb": memory_info.total_mb,
-                    "available_mb": memory_info.available_mb
-                });
-
-                (status, message, Some(metadata))
-            },
-        );
+        let message = format!("Memory usage: {memory_usage_percent:.1}%");
+        let metadata = serde_json::json!({
+            "used_percent": memory_usage_percent,
+            "used_mb": memory_info.used_mb,
+            "total_mb": memory_info.total_mb,
+            "available_mb": memory_info.available_mb
+        });
 
         ComponentHealth {
             name: "memory".into(),
             status,
             message,
             duration_ms: u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX),
-            metadata,
+            metadata: Some(metadata),
         }
     }
 
     /// Check available disk space
-    fn check_disk_space(&self) -> ComponentHealth {
+    fn check_disk_space() -> ComponentHealth {
         let start = Instant::now();
 
-        let (status, message, metadata) = match self.get_disk_info() {
+        let (status, message, metadata) = match Self::get_disk_info() {
             Ok(disk_info) => {
                 let usage_percent = disk_info.used_percent;
                 let status = if usage_percent > 95.0 {
@@ -451,323 +437,62 @@ impl HealthChecker {
         self.basic_health()
     }
 
-    /// Get system memory information
-    fn get_memory_info() -> Result<MemoryInfo, Box<dyn std::error::Error>> {
-        // Cross-platform memory information retrieval
-        #[cfg(target_os = "linux")]
-        {
-            Self::get_memory_info_linux()
-        }
-        #[cfg(target_os = "macos")]
-        {
-            Self::get_memory_info_macos()
-        }
-        #[cfg(target_os = "windows")]
-        {
-            Self::get_memory_info_windows()
-        }
-        #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
-        {
-            Err("Memory monitoring not supported on this platform".into())
-        }
-    }
+    /// Get system memory information using sysinfo (safe, cross-platform)
+    fn get_memory_info() -> MemoryInfo {
+        use sysinfo::System;
 
-    /// Get disk space information
-    fn get_disk_info(&self) -> Result<DiskInfo, Box<dyn std::error::Error>> {
-        let current_dir = std::env::current_dir().unwrap_or_else(|_| "/".into());
+        const BYTES_TO_MB: u64 = 1_048_576;
 
-        #[cfg(unix)]
-        {
-            Self::get_disk_info_unix(self, &current_dir)
-        }
-        #[cfg(windows)]
-        {
-            Self::get_disk_info_windows(self, &current_dir)
-        }
-        #[cfg(not(any(unix, windows)))]
-        {
-            Err("Disk monitoring not supported on this platform".into())
-        }
-    }
+        let mut sys = System::new_all();
+        sys.refresh_memory();
 
-    #[cfg(target_os = "linux")]
-    fn get_memory_info_linux() -> Result<MemoryInfo, Box<dyn std::error::Error>> {
-        let meminfo = std::fs::read_to_string("/proc/meminfo")?;
-        let mut total_kilobytes = 0;
-        let mut available_kilobytes = 0;
+        let total_bytes = sys.total_memory();
+        let available_bytes = sys.available_memory();
+        let used_bytes = sys.used_memory();
 
-        for line in meminfo.lines() {
-            if line.starts_with("MemTotal:") {
-                total_kilobytes = line
-                    .split_whitespace()
-                    .nth(1)
-                    .unwrap_or("0")
-                    .parse::<u64>()?;
-            } else if line.starts_with("MemAvailable:") {
-                available_kilobytes = line
-                    .split_whitespace()
-                    .nth(1)
-                    .unwrap_or("0")
-                    .parse::<u64>()?;
-            }
-        }
+        let total_mb = total_bytes / BYTES_TO_MB;
+        let available_mb = available_bytes / BYTES_TO_MB;
+        let used_mb = used_bytes / BYTES_TO_MB;
 
-        let total_megabytes =
-            total_kilobytes / crate::constants::system_monitoring::KB_TO_MB_DIVISOR;
-        let available_megabytes =
-            available_kilobytes / crate::constants::system_monitoring::KB_TO_MB_DIVISOR;
-        let used_megabytes = total_megabytes - available_megabytes;
-        let used_percent = if total_megabytes > 0 {
-            // Use integer division for percentage calculation
-            // Since result is always 0-100%, safe to convert to u32
-            let percentage_int = (used_megabytes * 100) / total_megabytes;
-            u32::try_from(percentage_int).map_or(100.0, f64::from)
-        } else {
-            0.0
-        };
-
-        Ok(MemoryInfo {
-            total_mb: total_megabytes,
-            used_mb: used_megabytes,
-            available_mb: available_megabytes,
-            used_percent,
-        })
-    }
-
-    #[cfg(target_os = "macos")]
-    fn get_memory_info_macos() -> Result<MemoryInfo, Box<dyn std::error::Error>> {
-        // Use sysctl for macOS memory information
-        use std::process::Command;
-
-        let output = Command::new("sysctl").args(["hw.memsize"]).output()?;
-        let total_bytes = String::from_utf8(output.stdout)?
-            .trim()
-            .split(": ")
-            .nth(1)
-            .unwrap_or("0")
-            .parse::<u64>()?;
-
-        let total_mb = total_bytes / crate::constants::system_monitoring::BYTES_TO_MB_DIVISOR;
-        // Get detailed memory statistics using vm_stat for accurate usage
-        let vm_output = Command::new("vm_stat").output()?;
-        let vm_stats = String::from_utf8(vm_output.stdout)?;
-
-        // Parse vm_stat output to get page counts
-        let mut pages_free = 0u64;
-        let mut pages_active = 0u64;
-        let mut pages_inactive = 0u64;
-        let mut pages_wired = 0u64;
-        let mut pages_compressed = 0u64;
-
-        for line in vm_stats.lines() {
-            if let Some(value_str) = line.strip_prefix("Pages free:") {
-                pages_free = value_str.trim().trim_end_matches('.').parse().unwrap_or(0);
-            } else if let Some(value_str) = line.strip_prefix("Pages active:") {
-                pages_active = value_str.trim().trim_end_matches('.').parse().unwrap_or(0);
-            } else if let Some(value_str) = line.strip_prefix("Pages inactive:") {
-                pages_inactive = value_str.trim().trim_end_matches('.').parse().unwrap_or(0);
-            } else if let Some(value_str) = line.strip_prefix("Pages wired down:") {
-                pages_wired = value_str.trim().trim_end_matches('.').parse().unwrap_or(0);
-            } else if let Some(value_str) = line.strip_prefix("Pages stored in compressor:") {
-                pages_compressed = value_str.trim().trim_end_matches('.').parse().unwrap_or(0);
-            }
-        }
-
-        // macOS page size is typically 4096 bytes
-        let page_size = 4096u64;
-        let used_bytes =
-            (pages_active + pages_inactive + pages_wired + pages_compressed) * page_size;
-        let available_bytes = pages_free * page_size;
-
-        let used_mb = used_bytes / crate::constants::system_monitoring::BYTES_TO_MB_DIVISOR;
-        let available_mb =
-            available_bytes / crate::constants::system_monitoring::BYTES_TO_MB_DIVISOR;
+        // Safe cast: u64 to f64 may lose precision for very large values (>2^53)
+        // but memory sizes in MB are well below this threshold
+        #[allow(clippy::cast_precision_loss)]
         let used_percent = if total_mb > 0 {
-            (f64::from(u32::try_from(used_mb).unwrap_or(u32::MAX))
-                / f64::from(u32::try_from(total_mb).unwrap_or(u32::MAX)))
-                * 100.0
+            (used_mb as f64 / total_mb as f64) * 100.0
         } else {
             0.0
         };
 
-        Ok(MemoryInfo {
+        MemoryInfo {
             total_mb,
             used_mb,
             available_mb,
             used_percent,
-        })
-    }
-}
-
-/// Convert bytes to gigabytes with documented precision characteristics
-///
-/// u64 to f64 conversion can lose precision for very large values, but for
-/// disk space measurements this is acceptable as precision is maintained
-/// for all realistic disk sizes (< 9 PB).
-#[cfg(target_os = "windows")]
-#[inline]
-#[allow(clippy::cast_precision_loss)]
-const fn bytes_to_gb_safe(value: u64) -> f64 {
-    // u64 to f64 conversion can lose precision for very large values
-    // but for disk space measurements, this is acceptable
-    value as f64
-}
-
-impl HealthChecker {
-    #[cfg(target_os = "windows")]
-    fn get_memory_info_windows() -> Result<MemoryInfo, Box<dyn std::error::Error>> {
-        // Use Windows API GlobalMemoryStatusEx for accurate memory information
-        use std::mem;
-
-        #[repr(C)]
-        struct MemoryStatusEx {
-            dw_length: u32,
-            dw_memory_load: u32,
-            ull_total_phys: u64,
-            ull_avail_phys: u64,
-            ull_total_page_file: u64,
-            ull_avail_page_file: u64,
-            ull_total_virtual: u64,
-            ull_avail_virtual: u64,
-            ull_avail_extended_virtual: u64,
         }
-
-        extern "system" {
-            fn GlobalMemoryStatusEx(lpBuffer: *mut MemoryStatusEx) -> i32;
-        }
-
-        let struct_size = u32::try_from(mem::size_of::<MemoryStatusEx>())
-            .map_err(|e| format!("MemoryStatusEx size exceeds u32::MAX: {e}"))?;
-
-        let mut mem_status = MemoryStatusEx {
-            dw_length: struct_size,
-            dw_memory_load: 0,
-            ull_total_phys: 0,
-            ull_avail_phys: 0,
-            ull_total_page_file: 0,
-            ull_avail_page_file: 0,
-            ull_total_virtual: 0,
-            ull_avail_virtual: 0,
-            ull_avail_extended_virtual: 0,
-        };
-
-        let result = unsafe { GlobalMemoryStatusEx(&mut mem_status) };
-        if result == 0 {
-            return Err("Failed to get Windows memory status".into());
-        }
-
-        let total_mb =
-            mem_status.ull_total_phys / crate::constants::system_monitoring::BYTES_TO_MB_DIVISOR;
-        let available_mb =
-            mem_status.ull_avail_phys / crate::constants::system_monitoring::BYTES_TO_MB_DIVISOR;
-        let used_mb = total_mb - available_mb;
-        let used_percent = f64::from(mem_status.dw_memory_load);
-
-        Ok(MemoryInfo {
-            total_mb,
-            used_mb,
-            available_mb,
-            used_percent,
-        })
     }
 
-    #[cfg(unix)]
-    fn get_disk_info_unix(
-        _: &Self,
-        path: &std::path::Path,
-    ) -> Result<DiskInfo, Box<dyn std::error::Error>> {
-        use std::process::Command;
+    /// Get disk space information using sysinfo (safe, cross-platform)
+    fn get_disk_info() -> Result<DiskInfo, Box<dyn std::error::Error>> {
+        use sysinfo::Disks;
 
-        let output = Command::new("df")
-            .args(["-h", path.to_str().unwrap_or("/")])
-            .output()?;
+        const BYTES_TO_GB: u64 = 1_073_741_824;
 
-        let output_str = String::from_utf8(output.stdout)?;
-        let lines: Vec<&str> = output_str.lines().collect();
+        let current_dir = std::env::current_dir().unwrap_or_else(|_| "/".into());
+        let disks = Disks::new_with_refreshed_list();
 
-        if lines.len() >= 2 {
-            let fields: Vec<&str> = lines[1].split_whitespace().collect();
-            if fields.len() >= 5 {
-                let total_str = fields[1].trim_end_matches('G');
-                let used_str = fields[2].trim_end_matches('G');
-                let available_str = fields[3].trim_end_matches('G');
-                let used_percent_str = fields[4].trim_end_matches('%');
+        // Find the disk that contains the current directory
+        let disk = disks
+            .iter()
+            .find(|d| current_dir.starts_with(d.mount_point()))
+            .ok_or("No disk found for current directory")?;
 
-                let total_gb = total_str.parse::<f64>().unwrap_or(100.0);
-                let used_gb = used_str.parse::<f64>().unwrap_or(50.0);
-                let available_gb = available_str.parse::<f64>().unwrap_or(50.0);
-                let used_percent = used_percent_str.parse::<f64>().unwrap_or(50.0);
+        // Safe cast: u64 to f64 may lose precision for very large values (>2^53 bytes = >9 PB)
+        // but realistic disk sizes are well below this threshold
+        #[allow(clippy::cast_precision_loss)]
+        let total_gb = disk.total_space() as f64 / BYTES_TO_GB as f64;
+        #[allow(clippy::cast_precision_loss)]
+        let available_gb = disk.available_space() as f64 / BYTES_TO_GB as f64;
 
-                return Ok(DiskInfo {
-                    path: path.to_string_lossy().to_string(),
-                    total_gb,
-                    used_gb,
-                    available_gb,
-                    used_percent,
-                });
-            }
-        }
-
-        // Fallback
-        Ok(DiskInfo {
-            path: path.to_string_lossy().to_string(),
-            total_gb: 100.0,
-            used_gb: 50.0,
-            available_gb: 50.0,
-            used_percent: 50.0,
-        })
-    }
-
-    #[cfg(windows)]
-    fn get_disk_info_windows(
-        _: &Self,
-        path: &std::path::Path,
-    ) -> Result<DiskInfo, Box<dyn std::error::Error>> {
-        // Use Windows API GetDiskFreeSpaceEx for accurate disk information
-        use std::ffi::OsStr;
-        use std::os::windows::ffi::OsStrExt;
-
-        extern "system" {
-            fn GetDiskFreeSpaceExW(
-                lpDirectoryName: *const u16,
-                lpFreeBytesAvailableToCaller: *mut u64,
-                lpTotalNumberOfBytes: *mut u64,
-                lpTotalNumberOfFreeBytes: *mut u64,
-            ) -> i32;
-        }
-
-        const BYTES_TO_GB: f64 = 1_073_741_824.0;
-
-        // Convert path to wide string for Windows API
-        let wide_path: Vec<u16> = OsStr::new(path)
-            .encode_wide()
-            .chain(std::iter::once(0))
-            .collect();
-
-        let mut free_bytes_available = 0u64;
-        let mut total_bytes = 0u64;
-        let mut total_free_bytes = 0u64;
-
-        let result = unsafe {
-            GetDiskFreeSpaceExW(
-                wide_path.as_ptr(),
-                &mut free_bytes_available,
-                &mut total_bytes,
-                &mut total_free_bytes,
-            )
-        };
-
-        if result == 0 {
-            return Err(format!(
-                "Failed to get Windows disk space for path: {}",
-                path.display()
-            )
-            .into());
-        }
-
-        // Convert bytes to GB using helper function with documented precision behavior
-        let total_gb = bytes_to_gb_safe(total_bytes) / BYTES_TO_GB;
-        let available_gb = bytes_to_gb_safe(free_bytes_available) / BYTES_TO_GB;
         let used_gb = total_gb - available_gb;
         let used_percent = if total_gb > 0.0 {
             (used_gb / total_gb) * 100.0
@@ -776,7 +501,7 @@ impl HealthChecker {
         };
 
         Ok(DiskInfo {
-            path: path.to_string_lossy().to_string(),
+            path: disk.mount_point().display().to_string(),
             total_gb,
             used_gb,
             available_gb,
