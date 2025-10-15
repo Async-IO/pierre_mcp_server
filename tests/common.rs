@@ -34,6 +34,7 @@ use std::sync::{Arc, Once};
 use uuid::Uuid;
 
 static INIT_LOGGER: Once = Once::new();
+static INIT_HTTP_CLIENTS: Once = Once::new();
 
 /// Initialize quiet logging for tests (call once per test process)
 pub fn init_test_logging() {
@@ -50,6 +51,23 @@ pub fn init_test_logging() {
             .with_max_level(log_level)
             .with_test_writer()
             .init();
+    });
+}
+
+/// Initialize HTTP clients for tests (call once per test process)
+///
+/// This function ensures HTTP client configuration is initialized exactly once
+/// across all tests in the process. It uses default configuration suitable for testing.
+///
+/// Call this function at the start of any test that uses HTTP clients, either directly
+/// or indirectly through providers or other components that make HTTP requests.
+///
+/// Safe to call multiple times - initialization happens only once due to `Once` guard.
+pub fn init_test_http_clients() {
+    INIT_HTTP_CLIENTS.call_once(|| {
+        pierre_mcp_server::utils::http_client::initialize_http_clients(
+            pierre_mcp_server::config::environment::HttpClientConfig::default(),
+        );
     });
 }
 
@@ -202,6 +220,7 @@ pub async fn setup_test_environment_with_tier(tier: UserTier) -> Result<(Arc<Dat
 /// This replaces individual resource creation for proper architectural patterns
 pub async fn create_test_server_resources() -> Result<Arc<ServerResources>> {
     init_test_logging();
+    init_test_http_clients();
     let database_url = "sqlite::memory:";
     let encryption_key = generate_encryption_key().to_vec();
     let database = Database::new(database_url, encryption_key).await?;

@@ -178,21 +178,22 @@ async fn run_server(server: MultiTenantMcpServer, config: &ServerConfig) -> Resu
 
 /// Display all available API endpoints with their ports
 fn display_available_endpoints(config: &ServerConfig) {
-    let host = std::env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
+    // Default to 127.0.0.1 for local development - production uses reverse proxy
+    let host = "127.0.0.1";
 
     info!("=== Available API Endpoints ===");
-    display_mcp_endpoints(&host, config.http_port);
-    display_auth_endpoints(&host, config.http_port);
-    display_oauth2_endpoints(&host, config.http_port);
-    display_oauth_callback_urls(&host, config);
-    display_admin_endpoints(&host, config.http_port);
-    display_api_key_endpoints(&host, config.http_port);
-    display_tenant_endpoints(&host, config.http_port);
-    display_dashboard_endpoints(&host, config.http_port);
-    display_a2a_endpoints(&host, config.http_port);
-    display_config_endpoints(&host, config.http_port);
-    display_fitness_endpoints(&host, config.http_port);
-    display_notification_endpoints(&host, config.http_port);
+    display_mcp_endpoints(host, config.http_port);
+    display_auth_endpoints(host, config.http_port);
+    display_oauth2_endpoints(host, config.http_port);
+    display_oauth_callback_urls(host, config);
+    display_admin_endpoints(host, config.http_port);
+    display_api_key_endpoints(host, config.http_port);
+    display_tenant_endpoints(host, config.http_port);
+    display_dashboard_endpoints(host, config.http_port);
+    display_a2a_endpoints(host, config.http_port);
+    display_config_endpoints(host, config.http_port);
+    display_fitness_endpoints(host, config.http_port);
+    display_notification_endpoints(host, config.http_port);
     info!("=== End of Endpoint List ===");
 }
 

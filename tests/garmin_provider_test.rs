@@ -4,27 +4,17 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+mod common;
+
 use chrono::Utc;
 use pierre_mcp_server::constants::{api_provider_limits, oauth, oauth_providers};
 use pierre_mcp_server::providers::core::{FitnessProvider, OAuth2Credentials, ProviderConfig};
 use pierre_mcp_server::providers::garmin_provider::GarminProvider;
 use pierre_mcp_server::providers::registry::{get_supported_providers, global_registry};
-use std::sync::Once;
-
-/// Ensure HTTP clients are initialized only once across all tests
-static INIT_HTTP_CLIENTS: Once = Once::new();
-
-fn ensure_http_clients_initialized() {
-    INIT_HTTP_CLIENTS.call_once(|| {
-        pierre_mcp_server::utils::http_client::initialize_http_clients(
-            pierre_mcp_server::config::environment::HttpClientConfig::default(),
-        );
-    });
-}
 
 #[test]
 fn test_garmin_provider_creation() {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let provider = GarminProvider::new();
 
     assert_eq!(provider.name(), oauth_providers::GARMIN);
@@ -41,7 +31,7 @@ fn test_garmin_provider_creation() {
 
 #[test]
 fn test_garmin_provider_with_custom_config() {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let custom_config = ProviderConfig {
         name: oauth_providers::GARMIN.to_string(),
         auth_url: "https://custom.garmin.com/auth".to_string(),
@@ -61,7 +51,7 @@ fn test_garmin_provider_with_custom_config() {
 
 #[tokio::test]
 async fn test_garmin_provider_authentication_lifecycle() {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let mut provider = GarminProvider::new();
 
     // Initially not authenticated
@@ -88,7 +78,7 @@ async fn test_garmin_provider_authentication_lifecycle() {
 
 #[tokio::test]
 async fn test_garmin_provider_expired_token() {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let mut provider = GarminProvider::new();
 
     // Set expired credentials
@@ -112,7 +102,7 @@ async fn test_garmin_provider_expired_token() {
 
 #[tokio::test]
 async fn test_garmin_provider_no_expiry() {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let mut provider = GarminProvider::new();
 
     // Credentials with no expiry time
@@ -139,14 +129,14 @@ async fn test_garmin_provider_no_expiry() {
 
 #[test]
 fn test_garmin_provider_default() {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let provider = GarminProvider::default();
     assert_eq!(provider.name(), oauth_providers::GARMIN);
 }
 
 #[tokio::test]
 async fn test_garmin_provider_disconnect() {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let mut provider = GarminProvider::new();
 
     // Set credentials
@@ -174,7 +164,7 @@ async fn test_garmin_provider_disconnect() {
 
 #[test]
 fn test_garmin_provider_scopes() {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let provider = GarminProvider::new();
     let scopes = &provider.config().default_scopes;
 
@@ -184,7 +174,7 @@ fn test_garmin_provider_scopes() {
 
 #[test]
 fn test_garmin_provider_endpoints() {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let provider = GarminProvider::new();
     let config = provider.config();
 
@@ -198,7 +188,7 @@ fn test_garmin_provider_endpoints() {
 
 #[tokio::test]
 async fn test_garmin_provider_get_athlete_requires_auth() {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let provider = GarminProvider::new();
 
     // Attempt to get athlete without authentication
@@ -212,7 +202,7 @@ async fn test_garmin_provider_get_athlete_requires_auth() {
 
 #[tokio::test]
 async fn test_garmin_provider_get_activities_requires_auth() {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let provider = GarminProvider::new();
 
     // Attempt to get activities without authentication
@@ -226,7 +216,7 @@ async fn test_garmin_provider_get_activities_requires_auth() {
 
 #[tokio::test]
 async fn test_garmin_provider_get_activity_requires_auth() {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let provider = GarminProvider::new();
 
     // Attempt to get specific activity without authentication
@@ -240,7 +230,7 @@ async fn test_garmin_provider_get_activity_requires_auth() {
 
 #[tokio::test]
 async fn test_garmin_provider_get_stats_requires_auth() {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let provider = GarminProvider::new();
 
     // Attempt to get stats without authentication
@@ -254,7 +244,7 @@ async fn test_garmin_provider_get_stats_requires_auth() {
 
 #[tokio::test]
 async fn test_garmin_provider_get_personal_records() {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let mut provider = GarminProvider::new();
 
     // Set credentials
@@ -288,7 +278,7 @@ fn test_garmin_api_limits() {
 
 #[tokio::test]
 async fn test_garmin_provider_refresh_token_no_credentials() {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let mut provider = GarminProvider::new();
 
     // Attempt to refresh without credentials
@@ -302,7 +292,7 @@ async fn test_garmin_provider_refresh_token_no_credentials() {
 
 #[tokio::test]
 async fn test_garmin_provider_refresh_token_not_needed() {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let mut provider = GarminProvider::new();
 
     // Set credentials that don't need refresh (expires in 2 hours)
@@ -335,7 +325,7 @@ fn test_garmin_constants_in_registry() {
 
 #[test]
 fn test_garmin_provider_factory() {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let registry = global_registry();
 
     // Verify Garmin is supported
@@ -374,7 +364,7 @@ fn test_garmin_provider_pagination_limits() {
 
 #[tokio::test]
 async fn test_garmin_credentials_without_access_token() {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let mut provider = GarminProvider::new();
 
     // Credentials without access token
@@ -407,7 +397,7 @@ fn test_garmin_default_scopes_format() {
 
 #[test]
 fn test_garmin_provider_config_urls() {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let provider = GarminProvider::new();
     let config = provider.config();
 

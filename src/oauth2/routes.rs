@@ -58,7 +58,8 @@ fn oauth2_discovery_route(
     warp::path!(".well-known" / "oauth-authorization-server")
         .and(warp::get())
         .map(move || {
-            let host = std::env::var("HOST").unwrap_or_else(|_| "localhost".to_string());
+            // Default to localhost per RFC 8414 - production deployments use reverse proxy
+            let host = "localhost";
             let base_url = format!("http://{host}:{http_port}");
             warp::reply::json(&serde_json::json!({
                 "issuer": base_url,

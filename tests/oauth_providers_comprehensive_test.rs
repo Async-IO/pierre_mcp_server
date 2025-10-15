@@ -8,6 +8,8 @@
 //! This test suite aims to improve coverage from 43.19% to 80%+ by testing
 //! all OAuth provider functionality for Strava and Fitbit.
 
+mod common;
+
 use anyhow::Result;
 use chrono::{Duration, Utc};
 use pierre_mcp_server::{
@@ -17,19 +19,7 @@ use pierre_mcp_server::{
         OAuthError, OAuthProvider, TokenData,
     },
 };
-use std::sync::Once;
 use uuid::Uuid;
-
-/// Ensure HTTP clients are initialized only once across all tests
-static INIT_HTTP_CLIENTS: Once = Once::new();
-
-fn ensure_http_clients_initialized() {
-    INIT_HTTP_CLIENTS.call_once(|| {
-        pierre_mcp_server::utils::http_client::initialize_http_clients(
-            pierre_mcp_server::config::environment::HttpClientConfig::default(),
-        );
-    });
-}
 
 // === Test Setup Helpers ===
 
@@ -189,7 +179,7 @@ async fn test_strava_generate_auth_url() -> Result<()> {
 
 #[tokio::test]
 async fn test_strava_exchange_code_invalid_code() -> Result<()> {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let config = create_valid_strava_config();
     let api_config = create_strava_api_config();
     let provider = StravaOAuthProvider::from_config(&config, &api_config)?;
@@ -204,7 +194,7 @@ async fn test_strava_exchange_code_invalid_code() -> Result<()> {
 
 #[tokio::test]
 async fn test_strava_refresh_token_invalid() -> Result<()> {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let config = create_valid_strava_config();
     let api_config = create_strava_api_config();
     let provider = StravaOAuthProvider::from_config(&config, &api_config)?;
@@ -219,7 +209,7 @@ async fn test_strava_refresh_token_invalid() -> Result<()> {
 
 #[tokio::test]
 async fn test_strava_revoke_token_invalid() -> Result<()> {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let config = create_valid_strava_config();
     let api_config = create_strava_api_config();
     let provider = StravaOAuthProvider::from_config(&config, &api_config)?;
@@ -371,7 +361,7 @@ async fn test_fitbit_generate_auth_url() -> Result<()> {
 
 #[tokio::test]
 async fn test_fitbit_exchange_code_invalid_code() -> Result<()> {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let config = create_valid_fitbit_config();
     let api_config = create_fitbit_api_config();
     let provider = FitbitOAuthProvider::from_config(&config, &api_config)?;
@@ -388,7 +378,7 @@ async fn test_fitbit_exchange_code_invalid_code() -> Result<()> {
 
 #[tokio::test]
 async fn test_fitbit_refresh_token_invalid() -> Result<()> {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let config = create_valid_fitbit_config();
     let api_config = create_fitbit_api_config();
     let provider = FitbitOAuthProvider::from_config(&config, &api_config)?;
@@ -403,7 +393,7 @@ async fn test_fitbit_refresh_token_invalid() -> Result<()> {
 
 #[tokio::test]
 async fn test_fitbit_revoke_token_invalid() -> Result<()> {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let config = create_valid_fitbit_config();
     let api_config = create_fitbit_api_config();
     let provider = FitbitOAuthProvider::from_config(&config, &api_config)?;
@@ -585,7 +575,7 @@ async fn test_token_validation_edge_case_expires_exactly_now() -> Result<()> {
 
 #[tokio::test]
 async fn test_complete_oauth_flow_simulation() -> Result<()> {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let strava_config = create_valid_strava_config();
     let fitbit_config = create_valid_fitbit_config();
     let strava_api_config = create_strava_api_config();

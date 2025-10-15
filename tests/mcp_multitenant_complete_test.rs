@@ -7,6 +7,8 @@
 #![allow(clippy::too_many_lines)]
 #![recursion_limit = "256"]
 
+mod common;
+
 use anyhow::Result;
 use pierre_mcp_server::{
     auth::AuthManager,
@@ -17,27 +19,12 @@ use pierre_mcp_server::{
 use rand::Rng;
 use reqwest::Client;
 use serde_json::{json, Value};
-use std::{
-    net::TcpListener,
-    sync::{Arc, Once},
-    time::Duration,
-};
+use std::{net::TcpListener, sync::Arc, time::Duration};
 use tempfile::TempDir;
 use tokio::time::{sleep, timeout};
 use uuid::Uuid;
 
 const TEST_JWT_SECRET: &str = "test_jwt_secret_for_complete_multitenant_tests";
-
-/// Ensure HTTP clients are initialized only once across all tests
-static INIT_HTTP_CLIENTS: Once = Once::new();
-
-fn ensure_http_clients_initialized() {
-    INIT_HTTP_CLIENTS.call_once(|| {
-        pierre_mcp_server::utils::http_client::initialize_http_clients(
-            pierre_mcp_server::config::environment::HttpClientConfig::default(),
-        );
-    });
-}
 
 /// Check if a port is available
 fn is_port_available(port: u16) -> bool {
@@ -389,7 +376,7 @@ impl MultiTenantMcpClient {
 
 /// Setup test environment
 async fn setup_test_environment() -> Result<(Database, AuthManager, u16, TempDir, String)> {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let encryption_key = generate_encryption_key().to_vec();
     let database = Database::new("sqlite::memory:", encryption_key.clone()).await?;
 

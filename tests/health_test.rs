@@ -7,27 +7,18 @@
 // Integration tests for health.rs module
 // Tests for health check functionality and system monitoring
 
+mod common;
+
 use pierre_mcp_server::{
     database::generate_encryption_key,
     database_plugins::factory::Database,
     health::{HealthChecker, HealthStatus},
 };
-use std::sync::{Arc, Once};
-
-/// Ensure HTTP clients are initialized only once across all tests
-static INIT_HTTP_CLIENTS: Once = Once::new();
-
-fn ensure_http_clients_initialized() {
-    INIT_HTTP_CLIENTS.call_once(|| {
-        pierre_mcp_server::utils::http_client::initialize_http_clients(
-            pierre_mcp_server::config::environment::HttpClientConfig::default(),
-        );
-    });
-}
+use std::sync::Arc;
 
 #[tokio::test]
 async fn test_basic_health_check() {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let encryption_key = generate_encryption_key().to_vec();
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
@@ -46,7 +37,7 @@ async fn test_basic_health_check() {
 
 #[tokio::test]
 async fn test_comprehensive_health_check() {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let encryption_key = generate_encryption_key().to_vec();
     let database = Database::new("sqlite::memory:", encryption_key)
         .await
@@ -67,7 +58,7 @@ async fn test_comprehensive_health_check() {
 
 #[tokio::test]
 async fn test_readiness_check() {
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
     let encryption_key = generate_encryption_key().to_vec();
     let database = Database::new("sqlite::memory:", encryption_key)
         .await

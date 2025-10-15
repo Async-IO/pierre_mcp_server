@@ -77,10 +77,13 @@ impl ProviderRegistry {
             oauth_providers::GARMIN,
             ProviderConfig {
                 name: oauth_providers::GARMIN.to_string(),
-                auth_url: crate::constants::env_config::garmin_auth_url(),
-                token_url: crate::constants::env_config::garmin_token_url(),
-                api_base_url: crate::constants::env_config::garmin_api_base(),
-                revoke_url: Some(crate::constants::env_config::garmin_revoke_url()),
+                auth_url: "https://connect.garmin.com/oauthConfirm".to_string(),
+                token_url: "https://connectapi.garmin.com/oauth-service/oauth/access_token"
+                    .to_string(),
+                api_base_url: "https://apis.garmin.com/wellness-api/rest".to_string(),
+                revoke_url: Some(
+                    "https://connectapi.garmin.com/oauth-service/oauth/revoke".to_string(),
+                ),
                 default_scopes: crate::constants::oauth::GARMIN_DEFAULT_SCOPES
                     .split(',')
                     .map(str::to_string)

@@ -26,21 +26,10 @@ use pierre_mcp_server::{
     },
 };
 use serde_json::json;
-use std::sync::{Arc, Once};
+use std::sync::Arc;
 use uuid::Uuid;
 
 mod common;
-
-/// Ensure HTTP clients are initialized only once across all tests
-static INIT_HTTP_CLIENTS: Once = Once::new();
-
-fn ensure_http_clients_initialized() {
-    INIT_HTTP_CLIENTS.call_once(|| {
-        pierre_mcp_server::utils::http_client::initialize_http_clients(
-            pierre_mcp_server::config::environment::HttpClientConfig::default(),
-        );
-    });
-}
 
 /// Test configuration for end-to-end tenant onboarding
 #[allow(clippy::too_many_lines)] // Long function: Defines complete end-to-end tenant onboarding workflow
@@ -49,7 +38,7 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
     tracing_subscriber::fmt::init();
 
     // Initialize HTTP clients (only once across all tests)
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
 
     // Step 1: Create test database and base infrastructure
     let database = Arc::new(
@@ -341,7 +330,7 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
 #[tokio::test]
 async fn test_tenant_context_switching() -> Result<()> {
     // Initialize HTTP clients (only once across all tests)
-    ensure_http_clients_initialized();
+    common::init_test_http_clients();
 
     let database = Arc::new(
         Database::new("sqlite::memory:", vec![0; 32])
