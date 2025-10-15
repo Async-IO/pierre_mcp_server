@@ -13,13 +13,15 @@ use tokio::sync::{broadcast, RwLock};
 /// OAuth notification stream for a specific user
 pub struct NotificationStream {
     sender: Arc<RwLock<Option<broadcast::Sender<String>>>>,
+    buffer_size: usize,
 }
 
 impl NotificationStream {
     #[must_use]
-    pub fn new() -> Self {
+    pub fn new(buffer_size: usize) -> Self {
         Self {
             sender: Arc::new(RwLock::new(None)),
+            buffer_size,
         }
     }
 
@@ -31,8 +33,7 @@ impl NotificationStream {
             *sender_guard = Some(existing_sender.clone());
             existing_sender
         } else {
-            let (tx, _) =
-                broadcast::channel(crate::constants::network_config::SSE_BROADCAST_CHANNEL_SIZE);
+            let (tx, _) = broadcast::channel(self.buffer_size);
             *sender_guard = Some(tx.clone());
             tx
         };
@@ -83,6 +84,7 @@ impl NotificationStream {
 
 impl Default for NotificationStream {
     fn default() -> Self {
-        Self::new()
+        // Use default buffer size from constants
+        Self::new(crate::constants::network_config::SSE_BROADCAST_CHANNEL_SIZE)
     }
 }

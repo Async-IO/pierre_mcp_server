@@ -81,6 +81,12 @@ async fn bootstrap_server(config: ServerConfig) -> Result<()> {
     pierre_mcp_server::utils::http_client::initialize_http_clients(config.http_client.clone());
     info!("HTTP client configuration initialized");
 
+    // Initialize route timeout configuration (must be done before any route handlers execute)
+    pierre_mcp_server::utils::route_timeout::initialize_route_timeouts(
+        config.route_timeouts.clone(),
+    );
+    info!("Route timeout configuration initialized");
+
     let (database, auth_manager, jwt_secret) = initialize_core_systems(&config).await?;
 
     // Initialize cache from environment

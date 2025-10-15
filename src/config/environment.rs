@@ -209,6 +209,8 @@ pub struct ServerConfig {
     pub auth: AuthConfig,
     /// OAuth provider configurations
     pub oauth: OAuthConfig,
+    /// `OAuth2` authorization server configuration
+    pub oauth2_server: OAuth2ServerConfig,
     /// Security settings
     pub security: SecurityConfig,
     /// External service configuration
@@ -219,6 +221,8 @@ pub struct ServerConfig {
     pub http_client: HttpClientConfig,
     /// SSE connection management configuration
     pub sse: SseConfig,
+    /// Per-route timeout configuration
+    pub route_timeouts: RouteTimeoutConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -271,6 +275,39 @@ pub struct OAuthProviderConfig {
     pub scopes: Vec<String>,
     /// Enable this provider
     pub enabled: bool,
+}
+
+/// `OAuth2` authorization server configuration (for Pierre acting as OAuth server)
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct OAuth2ServerConfig {
+    /// Default email for OAuth login page (dev/test only - do not use in production)
+    pub default_login_email: Option<String>,
+    /// Default password for OAuth login page (dev/test only - NEVER use in production!)
+    pub default_login_password: Option<String>,
+}
+
+/// Per-route timeout configuration for database, API, and SSE operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RouteTimeoutConfig {
+    /// Database operation timeout in seconds
+    pub database_timeout_secs: u64,
+    /// Provider API call timeout in seconds
+    pub provider_api_timeout_secs: u64,
+    /// SSE event send timeout in seconds
+    pub sse_event_timeout_secs: u64,
+    /// OAuth token operations timeout in seconds
+    pub oauth_operation_timeout_secs: u64,
+}
+
+impl Default for RouteTimeoutConfig {
+    fn default() -> Self {
+        Self {
+            database_timeout_secs: 30,
+            provider_api_timeout_secs: 60,
+            sse_event_timeout_secs: 5,
+            oauth_operation_timeout_secs: 15,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -405,6 +442,16 @@ pub struct HttpClientConfig {
     pub health_check_timeout_secs: u64,
     /// OAuth callback notification timeout in seconds
     pub oauth_callback_notification_timeout_secs: u64,
+    /// Enable exponential backoff retries with jitter
+    pub enable_retries: bool,
+    /// Maximum number of retry attempts
+    pub max_retries: u32,
+    /// Base delay for exponential backoff in milliseconds
+    pub retry_base_delay_ms: u64,
+    /// Maximum delay cap for retries in milliseconds
+    pub retry_max_delay_ms: u64,
+    /// Enable jitter to prevent thundering herd problem
+    pub retry_jitter_enabled: bool,
 }
 
 /// SSE connection management configuration
@@ -418,6 +465,28 @@ pub struct SseConfig {
     pub session_cookie_max_age_secs: u64,
     /// Enable Secure flag on cookies (requires HTTPS)
     pub session_cookie_secure: bool,
+    /// Maximum buffer size for SSE event queue per connection
+    pub max_buffer_size: usize,
+    /// Behavior when buffer is full
+    pub buffer_overflow_strategy: SseBufferStrategy,
+}
+
+/// Strategy for handling SSE buffer overflow
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SseBufferStrategy {
+    /// Drop oldest event when buffer is full
+    DropOldest,
+    /// Drop new event when buffer is full
+    DropNew,
+    /// Close SSE connection when buffer is full
+    CloseConnection,
+}
+
+impl Default for SseBufferStrategy {
+    fn default() -> Self {
+        Self::DropOldest
+    }
 }
 
 impl Default for HttpClientConfig {
@@ -435,6 +504,11 @@ impl Default for HttpClientConfig {
             health_check_timeout_secs: crate::constants::timeouts::HEALTH_CHECK_TIMEOUT_SECS,
             oauth_callback_notification_timeout_secs:
                 crate::constants::timeouts::OAUTH_CALLBACK_NOTIFICATION_TIMEOUT_SECS,
+            enable_retries: true,
+            max_retries: 3,
+            retry_base_delay_ms: 100,
+            retry_max_delay_ms: 5000,
+            retry_jitter_enabled: true,
         }
     }
 }
@@ -446,6 +520,8 @@ impl Default for SseConfig {
             connection_timeout_secs: crate::constants::timeouts::SSE_CONNECTION_TIMEOUT_SECS,
             session_cookie_max_age_secs: crate::constants::timeouts::SESSION_COOKIE_MAX_AGE_SECS,
             session_cookie_secure: false, // Default to false for development, override in production
+            max_buffer_size: 1000,
+            buffer_overflow_strategy: SseBufferStrategy::default(),
         }
     }
 }
@@ -466,11 +542,13 @@ impl ServerConfig {
             database: Self::load_database_config()?,
             auth: Self::load_auth_config()?,
             oauth: Self::load_oauth_config(),
+            oauth2_server: Self::load_oauth2_server_config(),
             security: Self::load_security_config()?,
             external_services: Self::load_external_services_config()?,
             app_behavior: Self::load_app_behavior_config()?,
             http_client: Self::load_http_client_config(),
             sse: Self::load_sse_config()?,
+            route_timeouts: Self::load_route_timeouts_config(),
         };
 
         config.validate()?;
@@ -729,6 +807,32 @@ impl ServerConfig {
         }
     }
 
+    /// Load `OAuth2` authorization server configuration from environment
+    fn load_oauth2_server_config() -> OAuth2ServerConfig {
+        OAuth2ServerConfig {
+            default_login_email: env::var("OAUTH_DEFAULT_EMAIL").ok(),
+            default_login_password: env::var("OAUTH_DEFAULT_PASSWORD").ok(),
+        }
+    }
+
+    /// Load per-route timeout configuration from environment
+    fn load_route_timeouts_config() -> RouteTimeoutConfig {
+        RouteTimeoutConfig {
+            database_timeout_secs: env_var_or("ROUTE_TIMEOUT_DATABASE_SECS", "30")
+                .parse()
+                .unwrap_or(30),
+            provider_api_timeout_secs: env_var_or("ROUTE_TIMEOUT_PROVIDER_API_SECS", "60")
+                .parse()
+                .unwrap_or(60),
+            sse_event_timeout_secs: env_var_or("ROUTE_TIMEOUT_SSE_EVENT_SECS", "5")
+                .parse()
+                .unwrap_or(5),
+            oauth_operation_timeout_secs: env_var_or("ROUTE_TIMEOUT_OAUTH_SECS", "15")
+                .parse()
+                .unwrap_or(15),
+        }
+    }
+
     /// Load security configuration from environment
     ///
     /// # Errors
@@ -903,6 +1007,21 @@ impl ServerConfig {
             health_check_timeout_secs: env_config::health_check_timeout_secs(),
             oauth_callback_notification_timeout_secs:
                 env_config::oauth_callback_notification_timeout_secs(),
+            enable_retries: env_var_or("HTTP_CLIENT_ENABLE_RETRIES", "true")
+                .parse()
+                .unwrap_or(true),
+            max_retries: env_var_or("HTTP_CLIENT_MAX_RETRIES", "3")
+                .parse()
+                .unwrap_or(3),
+            retry_base_delay_ms: env_var_or("HTTP_CLIENT_RETRY_BASE_DELAY_MS", "100")
+                .parse()
+                .unwrap_or(100),
+            retry_max_delay_ms: env_var_or("HTTP_CLIENT_RETRY_MAX_DELAY_MS", "5000")
+                .parse()
+                .unwrap_or(5000),
+            retry_jitter_enabled: env_var_or("HTTP_CLIENT_RETRY_JITTER", "true")
+                .parse()
+                .unwrap_or(true),
         }
     }
 
@@ -912,6 +1031,13 @@ impl ServerConfig {
     ///
     /// Returns an error if SSE environment variables are invalid
     fn load_sse_config() -> Result<SseConfig> {
+        let strategy_str = env_var_or("SSE_BUFFER_OVERFLOW_STRATEGY", "drop_oldest");
+        let buffer_overflow_strategy = match strategy_str.as_str() {
+            "drop_new" => SseBufferStrategy::DropNew,
+            "close_connection" => SseBufferStrategy::CloseConnection,
+            _ => SseBufferStrategy::DropOldest, // Default fallback (including "drop_oldest")
+        };
+
         Ok(SseConfig {
             cleanup_interval_secs: env_var_or(
                 "SSE_CLEANUP_INTERVAL_SECS",
@@ -934,6 +1060,10 @@ impl ServerConfig {
             session_cookie_secure: env_var_or("SESSION_COOKIE_SECURE", "false")
                 .parse()
                 .context("Invalid SESSION_COOKIE_SECURE value")?,
+            max_buffer_size: env_var_or("SSE_MAX_BUFFER_SIZE", "1000")
+                .parse()
+                .context("Invalid SSE_MAX_BUFFER_SIZE value")?,
+            buffer_overflow_strategy,
         })
     }
 }

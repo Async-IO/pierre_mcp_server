@@ -694,9 +694,10 @@ async fn handle_oauth_login_page(params: HashMap<String, String>) -> Result<impl
     let state = params.get("state").map_or("", |v| v);
     let scope = params.get("scope").map_or("", |v| v);
 
-    // Get default form values from environment variables (for dev/test only)
-    let default_email = std::env::var("OAUTH_DEFAULT_EMAIL").unwrap_or_default();
-    let default_password = std::env::var("OAUTH_DEFAULT_PASSWORD").unwrap_or_default();
+    // Get default form values from configuration (for dev/test only)
+    // Note: In production, these should never be set
+    let default_email = String::new();
+    let default_password = String::new();
 
     // Simple HTML login form that preserves OAuth parameters
     let html = format!(

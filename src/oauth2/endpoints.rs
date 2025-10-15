@@ -364,10 +364,7 @@ impl OAuth2AuthorizationServer {
                 ));
             }
 
-            let method = auth_code
-                .code_challenge_method
-                .as_deref()
-                .unwrap_or("S256");
+            let method = auth_code.code_challenge_method.as_deref().unwrap_or("S256");
 
             // Only S256 is supported - plain method is rejected for security reasons
             let computed_challenge = if method == "S256" {

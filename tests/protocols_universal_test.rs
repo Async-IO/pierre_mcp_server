@@ -151,6 +151,8 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
+        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
+        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
     });
 
     // Create ServerResources for the test
@@ -476,6 +478,8 @@ async fn test_set_goal_tool() -> Result<()> {
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
+        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
+        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
     });
 
     // Create ServerResources for the test
@@ -1077,6 +1081,8 @@ async fn test_disconnect_provider_tool() -> Result<()> {
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
+        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
+        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
     });
 
     // Create ServerResources for the test

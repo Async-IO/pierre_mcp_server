@@ -271,6 +271,8 @@ impl DashboardTestSetup {
                 },
             },
             sse: pierre_mcp_server::config::environment::SseConfig::default(),
+            oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
+            route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
         });
 
         // Create test cache
@@ -616,6 +618,8 @@ async fn test_get_dashboard_overview_empty_data() -> Result<()> {
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
+        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
+        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();

@@ -19,15 +19,18 @@ pub struct McpProtocolStream {
     resources: Arc<ServerResources>,
     sender: Arc<RwLock<Option<broadcast::Sender<String>>>>,
     session_id: Option<String>,
+    buffer_size: usize,
 }
 
 impl McpProtocolStream {
     #[must_use]
     pub fn new(resources: Arc<ServerResources>) -> Self {
+        let buffer_size = resources.config.sse.max_buffer_size;
         Self {
             resources,
             sender: Arc::new(RwLock::new(None)),
             session_id: None,
+            buffer_size,
         }
     }
 
@@ -39,8 +42,7 @@ impl McpProtocolStream {
             *sender_guard = Some(existing_sender.clone());
             existing_sender
         } else {
-            let (tx, _) =
-                broadcast::channel(crate::constants::network_config::SSE_BROADCAST_CHANNEL_SIZE);
+            let (tx, _) = broadcast::channel(self.buffer_size);
 
             *sender_guard = Some(tx.clone());
             tx

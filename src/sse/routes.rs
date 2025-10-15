@@ -19,6 +19,7 @@ use warp::{http::StatusCode, Filter, Rejection, Reply};
 pub async fn handle_notification_sse(
     user_id: String,
     manager: Arc<SseManager>,
+    resources: Arc<ServerResources>,
 ) -> Result<impl Reply, Rejection> {
     tracing::info!("New notification SSE connection for user: {}", user_id);
 
@@ -28,6 +29,7 @@ pub async fn handle_notification_sse(
     let mut receiver = manager.register_notification_stream(user_uuid).await;
     let manager_clone = manager.clone();
     let user_id_clone = user_uuid;
+    let overflow_strategy = resources.config.sse.buffer_overflow_strategy.clone();
 
     let stream = async_stream::stream! {
         // Send initial connection established event with sequential event IDs
@@ -48,8 +50,35 @@ pub async fn handle_notification_sse(
                         .data(message)
                         .event("notification"));
                 }
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
-                    tracing::warn!("SSE receiver lagged for user: {}", user_id_clone);
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                    use crate::config::environment::SseBufferStrategy;
+                    tracing::warn!(
+                        "SSE buffer overflow for user {}: {} messages dropped (strategy: {:?})",
+                        user_id_clone, skipped, overflow_strategy
+                    );
+
+                    // Handle overflow based on configured strategy
+                    match overflow_strategy {
+                        SseBufferStrategy::DropOldest => {
+                            // Continue operation - this is the default broadcast behavior
+                            tracing::debug!("Continuing with DropOldest strategy for user {}", user_id_clone);
+                        }
+                        SseBufferStrategy::DropNew => {
+                            // Note: broadcast channels inherently drop oldest, not newest
+                            // For true DropNew behavior, would need mpsc bounded channel
+                            tracing::warn!(
+                                "DropNew strategy configured but broadcast channels drop oldest. \
+                                Consider using bounded mpsc for true DropNew behavior."
+                            );
+                        }
+                        SseBufferStrategy::CloseConnection => {
+                            tracing::info!(
+                                "Closing SSE connection for user {} due to buffer overflow",
+                                user_id_clone
+                            );
+                            break;
+                        }
+                    }
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Closed) => {
                     tracing::info!("SSE channel closed for user: {}", user_id_clone);
@@ -88,6 +117,7 @@ pub async fn handle_protocol_sse(
         session_id
     );
 
+    let overflow_strategy = resources.config.sse.buffer_overflow_strategy.clone();
     let mut receiver = manager
         .register_protocol_stream(session_id.clone(), authorization, resources)
         .await;
@@ -113,8 +143,34 @@ pub async fn handle_protocol_sse(
                         .data(message)
                         .event("message"));
                 }
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
-                    tracing::warn!("SSE protocol stream lagged for session: {}", session_id_clone);
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                    use crate::config::environment::SseBufferStrategy;
+                    tracing::warn!(
+                        "SSE buffer overflow for session {}: {} messages dropped (strategy: {:?})",
+                        session_id_clone, skipped, overflow_strategy
+                    );
+
+                    // Handle overflow based on configured strategy
+                    match overflow_strategy {
+                        SseBufferStrategy::DropOldest => {
+                            // Continue operation - this is the default broadcast behavior
+                            tracing::debug!("Continuing with DropOldest strategy for session {}", session_id_clone);
+                        }
+                        SseBufferStrategy::DropNew => {
+                            // Note: broadcast channels inherently drop oldest, not newest
+                            tracing::warn!(
+                                "DropNew strategy configured but broadcast channels drop oldest. \
+                                Consider using bounded mpsc for true DropNew behavior."
+                            );
+                        }
+                        SseBufferStrategy::CloseConnection => {
+                            tracing::info!(
+                                "Closing SSE connection for session {} due to buffer overflow",
+                                session_id_clone
+                            );
+                            break;
+                        }
+                    }
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Closed) => {
                     tracing::info!("SSE protocol channel closed for session: {}", session_id_clone);
@@ -143,6 +199,7 @@ pub async fn handle_protocol_sse(
 #[must_use]
 pub fn notification_sse_routes(
     manager: Arc<SseManager>,
+    resources: Arc<ServerResources>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     warp::path("notifications")
         .and(warp::path("sse"))
@@ -152,13 +209,14 @@ pub fn notification_sse_routes(
         .and_then({
             move |params: HashMap<String, String>| {
                 let manager = manager.clone();
+                let resources = resources.clone();
                 async move {
                     let user_id = params
                         .get("user_id")
                         .ok_or_else(|| warp::reject::custom(InvalidUserIdError))?
                         .clone();
 
-                    handle_notification_sse(user_id, manager).await
+                    handle_notification_sse(user_id, manager, resources).await
                 }
             }
         })
@@ -193,7 +251,8 @@ pub fn sse_routes(
     manager: Arc<SseManager>,
     resources: Arc<ServerResources>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-    notification_sse_routes(manager.clone()).or(protocol_sse_routes(manager, resources))
+    notification_sse_routes(manager.clone(), resources.clone())
+        .or(protocol_sse_routes(manager, resources))
 }
 
 /// Extract session ID from headers or query parameters

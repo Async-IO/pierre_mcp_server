@@ -113,7 +113,7 @@ impl ServerResources {
         ));
 
         // Create unified SSE manager for both notifications and MCP protocol
-        let sse_manager = Arc::new(crate::sse::SseManager::new());
+        let sse_manager = Arc::new(crate::sse::SseManager::new(config.sse.max_buffer_size));
 
         // Spawn background task to cleanup inactive SSE connections
         // Uses configurable intervals and timeouts from config

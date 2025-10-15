@@ -167,6 +167,8 @@ fn create_test_config() -> pierre_mcp_server::config::environment::ServerConfig 
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
+        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
+        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
     }
 }
 

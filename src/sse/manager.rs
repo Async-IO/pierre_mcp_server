@@ -39,30 +39,34 @@ pub struct SseManager {
     connection_metadata: Arc<RwLock<HashMap<String, ConnectionMetadata>>>,
     /// Maps `user_id` to their active `session_ids` for protocol streams
     user_sessions: Arc<RwLock<HashMap<Uuid, Vec<String>>>>,
+    /// Buffer size for SSE channels
+    buffer_size: usize,
 }
 
 impl SseManager {
     #[must_use]
-    pub fn new() -> Self {
+    pub fn new(buffer_size: usize) -> Self {
         Self {
             notification_streams: Arc::new(RwLock::new(HashMap::new())),
             protocol_streams: Arc::new(RwLock::new(HashMap::new())),
             connection_metadata: Arc::new(RwLock::new(HashMap::new())),
             user_sessions: Arc::new(RwLock::new(HashMap::new())),
+            buffer_size,
         }
     }
 }
 
 impl Default for SseManager {
     fn default() -> Self {
-        Self::new()
+        // Use default buffer size from constants
+        Self::new(crate::constants::network_config::SSE_BROADCAST_CHANNEL_SIZE)
     }
 }
 
 impl SseManager {
     /// Register a new OAuth notification stream for a user
     pub async fn register_notification_stream(&self, user_id: Uuid) -> broadcast::Receiver<String> {
-        let stream = NotificationStream::new();
+        let stream = NotificationStream::new(self.buffer_size);
         let receiver = stream.subscribe().await;
 
         {
