@@ -111,6 +111,8 @@ fn create_minimal_test_config(
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
+        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
+        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
     })
 }
 
@@ -288,6 +290,8 @@ async fn create_test_oauth_routes() -> Result<(OAuthRoutes, Uuid, Arc<Database>)
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
+        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
+        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -513,6 +517,8 @@ async fn test_user_login_success() -> Result<()> {
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
+        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
+        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -736,6 +742,8 @@ async fn test_token_refresh_success() -> Result<()> {
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
+        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
+        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -904,6 +912,8 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
+        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
+        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -1308,6 +1318,8 @@ async fn test_complete_auth_flow() -> Result<()> {
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
+        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
+        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -1548,6 +1560,8 @@ async fn test_concurrent_logins() -> Result<()> {
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
+        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
+        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();

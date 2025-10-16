@@ -130,6 +130,8 @@ fn create_test_config(port: u16) -> Arc<pierre_mcp_server::config::environment::
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
+        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
+        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
     })
 }
 

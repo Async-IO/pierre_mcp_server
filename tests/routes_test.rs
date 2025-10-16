@@ -154,6 +154,8 @@ async fn test_register_user() {
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
+        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
+        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
     });
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
@@ -279,6 +281,8 @@ async fn test_register_duplicate_user() {
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
+        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
+        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
     });
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(

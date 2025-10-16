@@ -119,6 +119,8 @@ async fn test_email_validation() {
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
+        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
+        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -281,6 +283,8 @@ async fn test_password_validation() {
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
+        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
+        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -415,6 +419,8 @@ async fn test_duplicate_user_registration() {
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
+        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
+        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -540,6 +546,8 @@ async fn test_login_with_correct_credentials() {
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
+        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
+        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -709,6 +717,8 @@ async fn test_login_with_wrong_password() {
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
+        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
+        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -841,6 +851,8 @@ async fn test_login_with_non_existent_user() {
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
+        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
+        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();

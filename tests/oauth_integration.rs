@@ -125,6 +125,8 @@ async fn test_oauth_authorization_url_generation() {
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
+        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
+        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -345,6 +347,8 @@ async fn test_oauth_state_validation() {
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
+        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
+        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
     });
 
     let cache = common::create_test_cache().await.unwrap();
@@ -472,6 +476,8 @@ async fn test_connection_status_no_providers() {
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
+        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
+        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
     });
 
     let user_id = Uuid::new_v4();
@@ -622,6 +628,8 @@ async fn test_invalid_provider_error() {
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
+        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
+        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
     });
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
@@ -743,6 +751,8 @@ async fn test_disconnect_provider() {
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
+        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
+        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
     });
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
@@ -958,6 +968,8 @@ async fn test_oauth_urls_contain_required_parameters() {
             },
         },
         sse: pierre_mcp_server::config::environment::SseConfig::default(),
+        oauth2_server: pierre_mcp_server::config::environment::OAuth2ServerConfig::default(),
+        route_timeouts: pierre_mcp_server::config::environment::RouteTimeoutConfig::default(),
     });
     let cache = common::create_test_cache().await.unwrap();
     let server_resources = Arc::new(ServerResources::new(
