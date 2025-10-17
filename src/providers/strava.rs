@@ -9,6 +9,7 @@ use crate::config::FitnessConfig;
 use crate::constants::{api_provider_limits, env_config};
 use crate::models::{Activity, Athlete, PersonalRecord, SportType, Stats};
 use crate::oauth2_client::PkceParams;
+use crate::pagination::{CursorPage, PaginationParams};
 use crate::utils::http_client::api_client;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -449,6 +450,15 @@ impl FitnessProvider for StravaProvider {
             .into_iter()
             .map(std::convert::Into::into)
             .collect())
+    }
+
+    async fn get_activities_cursor(
+        &self,
+        params: &PaginationParams,
+    ) -> Result<CursorPage<Activity>> {
+        // Stub implementation: delegate to offset-based pagination
+        let activities = self.get_activities(Some(params.limit), None).await?;
+        Ok(CursorPage::new(activities, None, None, false))
     }
 
     /// Get a specific activity by ID from Strava

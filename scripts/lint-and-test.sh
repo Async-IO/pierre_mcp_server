@@ -705,6 +705,22 @@ else
     echo -e "${GREEN}✅ All architectural validations passed - excellent code quality${NC}"
 fi
 
+# PII and Secret Pattern Detection (critical security validation)
+echo ""
+echo -e "${BLUE}==== PII and Secret Pattern Detection (Security) ====${NC}"
+if [ -f "$SCRIPT_DIR/validate-no-secrets.sh" ]; then
+    if "$SCRIPT_DIR/validate-no-secrets.sh"; then
+        echo -e "${GREEN}[OK] Secret pattern validation passed${NC}"
+    else
+        echo -e "${RED}[CRITICAL] Secret pattern validation failed - FAST FAIL${NC}"
+        echo -e "${RED}Found sensitive data patterns that must be removed before deployment${NC}"
+        ALL_PASSED=false
+        exit 1
+    fi
+else
+    echo -e "${YELLOW}[WARN] Secret validation script not found - skipping${NC}"
+fi
+
 # Core development checks (format, clippy, compilation, tests)
 echo ""
 echo -e "${BLUE}==== Core Development Checks ====${NC}"

@@ -44,6 +44,7 @@ async fn test_oauth_authorization_url_generation() {
         http_port: 8080,
         oauth_callback_port: 35535,
         log_level: LogLevel::Info,
+        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
         http_client: HttpClientConfig::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
@@ -266,6 +267,7 @@ async fn test_oauth_state_validation() {
         http_port: 8080,
         oauth_callback_port: 35535,
         log_level: LogLevel::Info,
+        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
         http_client: HttpClientConfig::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
@@ -395,6 +397,7 @@ async fn test_connection_status_no_providers() {
         http_port: 8080,
         oauth_callback_port: 35535,
         log_level: LogLevel::Info,
+        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
         http_client: HttpClientConfig::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
@@ -547,6 +550,7 @@ async fn test_invalid_provider_error() {
         http_port: 8080,
         oauth_callback_port: 35535,
         log_level: LogLevel::Info,
+        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
         http_client: HttpClientConfig::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
@@ -670,6 +674,7 @@ async fn test_disconnect_provider() {
         http_port: 8080,
         oauth_callback_port: 35535,
         log_level: LogLevel::Info,
+        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
         http_client: HttpClientConfig::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
@@ -887,6 +892,7 @@ async fn test_oauth_urls_contain_required_parameters() {
         http_port: 8080,
         oauth_callback_port: 35535,
         log_level: LogLevel::Info,
+        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
         http_client: HttpClientConfig::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,

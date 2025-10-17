@@ -8,6 +8,7 @@ use super::core::{FitnessProvider, OAuth2Credentials, ProviderConfig};
 use super::utils::{self, RetryConfig};
 use crate::constants::{api_provider_limits, oauth_providers};
 use crate::models::{Activity, Athlete, PersonalRecord, SportType, Stats};
+use crate::pagination::{CursorPage, PaginationParams};
 use crate::utils::http_client::shared_client;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -403,6 +404,15 @@ impl FitnessProvider for GarminProvider {
 
         self.get_activities_multi_page(requested_limit, start_offset)
             .await
+    }
+
+    async fn get_activities_cursor(
+        &self,
+        params: &PaginationParams,
+    ) -> Result<CursorPage<Activity>> {
+        // Stub implementation: delegate to offset-based pagination
+        let activities = self.get_activities(Some(params.limit), None).await?;
+        Ok(CursorPage::new(activities, None, None, false))
     }
 
     async fn get_activity(&self, id: &str) -> Result<Activity> {

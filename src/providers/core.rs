@@ -5,6 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 use crate::models::{Activity, Athlete, PersonalRecord, Stats};
+use crate::pagination::{CursorPage, PaginationParams};
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -54,12 +55,21 @@ pub trait FitnessProvider: Send + Sync {
     /// Get user's athlete profile
     async fn get_athlete(&self) -> Result<Athlete>;
 
-    /// Get user's activities with pagination
+    /// Get user's activities with offset-based pagination (legacy)
     async fn get_activities(
         &self,
         limit: Option<usize>,
         offset: Option<usize>,
     ) -> Result<Vec<Activity>>;
+
+    /// Get user's activities with cursor-based pagination (recommended)
+    ///
+    /// This method provides efficient, consistent pagination using opaque cursors.
+    /// Cursors prevent duplicates and missing items when data changes during pagination.
+    async fn get_activities_cursor(
+        &self,
+        params: &PaginationParams,
+    ) -> Result<CursorPage<Activity>>;
 
     /// Get specific activity by ID
     async fn get_activity(&self, id: &str) -> Result<Activity>;
@@ -153,6 +163,13 @@ impl FitnessProvider for TenantProvider {
         offset: Option<usize>,
     ) -> Result<Vec<Activity>> {
         self.inner.get_activities(limit, offset).await
+    }
+
+    async fn get_activities_cursor(
+        &self,
+        params: &PaginationParams,
+    ) -> Result<CursorPage<Activity>> {
+        self.inner.get_activities_cursor(params).await
     }
 
     async fn get_activity(&self, id: &str) -> Result<Activity> {

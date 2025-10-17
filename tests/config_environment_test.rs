@@ -85,6 +85,7 @@ fn test_config_validation() {
         http_port: 3000, // Single unified port for all protocols
         oauth_callback_port: 35535,
         log_level: LogLevel::default(),
+        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
         http_client: pierre_mcp_server::config::environment::HttpClientConfig::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::SQLite {

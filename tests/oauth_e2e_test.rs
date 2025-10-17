@@ -193,6 +193,7 @@ async fn test_oauth_flow_through_mcp() {
         http_port: 4000,
         oauth_callback_port: 35535,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
+        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
         http_client: pierre_mcp_server::config::environment::HttpClientConfig::default(),
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
@@ -420,6 +421,7 @@ async fn test_oauth_callback_error_handling() {
         http_port: 8081,
         oauth_callback_port: 35535,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
+        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
         http_client: pierre_mcp_server::config::environment::HttpClientConfig::default(),
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
@@ -613,6 +615,7 @@ async fn test_oauth_state_csrf_protection() {
         http_port: 8081,
         oauth_callback_port: 35535,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
+        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
         http_client: pierre_mcp_server::config::environment::HttpClientConfig::default(),
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
@@ -752,6 +755,7 @@ async fn test_connection_status_tracking() {
         http_port: 8081,
         oauth_callback_port: 35535,
         log_level: LogLevel::Info,
+        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
         http_client: HttpClientConfig::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,

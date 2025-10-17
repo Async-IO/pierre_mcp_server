@@ -7,6 +7,7 @@
 pub mod auth;
 pub mod cors;
 pub mod rate_limiting;
+pub mod redaction;
 pub mod tracing;
 
 // Authentication middleware
@@ -19,6 +20,12 @@ pub use cors::setup_cors;
 pub use rate_limiting::{
     check_rate_limit_and_respond, create_rate_limit_error, create_rate_limit_error_json,
     create_rate_limit_headers, headers,
+};
+
+// PII-safe logging and redaction
+pub use redaction::{
+    mask_email, redact_headers, redact_json_fields, redact_token_patterns, BoundedTenantLabel,
+    BoundedUserLabel, RedactionConfig, RedactionFeatures,
 };
 
 // Request tracing and context management

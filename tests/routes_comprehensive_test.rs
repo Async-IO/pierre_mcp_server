@@ -30,6 +30,7 @@ fn create_minimal_test_config(
         http_port: 8081,
         oauth_callback_port: 35535,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
+        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
         http_client: pierre_mcp_server::config::environment::HttpClientConfig::default(),
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
@@ -209,6 +210,7 @@ async fn create_test_oauth_routes() -> Result<(OAuthRoutes, Uuid, Arc<Database>)
         http_port: 8081,
         oauth_callback_port: 35535,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
+        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
         http_client: pierre_mcp_server::config::environment::HttpClientConfig::default(),
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
@@ -436,6 +438,7 @@ async fn test_user_login_success() -> Result<()> {
         http_port: 8081,
         oauth_callback_port: 35535,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
+        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
         http_client: pierre_mcp_server::config::environment::HttpClientConfig::default(),
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
@@ -661,6 +664,7 @@ async fn test_token_refresh_success() -> Result<()> {
         http_port: 8081,
         oauth_callback_port: 35535,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
+        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
         http_client: pierre_mcp_server::config::environment::HttpClientConfig::default(),
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
@@ -831,6 +835,7 @@ async fn test_token_refresh_mismatched_user() -> Result<()> {
         http_port: 8081,
         oauth_callback_port: 35535,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
+        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
         http_client: pierre_mcp_server::config::environment::HttpClientConfig::default(),
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
@@ -1237,6 +1242,7 @@ async fn test_complete_auth_flow() -> Result<()> {
         http_port: 8081,
         oauth_callback_port: 35535,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
+        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
         http_client: pierre_mcp_server::config::environment::HttpClientConfig::default(),
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,
@@ -1479,6 +1485,7 @@ async fn test_concurrent_logins() -> Result<()> {
         http_port: 8081,
         oauth_callback_port: 35535,
         log_level: pierre_mcp_server::config::environment::LogLevel::Info,
+        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
         http_client: pierre_mcp_server::config::environment::HttpClientConfig::default(),
         database: pierre_mcp_server::config::environment::DatabaseConfig {
             url: pierre_mcp_server::config::environment::DatabaseUrl::Memory,

@@ -60,6 +60,9 @@ pub mod providers;
 /// Common data models for fitness data
 pub mod models;
 
+/// Cursor-based pagination for efficient data traversal
+pub mod pagination;
+
 /// Configuration management and persistence
 pub mod config;
 

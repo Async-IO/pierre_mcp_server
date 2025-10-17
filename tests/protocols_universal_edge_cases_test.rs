@@ -37,6 +37,7 @@ fn create_test_config() -> Arc<ServerConfig> {
         http_port: 4000,
         oauth_callback_port: 35535,
         log_level: LogLevel::Info,
+        logging: LoggingConfig::default(),
         http_client: HttpClientConfig::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,

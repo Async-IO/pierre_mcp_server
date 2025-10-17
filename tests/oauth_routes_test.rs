@@ -38,6 +38,7 @@ async fn test_email_validation() {
         http_port: 8081,
         oauth_callback_port: 35535,
         log_level: LogLevel::Info,
+        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
         http_client: HttpClientConfig::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
@@ -202,6 +203,7 @@ async fn test_password_validation() {
         http_port: 8081,
         oauth_callback_port: 35535,
         log_level: LogLevel::Info,
+        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
         http_client: HttpClientConfig::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
@@ -338,6 +340,7 @@ async fn test_duplicate_user_registration() {
         http_port: 8081,
         oauth_callback_port: 35535,
         log_level: LogLevel::Info,
+        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
         http_client: HttpClientConfig::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
@@ -465,6 +468,7 @@ async fn test_login_with_correct_credentials() {
         http_port: 8081,
         oauth_callback_port: 35535,
         log_level: LogLevel::Info,
+        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
         http_client: HttpClientConfig::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
@@ -636,6 +640,7 @@ async fn test_login_with_wrong_password() {
         http_port: 8081,
         oauth_callback_port: 35535,
         log_level: LogLevel::Info,
+        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
         http_client: HttpClientConfig::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,
@@ -770,6 +775,7 @@ async fn test_login_with_non_existent_user() {
         http_port: 8081,
         oauth_callback_port: 35535,
         log_level: LogLevel::Info,
+        logging: pierre_mcp_server::config::environment::LoggingConfig::default(),
         http_client: HttpClientConfig::default(),
         database: DatabaseConfig {
             url: DatabaseUrl::Memory,

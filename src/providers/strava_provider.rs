@@ -10,6 +10,7 @@
 use super::core::{FitnessProvider, OAuth2Credentials, ProviderConfig};
 use crate::constants::{api_provider_limits, oauth_providers};
 use crate::models::{Activity, Athlete, PersonalRecord, SportType, Stats};
+use crate::pagination::{Cursor, CursorPage, PaginationDirection, PaginationParams};
 use crate::utils::http_client::shared_client;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -29,7 +30,7 @@ struct StravaAthleteResponse {
 }
 
 /// Strava API response for activity data
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct StravaActivityResponse {
     id: u64,
     name: String,
@@ -438,6 +439,75 @@ impl FitnessProvider for StravaProvider {
         // For large requests, use multi-page fetching
         self.get_activities_multi_page(requested_limit, start_offset)
             .await
+    }
+
+    async fn get_activities_cursor(
+        &self,
+        params: &PaginationParams,
+    ) -> Result<CursorPage<Activity>> {
+        let limit = params
+            .limit
+            .min(api_provider_limits::strava::MAX_ACTIVITIES_PER_REQUEST);
+
+        // Build endpoint with cursor-based parameters
+        let mut endpoint = format!("athlete/activities?per_page={limit}");
+
+        // If cursor provided, decode and use for filtering
+        if let Some(cursor) = &params.cursor {
+            if let Some((timestamp, id)) = cursor.decode() {
+                // Strava filters by before/after timestamp
+                use std::fmt::Write;
+                match params.direction {
+                    PaginationDirection::Forward => {
+                        let _ = write!(endpoint, "&before={}", timestamp.timestamp());
+                    }
+                    PaginationDirection::Backward => {
+                        let _ = write!(endpoint, "&after={}", timestamp.timestamp());
+                    }
+                }
+                tracing::info!("Cursor pagination: timestamp={}, id={}", timestamp, id);
+            }
+        }
+
+        tracing::info!("Cursor-based request - endpoint: {}", endpoint);
+
+        let strava_activities: Vec<StravaActivityResponse> = self.api_request(&endpoint).await?;
+        tracing::info!(
+            "Received {} activities from cursor request",
+            strava_activities.len()
+        );
+
+        // Convert activities
+        let mut activities = Vec::new();
+        for activity in &strava_activities {
+            activities.push(Self::convert_strava_activity(activity.clone())?);
+        }
+
+        // Determine if there are more results
+        let has_more = activities.len() == limit;
+
+        // Create next cursor from last activity
+        let next_cursor = if has_more && !activities.is_empty() {
+            let last = activities.last().unwrap();
+            Some(Cursor::new(last.start_date, &last.id))
+        } else {
+            None
+        };
+
+        // Create previous cursor from first activity
+        let prev_cursor = if !activities.is_empty() && params.cursor.is_some() {
+            let first = activities.first().unwrap();
+            Some(Cursor::new(first.start_date, &first.id))
+        } else {
+            None
+        };
+
+        Ok(CursorPage::new(
+            activities,
+            next_cursor,
+            prev_cursor,
+            has_more,
+        ))
     }
 
     async fn get_activity(&self, id: &str) -> Result<Activity> {
