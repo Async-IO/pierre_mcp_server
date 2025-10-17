@@ -26,18 +26,24 @@ use tracing::info;
 pub struct AdminAuthService {
     database: Database,
     jwt_manager: AdminJwtManager,
+    jwks_manager: Arc<crate::admin::jwks::JwksManager>,
     // TTL cache for validated tokens with automatic expiration
     token_cache:
         Arc<tokio::sync::RwLock<HashMap<String, (ValidatedAdminToken, std::time::Instant)>>>,
 }
 
 impl AdminAuthService {
-    /// Create new admin auth service
+    /// Create new admin auth service with RS256 (REQUIRED)
     #[must_use]
-    pub fn new(database: Database, jwt_secret: &str) -> Self {
+    pub fn new(
+        database: Database,
+        jwt_secret: &str,
+        jwks_manager: Arc<crate::admin::jwks::JwksManager>,
+    ) -> Self {
         Self {
             database,
             jwt_manager: AdminJwtManager::with_secret(jwt_secret),
+            jwks_manager,
             token_cache: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
         }
     }
@@ -58,8 +64,10 @@ impl AdminAuthService {
         required_permission: AdminPermission,
         ip_address: Option<&str>,
     ) -> Result<ValidatedAdminToken> {
-        // Step 1: Validate JWT structure and extract token ID
-        let validated_token = self.jwt_manager.validate_token(token)?;
+        // Step 1: Validate JWT structure and extract token ID using RS256
+        let validated_token = self
+            .jwt_manager
+            .validate_token_rs256(token, &self.jwks_manager)?;
 
         // Step 2: Check if token exists and is active in database
         let stored_token = self

@@ -129,6 +129,45 @@ impl AdminJwtManager {
             .map_err(|e| anyhow!("Failed to generate JWT: {e}"))
     }
 
+    /// Generate JWT token using RS256 (asymmetric signing)
+    ///
+    /// # Errors
+    /// Returns an error if JWT encoding fails
+    pub fn generate_token_rs256(
+        &self,
+        token_id: &str,
+        service_name: &str,
+        permissions: &AdminPermissions,
+        is_super_admin: bool,
+        expires_at: Option<DateTime<Utc>>,
+        jwks_manager: &crate::admin::jwks::JwksManager,
+    ) -> Result<String> {
+        let now = Utc::now();
+        let exp = expires_at.unwrap_or_else(|| now + Duration::days(365));
+
+        let claims = AdminTokenClaims {
+            // Standard JWT claims
+            iss: service_names::PIERRE_MCP_SERVER.into(),
+            sub: token_id.to_string(),
+            aud: service_names::ADMIN_API.into(),
+            exp: u64::try_from(exp.timestamp().max(0)).unwrap_or(0),
+            iat: u64::try_from(now.timestamp().max(0)).unwrap_or(0),
+            nbf: u64::try_from(now.timestamp().max(0)).unwrap_or(0),
+            jti: token_id.to_string(),
+
+            // Custom claims
+            service_name: service_name.to_string(),
+            permissions: permissions.to_vec(),
+            is_super_admin,
+            token_type: "admin".into(),
+        };
+
+        // Sign with RS256 using JWKS
+        jwks_manager
+            .sign_admin_token(&claims)
+            .map_err(|e| anyhow!("Failed to generate RS256 admin JWT: {e}"))
+    }
+
     /// Validate and decode JWT token
     ///
     /// # Errors
@@ -148,6 +187,48 @@ impl AdminJwtManager {
             })?;
 
         let claims = token_data.claims;
+
+        // Verify token type
+        if claims.token_type != "admin" {
+            return Err(anyhow!("Invalid token type: {}", claims.token_type));
+        }
+
+        // Check expiration
+        let now = u64::try_from(Utc::now().timestamp().max(0)).unwrap_or(0);
+        if claims.exp < now {
+            return Err(anyhow!("Token has expired"));
+        }
+
+        // Reconstruct permissions
+        let permissions = AdminPermissions::new(claims.permissions.clone()); // Safe: Vec<String> ownership for permissions
+
+        let token_id = claims.sub.clone(); // Safe: String ownership for token validation
+        let service_name = claims.service_name.clone(); // Safe: String ownership for token validation
+        let is_super_admin = claims.is_super_admin;
+        let user_info = serde_json::to_value(&claims)?;
+
+        Ok(ValidatedAdminToken {
+            token_id,
+            service_name,
+            permissions,
+            is_super_admin,
+            user_info: Some(user_info),
+        })
+    }
+
+    /// Validate and decode JWT token using RS256
+    ///
+    /// # Errors
+    /// Returns an error if token is invalid, expired, or has wrong format
+    pub fn validate_token_rs256(
+        &self,
+        token: &str,
+        jwks_manager: &crate::admin::jwks::JwksManager,
+    ) -> Result<ValidatedAdminToken> {
+        // Verify RS256 signature and decode claims
+        let claims: AdminTokenClaims = jwks_manager
+            .verify_admin_token(token)
+            .map_err(|e| anyhow!("RS256 admin JWT validation failed: {e}"))?;
 
         // Verify token type
         if claims.token_type != "admin" {

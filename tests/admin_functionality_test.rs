@@ -18,6 +18,7 @@ use anyhow::Result;
 use chrono::Utc;
 use pierre_mcp_server::admin::{
     auth::AdminAuthService,
+    jwks::JwksManager,
     jwt::AdminJwtManager,
     models::{AdminAction, AdminPermission, AdminPermissions, CreateAdminTokenRequest},
 };
@@ -114,8 +115,14 @@ async fn test_admin_token_database_operations() -> Result<()> {
         expires_in_days: Some(30),
     };
 
+    // Initialize JWKS manager for RS256 admin token signing
+    let mut jwks_manager = JwksManager::new();
+    jwks_manager.generate_rsa_key_pair("test_key_1")?;
+
     // Create admin token
-    let generated_token = db.create_admin_token(&request, TEST_JWT_SECRET).await?;
+    let generated_token = db
+        .create_admin_token(&request, TEST_JWT_SECRET, &jwks_manager)
+        .await?;
     assert_eq!(generated_token.service_name, "test_service");
     assert!(!generated_token.is_super_admin);
     assert!(generated_token.expires_at.is_some());
@@ -163,7 +170,13 @@ async fn test_admin_token_usage_tracking() -> Result<()> {
         expires_in_days: None,
     };
 
-    let generated_token = db.create_admin_token(&request, TEST_JWT_SECRET).await?;
+    // Initialize JWKS manager for RS256 admin token signing
+    let mut jwks_manager = JwksManager::new();
+    jwks_manager.generate_rsa_key_pair("test_key_2")?;
+
+    let generated_token = db
+        .create_admin_token(&request, TEST_JWT_SECRET, &jwks_manager)
+        .await?;
 
     // Update last used
     let ip_address = "192.168.1.100";
@@ -229,7 +242,13 @@ async fn test_admin_provisioned_keys_tracking() -> Result<()> {
         expires_in_days: None,
     };
 
-    let admin_token = db.create_admin_token(&request, TEST_JWT_SECRET).await?;
+    // Initialize JWKS manager for RS256 admin token signing
+    let mut jwks_manager = JwksManager::new();
+    jwks_manager.generate_rsa_key_pair("test_key_3")?;
+
+    let admin_token = db
+        .create_admin_token(&request, TEST_JWT_SECRET, &jwks_manager)
+        .await?;
 
     // Create user and API key
     let (user_id, user) = common::create_test_user(&db).await?;
@@ -279,8 +298,11 @@ async fn test_admin_auth_service_construction() -> Result<()> {
     let db = common::create_test_database().await?;
     let jwt_secret = "test_secret_for_admin_auth_service_testing_purposes";
 
+    // Create JWKS manager for RS256
+    let jwks_manager = std::sync::Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
+
     // Test that AdminAuthService can be constructed successfully
-    let auth_service = AdminAuthService::new((*db).clone(), jwt_secret);
+    let auth_service = AdminAuthService::new((*db).clone(), jwt_secret, jwks_manager);
 
     // Test basic functionality - invalid token should fail
     let invalid_result = auth_service
@@ -408,7 +430,13 @@ async fn test_admin_super_admin_privileges() -> Result<()> {
         expires_in_days: None,
     };
 
-    let super_admin_token = db.create_admin_token(&request, TEST_JWT_SECRET).await?;
+    // Initialize JWKS manager for RS256 admin token signing
+    let mut jwks_manager = JwksManager::new();
+    jwks_manager.generate_rsa_key_pair("test_key_4")?;
+
+    let super_admin_token = db
+        .create_admin_token(&request, TEST_JWT_SECRET, &jwks_manager)
+        .await?;
     assert!(super_admin_token.is_super_admin);
 
     // Verify super admin has all permissions

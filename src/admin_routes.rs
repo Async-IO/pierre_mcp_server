@@ -45,20 +45,28 @@ pub struct AdminApiContext {
     pub auth_service: AdminAuthService,
     pub auth_manager: Arc<AuthManager>,
     pub admin_jwt_secret: String,
+    pub jwks_manager: Arc<crate::admin::jwks::JwksManager>,
 }
 
 impl AdminApiContext {
-    pub fn new(database: Arc<Database>, jwt_secret: &str, auth_manager: Arc<AuthManager>) -> Self {
+    pub fn new(
+        database: Arc<Database>,
+        jwt_secret: &str,
+        auth_manager: Arc<AuthManager>,
+        jwks_manager: Arc<crate::admin::jwks::JwksManager>,
+    ) -> Self {
         tracing::info!(
             "Creating AdminApiContext with JWT secret (first 10 chars): {}...",
             jwt_secret.chars().take(10).collect::<String>()
         );
-        let auth_service = AdminAuthService::new((*database).clone(), jwt_secret); // Safe: Arc clone for auth service
+        let auth_service =
+            AdminAuthService::new((*database).clone(), jwt_secret, jwks_manager.clone()); // Safe: Arc clone for auth service
         Self {
             database,
             auth_service,
             auth_manager,
             admin_jwt_secret: jwt_secret.to_string(),
+            jwks_manager,
         }
     }
 }
@@ -1024,7 +1032,11 @@ async fn handle_admin_setup(
 
             match context
                 .database
-                .create_admin_token(&token_request, &context.admin_jwt_secret)
+                .create_admin_token(
+                    &token_request,
+                    &context.admin_jwt_secret,
+                    &context.jwks_manager,
+                )
                 .await
             {
                 Ok(generated_token) => {
@@ -1380,7 +1392,11 @@ async fn handle_admin_tokens_create(
 
     match context
         .database
-        .create_admin_token(&token_request, &context.admin_jwt_secret)
+        .create_admin_token(
+            &token_request,
+            &context.admin_jwt_secret,
+            &context.jwks_manager,
+        )
         .await
     {
         Ok(generated_token) => {
@@ -1536,7 +1552,11 @@ async fn handle_admin_tokens_rotate(
     // Create new token and revoke old one
     match context
         .database
-        .create_admin_token(&new_token_request, &context.admin_jwt_secret)
+        .create_admin_token(
+            &new_token_request,
+            &context.admin_jwt_secret,
+            &context.jwks_manager,
+        )
         .await
     {
         Ok(new_token) => {

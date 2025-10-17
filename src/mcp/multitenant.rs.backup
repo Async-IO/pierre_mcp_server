@@ -40,7 +40,6 @@ use crate::constants::{
 };
 use crate::dashboard_routes::DashboardRoutes;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
-use crate::fitness_configuration_routes::FitnessConfigurationRoutes;
 use crate::oauth2::routes::oauth2_routes;
 use crate::providers::ProviderRegistry;
 use crate::routes::{AuthRoutes, LoginRequest, OAuthRoutes, RefreshTokenRequest, RegisterRequest};
@@ -170,34 +169,6 @@ impl MultiTenantMcpServer {
         // Initialize security configuration
         let security_config = Self::setup_security_config(&resources.config);
 
-        // Setup all route filters
-        let route_filters = self.setup_all_route_filters(port, &resources);
-
-        // Configure CORS and security
-        let cors = HttpSetup::setup_cors();
-        let security_headers = Self::create_security_headers_filter(&security_config);
-
-        // Combine all routes
-        let routes = route_filters
-            .with(cors)
-            .with(security_headers)
-            .recover(handle_rejection);
-
-        // Start the server
-        info!("HTTP server listening on http://127.0.0.1:{}", port);
-        Box::pin(warp::serve(routes).run(([127, 0, 0, 1], port))).await;
-
-        Ok(())
-    }
-
-    /// Setup all route filters and combine them
-    fn setup_all_route_filters(
-        &self,
-        port: u16,
-        resources: &Arc<ServerResources>,
-    ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-        use warp::Filter;
-
         // Initialize all route handlers using shared resources
         let (
             auth_routes,
@@ -207,178 +178,123 @@ impl MultiTenantMcpServer {
             a2a_routes,
             configuration_routes,
             fitness_configuration_routes,
-        ) = HttpSetup::setup_route_handlers_with_resources(resources);
+        ) = HttpSetup::setup_route_handlers_with_resources(&resources);
 
-        // Setup admin and tenant routes
-        let (admin_routes_filter, tenant_routes_filter) =
-            Self::setup_admin_tenant_routes(resources);
-
-        // Create main application routes
-        let main_routes = Self::setup_main_application_routes(
-            port,
-            resources,
-            auth_routes,
-            &Arc::new(oauth_routes),
-            api_key_routes,
-            &dashboard_routes,
-        );
-
-        // Create A2A routes
-        let a2a_routes_combined = Self::setup_a2a_routes(&a2a_routes);
-
-        // Create configuration routes
-        let config_routes = Self::setup_configuration_routes(
-            resources,
-            &configuration_routes,
-            &fitness_configuration_routes,
-        );
-
-        // Create special routes (SSE, MCP, health)
-        let special_routes = self.setup_special_routes(resources);
-
-        // Combine all routes
-        main_routes
-            .or(a2a_routes_combined)
-            .or(config_routes)
-            .or(admin_routes_filter)
-            .or(tenant_routes_filter)
-            .or(special_routes)
-    }
-
-    /// Setup admin and tenant management routes
-    fn setup_admin_tenant_routes(
-        resources: &Arc<ServerResources>,
-    ) -> (
-        impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone,
-        impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone,
-    ) {
+        // Use JWT secret from resources
         let jwt_secret_str = resources.admin_jwt_secret.as_ref();
         info!("Using admin JWT secret from server startup");
 
+        // Setup admin routes - API requires owned values
         let admin_context = crate::admin_routes::AdminApiContext::new(
             resources.database.clone(),
             jwt_secret_str,
             resources.auth_manager.clone(),
-            resources.jwks_manager.clone(),
         );
-        let admin_routes = crate::admin_routes::admin_routes_with_rejection(admin_context);
+        let admin_routes_filter = crate::admin_routes::admin_routes_with_rejection(admin_context);
 
-        let tenant_routes = Self::create_tenant_routes_filter(
+        // Setup tenant management routes - API requires owned values
+        let tenant_routes_filter = Self::create_tenant_routes_filter(
             resources.database.clone(),
             resources.auth_manager.clone(),
-            resources.jwks_manager.clone(),
         );
 
-        (admin_routes, tenant_routes)
-    }
+        // Configure CORS
+        let cors = HttpSetup::setup_cors();
 
-    /// Setup main application routes (auth, OAuth, API keys, dashboard)
-    fn setup_main_application_routes(
-        port: u16,
-        resources: &Arc<ServerResources>,
-        auth_routes: AuthRoutes,
-        oauth_routes: &Arc<OAuthRoutes>,
-        api_key_routes: ApiKeyRoutes,
-        dashboard_routes: &DashboardRoutes,
-    ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-        use warp::Filter;
+        // Create all route groups using helper functions
+        let auth_route_filter = Self::create_auth_routes(auth_routes);
+        let oauth_route_filter = Self::create_oauth_routes(&oauth_routes, &resources);
 
-        let auth_filter = Self::create_auth_routes(auth_routes);
-        let oauth_filter = Self::create_oauth_routes(oauth_routes, resources);
-        let oauth2_server = oauth2_routes(
+        // Create OAuth 2.0 server routes for MCP client compatibility
+        let oauth2_server_routes = oauth2_routes(
             resources.database.clone(),
             &resources.auth_manager,
             &resources.jwks_manager,
             port,
         );
-        let api_key_filter = Self::create_api_key_routes(
-            &api_key_routes,
+        let api_key_route_filter =
+            Self::create_api_key_routes(&api_key_routes, resources.auth_manager.clone(), resources.jwks_manager.clone());
+        let api_key_usage_filter = Self::create_api_key_usage_route(
+            api_key_routes.clone(),
             resources.auth_manager.clone(),
             resources.jwks_manager.clone(),
-        );
-        let api_key_usage = Self::create_api_key_usage_route(
-            api_key_routes,
-            resources.auth_manager.clone(),
-            resources.jwks_manager.clone(),
-        );
-        let dashboard_filter = Self::create_dashboard_routes(
-            dashboard_routes,
-            resources.auth_manager.clone(),
-            resources.jwks_manager.clone(),
-        );
-        let dashboard_detailed = Self::create_dashboard_detailed_routes(
-            dashboard_routes,
+        ); // Safe: Arc clone for HTTP route sharing
+        let dashboard_route_filter =
+            Self::create_dashboard_routes(&dashboard_routes, resources.auth_manager.clone(), resources.jwks_manager.clone());
+        let dashboard_detailed_filter = Self::create_dashboard_detailed_routes(
+            &dashboard_routes,
             resources.auth_manager.clone(),
             resources.jwks_manager.clone(),
         );
 
-        auth_filter
-            .or(oauth_filter)
-            .or(oauth2_server)
-            .or(api_key_filter)
-            .or(api_key_usage)
-            .or(dashboard_filter)
-            .or(dashboard_detailed)
-    }
+        // Create A2A routes
+        let a2a_basic_filter = Self::create_a2a_basic_routes(&a2a_routes);
+        let a2a_client_filter = Self::create_a2a_client_routes(&a2a_routes);
+        let a2a_monitoring_filter = Self::create_a2a_monitoring_routes(&a2a_routes);
+        let a2a_execution_filter = Self::create_a2a_execution_routes(&a2a_routes);
 
-    /// Setup A2A (Application-to-Application) routes
-    fn setup_a2a_routes(
-        a2a_routes: &A2ARoutes,
-    ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-        use warp::Filter;
-
-        let basic = Self::create_a2a_basic_routes(a2a_routes);
-        let client = Self::create_a2a_client_routes(a2a_routes);
-        let monitoring = Self::create_a2a_monitoring_routes(a2a_routes);
-        let execution = Self::create_a2a_execution_routes(a2a_routes);
-
-        basic.or(client).or(monitoring).or(execution)
-    }
-
-    /// Setup configuration routes (general, user, specialized, fitness)
-    fn setup_configuration_routes(
-        resources: &Arc<ServerResources>,
-        configuration_routes: &Arc<ConfigurationRoutes>,
-        fitness_routes: &Arc<FitnessConfigurationRoutes>,
-    ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-        use warp::Filter;
-
-        let config_filter = Self::create_configuration_routes(configuration_routes);
-        let user_config = Self::create_user_configuration_routes(
-            configuration_routes,
+        // Create configuration routes
+        let configuration_filter = Self::create_configuration_routes(&configuration_routes);
+        let user_configuration_filter = Self::create_user_configuration_routes(
+            &configuration_routes,
             resources.auth_manager.clone(),
-            resources.jwks_manager.clone(),
         );
-        let specialized_config = Self::create_specialized_configuration_routes(
-            configuration_routes,
+        let specialized_configuration_filter = Self::create_specialized_configuration_routes(
+            &configuration_routes,
             resources.auth_manager.clone(),
-            resources.jwks_manager.clone(),
-        );
-        let fitness_config = Self::create_fitness_configuration_routes(
-            resources.auth_manager.clone(),
-            resources.jwks_manager.clone(),
-            fitness_routes,
         );
 
-        config_filter
-            .or(user_config)
-            .or(specialized_config)
-            .or(fitness_config)
-    }
+        // Create fitness configuration routes
+        let fitness_configuration_filter = Self::create_fitness_configuration_routes(
+            resources.auth_manager.clone(),
+            &fitness_configuration_routes,
+        );
 
-    /// Setup special routes (SSE, MCP endpoints, health check)
-    fn setup_special_routes(
-        &self,
-        resources: &Arc<ServerResources>,
-    ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-        use warp::Filter;
+        // Security headers middleware
+        let security_headers = Self::create_security_headers_filter(&security_config);
 
+        // Health check route
+        let health_route = Self::create_health_route();
+
+        // Unified SSE routes for both notifications and MCP protocol
         let sse_routes =
             crate::sse::routes::sse_routes(resources.sse_manager.clone(), resources.clone());
-        let mcp_endpoint = Self::create_mcp_endpoint_routes(resources, self.sessions.clone());
-        let health = Self::create_health_route();
+        let mcp_endpoint_routes =
+            Self::create_mcp_endpoint_routes(&resources, self.sessions.clone());
 
-        sse_routes.or(mcp_endpoint).or(health)
+        // Create websocket route (method needs to exist)
+        // let websocket_route = Self::create_websocket_route(resources.websocket_manager.clone());
+
+        // Combine all routes
+        let routes = auth_route_filter
+            .or(oauth_route_filter)
+            .or(oauth2_server_routes)
+            .or(api_key_route_filter)
+            .or(api_key_usage_filter)
+            .or(dashboard_route_filter)
+            .or(dashboard_detailed_filter)
+            .or(a2a_basic_filter)
+            .or(a2a_client_filter)
+            .or(a2a_monitoring_filter)
+            .or(a2a_execution_filter)
+            .or(configuration_filter)
+            .or(user_configuration_filter)
+            .or(specialized_configuration_filter)
+            .or(fitness_configuration_filter)
+            .or(admin_routes_filter)
+            .or(tenant_routes_filter)
+            .or(sse_routes)
+            .or(mcp_endpoint_routes)
+            .or(health_route)
+            .with(cors)
+            .with(security_headers)
+            .recover(handle_rejection);
+
+        // Start the server
+        info!("HTTP server listening on http://127.0.0.1:{}", port);
+        Box::pin(warp::serve(routes).run(([127, 0, 0, 1], port))).await;
+
+        Ok(())
     }
 
     /// Initialize security configuration based on environment
@@ -1204,11 +1120,10 @@ impl MultiTenantMcpServer {
     fn create_user_configuration_routes(
         configuration_routes: &Arc<ConfigurationRoutes>,
         auth_manager: std::sync::Arc<AuthManager>,
-        jwks_manager: std::sync::Arc<crate::admin::jwks::JwksManager>,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
 
-        let with_auth = Self::create_auth_filter(auth_manager, jwks_manager);
+        let with_auth = Self::create_auth_filter(auth_manager);
 
         // Get user configuration
         let config_user_get = warp::path("api")
@@ -1261,11 +1176,10 @@ impl MultiTenantMcpServer {
     fn create_specialized_configuration_routes(
         configuration_routes: &Arc<ConfigurationRoutes>,
         auth_manager: std::sync::Arc<AuthManager>,
-        jwks_manager: std::sync::Arc<crate::admin::jwks::JwksManager>,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
 
-        let with_auth = Self::create_auth_filter(auth_manager, jwks_manager);
+        let with_auth = Self::create_auth_filter(auth_manager);
 
         // Configuration zones
         let config_zones = warp::path("api")
@@ -1321,33 +1235,20 @@ impl MultiTenantMcpServer {
     /// Create fitness configuration endpoint routes
     fn create_fitness_configuration_routes(
         auth_manager: std::sync::Arc<AuthManager>,
-        jwks_manager: std::sync::Arc<crate::admin::jwks::JwksManager>,
         fitness_config_routes: &Arc<
             crate::fitness_configuration_routes::FitnessConfigurationRoutes,
         >,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
 
-        let list_configs = Self::create_list_fitness_configs_route(
-            fitness_config_routes,
-            auth_manager.clone(),
-            jwks_manager.clone(),
-        );
-        let get_config = Self::create_get_fitness_config_route(
-            fitness_config_routes,
-            auth_manager.clone(),
-            jwks_manager.clone(),
-        );
-        let save_user_config = Self::create_save_fitness_config_route(
-            fitness_config_routes,
-            auth_manager.clone(),
-            jwks_manager.clone(),
-        );
-        let delete_user_config = Self::create_delete_fitness_config_route(
-            fitness_config_routes,
-            auth_manager,
-            jwks_manager,
-        );
+        let list_configs =
+            Self::create_list_fitness_configs_route(fitness_config_routes, auth_manager.clone());
+        let get_config =
+            Self::create_get_fitness_config_route(fitness_config_routes, auth_manager.clone());
+        let save_user_config =
+            Self::create_save_fitness_config_route(fitness_config_routes, auth_manager.clone());
+        let delete_user_config =
+            Self::create_delete_fitness_config_route(fitness_config_routes, auth_manager);
 
         list_configs
             .or(get_config)
@@ -1361,11 +1262,10 @@ impl MultiTenantMcpServer {
             crate::fitness_configuration_routes::FitnessConfigurationRoutes,
         >,
         auth_manager: std::sync::Arc<AuthManager>,
-        jwks_manager: std::sync::Arc<crate::admin::jwks::JwksManager>,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
 
-        let with_auth = Self::create_auth_filter(auth_manager, jwks_manager);
+        let with_auth = Self::create_auth_filter(auth_manager);
 
         warp::path("api")
             .and(warp::path("fitness-configurations"))
@@ -1398,10 +1298,9 @@ impl MultiTenantMcpServer {
             crate::fitness_configuration_routes::FitnessConfigurationRoutes,
         >,
         auth_manager: std::sync::Arc<AuthManager>,
-        jwks_manager: std::sync::Arc<crate::admin::jwks::JwksManager>,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
-        let with_auth = Self::create_auth_filter(auth_manager, jwks_manager);
+        let with_auth = Self::create_auth_filter(auth_manager);
 
         warp::path("api")
             .and(warp::path("fitness-configurations"))
@@ -1435,11 +1334,10 @@ impl MultiTenantMcpServer {
             crate::fitness_configuration_routes::FitnessConfigurationRoutes,
         >,
         auth_manager: std::sync::Arc<AuthManager>,
-        jwks_manager: std::sync::Arc<crate::admin::jwks::JwksManager>,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
 
-        let with_auth = Self::create_auth_filter(auth_manager, jwks_manager);
+        let with_auth = Self::create_auth_filter(auth_manager);
 
         warp::path("api")
             .and(warp::path("fitness-configurations"))
@@ -1476,11 +1374,10 @@ impl MultiTenantMcpServer {
             crate::fitness_configuration_routes::FitnessConfigurationRoutes,
         >,
         auth_manager: std::sync::Arc<AuthManager>,
-        jwks_manager: std::sync::Arc<crate::admin::jwks::JwksManager>,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
 
-        let with_auth = Self::create_auth_filter(auth_manager, jwks_manager);
+        let with_auth = Self::create_auth_filter(auth_manager);
 
         warp::path("api")
             .and(warp::path("fitness-configurations"))
@@ -1550,9 +1447,7 @@ impl MultiTenantMcpServer {
             .and(warp::any().map(move || auth_manager.clone()))
             .and(warp::any().map(move || jwks_manager.clone()))
             .and_then(
-                |auth_header: Option<String>,
-                 auth_mgr: Arc<AuthManager>,
-                 jwks_mgr: Arc<crate::admin::jwks::JwksManager>| async move {
+                |auth_header: Option<String>, auth_mgr: Arc<AuthManager>, jwks_mgr: Arc<crate::admin::jwks::JwksManager>| async move {
                     match auth_header {
                         Some(header) => {
                             // Extract token from "Bearer <token>" format
@@ -1612,11 +1507,10 @@ impl MultiTenantMcpServer {
     fn create_tenant_routes_filter(
         database: Arc<Database>,
         auth_manager: Arc<AuthManager>,
-        jwks_manager: Arc<crate::admin::jwks::JwksManager>,
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
 
-        let with_auth = Self::create_auth_filter(auth_manager, jwks_manager);
+        let with_auth = Self::create_auth_filter(auth_manager);
 
         // POST /api/tenants - Create tenant
         let create_tenant = warp::path("api")

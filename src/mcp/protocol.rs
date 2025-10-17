@@ -201,7 +201,10 @@ impl ProtocolHandler {
 
         // Extract user_id from auth context if available
         let user_id = request.auth_token.as_ref().and_then(|auth_token| {
-            match resources.auth_manager.validate_token(auth_token) {
+            match resources
+                .auth_manager
+                .validate_token_rs256(auth_token, &resources.jwks_manager)
+            {
                 Ok(claims) => {
                     if let Ok(id) = Uuid::parse_str(&claims.sub) {
                         Some(id)
@@ -241,7 +244,10 @@ impl ProtocolHandler {
 
         // Extract user_id from auth context
         let user_id = if let Some(auth_token) = &request.auth_token {
-            match resources.auth_manager.validate_token(auth_token) {
+            match resources
+                .auth_manager
+                .validate_token_rs256(auth_token, &resources.jwks_manager)
+            {
                 Ok(claims) => {
                     if let Ok(id) = Uuid::parse_str(&claims.sub) {
                         id
@@ -393,7 +399,10 @@ impl ProtocolHandler {
         })?;
 
         // Validate token and extract user_id
-        match resources.auth_manager.validate_token(auth_token) {
+        match resources
+            .auth_manager
+            .validate_token_rs256(auth_token, &resources.jwks_manager)
+        {
             Ok(claims) => uuid::Uuid::parse_str(&claims.sub).map_or_else(
                 |_| {
                     Err(Box::new(McpResponse::error(

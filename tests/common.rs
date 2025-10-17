@@ -99,7 +99,13 @@ pub fn create_test_auth_middleware(
     auth_manager: &Arc<AuthManager>,
     database: Arc<Database>,
 ) -> Arc<McpAuthMiddleware> {
-    Arc::new(McpAuthMiddleware::new((**auth_manager).clone(), database))
+    // Create JWKS manager for RS256
+    let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
+    Arc::new(McpAuthMiddleware::new(
+        (**auth_manager).clone(),
+        database,
+        jwks_manager,
+    ))
 }
 
 /// Create test cache with background cleanup disabled

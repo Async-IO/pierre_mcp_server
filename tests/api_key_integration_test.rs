@@ -39,9 +39,11 @@ async fn create_test_environment() -> (
     let auth_manager = Arc::new(AuthManager::new(jwt_secret, 24));
 
     // Create auth middleware
+    let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
     let auth_middleware = Arc::new(McpAuthMiddleware::new(
         (*auth_manager).clone(),
         database.clone(),
+        jwks_manager,
     ));
 
     // Create test user

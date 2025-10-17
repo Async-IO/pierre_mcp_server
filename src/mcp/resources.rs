@@ -15,6 +15,7 @@
 
 use crate::a2a::client::A2AClientManager;
 use crate::a2a::system_user::A2ASystemUserService;
+use crate::admin::jwks::JwksManager;
 use crate::auth::AuthManager;
 use crate::cache::factory::Cache;
 use crate::database_plugins::factory::Database;
@@ -35,6 +36,7 @@ use tokio::sync::broadcast;
 pub struct ServerResources {
     pub database: Arc<Database>,
     pub auth_manager: Arc<AuthManager>,
+    pub jwks_manager: Arc<JwksManager>,
     pub auth_middleware: Arc<McpAuthMiddleware>,
     pub websocket_manager: Arc<WebSocketManager>,
     pub tenant_oauth_client: Arc<TenantOAuthClient>,
@@ -60,18 +62,6 @@ impl ServerResources {
     ) -> Self {
         let database_arc = Arc::new(database);
         let auth_manager_arc = Arc::new(auth_manager);
-
-        // Create auth middleware with shared references (no cloning)
-        let auth_middleware = Arc::new(McpAuthMiddleware::new(
-            (*auth_manager_arc).clone(),
-            database_arc.clone(),
-        ));
-
-        // Create websocket manager with shared references (no cloning)
-        let websocket_manager = Arc::new(WebSocketManager::new(
-            database_arc.clone(),
-            &auth_manager_arc,
-        ));
 
         // Create tenant OAuth client and provider registry once
         let tenant_oauth_client = Arc::new(TenantOAuthClient::new(TenantOAuthManager::new()));
@@ -141,9 +131,35 @@ impl ServerResources {
         // Wrap cache in Arc for shared access across handlers
         let cache_arc = Arc::new(cache);
 
+        // Create JWKS manager for RS256 JWT signing
+        let mut jwks_manager = JwksManager::new();
+        // Generate initial RSA key pair for RS256 signing
+        if let Err(e) = jwks_manager.generate_rsa_key_pair("initial_key") {
+            tracing::warn!(
+                "Failed to generate initial JWKS key pair: {}. RS256 tokens will not be available.",
+                e
+            );
+        }
+        let jwks_manager_arc = Arc::new(jwks_manager);
+
+        // Create websocket manager after jwks_manager is initialized
+        let websocket_manager = Arc::new(WebSocketManager::new(
+            database_arc.clone(),
+            &auth_manager_arc,
+            &jwks_manager_arc,
+        ));
+
+        // Create auth middleware after jwks_manager is initialized
+        let auth_middleware = Arc::new(McpAuthMiddleware::new(
+            (*auth_manager_arc).clone(),
+            database_arc.clone(),
+            jwks_manager_arc.clone(),
+        ));
+
         Self {
             database: database_arc,
             auth_manager: auth_manager_arc,
+            jwks_manager: jwks_manager_arc,
             auth_middleware,
             websocket_manager,
             tenant_oauth_client,

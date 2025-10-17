@@ -61,6 +61,7 @@ impl AdminApiContext {
         database: &Arc<Database>,
         jwt_secret: &str,
         auth_manager: &Arc<AuthManager>,
+        jwks_manager: &Arc<crate::admin::jwks::JwksManager>,
     ) -> Self {
         tracing::info!(
             "Creating AdminApiContext with JWT secret (first 10 chars): {}...",
@@ -69,7 +70,11 @@ impl AdminApiContext {
 
         Self {
             database: database.clone(),
-            auth_service: AdminAuthService::new((**database).clone(), jwt_secret),
+            auth_service: AdminAuthService::new(
+                (**database).clone(),
+                jwt_secret,
+                jwks_manager.clone(),
+            ),
             auth_manager: auth_manager.clone(),
             admin_jwt_secret: jwt_secret.to_string(),
         }

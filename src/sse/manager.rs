@@ -111,6 +111,7 @@ impl SseManager {
                 if let Ok(jwt_result) = crate::mcp::tenant_isolation::validate_jwt_token_for_mcp(
                     token,
                     &resources.auth_manager,
+                    &resources.jwks_manager,
                     &resources.database,
                 )
                 .await

@@ -176,6 +176,12 @@ async fn main() -> Result<()> {
     info!("Running database migrations...");
     database.migrate().await?;
 
+    // Initialize JWKS manager for RS256 admin token signing
+    info!("Initializing JWKS manager for RS256 admin tokens...");
+    let mut jwks_manager = pierre_mcp_server::admin::jwks::JwksManager::new();
+    jwks_manager.generate_rsa_key_pair("admin_key_1")?;
+    info!("JWKS manager initialized with RSA-4096 key pair");
+
     // Execute command
     match args.command {
         AdminCommand::GenerateToken {
@@ -187,6 +193,7 @@ async fn main() -> Result<()> {
         } => {
             generate_token_command(
                 &database,
+                &jwks_manager,
                 service,
                 description,
                 expires_days,
@@ -216,7 +223,7 @@ async fn main() -> Result<()> {
             token_id,
             expires_days,
         } => {
-            rotate_token_command(&database, token_id, expires_days).await?;
+            rotate_token_command(&database, &jwks_manager, token_id, expires_days).await?;
         }
         AdminCommand::TokenStats { token_id, days } => {
             token_stats_command(&database, token_id, days).await?;
@@ -229,6 +236,7 @@ async fn main() -> Result<()> {
 /// Generate a new admin token
 async fn generate_token_command(
     database: &Database,
+    jwks_manager: &pierre_mcp_server::admin::jwks::JwksManager,
     service: String,
     description: Option<String>,
     expires_days: u64,
@@ -324,8 +332,10 @@ async fn generate_token_command(
         jwt_secret.chars().take(10).collect::<String>()
     );
 
-    // Generate token
-    let generated_token = database.create_admin_token(&request, &jwt_secret).await?;
+    // Generate token using RS256 asymmetric signing
+    let generated_token = database
+        .create_admin_token(&request, &jwt_secret, jwks_manager)
+        .await?;
 
     // Display results
     display_generated_token(&generated_token);
@@ -439,6 +449,7 @@ async fn revoke_token_command(database: &Database, token_id: String) -> Result<(
 /// Rotate an admin token (create new, revoke old)
 async fn rotate_token_command(
     database: &Database,
+    jwks_manager: &pierre_mcp_server::admin::jwks::JwksManager,
     token_id: String,
     expires_days: Option<u64>,
 ) -> Result<()> {
@@ -475,8 +486,10 @@ async fn rotate_token_command(
         ));
     };
 
-    // Generate new token
-    let new_token = database.create_admin_token(&request, &jwt_secret).await?;
+    // Generate new token using RS256 asymmetric signing
+    let new_token = database
+        .create_admin_token(&request, &jwt_secret, jwks_manager)
+        .await?;
 
     // Revoke old token
     database.deactivate_admin_token(&token_id).await?;

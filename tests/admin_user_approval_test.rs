@@ -6,7 +6,7 @@
 
 use anyhow::Result;
 use pierre_mcp_server::{
-    admin::models::CreateAdminTokenRequest,
+    admin::{jwks::JwksManager, models::CreateAdminTokenRequest},
     database_plugins::{factory::Database, DatabaseProvider},
     models::{User, UserStatus, UserTier},
 };
@@ -65,8 +65,12 @@ async fn setup_test_database() -> Result<(Database, String, Uuid)> {
         is_super_admin: true,
     };
 
+    // Initialize JWKS manager for RS256 admin token signing
+    let mut jwks_manager = JwksManager::new();
+    jwks_manager.generate_rsa_key_pair("test_admin_key")?;
+
     let admin_token = database
-        .create_admin_token(&admin_request, TEST_JWT_SECRET)
+        .create_admin_token(&admin_request, TEST_JWT_SECRET, &jwks_manager)
         .await?;
 
     Ok((database, admin_token.token_id, admin_user_id))

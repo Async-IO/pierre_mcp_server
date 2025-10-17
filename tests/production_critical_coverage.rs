@@ -303,7 +303,9 @@ async fn test_production_rate_limiting() -> Result<()> {
 async fn test_websocket_connection_scenarios() -> Result<()> {
     let database = create_test_database().await?;
     let auth_manager = common::create_test_auth_manager();
-    let websocket_manager = WebSocketManager::new(Arc::new((*database).clone()), &auth_manager);
+    let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
+    let websocket_manager =
+        WebSocketManager::new(Arc::new((*database).clone()), &auth_manager, &jwks_manager);
 
     // Test system stats broadcast (this is one of the main WebSocket functions)
     let result = websocket_manager.broadcast_system_stats().await;

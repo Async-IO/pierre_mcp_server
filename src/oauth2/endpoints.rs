@@ -8,6 +8,7 @@
 // - String ownership transfers to struct constructors (OAuth2AuthCode, TokenResponse)
 // - Arc clone for database manager creation
 
+use crate::admin::jwks::JwksManager;
 use crate::auth::AuthManager;
 use crate::database_plugins::DatabaseProvider;
 use crate::oauth2::client_registration::ClientRegistrationManager;
@@ -27,6 +28,7 @@ use uuid::Uuid;
 pub struct OAuth2AuthorizationServer {
     client_manager: ClientRegistrationManager,
     auth_manager: Arc<AuthManager>,
+    jwks_manager: Arc<JwksManager>,
     database: Arc<crate::database_plugins::factory::Database>,
 }
 
@@ -34,12 +36,14 @@ impl OAuth2AuthorizationServer {
     pub fn new(
         database: Arc<crate::database_plugins::factory::Database>,
         auth_manager: Arc<AuthManager>,
+        jwks_manager: Arc<JwksManager>,
     ) -> Self {
         let client_manager = ClientRegistrationManager::new(database.clone()); // Safe: Arc clone for manager construction
 
         Self {
             client_manager,
             auth_manager,
+            jwks_manager,
             database,
         }
     }
@@ -409,7 +413,7 @@ impl OAuth2AuthorizationServer {
         Ok(auth_code)
     }
 
-    /// Generate JWT access token
+    /// Generate JWT access token with RS256 asymmetric signing
     fn generate_access_token(
         &self,
         client_id: &str,
@@ -426,10 +430,19 @@ impl OAuth2AuthorizationServer {
 
         user_id.map_or_else(
             || {
-                self.auth_manager
-                    .generate_client_credentials_token(client_id, &scopes)
+                self.auth_manager.generate_client_credentials_token_rs256(
+                    &self.jwks_manager,
+                    client_id,
+                    &scopes,
+                )
             },
-            |uid| self.auth_manager.generate_oauth_access_token(&uid, &scopes),
+            |uid| {
+                self.auth_manager.generate_oauth_access_token_rs256(
+                    &self.jwks_manager,
+                    &uid,
+                    &scopes,
+                )
+            },
         )
     }
 

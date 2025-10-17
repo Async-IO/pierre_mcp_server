@@ -70,10 +70,18 @@ struct ClientConnection {
 }
 
 impl WebSocketManager {
-    pub fn new(database: Arc<Database>, auth_manager: &Arc<AuthManager>) -> Self {
+    pub fn new(
+        database: Arc<Database>,
+        auth_manager: &Arc<AuthManager>,
+        jwks_manager: &Arc<crate::admin::jwks::JwksManager>,
+    ) -> Self {
         let (broadcast_tx, _) =
             broadcast::channel(crate::constants::rate_limits::WEBSOCKET_CHANNEL_CAPACITY);
-        let auth_middleware = McpAuthMiddleware::new((**auth_manager).clone(), database.clone()); // Safe: Arc clones for middleware creation
+        let auth_middleware = McpAuthMiddleware::new(
+            (**auth_manager).clone(),
+            database.clone(),
+            jwks_manager.clone(),
+        ); // Safe: Arc clones for middleware creation
 
         Self {
             database,

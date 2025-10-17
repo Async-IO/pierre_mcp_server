@@ -192,12 +192,16 @@ impl AdminTestSetup {
         let database = common::create_test_database().await?;
         let auth_manager = common::create_test_auth_manager();
 
+        // Create JWKS manager for RS256
+        let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
+
         // Create admin context
         let jwt_secret = "test_admin_jwt_secret_for_route_testing";
         let context = AdminApiContext::new(
             Arc::new((*database).clone()),
             jwt_secret,
             auth_manager.clone(),
+            jwks_manager,
         );
 
         // Create test user
@@ -1123,7 +1127,11 @@ async fn test_revoke_admin_token() -> Result<()> {
     let token_to_revoke = setup
         .context
         .database
-        .create_admin_token(&revoke_request, TEST_JWT_SECRET)
+        .create_admin_token(
+            &revoke_request,
+            TEST_JWT_SECRET,
+            &setup.context.jwks_manager,
+        )
         .await?;
 
     let path = format!("/admin/tokens/{}/revoke", token_to_revoke.token_id);
@@ -1168,7 +1176,11 @@ async fn test_rotate_admin_token() -> Result<()> {
     let token_to_rotate = setup
         .context
         .database
-        .create_admin_token(&rotate_request, TEST_JWT_SECRET)
+        .create_admin_token(
+            &rotate_request,
+            TEST_JWT_SECRET,
+            &setup.context.jwks_manager,
+        )
         .await?;
 
     let path = format!("/admin/tokens/{}/rotate", token_to_rotate.token_id);

@@ -356,6 +356,58 @@ impl JwksManager {
         }
         true // Rotate if no active key
     }
+
+    /// Sign admin token claims using RS256
+    ///
+    /// # Errors
+    /// Returns error if no active key exists or signing fails
+    pub fn sign_admin_token<T: Serialize>(&self, claims: &T) -> Result<String> {
+        use jsonwebtoken::{encode, Header};
+
+        let active_key = self.get_active_key()?;
+
+        let mut header = Header::new(jsonwebtoken::Algorithm::RS256);
+        header.kid = Some(active_key.kid.clone());
+
+        let encoding_key = active_key.encoding_key();
+
+        encode(&header, claims, &encoding_key)
+            .map_err(|e| anyhow!("Failed to encode RS256 admin JWT: {e}"))
+    }
+
+    /// Verify admin token and extract claims
+    ///
+    /// # Errors
+    /// Returns error if token verification fails or claims cannot be decoded
+    pub fn verify_admin_token<T: for<'de> Deserialize<'de>>(&self, token: &str) -> Result<T> {
+        use jsonwebtoken::{decode, decode_header, Validation};
+
+        // Extract kid from header
+        let header =
+            decode_header(token).map_err(|e| anyhow!("Failed to decode JWT header: {e}"))?;
+
+        let kid = header
+            .kid
+            .ok_or_else(|| anyhow!("JWT header missing kid"))?;
+
+        // Get corresponding key
+        let key_pair = self
+            .get_key(&kid)
+            .ok_or_else(|| anyhow!("Unknown key ID: {kid}"))?;
+
+        let decoding_key = key_pair.decoding_key();
+
+        // Set up validation
+        let mut validation = Validation::new(jsonwebtoken::Algorithm::RS256);
+        validation.set_audience(&[crate::constants::service_names::ADMIN_API]);
+        validation.set_issuer(&[crate::constants::service_names::PIERRE_MCP_SERVER]);
+
+        // Verify and decode
+        let token_data = decode::<T>(token, &decoding_key, &validation)
+            .map_err(|e| anyhow!("Failed to verify RS256 admin JWT: {e}"))?;
+
+        Ok(token_data.claims)
+    }
 }
 
 impl Default for JwksManager {

@@ -1029,11 +1029,18 @@ impl DatabaseProvider for Database {
         &self,
         request: &crate::admin::models::CreateAdminTokenRequest,
         admin_jwt_secret: &str,
+        jwks_manager: &crate::admin::jwks::JwksManager,
     ) -> Result<crate::admin::models::GeneratedAdminToken> {
         match self {
-            Self::SQLite(db) => db.create_admin_token(request, admin_jwt_secret).await,
+            Self::SQLite(db) => {
+                db.create_admin_token(request, admin_jwt_secret, jwks_manager)
+                    .await
+            }
             #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(db) => db.create_admin_token(request, admin_jwt_secret).await,
+            Self::PostgreSQL(db) => {
+                db.create_admin_token(request, admin_jwt_secret, jwks_manager)
+                    .await
+            }
         }
     }
 

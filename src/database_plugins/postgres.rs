@@ -2154,6 +2154,7 @@ impl DatabaseProvider for PostgresDatabase {
         &self,
         request: &crate::admin::models::CreateAdminTokenRequest,
         admin_jwt_secret: &str,
+        jwks_manager: &crate::admin::jwks::JwksManager,
     ) -> Result<crate::admin::models::GeneratedAdminToken> {
         use crate::admin::{
             jwt::AdminJwtManager,
@@ -2164,6 +2165,9 @@ impl DatabaseProvider for PostgresDatabase {
         // Generate unique token ID
         let uuid = Uuid::new_v4().simple();
         let token_id = format!("admin_{uuid}");
+
+        // Debug: Log token creation without exposing secrets
+        tracing::debug!("Creating admin token with RS256 asymmetric signing");
 
         // Use the JWT secret passed from server startup
         let jwt_manager = AdminJwtManager::with_secret(admin_jwt_secret);
@@ -2185,13 +2189,14 @@ impl DatabaseProvider for PostgresDatabase {
             chrono::Utc::now() + chrono::Duration::days(i64::try_from(days).unwrap_or(365))
         });
 
-        // Generate JWT token
-        let jwt_token = jwt_manager.generate_token(
+        // Generate JWT token using RS256 (asymmetric signing)
+        let jwt_token = jwt_manager.generate_token_rs256(
             &token_id,
             &request.service_name,
             &permissions,
             request.is_super_admin,
             expires_at,
+            jwks_manager,
         )?;
 
         // Generate token prefix and hash for storage

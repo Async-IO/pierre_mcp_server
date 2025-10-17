@@ -4,6 +4,7 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+use crate::admin::jwks::JwksManager;
 use crate::auth::AuthManager;
 use crate::middleware::McpAuthMiddleware;
 use std::sync::Arc;
@@ -17,11 +18,13 @@ use std::sync::Arc;
 /// - `auth_manager`: Core authentication and token management
 /// - `auth_middleware`: MCP-specific authentication middleware
 /// - `admin_jwt_secret`: Secret for admin JWT token validation
+/// - `jwks_manager`: JWKS manager for RS256 token signing and key rotation
 #[derive(Clone)]
 pub struct AuthContext {
     auth_manager: Arc<AuthManager>,
     auth_middleware: Arc<McpAuthMiddleware>,
     admin_jwt_secret: Arc<str>,
+    jwks_manager: Arc<JwksManager>,
 }
 
 impl AuthContext {
@@ -31,11 +34,13 @@ impl AuthContext {
         auth_manager: Arc<AuthManager>,
         auth_middleware: Arc<McpAuthMiddleware>,
         admin_jwt_secret: Arc<str>,
+        jwks_manager: Arc<JwksManager>,
     ) -> Self {
         Self {
             auth_manager,
             auth_middleware,
             admin_jwt_secret,
+            jwks_manager,
         }
     }
 
@@ -55,5 +60,11 @@ impl AuthContext {
     #[must_use]
     pub const fn admin_jwt_secret(&self) -> &Arc<str> {
         &self.admin_jwt_secret
+    }
+
+    /// Get JWKS manager for RS256 token operations
+    #[must_use]
+    pub const fn jwks_manager(&self) -> &Arc<JwksManager> {
+        &self.jwks_manager
     }
 }

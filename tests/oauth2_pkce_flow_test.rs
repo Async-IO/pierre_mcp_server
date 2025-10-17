@@ -38,7 +38,15 @@ async fn setup_test_env() -> (
     let jwt_secret = b"test_jwt_secret_key_for_testing_purposes_only".to_vec();
     let auth_manager = Arc::new(AuthManager::new(jwt_secret, 24));
 
-    let oauth_server = OAuth2AuthorizationServer::new(database.clone(), auth_manager.clone());
+    // Create JWKS manager for RS256 token signing
+    let mut jwks_manager = pierre_mcp_server::admin::jwks::JwksManager::new();
+    jwks_manager
+        .generate_rsa_key_pair("test_key")
+        .expect("Failed to generate RSA key pair");
+    let jwks_manager = Arc::new(jwks_manager);
+
+    let oauth_server =
+        OAuth2AuthorizationServer::new(database.clone(), auth_manager.clone(), jwks_manager);
 
     // Register a test client
     let registration_manager = ClientRegistrationManager::new(database.clone());

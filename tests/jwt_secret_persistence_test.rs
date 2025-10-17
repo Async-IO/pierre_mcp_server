@@ -5,6 +5,7 @@
 // Copyright ©2025 Async-IO.org
 
 use anyhow::Result;
+use pierre_mcp_server::admin::jwks::JwksManager;
 use pierre_mcp_server::database_plugins::{factory::Database, DatabaseProvider};
 use pierre_mcp_server::key_management::KeyManager;
 use tempfile::TempDir;
@@ -15,6 +16,10 @@ async fn test_jwt_secret_persistence_across_restarts() -> Result<()> {
     let temp_dir = TempDir::new()?;
     let db_path = temp_dir.path().join("test_jwt_persistence.db");
     let db_url = format!("sqlite:{}", db_path.display());
+
+    // Initialize JWKS manager for RS256 admin token signing (shared across "restarts")
+    let mut jwks_manager = JwksManager::new();
+    jwks_manager.generate_rsa_key_pair("test_key")?;
 
     // Step 1: First initialization - simulate admin-setup
     let jwt_secret_1 = {
@@ -36,7 +41,9 @@ async fn test_jwt_secret_persistence_across_restarts() -> Result<()> {
             is_super_admin: true,
         };
 
-        let generated_token = database.create_admin_token(&request, &jwt_secret).await?;
+        let generated_token = database
+            .create_admin_token(&request, &jwt_secret, &jwks_manager)
+            .await?;
         println!("Generated token: {}", generated_token.jwt_token);
 
         (jwt_secret, generated_token.jwt_token)
@@ -60,11 +67,11 @@ async fn test_jwt_secret_persistence_across_restarts() -> Result<()> {
         "JWT secret changed between restarts! This causes admin token invalidation."
     );
 
-    // Step 4: Verify admin token can be validated with persistent secret
+    // Step 4: Verify admin token can be validated with persistent secret using RS256
     let jwt_manager = pierre_mcp_server::admin::jwt::AdminJwtManager::with_secret(&jwt_secret_2);
 
-    // This should NOT fail with InvalidSignature
-    let validation_result = jwt_manager.validate_token(&jwt_secret_1.1);
+    // This should NOT fail with InvalidSignature (using RS256 validation)
+    let validation_result = jwt_manager.validate_token_rs256(&jwt_secret_1.1, &jwks_manager);
     assert!(
         validation_result.is_ok(),
         "Admin token validation failed after restart: {:?}",

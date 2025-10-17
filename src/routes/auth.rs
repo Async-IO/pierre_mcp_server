@@ -205,8 +205,11 @@ impl AuthService {
             .update_last_active(user.id)
             .await?;
 
-        // Generate JWT token
-        let jwt_token = self.auth_context.auth_manager().generate_token(&user)?;
+        // Generate JWT token using RS256
+        let jwt_token = self
+            .auth_context
+            .auth_manager()
+            .generate_token_rs256(&user, self.auth_context.jwks_manager())?;
         let expires_at =
             chrono::Utc::now() + chrono::Duration::hours(limits::DEFAULT_SESSION_HOURS); // Default 24h expiry
 
@@ -234,11 +237,11 @@ impl AuthService {
     pub async fn refresh_token(&self, request: RefreshTokenRequest) -> Result<LoginResponse> {
         tracing::info!("Token refresh attempt for user with refresh token");
 
-        // Extract user from refresh token
+        // Extract user from refresh token using RS256 validation
         let token_claims = self
             .auth_context
             .auth_manager()
-            .validate_token(&request.token)?;
+            .validate_token_rs256(&request.token, self.auth_context.jwks_manager())?;
         let user_id = uuid::Uuid::parse_str(&token_claims.sub)?;
 
         // Validate that the user_id matches the one in the request
@@ -255,8 +258,11 @@ impl AuthService {
             .await?
             .ok_or_else(|| anyhow::anyhow!("User not found"))?;
 
-        // Generate new JWT token
-        let new_jwt_token = self.auth_context.auth_manager().generate_token(&user)?;
+        // Generate new JWT token using RS256
+        let new_jwt_token = self
+            .auth_context
+            .auth_manager()
+            .generate_token_rs256(&user, self.auth_context.jwks_manager())?;
         let expires_at =
             chrono::Utc::now() + chrono::Duration::hours(limits::DEFAULT_SESSION_HOURS);
 
@@ -1095,7 +1101,7 @@ impl AuthRoutes {
                 let token = header.strip_prefix("Bearer ").unwrap_or(&header);
                 let claims = resources
                     .auth_manager
-                    .validate_token(token)
+                    .validate_token_rs256(token, &resources.jwks_manager)
                     .map_err(|e| warp::reject::custom(AppError::from(e)))?;
                 uuid::Uuid::parse_str(&claims.sub)
                     .map_err(|e| warp::reject::custom(AppError::auth_invalid(e.to_string())))?

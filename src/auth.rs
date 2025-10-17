@@ -208,7 +208,49 @@ impl AuthManager {
         &self.jwt_secret
     }
 
-    /// Generate a `JWT` token for a user
+    /// Generate a `JWT` token for a user with RS256 asymmetric signing
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - JWT encoding fails due to invalid claims
+    /// - System time is unavailable for timestamp generation
+    /// - JWKS manager has no active key
+    pub fn generate_token_rs256(
+        &self,
+        user: &User,
+        jwks_manager: &crate::admin::jwks::JwksManager,
+    ) -> Result<String> {
+        let now = Utc::now();
+        let expiry = now + Duration::hours(self.token_expiry_hours);
+
+        // Use atomic counter to ensure unique issued-at times
+        let counter = self.token_counter.fetch_add(1, Ordering::Relaxed);
+        let unique_iat =
+            now.timestamp() * 1000 + i64::from(u32::try_from(counter % 1000).unwrap_or(0));
+
+        let claims = Claims {
+            sub: user.id.to_string(),
+            email: user.email.clone(),
+            iat: unique_iat,
+            exp: expiry.timestamp(),
+            providers: user.available_providers(),
+        };
+
+        // Get active RSA key from JWKS manager
+        let active_key = jwks_manager.get_active_key()?;
+        let encoding_key = active_key.encoding_key();
+
+        // Create RS256 header with kid
+        let mut header = Header::new(Algorithm::RS256);
+        header.kid = Some(active_key.kid.clone());
+
+        let token = encode(&header, &claims, &encoding_key)?;
+
+        Ok(token)
+    }
+
+    /// Generate a `JWT` token for a user (HS256 - deprecated, use RS256)
     ///
     /// # Errors
     ///
@@ -243,7 +285,7 @@ impl AuthManager {
         Ok(token)
     }
 
-    /// Validate a `JWT` token and extract claims
+    /// Validate a `JWT` token and extract claims (HS256)
     ///
     /// # Errors
     ///
@@ -268,6 +310,48 @@ impl AuthManager {
         )
         .map_err(|e| {
             tracing::error!("JWT validation failed: {:?}", e);
+            e
+        })?;
+
+        Ok(token_data.claims)
+    }
+
+    /// Validate a RS256 JWT token using JWKS public keys
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Token signature is invalid
+    /// - Token has expired
+    /// - Token is malformed or not valid JWT format
+    /// - Token header doesn't contain kid (key ID)
+    /// - JWKS manager doesn't have the specified key
+    /// - Token claims cannot be deserialized
+    pub fn validate_token_rs256(
+        &self,
+        token: &str,
+        jwks_manager: &crate::admin::jwks::JwksManager,
+    ) -> Result<Claims> {
+        // Extract kid from token header
+        let header = jsonwebtoken::decode_header(token)?;
+        let kid = header
+            .kid
+            .ok_or_else(|| anyhow::anyhow!("Token header missing kid (key ID)"))?;
+
+        tracing::debug!("Validating RS256 JWT token with kid: {}", kid);
+
+        // Get public key from JWKS manager
+        let key_pair = jwks_manager
+            .get_key(&kid)
+            .ok_or_else(|| anyhow::anyhow!("Key not found in JWKS: {}", kid))?;
+
+        let decoding_key = key_pair.decoding_key();
+
+        let mut validation = Validation::new(Algorithm::RS256);
+        validation.validate_exp = true;
+
+        let token_data = decode::<Claims>(token, &decoding_key, &validation).map_err(|e| {
+            tracing::error!("RS256 JWT validation failed: {:?}", e);
             e
         })?;
 
@@ -329,7 +413,7 @@ impl AuthManager {
         }
     }
 
-    /// Validate a `JWT` token with detailed error information
+    /// Validate a `JWT` token with detailed error information (HS256)
     ///
     /// # Errors
     ///
@@ -348,6 +432,38 @@ impl AuthManager {
         Ok(claims)
     }
 
+    /// Validate a RS256 JWT token with detailed error information
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`JwtValidationError`] if:
+    /// - Token signature is invalid
+    /// - Token has expired
+    /// - Token is malformed or not valid JWT format
+    /// - Token header doesn't contain kid (key ID)
+    /// - JWKS manager doesn't have the specified key
+    /// - Token claims cannot be deserialized
+    pub fn validate_token_detailed_rs256(
+        &self,
+        token: &str,
+        jwks_manager: &crate::admin::jwks::JwksManager,
+    ) -> Result<Claims, JwtValidationError> {
+        tracing::debug!(
+            "Validating RS256 JWT token (length: {} chars): {}",
+            token.len(),
+            &token[..std::cmp::min(100, token.len())]
+        );
+
+        let claims = Self::decode_token_claims_rs256(token, jwks_manager)?;
+        Self::validate_claims_expiry(&claims)?;
+
+        tracing::debug!(
+            "RS256 JWT token validation successful for user: {}",
+            claims.sub
+        );
+        Ok(claims)
+    }
+
     /// Log the start of token validation with debug information
     fn log_token_validation_start(&self, token: &str) {
         tracing::debug!(
@@ -361,7 +477,7 @@ impl AuthManager {
         );
     }
 
-    /// Decode JWT token claims without expiration validation
+    /// Decode JWT token claims without expiration validation (HS256)
     fn decode_token_claims(&self, token: &str) -> Result<Claims, JwtValidationError> {
         let mut validation_no_exp = Validation::new(Algorithm::HS256);
         validation_no_exp.validate_exp = false;
@@ -373,6 +489,41 @@ impl AuthManager {
         )
         .map(|token_data| token_data.claims)
         .map_err(|e| Self::convert_jwt_error(&e))
+    }
+
+    /// Decode RS256 JWT token claims without expiration validation
+    fn decode_token_claims_rs256(
+        token: &str,
+        jwks_manager: &crate::admin::jwks::JwksManager,
+    ) -> Result<Claims, JwtValidationError> {
+        // Extract kid from token header
+        let header =
+            jsonwebtoken::decode_header(token).map_err(|e| JwtValidationError::TokenMalformed {
+                details: format!("Failed to decode token header: {e}"),
+            })?;
+
+        let kid = header
+            .kid
+            .ok_or_else(|| JwtValidationError::TokenMalformed {
+                details: "Token header missing kid (key ID)".to_string(),
+            })?;
+
+        // Get public key from JWKS manager
+        let key_pair =
+            jwks_manager
+                .get_key(&kid)
+                .ok_or_else(|| JwtValidationError::TokenInvalid {
+                    reason: format!("Key not found in JWKS: {kid}"),
+                })?;
+
+        let decoding_key = key_pair.decoding_key();
+
+        let mut validation_no_exp = Validation::new(Algorithm::RS256);
+        validation_no_exp.validate_exp = false;
+
+        decode::<Claims>(token, &decoding_key, &validation_no_exp)
+            .map(|token_data| token_data.claims)
+            .map_err(|e| Self::convert_jwt_error(&e))
     }
 
     /// Validate claims expiration with detailed logging
@@ -392,7 +543,33 @@ impl AuthManager {
         Self::check_token_expiry(claims, current_time, expired_at)
     }
 
-    /// Create a user session from a valid user
+    /// Create a user session from a valid user with RS256 token
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - JWT token generation fails
+    /// - User data is invalid
+    /// - System time is unavailable
+    /// - JWKS manager has no active key
+    pub fn create_session_rs256(
+        &self,
+        user: &User,
+        jwks_manager: &crate::admin::jwks::JwksManager,
+    ) -> Result<UserSession> {
+        let jwt_token = self.generate_token_rs256(user, jwks_manager)?;
+        let expires_at = Utc::now() + Duration::hours(self.token_expiry_hours);
+
+        Ok(UserSession {
+            user_id: user.id,
+            jwt_token,
+            expires_at,
+            email: user.email.clone(),
+            available_providers: user.available_providers(),
+        })
+    }
+
+    /// Create a user session from a valid user (HS256 - deprecated, use RS256)
     ///
     /// # Errors
     ///
@@ -439,7 +616,32 @@ impl AuthManager {
         }
     }
 
-    /// Refresh a token if it's still valid
+    /// Refresh a token if it's still valid (RS256)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Old token signature is invalid (even if expired)
+    /// - Token is malformed
+    /// - New token generation fails
+    /// - User data is invalid
+    /// - JWKS manager has no active key
+    pub fn refresh_token_rs256(
+        &self,
+        old_token: &str,
+        user: &User,
+        jwks_manager: &crate::admin::jwks::JwksManager,
+    ) -> Result<String> {
+        // First validate the old token signature (even if expired)
+        // This ensures the refresh request is legitimate
+        let _claims = Self::decode_token_claims_rs256(old_token, jwks_manager)
+            .map_err(|e| anyhow::anyhow!("Failed to validate old token for refresh: {e}"))?;
+
+        // Generate new token - atomic counter ensures uniqueness
+        self.generate_token_rs256(user, jwks_manager)
+    }
+
+    /// Refresh a token if it's still valid (HS256 - deprecated, use RS256)
     ///
     /// # Errors
     ///
@@ -538,7 +740,7 @@ impl AuthManager {
         }
     }
 
-    /// Generate OAuth access token for user authorization flow
+    /// Generate OAuth access token for user authorization flow (HS256 symmetric)
     ///
     /// # Errors
     ///
@@ -566,6 +768,96 @@ impl AuthManager {
             &claims,
             &EncodingKey::from_secret(&self.jwt_secret),
         )?;
+
+        Ok(token)
+    }
+
+    /// Generate OAuth access token with RS256 asymmetric signing
+    ///
+    /// This method uses RSA private key from JWKS manager for token signing.
+    /// Clients can verify tokens using the public key from /.well-known/jwks.json
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - JWT token generation fails
+    /// - System time is unavailable
+    /// - JWKS manager has no active key
+    pub fn generate_oauth_access_token_rs256(
+        &self,
+        jwks_manager: &crate::admin::jwks::JwksManager,
+        user_id: &Uuid,
+        scopes: &[String],
+    ) -> Result<String> {
+        let now = Utc::now();
+        let expiry = now + Duration::hours(JWT_EXPIRY_HOURS);
+
+        let counter = self.token_counter.fetch_add(1, Ordering::Relaxed);
+        let unique_iat =
+            now.timestamp() * 1000 + i64::from(u32::try_from(counter % 1000).unwrap_or(0));
+
+        let claims = Claims {
+            sub: user_id.to_string(),
+            email: format!("oauth_{user_id}@system.local"),
+            iat: unique_iat,
+            exp: expiry.timestamp(),
+            providers: scopes.to_vec(),
+        };
+
+        // Get active RSA key from JWKS manager
+        let active_key = jwks_manager.get_active_key()?;
+        let encoding_key = active_key.encoding_key();
+
+        // Create RS256 header with kid
+        let mut header = Header::new(Algorithm::RS256);
+        header.kid = Some(active_key.kid.clone());
+
+        let token = encode(&header, &claims, &encoding_key)?;
+
+        Ok(token)
+    }
+
+    /// Generate client credentials token with RS256 asymmetric signing
+    ///
+    /// This method uses RSA private key from JWKS manager for token signing.
+    /// Clients can verify tokens using the public key from /.well-known/jwks.json
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - JWT token generation fails
+    /// - System time is unavailable
+    /// - JWKS manager has no active key
+    pub fn generate_client_credentials_token_rs256(
+        &self,
+        jwks_manager: &crate::admin::jwks::JwksManager,
+        client_id: &str,
+        scopes: &[String],
+    ) -> Result<String> {
+        let now = Utc::now();
+        let expiry = now + Duration::hours(1); // 1 hour for client credentials
+
+        let counter = self.token_counter.fetch_add(1, Ordering::Relaxed);
+        let unique_iat =
+            now.timestamp() * 1000 + i64::from(u32::try_from(counter % 1000).unwrap_or(0));
+
+        let claims = Claims {
+            sub: format!("client:{client_id}"),
+            email: "client_credentials".to_string(),
+            iat: unique_iat,
+            exp: expiry.timestamp(),
+            providers: scopes.to_vec(),
+        };
+
+        // Get active RSA key from JWKS manager
+        let active_key = jwks_manager.get_active_key()?;
+        let encoding_key = active_key.encoding_key();
+
+        // Create RS256 header with kid
+        let mut header = Header::new(Algorithm::RS256);
+        header.kid = Some(active_key.kid.clone());
+
+        let token = encode(&header, &claims, &encoding_key)?;
 
         Ok(token)
     }

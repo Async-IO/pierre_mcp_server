@@ -273,9 +273,11 @@ async fn test_multitenant_user_creation_and_isolation() -> Result<()> {
 #[tokio::test]
 async fn test_authentication_middleware_integration() -> Result<()> {
     let (_server, database, auth_manager) = create_test_multitenant_server().await?;
+    let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
     let auth_middleware = Arc::new(McpAuthMiddleware::new(
         (*auth_manager).clone(),
         database.clone(),
+        jwks_manager,
     ));
 
     // Create test user
@@ -697,9 +699,11 @@ async fn test_session_state_management() -> Result<()> {
 #[tokio::test]
 async fn test_concurrent_authentication_operations() -> Result<()> {
     let (_server, database, auth_manager) = create_test_multitenant_server().await?;
+    let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
     let auth_middleware = Arc::new(McpAuthMiddleware::new(
         (*auth_manager).clone(),
         database.clone(),
+        jwks_manager,
     ));
 
     // Create multiple users

@@ -9,6 +9,7 @@
 // - Resource Arc sharing for HTTP route handlers
 // - String ownership for OAuth protocol responses
 
+use crate::admin::jwks::JwksManager;
 use crate::auth::AuthManager;
 use crate::database_plugins::{factory::Database, DatabaseProvider};
 use crate::oauth2::{
@@ -25,14 +26,16 @@ use warp::{Filter, Rejection, Reply};
 pub fn oauth2_routes(
     database: Arc<Database>,
     auth_manager: &Arc<AuthManager>,
+    jwks_manager: &Arc<JwksManager>,
     http_port: u16,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     let client_registration_routes = client_registration_routes(database.clone());
-    let authorization_routes = authorization_routes(database.clone(), auth_manager);
-    let token_routes = token_routes(database.clone(), auth_manager);
-    let validate_refresh_routes = validate_and_refresh_routes(database.clone(), auth_manager);
-    let token_validate_routes = token_validate_routes(database, auth_manager);
-    let jwks_route = jwks_route();
+    let authorization_routes = authorization_routes(database.clone(), auth_manager, jwks_manager);
+    let token_routes = token_routes(database.clone(), auth_manager, jwks_manager);
+    let validate_refresh_routes =
+        validate_and_refresh_routes(database.clone(), auth_manager, jwks_manager);
+    let token_validate_routes = token_validate_routes(database, auth_manager, jwks_manager);
+    let jwks_route = jwks_route(jwks_manager);
 
     // OAuth routes under /oauth2 prefix
     let oauth_prefixed_routes = warp::path("oauth2").and(
@@ -47,8 +50,16 @@ pub fn oauth2_routes(
     // Discovery route at root level (RFC 8414 compliance)
     let discovery_route = oauth2_discovery_route(http_port);
 
-    // Combine root-level discovery with prefixed OAuth routes
-    discovery_route.or(oauth_prefixed_routes)
+    // JWKS endpoint at well-known location (OIDC/OAuth2 standard)
+    let well_known_jwks_route = warp::path!(".well-known" / "jwks.json")
+        .and(warp::get())
+        .and(with_jwks_manager(jwks_manager))
+        .and_then(handle_jwks);
+
+    // Combine all routes: root-level discovery + well-known JWKS + prefixed OAuth routes
+    discovery_route
+        .or(well_known_jwks_route)
+        .or(oauth_prefixed_routes)
 }
 
 /// OAuth 2.0 discovery route (RFC 8414)
@@ -92,6 +103,7 @@ fn client_registration_routes(
 fn authorization_routes(
     database: Arc<Database>,
     auth_manager: &Arc<AuthManager>,
+    jwks_manager: &Arc<JwksManager>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     // OAuth authorization endpoint with cookie support
     let authorize_route = warp::path("authorize")
@@ -101,6 +113,7 @@ fn authorization_routes(
         .and(warp::header::optional::<String>("cookie"))
         .and(with_database(database.clone()))
         .and(with_auth_manager(auth_manager))
+        .and(with_jwks_manager(jwks_manager))
         .and_then(handle_authorization);
 
     // OAuth login page
@@ -117,6 +130,7 @@ fn authorization_routes(
         .and(warp::body::form::<HashMap<String, String>>())
         .and(with_database(database))
         .and(with_auth_manager(auth_manager))
+        .and(with_jwks_manager(jwks_manager))
         .and_then(handle_oauth_login_submit);
 
     authorize_route.or(login_route).or(login_submit_route)
@@ -126,6 +140,7 @@ fn authorization_routes(
 fn token_routes(
     database: Arc<Database>,
     auth_manager: &Arc<AuthManager>,
+    jwks_manager: &Arc<JwksManager>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     warp::path("token")
         .and(warp::path::end())
@@ -133,6 +148,7 @@ fn token_routes(
         .and(warp::body::form())
         .and(with_database(database))
         .and(with_auth_manager(auth_manager))
+        .and(with_jwks_manager(jwks_manager))
         .and_then(handle_token)
 }
 
@@ -140,6 +156,7 @@ fn token_routes(
 fn validate_and_refresh_routes(
     database: Arc<Database>,
     auth_manager: &Arc<AuthManager>,
+    jwks_manager: &Arc<JwksManager>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     warp::path("validate-and-refresh")
         .and(warp::path::end())
@@ -148,6 +165,7 @@ fn validate_and_refresh_routes(
         .and(warp::body::json())
         .and(with_database(database))
         .and(with_auth_manager(auth_manager))
+        .and(with_jwks_manager(jwks_manager))
         .and_then(handle_validate_and_refresh)
 }
 
@@ -155,6 +173,7 @@ fn validate_and_refresh_routes(
 fn token_validate_routes(
     database: Arc<Database>,
     auth_manager: &Arc<AuthManager>,
+    jwks_manager: &Arc<JwksManager>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     warp::path("token-validate")
         .and(warp::path::end())
@@ -163,6 +182,7 @@ fn token_validate_routes(
         .and(warp::body::json())
         .and(with_database(database))
         .and(with_auth_manager(auth_manager))
+        .and(with_jwks_manager(jwks_manager))
         .and_then(handle_token_validate)
 }
 
@@ -179,6 +199,14 @@ fn with_auth_manager(
 ) -> impl Filter<Extract = (Arc<AuthManager>,), Error = std::convert::Infallible> + Clone {
     let auth_manager = auth_manager.clone();
     warp::any().map(move || auth_manager.clone())
+}
+
+/// Helper to inject JWKS manager
+fn with_jwks_manager(
+    jwks_manager: &Arc<JwksManager>,
+) -> impl Filter<Extract = (Arc<JwksManager>,), Error = std::convert::Infallible> + Clone {
+    let jwks_manager = jwks_manager.clone();
+    warp::any().map(move || jwks_manager.clone())
 }
 
 /// Handle client registration (POST /oauth/register)
@@ -212,6 +240,7 @@ async fn handle_authorization(
     cookie_header: Option<String>,
     database: Arc<Database>,
     auth_manager: Arc<AuthManager>,
+    jwks_manager: Arc<JwksManager>,
 ) -> Result<Box<dyn warp::Reply>, Rejection> {
     // Parse query parameters into AuthorizeRequest
     let request = match parse_authorize_request(&params) {
@@ -229,7 +258,7 @@ async fn handle_authorization(
     // Check if user is authenticated via session cookie
     let user_id = cookie_header.and_then(|cookie_value| {
         extract_session_token(&cookie_value).and_then(|token| {
-            match auth_manager.validate_token(&token) {
+            match auth_manager.validate_token_rs256(&token, &jwks_manager) {
                 Ok(claims) => {
                     tracing::info!(
                         "OAuth authorization for authenticated user: {}",
@@ -278,7 +307,7 @@ async fn handle_authorization(
     };
 
     // User is authenticated - proceed with OAuth authorization
-    let auth_server = OAuth2AuthorizationServer::new(database, auth_manager);
+    let auth_server = OAuth2AuthorizationServer::new(database, auth_manager, jwks_manager);
     let redirect_uri = request.redirect_uri.clone(); // Safe: OAuth redirect URI needed for response
 
     match auth_server
@@ -328,6 +357,7 @@ async fn handle_token(
     form: HashMap<String, String>,
     database: Arc<Database>,
     auth_manager: Arc<AuthManager>,
+    jwks_manager: Arc<JwksManager>,
 ) -> Result<impl Reply, Rejection> {
     // Debug: Log the incoming form data (excluding sensitive info)
     tracing::debug!(
@@ -349,7 +379,7 @@ async fn handle_token(
         }
     };
 
-    let auth_server = OAuth2AuthorizationServer::new(database, auth_manager);
+    let auth_server = OAuth2AuthorizationServer::new(database, auth_manager, jwks_manager);
 
     match auth_server.token(request).await {
         Ok(response) => {
@@ -381,6 +411,7 @@ async fn handle_validate_and_refresh(
     request: crate::oauth2::models::ValidateRefreshRequest,
     database: Arc<Database>,
     auth_manager: Arc<AuthManager>,
+    jwks_manager: Arc<JwksManager>,
 ) -> Result<impl Reply, Rejection> {
     // Extract Bearer token from Authorization header
     let access_token = if let Some(header) = auth_header {
@@ -412,7 +443,7 @@ async fn handle_validate_and_refresh(
         &access_token[..std::cmp::min(20, access_token.len())]
     );
 
-    let auth_server = OAuth2AuthorizationServer::new(database, auth_manager);
+    let auth_server = OAuth2AuthorizationServer::new(database, auth_manager, jwks_manager);
 
     match auth_server
         .validate_and_refresh(&access_token, request)
@@ -445,6 +476,7 @@ async fn handle_token_validate(
     request: serde_json::Value,
     database: Arc<Database>,
     auth_manager: Arc<AuthManager>,
+    jwks_manager: Arc<JwksManager>,
 ) -> Result<impl Reply, Rejection> {
     tracing::debug!("Token validation request received");
 
@@ -454,8 +486,8 @@ async fn handle_token_validate(
     // Validate access token if provided
     let token_valid = if let Some(header) = auth_header {
         if let Some(token) = header.strip_prefix("Bearer ") {
-            // Validate JWT token
-            match auth_manager.validate_token(token) {
+            // Validate JWT token using RS256
+            match auth_manager.validate_token_rs256(token, &jwks_manager) {
                 Ok(_) => true,
                 Err(e) => {
                     tracing::debug!("Token validation failed: {}", e);
@@ -772,6 +804,7 @@ async fn handle_oauth_login_submit(
     form: HashMap<String, String>,
     database: Arc<Database>,
     auth_manager: Arc<AuthManager>,
+    _jwks_manager: Arc<JwksManager>,
 ) -> Result<Box<dyn warp::Reply>, Rejection> {
     // Extract credentials from form
     let Some(email) = form.get("email") else {
@@ -887,25 +920,30 @@ fn extract_session_token(cookie_header: &str) -> Option<String> {
 }
 
 /// JWKS (JSON Web Key Set) endpoint route
-fn jwks_route() -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn jwks_route(
+    jwks_manager: &Arc<JwksManager>,
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     warp::path("jwks")
         .and(warp::path::end())
         .and(warp::get())
-        .and_then(|| async move {
-            // JWKS endpoint for HMAC-based JWT signing
-            // AuthManager handles JWT internally with proper secret management
-            // HMAC uses symmetric keys, so JWKS only exposes key metadata (not the secret)
-            // For asymmetric signing (RSA/ECDSA), this would include public keys
-            let jwks = serde_json::json!({
-                "keys": [{
-                    "kty": "oct",
-                    "use": "sig",
-                    "alg": "HS256",
-                    "kid": "pierre-oauth-key-1"
-                    // Note: Symmetric HMAC secret is never exposed in JWKS
-                }]
-            });
+        .and(with_jwks_manager(jwks_manager))
+        .and_then(handle_jwks)
+}
 
-            Ok::<_, warp::Rejection>(warp::reply::json(&jwks))
-        })
+/// Handle JWKS endpoint (GET /oauth2/jwks or GET /.well-known/jwks.json)
+async fn handle_jwks(jwks_manager: Arc<JwksManager>) -> Result<impl Reply, Rejection> {
+    // Return JWKS with RS256 public keys for token validation
+    match jwks_manager.get_jwks() {
+        Ok(jwks) => {
+            tracing::debug!("JWKS endpoint accessed, returning {} keys", jwks.keys.len());
+            Ok(warp::reply::json(&jwks))
+        }
+        Err(e) => {
+            tracing::error!("Failed to generate JWKS: {}", e);
+            // Return empty JWKS on error (graceful degradation)
+            Ok(warp::reply::json(&serde_json::json!({
+                "keys": []
+            })))
+        }
+    }
 }

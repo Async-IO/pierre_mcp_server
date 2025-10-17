@@ -6,11 +6,13 @@
 
 use pierre_mcp_server::admin::{
     auth::AdminAuthService,
+    jwks::JwksManager,
     jwt::AdminJwtManager,
     models::{AdminPermission, AdminPermissions},
 };
 use pierre_mcp_server::database::generate_encryption_key;
 use pierre_mcp_server::database_plugins::factory::Database;
+use std::sync::Arc;
 
 #[tokio::test]
 async fn test_admin_authentication_flow() {
@@ -20,19 +22,25 @@ async fn test_admin_authentication_flow() {
         .await
         .unwrap();
 
+    // Create JWKS manager for RS256 and generate keys
+    let mut jwks_manager = JwksManager::new();
+    jwks_manager.generate_rsa_key_pair("test_key_1").unwrap();
+    let jwks_manager = Arc::new(jwks_manager);
+
     // Create auth service
     let jwt_secret = "test_jwt_secret_for_admin_auth";
-    let auth_service = AdminAuthService::new(database.clone(), jwt_secret);
+    let auth_service = AdminAuthService::new(database.clone(), jwt_secret, jwks_manager.clone());
 
-    // Manually create a token with a known secret and store it in database
+    // Manually create an RS256 token with a known secret and store it in database
     let jwt_manager = AdminJwtManager::with_secret(jwt_secret);
     let test_token = jwt_manager
-        .generate_token(
+        .generate_token_rs256(
             "test_token_123",
             "test_service",
             &AdminPermissions::default_admin(),
             false,
             Some(chrono::Utc::now() + chrono::Duration::hours(1)),
+            &jwks_manager,
         )
         .unwrap();
 

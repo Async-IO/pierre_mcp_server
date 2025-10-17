@@ -19,16 +19,22 @@ pub struct McpAuthMiddleware {
     api_key_manager: ApiKeyManager,
     rate_limit_calculator: UnifiedRateLimitCalculator,
     database: std::sync::Arc<Database>,
+    jwks_manager: std::sync::Arc<crate::admin::jwks::JwksManager>,
 }
 
 impl McpAuthMiddleware {
     /// Create new `MCP` auth middleware
-    pub fn new(auth_manager: AuthManager, database: std::sync::Arc<Database>) -> Self {
+    pub fn new(
+        auth_manager: AuthManager,
+        database: std::sync::Arc<Database>,
+        jwks_manager: std::sync::Arc<crate::admin::jwks::JwksManager>,
+    ) -> Self {
         Self {
             auth_manager,
             api_key_manager: ApiKeyManager::new(),
             rate_limit_calculator: UnifiedRateLimitCalculator::new(),
             database,
+            jwks_manager,
         }
     }
 
@@ -184,7 +190,10 @@ impl McpAuthMiddleware {
 
     /// Authenticate using `JWT` token
     async fn authenticate_jwt_token(&self, token: &str) -> Result<AuthResult> {
-        match self.auth_manager.validate_token_detailed(token) {
+        match self
+            .auth_manager
+            .validate_token_detailed_rs256(token, &self.jwks_manager)
+        {
             Ok(claims) => {
                 let user_id = crate::utils::uuid::parse_uuid(&claims.sub)
                     .map_err(|_| anyhow::anyhow!("Invalid user ID in token"))?;
@@ -229,7 +238,9 @@ impl McpAuthMiddleware {
     /// - Token is malformed
     /// - Token claims cannot be deserialized
     pub fn check_provider_access(&self, token: &str, provider: &str) -> Result<bool> {
-        let claims = self.auth_manager.validate_token(token)?;
+        let claims = self
+            .auth_manager
+            .validate_token_rs256(token, &self.jwks_manager)?;
         Ok(claims.providers.contains(&provider.to_string()))
     }
 

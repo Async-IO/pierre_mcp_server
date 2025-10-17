@@ -125,7 +125,8 @@ async fn test_mcp_auth_middleware() {
     // Create the user in the database first (required for JWT rate limiting)
     database.create_user(&user).await.unwrap();
 
-    let middleware = McpAuthMiddleware::new(auth_manager, database);
+    let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
+    let middleware = McpAuthMiddleware::new(auth_manager, database, jwks_manager);
 
     let token = middleware.auth_manager().generate_token(&user).unwrap();
     let auth_header = format!("Bearer {token}");
@@ -150,7 +151,8 @@ async fn test_mcp_auth_middleware_invalid_header() {
     let encryption_key = generate_encryption_key().to_vec();
     let database = Arc::new(Database::new(database_url, encryption_key).await.unwrap());
 
-    let middleware = McpAuthMiddleware::new(auth_manager, database);
+    let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
+    let middleware = McpAuthMiddleware::new(auth_manager, database, jwks_manager);
 
     // Test missing header
     let result = middleware.authenticate_request(None).await;
@@ -173,7 +175,8 @@ async fn test_provider_access_check() {
     let encryption_key = generate_encryption_key().to_vec();
     let database = Arc::new(Database::new(database_url, encryption_key).await.unwrap());
 
-    let middleware = McpAuthMiddleware::new(auth_manager, database);
+    let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
+    let middleware = McpAuthMiddleware::new(auth_manager, database, jwks_manager);
 
     // User has no providers initially
     let token = middleware.auth_manager().generate_token(&user).unwrap();
@@ -538,7 +541,9 @@ async fn test_mcp_auth_middleware_different_user_tiers() {
         user.email = format!("tier_test_{i}@example.com"); // Unique email for each user
         database.create_user(&user).await.unwrap();
 
-        let middleware = McpAuthMiddleware::new(auth_manager.clone(), database.clone());
+        let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
+        let middleware =
+            McpAuthMiddleware::new(auth_manager.clone(), database.clone(), jwks_manager);
         let token = middleware.auth_manager().generate_token(&user).unwrap();
         let auth_header = format!("Bearer {token}");
 

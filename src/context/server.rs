@@ -74,6 +74,7 @@ impl From<&ServerResources> for ServerContext {
             resources.auth_manager.clone(),
             resources.auth_middleware.clone(),
             resources.admin_jwt_secret.clone(),
+            resources.jwks_manager.clone(),
         );
 
         let data = DataContext::new(

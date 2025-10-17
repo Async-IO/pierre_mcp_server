@@ -413,6 +413,7 @@ pub trait DatabaseProvider: Send + Sync + Clone {
         &self,
         request: &crate::admin::models::CreateAdminTokenRequest,
         admin_jwt_secret: &str,
+        jwks_manager: &crate::admin::jwks::JwksManager,
     ) -> Result<crate::admin::models::GeneratedAdminToken>;
 
     /// Get admin token by ID

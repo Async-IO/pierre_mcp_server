@@ -27,7 +27,12 @@ async fn create_test_setup() -> (Arc<Database>, ApiKeyManager, Arc<McpAuthMiddle
     // Create auth manager and middleware
     let jwt_secret = pierre_mcp_server::auth::generate_jwt_secret().to_vec();
     let auth_manager = AuthManager::new(jwt_secret, 24);
-    let auth_middleware = Arc::new(McpAuthMiddleware::new(auth_manager, database.clone()));
+    let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
+    let auth_middleware = Arc::new(McpAuthMiddleware::new(
+        auth_manager,
+        database.clone(),
+        jwks_manager,
+    ));
 
     // Create API key manager
     let api_key_manager = ApiKeyManager::new();
