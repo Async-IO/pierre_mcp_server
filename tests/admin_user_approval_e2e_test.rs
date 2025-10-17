@@ -35,7 +35,9 @@ async fn test_complete_admin_user_approval_workflow() -> Result<()> {
     let auth_manager = AuthManager::new(jwt_secret.as_bytes().to_vec(), 24);
 
     // Create JWKS manager for RS256
-    let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
+    let mut jwks_manager_instance = pierre_mcp_server::admin::jwks::JwksManager::new();
+    jwks_manager_instance.generate_rsa_key_pair("test_key_e2e")?;
+    let jwks_manager = Arc::new(jwks_manager_instance);
 
     // Create admin API context
     let admin_context = AdminApiContext::new(
@@ -215,7 +217,9 @@ async fn test_admin_token_management_workflow() -> Result<()> {
     let auth_manager = AuthManager::new(jwt_secret.as_bytes().to_vec(), 24);
 
     // Create JWKS manager for RS256
-    let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
+    let mut jwks_manager_instance = pierre_mcp_server::admin::jwks::JwksManager::new();
+    jwks_manager_instance.generate_rsa_key_pair("test_key_token_mgmt")?;
+    let jwks_manager = Arc::new(jwks_manager_instance);
 
     let admin_context = AdminApiContext::new(
         Arc::new(database.clone()),
@@ -337,7 +341,9 @@ async fn test_admin_workflow_error_handling() -> Result<()> {
     let auth_manager = AuthManager::new(jwt_secret.as_bytes().to_vec(), 24);
 
     // Create JWKS manager for RS256
-    let jwks_manager = Arc::new(pierre_mcp_server::admin::jwks::JwksManager::new());
+    let mut jwks_manager_instance = pierre_mcp_server::admin::jwks::JwksManager::new();
+    jwks_manager_instance.generate_rsa_key_pair("test_key_error_handling")?;
+    let jwks_manager = Arc::new(jwks_manager_instance);
 
     let admin_context = AdminApiContext::new(
         Arc::new(database),
