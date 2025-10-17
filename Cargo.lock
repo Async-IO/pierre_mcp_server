@@ -1920,6 +1920,7 @@ dependencies = [
  "reqwest-middleware",
  "reqwest-retry",
  "ring",
+ "rsa",
  "serde",
  "serde_json",
  "serial_test",

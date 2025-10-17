@@ -174,6 +174,9 @@ pub mod key_management;
 /// Real-time notification system with SSE support
 pub mod notifications;
 
+/// Plugin lifecycle management for deterministic initialization
+pub mod lifecycle;
+
 /// Unified Server-Sent Events system for OAuth notifications and MCP protocol streaming
 pub mod sse;
 

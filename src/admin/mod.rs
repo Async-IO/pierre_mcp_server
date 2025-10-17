@@ -10,6 +10,7 @@
 //! manage API keys for users.
 
 pub mod auth;
+pub mod jwks;
 pub mod jwt;
 pub mod models;
 
@@ -18,6 +19,9 @@ pub use auth::{middleware, AdminAuthService};
 
 // JWT token management for admin authentication
 pub use jwt::{AdminJwtManager, TokenGenerationConfig};
+
+// JWKS (JSON Web Key Set) management for asymmetric JWT
+pub use jwks::{JsonWebKey, JsonWebKeySet, JwksManager, RsaKeyPair};
 
 // Admin system data models and permissions
 pub use models::{
