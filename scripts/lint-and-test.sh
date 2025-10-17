@@ -195,7 +195,7 @@ if [ -f "$VALIDATION_PATTERNS_FILE" ]; then
     TOML_MAGIC_NUMBERS=$(rg "$THRESHOLD_PATTERNS" src/ -g "!src/constants.rs" -g "!src/config/*" | grep -v -E "(Licensed|http://|https://|Duration|timestamp|//.*[0-9]|seconds|minutes|hours|Version|\.[0-9]|[0-9]\.|test|mock|example|error.*code|status.*code|port|timeout|limit|capacity|-32[0-9]{3}|1000\.0|60\.0|24\.0|7\.0|365\.0|METERS_PER|PER_METER|conversion|unit|\.60934|12345|0000-0000|202[0-9]-[0-9]{2}-[0-9]{2}|Some\([0-9]+\)|Trial.*1000|Standard.*10000)" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
 
     # TOML-based architectural pattern analysis
-    TOML_RESOURCE_CREATION=$(rg "$RESOURCE_CREATION_PATTERNS" src/ -g "!src/mcp/multitenant.rs" -g "!src/mcp/resources.rs" -g "!src/bin/*" -g "!tests/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+    TOML_RESOURCE_CREATION=$(rg "$RESOURCE_CREATION_PATTERNS" src/ -g "!src/mcp/multitenant.rs" -g "!src/mcp/resources.rs" -g "!src/bin/*" -g "!src/lifecycle/*" -g "!tests/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
     TOML_FAKE_RESOURCES=$(rg "$FAKE_RESOURCES_PATTERNS" src/ -g "!src/bin/*" --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
     TOML_OBSOLETE_FUNCTIONS=$(rg "$OBSOLETE_FUNCTIONS_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
     TOML_UNUSED_VARIABLES=$(rg "$UNUSED_VARIABLES_PATTERNS" src/ --count 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')

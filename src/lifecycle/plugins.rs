@@ -79,9 +79,8 @@ impl Plugin for DatabasePlugin {
     async fn initialize(&mut self) -> Result<()> {
         *self.state.write().expect("Lock poisoned") = PluginState::Initializing;
 
-        let database = Database::new(&self.connection_string, self.encryption_key.clone()).await?;
-
-        self.database = Some(database);
+        self.database =
+            Some(Database::new(&self.connection_string, self.encryption_key.clone()).await?);
         *self.state.write().expect("Lock poisoned") = PluginState::Ready;
 
         Ok(())
@@ -192,9 +191,7 @@ impl Plugin for CachePlugin {
     async fn initialize(&mut self) -> Result<()> {
         *self.state.write().expect("Lock poisoned") = PluginState::Initializing;
 
-        let cache = Cache::from_env().await?;
-
-        self.cache = Some(cache);
+        self.cache = Some(Cache::from_env().await?);
         *self.state.write().expect("Lock poisoned") = PluginState::Ready;
 
         Ok(())
@@ -292,9 +289,10 @@ impl Plugin for AuthPlugin {
     async fn initialize(&mut self) -> Result<()> {
         *self.state.write().expect("Lock poisoned") = PluginState::Initializing;
 
-        let auth_manager = AuthManager::new(self.jwt_secret_bytes.clone(), self.jwt_expiry_hours);
-
-        self.auth_manager = Some(auth_manager);
+        self.auth_manager = Some(AuthManager::new(
+            self.jwt_secret_bytes.clone(),
+            self.jwt_expiry_hours,
+        ));
         *self.state.write().expect("Lock poisoned") = PluginState::Ready;
 
         Ok(())
