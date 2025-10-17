@@ -267,8 +267,8 @@ pub fn mask_email(email: &str) -> String {
 /// Redact token-like patterns from text
 ///
 /// Matches patterns like:
-/// - Bearer <token>
-/// - JWT <token>
+/// - Bearer `<token>`
+/// - JWT `<token>`
 /// - API key formats
 ///
 /// # Arguments
