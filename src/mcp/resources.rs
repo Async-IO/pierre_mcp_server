@@ -53,9 +53,33 @@ pub struct ServerResources {
     pub cache: Arc<Cache>,
     pub plugin_executor: Option<Arc<PluginToolExecutor>>,
     pub redaction_config: Arc<RedactionConfig>,
+    pub oauth2_rate_limiter: Arc<crate::oauth2::rate_limiting::OAuth2RateLimiter>,
 }
 
 impl ServerResources {
+    /// Spawn background task for SSE connection cleanup
+    fn spawn_sse_cleanup_task(
+        sse_manager: &Arc<crate::sse::SseManager>,
+        cleanup_interval_secs: u64,
+        connection_timeout_secs: u64,
+    ) {
+        let manager_for_cleanup = sse_manager.clone();
+        tokio::spawn(async move {
+            let mut interval =
+                tokio::time::interval(std::time::Duration::from_secs(cleanup_interval_secs));
+            loop {
+                interval.tick().await;
+                tracing::debug!(
+                    "Running SSE connection cleanup task (timeout={}s)",
+                    connection_timeout_secs
+                );
+                manager_for_cleanup
+                    .cleanup_inactive_connections(connection_timeout_secs)
+                    .await;
+            }
+        });
+    }
+
     /// Create new server resources with proper Arc sharing
     ///
     /// # Parameters
@@ -116,27 +140,11 @@ impl ServerResources {
         let sse_manager = Arc::new(crate::sse::SseManager::new(config.sse.max_buffer_size));
 
         // Spawn background task to cleanup inactive SSE connections
-        // Uses configurable intervals and timeouts from config
-        {
-            let manager_for_cleanup = sse_manager.clone();
-            let cleanup_interval_secs = config.sse.cleanup_interval_secs;
-            let connection_timeout_secs = config.sse.connection_timeout_secs;
-
-            tokio::spawn(async move {
-                let mut interval =
-                    tokio::time::interval(std::time::Duration::from_secs(cleanup_interval_secs));
-                loop {
-                    interval.tick().await;
-                    tracing::debug!(
-                        "Running SSE connection cleanup task (timeout={}s)",
-                        connection_timeout_secs
-                    );
-                    manager_for_cleanup
-                        .cleanup_inactive_connections(connection_timeout_secs)
-                        .await;
-                }
-            });
-        }
+        Self::spawn_sse_cleanup_task(
+            &sse_manager,
+            config.sse.cleanup_interval_secs,
+            config.sse.connection_timeout_secs,
+        );
 
         // Wrap cache in Arc for shared access across handlers
         let cache_arc = Arc::new(cache);
@@ -177,6 +185,9 @@ impl ServerResources {
             jwks_manager_arc.clone(),
         ));
 
+        // Create OAuth2 rate limiter once for shared use
+        let oauth2_rate_limiter = Arc::new(crate::oauth2::rate_limiting::OAuth2RateLimiter::new());
+
         Self {
             database: database_arc,
             auth_manager: auth_manager_arc,
@@ -195,6 +206,7 @@ impl ServerResources {
             cache: cache_arc,
             plugin_executor: None,
             redaction_config,
+            oauth2_rate_limiter,
         }
     }
 

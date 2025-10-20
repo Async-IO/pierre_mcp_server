@@ -111,12 +111,13 @@ impl OAuth2RateLimiter {
     /// Create warp filter for rate limiting
     #[must_use]
     pub fn filter(
-        self,
+        &self,
         endpoint: &'static str,
     ) -> impl Filter<Extract = (crate::rate_limiting::OAuth2RateLimitStatus,), Error = Rejection> + Clone
     {
+        let limiter = self.clone();
         warp::addr::remote().and_then(move |addr: Option<std::net::SocketAddr>| {
-            let limiter = self.clone();
+            let limiter = limiter.clone();
             async move {
                 let client_ip =
                     addr.map_or_else(|| IpAddr::V4(std::net::Ipv4Addr::LOCALHOST), |a| a.ip());

@@ -28,10 +28,12 @@ pub fn oauth2_routes(
     auth_manager: &Arc<AuthManager>,
     jwks_manager: &Arc<JwksManager>,
     config: &Arc<crate::config::environment::ServerConfig>,
+    rate_limiter: &Arc<crate::oauth2::rate_limiting::OAuth2RateLimiter>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-    let client_registration_routes = client_registration_routes(database.clone());
-    let authorization_routes = authorization_routes(database.clone(), auth_manager, jwks_manager);
-    let token_routes = token_routes(database.clone(), auth_manager, jwks_manager);
+    let client_registration_routes = client_registration_routes(database.clone(), rate_limiter);
+    let authorization_routes =
+        authorization_routes(database.clone(), auth_manager, jwks_manager, rate_limiter);
+    let token_routes = token_routes(database.clone(), auth_manager, jwks_manager, rate_limiter);
     let validate_refresh_routes =
         validate_and_refresh_routes(database.clone(), auth_manager, jwks_manager);
     let token_validate_routes = token_validate_routes(database, auth_manager, jwks_manager);
@@ -89,13 +91,21 @@ fn oauth2_discovery_route(
 /// Client registration routes (RFC 7591)
 fn client_registration_routes(
     database: Arc<Database>,
+    rate_limiter: &Arc<crate::oauth2::rate_limiting::OAuth2RateLimiter>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    // Safe: filter() takes &self and clones internally for warp closure
+    let rate_limiter_filter = rate_limiter.filter("register");
+
     warp::path("register")
         .and(warp::path::end())
         .and(warp::post())
+        .and(rate_limiter_filter)
         .and(warp::body::json())
         .and(with_database(database))
-        .and_then(handle_client_registration)
+        .and_then(|_rate_status, request, database| {
+            // Rate limit status is checked by filter, we just pass it through
+            handle_client_registration(request, database)
+        })
 }
 
 /// Authorization endpoint routes
@@ -103,17 +113,25 @@ fn authorization_routes(
     database: Arc<Database>,
     auth_manager: &Arc<AuthManager>,
     jwks_manager: &Arc<JwksManager>,
+    rate_limiter: &Arc<crate::oauth2::rate_limiting::OAuth2RateLimiter>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-    // OAuth authorization endpoint with cookie support
+    // Safe: filter() takes &self and clones internally for warp closure
+    let rate_limiter_filter = rate_limiter.filter("authorize");
+
+    // OAuth authorization endpoint with cookie support and rate limiting
     let authorize_route = warp::path("authorize")
         .and(warp::path::end())
         .and(warp::get())
+        .and(rate_limiter_filter)
         .and(warp::query::<HashMap<String, String>>())
         .and(warp::header::optional::<String>("cookie"))
         .and(with_database(database.clone()))
         .and(with_auth_manager(auth_manager))
         .and(with_jwks_manager(jwks_manager))
-        .and_then(handle_authorization);
+        .and_then(|_rate_status, params, cookie, db, auth, jwks| {
+            // Rate limit status is checked by filter, we just pass it through
+            handle_authorization(params, cookie, db, auth, jwks)
+        });
 
     // OAuth login page
     let login_route = warp::path("login")
@@ -140,15 +158,23 @@ fn token_routes(
     database: Arc<Database>,
     auth_manager: &Arc<AuthManager>,
     jwks_manager: &Arc<JwksManager>,
+    rate_limiter: &Arc<crate::oauth2::rate_limiting::OAuth2RateLimiter>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    // Safe: filter() takes &self and clones internally for warp closure
+    let rate_limiter_filter = rate_limiter.filter("token");
+
     warp::path("token")
         .and(warp::path::end())
         .and(warp::post())
+        .and(rate_limiter_filter)
         .and(warp::body::form())
         .and(with_database(database))
         .and(with_auth_manager(auth_manager))
         .and(with_jwks_manager(jwks_manager))
-        .and_then(handle_token)
+        .and_then(|_rate_status, form, db, auth, jwks| {
+            // Rate limit status is checked by filter, we just pass it through
+            handle_token(form, db, auth, jwks)
+        })
 }
 
 /// Validate and refresh endpoint routes

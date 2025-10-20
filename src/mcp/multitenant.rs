@@ -292,6 +292,7 @@ impl MultiTenantMcpServer {
             &resources.auth_manager,
             &resources.jwks_manager,
             &resources.config,
+            &resources.oauth2_rate_limiter,
         );
         let api_key_filter = Self::create_api_key_routes(
             &api_key_routes,
