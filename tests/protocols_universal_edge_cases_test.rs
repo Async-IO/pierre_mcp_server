@@ -173,6 +173,7 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     Ok(UniversalToolExecutor::new(server_resources))
 }
@@ -217,6 +218,7 @@ async fn create_executor_no_oauth() -> Result<UniversalToolExecutor> {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
 
     Ok(UniversalToolExecutor::new(server_resources))

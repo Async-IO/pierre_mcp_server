@@ -218,6 +218,7 @@ async fn test_complete_tenant_onboarding_workflow() -> Result<()> {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     let executor = UniversalToolExecutor::new(server_resources);
 

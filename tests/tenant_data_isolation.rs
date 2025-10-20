@@ -461,6 +461,7 @@ async fn test_mcp_server_tenant_isolation() -> Result<()> {
         create_test_server_config(),
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     let _server = MultiTenantMcpServer::new(resources);
 

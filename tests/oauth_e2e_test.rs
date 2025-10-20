@@ -288,6 +288,7 @@ async fn test_oauth_flow_through_mcp() {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -516,6 +517,7 @@ async fn test_oauth_callback_error_handling() {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -711,6 +713,7 @@ async fn test_oauth_state_csrf_protection() {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -852,6 +855,7 @@ async fn test_connection_status_tracking() {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());

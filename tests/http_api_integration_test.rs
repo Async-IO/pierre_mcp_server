@@ -4,6 +4,8 @@
 // Licensed under either of Apache License, Version 2.0 or MIT License at your option.
 // Copyright ©2025 Async-IO.org
 
+mod common;
+
 use anyhow::Result;
 use pierre_mcp_server::{
     auth::AuthManager,
@@ -196,6 +198,7 @@ async fn setup_test_environment() -> Result<(Arc<Database>, AuthRoutes, OAuthRou
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());

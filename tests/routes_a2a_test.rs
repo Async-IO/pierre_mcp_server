@@ -243,6 +243,7 @@ impl A2ATestSetup {
             config,
             cache,
             2048, // Use 2048-bit RSA keys for faster test execution
+            Some(common::get_shared_test_jwks()),
         ));
 
         // Create A2A routes

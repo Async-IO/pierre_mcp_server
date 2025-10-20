@@ -335,9 +335,17 @@ impl JwksManager {
     /// # Errors
     /// Returns error if key generation fails
     pub fn rotate_keys(&mut self) -> Result<String> {
+        self.rotate_keys_with_size(RSA_KEY_SIZE)
+    }
+
+    /// Rotate keys with custom key size - generate new key and mark old key as historical
+    ///
+    /// # Errors
+    /// Returns error if key generation fails
+    pub fn rotate_keys_with_size(&mut self, key_size_bits: usize) -> Result<String> {
         let new_kid = format!("key_{}", Utc::now().format("%Y%m%d_%H%M%S"));
 
-        self.generate_rsa_key_pair(&new_kid)?;
+        self.generate_rsa_key_pair_with_size(&new_kid, key_size_bits)?;
 
         // Clean up old keys (keep only MAX_HISTORICAL_KEYS)
         self.cleanup_old_keys();

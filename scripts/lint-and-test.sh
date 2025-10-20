@@ -14,6 +14,9 @@
 
 echo "Running Pierre MCP Server Validation Suite..."
 
+# Start timing
+START_TIME=$(date +%s)
+
 # Parse command line arguments
 ENABLE_COVERAGE=false
 for arg in "$@"; do
@@ -1092,9 +1095,17 @@ else
     echo -e "${YELLOW}[WARN] Bridge test script not found - skipping${NC}"
 fi
 
+# Calculate total execution time
+END_TIME=$(date +%s)
+TOTAL_SECONDS=$((END_TIME - START_TIME))
+TOTAL_MINUTES=$((TOTAL_SECONDS / 60))
+REMAINING_SECONDS=$((TOTAL_SECONDS % 60))
+
 # Summary
 echo ""
 echo -e "${BLUE}==== Dev Standards Compliance Summary ====${NC}"
+echo -e "${BLUE}Total execution time: ${TOTAL_MINUTES}m ${REMAINING_SECONDS}s${NC}"
+echo ""
 if [ "$ALL_PASSED" = true ]; then
     echo -e "${GREEN}ALL VALIDATION PASSED - Task can be marked complete${NC}"
     echo ""
@@ -1129,9 +1140,11 @@ if [ "$ALL_PASSED" = true ]; then
     fi
     echo ""
     echo -e "${GREEN}Code meets ALL dev standards and is ready for production!${NC}"
+    echo -e "${GREEN}Completed in ${TOTAL_MINUTES}m ${REMAINING_SECONDS}s${NC}"
     exit 0
 else
     echo -e "${RED}VALIDATION FAILED - Task cannot be marked complete${NC}"
     echo -e "${RED}Fix ALL issues above to meet dev standards requirements${NC}"
+    echo -e "${YELLOW}Total time: ${TOTAL_MINUTES}m ${REMAINING_SECONDS}s${NC}"
     exit 1
 fi

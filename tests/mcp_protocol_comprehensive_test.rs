@@ -57,6 +57,7 @@ async fn test_mcp_initialize_request() -> Result<()> {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     let server = MultiTenantMcpServer::new(resources);
 
@@ -85,6 +86,7 @@ async fn test_mcp_ping_request() -> Result<()> {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -110,6 +112,7 @@ async fn test_mcp_tools_list_request() -> Result<()> {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -139,6 +142,7 @@ async fn test_mcp_authenticate_request() -> Result<()> {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -177,6 +181,7 @@ async fn test_mcp_tools_call_without_auth() -> Result<()> {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -210,6 +215,7 @@ async fn test_mcp_tools_call_with_expired_token() -> Result<()> {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -249,6 +255,7 @@ async fn test_mcp_tools_call_malformed_token() -> Result<()> {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -288,6 +295,7 @@ async fn test_mcp_unknown_method() -> Result<()> {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -313,6 +321,7 @@ async fn test_mcp_oauth_tool_calls() -> Result<()> {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -400,6 +409,7 @@ async fn test_mcp_intelligence_tool_calls() -> Result<()> {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -462,6 +472,7 @@ async fn test_mcp_provider_required_tools() -> Result<()> {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -533,6 +544,7 @@ async fn test_mcp_unknown_tool() -> Result<()> {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -580,6 +592,7 @@ async fn test_mcp_api_key_authentication() -> Result<()> {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -627,6 +640,7 @@ async fn test_mcp_request_id_variations() -> Result<()> {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -661,6 +675,7 @@ async fn test_mcp_error_scenarios() -> Result<()> {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     let _server = MultiTenantMcpServer::new(resources);
 
@@ -706,6 +721,7 @@ async fn test_mcp_concurrent_requests() -> Result<()> {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     let _server = Arc::new(MultiTenantMcpServer::new(resources));
 

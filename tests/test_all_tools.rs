@@ -211,6 +211,7 @@ async fn create_test_executor() -> Result<UniversalToolExecutor> {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
 
     let executor = UniversalToolExecutor::new(server_resources);

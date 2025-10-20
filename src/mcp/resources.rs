@@ -60,6 +60,7 @@ impl ServerResources {
     ///
     /// # Parameters
     /// - `rsa_key_size_bits`: Size of RSA keys for JWT signing (2048 for tests, 4096 for production)
+    /// - `jwks_manager`: Optional pre-existing JWKS manager (for test performance - reuses RSA keys)
     pub fn new(
         database: Database,
         auth_manager: AuthManager,
@@ -67,6 +68,7 @@ impl ServerResources {
         config: Arc<crate::config::environment::ServerConfig>,
         cache: Cache,
         rsa_key_size_bits: usize,
+        jwks_manager: Option<Arc<JwksManager>>,
     ) -> Self {
         let database_arc = Arc::new(database);
         let auth_manager_arc = Arc::new(auth_manager);
@@ -146,18 +148,20 @@ impl ServerResources {
             redaction_config.enabled
         );
 
-        // Create JWKS manager for RS256 JWT signing
-        let mut jwks_manager = JwksManager::new();
-        // Generate initial RSA key pair for RS256 signing with configurable key size
-        if let Err(e) =
-            jwks_manager.generate_rsa_key_pair_with_size("initial_key", rsa_key_size_bits)
-        {
-            tracing::warn!(
-                "Failed to generate initial JWKS key pair: {}. RS256 tokens will not be available.",
-                e
-            );
-        }
-        let jwks_manager_arc = Arc::new(jwks_manager);
+        // Use provided JWKS manager or create new one for RS256 JWT signing
+        let jwks_manager_arc = jwks_manager.unwrap_or_else(|| {
+            let mut new_jwks = JwksManager::new();
+            // Generate initial RSA key pair for RS256 signing with configurable key size
+            if let Err(e) =
+                new_jwks.generate_rsa_key_pair_with_size("initial_key", rsa_key_size_bits)
+            {
+                tracing::warn!(
+                    "Failed to generate initial JWKS key pair: {}. RS256 tokens will not be available.",
+                    e
+                );
+            }
+            Arc::new(new_jwks)
+        });
 
         // Create websocket manager after jwks_manager is initialized
         let websocket_manager = Arc::new(WebSocketManager::new(
@@ -222,6 +226,7 @@ pub struct ServerResourcesBuilder {
     config: Option<Arc<crate::config::environment::ServerConfig>>,
     cache: Option<Cache>,
     rsa_key_size_bits: usize,
+    jwks_manager: Option<Arc<JwksManager>>,
 }
 
 impl ServerResourcesBuilder {
@@ -235,6 +240,7 @@ impl ServerResourcesBuilder {
             config: None,
             cache: None,
             rsa_key_size_bits: 4096, // Production default
+            jwks_manager: None,
         }
     }
 
@@ -280,6 +286,13 @@ impl ServerResourcesBuilder {
         self
     }
 
+    /// Set a pre-existing JWKS manager (for test performance - reuses RSA keys)
+    #[must_use]
+    pub fn with_jwks_manager(mut self, jwks_manager: Arc<JwksManager>) -> Self {
+        self.jwks_manager = Some(jwks_manager);
+        self
+    }
+
     /// Build the `ServerResources`
     ///
     /// # Errors
@@ -301,6 +314,7 @@ impl ServerResourcesBuilder {
             config,
             cache,
             self.rsa_key_size_bits,
+            self.jwks_manager,
         );
         Ok(resources)
     }

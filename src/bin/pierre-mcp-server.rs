@@ -162,6 +162,7 @@ fn create_server(
         Arc::new(config.clone()),
         cache,
         rsa_key_size,
+        None, // Generate new JWKS manager for production
     );
 
     // Wrap in Arc for plugin executor initialization

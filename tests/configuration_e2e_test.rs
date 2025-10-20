@@ -8,6 +8,8 @@
 //! Tests the entire configuration system flow from MCP protocol tools
 //! through universal tool execution to configuration management.
 
+mod common;
+
 use pierre_mcp_server::database_plugins::factory::Database;
 use pierre_mcp_server::intelligence::{
     ActivityIntelligence, ContextualFactors, PerformanceMetrics, TimeOfDay, TrendDirection,
@@ -78,6 +80,7 @@ async fn create_test_tool_executor() -> Arc<UniversalToolExecutor> {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     Arc::new(UniversalToolExecutor::new(server_resources))
 }

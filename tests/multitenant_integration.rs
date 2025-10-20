@@ -287,6 +287,7 @@ async fn test_multitenant_auth_flow() -> Result<()> {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -684,6 +685,7 @@ async fn test_input_validation() -> Result<()> {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());

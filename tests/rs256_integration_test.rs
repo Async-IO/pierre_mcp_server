@@ -33,7 +33,7 @@ async fn test_jwks_manager_initialization() -> Result<()> {
 
     // Verify key rotation works
     let old_kid = active_key.kid.clone();
-    let new_kid = jwks_manager.rotate_keys()?;
+    let new_kid = jwks_manager.rotate_keys_with_size(2048)?;
 
     assert_ne!(new_kid, old_kid);
 
@@ -205,7 +205,7 @@ async fn test_key_rotation_with_active_tokens() -> Result<()> {
         // For testing, we'll create a new manager with both keys
         let mut new_manager = JwksManager::new();
         new_manager.generate_rsa_key_pair(&kid_before)?;
-        new_manager.rotate_keys()?
+        new_manager.rotate_keys_with_size(2048)?
     };
 
     // Note: In production, the rotation would happen on the same Arc-wrapped manager
@@ -289,7 +289,7 @@ async fn test_concurrent_key_rotation() -> Result<()> {
 
     // Rotate keys multiple times (staying within MAX_HISTORICAL_KEYS retention limit of 3)
     for _ in 0..2 {
-        jwks_manager.rotate_keys()?;
+        jwks_manager.rotate_keys_with_size(2048)?;
     }
 
     let final_kid = jwks_manager.get_active_key()?.kid.clone();
@@ -342,8 +342,8 @@ async fn test_jwks_multiple_keys() -> Result<()> {
     jwks_manager.generate_rsa_key_pair_with_size("test_key_1", 2048)?;
 
     // Rotate keys a few times to create multiple keys
-    jwks_manager.rotate_keys()?;
-    jwks_manager.rotate_keys()?;
+    jwks_manager.rotate_keys_with_size(2048)?;
+    jwks_manager.rotate_keys_with_size(2048)?;
 
     let jwks = jwks_manager.get_jwks()?;
 

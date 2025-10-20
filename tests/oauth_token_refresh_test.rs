@@ -403,6 +403,7 @@ async fn create_test_executor() -> (Arc<UniversalToolExecutor>, Arc<Database>) {
         create_test_server_config(),
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     let executor = Arc::new(UniversalToolExecutor::new(server_resources));
 
@@ -451,6 +452,7 @@ async fn create_test_executor_without_oauth() -> (Arc<UniversalToolExecutor>, Ar
         create_test_server_config_without_oauth(),
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     let executor = Arc::new(UniversalToolExecutor::new(server_resources));
 

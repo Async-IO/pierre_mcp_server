@@ -138,6 +138,7 @@ async fn test_oauth_authorization_url_generation() {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -362,6 +363,7 @@ async fn test_oauth_state_validation() {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -515,6 +517,7 @@ async fn test_connection_status_no_providers() {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
 
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
@@ -646,6 +649,7 @@ async fn test_invalid_provider_error() {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
     let oauth_routes = OAuthRoutes::new(
@@ -771,6 +775,7 @@ async fn test_disconnect_provider() {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
     let oauth_routes = OAuthRoutes::new(
@@ -990,6 +995,7 @@ async fn test_oauth_urls_contain_required_parameters() {
         config,
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     let server_context = pierre_mcp_server::context::ServerContext::from(server_resources.as_ref());
     let oauth_routes = OAuthRoutes::new(

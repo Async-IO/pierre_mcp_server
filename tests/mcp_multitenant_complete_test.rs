@@ -447,6 +447,7 @@ async fn test_complete_multitenant_workflow() -> Result<()> {
         create_test_config(server_port),
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
@@ -622,6 +623,7 @@ async fn test_mcp_authentication_required() -> Result<()> {
         create_test_config(server_port),
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
@@ -708,6 +710,7 @@ async fn test_mcp_initialization_no_auth() -> Result<()> {
         create_test_config(server_port),
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
@@ -789,6 +792,7 @@ async fn test_mcp_concurrent_requests() -> Result<()> {
         create_test_config(server_port),
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     let server = MultiTenantMcpServer::new(resources);
     let server_handle = tokio::spawn(async move {
@@ -894,6 +898,7 @@ async fn test_multitenant_server_config() -> Result<()> {
         config.clone(),
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
     let _server = MultiTenantMcpServer::new(resources);
 

@@ -167,6 +167,7 @@ async fn create_test_setup() -> (ApiKeyRoutes, Uuid, AuthResult) {
         }),
         cache,
         2048, // Use 2048-bit RSA keys for faster test execution
+        Some(common::get_shared_test_jwks()),
     ));
 
     // Create API key routes
