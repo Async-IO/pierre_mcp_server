@@ -152,7 +152,103 @@ pierre enforces pkce (rfc 7636) for all authorization code flows. clients must:
 - include challenge in authorization request
 - include verifier in token request
 
-implementation: `src/oauth2/`
+### server discovery (rfc 8414)
+
+pierre provides oauth2 server metadata for automatic configuration:
+
+```bash
+curl http://localhost:8081/.well-known/oauth-authorization-server
+```
+
+response includes:
+```json
+{
+  "issuer": "http://localhost:8081",
+  "authorization_endpoint": "http://localhost:8081/oauth2/authorize",
+  "token_endpoint": "http://localhost:8081/oauth2/token",
+  "jwks_uri": "http://localhost:8081/oauth2/jwks",
+  "registration_endpoint": "http://localhost:8081/oauth2/register",
+  "response_types_supported": ["code"],
+  "grant_types_supported": ["authorization_code"],
+  "code_challenge_methods_supported": ["S256"]
+}
+```
+
+issuer url configurable via `OAUTH2_ISSUER_URL` environment variable.
+
+### jwks endpoint
+
+public keys for jwt token verification available at `/oauth2/jwks`:
+
+```bash
+curl http://localhost:8081/oauth2/jwks
+```
+
+response (rfc 7517 compliant):
+```json
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "use": "sig",
+      "kid": "key_2024_01_01",
+      "n": "modulus_base64url",
+      "e": "exponent_base64url"
+    }
+  ]
+}
+```
+
+**cache-control headers**: jwks endpoint returns `Cache-Control: public, max-age=3600` allowing browsers to cache public keys for 1 hour.
+
+### key rotation
+
+pierre supports rs256 key rotation with grace period:
+- new keys generated with timestamp-based kid (e.g., `key_2024_01_01_123456`)
+- old keys retained during grace period for existing token validation
+- tokens issued with old keys remain valid until expiration
+- new tokens signed with current key
+
+clients should:
+1. fetch jwks on startup
+2. cache public keys for 1 hour (respects cache-control header)
+3. refresh jwks if unknown kid encountered
+4. verify token signature using matching kid
+
+### rate limiting
+
+oauth2 endpoints protected by per-ip token bucket rate limiting:
+
+| endpoint | requests per minute |
+|----------|---------------------|
+| `/oauth2/authorize` | 60 (1/second) |
+| `/oauth2/token` | 30 (1/2 seconds) |
+| `/oauth2/register` | 10 (1/6 seconds) |
+
+rate limit headers included in all responses:
+```
+X-RateLimit-Limit: 60
+X-RateLimit-Remaining: 59
+X-RateLimit-Reset: 1704067200
+```
+
+429 response when limit exceeded:
+```json
+{
+  "error": "rate_limit_exceeded",
+  "error_description": "Rate limit exceeded. Retry after 42 seconds."
+}
+```
+
+headers:
+```
+Retry-After: 42
+X-RateLimit-Limit: 60
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1704067200
+```
+
+implementation: `src/oauth2/`, `src/oauth2/rate_limiting.rs`
 
 ## a2a (agent-to-agent protocol)
 

@@ -32,6 +32,10 @@ LOG_FORMAT=json                   # json or pretty (default: pretty)
 # jwt tokens
 JWT_EXPIRY_HOURS=24               # token lifetime (default: 24)
 JWT_SECRET_PATH=/path/to/secret   # optional: load secret from file
+PIERRE_RSA_KEY_SIZE=4096          # rsa key size for rs256 signing (default: 4096, test: 2048)
+
+# oauth2 server
+OAUTH2_ISSUER_URL=http://localhost:8081  # oauth2 discovery issuer url (default: http://localhost:8081)
 
 # password hashing
 PASSWORD_HASH_ALGORITHM=argon2    # argon2 or bcrypt (default: argon2)

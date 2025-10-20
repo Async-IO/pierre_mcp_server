@@ -268,9 +268,9 @@ response:
 
 asymmetric signing for distributed token verification.
 
-public keys available at `/admin/jwks`:
+public keys available at `/admin/jwks` (legacy) and `/oauth2/jwks` (oauth2 clients):
 ```bash
-curl http://localhost:8081/admin/jwks
+curl http://localhost:8081/oauth2/jwks
 ```
 
 response (rfc 7517 compliant):
@@ -280,7 +280,7 @@ response (rfc 7517 compliant):
     {
       "kty": "RSA",
       "use": "sig",
-      "kid": "key_id",
+      "kid": "key_2024_01_01_123456",
       "n": "modulus_base64url",
       "e": "exponent_base64url"
     }
@@ -288,19 +288,37 @@ response (rfc 7517 compliant):
 }
 ```
 
+**cache-control headers**: jwks endpoint returns `Cache-Control: public, max-age=3600` allowing browsers to cache public keys for 1 hour.
+
 clients verify tokens using public key. pierre signs with private key.
 
 benefits:
 - private key never leaves server
 - clients verify without shared secret
-- supports key rotation
+- supports key rotation with grace period
+- browser caching reduces jwks endpoint load
+
+**key rotation**: when keys are rotated, old keys are retained during grace period to allow existing tokens to validate. new tokens are signed with the current key.
 
 ### rate limiting
 
 token bucket algorithm per authentication method:
 - jwt tokens: per-tenant limits
-- api keys: per-tier limits
-- oauth2 clients: per-client limits
+- api keys: per-tier limits (free: 100/day, professional: 10,000/day, enterprise: unlimited)
+- oauth2 endpoints: per-ip limits
+  - `/oauth2/authorize`: 60 requests/minute
+  - `/oauth2/token`: 30 requests/minute
+  - `/oauth2/register`: 10 requests/minute
+
+oauth2 rate limit responses include:
+```
+X-RateLimit-Limit: 60
+X-RateLimit-Remaining: 59
+X-RateLimit-Reset: 1704067200
+Retry-After: 42
+```
+
+implementation: `src/rate_limiting.rs`, `src/oauth2/rate_limiting.rs`
 
 ### csrf protection
 
