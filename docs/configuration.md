@@ -48,7 +48,12 @@ PASSWORD_HASH_ALGORITHM=argon2    # argon2 or bcrypt (default: argon2)
 ```bash
 STRAVA_CLIENT_ID=your_id
 STRAVA_CLIENT_SECRET=your_secret
-STRAVA_REDIRECT_URI=http://localhost:8081/oauth/callback/strava
+STRAVA_REDIRECT_URI=http://localhost:8081/oauth/callback/strava  # local development only
+```
+
+**security warning**: http callback urls only for local development. production must use https:
+```bash
+STRAVA_REDIRECT_URI=https://api.example.com/oauth/callback/strava  # production
 ```
 
 get credentials: https://www.strava.com/settings/api
@@ -58,7 +63,12 @@ get credentials: https://www.strava.com/settings/api
 ```bash
 GARMIN_CLIENT_ID=your_consumer_key
 GARMIN_CLIENT_SECRET=your_consumer_secret
-GARMIN_REDIRECT_URI=http://localhost:8081/oauth/callback/garmin
+GARMIN_REDIRECT_URI=http://localhost:8081/oauth/callback/garmin  # local development only
+```
+
+**security warning**: http callback urls only for local development. production must use https:
+```bash
+GARMIN_REDIRECT_URI=https://api.example.com/oauth/callback/garmin  # production
 ```
 
 get credentials: https://developer.garmin.com/
@@ -68,10 +78,25 @@ get credentials: https://developer.garmin.com/
 ```bash
 FITBIT_CLIENT_ID=your_id
 FITBIT_CLIENT_SECRET=your_secret
-FITBIT_REDIRECT_URI=http://localhost:8081/oauth/callback/fitbit
+FITBIT_REDIRECT_URI=http://localhost:8081/oauth/callback/fitbit  # local development only
+```
+
+**security warning**: http callback urls only for local development. production must use https:
+```bash
+FITBIT_REDIRECT_URI=https://api.example.com/oauth/callback/fitbit  # production
 ```
 
 get credentials: https://dev.fitbit.com/apps
+
+**callback url security**:
+- **http**: local development only (`localhost` or `127.0.0.1`)
+  - tokens transmitted unencrypted
+  - vulnerable to mitm attacks
+  - some providers reject http in production
+- **https**: production deployments (required)
+  - tls encryption protects tokens in transit
+  - prevents credential interception
+  - required by most oauth providers in production
 
 #### openweather (optional)
 

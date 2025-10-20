@@ -87,10 +87,20 @@ rfc 7591 (dynamic client registration) + rfc 7636 (pkce) compliant oauth2 server
 
 1. **client registration** (rfc 7591):
 ```bash
+# local development (http allowed for localhost)
 curl -X POST http://localhost:8081/oauth2/register \
   -H "Content-Type: application/json" \
   -d '{
     "redirect_uris": ["http://localhost:35535/oauth/callback"],
+    "client_name": "My MCP Client (Dev)",
+    "grant_types": ["authorization_code"]
+  }'
+
+# production (https required)
+curl -X POST https://api.example.com/oauth2/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "redirect_uris": ["https://client.example.com/oauth/callback"],
     "client_name": "My MCP Client",
     "grant_types": ["authorization_code"]
   }'
@@ -105,6 +115,8 @@ response:
   "grant_types": ["authorization_code"]
 }
 ```
+
+**callback url security**: redirect_uris using http only permitted for localhost/127.0.0.1 in development. production clients must use https to protect authorization codes from interception.
 
 2. **authorization request**:
 ```

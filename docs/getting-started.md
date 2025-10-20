@@ -38,14 +38,21 @@ export PIERRE_MASTER_ENCRYPTION_KEY="$(openssl rand -base64 32)"
 
 optional provider oauth (connect to strava/garmin/fitbit):
 ```bash
+# local development only
 export STRAVA_CLIENT_ID=your_id
 export STRAVA_CLIENT_SECRET=your_secret
-export STRAVA_REDIRECT_URI=http://localhost:8081/oauth/callback/strava
+export STRAVA_REDIRECT_URI=http://localhost:8081/oauth/callback/strava  # local dev
 
 export GARMIN_CLIENT_ID=your_key
 export GARMIN_CLIENT_SECRET=your_secret
-export GARMIN_REDIRECT_URI=http://localhost:8081/oauth/callback/garmin
+export GARMIN_REDIRECT_URI=http://localhost:8081/oauth/callback/garmin  # local dev
+
+# production: use https for callback urls (required)
+# export STRAVA_REDIRECT_URI=https://api.example.com/oauth/callback/strava
+# export GARMIN_REDIRECT_URI=https://api.example.com/oauth/callback/garmin
 ```
+
+**security**: http callback urls only for local development. production must use https to protect authorization codes.
 
 see `src/constants/mod.rs` for all environment variables.
 

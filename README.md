@@ -110,12 +110,16 @@ export PIERRE_RSA_KEY_SIZE=4096    # RSA key size for JWT signing (default: 4096
 # Fitness provider OAuth (for data integration)
 export STRAVA_CLIENT_ID=your_client_id
 export STRAVA_CLIENT_SECRET=your_client_secret
-export STRAVA_REDIRECT_URI=http://localhost:8081/oauth/callback/strava
+export STRAVA_REDIRECT_URI=http://localhost:8081/oauth/callback/strava  # local dev only
 
 # Garmin Connect OAuth (optional)
 export GARMIN_CLIENT_ID=your_consumer_key
 export GARMIN_CLIENT_SECRET=your_consumer_secret
-export GARMIN_REDIRECT_URI=http://localhost:8081/oauth/callback/garmin
+export GARMIN_REDIRECT_URI=http://localhost:8081/oauth/callback/garmin  # local dev only
+
+# Production: Use HTTPS for callback URLs
+# export STRAVA_REDIRECT_URI=https://api.example.com/oauth/callback/strava
+# export GARMIN_REDIRECT_URI=https://api.example.com/oauth/callback/garmin
 
 # Weather data (optional)
 export OPENWEATHER_API_KEY=your_api_key
@@ -321,14 +325,18 @@ Pierre implements an OAuth 2.0 Authorization Server for MCP client authenticatio
 The Pierre SDK handles this automatically. For manual integration:
 
 ```bash
-# 1. Register OAuth 2.0 client
+# 1. Register OAuth 2.0 client (local development)
 curl -X POST http://localhost:8081/oauth2/register \
   -H "Content-Type: application/json" \
   -d '{
     "redirect_uris": ["http://localhost:35535/oauth/callback"],
-    "client_name": "My MCP Client",
+    "client_name": "My MCP Client (Dev)",
     "grant_types": ["authorization_code"]
   }'
+
+# Production: Use HTTPS callback URLs
+# curl -X POST https://api.example.com/oauth2/register \
+#   -d '{"redirect_uris": ["https://client.example.com/oauth/callback"], ...}'
 
 # Response includes client_id and client_secret
 

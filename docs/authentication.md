@@ -187,16 +187,30 @@ pierre acts as oauth client to fitness providers.
 
 set environment variables:
 ```bash
-# strava
+# strava (local development)
 export STRAVA_CLIENT_ID=your_id
 export STRAVA_CLIENT_SECRET=your_secret
-export STRAVA_REDIRECT_URI=http://localhost:8081/oauth/callback/strava
+export STRAVA_REDIRECT_URI=http://localhost:8081/oauth/callback/strava  # local dev only
 
-# garmin
+# strava (production)
+export STRAVA_REDIRECT_URI=https://api.example.com/oauth/callback/strava  # required
+
+# garmin (local development)
 export GARMIN_CLIENT_ID=your_key
 export GARMIN_CLIENT_SECRET=your_secret
-export GARMIN_REDIRECT_URI=http://localhost:8081/oauth/callback/garmin
+export GARMIN_REDIRECT_URI=http://localhost:8081/oauth/callback/garmin  # local dev only
+
+# garmin (production)
+export GARMIN_REDIRECT_URI=https://api.example.com/oauth/callback/garmin  # required
 ```
+
+**callback url security requirements**:
+- http urls: local development only (localhost/127.0.0.1)
+- https urls: required for production deployments
+- failure to use https in production:
+  - authorization codes transmitted unencrypted
+  - vulnerable to token interception
+  - most providers reject http callbacks in production
 
 ### connecting providers
 
@@ -211,12 +225,18 @@ curl -H "Authorization: Bearer <jwt>" \
   http://localhost:8081/oauth/connect/strava
 ```
 
-opens browser for provider authentication. after approval, redirected to:
-```
+opens browser for provider authentication. after approval, redirected to callback:
+```bash
+# local development
 http://localhost:8081/oauth/callback/strava?code=<auth_code>
+
+# production (https required)
+https://api.example.com/oauth/callback/strava?code=<auth_code>
 ```
 
 pierre exchanges code for access/refresh tokens, stores encrypted.
+
+**security**: authorization codes in callback urls must be protected with tls in production. http callbacks leak codes to network observers.
 
 ### token storage
 
