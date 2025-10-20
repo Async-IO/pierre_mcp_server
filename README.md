@@ -102,6 +102,7 @@ export PIERRE_MASTER_ENCRYPTION_KEY="$(openssl rand -base64 32)"
 export HTTP_PORT=8081              # Server port (default: 8081)
 export RUST_LOG=info               # Log level
 export JWT_EXPIRY_HOURS=24         # JWT token expiry
+export PIERRE_RSA_KEY_SIZE=4096    # RSA key size for JWT signing (default: 4096)
 
 # Fitness provider OAuth (for data integration)
 export STRAVA_CLIENT_ID=your_client_id
@@ -461,6 +462,43 @@ cargo test -- --nocapture
 # Lint and test (comprehensive validation)
 ./scripts/lint-and-test.sh
 ```
+
+### RSA Key Size Configuration
+
+Pierre uses RS256 asymmetric signing for JWT tokens. Key size affects both security and performance:
+
+**Production (4096-bit keys - default)**:
+- Higher security with larger key size
+- Slower key generation (~10 seconds)
+- Use in production environments
+
+**Testing (2048-bit keys)**:
+- Faster key generation (~250ms)
+- Suitable for development and testing
+- Set via environment variable:
+
+```bash
+export PIERRE_RSA_KEY_SIZE=2048
+```
+
+### Test Performance Optimization
+
+Pierre includes a shared test JWKS manager to eliminate RSA key generation overhead:
+
+**Shared Test JWKS Pattern** (implemented in `tests/common.rs:40-52`):
+```rust
+use pierre_mcp_server_integrations::common;
+
+// Reuses shared JWKS manager across all tests (10x faster)
+let jwks_manager = common::get_shared_test_jwks();
+```
+
+**Performance Impact**:
+- **Without optimization**: 100ms+ RSA key generation per test
+- **With shared JWKS**: One-time generation, instant reuse across test suite
+- **Result**: 10x faster test execution
+
+**E2E Tests**: The SDK test suite (`sdk/test/`) automatically uses 2048-bit keys via `PIERRE_RSA_KEY_SIZE=2048` in server startup configuration (`sdk/test/helpers/server.js:82`).
 
 ## Development Tools
 
