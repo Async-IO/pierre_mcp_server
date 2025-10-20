@@ -12,10 +12,13 @@ Pierre MCP Server connects AI assistants to fitness data from Strava, Garmin, an
 
 - **MCP Protocol**: JSON-RPC over HTTP for AI assistant integration
 - **OAuth 2.0 Server**: RFC 7591 dynamic client registration for MCP clients
+- **RS256/JWKS**: Asymmetric JWT signing with public key distribution
 - **A2A Protocol**: Agent-to-agent communication with capability discovery
 - **Multi-Tenancy**: Isolated data and configuration per organization
 - **Real-Time Updates**: Server-Sent Events for OAuth notifications
-- **Plugin System**: Compile-time plugin architecture for fitness analysis
+- **Plugin System**: Compile-time plugin architecture with lifecycle management
+- **PII Redaction**: Middleware for sensitive data removal in logs and responses
+- **Cursor Pagination**: Keyset pagination for consistent large dataset traversal
 - **Intelligent Caching**: LRU cache with TTL for API response optimization
 
 ## Architecture

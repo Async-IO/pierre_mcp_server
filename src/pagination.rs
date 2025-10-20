@@ -19,7 +19,7 @@ impl Cursor {
     /// * `id` - The unique identifier of the item
     #[must_use]
     pub fn new(timestamp: DateTime<Utc>, id: &str) -> Self {
-        let cursor_data = format!("{}:{}", timestamp.timestamp(), id);
+        let cursor_data = format!("{}:{}", timestamp.timestamp_millis(), id);
         let encoded = base64::Engine::encode(
             &base64::engine::general_purpose::URL_SAFE_NO_PAD,
             cursor_data.as_bytes(),
@@ -42,9 +42,9 @@ impl Cursor {
             return None;
         }
 
-        let timestamp = parts[0].parse::<i64>().ok()?;
+        let timestamp_millis = parts[0].parse::<i64>().ok()?;
         let id = parts[1].to_string();
-        let datetime = DateTime::from_timestamp(timestamp, 0)?;
+        let datetime = DateTime::from_timestamp_millis(timestamp_millis)?;
 
         Some((datetime, id))
     }

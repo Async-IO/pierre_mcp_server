@@ -285,6 +285,18 @@ impl DatabaseProvider for Database {
         }
     }
 
+    async fn get_users_by_status_cursor(
+        &self,
+        status: &str,
+        params: &crate::pagination::PaginationParams,
+    ) -> Result<crate::pagination::CursorPage<crate::models::User>> {
+        match self {
+            Self::SQLite(db) => db.get_users_by_status_cursor(status, params).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_users_by_status_cursor(status, params).await,
+        }
+    }
+
     async fn update_user_status(
         &self,
         user_id: uuid::Uuid,

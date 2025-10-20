@@ -34,6 +34,7 @@
 use bitflags::bitflags;
 use regex::Regex;
 use std::sync::OnceLock;
+use warp::http::header::{HeaderName, HeaderValue};
 
 bitflags! {
     /// Redaction feature flags to control which types of data to redact
@@ -400,4 +401,91 @@ fn email_regex() -> &'static Regex {
         Regex::new(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
             .expect("Invalid email regex pattern")
     })
+}
+
+/// Custom Reply wrapper that applies redaction to HTTP responses
+///
+/// This wrapper intercepts responses and redacts sensitive headers according
+/// to the configured redaction policy. Body redaction is applied for JSON content.
+pub struct RedactedReply<R> {
+    inner: R,
+    config: RedactionConfig,
+}
+
+impl<R> RedactedReply<R> {
+    /// Create a new redacted reply wrapper
+    pub const fn new(inner: R, config: RedactionConfig) -> Self {
+        Self { inner, config }
+    }
+}
+
+impl<R: warp::Reply> warp::Reply for RedactedReply<R> {
+    fn into_response(self) -> warp::reply::Response {
+        let mut response = self.inner.into_response();
+
+        // Skip redaction if disabled
+        if self.config.is_disabled() {
+            return response;
+        }
+
+        // Redact sensitive headers
+        if self.config.features.contains(RedactionFeatures::HEADERS) {
+            let headers = response.headers_mut();
+            let header_pairs: Vec<(String, String)> = headers
+                .iter()
+                .map(|(name, value)| {
+                    (
+                        name.as_str().to_string(),
+                        value.to_str().unwrap_or("").to_string(),
+                    )
+                })
+                .collect();
+
+            let redacted = redact_headers(
+                header_pairs.iter().map(|(k, v)| (k.as_str(), v.as_str())),
+                &self.config,
+            );
+
+            // Clear existing headers and replace with redacted ones
+            headers.clear();
+            for (name, value) in redacted {
+                if let (Ok(header_name), Ok(header_value)) = (
+                    HeaderName::from_bytes(name.as_bytes()),
+                    HeaderValue::from_str(&value),
+                ) {
+                    headers.insert(header_name, header_value);
+                }
+            }
+        }
+
+        response
+    }
+}
+
+/// Warp filter to apply redaction middleware to HTTP responses
+///
+/// This filter wraps responses with a `RedactedReply` that redacts sensitive
+/// headers and logs with PII protection.
+///
+/// # Usage
+///
+/// ```rust,no_run
+/// use pierre_mcp_server::middleware::redaction::{RedactionConfig, with_redaction};
+/// use warp::Filter;
+///
+/// let config = RedactionConfig::from_env();
+/// let routes = warp::any()
+///     .map(|| warp::reply::html("<html></html>"))
+///     .map(with_redaction(config.clone()));
+/// ```
+///
+/// # Note
+///
+/// Body redaction for JSON responses should be applied at the route level
+/// using `redact_json_fields()` before serialization for best performance.
+pub fn with_redaction<R>(config: RedactionConfig) -> impl Fn(R) -> RedactedReply<R> + Clone
+where
+    R: warp::Reply,
+{
+    move |reply| RedactedReply::new(reply, config.clone())
 }

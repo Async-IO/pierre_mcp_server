@@ -175,6 +175,69 @@ stateless server design. scale by adding instances behind load balancer. shared 
 - weather data: configurable ttl
 - future: redis for distributed cache
 
+## plugin lifecycle
+
+compile-time plugin system using `linkme` crate for intelligence modules.
+
+plugins stored in `src/intelligence/plugins/`:
+- zone-based intensity analysis
+- training recommendations
+- performance trend detection
+- goal feasibility analysis
+
+lifecycle hooks:
+- `init()` - plugin initialization
+- `execute()` - tool execution
+- `validate()` - parameter validation
+- `cleanup()` - resource cleanup
+
+plugins registered at compile time via `#[distributed_slice(PLUGINS)]` attribute.
+no runtime loading, zero overhead plugin discovery.
+
+implementation: `src/intelligence/plugins/mod.rs`, `src/lifecycle/`
+
+## pii redaction
+
+middleware layer removes sensitive data from logs and responses.
+
+redacted fields:
+- email addresses
+- passwords
+- tokens (jwt, oauth, api keys)
+- user ids
+- tenant ids
+
+redaction patterns:
+- email: `***@***.***`
+- token: `[REDACTED-<type>]`
+- uuid: `[REDACTED-UUID]`
+
+enabled via `LOG_FORMAT=json` for structured logging.
+implementation: `src/middleware/redaction.rs`
+
+## cursor pagination
+
+keyset pagination using composite cursor (`created_at`, `id`) for consistent ordering.
+
+benefits:
+- no duplicate results during data changes
+- stable pagination across pages
+- efficient for large datasets
+
+cursor format: base64-encoded json with timestamp (milliseconds) + id.
+
+example:
+```
+cursor: "eyJ0aW1lc3RhbXAiOjE3MDAwMDAwMDAsImlkIjoiYWJjMTIzIn0="
+decoded: {"timestamp":1700000000,"id":"abc123"}
+```
+
+endpoints using cursor pagination:
+- `GET /admin/users/pending?cursor=<cursor>&limit=20`
+- `GET /admin/users/active?cursor=<cursor>&limit=20`
+
+implementation: `src/pagination/`, `src/database/users.rs:668-737`, `src/database_plugins/postgres.rs:378-420`
+
 ## monitoring
 
 health endpoint: `GET /health`

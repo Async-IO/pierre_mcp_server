@@ -88,6 +88,14 @@ impl DatabaseProvider for SqliteDatabase {
         self.inner.get_users_by_status(status).await
     }
 
+    async fn get_users_by_status_cursor(
+        &self,
+        status: &str,
+        params: &crate::pagination::PaginationParams,
+    ) -> Result<crate::pagination::CursorPage<User>> {
+        self.inner.get_users_by_status_cursor(status, params).await
+    }
+
     async fn update_user_status(
         &self,
         user_id: Uuid,

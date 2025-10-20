@@ -64,6 +64,13 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// Get users by status (pending, active, suspended)
     async fn get_users_by_status(&self, status: &str) -> Result<Vec<User>>;
 
+    /// Get users by status with cursor-based pagination
+    async fn get_users_by_status_cursor(
+        &self,
+        status: &str,
+        params: &crate::pagination::PaginationParams,
+    ) -> Result<crate::pagination::CursorPage<User>>;
+
     /// Update user status and approval information
     async fn update_user_status(
         &self,

@@ -6,6 +6,7 @@
 
 use super::Database;
 use crate::models::{EncryptedToken, User, UserStatus};
+use crate::pagination::{Cursor, CursorPage, PaginationParams};
 use anyhow::{anyhow, Result};
 use sqlx::Row;
 use uuid::Uuid;
@@ -642,7 +643,7 @@ impl Database {
         Ok(())
     }
 
-    /// Get users by status
+    /// Get users by status (offset-based - legacy)
     ///
     /// # Errors
     ///
@@ -660,6 +661,110 @@ impl Database {
         }
 
         Ok(users)
+    }
+
+    /// Get users by status with cursor-based pagination
+    ///
+    /// Implements efficient keyset pagination using (`created_at`, `id`) composite cursor
+    /// to prevent duplicates and missing items when data changes during pagination.
+    ///
+    /// # Arguments
+    ///
+    /// * `status` - User status filter ("pending", "active", "suspended")
+    /// * `params` - Pagination parameters (cursor, limit, direction)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails or cursor is invalid
+    pub async fn get_users_by_status_cursor(
+        &self,
+        status: &str,
+        params: &PaginationParams,
+    ) -> Result<CursorPage<User>> {
+        // Fetch one extra item to determine if there are more pages
+        let fetch_limit = params.limit + 1;
+
+        // Convert to i64 for SQL LIMIT clause (pagination limits are always reasonable)
+        let fetch_limit_i64 =
+            i64::try_from(fetch_limit).map_err(|_| anyhow!("Pagination limit too large"))?;
+
+        let (query, cursor_timestamp, cursor_id) = if let Some(ref cursor) = params.cursor {
+            // Decode cursor to get position
+            let (timestamp, id) = cursor
+                .decode()
+                .ok_or_else(|| anyhow!("Invalid cursor format"))?;
+
+            // Cursor-based query: WHERE (created_at, id) < (cursor_created_at, cursor_id)
+            // This ensures consistent pagination even when new items are added
+            let query = r"
+                SELECT id, email, display_name, password_hash, tier, tenant_id,
+                       strava_access_token, strava_refresh_token, strava_expires_at, strava_scope, strava_nonce,
+                       fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope, fitbit_nonce,
+                       is_active, user_status, is_admin, approved_by, approved_at, created_at, last_active
+                FROM users
+                WHERE user_status = ?1
+                  AND (created_at < ?2 OR (created_at = ?2 AND id < ?3))
+                ORDER BY created_at DESC, id DESC
+                LIMIT ?4
+            ";
+            (query, Some(timestamp), Some(id))
+        } else {
+            // First page - no cursor
+            let query = r"
+                SELECT id, email, display_name, password_hash, tier, tenant_id,
+                       strava_access_token, strava_refresh_token, strava_expires_at, strava_scope, strava_nonce,
+                       fitbit_access_token, fitbit_refresh_token, fitbit_expires_at, fitbit_scope, fitbit_nonce,
+                       is_active, user_status, is_admin, approved_by, approved_at, created_at, last_active
+                FROM users
+                WHERE user_status = ?1
+                ORDER BY created_at DESC, id DESC
+                LIMIT ?2
+            ";
+            (query, None, None)
+        };
+
+        let rows = if let (Some(ts), Some(id)) = (cursor_timestamp, cursor_id) {
+            sqlx::query(query)
+                .bind(status)
+                .bind(ts)
+                .bind(id)
+                .bind(fetch_limit_i64)
+                .fetch_all(&self.pool)
+                .await?
+        } else {
+            sqlx::query(query)
+                .bind(status)
+                .bind(fetch_limit_i64)
+                .fetch_all(&self.pool)
+                .await?
+        };
+
+        // Convert rows to users
+        let mut all_users: Vec<User> = Vec::new();
+        for row in rows {
+            all_users.push(Self::row_to_user(&row)?);
+        }
+
+        // Check if we fetched more than requested (indicates more pages)
+        let has_more = all_users.len() > params.limit;
+
+        // Trim to requested limit
+        let users: Vec<User> = all_users.into_iter().take(params.limit).collect();
+
+        // Generate next cursor from last item
+        let next_cursor = if has_more {
+            users
+                .last()
+                .map(|user| Cursor::new(user.created_at, &user.id.to_string()))
+        } else {
+            None
+        };
+
+        // For backward pagination, we'd need to implement prev_cursor
+        // For now, we only support forward pagination
+        let prev_cursor = None;
+
+        Ok(CursorPage::new(users, next_cursor, prev_cursor, has_more))
     }
 
     /// Update user status (approve/suspend)

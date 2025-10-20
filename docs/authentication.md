@@ -256,11 +256,44 @@ response:
 
 ### token encryption
 
-- jwt signing: hs256 with 64-byte secret
+- jwt signing: rs256 asymmetric (rsa) or hs256 symmetric
+  - rs256: 4096-bit rsa keys (production), 2048-bit (tests)
+  - hs256: 64-byte secret (legacy)
 - provider tokens: aes-256-gcm
 - encryption keys: two-tier system
   - master key (env: `PIERRE_MASTER_ENCRYPTION_KEY`)
   - tenant keys (derived from master key)
+
+### rs256/jwks
+
+asymmetric signing for distributed token verification.
+
+public keys available at `/admin/jwks`:
+```bash
+curl http://localhost:8081/admin/jwks
+```
+
+response (rfc 7517 compliant):
+```json
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "use": "sig",
+      "kid": "key_id",
+      "n": "modulus_base64url",
+      "e": "exponent_base64url"
+    }
+  ]
+}
+```
+
+clients verify tokens using public key. pierre signs with private key.
+
+benefits:
+- private key never leaves server
+- clients verify without shared secret
+- supports key rotation
 
 ### rate limiting
 

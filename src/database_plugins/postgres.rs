@@ -356,6 +356,125 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(users)
     }
 
+    async fn get_users_by_status_cursor(
+        &self,
+        status: &str,
+        params: &crate::pagination::PaginationParams,
+    ) -> Result<crate::pagination::CursorPage<User>> {
+        use crate::pagination::{Cursor, CursorPage};
+
+        // Validate status
+        let status_enum = match status {
+            "active" => "active",
+            "pending" => "pending",
+            "suspended" => "suspended",
+            _ => return Err(anyhow!("Invalid user status: {status}")),
+        };
+
+        // Fetch one more than requested to determine if there are more items
+        let fetch_limit = params.limit + 1;
+
+        // Convert to i64 for SQL LIMIT clause (pagination limits are always reasonable)
+        let fetch_limit_i64 =
+            i64::try_from(fetch_limit).map_err(|_| anyhow!("Pagination limit too large"))?;
+
+        let (query, cursor_timestamp, cursor_id) = if let Some(ref cursor) = params.cursor {
+            let (timestamp, id) = cursor
+                .decode()
+                .ok_or_else(|| anyhow!("Invalid cursor format"))?;
+
+            let query = r"
+                SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin,
+                       COALESCE(user_status, 'active') as user_status, approved_by, approved_at, created_at, last_active
+                FROM users
+                WHERE COALESCE(user_status, 'active') = $1
+                  AND (created_at < $2 OR (created_at = $2 AND id::text < $3))
+                ORDER BY created_at DESC, id DESC
+                LIMIT $4
+            ";
+            (query, Some(timestamp), Some(id))
+        } else {
+            let query = r"
+                SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin,
+                       COALESCE(user_status, 'active') as user_status, approved_by, approved_at, created_at, last_active
+                FROM users
+                WHERE COALESCE(user_status, 'active') = $1
+                ORDER BY created_at DESC, id DESC
+                LIMIT $2
+            ";
+            (query, None, None)
+        };
+
+        // Execute query with appropriate parameters
+        let rows = if let (Some(ts), Some(id)) = (cursor_timestamp, cursor_id) {
+            sqlx::query(query)
+                .bind(status_enum)
+                .bind(ts)
+                .bind(id)
+                .bind(fetch_limit_i64)
+                .fetch_all(&self.pool)
+                .await?
+        } else {
+            sqlx::query(query)
+                .bind(status_enum)
+                .bind(fetch_limit_i64)
+                .fetch_all(&self.pool)
+                .await?
+        };
+
+        // Parse rows into User structs
+        let mut users = Vec::new();
+        for row in rows {
+            let user_status_str: String = row.get("user_status");
+            let user_status = match user_status_str.as_str() {
+                "pending" => crate::models::UserStatus::Pending,
+                "suspended" => crate::models::UserStatus::Suspended,
+                _ => crate::models::UserStatus::Active,
+            };
+
+            users.push(User {
+                id: row.get("id"),
+                email: row.get("email"),
+                display_name: row.get("display_name"),
+                password_hash: row.get("password_hash"),
+                tier: {
+                    let tier_str: String = row.get("tier");
+                    match tier_str.as_str() {
+                        tiers::PROFESSIONAL => UserTier::Professional,
+                        tiers::ENTERPRISE => UserTier::Enterprise,
+                        _ => UserTier::Starter,
+                    }
+                },
+                tenant_id: row.get("tenant_id"),
+                strava_token: None,
+                fitbit_token: None,
+                is_active: row.get("is_active"),
+                user_status,
+                is_admin: row.try_get("is_admin").unwrap_or(false),
+                approved_by: row.get("approved_by"),
+                approved_at: row.get("approved_at"),
+                created_at: row.get("created_at"),
+                last_active: row.get("last_active"),
+            });
+        }
+
+        // Determine if there are more items
+        let has_more = users.len() > params.limit;
+        if has_more {
+            users.pop(); // Remove the extra item we fetched
+        }
+
+        // Generate next cursor from the last item
+        let next_cursor = if has_more && !users.is_empty() {
+            let last_user = users.last().expect("Users should not be empty");
+            Some(Cursor::new(last_user.created_at, &last_user.id.to_string()))
+        } else {
+            None
+        };
+
+        Ok(CursorPage::new(users, next_cursor, None, has_more))
+    }
+
     async fn update_user_status(
         &self,
         user_id: Uuid,
