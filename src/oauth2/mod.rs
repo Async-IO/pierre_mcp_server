@@ -7,6 +7,7 @@
 pub mod client_registration;
 pub mod endpoints;
 pub mod models;
+pub mod rate_limiting;
 pub mod routes;
 
 // RFC 7591 client registration management
@@ -23,3 +24,9 @@ pub use models::{
 
 // OAuth 2.0 HTTP route handlers
 pub use routes::oauth2_routes;
+
+// OAuth 2.0 rate limiting
+pub use rate_limiting::{
+    handle_rate_limit_rejection, with_rate_limit_headers, OAuth2RateLimitExceeded,
+    OAuth2RateLimiter,
+};

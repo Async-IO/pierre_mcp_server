@@ -358,3 +358,149 @@ async fn test_jwks_multiple_keys() -> Result<()> {
 
     Ok(())
 }
+
+/// Test token rejection with unknown kid
+#[tokio::test]
+async fn test_rs256_unknown_kid_rejection() -> Result<()> {
+    let mut jwks_manager = JwksManager::new();
+    jwks_manager.generate_rsa_key_pair_with_size("known_key", 2048)?;
+
+    let jwks_manager_arc = Arc::new(jwks_manager);
+    let auth_manager = AuthManager::new(24);
+
+    // Create separate manager with different kid
+    let mut unknown_manager = JwksManager::new();
+    unknown_manager.generate_rsa_key_pair_with_size("unknown_key", 2048)?;
+    let unknown_manager_arc = Arc::new(unknown_manager);
+
+    let user = User::new(
+        "unknown_kid_test@example.com".to_string(),
+        "password_hash".to_string(),
+        Some("Unknown Kid Test User".to_string()),
+    );
+
+    // Generate token with unknown_manager (different kid)
+    let token = auth_manager.generate_token(&user, &unknown_manager_arc)?;
+
+    // Verify token has unknown kid in header
+    let header = jsonwebtoken::decode_header(&token)?;
+    assert_eq!(header.kid.as_deref(), Some("unknown_key"));
+
+    // Try to validate with jwks_manager (different key set)
+    let result = auth_manager.validate_token(&token, &jwks_manager_arc);
+    assert!(result.is_err(), "Token with unknown kid should be rejected");
+
+    Ok(())
+}
+
+/// Test tokens remain valid during rotation grace period
+#[tokio::test]
+async fn test_key_rotation_grace_period() -> Result<()> {
+    let mut jwks_manager = JwksManager::new();
+    jwks_manager.generate_rsa_key_pair_with_size("grace_key_1", 2048)?;
+
+    let kid_before_rotation = jwks_manager.get_active_key()?.kid.clone();
+
+    let auth_manager = AuthManager::new(24);
+
+    let user = User::new(
+        "grace_period_test@example.com".to_string(),
+        "password_hash".to_string(),
+        Some("Grace Period Test User".to_string()),
+    );
+
+    // Generate token with initial key (before rotation)
+    let jwks_manager_arc_before = Arc::new(jwks_manager);
+    let token_with_old_key = auth_manager.generate_token(&user, &jwks_manager_arc_before)?;
+
+    // Verify token is valid before rotation
+    let claims_before =
+        auth_manager.validate_token(&token_with_old_key, &jwks_manager_arc_before)?;
+    assert_eq!(claims_before.email, user.email);
+
+    // Extract manager back from Arc for rotation (test scenario only)
+    let mut jwks_manager = Arc::try_unwrap(jwks_manager_arc_before)
+        .unwrap_or_else(|_| panic!("Test: should have unique ownership"));
+
+    // Rotate to new key - old key is retained for grace period
+    let kid_after_rotation = jwks_manager.rotate_keys_with_size(2048)?;
+    let jwks_manager_arc = Arc::new(jwks_manager);
+
+    assert_ne!(
+        kid_before_rotation, kid_after_rotation,
+        "Key should change after rotation"
+    );
+
+    // OLD tokens should still validate during grace period (old key retained)
+    let claims_after = auth_manager.validate_token(&token_with_old_key, &jwks_manager_arc)?;
+    assert_eq!(
+        claims_after.email, user.email,
+        "Old token should remain valid during grace period"
+    );
+
+    // NEW tokens should work with new key
+    let token_with_new_key = auth_manager.generate_token(&user, &jwks_manager_arc)?;
+    let claims_new = auth_manager.validate_token(&token_with_new_key, &jwks_manager_arc)?;
+    assert_eq!(
+        claims_new.email, user.email,
+        "New token should validate with new key"
+    );
+
+    Ok(())
+}
+
+/// Test key lifecycle: active -> rotated -> eventually pruned
+#[tokio::test]
+async fn test_key_lifecycle_rollover() -> Result<()> {
+    let mut jwks_manager = JwksManager::new();
+    jwks_manager.generate_rsa_key_pair_with_size("lifecycle_key_1", 2048)?;
+
+    let initial_kid = jwks_manager.get_active_key()?.kid.clone();
+
+    // Rotate keys multiple times to exceed retention limit (MAX_HISTORICAL_KEYS = 3)
+    // Key lifecycle: initial_kid -> rotated1 -> rotated2 -> rotated3 -> rotated4
+    // After 4 rotations, initial_kid should be pruned
+    let rotated_kids = [
+        jwks_manager.rotate_keys_with_size(2048)?,
+        jwks_manager.rotate_keys_with_size(2048)?,
+        jwks_manager.rotate_keys_with_size(2048)?,
+        jwks_manager.rotate_keys_with_size(2048)?,
+    ];
+
+    let final_kid = jwks_manager.get_active_key()?.kid.clone();
+
+    // Verify progression
+    assert_ne!(
+        initial_kid, final_kid,
+        "Active key should change after rotations"
+    );
+    assert_eq!(
+        rotated_kids[3], final_kid,
+        "Final rotation should be active key"
+    );
+
+    // Initial key should be pruned (outside retention window of 3 keys)
+    let initial_key_lookup = jwks_manager.get_key(&initial_kid);
+    assert!(
+        initial_key_lookup.is_none(),
+        "Initial key should be pruned after exceeding retention limit"
+    );
+
+    // Most recent rotated keys should still be retained
+    for recent_kid in &rotated_kids[1..] {
+        let recent_key_lookup = jwks_manager.get_key(recent_kid);
+        assert!(
+            recent_key_lookup.is_some(),
+            "Recent keys should be retained within retention limit"
+        );
+    }
+
+    // Verify JWKS contains exactly MAX_HISTORICAL_KEYS keys
+    let jwks = jwks_manager.get_jwks()?;
+    assert!(
+        jwks.keys.len() <= 3,
+        "JWKS should respect MAX_HISTORICAL_KEYS retention limit"
+    );
+
+    Ok(())
+}

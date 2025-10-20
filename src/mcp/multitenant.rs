@@ -283,13 +283,15 @@ impl MultiTenantMcpServer {
     ) -> impl warp::Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         use warp::Filter;
 
+        tracing::debug!("Setting up main application routes for port {}", port);
+
         let auth_filter = Self::create_auth_routes(auth_routes);
         let oauth_filter = Self::create_oauth_routes(oauth_routes, resources);
         let oauth2_server = oauth2_routes(
             resources.database.clone(),
             &resources.auth_manager,
             &resources.jwks_manager,
-            port,
+            &resources.config,
         );
         let api_key_filter = Self::create_api_key_routes(
             &api_key_routes,

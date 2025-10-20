@@ -541,3 +541,93 @@ impl Default for UnifiedRateLimitCalculator {
         Self::new()
     }
 }
+
+/// `OAuth2`-specific rate limit configuration
+#[derive(Debug, Clone)]
+pub struct OAuth2RateLimitConfig {
+    /// Requests per minute for authorization endpoint
+    pub authorize_rpm: u32,
+    /// Requests per minute for token endpoint
+    pub token_rpm: u32,
+    /// Requests per minute for registration endpoint
+    pub register_rpm: u32,
+}
+
+impl OAuth2RateLimitConfig {
+    /// Create new `OAuth2` rate limit configuration with defaults
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            authorize_rpm: 60, // 1 per second
+            token_rpm: 30,     // 1 per 2 seconds
+            register_rpm: 10,  // 1 per 6 seconds
+        }
+    }
+
+    /// Create custom `OAuth2` rate limit configuration
+    #[must_use]
+    pub const fn custom(authorize_rpm: u32, token_rpm: u32, register_rpm: u32) -> Self {
+        Self {
+            authorize_rpm,
+            token_rpm,
+            register_rpm,
+        }
+    }
+
+    /// Get rate limit for specific `OAuth2` endpoint
+    #[must_use]
+    pub fn get_limit(&self, endpoint: &str) -> u32 {
+        match endpoint {
+            "authorize" => self.authorize_rpm,
+            "token" => self.token_rpm,
+            "register" => self.register_rpm,
+            _ => 60,
+        }
+    }
+}
+
+impl Default for OAuth2RateLimitConfig {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// `OAuth2` rate limit status including retry information
+#[derive(Debug, Clone, Serialize)]
+pub struct OAuth2RateLimitStatus {
+    /// Whether the request is rate limited
+    pub is_limited: bool,
+    /// Maximum requests allowed per minute
+    pub limit: u32,
+    /// Remaining requests in the current minute
+    pub remaining: u32,
+    /// When the rate limit resets (Unix timestamp)
+    pub reset_at: i64,
+    /// Seconds until rate limit resets (for Retry-After header)
+    pub retry_after_seconds: Option<u32>,
+}
+
+impl OAuth2RateLimitStatus {
+    /// Calculate retry-after seconds from reset timestamp
+    #[must_use]
+    pub fn with_retry_after(mut self) -> Self {
+        if self.is_limited {
+            let now = Utc::now().timestamp();
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            // Safe: retry_after is always positive (max(0)) and bounded by 60 seconds (rate limit window)
+            let retry_after = ((self.reset_at - now).max(0)) as u32;
+            self.retry_after_seconds = Some(retry_after);
+        }
+        self
+    }
+
+    /// Get next reset time (start of next minute)
+    #[must_use]
+    pub fn calculate_reset() -> DateTime<Utc> {
+        let now = Utc::now();
+        now.with_second(0)
+            .and_then(|dt| dt.with_nanosecond(0))
+            .unwrap_or(now)
+            + chrono::Duration::minutes(1)
+    }
+}

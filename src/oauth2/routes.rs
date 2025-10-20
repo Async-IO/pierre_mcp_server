@@ -27,7 +27,7 @@ pub fn oauth2_routes(
     database: Arc<Database>,
     auth_manager: &Arc<AuthManager>,
     jwks_manager: &Arc<JwksManager>,
-    http_port: u16,
+    config: &Arc<crate::config::environment::ServerConfig>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     let client_registration_routes = client_registration_routes(database.clone());
     let authorization_routes = authorization_routes(database.clone(), auth_manager, jwks_manager);
@@ -48,7 +48,7 @@ pub fn oauth2_routes(
     );
 
     // Discovery route at root level (RFC 8414 compliance)
-    let discovery_route = oauth2_discovery_route(http_port);
+    let discovery_route = oauth2_discovery_route(&config.oauth2_server.issuer_url);
 
     // JWKS endpoint at well-known location (OIDC/OAuth2 standard)
     let well_known_jwks_route = warp::path!(".well-known" / "jwks.json")
@@ -64,19 +64,18 @@ pub fn oauth2_routes(
 
 /// OAuth 2.0 discovery route (RFC 8414)
 fn oauth2_discovery_route(
-    http_port: u16,
+    issuer_url: &str,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    let issuer_url = issuer_url.to_string(); // Safe: captured for warp filter closure lifetime
     warp::path!(".well-known" / "oauth-authorization-server")
         .and(warp::get())
         .map(move || {
-            // Default to localhost per RFC 8414 - production deployments use reverse proxy
-            let host = "localhost";
-            let base_url = format!("http://{host}:{http_port}");
             warp::reply::json(&serde_json::json!({
-                "issuer": base_url,
-                "authorization_endpoint": format!("{}/oauth2/authorize", base_url),
-                "token_endpoint": format!("{}/oauth2/token", base_url),
-                "registration_endpoint": format!("{}/oauth2/register", base_url),
+                "issuer": issuer_url,
+                "authorization_endpoint": format!("{}/oauth2/authorize", issuer_url),
+                "token_endpoint": format!("{}/oauth2/token", issuer_url),
+                "registration_endpoint": format!("{}/oauth2/register", issuer_url),
+                "jwks_uri": format!("{}/.well-known/jwks.json", issuer_url),
                 "grant_types_supported": ["authorization_code", "client_credentials", "refresh_token"],
                 "response_types_supported": ["code"],
                 "token_endpoint_auth_methods_supported": ["client_secret_post", "client_secret_basic"],
@@ -943,14 +942,24 @@ async fn handle_jwks(jwks_manager: Arc<JwksManager>) -> Result<impl Reply, Rejec
     match jwks_manager.get_jwks() {
         Ok(jwks) => {
             tracing::debug!("JWKS endpoint accessed, returning {} keys", jwks.keys.len());
-            Ok(warp::reply::json(&jwks))
+            let json = warp::reply::json(&jwks);
+            Ok(warp::reply::with_header(
+                json,
+                "Cache-Control",
+                "public, max-age=3600",
+            ))
         }
         Err(e) => {
             tracing::error!("Failed to generate JWKS: {}", e);
             // Return empty JWKS on error (graceful degradation)
-            Ok(warp::reply::json(&serde_json::json!({
+            let json = warp::reply::json(&serde_json::json!({
                 "keys": []
-            })))
+            }));
+            Ok(warp::reply::with_header(
+                json,
+                "Cache-Control",
+                "public, max-age=3600",
+            ))
         }
     }
 }

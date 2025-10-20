@@ -281,12 +281,25 @@ pub struct OAuthProviderConfig {
 }
 
 /// `OAuth2` authorization server configuration (for Pierre acting as OAuth server)
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuth2ServerConfig {
+    /// `OAuth2` issuer URL for RFC 8414 discovery (format: <https://your-domain.com>)
+    /// MUST be set in production to actual deployment domain. Defaults to `http://localhost:PORT` in development.
+    pub issuer_url: String,
     /// Default email for OAuth login page (dev/test only - do not use in production)
     pub default_login_email: Option<String>,
     /// Default password for OAuth login page (dev/test only - NEVER use in production!)
     pub default_login_password: Option<String>,
+}
+
+impl Default for OAuth2ServerConfig {
+    fn default() -> Self {
+        Self {
+            issuer_url: "http://localhost:8081".to_string(),
+            default_login_email: None,
+            default_login_password: None,
+        }
+    }
 }
 
 /// Per-route timeout configuration for database, API, and SSE operations
@@ -972,7 +985,10 @@ impl ServerConfig {
 
     /// Load `OAuth2` authorization server configuration from environment
     fn load_oauth2_server_config() -> OAuth2ServerConfig {
+        let http_port = env_config::server_port();
         OAuth2ServerConfig {
+            issuer_url: env::var("OAUTH2_ISSUER_URL")
+                .unwrap_or_else(|_| format!("http://localhost:{http_port}")),
             default_login_email: env::var("OAUTH_DEFAULT_EMAIL").ok(),
             default_login_password: env::var("OAUTH_DEFAULT_PASSWORD").ok(),
         }
